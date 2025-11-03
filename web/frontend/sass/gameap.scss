@@ -1,0 +1,52 @@
+body {
+  font-size: 14px;
+}
+
+.row-eq {
+  display: flex;
+  display: -webkit-flex;
+  flex-wrap: wrap;
+}
+
+.form-group.deletable input {
+  width: calc(100% - 40px);
+  display: inline-block;
+}
+
+.form-group.deletable .btn {
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+.logo {
+  max-width: 300px;
+  max-height: 35px;
+  margin-left: 30px;
+}
+
+.logo-mini {
+  max-width: 35px;
+  max-height: 35px;
+  margin-right: 10px;
+}
+
+.copyright {
+  margin-top: 1rem;
+  border-top: 1px solid #D0D0D0;
+  text-align: center;
+  font-size: 11px;
+  padding: 10px;
+}
+
+input.terminal-input {
+  margin-bottom: 0;
+  border: 0 !important;
+  background: transparent !important;
+  color: #FFF;
+  outline: none;
+  display: inline;
+}
+
+.bg-black {
+  background: #222;
+}

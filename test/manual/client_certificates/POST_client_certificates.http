@@ -1,0 +1,64 @@
+POST {{host}}/api/client_certificates
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+Authorization: Bearer {{authToken}}
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="certificate"; filename="client.crt"
+Content-Type: application/x-x509-ca-cert
+
+-----BEGIN CERTIFICATE-----
+MIIDAjCCAeoCEF+513E1n9OiNa3D8VL+SCkwDQYJKoZIhvcNAQELBQAwMjELMAkG
+A1UEBhMCUlUxDzANBgNVBAoMBkdhbWVBUDESMBAGA1UEAwwJR2FtZUFQIENBMB4X
+DTI1MDkxODE4MjA1M1oXDTM1MDkxODE4MjA1M1owKDEPMA0GA1UECgwGR2FtZUFQ
+MRUwEwYDVQQDDAxlMTE4M2JmODVjMGMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
+ggEKAoIBAQCsKDSASjS2YuRxfUB1Mg2QDx6iKKJ9gVCzFNtJ5zr8pTy4rA/LDW0u
+B+IXkAubRjh70mk2A0rorOJRijzKGfm0dxjFXYyOUom1VrLqmnmOBEVDY4TtSi/9
+MO3yI/Mt67+qPkLxcYjdn2WzQTnG25kbzjRrYNOAkxaZHOQ9/mjT+AFigoNqVpyy
+6yWHcH5nsXYxnf/6CrS0leroHZFPqf6qQcjmObr3MVeJwZm8m2Ah4ZTeJsB10zFo
+e6XCG5M5nqZF9rvdZ5g+9rvk8kmXD4FIBJ3aj9jYPnDglN/gILc0794/EMcIV+ho
+OZ/Y4cKcHUq3T3NH4LTfFHs1dp3Gx+v7AgMBAAGjIzAhMB8GA1UdIwQYMBaAFLZ1
+m82qyDalcjtcfIOBgtIZtn1zMA0GCSqGSIb3DQEBCwUAA4IBAQADrL/EEJl3w9sF
+3nG17c6JwQolLfLu5RdYQfIVJYyixmsFszjDAg1kM4eCb4+863uNEWQIiENpOQKS
+B7pNGot+qhSNWMIB2SG4I7t84cG3g3WWNPe+lrliveaP/f2RSga0HmnspaTv48vI
+5v0KwMzxYJy6qkyA6BMA0Bh9JLp5sKWS2c2cwuVz4b4hg1I9vQXueZtPQ8+7dr06
+rDh0OwALWVv74BMaUZgSE8FXazc2HWawSTfnPfidOAQBbOVfcWI7w73/fMiu6VQQ
+ZEYUQZQX/+KjMkzodxA9x/cmw0tfRgn1HEhSJwkAyb6JC7w3/nyPxt13PGhb6QfC
+aQnb1+Re
+-----END CERTIFICATE-----
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="private_key"; filename="client.key"
+Content-Type: application/x-iwork-keynote-sffkey
+
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCsKDSASjS2YuRx
+fUB1Mg2QDx6iKKJ9gVCzFNtJ5zr8pTy4rA/LDW0uB+IXkAubRjh70mk2A0rorOJR
+ijzKGfm0dxjFXYyOUom1VrLqmnmOBEVDY4TtSi/9MO3yI/Mt67+qPkLxcYjdn2Wz
+QTnG25kbzjRrYNOAkxaZHOQ9/mjT+AFigoNqVpyy6yWHcH5nsXYxnf/6CrS0lero
+HZFPqf6qQcjmObr3MVeJwZm8m2Ah4ZTeJsB10zFoe6XCG5M5nqZF9rvdZ5g+9rvk
+8kmXD4FIBJ3aj9jYPnDglN/gILc0794/EMcIV+hoOZ/Y4cKcHUq3T3NH4LTfFHs1
+dp3Gx+v7AgMBAAECggEAIZCXJ9oP6+1c/7l9Wzweg9NG1DPa9mBDhR7QYFjKWd63
+d4PoclzUSBC2ZoSplqT6tz1/UM4UiUfHukEa+AZXdnVv6W8DS+5Qtf/I00+52lP/
+0xMwo/j+YT1sbvTOYUog7MbF04AgwKDmuavCYYCIGfE6rCLNKbjDw6dr4qBa/NR/
+b3WnRifHom0JtRFp4fiZ6n6IFw9yhAbQNZPnRwpCRt5y74M7WPe23jAWmP5tQxLA
+qaaoHubMHFmiOOliqcpJX1XExuOu61EHFZ75nQ6RnKIATI7vFnFGrkXoNnuSoqjg
+1FGYAs4XuJ5CK5/t2ei3w8fkWoE9wSTUi1kPitdbRQKBgQDyXxlLPhsz+NBJARue
+9kYgO5pfeoLElsVaRuHCLJvkDXJ876JMSKQ4mP/7yDzipOSEg8BUsyJTdIh7e9HY
+yVx8X+qYUPDff/02Vo1MqOtwzCcPlqIZkK+7KeXHFDwFTJ5edKDD9StaBGcaZDyM
+4TvzbevOTxmbSeHNAByV8a/NbwKBgQC11mFNA2OiTddXDtld4KpHV+hEZPk8T5h7
+TfR6BLiWWPS596ZpVqU/HnUgeOvvBx79IZqWUvx1qqqJOHYnpZ+N+NuPrPOgAzSo
+WruD8mosm/g5VbmuyHJeFq5TZtR5XQsTWzGLrVKsNUfsAhyuLMoBp/t9GAAvYigT
+/mcqdxncNQKBgQCfVMsg/qwNZ3UteO/6eTWyfNxIBhavO9pzNYO2DXNR4VExNqt/
+8IUcu+AUWhdEe1fKkX4/cB+Rs1sBqm1SUVVeYgOrrBIdK1t/fDiZe7aDSYIoKkNY
+ARi1Np7aV7/5T9wQhiUljSe5nolU/S4dAvhRWCKbVr6jqlcpV/hyzhZfOwKBgGjt
+GN5wuzh3xG/XALT8JCXg4wU8YtlbcLiOJimWudD/6c+5yMv2FIqUj6+6NyKJsGcO
+0f42Srm3Toq6Cuwb1TL+S+vfOAG4d9VB7fxYkM3G/nhPMENcJSqH2fYEW0zg1LhJ
+ohBgZlk6sZLNMTGMZNCJ10O66rhs4oWPAobtjP2VAoGAYJV8BfxwQR2MUf9+TJ7x
+x/W3Xw7RMmUZtM37CNlqQVmK9go8zNR+9LzENLBAzBhfiwFeMArWHgItFz46XB82
+t5zsMIXvElGQIUb7H6Q219xlXgwjIcVdAxz+4gcifTW6eG2OGqT3hWfw3POiIRE4
+/Ly0z0oyYq0g4Q/CbAOpJfo=
+-----END PRIVATE KEY-----
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="private_key_pass"
+
+test_password
+------WebKitFormBoundary7MA4YWxkTrZu0gW--

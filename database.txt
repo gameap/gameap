@@ -1,0 +1,355 @@
++------------------------+
+| Tables_in_gameap       |
++------------------------+
+| abilities              |
+| assigned_roles         |
+| client_certificates    |
+| dedicated_servers      |
+| ds_stats               |
+| ds_users               |
+| game_mods              |
+| games                  |
+| gdaemon_tasks          |
+| jobs                   |
+| migrations             |
+| password_resets        |
+| permissions            |
+| personal_access_tokens |
+| roles                  |
+| server_user            |
+| servers                |
+| servers_settings       |
+| servers_stats          |
+| servers_tasks          |
+| servers_tasks_fails    |
+| users                  |
++------------------------+
+
+TABLE: abilities
++-------------+------------------+------+-----+---------+----------------+
+| Field       | Type             | Null | Key | Default | Extra          |
++-------------+------------------+------+-----+---------+----------------+
+| id          | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| name        | varchar(128)     | NO   |     | NULL    |                |
+| title       | varchar(128)     | YES  |     | NULL    |                |
+| entity_id   | int(10) unsigned | YES  |     | NULL    |                |
+| entity_type | varchar(128)     | YES  |     | NULL    |                |
+| only_owned  | tinyint(1)       | NO   |     | 0       |                |
+| options     | text             | YES  |     | NULL    |                |
+| scope       | int(11)          | YES  | MUL | NULL    |                |
+| created_at  | timestamp        | YES  |     | NULL    |                |
+| updated_at  | timestamp        | YES  |     | NULL    |                |
++-------------+------------------+------+-----+---------+----------------+
+TABLE: assigned_roles
++--------------------+------------------+------+-----+---------+----------------+
+| Field              | Type             | Null | Key | Default | Extra          |
++--------------------+------------------+------+-----+---------+----------------+
+| id                 | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| role_id            | int(10) unsigned | NO   | MUL | NULL    |                |
+| entity_id          | int(10) unsigned | NO   | MUL | NULL    |                |
+| entity_type        | varchar(128)     | NO   |     | NULL    |                |
+| restricted_to_id   | int(10) unsigned | YES  |     | NULL    |                |
+| restricted_to_type | varchar(128)     | YES  |     | NULL    |                |
+| scope              | int(11)          | YES  | MUL | NULL    |                |
++--------------------+------------------+------+-----+---------+----------------+
+TABLE: client_certificates
++------------------+------------------+------+-----+---------+----------------+
+| Field            | Type             | Null | Key | Default | Extra          |
++------------------+------------------+------+-----+---------+----------------+
+| id               | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| fingerprint      | varchar(128)     | NO   |     | NULL    |                |
+| expires          | timestamp        | NO   |     | NULL    |                |
+| certificate      | varchar(128)     | NO   |     | NULL    |                |
+| private_key      | varchar(128)     | NO   |     | NULL    |                |
+| private_key_pass | varchar(128)     | YES  |     | NULL    |                |
++------------------+------------------+------+-----+---------+----------------+
+TABLE: dedicated_servers
++-----------------------+--------------------------------------------------------+------+-----+---------+----------------+
+| Field                 | Type                                                   | Null | Key | Default | Extra          |
++-----------------------+--------------------------------------------------------+------+-----+---------+----------------+
+| id                    | int(10) unsigned                                       | NO   | PRI | NULL    | auto_increment |
+| enabled               | tinyint(1)                                             | NO   |     | 0       |                |
+| name                  | varchar(128)                                           | NO   |     | NULL    |                |
+| os                    | varchar(128)                                           | NO   |     | linux   |                |
+| location              | varchar(128)                                           | NO   |     | NULL    |                |
+| provider              | varchar(128)                                           | YES  |     | NULL    |                |
+| ip                    | text                                                   | NO   |     | NULL    |                |
+| ram                   | varchar(128)                                           | YES  |     | NULL    |                |
+| cpu                   | varchar(128)                                           | YES  |     | NULL    |                |
+| work_path             | varchar(128)                                           | NO   |     | NULL    |                |
+| steamcmd_path         | varchar(128)                                           | YES  |     | NULL    |                |
+| gdaemon_host          | varchar(128)                                           | NO   |     | NULL    |                |
+| gdaemon_port          | int(10) unsigned                                       | NO   |     | 31717   |                |
+| gdaemon_api_key       | varchar(128)                                           | NO   |     | NULL    |                |
+| gdaemon_api_token     | char(64)                                               | YES  |     | NULL    |                |
+| gdaemon_login         | varchar(128)                                           | YES  |     | NULL    |                |
+| gdaemon_password      | varchar(128)                                           | YES  |     | NULL    |                |
+| gdaemon_server_cert   | varchar(128)                                           | NO   |     | NULL    |                |
+| client_certificate_id | int(10) unsigned                                       | NO   |     | NULL    |                |
+| prefer_install_method | enum('auto','copy','download','script','steam','none') | NO   |     | auto    |                |
+| script_install        | text                                                   | YES  |     | NULL    |                |
+| script_reinstall      | text                                                   | YES  |     | NULL    |                |
+| script_update         | text                                                   | YES  |     | NULL    |                |
+| script_start          | text                                                   | YES  |     | NULL    |                |
+| script_pause          | text                                                   | YES  |     | NULL    |                |
+| script_unpause        | text                                                   | YES  |     | NULL    |                |
+| script_stop           | text                                                   | YES  |     | NULL    |                |
+| script_kill           | text                                                   | YES  |     | NULL    |                |
+| script_restart        | text                                                   | YES  |     | NULL    |                |
+| script_status         | text                                                   | YES  |     | NULL    |                |
+| script_stats          | text                                                   | YES  |     | NULL    |                |
+| script_get_console    | text                                                   | YES  |     | NULL    |                |
+| script_send_command   | text                                                   | YES  |     | NULL    |                |
+| script_delete         | text                                                   | YES  |     | NULL    |                |
+| created_at            | timestamp                                              | YES  |     | NULL    |                |
+| updated_at            | timestamp                                              | YES  |     | NULL    |                |
+| deleted_at            | timestamp                                              | YES  |     | NULL    |                |
++-----------------------+--------------------------------------------------------+------+-----+---------+----------------+
+TABLE: ds_stats
++---------------------+------------------+------+-----+---------+----------------+
+| Field               | Type             | Null | Key | Default | Extra          |
++---------------------+------------------+------+-----+---------+----------------+
+| id                  | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| dedicated_server_id | int(10) unsigned | NO   | MUL | NULL    |                |
+| time                | timestamp        | NO   |     | NULL    |                |
+| loa                 | varchar(128)     | YES  |     | NULL    |                |
+| ram                 | varchar(128)     | NO   |     | NULL    |                |
+| cpu                 | varchar(128)     | NO   |     | NULL    |                |
+| ifstat              | varchar(128)     | YES  |     | NULL    |                |
+| ping                | int(10) unsigned | NO   |     | NULL    |                |
+| drvspace            | varchar(128)     | NO   |     | NULL    |                |
++---------------------+------------------+------+-----+---------+----------------+
+TABLE: ds_users
++---------------------+------------------+------+-----+---------+----------------+
+| Field               | Type             | Null | Key | Default | Extra          |
++---------------------+------------------+------+-----+---------+----------------+
+| id                  | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| dedicated_server_id | int(10) unsigned | NO   | MUL | NULL    |                |
+| username            | varchar(128)     | NO   |     | NULL    |                |
+| uid                 | int(10) unsigned | NO   |     | NULL    |                |
+| gid                 | int(10) unsigned | NO   |     | NULL    |                |
+| password            | text             | NO   |     | NULL    |                |
++---------------------+------------------+------+-----+---------+----------------+
+TABLE: game_mods
++---------------------------+------------------+------+-----+---------+----------------+
+| Field                     | Type             | Null | Key | Default | Extra          |
++---------------------------+------------------+------+-----+---------+----------------+
+| id                        | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| game_code                 | varchar(16)      | NO   | MUL | NULL    |                |
+| name                      | varchar(128)     | NO   |     | NULL    |                |
+| fast_rcon                 | text             | YES  |     | NULL    |                |
+| vars                      | text             | YES  |     | NULL    |                |
+| remote_repository_linux   | text             | YES  |     | NULL    |                |
+| remote_repository_windows | text             | YES  |     | NULL    |                |
+| local_repository_linux    | text             | YES  |     | NULL    |                |
+| local_repository_windows  | text             | YES  |     | NULL    |                |
+| start_cmd_linux           | text             | YES  |     | NULL    |                |
+| start_cmd_windows         | text             | YES  |     | NULL    |                |
+| kick_cmd                  | varchar(64)      | YES  |     | NULL    |                |
+| ban_cmd                   | varchar(64)      | YES  |     | NULL    |                |
+| chname_cmd                | varchar(64)      | YES  |     | NULL    |                |
+| srestart_cmd              | varchar(64)      | YES  |     | NULL    |                |
+| chmap_cmd                 | varchar(64)      | YES  |     | NULL    |                |
+| sendmsg_cmd               | varchar(64)      | YES  |     | NULL    |                |
+| passwd_cmd                | varchar(64)      | YES  |     | NULL    |                |
++---------------------------+------------------+------+-----+---------+----------------+
+TABLE: games
++---------------------------+------------------+------+-----+---------+-------+
+| Field                     | Type             | Null | Key | Default | Extra |
++---------------------------+------------------+------+-----+---------+-------+
+| code                      | varchar(16)      | NO   | PRI | NULL    |       |
+| name                      | varchar(128)     | NO   |     | NULL    |       |
+| engine                    | varchar(128)     | NO   |     | NULL    |       |
+| engine_version            | varchar(128)     | NO   |     | 1.0     |       |
+| steam_app_id_linux        | int(10) unsigned | YES  |     | NULL    |       |
+| steam_app_id_windows      | int(10) unsigned | YES  |     | NULL    |       |
+| steam_app_set_config      | varchar(128)     | YES  |     | NULL    |       |
+| remote_repository_linux   | varchar(128)     | YES  |     | NULL    |       |
+| remote_repository_windows | varchar(128)     | YES  |     | NULL    |       |
+| local_repository_linux    | varchar(128)     | YES  |     | NULL    |       |
+| local_repository_windows  | varchar(128)     | YES  |     | NULL    |       |
+| enabled                   | tinyint(1)       | NO   |     | 1       |       |
++---------------------------+------------------+------+-----+---------+-------+
+TABLE: gdaemon_tasks
++---------------------+--------------------------------------------------------+------+-----+---------+----------------+
+| Field               | Type                                                   | Null | Key | Default | Extra          |
++---------------------+--------------------------------------------------------+------+-----+---------+----------------+
+| id                  | int(10) unsigned                                       | NO   | PRI | NULL    | auto_increment |
+| run_aft_id          | int(10) unsigned                                       | YES  |     | NULL    |                |
+| created_at          | timestamp                                              | YES  |     | NULL    |                |
+| updated_at          | timestamp                                              | YES  |     | NULL    |                |
+| dedicated_server_id | int(10) unsigned                                       | NO   |     | NULL    |                |
+| server_id           | int(10) unsigned                                       | YES  |     | NULL    |                |
+| task                | varchar(8)                                             | NO   |     | NULL    |                |
+| data                | mediumtext                                             | YES  |     | NULL    |                |
+| cmd                 | text                                                   | YES  |     | NULL    |                |
+| output              | mediumtext                                             | YES  |     | NULL    |                |
+| status              | enum('waiting','working','error','success','canceled') | NO   |     | waiting |                |
++---------------------+--------------------------------------------------------+------+-----+---------+----------------+
+TABLE: jobs
++--------------+---------------------+------+-----+---------+----------------+
+| Field        | Type                | Null | Key | Default | Extra          |
++--------------+---------------------+------+-----+---------+----------------+
+| id           | bigint(20) unsigned | NO   | PRI | NULL    | auto_increment |
+| queue        | varchar(128)        | NO   | MUL | NULL    |                |
+| payload      | longtext            | NO   |     | NULL    |                |
+| attempts     | tinyint(3) unsigned | NO   |     | NULL    |                |
+| reserved_at  | int(10) unsigned    | YES  |     | NULL    |                |
+| available_at | int(10) unsigned    | NO   |     | NULL    |                |
+| created_at   | int(10) unsigned    | NO   |     | NULL    |                |
++--------------+---------------------+------+-----+---------+----------------+
+TABLE: migrations
++-----------+------------------+------+-----+---------+----------------+
+| Field     | Type             | Null | Key | Default | Extra          |
++-----------+------------------+------+-----+---------+----------------+
+| id        | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| migration | varchar(128)     | NO   |     | NULL    |                |
+| batch     | int(11)          | NO   |     | NULL    |                |
++-----------+------------------+------+-----+---------+----------------+
+TABLE: password_resets
++------------+--------------+------+-----+---------+-------+
+| Field      | Type         | Null | Key | Default | Extra |
++------------+--------------+------+-----+---------+-------+
+| email      | varchar(128) | NO   | MUL | NULL    |       |
+| token      | varchar(128) | NO   |     | NULL    |       |
+| created_at | timestamp    | YES  |     | NULL    |       |
++------------+--------------+------+-----+---------+-------+
+TABLE: permissions
++-------------+------------------+------+-----+---------+----------------+
+| Field       | Type             | Null | Key | Default | Extra          |
++-------------+------------------+------+-----+---------+----------------+
+| id          | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| ability_id  | int(10) unsigned | NO   | MUL | NULL    |                |
+| entity_id   | int(10) unsigned | YES  | MUL | NULL    |                |
+| entity_type | varchar(128)     | YES  |     | NULL    |                |
+| forbidden   | tinyint(1)       | NO   |     | 0       |                |
+| scope       | int(11)          | YES  | MUL | NULL    |                |
++-------------+------------------+------+-----+---------+----------------+
+TABLE: personal_access_tokens
++----------------+---------------------+------+-----+---------+----------------+
+| Field          | Type                | Null | Key | Default | Extra          |
++----------------+---------------------+------+-----+---------+----------------+
+| id             | bigint(20) unsigned | NO   | PRI | NULL    | auto_increment |
+| tokenable_type | varchar(128)        | NO   | MUL | NULL    |                |
+| tokenable_id   | bigint(20) unsigned | NO   |     | NULL    |                |
+| name           | varchar(128)        | NO   |     | NULL    |                |
+| token          | varchar(64)         | NO   | UNI | NULL    |                |
+| abilities      | text                | YES  |     | NULL    |                |
+| last_used_at   | timestamp           | YES  |     | NULL    |                |
+| created_at     | timestamp           | YES  |     | NULL    |                |
+| updated_at     | timestamp           | YES  |     | NULL    |                |
++----------------+---------------------+------+-----+---------+----------------+
+TABLE: roles
++------------+------------------+------+-----+---------+----------------+
+| Field      | Type             | Null | Key | Default | Extra          |
++------------+------------------+------+-----+---------+----------------+
+| id         | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| name       | varchar(128)     | NO   | MUL | NULL    |                |
+| title      | varchar(128)     | YES  |     | NULL    |                |
+| level      | int(10) unsigned | YES  |     | NULL    |                |
+| scope      | int(11)          | YES  | MUL | NULL    |                |
+| created_at | timestamp        | YES  |     | NULL    |                |
+| updated_at | timestamp        | YES  |     | NULL    |                |
++------------+------------------+------+-----+---------+----------------+
+TABLE: server_user
++-----------+------------------+------+-----+---------+-------+
+| Field     | Type             | Null | Key | Default | Extra |
++-----------+------------------+------+-----+---------+-------+
+| server_id | int(10) unsigned | NO   | MUL | NULL    |       |
+| user_id   | int(10) unsigned | NO   | MUL | NULL    |       |
++-----------+------------------+------+-----+---------+-------+
+TABLE: servers
++--------------------+------------------+------+-----+---------+----------------+
+| Field              | Type             | Null | Key | Default | Extra          |
++--------------------+------------------+------+-----+---------+----------------+
+| id                 | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| uuid               | varchar(36)      | NO   |     | NULL    |                |
+| uuid_short         | varchar(8)       | NO   |     | NULL    |                |
+| enabled            | tinyint(1)       | NO   |     | 0       |                |
+| installed          | int(11)          | NO   |     | 0       |                |
+| blocked            | tinyint(1)       | NO   |     | 0       |                |
+| name               | varchar(128)     | NO   |     | NULL    |                |
+| game_id            | varchar(16)      | NO   |     | NULL    |                |
+| ds_id              | int(10) unsigned | NO   |     | NULL    |                |
+| game_mod_id        | int(10) unsigned | NO   |     | NULL    |                |
+| expires            | timestamp        | YES  |     | NULL    |                |
+| server_ip          | varchar(255)     | NO   |     | NULL    |                |
+| server_port        | int(10) unsigned | NO   |     | NULL    |                |
+| query_port         | int(10) unsigned | YES  |     | NULL    |                |
+| rcon_port          | int(10) unsigned | YES  |     | NULL    |                |
+| rcon               | varchar(255)     | YES  |     | NULL    |                |
+| dir                | varchar(255)     | NO   |     | NULL    |                |
+| su_user            | varchar(255)     | YES  |     | NULL    |                |
+| cpu_limit          | int(10) unsigned | YES  |     | NULL    |                |
+| ram_limit          | int(10) unsigned | YES  |     | NULL    |                |
+| net_limit          | int(10) unsigned | YES  |     | NULL    |                |
+| start_command      | text             | YES  |     | NULL    |                |
+| stop_command       | text             | YES  |     | NULL    |                |
+| force_stop_command | text             | YES  |     | NULL    |                |
+| restart_command    | text             | YES  |     | NULL    |                |
+| process_active     | tinyint(1)       | NO   |     | 0       |                |
+| last_process_check | timestamp        | YES  |     | NULL    |                |
+| vars               | text             | YES  |     | NULL    |                |
+| created_at         | timestamp        | YES  |     | NULL    |                |
+| updated_at         | timestamp        | YES  |     | NULL    |                |
+| deleted_at         | timestamp        | YES  |     | NULL    |                |
++--------------------+------------------+------+-----+---------+----------------+
+TABLE: servers_settings
++-----------+------------------+------+-----+---------+----------------+
+| Field     | Type             | Null | Key | Default | Extra          |
++-----------+------------------+------+-----+---------+----------------+
+| id        | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| name      | varchar(32)      | NO   | MUL | NULL    |                |
+| server_id | int(10) unsigned | NO   | MUL | NULL    |                |
+| value     | text             | NO   |     | NULL    |                |
++-----------+------------------+------+-----+---------+----------------+
+TABLE: servers_stats
++-----------+------------------+------+-----+---------+----------------+
+| Field     | Type             | Null | Key | Default | Extra          |
++-----------+------------------+------+-----+---------+----------------+
+| id        | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| server_id | int(10) unsigned | NO   | MUL | NULL    |                |
+| time      | timestamp        | NO   |     | NULL    |                |
+| ram       | varchar(128)     | NO   |     | NULL    |                |
+| cpu       | varchar(128)     | NO   |     | NULL    |                |
+| netstat   | varchar(128)     | NO   |     | NULL    |                |
+| drvspace  | varchar(128)     | NO   |     | NULL    |                |
++-----------+------------------+------+-----+---------+----------------+
+TABLE: servers_tasks
++---------------+---------------------+------+-----+---------+----------------+
+| Field         | Type                | Null | Key | Default | Extra          |
++---------------+---------------------+------+-----+---------+----------------+
+| id            | bigint(20) unsigned | NO   | PRI | NULL    | auto_increment |
+| command       | varchar(16)         | NO   |     | NULL    |                |
+| server_id     | int(11)             | NO   | MUL | NULL    |                |
+| repeat        | tinyint(3) unsigned | NO   |     | 1       |                |
+| repeat_period | int(11)             | NO   |     | 0       |                |
+| counter       | int(10) unsigned    | NO   |     | 0       |                |
+| execute_date  | timestamp           | NO   | MUL | NULL    |                |
+| payload       | longtext            | YES  |     | NULL    |                |
+| created_at    | timestamp           | YES  |     | NULL    |                |
+| updated_at    | timestamp           | YES  |     | NULL    |                |
++---------------+---------------------+------+-----+---------+----------------+
+TABLE: servers_tasks_fails
++----------------+---------------------+------+-----+---------+----------------+
+| Field          | Type                | Null | Key | Default | Extra          |
++----------------+---------------------+------+-----+---------+----------------+
+| id             | bigint(20) unsigned | NO   | PRI | NULL    | auto_increment |
+| server_task_id | bigint(20) unsigned | NO   | MUL | NULL    |                |
+| output         | longtext            | NO   |     | NULL    |                |
+| created_at     | timestamp           | YES  |     | NULL    |                |
+| updated_at     | timestamp           | YES  |     | NULL    |                |
++----------------+---------------------+------+-----+---------+----------------+
+TABLE: users
++----------------+------------------+------+-----+---------+----------------+
+| Field          | Type             | Null | Key | Default | Extra          |
++----------------+------------------+------+-----+---------+----------------+
+| id             | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| login          | varchar(128)     | NO   | UNI | NULL    |                |
+| email          | varchar(128)     | NO   | UNI | NULL    |                |
+| password       | varchar(128)     | NO   |     | NULL    |                |
+| remember_token | varchar(100)     | YES  |     | NULL    |                |
+| name           | varchar(128)     | YES  |     | NULL    |                |
+| created_at     | timestamp        | YES  |     | NULL    |                |
+| updated_at     | timestamp        | YES  |     | NULL    |                |
++----------------+------------------+------+-----+---------+----------------+

@@ -1,0 +1,3 @@
+GET {{host}}/api/tokens/abilities
+Content-Type: application/json
+Authorization: Bearer {{authToken}}

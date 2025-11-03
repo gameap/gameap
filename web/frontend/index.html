@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameAP</title>
+    <script>
+        // Load theme from localStorage and apply it immediately
+        (function() {
+            let theme = 'light';
+            try {
+                const settings = localStorage.getItem('gameap_ui_settings');
+                if (settings) {
+                    const parsed = JSON.parse(settings);
+                    theme = parsed.theme || 'light';
+                } else {
+                    const oldTheme = localStorage.getItem('gameap_theme');
+                    if (oldTheme) {
+                        theme = oldTheme;
+                        localStorage.setItem('gameap_ui_settings', JSON.stringify({ theme: oldTheme }));
+                        localStorage.removeItem('gameap_theme');
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load theme from localStorage:', e);
+            }
+            document.documentElement.classList.add(theme);
+        })();
+
+        // Load i18n translations synchronously before app loads
+        (function() {
+            // Detect language from HTML lang attribute, localStorage, or browser default
+            function detectLanguage() {
+                // 1. Check localStorage gameap_ui_settings for saved preference
+                try {
+                    const settings = localStorage.getItem('gameap_ui_settings');
+                    if (settings) {
+                        const parsed = JSON.parse(settings);
+                        if (parsed.language) {
+                            return parsed.language;
+                        }
+                    } else {
+                        const oldLang = localStorage.getItem('gameap_lang');
+                        if (oldLang) {
+                            return oldLang;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to load language from localStorage:', e);
+                }
+
+                // 2. Check browser language
+                const browserLang = navigator.language || navigator.userLanguage;
+                if (browserLang) {
+                    // Extract language code (e.g., 'en' from 'en-US')
+                    return browserLang.split('-')[0].toLowerCase();
+                }
+
+                // 3. Check HTML lang attribute
+                const htmlLang = document.documentElement.lang;
+                if (htmlLang) {
+                    return htmlLang;
+                }
+
+                // 4. Default to English
+                return 'en';
+            }
+
+            const lang = detectLanguage();
+            const supportedLangs = ['en', 'ru'];
+            const finalLang = supportedLangs.includes(lang) ? lang : 'en';
+
+            // Set HTML lang attribute for consistency
+            document.documentElement.lang = finalLang;
+
+            // Load the appropriate language file
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', '/lang/' + finalLang + '.json', false);
+            xhr.send();
+
+            if (xhr.status === 200) {
+                try {
+                    window.i18n = JSON.parse(xhr.responseText);
+                } catch (e) {
+                    console.error('[i18n] Failed to parse JSON:', e);
+                    window.i18n = {};
+                }
+            } else {
+                console.error('[i18n] Failed to load ' + finalLang + ' translations:', xhr.status);
+
+                // Fallback to English if the requested language fails
+                if (finalLang !== 'en') {
+                    xhr.open('GET', '/lang/en.json', false);
+                    xhr.send();
+                    if (xhr.status === 200) {
+                        window.i18n = JSON.parse(xhr.responseText);
+                    } else {
+                        window.i18n = {};
+                    }
+                } else {
+                    window.i18n = {};
+                }
+            }
+
+            // Store detected language for future use
+            window.gameapLang = finalLang;
+        })();
+    </script>
+</head>
+<body class="bg-white dark:bg-stone-900">
+    <div id="app"></div>
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>

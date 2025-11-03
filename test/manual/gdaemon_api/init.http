@@ -1,0 +1,3 @@
+GET {{host}}/gdaemon_api/dedicated_servers/get_init_data/2
+Content-Type: application/json
+X-Auth-Token: {{gdaemonAPIToken}}

@@ -1,0 +1,10 @@
+GET {{host}}/gdaemon_api/servers
+Content-Type: application/json
+X-Auth-Token: {{gdaemonAPIToken}}
+
+
+###
+
+GET http://localhost:2080/gdaemon_api/servers
+Content-Type: application/json
+X-Auth-Token: {{gdaemonAPIToken}}

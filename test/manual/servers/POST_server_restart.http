@@ -1,0 +1,3 @@
+POST {{host}}/api/servers/1/restart
+Content-Type: application/json
+Authorization: Bearer 16|N0r7h7Ptjchc0hnEgk9CoD1dhp3PDugZIDAUVaefex8hmMaC

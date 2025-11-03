@@ -1,0 +1,16 @@
+POST {{host}}/api/servers
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "name":"Test",
+  "game_id":"minecraft",
+  "game_mod_id":34,
+  "install":false,
+  "su_user":"gameap",
+  "ds_id":2,
+  "server_ip":"172.17.0.2",
+  "server_port":25569,
+  "query_port":25569,
+  "rcon_port":25570
+}

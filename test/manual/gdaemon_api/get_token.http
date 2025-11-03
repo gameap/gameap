@@ -1,0 +1,13 @@
+GET {{host}}/gdaemon_api/get_token
+Content-Type: application/json
+Authorization: Bearer {{gdaemonAPIKey}}
+
+> {%
+    client.test("Daemon get token successful", function() {
+        client.assert(response.status === 200, "Expected status 200");
+        if (response.body.token) {
+            client.global.set("gdaemonAPIToken", response.body.token);
+            console.log("GDaemon token updated: " + response.body.token.substring(0, 20) + "...");
+        }
+    });
+%}

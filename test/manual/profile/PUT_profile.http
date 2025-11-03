@@ -1,0 +1,7 @@
+PUT {{host}}/api/profile
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "name": "New Name"
+}

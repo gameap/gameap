@@ -1,0 +1,20 @@
+POST {{host}}/api/tokens
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "token_name":"Token Name",
+  "abilities":[
+    "server:start",
+    "server:stop",
+    "server:restart",
+    "server:update",
+    "server:console",
+    "server:rcon-console",
+    "server:rcon-players",
+    "server:tasks-manage",
+    "server:settings-manage",
+    "admin:server:create",
+    "admin:gdaemon-task:read"
+  ]
+}

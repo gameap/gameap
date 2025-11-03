@@ -1,0 +1,16 @@
+GET {{host}}/gdaemon_api/tasks
+Content-Type: application/json
+X-Auth-Token: {{gdaemonAPIToken}}
+
+
+###
+
+GET {{host}}/gdaemon_api/tasks?filter[status]=error
+Content-Type: application/json
+X-Auth-Token: {{gdaemonAPIToken}}
+
+###
+
+GET {{host}}/gdaemon_api/tasks?filter[status]=success
+Content-Type: application/json
+X-Auth-Token: {{gdaemonAPIToken}}

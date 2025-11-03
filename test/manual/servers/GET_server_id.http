@@ -1,0 +1,9 @@
+GET {{host}}/api/servers/1
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+###
+
+GET {{host}}/api/servers/2
+Content-Type: application/json
+Authorization: Bearer {{authToken}}

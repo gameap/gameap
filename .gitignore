@@ -1,0 +1,5 @@
+/web/frontend/node_modules/
+!/web/static/dist/.gitkeep
+/web/static/dist/*
+/web/frontend/.env
+/web/frontend/.env.local

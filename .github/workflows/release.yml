@@ -1,0 +1,45 @@
+on:
+  release:
+    types: [created]
+
+jobs:
+  releases-matrix:
+    name: Release Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: ["linux", "windows", "darwin"]
+        goarch: ["amd64", "386", "arm64"]
+        exclude:
+          - goarch: "386"
+            goos: darwin
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set APP_VERSION env
+        run: echo APP_VERSION=$(echo ${GITHUB_REF} | rev | cut -d'/' -f 1 | rev ) >> ${GITHUB_ENV}
+      - name: Set BUILD_TIME env
+        run: echo BUILD_TIME=$(date --iso-8601=seconds) >> ${GITHUB_ENV}
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Build UI
+        run: |
+          cd web/frontend
+          npm ci
+          npm run build --if-present
+
+      - uses: wangyoucao577/go-release-action@v1.53
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          goversion: 1.25.0
+          md5sum: false
+          overwrite: true
+          project_path: "./cmd/gameap"
+          ldflags: -X "github.com/gameap/gameap/internal/application/defaults.Version=${{ env.APP_VERSION }}" -X "github.com/gameap/gameap/internal/application/defaults.BuildDate=${{ env.BUILD_TIME }}"
+          binary_name: "gameap"

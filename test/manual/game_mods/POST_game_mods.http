@@ -1,0 +1,23 @@
+POST {{host}}/api/game_mods
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "game_code": "valve",
+  "name": "Default Valve Mod",
+  "fast_rcon": "[{\"info\":\"Status\",\"command\":\"status\"},{\"info\":\"Stats\",\"command\":\"stats\"}]",
+  "vars": "[{\"var\":\"default_map\",\"default\":\"crossfire\",\"info\":\"Default Map\",\"admin_var\":false}]",
+  "remote_repository_linux": "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz",
+  "remote_repository_windows": "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip",
+  "local_repository_linux": "/opt/steamcmd/valve",
+  "local_repository_windows": "C:\\steamcmd\\valve",
+  "start_cmd_linux": "./hlds_run -console -game valve +ip {ip} +port {port} +map {default_map} +maxplayers {maxplayers} +rcon_password {rcon_password}",
+  "start_cmd_windows": "hlds.exe -console -game valve +ip {ip} +port {port} +map {default_map} +maxplayers {maxplayers} +rcon_password {rcon_password}",
+  "kick_cmd": "kick #{id}",
+  "ban_cmd": "ban #{id}",
+  "chname_cmd": "hostname {name}",
+  "srestart_cmd": "restart",
+  "chmap_cmd": "changelevel {map}",
+  "sendmsg_cmd": "say \"{msg}\"",
+  "passwd_cmd": "password {password}"
+}

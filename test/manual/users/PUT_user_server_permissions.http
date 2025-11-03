@@ -1,0 +1,58 @@
+PUT {{host}}/api/users/2/servers/1/permissions
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+[
+    {
+        "permission": "game-server-common",
+        "value": true
+    },
+    {
+        "permission": "game-server-start",
+        "value": false
+    },
+    {
+        "permission": "game-server-stop",
+        "value": false
+    },
+    {
+        "permission": "game-server-restart",
+        "value": false
+    },
+    {
+        "permission": "game-server-pause",
+        "value": false
+    },
+    {
+        "permission": "game-server-update",
+        "value": false
+    },
+    {
+        "permission": "game-server-files",
+        "value": false
+    },
+    {
+        "permission": "game-server-tasks",
+        "value": false
+    },
+    {
+        "permission": "game-server-settings",
+        "value": false
+    },
+    {
+        "permission": "game-server-console-view",
+        "value": false
+    },
+    {
+        "permission": "game-server-console-send",
+        "value": false
+    },
+    {
+        "permission": "game-server-rcon-console",
+        "value": false
+    },
+    {
+        "permission": "game-server-rcon-players",
+        "value": false
+    }
+]

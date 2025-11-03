@@ -1,0 +1,3 @@
+GET {{host}}/api/nodes/2/busy_ports
+Content-Type: application/json
+Authorization: Bearer {{authToken}}

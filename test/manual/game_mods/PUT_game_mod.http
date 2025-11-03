@@ -1,0 +1,51 @@
+PUT {{host}}/api/game_mods/7
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+    "ban_cmd": null,
+    "chmap_cmd": "changelevel {map}",
+    "chname_cmd": null,
+    "fast_rcon": [
+        {
+            "command": "status",
+            "info": "Status"
+        },
+        {
+            "command": "stats",
+            "info": "Stats"
+        }
+    ],
+    "game_code": "cstrike",
+    "id": 7,
+    "kick_cmd": "kick #{id}",
+    "local_repository_linux": null,
+    "local_repository_windows": null,
+    "name": "Default (updated)",
+    "passwd_cmd": "password {password}",
+    "remote_repository_linux": null,
+    "remote_repository_windows": null,
+    "sendmsg_cmd": "say \"{msg}\"",
+    "srestart_cmd": "restart",
+    "start_cmd_linux": "./hlds_run -console -game cstrike +ip {ip} +port {port} +map {default_map} +maxplayers {maxplayers} +sys_ticrate {fps} +rcon_password {rcon_password}",
+    "start_cmd_windows": "hlds.exe -console -game cstrike +ip {ip} +port {port} +map {default_map} +maxplayers {maxplayers} +sys_ticrate {fps} +rcon_password {rcon_password}",
+    "vars": [
+        {
+            "default": "de_dust2",
+            "info": "Default Map",
+            "var": "default_map"
+        },
+        {
+            "admin_var": true,
+            "default": 32,
+            "info": "Maximum players on server",
+            "var": "maxplayers"
+        },
+        {
+            "admin_var": true,
+            "default": 500,
+            "info": "Server FPS (tickrate)",
+            "var": "fps"
+        }
+    ]
+}

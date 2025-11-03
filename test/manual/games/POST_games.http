@@ -1,0 +1,18 @@
+POST {{host}}/api/games
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "code": "valve",
+  "name": "Half-Life 1",
+  "engine": "GoldSource",
+  "engine_version": "1",
+  "steam_app_set_config": null,
+  "steam_app_id_linux": 90,
+  "remote_repository_linux": "https://example.com/hlcs_base_linux.tar.gz",
+  "local_repository_linux": "/path/to/hl-files",
+  "steam_app_id_windows": 90,
+  "remote_repository_windows": "https://example.com/hlcs_base_windows.zip",
+  "local_repository_windows": "C:\\gameap\\repository\\hl-files",
+  "enabled": 1
+}

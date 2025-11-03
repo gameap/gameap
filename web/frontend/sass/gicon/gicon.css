@@ -1,0 +1,96 @@
+@font-face {
+  font-family: 'gicon';
+  src:  url('/fonts/gicon.eot?j68pj6');
+  src:  url('/fonts/gicon.eot?j68pj6#iefix') format('embedded-opentype'),
+    url('/fonts/gicon.ttf?j68pj6') format('truetype'),
+    url('/fonts/gicon.woff?j68pj6') format('woff'),
+    url('/fonts/gicon.svg?j68pj6#gicon') format('svg');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+[class^="gicon-"], [class*=" gicon-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: 'gicon' !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.gicon-gameap:before {
+  content: "\e907";
+}
+.gicon-headshot:before {
+  content: "\ea01";
+}
+.gicon-kick:before {
+  content: "\ea02";
+}
+.gicon-minecraft:before {
+  content: "\e901";
+}
+.gicon-minecraft-creeper:before {
+  content: "\e904";
+}
+.gicon-half-life:before {
+  content: "\e903";
+}
+.gicon-black-mesa:before {
+  content: "\e90c";
+}
+.gicon-rust:before {
+  content: "\e906";
+}
+.gicon-fivem:before {
+  content: "\e902";
+}
+.gicon-counter-strike1:before {
+  content: "\e90a";
+}
+.gicon-counter-strike-source:before {
+  content: "\e909";
+}
+.gicon-counter-strike:before {
+  content: "\e905";
+}
+.gicon-arma-2:before {
+  content: "\e90d";
+}
+.gicon-arma-3:before {
+  content: "\e900";
+}
+.gicon-team-fortress-2:before {
+  content: "\e908";
+}
+.gicon-ark-survival-evolved:before {
+  content: "\e90b";
+}
+.gicon-garrys-mod:before {
+  content: "\e90e";
+}
+.gicon-dont-starve:before {
+  content: "\e90f";
+}
+.gicon-grand-theft-auto:before {
+  content: "\e910";
+}
+.gicon-grand-theft-auto-five:before {
+  content: "\e911";
+}
+.gicon-rockstar:before {
+  content: "\e912";
+}
+.gicon-hurtworld:before {
+  content: "\e913";
+}
+.gicon-left-4-dead:before {
+  content: "\e914";
+}

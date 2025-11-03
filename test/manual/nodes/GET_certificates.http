@@ -1,0 +1,2 @@
+GET {{host}}/api/nodes/certificates.zip
+Authorization: Bearer {{authToken}}

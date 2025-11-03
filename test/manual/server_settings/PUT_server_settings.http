@@ -1,0 +1,11 @@
+PUT {{host}}/api/servers/1/settings
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+[
+  {"name":"autostart","value":true},
+  {"name":"update_before_start","value":false},
+  {"name":"version","value":"1.20.1"},
+  {"name":"core_mod","value":"vanilla"},
+  {"name":"core_mod_version","value":""}
+]

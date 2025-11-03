@@ -1,0 +1,50 @@
+{
+  "private": true,
+  "scripts": {
+    "build-force": "vite build --force",
+    "build-debug": "vite build --debug",
+    "build": "vite build",
+    "preview": "vite preview",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.5.2",
+    "@headlessui/vue": "^1.7.21",
+    "@tailwindcss/aspect-ratio": "^0.4.2",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "axios": "1.12.0",
+    "buffer": "^6.0.3",
+    "cross-env": "^7.0.3",
+    "lodash": "^4.17.20",
+    "dayjs": "1.11.18",
+    "pinia": "^3.0.3",
+    "sass": "^1.32.0",
+    "sass-loader": "^9.0.0",
+    "vue": "^3.5.22",
+    "vue-router": "^4.6.3",
+    "vuex": "^4.1.0",
+    "codemirror": "^6.0.1",
+    "vue-codemirror": "^6.1.1",
+    "@codemirror/lang-javascript": "^6.2.1",
+    "@codemirror/lang-json": "^6.0.1",
+    "@codemirror/lang-xml": "^6.0.2",
+    "@codemirror/theme-one-dark": "^6.1.2",
+    "cropperjs": "^1.6.1",
+    "mitt": "^3.0.1",
+    "plyr": "^3.7.8"
+  },
+  "devDependencies": {
+    "@originjs/vite-plugin-commonjs": "^1.0.3",
+    "@vue/compiler-sfc": "^3.1.0",
+    "css-loader": "^6.10.0",
+    "naive-ui": "^2.43.1",
+    "postcss": "^8.4.38",
+    "postcss-loader": "^8.1.1",
+    "postcss-preset-env": "^9.5.0",
+    "resolve-url-loader": "^5.0.0",
+    "style-loader": "^3.3.4",
+    "tailwindcss": "^3.4.3",
+    "vite": "7.1.11",
+    "vue-loader": "^16.0.0"
+  }
+}

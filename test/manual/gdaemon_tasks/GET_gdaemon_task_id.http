@@ -1,0 +1,11 @@
+GET {{host}}/api/gdaemon_tasks/1
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+
+
+### With output
+
+GET {{host}}/api/gdaemon_tasks/1/output
+Content-Type: application/json
+Authorization: Bearer {{authToken}}

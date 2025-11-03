@@ -1,0 +1,37 @@
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+    "login": "test",
+    "password": "testtest"
+}
+
+> {%
+client.test("Login successful", function() {
+    client.assert(response.status === 200, "Expected status 200");
+    if (response.body.token) {
+        client.global.set("authToken", response.body.token);
+        console.log("Auth token updated: " + response.body.token.substring(0, 20) + "...");
+    }
+});
+%}
+
+###
+
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "login": "admin",
+  "password": "90Sc4nlyz6hjJ81E"
+}
+
+> {%
+client.test("Admin login successful", function() {
+    client.assert(response.status === 200, "Expected status 200");
+    if (response.body.token) {
+        client.global.set("authToken", response.body.token);
+        console.log("Auth token updated: " + response.body.token.substring(0, 20) + "...");
+    }
+});
+%}

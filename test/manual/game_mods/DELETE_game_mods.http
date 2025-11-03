@@ -1,0 +1,3 @@
+DELETE {{host}}/api/game_mods/2
+Content-Type: application/json
+Authorization: Bearer {{authToken}}

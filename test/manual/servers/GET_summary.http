@@ -1,0 +1,3 @@
+GET {{host}}/api/servers/summary
+Content-Type: application/json
+Authorization: Bearer {{authToken}}

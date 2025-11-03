@@ -1,0 +1,3 @@
+DELETE {{host}}/api/client_certificates/5
+Content-Type: application/json
+Authorization: Bearer {{authToken}}

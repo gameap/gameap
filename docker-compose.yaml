@@ -1,0 +1,21 @@
+# This is for development only. Do not use in production.
+
+services:
+  postgres:
+    image: postgres:17.2
+    ports:
+        - "25432:5432"
+    environment:
+        POSTGRES_USER: gameap
+        POSTGRES_PASSWORD: gameap
+        POSTGRES_DB: gameap
+
+  mysql:
+    image: mysql:8.1
+    ports:
+        - "23306:3306"
+    environment:
+        MYSQL_ROOT_PASSWORD: mysql
+        MYSQL_DATABASE: gameap
+        MYSQL_USER: gameap
+        MYSQL_PASSWORD: gameap

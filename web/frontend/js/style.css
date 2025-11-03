@@ -1,0 +1,114 @@
+.btn {
+    @apply font-bold py-2 px-3;
+}
+
+.btn-secondary {
+    @apply inline-block align-middle text-center select-none font-normal leading-normal
+    no-underline text-white bg-stone-700 hover:bg-stone-800 dark:bg-stone-900 dark:hover:bg-stone-950
+    disabled:cursor-not-allowed disabled:bg-stone-600 disabled:text-stone-400 disabled:dark:bg-stone-900
+    disabled:dark:text-stone-600;
+}
+
+.btn-info {
+    @apply inline-block align-middle text-center select-none font-normal leading-normal
+    no-underline text-white bg-stone-700 hover:bg-stone-800
+    disabled:cursor-not-allowed disabled:bg-stone-400
+    dark:bg-stone-900 dark:hover:bg-stone-950 dark:disabled:bg-stone-900;
+}
+
+.btn-light {
+    @apply inline-block align-middle text-center select-none font-normal leading-normal
+    no-underline text-black bg-white border border-stone-300 focus:outline-none hover:bg-stone-100
+    focus:ring-4 focus:ring-stone-100 dark:bg-stone-800 dark:text-white dark:border-stone-600
+    dark:hover:bg-stone-900 dark:hover:border-stone-900 dark:focus:ring-stone-700
+    disabled:cursor-not-allowed;
+}
+
+.btn-danger {
+    @apply inline-block align-middle text-center select-none font-normal leading-normal
+        no-underline bg-red-500 text-white hover:bg-red-600;
+}
+
+.btn-group {
+    @apply inline-flex rounded-md shadow-sm;
+}
+
+.btn-close {
+    @apply ms-auto -mx-1.5 -my-1.5 bg-white text-stone-400 hover:text-stone-900
+    rounded-lg focus:ring-2 focus:ring-stone-300 p-1.5 hover:bg-stone-100
+    inline-flex items-center justify-center h-8 w-8
+    dark:text-stone-500 dark:hover:text-white dark:bg-stone-800 dark:hover:bg-stone-900;
+}
+
+.form-control {
+    @apply block appearance-none w-full py-1 px-2 mb-1 leading-normal bg-white text-stone-800 border border-stone-200 rounded
+    dark:bg-stone-800 dark:text-stone-300 dark:border-stone-600 dark:placeholder-stone-400 dark:focus:ring-stone-500 dark:focus:border-stone-500;
+}
+
+.modal-header {
+    @apply mb-6;
+}
+
+.modal-footer {
+    @apply mt-4 pt-4 border-t border-stone-100;
+}
+
+.form-check-input {
+    @apply w-4 h-4 text-blue-600 bg-stone-100 border-stone-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-stone-800 focus:ring-2 dark:bg-stone-700 dark:border-stone-600;
+}
+
+.form-check-label {
+    @apply ms-2 text-sm font-medium text-stone-900 dark:text-stone-300;
+}
+
+.table-info {
+    @apply w-full bg-stone-100 dark:bg-stone-900;
+}
+
+.form-select {
+    @apply block w-full p-1.5 mb-6 text-sm text-stone-900 border border-stone-300 rounded focus:ring-blue-500 focus:border-blue-500 dark:bg-stone-700 dark:border-stone-600 dark:placeholder-stone-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500;
+}
+
+.stone-table {
+    @apply w-full text-left rtl:text-right border dark:border-0 text-stone-700 dark:text-stone-400;
+}
+
+.stone-table-header {
+    @apply text-stone-700 uppercase bg-stone-50 rounded-lg dark:bg-stone-700 dark:text-stone-400
+}
+
+.stone-table-row {
+    @apply odd:bg-white odd:dark:bg-stone-900 even:bg-stone-50 even:dark:bg-stone-800 border-b dark:border-stone-700;
+}
+
+.link {
+    @apply font-medium text-blue-600 dark:text-blue-500 underline hover:no-underline;
+}
+
+.badge-red {
+    @apply bg-red-500 text-white text-xs font-medium me-2 px-1.5 py-0.5 rounded dark:bg-red-900;
+}
+
+.badge-green {
+    @apply bg-lime-500 text-white text-xs font-medium me-2 px-1.5 py-0.5 rounded dark:bg-lime-900;
+}
+
+.badge-orange {
+    @apply bg-orange-500 text-white text-xs font-medium me-2 px-1.5 py-0.5 rounded dark:bg-orange-900;
+}
+
+.badge-blue {
+    @apply bg-sky-500 text-white text-xs font-medium me-2 px-1.5 py-0.5 rounded dark:bg-sky-900;
+}
+
+.badge-stone {
+    @apply bg-stone-500 text-white text-xs font-medium me-2 px-1.5 py-0.5 rounded dark:bg-stone-900;
+}
+
+.badge-light {
+    @apply bg-stone-50 text-stone-600 me-2 px-1.5 py-0.5 rounded ring-1 ring-inset ring-stone-500/10;
+}
+
+.g-card-header {
+    @apply bg-stone-100 dark:bg-stone-700;
+}

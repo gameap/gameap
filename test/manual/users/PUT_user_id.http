@@ -1,0 +1,28 @@
+PUT {{host}}/api/users/2
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "login":"some",
+  "email":"test@gameap.com",
+  "name":"Test",
+  "roles":["user", "admin"],
+  "password":"",
+  "servers":[]
+}
+
+
+###
+
+PUT {{host}}/api/users/2
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "login":"some",
+  "email":"test2@gameap.com",
+  "name":"Test",
+  "roles":["invalid-role"],
+  "password":"",
+  "servers":[]
+}

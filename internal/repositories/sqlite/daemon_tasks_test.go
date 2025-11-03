@@ -1,0 +1,20 @@
+package sqlite_test
+
+import (
+	"testing"
+
+	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/repositories/sqlite"
+	repotesting "github.com/gameap/gameap/internal/repositories/testing"
+	"github.com/stretchr/testify/suite"
+)
+
+func TestDaemonTaskRepository(t *testing.T) {
+	suite.Run(t, repotesting.NewDaemonTaskRepositorySuite(
+		func(t *testing.T) repositories.DaemonTaskRepository {
+			t.Helper()
+
+			return sqlite.NewDaemonTaskRepository(SetupTestDB(t))
+		},
+	))
+}

@@ -1,0 +1,94 @@
+name: Test
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [1.25.x]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testpassword
+          MYSQL_DATABASE: gameap
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: gameap
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up dependencies
+        run: go mod download
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.6.0
+          args: --timeout=10m
+
+      - name: Wait for MySQL
+        run: |
+          until mysqladmin ping -h 127.0.0.1 -P 3306 --silent; do
+            echo 'waiting for mysql...'
+            sleep 2
+          done
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h 127.0.0.1 -p 5432 -U postgres; do
+            echo 'waiting for postgres...'
+            sleep 2
+          done
+
+      - name: Unit Tests
+        env:
+          TEST_MYSQL_DSN: 'root:testpassword@tcp(127.0.0.1:3306)/gameap?parseTime=true'
+          TEST_POSTGRES_DSN: 'host=127.0.0.1 port=5432 user=postgres password=testpassword dbname=gameap sslmode=disable'
+          TEST_REDIS_ADDR: '127.0.0.1:6379'
+        run: go test -race -v $(go list ./... | grep -v /test/) -coverprofile=coverage.out
+
+      - name: Coverage Report
+        run: go tool cover -func=coverage.out

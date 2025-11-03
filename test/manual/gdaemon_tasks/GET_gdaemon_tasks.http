@@ -1,0 +1,9 @@
+GET {{host}}/api/gdaemon_tasks
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+###
+
+GET {{host}}/api/gdaemon_tasks?sort=id&filter[server_id]=1
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
