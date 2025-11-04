@@ -1,5 +1,9 @@
 # GameAP
 
+[![Coverage Status](https://coveralls.io/repos/github/gameap/gameap/badge.svg?branch=main)](https://coveralls.io/github/gameap/gameap?branch=main)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/gameap/gameap/.github%2Fworkflows%2Ftest.yaml)
+![Discord](https://img.shields.io/discord/527221172144701440)
+
 GameAP is a free and open-source game server management panel that allows you to easily manage and deploy game servers.
 It provides a user-friendly web interface for managing game servers, users, and configurations.
 
