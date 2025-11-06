@@ -115,7 +115,7 @@ CACHE_DRIVER=memory
 
 # File Storage
 FILES_DRIVER=local
-FILES_LOCAL_BASE_PATH=/var/gameap/files
+FILES_LOCAL_BASE_PATH=/var/lib/gameap/files
 
 # Legacy
 LEGACY_PATH=/var/www/gameap/

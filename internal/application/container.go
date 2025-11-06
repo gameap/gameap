@@ -691,6 +691,10 @@ func (c *Container) createCache() cache.Cache {
 
 	case "database", "mysql": // Using MySQL cache for "database" driver for backward compatibility
 		return cache.NewMySQL(c.DB())
+
+	case "postgres", "postgresql", "pgsql", "pg":
+		return cache.NewPostgreSQL(c.DB())
+
 	case "redis":
 		redisCache, err := cache.NewRedis(
 			c.config.Cache.Redis.Addr,
@@ -710,6 +714,7 @@ func (c *Container) createCache() cache.Cache {
 		})
 
 		return redisCache
+
 	default:
 		panic("invalid cache driver: " + c.config.Cache.Driver)
 	}
