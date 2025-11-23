@@ -5,7 +5,9 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gameap/gameap/pkg/validation"
+	"github.com/samber/lo"
 )
 
 const (
@@ -60,16 +62,16 @@ type createGameInput struct {
 	Code string `json:"code"` // required, unique, slug, minlen=2, maxlen=16
 	Name string `json:"name"` // required, minlen=2, maxlen=128
 
-	Engine                  string  `json:"engine"`                              // required, maxlen=128
-	EngineVersion           string  `json:"engine_version,omitempty"`            // maxlen=128
-	SteamAppIDLinux         *uint   `json:"steam_app_id_linux,omitempty"`        //
-	SteamAppIDWindows       *uint   `json:"steam_app_id_windows,omitempty"`      //
-	SteamAppSetConfig       *string `json:"steam_app_set_config,omitempty"`      // maxlen=128
-	RemoteRepositoryLinux   *string `json:"remote_repository_linux,omitempty"`   // maxlen=128
-	RemoteRepositoryWindows *string `json:"remote_repository_windows,omitempty"` // maxlen=128
-	LocalRepositoryLinux    *string `json:"local_repository_linux,omitempty"`    // maxlen=128
-	LocalRepositoryWindows  *string `json:"local_repository_windows,omitempty"`  // maxlen=128
-	Enabled                 int     `json:"enabled"`                             //
+	Engine                  string         `json:"engine"`                              // required, maxlen=128
+	EngineVersion           string         `json:"engine_version,omitempty"`            // maxlen=128
+	SteamAppIDLinux         *flexible.Uint `json:"steam_app_id_linux,omitempty"`        //
+	SteamAppIDWindows       *flexible.Uint `json:"steam_app_id_windows,omitempty"`      //
+	SteamAppSetConfig       *string        `json:"steam_app_set_config,omitempty"`      // maxlen=128
+	RemoteRepositoryLinux   *string        `json:"remote_repository_linux,omitempty"`   // maxlen=128
+	RemoteRepositoryWindows *string        `json:"remote_repository_windows,omitempty"` // maxlen=128
+	LocalRepositoryLinux    *string        `json:"local_repository_linux,omitempty"`    // maxlen=128
+	LocalRepositoryWindows  *string        `json:"local_repository_windows,omitempty"`  // maxlen=128
+	Enabled                 int            `json:"enabled"`                             //
 }
 
 func (g *createGameInput) Validate() error {
@@ -140,8 +142,8 @@ func (g *createGameInput) ToDomain() *domain.Game {
 		Name:                    g.Name,
 		Engine:                  g.Engine,
 		EngineVersion:           g.EngineVersion,
-		SteamAppIDLinux:         g.SteamAppIDLinux,
-		SteamAppIDWindows:       g.SteamAppIDWindows,
+		SteamAppIDLinux:         lo.ToPtr(g.SteamAppIDLinux.Uint()),
+		SteamAppIDWindows:       lo.ToPtr(g.SteamAppIDWindows.Uint()),
 		SteamAppSetConfig:       g.SteamAppSetConfig,
 		RemoteRepositoryLinux:   g.RemoteRepositoryLinux,
 		RemoteRepositoryWindows: g.RemoteRepositoryWindows,
