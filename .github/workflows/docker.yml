@@ -84,4 +84,4 @@ jobs:
             BUILD_DATE=${{ steps.build_date.outputs.BUILD_DATE }}
 
       - name: Image digest
-        run: echo ${{ steps.meta.outputs.tags }}
+        run: echo "${{ steps.meta.outputs.tags }}"
