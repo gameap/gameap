@@ -167,7 +167,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"game_id": "cstrike",
 				"ds_id": 1,
 				"game_mod_id": 1,
-				"server_ip": "invalid_ip",
+				"server_ip": "invalid!!!",
 				"server_port": 27015
 			}`,
 			setupRepo: func(repo *inmemory.ServerRepository) {
@@ -191,7 +191,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				return auth.ContextWithSession(ctx, session)
 			},
 			wantStatus: http.StatusUnprocessableEntity,
-			wantError:  "server_ip is not a valid IP address",
+			wantError:  "server_ip is not a valid IP address or hostname",
 		},
 		{
 			name:     "invalid server port",
@@ -580,6 +580,78 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"rcon_port": 27017,
 				"start_command": "./hlds_run -game cstrike",
 				"dir": "/servers/cstrike"
+			}`,
+			setupRepo: func(repo *inmemory.ServerRepository) {
+				err := repo.Save(context.Background(), &domain.Server{
+					ID:         1,
+					UUID:       uuid.New(),
+					UUIDShort:  "12345678",
+					Name:       "Test Server",
+					GameID:     "cstrike",
+					DSID:       1,
+					GameModID:  1,
+					ServerIP:   "192.168.1.1",
+					ServerPort: 27015,
+				})
+				if err != nil {
+					t.Fatalf("failed to setup test server: %v", err)
+				}
+			},
+			setupAuth: func(ctx context.Context) context.Context {
+				session := &auth.Session{
+					User: &domain.User{ID: 1},
+				}
+
+				return auth.ContextWithSession(ctx, session)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:     "update server with valid hostname",
+			serverID: "1",
+			requestBody: `{
+				"name": "Server with hostname",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "hldm.org",
+				"server_port": 27018
+			}`,
+			setupRepo: func(repo *inmemory.ServerRepository) {
+				err := repo.Save(context.Background(), &domain.Server{
+					ID:         1,
+					UUID:       uuid.New(),
+					UUIDShort:  "12345678",
+					Name:       "Test Server",
+					GameID:     "cstrike",
+					DSID:       1,
+					GameModID:  1,
+					ServerIP:   "192.168.1.1",
+					ServerPort: 27015,
+				})
+				if err != nil {
+					t.Fatalf("failed to setup test server: %v", err)
+				}
+			},
+			setupAuth: func(ctx context.Context) context.Context {
+				session := &auth.Session{
+					User: &domain.User{ID: 1},
+				}
+
+				return auth.ContextWithSession(ctx, session)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:     "update server with subdomain hostname",
+			serverID: "1",
+			requestBody: `{
+				"name": "Server with subdomain",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "game.example.com",
+				"server_port": 27015
 			}`,
 			setupRepo: func(repo *inmemory.ServerRepository) {
 				err := repo.Save(context.Background(), &domain.Server{

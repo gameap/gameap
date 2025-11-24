@@ -2,10 +2,10 @@ package postserver
 
 import (
 	"log/slog"
-	"net"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/validation"
 	"github.com/google/uuid"
 )
 
@@ -22,7 +22,7 @@ var (
 	ErrGameModIDRequired = api.NewValidationError("game_mod_id is required")
 	ErrServerIPRequired  = api.NewValidationError("server_ip is required")
 	ErrNameTooLong       = api.NewValidationError("name must not exceed 128 characters")
-	ErrInvalidServerIP   = api.NewValidationError("server_ip is not a valid IPs address")
+	ErrInvalidServerIP   = api.NewValidationError("server_ip is not a valid IP address or hostname")
 	ErrInvalidServerPort = api.NewValidationError("server_port must be between 1 and 65535")
 	ErrInvalidQueryPort  = api.NewValidationError("query_port must be between 1 and 65535")
 	ErrInvalidRconPort   = api.NewValidationError("rcon_port must be between 1 and 65535")
@@ -69,7 +69,7 @@ func (s *serverInput) Validate() error {
 		return ErrServerIPRequired
 	}
 
-	if !isValidIP(s.ServerIP) {
+	if !validation.IsValidIPOrHostname(s.ServerIP) {
 		return ErrInvalidServerIP
 	}
 
@@ -120,10 +120,6 @@ func (s *serverInput) ToDomain() *domain.Server {
 	}
 
 	return server
-}
-
-func isValidIP(ip string) bool {
-	return net.ParseIP(ip) != nil
 }
 
 func getDir(dir *string) string {

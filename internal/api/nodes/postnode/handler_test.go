@@ -146,7 +146,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			input: createDedicatedServerInput{
 				Name:                "Test",
 				Location:            "US",
-				IP:                  []string{"invalid-ip"},
+				IP:                  []string{"invalid!!!"},
 				OS:                  "linux",
 				WorkPath:            "/srv/gameap",
 				GdaemonHost:         "10.20.30.40",
@@ -156,6 +156,52 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 			expectedStatus: http.StatusUnprocessableEntity,
 			expectError:    true,
+		},
+		{
+			name: "successful node creation with valid hostname",
+			input: createDedicatedServerInput{
+				Name:                "Test with hostname",
+				Location:            "US",
+				IP:                  []string{"hldm.org", "gameap-daemon"},
+				OS:                  "linux",
+				Enabled:             true,
+				WorkPath:            "/srv/gameap",
+				GdaemonHost:         "gameap-daemon",
+				GdaemonPort:         31717,
+				ClientCertificateID: 1,
+				GdaemonServerCert:   validCertPEM,
+			},
+			setupFileManager: func(fm *files.MockFileManager) {
+				fm.WriteFunc = func(_ context.Context, _ string, _ []byte) error {
+					return nil
+				}
+			},
+			expectedStatus: http.StatusCreated,
+			expectError:    false,
+			expectNodeID:   true,
+		},
+		{
+			name: "successful node creation with mixed IPs and hostnames",
+			input: createDedicatedServerInput{
+				Name:                "Test with mixed",
+				Location:            "EU",
+				IP:                  []string{"192.168.1.1", "example.com", "game-server.example.com"},
+				OS:                  "windows",
+				Enabled:             true,
+				WorkPath:            "C:\\gameap",
+				GdaemonHost:         "example.com",
+				GdaemonPort:         31717,
+				ClientCertificateID: 1,
+				GdaemonServerCert:   validCertPEM,
+			},
+			setupFileManager: func(fm *files.MockFileManager) {
+				fm.WriteFunc = func(_ context.Context, _ string, _ []byte) error {
+					return nil
+				}
+			},
+			expectedStatus: http.StatusCreated,
+			expectError:    false,
+			expectNodeID:   true,
 		},
 		{
 			name: "OS is required",

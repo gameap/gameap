@@ -2,11 +2,11 @@ package putserver
 
 import (
 	"fmt"
-	"net"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/flexible"
+	"github.com/gameap/gameap/pkg/validation"
 )
 
 const (
@@ -24,7 +24,7 @@ var (
 	ErrNameTooLong       = api.NewValidationError(
 		fmt.Sprintf("name must not exceed %d characters", maxNameLength),
 	)
-	ErrInvalidServerIP   = api.NewValidationError("server_ip is not a valid IP address")
+	ErrInvalidServerIP   = api.NewValidationError("server_ip is not a valid IP address or hostname")
 	ErrInvalidServerPort = api.NewValidationError(
 		fmt.Sprintf("server_port must be between %d and %d", minPort, maxPort),
 	)
@@ -79,7 +79,7 @@ func (in *updateServerInput) Validate() error {
 		return ErrServerIPRequired
 	}
 
-	if !isValidIP(in.ServerIP) {
+	if !validation.IsValidIPOrHostname(in.ServerIP) {
 		return ErrInvalidServerIP
 	}
 
@@ -138,8 +138,4 @@ func (in *updateServerInput) Apply(server *domain.Server) error {
 	}
 
 	return nil
-}
-
-func isValidIP(ip string) bool {
-	return net.ParseIP(ip) != nil
 }

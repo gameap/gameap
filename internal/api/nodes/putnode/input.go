@@ -2,11 +2,11 @@ package putnode
 
 import (
 	"fmt"
-	"net"
 	"strings"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/validation"
 )
 
 const (
@@ -37,7 +37,7 @@ var (
 		fmt.Sprintf("provider must not exceed %d characters", maxProviderLength),
 	)
 	ErrIPRequired       = api.NewValidationError("at least one IP address is required")
-	ErrInvalidIPAddress = api.NewValidationError("invalid IP address format")
+	ErrInvalidIPAddress = api.NewValidationError("invalid IP address or hostname format")
 	ErrOSRequired       = api.NewValidationError("os is required")
 	ErrInvalidOS        = api.NewValidationError("os must be either 'linux' or 'windows'")
 	ErrWorkPathRequired = api.NewValidationError("work_path is required")
@@ -160,7 +160,7 @@ func (in *updateNodeInput) validateIPs() error {
 	}
 
 	for _, ip := range in.IP {
-		if net.ParseIP(ip) == nil {
+		if !validation.IsValidIPOrHostname(ip) {
 			return ErrInvalidIPAddress
 		}
 	}

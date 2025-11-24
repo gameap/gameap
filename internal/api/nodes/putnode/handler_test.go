@@ -284,10 +284,66 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				})
 			},
 			input: updateNodeInput{
-				IP: []string{"invalid-ip"},
+				IP: []string{"invalid!!!"},
 			},
 			expectedStatus: http.StatusUnprocessableEntity,
 			expectError:    true,
+		},
+		{
+			name:   "successful update with valid hostname",
+			nodeID: 10,
+			setupRepo: func(repo *inmemory.NodeRepository) {
+				now := time.Now()
+				_ = repo.Save(context.Background(), &domain.Node{
+					ID:                  10,
+					Enabled:             true,
+					Name:                "Test",
+					OS:                  "linux",
+					Location:            "US",
+					IPs:                 []string{"10.0.0.10"},
+					WorkPath:            "/srv/gameap",
+					GdaemonHost:         "10.0.0.10",
+					GdaemonPort:         12345,
+					GdaemonAPIKey:       "test",
+					GdaemonServerCert:   "certs/test.crt",
+					ClientCertificateID: 1,
+					CreatedAt:           &now,
+					UpdatedAt:           &now,
+				})
+			},
+			input: updateNodeInput{
+				IP: []string{"hldm.org", "gameap-daemon"},
+			},
+			expectedStatus: http.StatusOK,
+			expectError:    false,
+		},
+		{
+			name:   "successful update with mixed IPs and hostnames",
+			nodeID: 11,
+			setupRepo: func(repo *inmemory.NodeRepository) {
+				now := time.Now()
+				_ = repo.Save(context.Background(), &domain.Node{
+					ID:                  11,
+					Enabled:             true,
+					Name:                "Test",
+					OS:                  "linux",
+					Location:            "US",
+					IPs:                 []string{"10.0.0.11"},
+					WorkPath:            "/srv/gameap",
+					GdaemonHost:         "10.0.0.11",
+					GdaemonPort:         12345,
+					GdaemonAPIKey:       "test",
+					GdaemonServerCert:   "certs/test.crt",
+					ClientCertificateID: 1,
+					CreatedAt:           &now,
+					UpdatedAt:           &now,
+				})
+			},
+			input: updateNodeInput{
+				IP: []string{"192.168.1.1", "example.com", "game-server.example.com"},
+			},
+			expectedStatus: http.StatusOK,
+			expectError:    false,
 		},
 		{
 			name:   "validation error - invalid OS",

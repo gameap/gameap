@@ -222,11 +222,11 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"game_id": "cstrike",
 				"ds_id": 1,
 				"game_mod_id": 1,
-				"server_ip": "not-an-ip",
+				"server_ip": "not_valid!!!",
 				"server_port": 27015
 			}`,
 			expectedStatus: http.StatusUnprocessableEntity,
-			wantError:      "server_ip is not a valid IPs address",
+			wantError:      "server_ip is not a valid IP address or hostname",
 		},
 		{
 			name: "invalid server_ip format",
@@ -239,7 +239,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"server_port": 27015
 			}`,
 			expectedStatus: http.StatusUnprocessableEntity,
-			wantError:      "server_ip is not a valid IPs address",
+			wantError:      "server_ip is not a valid IP address or hostname",
 		},
 		{
 			name: "missing server_port",
@@ -401,6 +401,42 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"server_ip": "192.168.1.100",
 				"server_port": 27015,
 				"dir": ""
+			}`,
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name: "valid hostname",
+			requestBody: `{
+				"name": "Server with hostname",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "hldm.org",
+				"server_port": 27015
+			}`,
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name: "valid subdomain hostname",
+			requestBody: `{
+				"name": "Server with subdomain",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "game.example.com",
+				"server_port": 27015
+			}`,
+			expectedStatus: http.StatusCreated,
+		},
+		{
+			name: "valid hostname with hyphen",
+			requestBody: `{
+				"name": "Server with hyphenated hostname",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "game-server.example.com",
+				"server_port": 27015
 			}`,
 			expectedStatus: http.StatusCreated,
 		},
