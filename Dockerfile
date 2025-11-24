@@ -4,7 +4,8 @@ FROM node:24-alpine AS uibuilder
 WORKDIR /app
 
 COPY web/frontend/package*.json ./web/frontend/
-RUN cd /app/web/frontend && npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    cd /app/web/frontend && npm ci
 
 COPY web ./web
 RUN cd /app/web/frontend && npm run build --if-present
@@ -16,15 +17,20 @@ FROM golang:1.25-alpine AS builder
 WORKDIR /app
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY . .
 COPY --from=uibuilder /app/web/static/dist /app/web/static/dist
 
 ARG VERSION=dev
 ARG BUILD_DATE=unknown
+ARG TARGETOS
+ARG TARGETARCH
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-w -s -X 'github.com/gameap/gameap/internal/application/defaults.Version=${VERSION}' -X 'github.com/gameap/gameap/internal/application/defaults.BuildDate=${BUILD_DATE}'" \
     -o gameap \
     ./cmd/gameap
