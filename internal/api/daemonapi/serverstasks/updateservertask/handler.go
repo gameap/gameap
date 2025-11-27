@@ -149,7 +149,7 @@ func (h *Handler) updateTask(task *domain.ServerTask, input *updateServerTaskInp
 		task.RepeatPeriod = time.Duration(*input.RepeatPeriod) * time.Second
 	}
 	if input.ExecuteDate != nil {
-		task.ExecuteDate = *input.ExecuteDate
+		task.ExecuteDate = input.ExecuteDate.Time
 	}
 
 	now := time.Now()

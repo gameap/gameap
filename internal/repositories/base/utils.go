@@ -2,6 +2,7 @@ package base
 
 import (
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -21,6 +22,10 @@ func allFields(v any) []string {
 }
 
 func ParseTime(s string) (time.Time, error) {
+	if idx := strings.Index(s, " m="); idx != -1 {
+		s = s[:idx]
+	}
+
 	formats := []string{
 		time.RFC3339,
 		time.RFC3339Nano,
@@ -28,6 +33,7 @@ func ParseTime(s string) (time.Time, error) {
 		"2006-01-02T15:04:05",
 		"2006-01-02 15:04:05.999999999",
 		"2006-01-02T15:04:05.999999999",
+		"2006-01-02 15:04:05.999999999 -0700 MST",
 		"2006-01-02 15:04:05.9999999 -0700 MST",
 	}
 

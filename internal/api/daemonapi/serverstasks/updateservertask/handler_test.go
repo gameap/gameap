@@ -648,6 +648,156 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			wantError:      "repeat_period must be non-negative",
 		},
+		{
+			name: "successful_update_with_mysql_datetime_format",
+			setupContext: func(taskRepo *inmemory.ServerTaskRepository, serverRepo *inmemory.ServerRepository) context.Context {
+				now := time.Now()
+				node := &domain.Node{
+					ID:                  1,
+					Enabled:             true,
+					Name:                "test-node",
+					OS:                  "linux",
+					Location:            "Montenegro",
+					IPs:                 []string{"172.18.0.5"},
+					WorkPath:            "/srv/gameap",
+					GdaemonHost:         "172.18.0.5",
+					GdaemonPort:         31717,
+					GdaemonAPIKey:       "test-api-key",
+					GdaemonServerCert:   "certs/root.crt",
+					ClientCertificateID: 1,
+					PreferInstallMethod: "auto",
+					CreatedAt:           &now,
+					UpdatedAt:           &now,
+				}
+
+				server := &domain.Server{
+					ID:         10,
+					Enabled:    true,
+					Installed:  domain.ServerInstalledStatusInstalled,
+					Name:       "Test Server",
+					UUID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+					UUIDShort:  "550e8400",
+					GameID:     "rust",
+					DSID:       1,
+					ServerIP:   "172.18.0.5",
+					ServerPort: 27015,
+					Dir:        "/srv/gameap/servers/server1",
+					CreatedAt:  &now,
+					UpdatedAt:  &now,
+				}
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+
+				executeDate := now.Add(24 * time.Hour)
+				task := &domain.ServerTask{
+					Command:      domain.ServerTaskCommandStart,
+					ServerID:     10,
+					Repeat:       0,
+					RepeatPeriod: 3600 * time.Second,
+					Counter:      5,
+					ExecuteDate:  executeDate,
+					CreatedAt:    &now,
+					UpdatedAt:    &now,
+				}
+				require.NoError(t, taskRepo.Save(context.Background(), task))
+
+				daemonSession := &auth.DaemonSession{
+					Node: node,
+				}
+
+				return auth.ContextWithDaemonSession(context.Background(), daemonSession)
+			},
+			taskID: "1",
+			requestBody: map[string]any{
+				"execute_date": "2025-12-25 14:30:00",
+			},
+			expectedStatus: http.StatusOK,
+			validateServerTask: func(t *testing.T, taskRepo *inmemory.ServerTaskRepository, _ uint) {
+				t.Helper()
+				tasks, err := taskRepo.Find(context.Background(), nil, nil, nil)
+				require.NoError(t, err)
+				require.Len(t, tasks, 1)
+				assert.Equal(t, uint(6), tasks[0].Counter)
+				expectedTime := time.Date(2025, 12, 25, 14, 30, 0, 0, time.UTC)
+				assert.True(t, tasks[0].ExecuteDate.Equal(expectedTime))
+			},
+		},
+		{
+			name: "successful_update_with_iso8601_no_timezone",
+			setupContext: func(taskRepo *inmemory.ServerTaskRepository, serverRepo *inmemory.ServerRepository) context.Context {
+				now := time.Now()
+				node := &domain.Node{
+					ID:                  1,
+					Enabled:             true,
+					Name:                "test-node",
+					OS:                  "linux",
+					Location:            "Montenegro",
+					IPs:                 []string{"172.18.0.5"},
+					WorkPath:            "/srv/gameap",
+					GdaemonHost:         "172.18.0.5",
+					GdaemonPort:         31717,
+					GdaemonAPIKey:       "test-api-key",
+					GdaemonServerCert:   "certs/root.crt",
+					ClientCertificateID: 1,
+					PreferInstallMethod: "auto",
+					CreatedAt:           &now,
+					UpdatedAt:           &now,
+				}
+
+				server := &domain.Server{
+					ID:         10,
+					Enabled:    true,
+					Installed:  domain.ServerInstalledStatusInstalled,
+					Name:       "Test Server",
+					UUID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+					UUIDShort:  "550e8400",
+					GameID:     "rust",
+					DSID:       1,
+					ServerIP:   "172.18.0.5",
+					ServerPort: 27015,
+					Dir:        "/srv/gameap/servers/server1",
+					CreatedAt:  &now,
+					UpdatedAt:  &now,
+				}
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+
+				executeDate := now.Add(24 * time.Hour)
+				task := &domain.ServerTask{
+					Command:      domain.ServerTaskCommandRestart,
+					ServerID:     10,
+					Repeat:       3,
+					RepeatPeriod: 1800 * time.Second,
+					Counter:      10,
+					ExecuteDate:  executeDate,
+					CreatedAt:    &now,
+					UpdatedAt:    &now,
+				}
+				require.NoError(t, taskRepo.Save(context.Background(), task))
+
+				daemonSession := &auth.DaemonSession{
+					Node: node,
+				}
+
+				return auth.ContextWithDaemonSession(context.Background(), daemonSession)
+			},
+			taskID: "1",
+			requestBody: map[string]any{
+				"execute_date":  "2025-11-15T10:00:00",
+				"repeat":        5,
+				"repeat_period": 3600,
+			},
+			expectedStatus: http.StatusOK,
+			validateServerTask: func(t *testing.T, taskRepo *inmemory.ServerTaskRepository, _ uint) {
+				t.Helper()
+				tasks, err := taskRepo.Find(context.Background(), nil, nil, nil)
+				require.NoError(t, err)
+				require.Len(t, tasks, 1)
+				assert.Equal(t, uint(11), tasks[0].Counter)
+				assert.Equal(t, uint8(5), tasks[0].Repeat)
+				assert.Equal(t, 3600*time.Second, tasks[0].RepeatPeriod)
+				expectedTime := time.Date(2025, 11, 15, 10, 0, 0, 0, time.UTC)
+				assert.True(t, tasks[0].ExecuteDate.Equal(expectedTime))
+			},
+		},
 	}
 
 	for _, tt := range tests {

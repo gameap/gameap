@@ -88,6 +88,21 @@ func TestParseTime(t *testing.T) {
 				assert.Equal(t, 2025, result.Year())
 			},
 		},
+		{
+			name:    "Go_default_String_format_with_monotonic_clock",
+			input:   "2025-11-26 12:59:46.682801983 +0000 UTC m=+553.748227326",
+			wantErr: false,
+			validate: func(t *testing.T, result time.Time) {
+				t.Helper()
+
+				assert.Equal(t, 2025, result.Year())
+				assert.Equal(t, time.November, result.Month())
+				assert.Equal(t, 26, result.Day())
+				assert.Equal(t, 12, result.Hour())
+				assert.Equal(t, 59, result.Minute())
+				assert.Equal(t, 46, result.Second())
+			},
+		},
 	}
 
 	for _, tt := range tests {

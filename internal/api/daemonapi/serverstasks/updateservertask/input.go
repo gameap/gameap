@@ -1,16 +1,15 @@
 package updateservertask
 
 import (
-	"time"
-
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/pkg/errors"
 )
 
 type updateServerTaskInput struct {
-	Counter      *uint      `json:"counter"`
-	Repeat       *uint8     `json:"repeat"`
-	RepeatPeriod *int       `json:"repeat_period"`
-	ExecuteDate  *time.Time `json:"execute_date"`
+	Counter      *uint          `json:"counter"`
+	Repeat       *uint8         `json:"repeat"`
+	RepeatPeriod *int           `json:"repeat_period"`
+	ExecuteDate  *flexible.Time `json:"execute_date"`
 }
 
 func (in *updateServerTaskInput) Validate() error {
