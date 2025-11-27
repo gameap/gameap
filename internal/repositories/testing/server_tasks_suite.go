@@ -61,6 +61,42 @@ func (s *ServerTaskRepositorySuite) TestServerTaskRepositorySave() {
 		assert.NotZero(t, task.ID)
 		assert.NotNil(t, task.CreatedAt)
 		assert.NotNil(t, task.UpdatedAt)
+
+		filter := &filters.FindServerTask{IDs: []uint{task.ID}}
+		results, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, domain.ServerTaskCommandStart, results[0].Command)
+		assert.Equal(t, time.Duration(0), results[0].RepeatPeriod)
+		assert.Equal(t, 0, int(results[0].Counter))
+	})
+
+	s.T().Run("insert_new_task_with_repeat", func(t *testing.T) {
+		executeDate := time.Now().Add(1 * time.Hour)
+		task := &domain.ServerTask{
+			Command:      domain.ServerTaskCommandStart,
+			ServerID:     1,
+			Repeat:       81,
+			RepeatPeriod: 86400 * time.Second,
+			Counter:      0,
+			ExecuteDate:  executeDate,
+			Payload:      lo.ToPtr("test payload"),
+		}
+
+		err := s.repo.Save(ctx, task)
+		require.NoError(t, err)
+		assert.NotZero(t, task.ID)
+		assert.NotNil(t, task.CreatedAt)
+		assert.NotNil(t, task.UpdatedAt)
+
+		filter := &filters.FindServerTask{IDs: []uint{task.ID}}
+		results, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, domain.ServerTaskCommandStart, results[0].Command)
+		assert.Equal(t, 81, int(results[0].Repeat))
+		assert.Equal(t, 86400*time.Second, results[0].RepeatPeriod)
+		assert.Equal(t, 0, int(results[0].Counter))
 	})
 
 	s.T().Run("update_existing_task", func(t *testing.T) {
@@ -69,7 +105,7 @@ func (s *ServerTaskRepositorySuite) TestServerTaskRepositorySave() {
 			Command:      domain.ServerTaskCommandStop,
 			ServerID:     2,
 			Repeat:       1,
-			RepeatPeriod: 3600 * time.Second,
+			RepeatPeriod: 60 * time.Minute,
 			Counter:      5,
 			ExecuteDate:  executeDate,
 		}
@@ -90,6 +126,7 @@ func (s *ServerTaskRepositorySuite) TestServerTaskRepositorySave() {
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Equal(t, domain.ServerTaskCommandRestart, results[0].Command)
+		assert.Equal(t, 60*time.Minute, results[0].RepeatPeriod)
 		assert.Equal(t, uint(10), results[0].Counter)
 	})
 

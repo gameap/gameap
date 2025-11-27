@@ -6,6 +6,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gameap/gameap/pkg/validation"
 )
 
@@ -57,22 +58,23 @@ var (
 	)
 	ErrClientCertificateIDZero = api.NewValidationError("client_certificate_id must be greater than 0")
 	ErrScriptTooLong           = api.NewValidationError("script content is too long")
+	ErrCertificateRequired     = api.NewValidationError("gdaemon_server_cert is required")
 )
 
 type createDedicatedServerInput struct {
-	Name                string   `json:"name"`
-	Description         *string  `json:"description,omitempty"`
-	Location            string   `json:"location"`
-	IP                  []string `json:"ip"`
-	OS                  string   `json:"os"`
-	Enabled             bool     `json:"enabled"`
-	Provider            *string  `json:"provider,omitempty"`
-	WorkPath            string   `json:"work_path"`
-	SteamcmdPath        *string  `json:"steamcmd_path,omitempty"`
-	GdaemonHost         string   `json:"gdaemon_host"`
-	GdaemonPort         int      `json:"gdaemon_port"`
-	ClientCertificateID uint     `json:"client_certificate_id"`
-	GdaemonServerCert   string   `json:"gdaemon_server_cert"`
+	Name                string        `json:"name"`
+	Description         *string       `json:"description,omitempty"`
+	Location            string        `json:"location"`
+	IP                  []string      `json:"ip"`
+	OS                  string        `json:"os"`
+	Enabled             bool          `json:"enabled"`
+	Provider            *string       `json:"provider,omitempty"`
+	WorkPath            string        `json:"work_path"`
+	SteamcmdPath        *string       `json:"steamcmd_path,omitempty"`
+	GdaemonHost         string        `json:"gdaemon_host"`
+	GdaemonPort         flexible.Uint `json:"gdaemon_port"`
+	ClientCertificateID flexible.Uint `json:"client_certificate_id"`
+	GdaemonServerCert   string        `json:"gdaemon_server_cert"`
 
 	PreferInstallMethod *string `json:"prefer_install_method,omitempty"`
 	ScriptInstall       *string `json:"script_install,omitempty"`
@@ -162,6 +164,10 @@ func (in *createDedicatedServerInput) Validate() error {
 		return api.NewValidationError("gdaemon_server_cert is too large")
 	}
 
+	if in.GdaemonServerCert == "" {
+		return ErrCertificateRequired
+	}
+
 	return nil
 }
 
@@ -176,10 +182,10 @@ func (in *createDedicatedServerInput) ToDomain(apiKey, certPath string) *domain.
 		WorkPath:            strings.TrimSpace(in.WorkPath),
 		SteamcmdPath:        trimStringPtr(in.SteamcmdPath),
 		GdaemonHost:         strings.TrimSpace(in.GdaemonHost),
-		GdaemonPort:         in.GdaemonPort,
+		GdaemonPort:         int(in.GdaemonPort), //nolint:gosec // Port checked in validation
 		GdaemonAPIKey:       apiKey,
 		GdaemonServerCert:   certPath,
-		ClientCertificateID: in.ClientCertificateID,
+		ClientCertificateID: in.ClientCertificateID.Uint(),
 		PreferInstallMethod: valueOrDefault(in.PreferInstallMethod, domain.NodePreferInstallMethodAuto),
 		ScriptInstall:       trimStringPtr(in.ScriptInstall),
 		ScriptReinstall:     trimStringPtr(in.ScriptReinstall),

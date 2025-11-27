@@ -17,10 +17,6 @@ func (in *updateServerTaskInput) Validate() error {
 		return errors.New("execute_date is required")
 	}
 
-	if in.Repeat != nil && *in.Repeat < 1 {
-		return errors.New("repeat must be at least 1")
-	}
-
 	if in.RepeatPeriod != nil && *in.RepeatPeriod < 0 {
 		return errors.New("repeat_period must be non-negative")
 	}

@@ -52,8 +52,8 @@
                         <n-select v-model:value="command" :options="options" v-on:update="formChange" />
 
                         <span v-if="errors['command']" class="help-block">
-                                    <strong class="text-red-600">{{ errors['command'] }}</strong>
-                                </span>
+                            <strong class="text-red-600">{{ errors['command'] }}</strong>
+                        </span>
                     </div>
 
                     <div class="mb-3">
@@ -66,8 +66,8 @@
                         /><br>
 
                         <span v-if="errors['taskDate']" class="help-block">
-                                    <strong class="text-red-600">{{ errors['taskDate'] }}</strong>
-                                </span>
+                            <strong class="text-red-600">{{ errors['taskDate'] }}</strong>
+                        </span>
                     </div>
 
                     <div class="relative block mb-2">
@@ -166,8 +166,10 @@
     import { mapState } from 'vuex';
     import { ref } from "vue";
     import _ from 'lodash';
-    import { pluralize, trans } from '../../i18n/i18n'
-    import GButton from "../../components/GButton.vue";
+    import { pluralize, trans } from '@/i18n/i18n'
+    import GButton from "@/components/GButton.vue";
+    import { confirm } from "@/parts/dialogs";
+
 
     const REPEAT_ENDLESSLY          = 0;
     const REPEAT_ONCE               = 1;
@@ -229,10 +231,12 @@
                 this.taskRepeatInput = '';
                 this.repeat = this.tasks[index].repeat;
 
-                const repeat = this.tasks[index].repeat_period.split(' ');
+                if (this.tasks[index].repeat_period) {
+                    const repeatPeriod = this.tasks[index].repeat_period.split(' ');
 
-                this.taskRepeatPeriod = repeat[0];
-                this.taskRepeatUnit = this.repeatUnitPlural(repeat[1]);
+                    this.taskRepeatPeriod = parseInt(repeatPeriod[0]);
+                    this.taskRepeatUnit = this.repeatUnitPlural(repeatPeriod[1]);
+                }
 
                 this.selectedTaskIndex = index;
 
@@ -338,7 +342,7 @@
                 this.resetErrors();
             },
             deleteTask(taskIndex) {
-                gameap.confirm(this.trans('servers_tasks.confirm_remove'), () => {
+                confirm(this.trans('servers_tasks.confirm_remove'), () => {
                     this.$store.dispatch('servers/destroyTask', taskIndex);
                 })
             },

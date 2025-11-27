@@ -30,6 +30,7 @@ import {useClientCertificatesStore} from "@/store/clientCertificates";
 import {errorNotification, notification} from "@/parts/dialogs"
 import {useRoute, useRouter} from "vue-router"
 import {storeToRefs} from "pinia"
+import _ from "lodash"
 import UpdateNodeForm from "./forms/UpdateNodeForm.vue";
 import GButton from "../../components/GButton.vue";
 import {useNodeListStore} from "@/store/nodeList";

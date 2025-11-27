@@ -36,7 +36,7 @@ func newServerTaskResponseFromServerTask(task *domain.ServerTask) serverTaskResp
 		Command:      string(task.Command),
 		ServerID:     task.ServerID,
 		Repeat:       task.Repeat,
-		RepeatPeriod: carbon.Humanize(task.RepeatPeriod * time.Second),
+		RepeatPeriod: carbon.Humanize(task.RepeatPeriod),
 		Counter:      task.Counter,
 		ExecuteDate:  task.ExecuteDate,
 		Payload:      task.Payload,

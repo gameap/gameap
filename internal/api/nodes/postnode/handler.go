@@ -22,12 +22,9 @@ const (
 )
 
 var (
-	ErrFailedToGenerateAPIKey      = errors.New("failed to generate API key")
-	ErrFailedToSaveCertificate     = errors.New("failed to save certificate")
-	ErrFailedToSaveNode            = errors.New("failed to save node")
-	ErrInvalidCertificateContent   = errors.New("invalid certificate content")
-	ErrCertificateRequired         = errors.New("gdaemon_server_cert is required")
-	ErrFailedToGenerateCertificate = errors.New("failed to generate certificate")
+	ErrFailedToGenerateAPIKey  = errors.New("failed to generate API key")
+	ErrFailedToSaveCertificate = errors.New("failed to save certificate")
+	ErrFailedToSaveNode        = errors.New("failed to save node")
 )
 
 type Handler struct {

@@ -322,7 +322,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				GdaemonPort:         12345,
 				ClientCertificateID: 1,
 			},
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus: http.StatusUnprocessableEntity,
 			expectError:    true,
 		},
 		{

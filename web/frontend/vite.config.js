@@ -39,8 +39,12 @@ export default defineConfig({
     },
     server: {
         proxy: {
+            '/lang': {
+                target: 'http://localhost:8025',
+                changeOrigin: true,
+            },
             '/api': {
-                target: 'http://localhost:8000',
+                target: 'http://localhost:8025',
                 changeOrigin: true,
             },
         },

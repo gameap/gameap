@@ -183,6 +183,79 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			name: "successful_server_task_update_with_repeat_0",
+			setupContext: func(taskRepo *inmemory.ServerTaskRepository, serverRepo *inmemory.ServerRepository) context.Context {
+				now := time.Now()
+				node := &domain.Node{
+					ID:                  1,
+					Enabled:             true,
+					Name:                "test-node",
+					OS:                  "linux",
+					Location:            "Montenegro",
+					IPs:                 []string{"172.18.0.5"},
+					WorkPath:            "/srv/gameap",
+					GdaemonHost:         "172.18.0.5",
+					GdaemonPort:         31717,
+					GdaemonAPIKey:       "test-api-key",
+					GdaemonServerCert:   "certs/root.crt",
+					ClientCertificateID: 1,
+					PreferInstallMethod: "auto",
+					CreatedAt:           &now,
+					UpdatedAt:           &now,
+				}
+
+				server := &domain.Server{
+					ID:         10,
+					Enabled:    true,
+					Installed:  domain.ServerInstalledStatusInstalled,
+					Name:       "Test Server",
+					UUID:       uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+					UUIDShort:  "550e8400",
+					GameID:     "rust",
+					DSID:       1,
+					ServerIP:   "172.18.0.5",
+					ServerPort: 27015,
+					Dir:        "/srv/gameap/servers/server1",
+					CreatedAt:  &now,
+					UpdatedAt:  &now,
+				}
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+
+				executeDate := now.Add(24 * time.Hour)
+				task := &domain.ServerTask{
+					Command:      domain.ServerTaskCommandStart,
+					ServerID:     10,
+					Repeat:       0,
+					RepeatPeriod: 3600 * time.Second,
+					Counter:      5,
+					ExecuteDate:  executeDate,
+					CreatedAt:    &now,
+					UpdatedAt:    &now,
+				}
+				require.NoError(t, taskRepo.Save(context.Background(), task))
+
+				daemonSession := &auth.DaemonSession{
+					Node: node,
+				}
+
+				return auth.ContextWithDaemonSession(context.Background(), daemonSession)
+			},
+			taskID: "1",
+			requestBody: map[string]any{
+				"execute_date":  time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+				"repeat":        0,
+				"repeat_period": 86400,
+			},
+			expectedStatus: http.StatusOK,
+			validateServerTask: func(t *testing.T, taskRepo *inmemory.ServerTaskRepository, _ uint) {
+				t.Helper()
+				tasks, err := taskRepo.Find(context.Background(), nil, nil, nil)
+				require.NoError(t, err)
+				require.Len(t, tasks, 1)
+				assert.Equal(t, 6, int(tasks[0].Counter))
+			},
+		},
+		{
 			name: "successful server task update with only required field",
 			setupContext: func(taskRepo *inmemory.ServerTaskRepository, serverRepo *inmemory.ServerRepository) context.Context {
 				now := time.Now()
