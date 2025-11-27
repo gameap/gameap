@@ -17,6 +17,7 @@ import (
 	"github.com/gameap/gameap/internal/services"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,7 +48,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Name:     lo.ToPtr("Updated User"),
 				Password: lo.ToPtr("newpassword123"),
 				Roles:    []string{"user"},
-				Servers:  []uint{1, 2},
+				Servers:  []flexible.Uint{1, 2},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -97,7 +98,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Name:     lo.ToPtr("Updated User"),
 				Password: lo.ToPtr(""),
 				Roles:    []string{"user"},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -138,7 +139,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: updateUserInput{
 				Email:   "newuser@example.com",
 				Roles:   []string{},
-				Servers: []uint{},
+				Servers: []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -172,7 +173,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: updateUserInput{
 				Email:   "test@example.com",
 				Roles:   []string{},
-				Servers: []uint{},
+				Servers: []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -194,7 +195,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: updateUserInput{
 				Email:   "test@example.com",
 				Roles:   []string{},
-				Servers: []uint{},
+				Servers: []flexible.Uint{},
 			},
 			setupRepo:      func(_ *inmemory.UserRepository, _ *inmemory.RBACRepository) {},
 			expectedStatus: http.StatusUnauthorized,
@@ -207,7 +208,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: updateUserInput{
 				Email:   "test@example.com",
 				Roles:   []string{},
-				Servers: []uint{},
+				Servers: []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -229,7 +230,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: updateUserInput{
 				Email:   "",
 				Roles:   []string{},
-				Servers: []uint{},
+				Servers: []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -251,7 +252,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: updateUserInput{
 				Email:   "invalid-email",
 				Roles:   []string{},
-				Servers: []uint{},
+				Servers: []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -274,7 +275,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "test@example.com",
 				Password: lo.ToPtr("short"),
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -289,6 +290,36 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			wantError:      "password must be at least 8 characters",
 			expectUser:     false,
+		},
+		{
+			name:        "flexible_uint_parsing_with_string_server_ids",
+			userID:      "1",
+			requestBody: `{"email": "test@example.com", "roles": [], "servers": ["1", "2", "3"]}`,
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "admin",
+					Email: "admin@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(usersRepo *inmemory.UserRepository, _ *inmemory.RBACRepository) {
+				now := time.Now()
+
+				user := &domain.User{
+					ID:        1,
+					Login:     "testuser",
+					Email:     "original@example.com",
+					Password:  "$2a$10$test",
+					CreatedAt: &now,
+					UpdatedAt: &now,
+				}
+
+				require.NoError(t, usersRepo.Save(context.Background(), user))
+			},
+			expectedStatus: http.StatusOK,
+			expectUser:     true,
 		},
 	}
 
@@ -316,8 +347,14 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				ctx = tt.setupAuth()
 			}
 
-			bodyBytes, err := json.Marshal(tt.requestBody)
-			require.NoError(t, err)
+			var bodyBytes []byte
+			var err error
+			if strBody, ok := tt.requestBody.(string); ok {
+				bodyBytes = []byte(strBody)
+			} else {
+				bodyBytes, err = json.Marshal(tt.requestBody)
+				require.NoError(t, err)
+			}
 
 			req := httptest.NewRequest(http.MethodPut, "/api/users/"+tt.userID, bytes.NewReader(bodyBytes))
 			req = req.WithContext(ctx)
@@ -394,7 +431,7 @@ func TestHandler_UpdateUserFields(t *testing.T) {
 		Name:     &newName,
 		Password: &newPassword,
 		Roles:    []string{"admin"},
-		Servers:  []uint{},
+		Servers:  []flexible.Uint{},
 	}
 
 	session := &auth.Session{

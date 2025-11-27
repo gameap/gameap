@@ -7,6 +7,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gameap/gameap/pkg/validation"
 	"github.com/pkg/errors"
 )
@@ -38,11 +39,11 @@ var (
 )
 
 type updateUserInput struct {
-	Email    string   `json:"email"`
-	Name     *string  `json:"name,omitempty"`
-	Password *string  `json:"password,omitempty"`
-	Roles    []string `json:"roles"`
-	Servers  []uint   `json:"servers"`
+	Email    string          `json:"email"`
+	Name     *string         `json:"name,omitempty"`
+	Password *string         `json:"password,omitempty"`
+	Roles    []string        `json:"roles"`
+	Servers  []flexible.Uint `json:"servers"`
 }
 
 func (input *updateUserInput) Validate() error {
@@ -109,4 +110,13 @@ func (input *updateUserInput) Apply(user *domain.User) error {
 	}
 
 	return nil
+}
+
+func (input *updateUserInput) ServerIDs() []uint {
+	result := make([]uint, 0, len(input.Servers))
+	for _, s := range input.Servers {
+		result = append(result, s.Uint())
+	}
+
+	return result
 }

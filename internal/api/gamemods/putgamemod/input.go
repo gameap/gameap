@@ -5,6 +5,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/pkg/errors"
 )
 
@@ -195,7 +196,7 @@ type varInput struct {
 	Var      string                   `json:"var"`
 	Default  domain.GameModVarDefault `json:"default"`
 	Info     string                   `json:"info"`
-	AdminVar bool                     `json:"admin_var,omitempty"`
+	AdminVar flexible.Bool            `json:"admin_var,omitempty"`
 }
 
 func (v *varInput) Validate() error {
@@ -215,6 +216,6 @@ func (v *varInput) ToDomain() domain.GameModVar {
 		Var:      v.Var,
 		Default:  v.Default,
 		Info:     v.Info,
-		AdminVar: v.AdminVar,
+		AdminVar: v.AdminVar.Bool(),
 	}
 }

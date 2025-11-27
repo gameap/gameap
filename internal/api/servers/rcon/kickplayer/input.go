@@ -3,6 +3,7 @@ package kickplayer
 import (
 	"encoding/json"
 
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gameap/gameap/pkg/quercon/rcon/players"
 	"github.com/pkg/errors"
 )
@@ -19,7 +20,7 @@ type playerInput struct {
 type kickRequest struct {
 	Player            json.RawMessage `json:"player"`
 	Reason            string          `json:"reason"`
-	DurationInMinutes int64           `json:"time"`
+	DurationInMinutes flexible.Int    `json:"time"`
 }
 
 func (r *kickRequest) Validate() error {

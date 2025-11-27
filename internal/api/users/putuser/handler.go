@@ -118,7 +118,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			return errors.WithMessage(err, "failed to save user")
 		}
 
-		err = h.serversRepo.SetUserServers(ctx, user.ID, updateInput.Servers)
+		err = h.serversRepo.SetUserServers(ctx, user.ID, updateInput.ServerIDs())
 		if err != nil {
 			return errors.WithMessage(err, "failed to assign servers to user")
 		}

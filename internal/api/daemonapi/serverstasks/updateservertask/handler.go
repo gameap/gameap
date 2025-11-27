@@ -137,21 +137,19 @@ func (h *Handler) findServerTask(ctx context.Context, taskID, nodeID uint) (*dom
 
 func (h *Handler) updateTask(task *domain.ServerTask, input *updateServerTaskInput) {
 	if input.Counter != nil {
-		task.Counter = *input.Counter
+		task.Counter = input.Counter.Uint()
 	} else {
 		task.Counter++
 	}
 
 	if input.Repeat != nil {
-		if *input.Repeat > math.MaxUint8 {
-			*input.Repeat = math.MaxUint8
-		}
+		repeat := min(input.Repeat.Int(), math.MaxUint8)
 
-		task.Repeat = uint8(*input.Repeat) //nolint:gosec // input.Repeat is already validated
+		task.Repeat = uint8(repeat) //nolint:gosec // input.Repeat is already validated
 	}
 
 	if input.RepeatPeriod != nil {
-		task.RepeatPeriod = time.Duration(*input.RepeatPeriod) * time.Second
+		task.RepeatPeriod = time.Duration(input.RepeatPeriod.Int()) * time.Second
 	}
 	if input.ExecuteDate != nil {
 		task.ExecuteDate = input.ExecuteDate.Time

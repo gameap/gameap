@@ -7,6 +7,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gameap/gameap/pkg/validation"
 	"github.com/pkg/errors"
 )
@@ -45,12 +46,12 @@ var (
 )
 
 type createUserInput struct {
-	Login    string   `json:"login"`
-	Email    string   `json:"email"`
-	Password string   `json:"password"`
-	Name     *string  `json:"name,omitempty"`
-	Roles    []string `json:"roles"`
-	Servers  []uint   `json:"servers"`
+	Login    string          `json:"login"`
+	Email    string          `json:"email"`
+	Password string          `json:"password"`
+	Name     *string         `json:"name,omitempty"`
+	Roles    []string        `json:"roles"`
+	Servers  []flexible.Uint `json:"servers"`
 }
 
 func (input *createUserInput) Validate() error {
@@ -134,4 +135,13 @@ func (input *createUserInput) ToDomain() (*domain.User, error) {
 		Password: hashedPassword,
 		Name:     name,
 	}, nil
+}
+
+func (input *createUserInput) ServerIDs() []uint {
+	result := make([]uint, 0, len(input.Servers))
+	for _, s := range input.Servers {
+		result = append(result, s.Uint())
+	}
+
+	return result
 }

@@ -16,6 +16,17 @@ const (
 	ServerInstalledStatusInstallationInProg ServerInstalledStatus = 2
 )
 
+func (s ServerInstalledStatus) Valid() bool {
+	switch s {
+	case ServerInstalledStatusNotInstalled,
+		ServerInstalledStatusInstalled,
+		ServerInstalledStatusInstallationInProg:
+		return true
+	default:
+		return false
+	}
+}
+
 type Server struct {
 	ID               uint                  `db:"id"`
 	UUID             uuid.UUID             `db:"uuid"`

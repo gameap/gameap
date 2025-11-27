@@ -25,6 +25,7 @@ var (
 		fmt.Sprintf("name must not exceed %d characters", maxNameLength),
 	)
 	ErrInvalidServerIP   = api.NewValidationError("server_ip is not a valid IP address or hostname")
+	ErrInvalidInstalled  = api.NewValidationError("installed has an invalid value, must be 0, 1 or 2")
 	ErrInvalidServerPort = api.NewValidationError(
 		fmt.Sprintf("server_port must be between %d and %d", minPort, maxPort),
 	)
@@ -38,16 +39,16 @@ var (
 
 type updateServerInput struct {
 	Enabled      *flexible.Bool `json:"enabled,omitempty"`
-	Installed    *int8          `json:"installed,omitempty"`
+	Installed    *flexible.Int  `json:"installed,omitempty"`
 	Blocked      *flexible.Bool `json:"blocked,omitempty"`
 	Name         string         `json:"name"`
 	GameID       string         `json:"game_id"`
-	DSID         int            `json:"ds_id"`
-	GameModID    int            `json:"game_mod_id"`
+	DSID         flexible.Int   `json:"ds_id"`
+	GameModID    flexible.Int   `json:"game_mod_id"`
 	ServerIP     string         `json:"server_ip"`
-	ServerPort   int            `json:"server_port"`
-	QueryPort    *int           `json:"query_port,omitempty"`
-	RconPort     *int           `json:"rcon_port,omitempty"`
+	ServerPort   flexible.Int   `json:"server_port"`
+	QueryPort    *flexible.Int  `json:"query_port,omitempty"`
+	RconPort     *flexible.Int  `json:"rcon_port,omitempty"`
 	Rcon         *string        `json:"rcon,omitempty"`
 	StartCommand *string        `json:"start_command,omitempty"`
 	Dir          *string        `json:"dir,omitempty"`
@@ -67,11 +68,11 @@ func (in *updateServerInput) Validate() error {
 		return ErrGameIDIsRequired
 	}
 
-	if in.DSID <= 0 {
+	if in.DSID.Int() <= 0 {
 		return ErrDSIDIsRequired
 	}
 
-	if in.GameModID <= 0 {
+	if in.GameModID.Int() <= 0 {
 		return ErrGameModIDRequired
 	}
 
@@ -83,15 +84,19 @@ func (in *updateServerInput) Validate() error {
 		return ErrInvalidServerIP
 	}
 
-	if in.ServerPort < minPort || in.ServerPort > maxPort {
+	if !domain.ServerInstalledStatus(in.Installed.Int()).Valid() {
+		return ErrInvalidInstalled
+	}
+
+	if in.ServerPort.Int() < minPort || in.ServerPort.Int() > maxPort {
 		return ErrInvalidServerPort
 	}
 
-	if in.QueryPort != nil && (*in.QueryPort < minPort || *in.QueryPort > maxPort) {
+	if in.QueryPort != nil && (in.QueryPort.Int() < minPort || in.QueryPort.Int() > maxPort) {
 		return ErrInvalidQueryPort
 	}
 
-	if in.RconPort != nil && (*in.RconPort < minPort || *in.RconPort > maxPort) {
+	if in.RconPort != nil && (in.RconPort.Int() < minPort || in.RconPort.Int() > maxPort) {
 		return ErrInvalidRconPort
 	}
 
@@ -106,7 +111,7 @@ func (in *updateServerInput) Apply(server *domain.Server) error {
 	}
 
 	if in.Installed != nil {
-		server.Installed = domain.ServerInstalledStatus(*in.Installed)
+		server.Installed = domain.ServerInstalledStatus(in.Installed.Int())
 	}
 
 	if in.Blocked != nil {
@@ -114,12 +119,20 @@ func (in *updateServerInput) Apply(server *domain.Server) error {
 	}
 
 	server.GameID = in.GameID
-	server.DSID = uint(in.DSID)           //nolint:gosec // We check it in Validate
-	server.GameModID = uint(in.GameModID) //nolint:gosec // We check it in Validate
+	server.DSID = uint(in.DSID.Int())           //nolint:gosec // We check it in Validate
+	server.GameModID = uint(in.GameModID.Int()) //nolint:gosec // We check it in Validate
 	server.ServerIP = in.ServerIP
-	server.ServerPort = in.ServerPort
-	server.QueryPort = in.QueryPort
-	server.RconPort = in.RconPort
+	server.ServerPort = in.ServerPort.Int()
+
+	if in.QueryPort != nil {
+		qp := in.QueryPort.Int()
+		server.QueryPort = &qp
+	}
+
+	if in.RconPort != nil {
+		rp := in.RconPort.Int()
+		server.RconPort = &rp
+	}
 
 	if in.Rcon != nil {
 		server.Rcon = in.Rcon

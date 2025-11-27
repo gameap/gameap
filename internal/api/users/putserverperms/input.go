@@ -2,12 +2,13 @@ package putserverperms
 
 import (
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/pkg/errors"
 )
 
 type PermissionInput struct {
-	Permission string `json:"permission"`
-	Value      bool   `json:"value"`
+	Permission string        `json:"permission"`
+	Value      flexible.Bool `json:"value"`
 }
 
 type UpdatePermissionsInput []PermissionInput
@@ -42,7 +43,7 @@ func (input UpdatePermissionsInput) ToAbilities() ([]domain.AbilityName, []domai
 	for _, perm := range input {
 		abilityName := domain.AbilityName(perm.Permission)
 
-		if perm.Value {
+		if perm.Value.Bool() {
 			allow = append(allow, abilityName)
 		} else {
 			revoke = append(revoke, abilityName)

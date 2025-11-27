@@ -15,6 +15,7 @@ import (
 	"github.com/gameap/gameap/internal/services"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/samber/lo"
@@ -52,8 +53,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userID:   "1",
 			serverID: "1",
 			requestBody: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: true},
-				{Permission: "game-server-stop", Value: false},
+				{Permission: "game-server-start", Value: flexible.Bool(true)},
+				{Permission: "game-server-stop", Value: flexible.Bool(false)},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -108,10 +109,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userID:   "1",
 			serverID: "1",
 			requestBody: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: true},
-				{Permission: "game-server-stop", Value: true},
-				{Permission: "game-server-restart", Value: true},
-				{Permission: "game-server-files", Value: true},
+				{Permission: "game-server-start", Value: flexible.Bool(true)},
+				{Permission: "game-server-stop", Value: flexible.Bool(true)},
+				{Permission: "game-server-restart", Value: flexible.Bool(true)},
+				{Permission: "game-server-files", Value: flexible.Bool(true)},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -171,7 +172,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userID:   "1",
 			serverID: "1",
 			requestBody: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: true},
+				{Permission: "game-server-start", Value: flexible.Bool(true)},
 			},
 			setupAuth: context.Background,
 			setupRepos: func(
@@ -188,7 +189,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userID:   "invalid",
 			serverID: "1",
 			requestBody: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: true},
+				{Permission: "game-server-start", Value: flexible.Bool(true)},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -213,7 +214,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userID:   "1",
 			serverID: "invalid",
 			requestBody: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: true},
+				{Permission: "game-server-start", Value: flexible.Bool(true)},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -284,7 +285,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userID:   "1",
 			serverID: "1",
 			requestBody: UpdatePermissionsInput{
-				{Permission: "invalid-permission", Value: true},
+				{Permission: "invalid-permission", Value: flexible.Bool(true)},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -309,7 +310,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userID:   "999",
 			serverID: "1",
 			requestBody: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: true},
+				{Permission: "game-server-start", Value: flexible.Bool(true)},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -334,7 +335,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userID:   "1",
 			serverID: "999",
 			requestBody: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: true},
+				{Permission: "game-server-start", Value: flexible.Bool(true)},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -360,7 +361,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userID:   "2",
 			serverID: "1",
 			requestBody: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: false},
+				{Permission: "game-server-start", Value: flexible.Bool(false)},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -418,6 +419,116 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				for _, perm := range permissions {
 					assert.True(t, perm.Value, "admin should have all permissions set to true")
 				}
+			},
+		},
+		{
+			name:        "flexible_bool_parsing_with_string_values",
+			userID:      "1",
+			serverID:    "1",
+			requestBody: `[{"permission": "game-server-start", "value": "true"}, {"permission": "game-server-stop", "value": "1"}, {"permission": "game-server-restart", "value": "yes"}]`,
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepos: func(
+				userRepo *inmemory.UserRepository,
+				serverRepo *inmemory.ServerRepository,
+				_ *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				require.NoError(t, userRepo.Save(context.Background(), &testUser))
+
+				server := &domain.Server{
+					ID:         1,
+					UUID:       uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:  "11111111",
+					Enabled:    true,
+					Name:       "Test Server",
+					GameID:     "cs",
+					DSID:       1,
+					GameModID:  1,
+					ServerIP:   "127.0.0.1",
+					ServerPort: 27015,
+					CreatedAt:  &now,
+					UpdatedAt:  &now,
+				}
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+			},
+			expectedStatus:    http.StatusOK,
+			expectPermissions: true,
+			verifyPermissions: func(t *testing.T, permissions []PermissionResponse) {
+				t.Helper()
+
+				startPerm := findPermission(permissions, "game-server-start")
+				require.NotNil(t, startPerm)
+				assert.True(t, startPerm.Value, "start permission should be enabled (parsed from string 'true')")
+
+				stopPerm := findPermission(permissions, "game-server-stop")
+				require.NotNil(t, stopPerm)
+				assert.True(t, stopPerm.Value, "stop permission should be enabled (parsed from string '1')")
+
+				restartPerm := findPermission(permissions, "game-server-restart")
+				require.NotNil(t, restartPerm)
+				assert.True(t, restartPerm.Value, "restart permission should be enabled (parsed from string 'yes')")
+			},
+		},
+		{
+			name:        "flexible_bool_parsing_with_integer_values",
+			userID:      "1",
+			serverID:    "1",
+			requestBody: `[{"permission": "game-server-start", "value": 1}, {"permission": "game-server-stop", "value": 0}]`,
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepos: func(
+				userRepo *inmemory.UserRepository,
+				serverRepo *inmemory.ServerRepository,
+				_ *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				require.NoError(t, userRepo.Save(context.Background(), &testUser))
+
+				server := &domain.Server{
+					ID:         1,
+					UUID:       uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:  "11111111",
+					Enabled:    true,
+					Name:       "Test Server",
+					GameID:     "cs",
+					DSID:       1,
+					GameModID:  1,
+					ServerIP:   "127.0.0.1",
+					ServerPort: 27015,
+					CreatedAt:  &now,
+					UpdatedAt:  &now,
+				}
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+			},
+			expectedStatus:    http.StatusOK,
+			expectPermissions: true,
+			verifyPermissions: func(t *testing.T, permissions []PermissionResponse) {
+				t.Helper()
+
+				startPerm := findPermission(permissions, "game-server-start")
+				require.NotNil(t, startPerm)
+				assert.True(t, startPerm.Value, "start permission should be enabled (parsed from integer 1)")
+
+				stopPerm := findPermission(permissions, "game-server-stop")
+				require.NotNil(t, stopPerm)
+				assert.False(t, stopPerm.Value, "stop permission should be disabled (parsed from integer 0)")
 			},
 		},
 	}
@@ -503,8 +614,8 @@ func TestUpdatePermissionsInput_Validate(t *testing.T) {
 		{
 			name: "valid input",
 			input: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: true},
-				{Permission: "game-server-stop", Value: false},
+				{Permission: "game-server-start", Value: flexible.Bool(true)},
+				{Permission: "game-server-stop", Value: flexible.Bool(false)},
 			},
 			wantError: "",
 		},
@@ -516,22 +627,22 @@ func TestUpdatePermissionsInput_Validate(t *testing.T) {
 		{
 			name: "empty permission name",
 			input: UpdatePermissionsInput{
-				{Permission: "", Value: true},
+				{Permission: "", Value: flexible.Bool(true)},
 			},
 			wantError: "permission at index 0 cannot be empty",
 		},
 		{
 			name: "invalid permission name",
 			input: UpdatePermissionsInput{
-				{Permission: "invalid-permission", Value: true},
+				{Permission: "invalid-permission", Value: flexible.Bool(true)},
 			},
 			wantError: "invalid permission name",
 		},
 		{
 			name: "mixed valid and invalid permissions",
 			input: UpdatePermissionsInput{
-				{Permission: "game-server-start", Value: true},
-				{Permission: "invalid-permission", Value: false},
+				{Permission: "game-server-start", Value: flexible.Bool(true)},
+				{Permission: "invalid-permission", Value: flexible.Bool(false)},
 			},
 			wantError: "invalid permission name",
 		},
@@ -553,9 +664,9 @@ func TestUpdatePermissionsInput_Validate(t *testing.T) {
 
 func TestUpdatePermissionsInput_ToAbilities(t *testing.T) {
 	input := UpdatePermissionsInput{
-		{Permission: "game-server-start", Value: true},
-		{Permission: "game-server-stop", Value: false},
-		{Permission: "game-server-restart", Value: true},
+		{Permission: "game-server-start", Value: flexible.Bool(true)},
+		{Permission: "game-server-stop", Value: flexible.Bool(false)},
+		{Permission: "game-server-restart", Value: flexible.Bool(true)},
 	}
 
 	allow, revoke := input.ToAbilities()

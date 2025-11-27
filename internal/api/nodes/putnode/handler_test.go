@@ -14,6 +14,7 @@ import (
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -76,7 +77,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				})
 			},
 			input: updateNodeInput{
-				Enabled:             lo.ToPtr(false),
+				Enabled:             lo.ToPtr(flexible.Bool(false)),
 				Name:                lo.ToPtr("Updated Node"),
 				OS:                  lo.ToPtr("windows"),
 				Location:            lo.ToPtr("EU"),
@@ -87,12 +88,12 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				WorkPath:            lo.ToPtr("/new/path"),
 				SteamcmdPath:        lo.ToPtr("/new/steamcmd"),
 				GdaemonHost:         lo.ToPtr("192.168.1.1"),
-				GdaemonPort:         lo.ToPtr(31717),
+				GdaemonPort:         lo.ToPtr(flexible.Int(31717)),
 				GdaemonAPIKey:       lo.ToPtr("new-api-key"),
 				GdaemonLogin:        lo.ToPtr("admin"),
 				GdaemonPassword:     lo.ToPtr("password"),
 				GdaemonServerCert:   lo.ToPtr(validCertPEM),
-				ClientCertificateID: lo.ToPtr(uint(2)),
+				ClientCertificateID: lo.ToPtr(flexible.Uint(2)),
 				PreferInstallMethod: lo.ToPtr("script"),
 			},
 			setupFileManager: func(fm *files.MockFileManager) {
@@ -396,7 +397,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				})
 			},
 			input: updateNodeInput{
-				GdaemonPort: lo.ToPtr(99999),
+				GdaemonPort: lo.ToPtr(flexible.Int(99999)),
 			},
 			expectedStatus: http.StatusUnprocessableEntity,
 			expectError:    true,

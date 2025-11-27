@@ -5,6 +5,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gameap/gameap/pkg/validation"
 	"github.com/google/uuid"
 )
@@ -29,19 +30,19 @@ var (
 )
 
 type serverInput struct {
-	Install      *bool   `json:"install,omitempty"`
-	Name         string  `json:"name"`
-	DSID         int     `json:"ds_id"`
-	GameID       string  `json:"game_id"`
-	GameModID    int     `json:"game_mod_id"`
-	ServerIP     string  `json:"server_ip"`
-	ServerPort   int     `json:"server_port"`
-	QueryPort    *int    `json:"query_port,omitempty"`
-	RconPort     *int    `json:"rcon_port,omitempty"`
-	Rcon         *string `json:"rcon,omitempty"`
-	Dir          *string `json:"dir,omitempty"`
-	StartCommand *string `json:"start_command,omitempty"`
-	SuUser       *string `json:"su_user,omitempty"`
+	Install      *flexible.Bool `json:"install,omitempty"`
+	Name         string         `json:"name"`
+	DSID         flexible.Int   `json:"ds_id"`
+	GameID       string         `json:"game_id"`
+	GameModID    flexible.Int   `json:"game_mod_id"`
+	ServerIP     string         `json:"server_ip"`
+	ServerPort   flexible.Int   `json:"server_port"`
+	QueryPort    *flexible.Int  `json:"query_port,omitempty"`
+	RconPort     *flexible.Int  `json:"rcon_port,omitempty"`
+	Rcon         *string        `json:"rcon,omitempty"`
+	Dir          *string        `json:"dir,omitempty"`
+	StartCommand *string        `json:"start_command,omitempty"`
+	SuUser       *string        `json:"su_user,omitempty"`
 }
 
 func (s *serverInput) Validate() error {
@@ -57,11 +58,11 @@ func (s *serverInput) Validate() error {
 		return ErrGameIDIsRequired
 	}
 
-	if s.DSID <= 0 {
+	if s.DSID.Int() <= 0 {
 		return ErrDSIDIsRequired
 	}
 
-	if s.GameModID <= 0 {
+	if s.GameModID.Int() <= 0 {
 		return ErrGameModIDRequired
 	}
 
@@ -73,15 +74,15 @@ func (s *serverInput) Validate() error {
 		return ErrInvalidServerIP
 	}
 
-	if s.ServerPort < minPort || s.ServerPort > maxPort {
+	if s.ServerPort.Int() < minPort || s.ServerPort.Int() > maxPort {
 		return ErrInvalidServerPort
 	}
 
-	if s.QueryPort != nil && (*s.QueryPort < minPort || *s.QueryPort > maxPort) {
+	if s.QueryPort != nil && (s.QueryPort.Int() < minPort || s.QueryPort.Int() > maxPort) {
 		return ErrInvalidQueryPort
 	}
 
-	if s.RconPort != nil && (*s.RconPort < minPort || *s.RconPort > maxPort) {
+	if s.RconPort != nil && (s.RconPort.Int() < minPort || s.RconPort.Int() > maxPort) {
 		return ErrInvalidRconPort
 	}
 
@@ -99,6 +100,18 @@ func (s *serverInput) ToDomain() *domain.Server {
 		u = uuid.New()
 	}
 
+	var queryPort *int
+	if s.QueryPort != nil {
+		qp := s.QueryPort.Int()
+		queryPort = &qp
+	}
+
+	var rconPort *int
+	if s.RconPort != nil {
+		rp := s.RconPort.Int()
+		rconPort = &rp
+	}
+
 	server := &domain.Server{
 		UUID:         u,
 		UUIDShort:    u.String()[0:8],
@@ -107,12 +120,12 @@ func (s *serverInput) ToDomain() *domain.Server {
 		Blocked:      false,
 		Name:         s.Name,
 		GameID:       s.GameID,
-		DSID:         uint(s.DSID),      //nolint:gosec // We check it in Validate
-		GameModID:    uint(s.GameModID), //nolint:gosec // We check it in Validate
+		DSID:         uint(s.DSID.Int()),      //nolint:gosec // We check it in Validate
+		GameModID:    uint(s.GameModID.Int()), //nolint:gosec // We check it in Validate
 		ServerIP:     s.ServerIP,
-		ServerPort:   s.ServerPort,
-		QueryPort:    s.QueryPort,
-		RconPort:     s.RconPort,
+		ServerPort:   s.ServerPort.Int(),
+		QueryPort:    queryPort,
+		RconPort:     rconPort,
 		Rcon:         s.Rcon,
 		Dir:          getDir(s.Dir),
 		StartCommand: s.StartCommand,

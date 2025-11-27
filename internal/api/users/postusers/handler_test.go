@@ -16,6 +16,7 @@ import (
 	"github.com/gameap/gameap/internal/services"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +45,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Password: "testpass123",
 				Name:     lo.ToPtr("New User"),
 				Roles:    []string{"user"},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -71,7 +72,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "testuser@example.com",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -93,7 +94,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupRepo:      func(_ *inmemory.UserRepository, _ *inmemory.RBACRepository) {},
 			expectedStatus: http.StatusUnauthorized,
@@ -107,7 +108,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -130,7 +131,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -153,7 +154,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "invalid-email",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -176,7 +177,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -199,7 +200,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "short",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -222,7 +223,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "new@example.com",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -254,7 +255,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "existing@example.com",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -286,7 +287,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -309,7 +310,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    string(make([]byte, 256)),
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -333,7 +334,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Password: "password123",
 				Name:     lo.ToPtr(string(make([]byte, 256))),
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -356,7 +357,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "test@example.com",
 				Password: string(make([]byte, 256)),
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -379,7 +380,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -402,7 +403,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Email:    "   ",
 				Password: "password123",
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -426,7 +427,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Password: "password123",
 				Name:     lo.ToPtr("   "),
 				Roles:    []string{},
-				Servers:  []uint{},
+				Servers:  []flexible.Uint{},
 			},
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -526,7 +527,7 @@ func TestHandler_CreateUserWithRoles(t *testing.T) {
 		Password: "password123",
 		Name:     lo.ToPtr("New User"),
 		Roles:    []string{"user"},
-		Servers:  []uint{},
+		Servers:  []flexible.Uint{},
 	}
 
 	session := &auth.Session{

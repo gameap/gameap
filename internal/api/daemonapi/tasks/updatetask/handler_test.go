@@ -13,6 +13,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gorilla/mux"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -645,35 +646,35 @@ func TestUpdateTaskInput_Validate(t *testing.T) {
 		{
 			name: "valid status waiting",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(1),
+				Status: lo.ToPtr(flexible.Int(1)),
 			},
 			wantError: false,
 		},
 		{
 			name: "valid status working",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(2),
+				Status: lo.ToPtr(flexible.Int(2)),
 			},
 			wantError: false,
 		},
 		{
 			name: "valid status error",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(3),
+				Status: lo.ToPtr(flexible.Int(3)),
 			},
 			wantError: false,
 		},
 		{
 			name: "valid status success",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(4),
+				Status: lo.ToPtr(flexible.Int(4)),
 			},
 			wantError: false,
 		},
 		{
 			name: "valid status canceled",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(5),
+				Status: lo.ToPtr(flexible.Int(5)),
 			},
 			wantError: false,
 		},
@@ -688,7 +689,7 @@ func TestUpdateTaskInput_Validate(t *testing.T) {
 		{
 			name: "invalid status zero",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(0),
+				Status: lo.ToPtr(flexible.Int(0)),
 			},
 			wantError: true,
 			errorMsg:  "invalid status",
@@ -696,7 +697,7 @@ func TestUpdateTaskInput_Validate(t *testing.T) {
 		{
 			name: "invalid status negative",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(-1),
+				Status: lo.ToPtr(flexible.Int(-1)),
 			},
 			wantError: true,
 			errorMsg:  "invalid status",
@@ -704,7 +705,7 @@ func TestUpdateTaskInput_Validate(t *testing.T) {
 		{
 			name: "invalid status too large",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(99),
+				Status: lo.ToPtr(flexible.Int(99)),
 			},
 			wantError: true,
 			errorMsg:  "invalid status",
@@ -734,35 +735,35 @@ func TestUpdateTaskInput_ToStatus(t *testing.T) {
 		{
 			name: "status 1 maps to waiting",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(1),
+				Status: lo.ToPtr(flexible.Int(1)),
 			},
 			wantStatus: domain.DaemonTaskStatusWaiting,
 		},
 		{
 			name: "status 2 maps to working",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(2),
+				Status: lo.ToPtr(flexible.Int(2)),
 			},
 			wantStatus: domain.DaemonTaskStatusWorking,
 		},
 		{
 			name: "status 3 maps to error",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(3),
+				Status: lo.ToPtr(flexible.Int(3)),
 			},
 			wantStatus: domain.DaemonTaskStatusError,
 		},
 		{
 			name: "status 4 maps to success",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(4),
+				Status: lo.ToPtr(flexible.Int(4)),
 			},
 			wantStatus: domain.DaemonTaskStatusSuccess,
 		},
 		{
 			name: "status 5 maps to canceled",
 			input: &updateTaskInput{
-				Status: lo.ToPtr(5),
+				Status: lo.ToPtr(flexible.Int(5)),
 			},
 			wantStatus: domain.DaemonTaskStatusCanceled,
 		},

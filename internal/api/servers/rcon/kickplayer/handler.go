@@ -172,7 +172,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		rconCommand = playerManager.BanCommand(
 			player,
 			kickInput.Reason,
-			time.Duration(kickInput.DurationInMinutes*int64(time.Minute)),
+			time.Duration(int64(kickInput.DurationInMinutes.Int())*int64(time.Minute)),
 		)
 	}
 

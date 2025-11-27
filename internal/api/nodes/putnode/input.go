@@ -6,6 +6,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/gameap/gameap/pkg/validation"
 )
 
@@ -58,38 +59,38 @@ var (
 )
 
 type updateNodeInput struct {
-	Enabled             *bool    `json:"enabled,omitempty"`
-	Name                *string  `json:"name,omitempty"`
-	OS                  *string  `json:"os,omitempty"`
-	Location            *string  `json:"location,omitempty"`
-	Provider            *string  `json:"provider,omitempty"`
-	IP                  []string `json:"ip,omitempty"`
-	RAM                 *string  `json:"ram,omitempty"`
-	CPU                 *string  `json:"cpu,omitempty"`
-	WorkPath            *string  `json:"work_path,omitempty"`
-	SteamcmdPath        *string  `json:"steamcmd_path,omitempty"`
-	GdaemonHost         *string  `json:"gdaemon_host,omitempty"`
-	GdaemonPort         *int     `json:"gdaemon_port,omitempty"`
-	GdaemonAPIKey       *string  `json:"gdaemon_api_key,omitempty"`
-	GdaemonLogin        *string  `json:"gdaemon_login,omitempty"`
-	GdaemonPassword     *string  `json:"gdaemon_password,omitempty"`
-	GdaemonServerCert   *string  `json:"gdaemon_server_cert,omitempty"`
-	ClientCertificateID *uint    `json:"client_certificate_id,omitempty"`
-	PreferInstallMethod *string  `json:"prefer_install_method,omitempty"`
-	ScriptInstall       *string  `json:"script_install,omitempty"`
-	ScriptReinstall     *string  `json:"script_reinstall,omitempty"`
-	ScriptUpdate        *string  `json:"script_update,omitempty"`
-	ScriptStart         *string  `json:"script_start,omitempty"`
-	ScriptPause         *string  `json:"script_pause,omitempty"`
-	ScriptUnpause       *string  `json:"script_unpause,omitempty"`
-	ScriptStop          *string  `json:"script_stop,omitempty"`
-	ScriptKill          *string  `json:"script_kill,omitempty"`
-	ScriptRestart       *string  `json:"script_restart,omitempty"`
-	ScriptStatus        *string  `json:"script_status,omitempty"`
-	ScriptStats         *string  `json:"script_stats,omitempty"`
-	ScriptGetConsole    *string  `json:"script_get_console,omitempty"`
-	ScriptSendCommand   *string  `json:"script_send_command,omitempty"`
-	ScriptDelete        *string  `json:"script_delete,omitempty"`
+	Enabled             *flexible.Bool `json:"enabled,omitempty"`
+	Name                *string        `json:"name,omitempty"`
+	OS                  *string        `json:"os,omitempty"`
+	Location            *string        `json:"location,omitempty"`
+	Provider            *string        `json:"provider,omitempty"`
+	IP                  []string       `json:"ip,omitempty"`
+	RAM                 *string        `json:"ram,omitempty"`
+	CPU                 *string        `json:"cpu,omitempty"`
+	WorkPath            *string        `json:"work_path,omitempty"`
+	SteamcmdPath        *string        `json:"steamcmd_path,omitempty"`
+	GdaemonHost         *string        `json:"gdaemon_host,omitempty"`
+	GdaemonPort         *flexible.Int  `json:"gdaemon_port,omitempty"`
+	GdaemonAPIKey       *string        `json:"gdaemon_api_key,omitempty"`
+	GdaemonLogin        *string        `json:"gdaemon_login,omitempty"`
+	GdaemonPassword     *string        `json:"gdaemon_password,omitempty"`
+	GdaemonServerCert   *string        `json:"gdaemon_server_cert,omitempty"`
+	ClientCertificateID *flexible.Uint `json:"client_certificate_id,omitempty"`
+	PreferInstallMethod *string        `json:"prefer_install_method,omitempty"`
+	ScriptInstall       *string        `json:"script_install,omitempty"`
+	ScriptReinstall     *string        `json:"script_reinstall,omitempty"`
+	ScriptUpdate        *string        `json:"script_update,omitempty"`
+	ScriptStart         *string        `json:"script_start,omitempty"`
+	ScriptPause         *string        `json:"script_pause,omitempty"`
+	ScriptUnpause       *string        `json:"script_unpause,omitempty"`
+	ScriptStop          *string        `json:"script_stop,omitempty"`
+	ScriptKill          *string        `json:"script_kill,omitempty"`
+	ScriptRestart       *string        `json:"script_restart,omitempty"`
+	ScriptStatus        *string        `json:"script_status,omitempty"`
+	ScriptStats         *string        `json:"script_stats,omitempty"`
+	ScriptGetConsole    *string        `json:"script_get_console,omitempty"`
+	ScriptSendCommand   *string        `json:"script_send_command,omitempty"`
+	ScriptDelete        *string        `json:"script_delete,omitempty"`
 }
 
 func (in *updateNodeInput) Validate() error {
@@ -223,7 +224,7 @@ func (in *updateNodeInput) validateGdaemonPort() error {
 	if in.GdaemonPort == nil {
 		return nil
 	}
-	if *in.GdaemonPort < minPortNumber || *in.GdaemonPort > maxPortNumber {
+	if in.GdaemonPort.Int() < minPortNumber || in.GdaemonPort.Int() > maxPortNumber {
 		return ErrGdaemonPortInvalid
 	}
 
@@ -246,7 +247,7 @@ func (in *updateNodeInput) ApplyToNode(node *domain.Node) {
 
 func (in *updateNodeInput) applyBasicFields(node *domain.Node) {
 	if in.Enabled != nil {
-		node.Enabled = *in.Enabled
+		node.Enabled = in.Enabled.Bool()
 	}
 	if in.Name != nil {
 		node.Name = *in.Name
@@ -282,7 +283,7 @@ func (in *updateNodeInput) applyGdaemonFields(node *domain.Node) {
 		node.GdaemonHost = *in.GdaemonHost
 	}
 	if in.GdaemonPort != nil {
-		node.GdaemonPort = *in.GdaemonPort
+		node.GdaemonPort = in.GdaemonPort.Int()
 	}
 	if in.GdaemonAPIKey != nil {
 		node.GdaemonAPIKey = *in.GdaemonAPIKey
@@ -294,7 +295,7 @@ func (in *updateNodeInput) applyGdaemonFields(node *domain.Node) {
 		node.GdaemonPassword = in.GdaemonPassword
 	}
 	if in.ClientCertificateID != nil {
-		node.ClientCertificateID = *in.ClientCertificateID
+		node.ClientCertificateID = in.ClientCertificateID.Uint()
 	}
 	if in.PreferInstallMethod != nil {
 		node.PreferInstallMethod = domain.NodePreferInstallMethod(*in.PreferInstallMethod)

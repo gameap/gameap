@@ -558,6 +558,90 @@ func TestHandler_EmptyGameModID(t *testing.T) {
 	assert.Contains(t, response["error"].(string), "invalid game mod id")
 }
 
+func TestHandler_MinecraftGameModUpdate(t *testing.T) {
+	repo := inmemory.NewGameModRepository()
+	responder := api.NewResponder()
+	handler := NewHandler(repo, responder)
+
+	originalGameMod := &domain.GameMod{
+		ID:       16,
+		GameCode: "minecraft",
+		Name:     "Default",
+	}
+
+	err := repo.Save(context.Background(), originalGameMod)
+	require.NoError(t, err)
+
+	requestBody := `{
+		"game_code": "minecraft",
+		"name": "Multicore",
+		"fast_rcon": [],
+		"vars": [
+			{"var": "version", "default": "1.14.3", "info": "Minecraft version", "admin_var": false},
+			{"var": "core_mod", "default": "vanilla", "info": "Core", "admin_var": false},
+			{"var": "core_mod_version", "default": "", "info": "Core mod version", "admin_var": false},
+			{"var": "test", "default": "", "info": "test", "admin_var": ""}
+		],
+		"remote_repository_linux": "http://files.gameap.ru/minecraft/minecraft-runner.tar.gz",
+		"remote_repository_windows": null,
+		"local_repository_linux": null,
+		"local_repository_windows": null,
+		"start_cmd_linux": "./mcrun.sh run  --version={version} --core-mod={core_mod}  --core-mod-version={core_mod_version} --ip={ip} --port={port}  --query-port={query_port} --rcon-port={rcon_port}  --rcon-password={rcon_password}",
+		"start_cmd_windows": "mcrun.exe run   --version={version} --core-mod={core_mod}  --core-mod-version={core_mod_version} --ip={ip} --port={port}  --query-port={query_port} --rcon-port={rcon_port}  --rcon-password={rcon_password}",
+		"kick_cmd": null,
+		"ban_cmd": null,
+		"chname_cmd": null,
+		"srestart_cmd": null,
+		"chmap_cmd": null,
+		"sendmsg_cmd": null,
+		"passwd_cmd": null
+	}`
+
+	req := httptest.NewRequest(http.MethodPut, "/api/game_mods/16", bytes.NewBufferString(requestBody))
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": "16"})
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var response gmBase.GameModResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, uint(16), response.ID)
+	assert.Equal(t, "minecraft", response.GameCode)
+	assert.Equal(t, "Multicore", response.Name)
+
+	gameMods, err := repo.FindAll(context.Background(), nil, nil)
+	require.NoError(t, err)
+	require.Len(t, gameMods, 1)
+
+	gameMod := gameMods[0]
+	assert.Equal(t, uint(16), gameMod.ID)
+	assert.Equal(t, "minecraft", gameMod.GameCode)
+	assert.Equal(t, "Multicore", gameMod.Name)
+	assert.Empty(t, gameMod.FastRcon)
+	assert.Equal(t, domain.GameModVarList{
+		{Var: "version", Default: "1.14.3", Info: "Minecraft version", AdminVar: false},
+		{Var: "core_mod", Default: "vanilla", Info: "Core", AdminVar: false},
+		{Var: "core_mod_version", Default: "", Info: "Core mod version", AdminVar: false},
+		{Var: "test", Default: "", Info: "test", AdminVar: false},
+	}, gameMod.Vars)
+	assert.Equal(t, "http://files.gameap.ru/minecraft/minecraft-runner.tar.gz", lo.FromPtr(gameMod.RemoteRepositoryLinux))
+	assert.Nil(t, gameMod.RemoteRepositoryWindows)
+	assert.Nil(t, gameMod.LocalRepositoryLinux)
+	assert.Nil(t, gameMod.LocalRepositoryWindows)
+	assert.Equal(t, "./mcrun.sh run  --version={version} --core-mod={core_mod}  --core-mod-version={core_mod_version} --ip={ip} --port={port}  --query-port={query_port} --rcon-port={rcon_port}  --rcon-password={rcon_password}", lo.FromPtr(gameMod.StartCmdLinux))
+	assert.Equal(t, "mcrun.exe run   --version={version} --core-mod={core_mod}  --core-mod-version={core_mod_version} --ip={ip} --port={port}  --query-port={query_port} --rcon-port={rcon_port}  --rcon-password={rcon_password}", lo.FromPtr(gameMod.StartCmdWindows))
+	assert.Nil(t, gameMod.KickCmd)
+	assert.Nil(t, gameMod.BanCmd)
+	assert.Nil(t, gameMod.ChnameCmd)
+	assert.Nil(t, gameMod.SrestartCmd)
+	assert.Nil(t, gameMod.ChmapCmd)
+	assert.Nil(t, gameMod.SendmsgCmd)
+	assert.Nil(t, gameMod.PasswdCmd)
+}
+
 func TestHandler_GameModChangeGameCode(t *testing.T) {
 	repo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
