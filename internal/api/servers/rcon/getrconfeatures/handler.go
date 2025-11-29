@@ -94,5 +94,5 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	game := games[0]
 
-	h.responder.Write(ctx, rw, newFeaturesResponse(game.Code, game.Engine))
+	h.responder.Write(ctx, rw, newFeaturesResponse(game))
 }

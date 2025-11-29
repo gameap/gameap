@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDetermineProtocol(t *testing.T) {
+func TestDetermineProtocolByEngine(t *testing.T) {
 	tests := []struct {
 		name     string
 		engine   string
@@ -31,13 +31,13 @@ func TestDetermineProtocol(t *testing.T) {
 			name:     "unsupported_engine",
 			engine:   "unreal",
 			wantErr:  true,
-			errorMsg: "unsupported engine",
+			errorMsg: "unable to determine RCON protocol for engine",
 		},
 		{
 			name:     "empty_engine",
 			engine:   "",
 			wantErr:  true,
-			errorMsg: "unsupported engine",
+			errorMsg: "unable to determine RCON protocol for engine",
 		},
 	}
 

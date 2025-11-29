@@ -168,7 +168,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectedPlayersManage: false,
 		},
 		{
-			name:     "successful_features_retrieval__unsupported_engine",
+			name:     "successful_features_retrieval__unsupported_engine_supported_game_code",
 			serverID: "3",
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -185,7 +185,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				game := &domain.Game{
 					Code:   "minecraft",
 					Name:   "Minecraft",
-					Engine: "minecraft",
+					Engine: "unsupported_engine",
 				}
 				require.NoError(t, gameRepo.Save(context.Background(), game))
 
@@ -214,7 +214,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 			expectedStatus:        http.StatusOK,
 			expectFeatures:        true,
-			expectedRcon:          false,
+			expectedRcon:          true,
 			expectedPlayersManage: true,
 		},
 		{
@@ -519,78 +519,67 @@ func TestHandler_NewHandler(t *testing.T) {
 func TestNewFeaturesResponse(t *testing.T) {
 	tests := []struct {
 		name                  string
-		gameCode              string
-		engine                string
+		game                  domain.Game
 		expectedRcon          bool
 		expectedPlayersManage bool
 	}{
 		{
 			name:                  "goldsource_engine_with_cs_game",
-			gameCode:              "cs",
-			engine:                "goldsource",
+			game:                  domain.Game{Code: "cs", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
 		},
 		{
 			name:                  "goldsource_engine_with_hl_game",
-			gameCode:              "hl",
-			engine:                "goldsource",
+			game:                  domain.Game{Code: "hl", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
 		},
 		{
 			name:                  "goldsource_engine_with_tfc_game",
-			gameCode:              "tfc",
-			engine:                "goldsource",
+			game:                  domain.Game{Code: "tfc", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
 		},
 		{
 			name:                  "goldsource_engine_with_unsupported_game",
-			gameCode:              "unknown_game",
-			engine:                "goldsource",
+			game:                  domain.Game{Code: "unknown_game", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: false,
 		},
 		{
 			name:                  "source_engine_with_unsupported_game",
-			gameCode:              "csgo",
-			engine:                "source",
+			game:                  domain.Game{Code: "csgo", Engine: "source"},
 			expectedRcon:          true,
 			expectedPlayersManage: false,
 		},
 		{
 			name:                  "unsupported_engine_with_supported_game",
-			gameCode:              "cs",
-			engine:                "minecraft",
-			expectedRcon:          false,
+			game:                  domain.Game{Code: "cs", Engine: "unreal"},
+			expectedRcon:          true,
 			expectedPlayersManage: true,
 		},
 		{
 			name:                  "unsupported_engine_with_unsupported_game",
-			gameCode:              "rust",
-			engine:                "rust",
+			game:                  domain.Game{Code: "rust", Engine: "rust"},
 			expectedRcon:          false,
 			expectedPlayersManage: false,
 		},
 		{
 			name:                  "empty_engine_and_game",
-			gameCode:              "",
-			engine:                "",
+			game:                  domain.Game{Code: "", Engine: ""},
 			expectedRcon:          false,
 			expectedPlayersManage: false,
 		},
 		{
 			name:                  "cstrike_game_code",
-			gameCode:              "cstrike",
-			engine:                "goldsource",
+			game:                  domain.Game{Code: "cstrike", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
 		},
 		{
 			name:                  "valve_game_code",
-			gameCode:              "valve",
-			engine:                "goldsource",
+			game:                  domain.Game{Code: "valve", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
 		},
@@ -598,7 +587,7 @@ func TestNewFeaturesResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response := newFeaturesResponse(tt.gameCode, tt.engine)
+			response := newFeaturesResponse(tt.game)
 			assert.Equal(t, tt.expectedRcon, response.Rcon)
 			assert.Equal(t, tt.expectedPlayersManage, response.PlayersManage)
 		})

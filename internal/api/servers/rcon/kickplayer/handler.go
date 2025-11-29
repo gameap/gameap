@@ -126,10 +126,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	protocol, err := rconbase.DetermineProtocolByEngine(game.Engine)
+	protocol, err := rconbase.DetermineProtocol(*game)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.WithMessage(err, "unsupported game engine"),
+			errors.WithMessage(err, "unsupported game"),
 			http.StatusBadRequest,
 		))
 
