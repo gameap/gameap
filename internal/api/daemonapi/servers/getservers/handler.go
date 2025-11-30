@@ -54,6 +54,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	filter := parseFilters(r)
 	filter.DSIDs = []uint{node.ID}
+	filter.WithDeleted = true
 
 	servers, err := h.serverRepo.Find(ctx, filter, nil, nil)
 	if err != nil {

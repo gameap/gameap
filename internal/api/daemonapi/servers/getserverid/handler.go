@@ -64,8 +64,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	// Find the server
 	filter := &filters.FindServer{
-		IDs:   []uint{serverID},
-		DSIDs: []uint{node.ID},
+		IDs:         []uint{serverID},
+		DSIDs:       []uint{node.ID},
+		WithDeleted: true,
 	}
 
 	servers, err := h.serverRepo.Find(ctx, filter, nil, nil)

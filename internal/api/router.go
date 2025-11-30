@@ -381,6 +381,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/servers/{id}",
 			Handler: deleteserver.NewHandler(
 				c.ServerRepository(),
+				c.DaemonTaskRepository(),
 				c.RBAC(),
 				c.Responder(),
 			),

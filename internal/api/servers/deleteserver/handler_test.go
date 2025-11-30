@@ -1,6 +1,7 @@
 package deleteserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -168,10 +170,11 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			serverRepo := inmemory.NewServerRepository()
+			daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 			rbacRepo := inmemory.NewRBACRepository()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, rbacService, responder)
+			handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(serverRepo, rbacRepo)
@@ -209,10 +212,11 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 func TestHandler_ServerActuallyDeleted(t *testing.T) {
 	serverRepo := inmemory.NewServerRepository()
+	daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, rbacService, responder)
+	handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
 
 	now := time.Now()
 	u := uuid.New()
@@ -269,14 +273,510 @@ func TestHandler_ServerActuallyDeleted(t *testing.T) {
 
 func TestHandler_NewHandler(t *testing.T) {
 	serverRepo := inmemory.NewServerRepository()
+	daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := NewHandler(serverRepo, rbacService, responder)
+	handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, serverRepo, handler.serverRepo)
+	assert.Equal(t, daemonTaskRepo, handler.daemonTaskRepo)
 	assert.Equal(t, rbacService, handler.rbac)
 	assert.Equal(t, responder, handler.responder)
+}
+
+func TestHandler_DeleteFiles(t *testing.T) {
+	t.Run("delete_files_false_hard_deletes_server", func(t *testing.T) {
+		serverRepo := inmemory.NewServerRepository()
+		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
+		rbacRepo := inmemory.NewRBACRepository()
+		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+		responder := api.NewResponder()
+		handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
+
+		now := time.Now()
+		u := uuid.New()
+		server := &domain.Server{
+			ID:         1,
+			UUID:       u,
+			UUIDShort:  u.String()[0:8],
+			Enabled:    true,
+			Installed:  1,
+			Name:       "Test Server",
+			GameID:     "cstrike",
+			DSID:       1,
+			ServerIP:   "192.168.1.1",
+			ServerPort: 27015,
+			CreatedAt:  &now,
+			UpdatedAt:  &now,
+		}
+		require.NoError(t, serverRepo.Save(context.Background(), server))
+
+		adminAbility := &domain.Ability{ID: 1, Name: domain.AbilityNameAdminRolesPermissions}
+		require.NoError(t, rbacRepo.SaveAbility(context.Background(), adminAbility))
+		require.NoError(t, rbacRepo.AssignAbilityToUser(context.Background(), testUser1.ID, adminAbility.ID))
+
+		session := &auth.Session{Login: "admin", Email: "admin@example.com", User: &testUser1}
+		ctx := auth.ContextWithSession(context.Background(), session)
+
+		body := bytes.NewBufferString(`{"delete_files":false}`)
+		req := httptest.NewRequest(http.MethodDelete, "/api/servers/1", body)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(ctx)
+		req = mux.SetURLVars(req, map[string]string{"id": "1"})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		servers, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}, WithDeleted: true}, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, servers)
+
+		tasks, err := daemonTaskRepo.Find(ctx, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, tasks)
+	})
+
+	t.Run("delete_files_true_offline_server_creates_delete_task", func(t *testing.T) {
+		serverRepo := inmemory.NewServerRepository()
+		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
+		rbacRepo := inmemory.NewRBACRepository()
+		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+		responder := api.NewResponder()
+		handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
+
+		now := time.Now()
+		u := uuid.New()
+		server := &domain.Server{
+			ID:            1,
+			UUID:          u,
+			UUIDShort:     u.String()[0:8],
+			Enabled:       true,
+			Installed:     1,
+			Name:          "Test Server",
+			GameID:        "cstrike",
+			DSID:          1,
+			ServerIP:      "192.168.1.1",
+			ServerPort:    27015,
+			ProcessActive: false,
+			CreatedAt:     &now,
+			UpdatedAt:     &now,
+		}
+		require.NoError(t, serverRepo.Save(context.Background(), server))
+
+		adminAbility := &domain.Ability{ID: 1, Name: domain.AbilityNameAdminRolesPermissions}
+		require.NoError(t, rbacRepo.SaveAbility(context.Background(), adminAbility))
+		require.NoError(t, rbacRepo.AssignAbilityToUser(context.Background(), testUser1.ID, adminAbility.ID))
+
+		session := &auth.Session{Login: "admin", Email: "admin@example.com", User: &testUser1}
+		ctx := auth.ContextWithSession(context.Background(), session)
+
+		body := bytes.NewBufferString(`{"delete_files":true}`)
+		req := httptest.NewRequest(http.MethodDelete, "/api/servers/1", body)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(ctx)
+		req = mux.SetURLVars(req, map[string]string{"id": "1"})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		servers, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}}, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, servers)
+
+		serversWithDeleted, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}, WithDeleted: true}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, serversWithDeleted, 1)
+		assert.NotNil(t, serversWithDeleted[0].DeletedAt)
+
+		tasks, err := daemonTaskRepo.Find(ctx, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, tasks, 1)
+		assert.Equal(t, domain.DaemonTaskTypeServerDelete, tasks[0].Task)
+		assert.Nil(t, tasks[0].RunAftID)
+	})
+
+	t.Run("delete_files_true_online_server_creates_stop_and_delete_tasks", func(t *testing.T) {
+		serverRepo := inmemory.NewServerRepository()
+		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
+		rbacRepo := inmemory.NewRBACRepository()
+		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+		responder := api.NewResponder()
+		handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
+
+		now := time.Now()
+		u := uuid.New()
+		server := &domain.Server{
+			ID:               1,
+			UUID:             u,
+			UUIDShort:        u.String()[0:8],
+			Enabled:          true,
+			Installed:        1,
+			Name:             "Test Server",
+			GameID:           "cstrike",
+			DSID:             1,
+			ServerIP:         "192.168.1.1",
+			ServerPort:       27015,
+			ProcessActive:    true,
+			LastProcessCheck: lo.ToPtr(time.Now()),
+			CreatedAt:        &now,
+			UpdatedAt:        &now,
+		}
+		require.NoError(t, serverRepo.Save(context.Background(), server))
+
+		adminAbility := &domain.Ability{ID: 1, Name: domain.AbilityNameAdminRolesPermissions}
+		require.NoError(t, rbacRepo.SaveAbility(context.Background(), adminAbility))
+		require.NoError(t, rbacRepo.AssignAbilityToUser(context.Background(), testUser1.ID, adminAbility.ID))
+
+		session := &auth.Session{Login: "admin", Email: "admin@example.com", User: &testUser1}
+		ctx := auth.ContextWithSession(context.Background(), session)
+
+		body := bytes.NewBufferString(`{"delete_files":true}`)
+		req := httptest.NewRequest(http.MethodDelete, "/api/servers/1", body)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(ctx)
+		req = mux.SetURLVars(req, map[string]string{"id": "1"})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		serversWithDeleted, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}, WithDeleted: true}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, serversWithDeleted, 1)
+		assert.NotNil(t, serversWithDeleted[0].DeletedAt)
+
+		tasks, err := daemonTaskRepo.Find(ctx, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, tasks, 2)
+
+		var stopTask, deleteTask *domain.DaemonTask
+		for i := range tasks {
+			if tasks[i].Task == domain.DaemonTaskTypeServerStop {
+				stopTask = &tasks[i]
+			}
+			if tasks[i].Task == domain.DaemonTaskTypeServerDelete {
+				deleteTask = &tasks[i]
+			}
+		}
+
+		require.NotNil(t, stopTask)
+		require.NotNil(t, deleteTask)
+		assert.Nil(t, stopTask.RunAftID)
+		assert.NotNil(t, deleteTask.RunAftID)
+		assert.Equal(t, stopTask.ID, *deleteTask.RunAftID)
+	})
+
+	t.Run("delete_files_false_returns_conflict_when_server_is_online", func(t *testing.T) {
+		serverRepo := inmemory.NewServerRepository()
+		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
+		rbacRepo := inmemory.NewRBACRepository()
+		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+		responder := api.NewResponder()
+		handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
+
+		now := time.Now()
+		u := uuid.New()
+		server := &domain.Server{
+			ID:               1,
+			UUID:             u,
+			UUIDShort:        u.String()[0:8],
+			Enabled:          true,
+			Installed:        1,
+			Name:             "Test Server",
+			GameID:           "cstrike",
+			DSID:             1,
+			ServerIP:         "192.168.1.1",
+			ServerPort:       27015,
+			ProcessActive:    true,
+			LastProcessCheck: lo.ToPtr(time.Now()),
+			CreatedAt:        &now,
+			UpdatedAt:        &now,
+		}
+		require.NoError(t, serverRepo.Save(context.Background(), server))
+
+		adminAbility := &domain.Ability{ID: 1, Name: domain.AbilityNameAdminRolesPermissions}
+		require.NoError(t, rbacRepo.SaveAbility(context.Background(), adminAbility))
+		require.NoError(t, rbacRepo.AssignAbilityToUser(context.Background(), testUser1.ID, adminAbility.ID))
+
+		session := &auth.Session{Login: "admin", Email: "admin@example.com", User: &testUser1}
+		ctx := auth.ContextWithSession(context.Background(), session)
+
+		body := bytes.NewBufferString(`{"delete_files":false}`)
+		req := httptest.NewRequest(http.MethodDelete, "/api/servers/1", body)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(ctx)
+		req = mux.SetURLVars(req, map[string]string{"id": "1"})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+
+		var response map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "error", response["status"])
+		errorMsg, ok := response["error"].(string)
+		require.True(t, ok)
+		assert.Contains(t, errorMsg, "server is online")
+
+		servers, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+	})
+
+	t.Run("delete_files_false_returns_conflict_when_server_has_pending_tasks", func(t *testing.T) {
+		serverRepo := inmemory.NewServerRepository()
+		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
+		rbacRepo := inmemory.NewRBACRepository()
+		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+		responder := api.NewResponder()
+		handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
+
+		now := time.Now()
+		u := uuid.New()
+		server := &domain.Server{
+			ID:            1,
+			UUID:          u,
+			UUIDShort:     u.String()[0:8],
+			Enabled:       true,
+			Installed:     1,
+			Name:          "Test Server",
+			GameID:        "cstrike",
+			DSID:          1,
+			ServerIP:      "192.168.1.1",
+			ServerPort:    27015,
+			ProcessActive: false,
+			CreatedAt:     &now,
+			UpdatedAt:     &now,
+		}
+		require.NoError(t, serverRepo.Save(context.Background(), server))
+
+		pendingTask := &domain.DaemonTask{
+			DedicatedServerID: server.DSID,
+			ServerID:          lo.ToPtr(server.ID),
+			Task:              domain.DaemonTaskTypeServerUpdate,
+			Status:            domain.DaemonTaskStatusWaiting,
+			CreatedAt:         lo.ToPtr(time.Now()),
+			UpdatedAt:         lo.ToPtr(time.Now()),
+		}
+		require.NoError(t, daemonTaskRepo.Save(context.Background(), pendingTask))
+
+		adminAbility := &domain.Ability{ID: 1, Name: domain.AbilityNameAdminRolesPermissions}
+		require.NoError(t, rbacRepo.SaveAbility(context.Background(), adminAbility))
+		require.NoError(t, rbacRepo.AssignAbilityToUser(context.Background(), testUser1.ID, adminAbility.ID))
+
+		session := &auth.Session{Login: "admin", Email: "admin@example.com", User: &testUser1}
+		ctx := auth.ContextWithSession(context.Background(), session)
+
+		body := bytes.NewBufferString(`{"delete_files":false}`)
+		req := httptest.NewRequest(http.MethodDelete, "/api/servers/1", body)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(ctx)
+		req = mux.SetURLVars(req, map[string]string{"id": "1"})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+
+		var response map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "error", response["status"])
+		errorMsg, ok := response["error"].(string)
+		require.True(t, ok)
+		assert.Contains(t, errorMsg, "server has pending tasks")
+
+		servers, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+	})
+
+	t.Run("no_body_returns_conflict_when_server_is_online", func(t *testing.T) {
+		serverRepo := inmemory.NewServerRepository()
+		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
+		rbacRepo := inmemory.NewRBACRepository()
+		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+		responder := api.NewResponder()
+		handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
+
+		now := time.Now()
+		u := uuid.New()
+		server := &domain.Server{
+			ID:               1,
+			UUID:             u,
+			UUIDShort:        u.String()[0:8],
+			Enabled:          true,
+			Installed:        1,
+			Name:             "Test Server",
+			GameID:           "cstrike",
+			DSID:             1,
+			ServerIP:         "192.168.1.1",
+			ServerPort:       27015,
+			ProcessActive:    true,
+			LastProcessCheck: lo.ToPtr(time.Now()),
+			CreatedAt:        &now,
+			UpdatedAt:        &now,
+		}
+		require.NoError(t, serverRepo.Save(context.Background(), server))
+
+		adminAbility := &domain.Ability{ID: 1, Name: domain.AbilityNameAdminRolesPermissions}
+		require.NoError(t, rbacRepo.SaveAbility(context.Background(), adminAbility))
+		require.NoError(t, rbacRepo.AssignAbilityToUser(context.Background(), testUser1.ID, adminAbility.ID))
+
+		session := &auth.Session{Login: "admin", Email: "admin@example.com", User: &testUser1}
+		ctx := auth.ContextWithSession(context.Background(), session)
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/servers/1", nil)
+		req = req.WithContext(ctx)
+		req = mux.SetURLVars(req, map[string]string{"id": "1"})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+
+		var response map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "error", response["status"])
+		errorMsg, ok := response["error"].(string)
+		require.True(t, ok)
+		assert.Contains(t, errorMsg, "server is online")
+
+		servers, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+	})
+
+	t.Run("no_body_returns_conflict_when_server_has_working_task", func(t *testing.T) {
+		serverRepo := inmemory.NewServerRepository()
+		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
+		rbacRepo := inmemory.NewRBACRepository()
+		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+		responder := api.NewResponder()
+		handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
+
+		now := time.Now()
+		u := uuid.New()
+		server := &domain.Server{
+			ID:            1,
+			UUID:          u,
+			UUIDShort:     u.String()[0:8],
+			Enabled:       true,
+			Installed:     1,
+			Name:          "Test Server",
+			GameID:        "cstrike",
+			DSID:          1,
+			ServerIP:      "192.168.1.1",
+			ServerPort:    27015,
+			ProcessActive: false,
+			CreatedAt:     &now,
+			UpdatedAt:     &now,
+		}
+		require.NoError(t, serverRepo.Save(context.Background(), server))
+
+		workingTask := &domain.DaemonTask{
+			DedicatedServerID: server.DSID,
+			ServerID:          lo.ToPtr(server.ID),
+			Task:              domain.DaemonTaskTypeServerStart,
+			Status:            domain.DaemonTaskStatusWorking,
+			CreatedAt:         lo.ToPtr(time.Now()),
+			UpdatedAt:         lo.ToPtr(time.Now()),
+		}
+		require.NoError(t, daemonTaskRepo.Save(context.Background(), workingTask))
+
+		adminAbility := &domain.Ability{ID: 1, Name: domain.AbilityNameAdminRolesPermissions}
+		require.NoError(t, rbacRepo.SaveAbility(context.Background(), adminAbility))
+		require.NoError(t, rbacRepo.AssignAbilityToUser(context.Background(), testUser1.ID, adminAbility.ID))
+
+		session := &auth.Session{Login: "admin", Email: "admin@example.com", User: &testUser1}
+		ctx := auth.ContextWithSession(context.Background(), session)
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/servers/1", nil)
+		req = req.WithContext(ctx)
+		req = mux.SetURLVars(req, map[string]string{"id": "1"})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+
+		var response map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "error", response["status"])
+		errorMsg, ok := response["error"].(string)
+		require.True(t, ok)
+		assert.Contains(t, errorMsg, "server has pending tasks")
+
+		servers, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+	})
+
+	t.Run("online_server_with_delete_files_true_succeeds", func(t *testing.T) {
+		serverRepo := inmemory.NewServerRepository()
+		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
+		rbacRepo := inmemory.NewRBACRepository()
+		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+		responder := api.NewResponder()
+		handler := NewHandler(serverRepo, daemonTaskRepo, rbacService, responder)
+
+		now := time.Now()
+		u := uuid.New()
+		server := &domain.Server{
+			ID:               1,
+			UUID:             u,
+			UUIDShort:        u.String()[0:8],
+			Enabled:          true,
+			Installed:        1,
+			Name:             "Test Server",
+			GameID:           "cstrike",
+			DSID:             1,
+			ServerIP:         "192.168.1.1",
+			ServerPort:       27015,
+			ProcessActive:    true,
+			LastProcessCheck: lo.ToPtr(time.Now()),
+			CreatedAt:        &now,
+			UpdatedAt:        &now,
+		}
+		require.NoError(t, serverRepo.Save(context.Background(), server))
+
+		adminAbility := &domain.Ability{ID: 1, Name: domain.AbilityNameAdminRolesPermissions}
+		require.NoError(t, rbacRepo.SaveAbility(context.Background(), adminAbility))
+		require.NoError(t, rbacRepo.AssignAbilityToUser(context.Background(), testUser1.ID, adminAbility.ID))
+
+		session := &auth.Session{Login: "admin", Email: "admin@example.com", User: &testUser1}
+		ctx := auth.ContextWithSession(context.Background(), session)
+
+		body := bytes.NewBufferString(`{"delete_files":true}`)
+		req := httptest.NewRequest(http.MethodDelete, "/api/servers/1", body)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(ctx)
+		req = mux.SetURLVars(req, map[string]string{"id": "1"})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusNoContent, w.Code)
+
+		servers, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}}, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, servers)
+
+		serversWithDeleted, err := serverRepo.Find(ctx, &filters.FindServer{IDs: []uint{1}, WithDeleted: true}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, serversWithDeleted, 1)
+		assert.NotNil(t, serversWithDeleted[0].DeletedAt)
+
+		tasks, err := daemonTaskRepo.Find(ctx, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, tasks, 2)
+	})
 }

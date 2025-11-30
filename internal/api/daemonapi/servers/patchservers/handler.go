@@ -121,8 +121,9 @@ func (h *Handler) fetchServers(
 	}
 
 	filter := &filters.FindServer{
-		IDs:   serverIDs,
-		DSIDs: []uint{node.ID},
+		IDs:         serverIDs,
+		DSIDs:       []uint{node.ID},
+		WithDeleted: true,
 	}
 
 	servers, err := h.serverRepo.Find(ctx, filter, nil, nil)

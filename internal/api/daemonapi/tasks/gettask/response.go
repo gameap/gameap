@@ -6,7 +6,7 @@ import (
 
 type TaskResponse struct {
 	ID                uint   `json:"id"`
-	RunAftID          *uint  `json:"run_aft_id"`
+	RunAftID          *uint  `json:"run_after_id"`
 	DedicatedServerID uint   `json:"dedicated_server_id"`
 	ServerID          *uint  `json:"server_id"`
 	Task              string `json:"task"`
