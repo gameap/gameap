@@ -491,6 +491,7 @@
     "basic_info": "Basic Info",
     "ds_ip_ports": "Dedicated server, IP, ports",
     "dedicated_server": "Dedicated Server",
+    "game_server": "Game Server",
     "start_command": "Start Command",
     "start_success_msg": "Game Server started successfully",
     "start_fail_msg": "Game Server failed to start",

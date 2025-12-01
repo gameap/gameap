@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
@@ -65,7 +66,17 @@ func (r *QueryReader) ReadList(key string) ([]string, error) {
 		res = r.query[key+"[]"]
 	}
 
-	return res, nil
+	result := make([]string, 0, len(res))
+	for _, item := range res {
+		if strings.Contains(item, ",") {
+			parts := strings.Split(item, ",")
+			result = append(result, parts...)
+		} else {
+			result = append(result, item)
+		}
+	}
+
+	return result, nil
 }
 
 func (r *QueryReader) ReadIntList(key string) ([]int, error) {
@@ -76,6 +87,9 @@ func (r *QueryReader) ReadIntList(key string) ([]int, error) {
 
 	res := make([]int, 0, len(list))
 	for _, item := range list {
+		if item == "" {
+			continue
+		}
 		value, err := strconv.Atoi(item)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to convert to int")
@@ -94,6 +108,9 @@ func (r *QueryReader) ReadUintList(key string) ([]uint, error) {
 
 	res := make([]uint, 0, len(list))
 	for _, item := range list {
+		if item == "" {
+			continue
+		}
 		value, err := strconv.Atoi(item)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to convert to int")

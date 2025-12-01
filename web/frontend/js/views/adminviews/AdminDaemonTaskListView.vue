@@ -22,6 +22,13 @@
       />
       <n-select
           multiple
+          v-model:value="search.servers"
+          :options="serverOptions"
+          :placeholder="trans('servers.game_servers')"
+          @update:value="onUpdateFilters"
+      />
+      <n-select
+          multiple
           v-model:value="search.nodes"
           :options="nodeOptions"
           :placeholder="trans('dedicated_servers.dedicated_servers')"
@@ -64,6 +71,8 @@ import {trans} from "@/i18n/i18n"
 import Loading from "@/components/Loading.vue"
 import {useDaemonTaskListStore} from "@/store/daemonTaskList"
 import {useNodeListStore} from "@/store/nodeList"
+import {useServerListStore} from "@/store/serverList"
+import {RouterLink} from "vue-router"
 import {storeToRefs} from "pinia"
 import GButton from "@/components/GButton.vue";
 import GStatusBadge from "@/components/GStatusBadge.vue";
@@ -71,6 +80,7 @@ import {errorNotification} from "@/parts/dialogs"
 
 const daemonTaskListStore = useDaemonTaskListStore()
 const nodeListStore = useNodeListStore()
+const serverListStore = useServerListStore()
 
 const breadcrumbs = computed(() => {
   return [
@@ -93,6 +103,26 @@ const createColumns = () => {
       key: "status",
       render(row) {
         return h(GStatusBadge, {status: row.status, text: trans('gdaemon_tasks.status_' + row.status)})
+      },
+    },
+    {
+      title: trans('servers.game_server'),
+      render(row) {
+        if (!row.serverId) {
+          return ''
+        }
+        let server = servers.value.find((server) => server.id === row.serverId)
+        if (!server) {
+          return ''
+        }
+        return h(
+          RouterLink,
+          {
+            to: {name: 'servers.control', params: {id: server.id}},
+            class: "text-blue-600 underline dark:text-blue-500 hover:no-underline",
+          },
+          server.name,
+        )
       },
     },
     {
@@ -131,6 +161,7 @@ const createColumns = () => {
 
 const {daemonTaskList, currentPage, total} = storeToRefs(daemonTaskListStore)
 const {nodes} = storeToRefs(nodeListStore)
+const {servers} = storeToRefs(serverListStore)
 
 const columns = ref(createColumns())
 const pagination = reactive({
@@ -139,7 +170,7 @@ const pagination = reactive({
 })
 
 const loading = computed(() => {
-  return daemonTaskListStore.loading || nodeListStore.loading
+  return daemonTaskListStore.loading || nodeListStore.loading || serverListStore.loading
 })
 
 onMounted(() => {
@@ -147,6 +178,7 @@ onMounted(() => {
 
   fetchTasks()
   fetchNodes()
+  fetchServers()
 })
 
 const fetchTasks = () => {
@@ -160,6 +192,10 @@ const fetchTasks = () => {
 
   if (search.value.statuses) {
     filter.statuses = search.value.statuses
+  }
+
+  if (search.value.servers) {
+    filter.servers = search.value.servers
   }
 
   if (search.value.nodes) {
@@ -181,12 +217,20 @@ const fetchNodes = () => {
   })
 }
 
+const fetchServers = () => {
+  serverListStore.fetchServersByFilter([]).
+  catch((error) => {
+    errorNotification(error)
+  })
+}
+
 const listData = computed(() => {
   return daemonTaskList.value.map((task) => {
     return {
       id: task.id,
       task: task.task,
       status: task.status,
+      serverId: task.server_id,
       nodeId: task.dedicated_server_id,
       createdAt: (new Date(task.created_at)).toLocaleString(),
       updatedAt: (new Date(task.updated_at)).toLocaleString(),
@@ -197,6 +241,7 @@ const listData = computed(() => {
 const search = ref({
   tasks: null,
   statuses: null,
+  servers: null,
   nodes: null,
 })
 
@@ -302,6 +347,15 @@ const nodeOptions = computed(() => {
   })
 })
 
+const serverOptions = computed(() => {
+  return servers.value.map((server) => {
+    return {
+      label: server.name,
+      value: server.id,
+    }
+  })
+})
+
 const handlePageChange = (page) => {
   currentPage.value = page
   fetchTasks()
@@ -313,12 +367,13 @@ const onUpdateFilters = () => {
 }
 
 const isFiltersSet = () => {
-  return search.value.tasks || search.value.statuses || search.value.nodes
+  return search.value.tasks || search.value.statuses || search.value.servers || search.value.nodes
 }
 
 const clearFilters = () => {
   search.value.tasks = null
   search.value.statuses = null
+  search.value.servers = null
   search.value.nodes = null
   currentPage.value = 1
 

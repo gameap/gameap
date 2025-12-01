@@ -39,6 +39,10 @@ export const useDaemonTaskListStore = defineStore('daemonTaskList', {
                     params['filter[dedicated_server_id]'] = join(filter.nodes, ',')
                 }
 
+                if (filter.servers) {
+                    params['filter[server_id]'] = join(filter.servers, ',')
+                }
+
                 const response = await axios.get('/api/gdaemon_tasks', {
                     params: params,
                 })

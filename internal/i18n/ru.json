@@ -492,6 +492,7 @@
     "basic_info": "Основное",
     "ds_ip_ports": "Выделенный сервер, IP, порты",
     "dedicated_server": "Выделенный сервер",
+    "game_server": "Игровой сервер",
     "start_command": "Команда запуска",
     "start_success_msg": "Игровой сервер успешно запущен",
     "start_fail_msg": "Не удалось запустить сервер",

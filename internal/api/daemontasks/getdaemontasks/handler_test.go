@@ -203,6 +203,48 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			name:          "successful - filter by comma-separated server ids",
+			queryParams:   "?filter[server_id]=1,2",
+			authenticated: true,
+			setupRepo: func(repo *inmemory.DaemonTaskRepository) {
+				serverID2 := uint(2)
+				serverID3 := uint(3)
+				err := repo.Save(context.Background(), &domain.DaemonTask{
+					ID:                1,
+					DedicatedServerID: 1,
+					ServerID:          &serverID,
+					Task:              domain.DaemonTaskTypeServerStart,
+					Status:            domain.DaemonTaskStatusSuccess,
+				})
+				require.NoError(t, err)
+
+				err = repo.Save(context.Background(), &domain.DaemonTask{
+					ID:                2,
+					DedicatedServerID: 2,
+					ServerID:          &serverID2,
+					Task:              domain.DaemonTaskTypeCmdExec,
+					Status:            domain.DaemonTaskStatusWaiting,
+				})
+				require.NoError(t, err)
+
+				err = repo.Save(context.Background(), &domain.DaemonTask{
+					ID:                3,
+					DedicatedServerID: 3,
+					ServerID:          &serverID3,
+					Task:              domain.DaemonTaskTypeServerStop,
+					Status:            domain.DaemonTaskStatusSuccess,
+				})
+				require.NoError(t, err)
+			},
+			expectedStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, resp *base.PaginatedResponse[daemonTaskResponse]) {
+				t.Helper()
+
+				assert.Equal(t, 2, resp.Total)
+				require.Len(t, resp.Data, 2)
+			},
+		},
+		{
 			name:          "successful - with pagination",
 			queryParams:   "?page[size]=1&page[number]=2",
 			authenticated: true,

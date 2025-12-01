@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	logSubPath = "daemon/logs"
+	linuxLogPath   = "/var/log/gameap-daemon"
+	windowsLogPath = "C:/gameap/daemon/logs"
 )
 
 type fileService interface {
@@ -91,7 +92,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	node := &nodes[0]
 
-	logPath := filepath.Join(node.WorkPath, logSubPath)
+	logPath := linuxLogPath
+	if node.OS == domain.NodeOSWindows {
+		logPath = windowsLogPath
+	}
 
 	fileInfos, err := h.daemonFiles.ReadDir(ctx, node, logPath)
 	if err != nil {

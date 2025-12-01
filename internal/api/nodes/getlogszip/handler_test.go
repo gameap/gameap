@@ -67,7 +67,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		expectZip      bool
 	}{
 		{
-			name:   "successful logs download",
+			name:   "successful_linux_node_logs_download",
 			nodeID: "1",
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -103,7 +103,9 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 			setupMock: func() *mockFileService {
 				return &mockFileService{
-					readDirFunc: func(_ context.Context, _ *domain.Node, _ string) ([]*daemon.FileInfo, error) {
+					readDirFunc: func(_ context.Context, _ *domain.Node, directory string) ([]*daemon.FileInfo, error) {
+						assert.Equal(t, "/var/log/gameap-daemon", directory)
+
 						return []*daemon.FileInfo{
 							{
 								Name:         "daemon.log",
@@ -132,7 +134,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectZip:      true,
 		},
 		{
-			name:   "windows node logs download",
+			name:   "windows_node_logs_download",
 			nodeID: "1",
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -190,7 +192,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectZip:      true,
 		},
 		{
-			name:   "node not found",
+			name:   "node_not_found",
 			nodeID: "999",
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -210,7 +212,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectZip:      false,
 		},
 		{
-			name:      "user not authenticated",
+			name:      "user_not_authenticated",
 			nodeID:    "1",
 			setupRepo: func(_ *inmemory.NodeRepository) {},
 			setupMock: func() *mockFileService {
@@ -221,7 +223,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectZip:      false,
 		},
 		{
-			name:   "invalid node id",
+			name:   "invalid_node_id",
 			nodeID: "invalid",
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -241,7 +243,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectZip:      false,
 		},
 		{
-			name:   "empty log directory",
+			name:   "empty_log_directory",
 			nodeID: "1",
 			setupAuth: func() context.Context {
 				session := &auth.Session{
@@ -325,9 +327,9 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.NoError(t, err)
 
 				switch tt.name {
-				case "empty log directory":
+				case "empty_log_directory":
 					assert.Len(t, zipReader.File, 0)
-				case "successful logs download":
+				case "successful_linux_node_logs_download":
 					require.Len(t, zipReader.File, 2)
 
 					var foundDaemonLog, foundErrorLog bool
