@@ -12,7 +12,7 @@
 <script setup>
 import GBreadcrumbs from "@/components/GBreadcrumbs.vue"
 import {computed, ref, onMounted} from "vue"
-import _ from "lodash"
+import { camelCase, snakeCase } from "lodash-es"
 import {trans} from "@/i18n/i18n"
 import {useNodeStore} from "@/store/node"
 import {useClientCertificatesStore} from "@/store/clientCertificates";
@@ -39,7 +39,7 @@ onMounted(() => {
   nodeStore.setNodeId(route.params.id)
   nodeStore.fetchNode().then(() => {
     nodeUpdateModel.value = Object.fromEntries(
-        Object.entries(node.value).map(([k, v]) => [_.camelCase(k), v])
+        Object.entries(node.value).map(([k, v]) => [camelCase(k), v])
     );
   }).catch((error) => {
     errorNotification(error)
@@ -80,7 +80,7 @@ const onUpdate = async () => {
   }
 
   const fields = Object.fromEntries(
-      Object.entries(nodeUpdateModel.value).map(([k, v]) => [_.snakeCase(k), v])
+      Object.entries(nodeUpdateModel.value).map(([k, v]) => [snakeCase(k), v])
   );
 
   nodeStore.saveNode(fields).then(() => {

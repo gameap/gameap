@@ -2,7 +2,7 @@
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
   <InactiveServer v-if="!loading && !isServerEnabled" :server="server"></InactiveServer>
-  <n-tabs v-else type="line" class="flex justify-between" :class="(!isServerEnabled) ? 'hidden': ''" animated>
+  <n-tabs v-else type="line" class="flex justify-between" :class="(!isServerEnabled) ? 'hidden': ''" animated display-directive="show:lazy">
     <n-tab-pane name="control">
       <template #tab>
         <i class="fas fa-play mr-1"></i>
@@ -183,7 +183,7 @@
               class="flex flex-col min-w-0 rounded break-words border bg-white
               dark:bg-stone-800 border-1 border-stone-300 dark:border-stone-700 h-full"
           >
-            <file-manager
+            <FileManager
                 :settings="{
                     'lang': pageLanguage(),
                     'baseUrl': '/api/file-manager/'+$route.params.id,
@@ -267,6 +267,10 @@ const RconPlayers = defineAsyncComponent(() =>
 
 const RconConsole = defineAsyncComponent(() =>
     import('../components/rcon/RconConsole.vue' /* webpackChunkName: "components/rcon" */)
+)
+
+const FileManager = defineAsyncComponent(() =>
+    import('../filemanager/FileManager.vue')
 )
 
 import GBreadcrumbs from "../components/GBreadcrumbs.vue";

@@ -2,25 +2,9 @@ import {trans} from "./i18n/i18n";
 
 import EmptyView from "./views/EmptyView.vue";
 import ServersView from "./views/ServersView.vue";
-import ServerIdView from "./views/ServerIdView.vue";
-import AdminServersList from "./views/adminviews/AdminServersList.vue";
-import AdminNodesView from "./views/adminviews/AdminNodesView.vue";
 import HomeView from "./views/HomeView.vue";
-import AdminServersCreate from "./views/adminviews/AdminServersCreate.vue";
-import AdminServersEdit from "./views/adminviews/AdminServersEdit.vue";
-import AdminGamesList from "./views/adminviews/AdminGamesList.vue";
-import AdminGamesEdit from "./views/adminviews/AdminGamesEdit.vue";
-import AdminModEdit from "./views/adminviews/AdminModEdit.vue";
-import AdminUsersView from "./views/adminviews/AdminUsersView.vue";
-import AdminUsersEditView from "./views/adminviews/AdminUsersEditView.vue";
-import AdminNodesEditView from "./views/adminviews/AdminNodesEditView.vue";
-import AdminClientCertificatesView from "./views/adminviews/AdminClientCertificatesView.vue";
-import AdminNodesCreateView from "./views/adminviews/AdminNodesCreateView.vue";
-import AdminDaemonTaskListView from "./views/adminviews/AdminDaemonTaskListView.vue";
-import AdminDaemonTaskOutputView from "./views/adminviews/AdminDaemonTaskOutputView.vue";
 import ProfileView from "./views/ProfileView.vue";
 import TokensView from "./views/TokensView.vue";
-import AdminNodeShowView from "./views/adminviews/AdminNodeShowView.vue";
 import LoginView from "./views/LoginView.vue";
 
 import {useAuthStore} from "./store/auth";
@@ -28,6 +12,26 @@ import Error404View from "./views/errors/Error404View.vue";
 import Error403View from "./views/errors/Error403View.vue";
 import Error500View from "./views/errors/Error500View.vue";
 import {requestCancellation} from "./config/requestCancellation";
+
+// Lazy-loaded view that contains FileManager (keeps filemanager out of main bundle)
+const ServerIdView = () => import("./views/ServerIdView.vue");
+
+// Lazy-loaded admin views (code-split for smaller initial bundle)
+const AdminServersList = () => import("./views/adminviews/AdminServersList.vue");
+const AdminServersCreate = () => import("./views/adminviews/AdminServersCreate.vue");
+const AdminServersEdit = () => import("./views/adminviews/AdminServersEdit.vue");
+const AdminNodesView = () => import("./views/adminviews/AdminNodesView.vue");
+const AdminNodesCreateView = () => import("./views/adminviews/AdminNodesCreateView.vue");
+const AdminNodesEditView = () => import("./views/adminviews/AdminNodesEditView.vue");
+const AdminNodeShowView = () => import("./views/adminviews/AdminNodeShowView.vue");
+const AdminClientCertificatesView = () => import("./views/adminviews/AdminClientCertificatesView.vue");
+const AdminGamesList = () => import("./views/adminviews/AdminGamesList.vue");
+const AdminGamesEdit = () => import("./views/adminviews/AdminGamesEdit.vue");
+const AdminModEdit = () => import("./views/adminviews/AdminModEdit.vue");
+const AdminUsersView = () => import("./views/adminviews/AdminUsersView.vue");
+const AdminUsersEditView = () => import("./views/adminviews/AdminUsersEditView.vue");
+const AdminDaemonTaskListView = () => import("./views/adminviews/AdminDaemonTaskListView.vue");
+const AdminDaemonTaskOutputView = () => import("./views/adminviews/AdminDaemonTaskOutputView.vue");
 
 const routes = [
     {

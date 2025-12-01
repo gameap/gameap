@@ -167,7 +167,6 @@
     import { storeToRefs } from 'pinia'
     import { useServerStore } from '@/store/server'
     import { useServerTasksStore } from '@/store/serverTasks'
-    import _ from 'lodash';
     import { pluralize, trans } from '@/i18n/i18n'
     import GButton from "@/components/GButton.vue";
     import {confirm, errorNotification} from "@/parts/dialogs";

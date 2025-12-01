@@ -89,7 +89,7 @@
     import { storeToRefs } from 'pinia'
     import { useServerStore } from '@/store/server'
     import { useServerRconStore } from '@/store/serverRcon'
-    import _ from 'lodash'
+    import { some, isEmpty } from 'lodash-es'
     import { pluralize, trans } from '@/i18n/i18n'
     import GButton from "../GButton.vue"
     import {
@@ -270,13 +270,13 @@
                 }
             },
             ipRow() {
-                return _.some(this.players, player => !_.isEmpty(player.ip));
+                return some(this.players, player => !isEmpty(player.ip));
             },
             pingRow() {
-                return _.some(this.players, player => !_.isEmpty(player.ping));
+                return some(this.players, player => !isEmpty(player.ping));
             },
             scoreRow() {
-                return _.some(this.players, player => !_.isEmpty(player.score));
+                return some(this.players, player => !isEmpty(player.score));
             }
         },
         mounted() {

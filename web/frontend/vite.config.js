@@ -19,23 +19,23 @@ export default defineConfig({
         outDir: '../static/dist',
         emptyOutDir: true,
         chunkSizeWarningLimit: 500,
+        modulePreload: {
+            // Disable modulePreload for large chunks that should be truly lazy-loaded
+            resolveDependencies: (filename, deps, { hostId, hostType }) => {
+                // Don't preload filemanager chunk - it should load only when Files tab is clicked
+                return deps.filter(dep => !dep.includes('filemanager'))
+            }
+        },
         rollupOptions: {
             input: {
                 main: resolve(__dirname, 'index.html')
             },
             output: {
-                manualChunks: (id) => {
-                    // Manual chunking disabled due to circular dependency issues
-                    // Vite's automatic chunking will handle code splitting
-                    if (id.includes('/views/adminviews/')) {
-                        return 'admin-views';
-                    }
-                    if (id.includes('/filemanager/')) {
-                        return 'filemanager';
-                    }
-                }
+                // Merge small chunks to reduce HTTP requests
+                experimentalMinChunkSize: 5000, // 5KB minimum chunk size
             }
-        }
+        },
+        cssCodeSplit: true
     },
     server: {
         proxy: {

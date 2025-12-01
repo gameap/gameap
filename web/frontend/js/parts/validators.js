@@ -1,5 +1,5 @@
 import {trans} from "@/i18n/i18n";
-import _ from 'lodash';
+import { isEqual, isEmpty } from 'lodash-es';
 
 const requiredValidator = (label) => {
     return (rule, value) => {
@@ -39,7 +39,7 @@ const stringMinLengthValidator = (label, min) => {
 
 const sameWithValidator = (label, targetLabel, targetValueReader) => {
     return (rule, value) => {
-        if (!_.isEqual(value, targetValueReader())) {
+        if (!isEqual(value, targetValueReader())) {
             return new Error(
                 trans(
                     'validation.same',
@@ -52,7 +52,7 @@ const sameWithValidator = (label, targetLabel, targetValueReader) => {
 
 const isArrayNotEmptyValidator = (label) => {
     return (rule, value) => {
-        if (_.isEmpty(value)) {
+        if (isEmpty(value)) {
             return new Error(
                 trans(
                     'validation.gte.array',
@@ -76,7 +76,7 @@ const allOfValidator = (...validators) => {
 
 const ifNotEmptyValidator = (...validators) => {
     return (rule, value) => {
-        if (!_.isEmpty(value)) {
+        if (!isEmpty(value)) {
             for (const validator of validators) {
                 const error = validator(rule, value)
                 if (error) {

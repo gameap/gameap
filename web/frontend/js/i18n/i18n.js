@@ -1,6 +1,6 @@
 // import { createApp } from 'vue';
 import plurals from './plurals';
-import _ from 'lodash';
+import { get, eachRight, replace } from 'lodash-es';
 
 const pluralForms = {
     default: (n) => (n !== 1 ? 1 : 0),
@@ -32,10 +32,10 @@ const pluralize = (choice, choicesLength) => {
 };
 
 const trans = (string, args) => {
-    let value = _.get(window.i18n, string);
+    let value = get(window.i18n, string);
 
-    _.eachRight(args, (paramVal, paramKey) => {
-        value = _.replace(value, `:${paramKey}`, paramVal);
+    eachRight(args, (paramVal, paramKey) => {
+        value = replace(value, `:${paramKey}`, paramVal);
     });
     return value;
 };

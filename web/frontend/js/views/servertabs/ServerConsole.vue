@@ -46,7 +46,7 @@
 <script setup>
 import {ref, onMounted, onUnmounted} from 'vue';
 import axios from '@/config/axios';
-import _ from 'lodash';
+import { replace } from 'lodash-es';
 import {
   NDivider,
 } from "naive-ui"
@@ -81,7 +81,7 @@ function getConsole() {
 
   axios.get(`/api/servers/${props.serverId}/console`)
       .then(response => {
-        output.value = _.replace(response.data.console, /(\r\n|\n|\r)/gm, "\n")
+        output.value = replace(response.data.console, /(\r\n|\n|\r)/gm, "\n")
         setTimeout(scroll, 1000);
       })
       .catch(error => {

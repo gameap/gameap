@@ -71,8 +71,6 @@ const InputManyList = defineAsyncComponent(() =>
     import('./components/input/InputManyList.vue')
 )
 
-import fileManager from './filemanager';
-
 const ServerStatus = defineAsyncComponent(() =>
     import('./views/servertabs/ServerStatus.vue')
 )
@@ -168,8 +166,6 @@ const router = createRouter({
 router.beforeEach(beforeEachRoute)
 
 app.use(router)
-
-app.use(fileManager)
 
 // Initialize authentication from server session - MUST be after pinia is registered
 const authStore = useAuthStore()

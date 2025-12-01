@@ -47,7 +47,7 @@ import Loading from "@/components/Loading.vue";
 import GButton from "@/components/GButton.vue";
 import {useTokensStore} from "@/store/tokens";
 import {storeToRefs} from "pinia"
-import _ from "lodash";
+import { join } from "lodash-es";
 import {
   NButton,
   NDataTable,
@@ -127,7 +127,7 @@ const listData = computed(() => {
     return {
       id: token.id,
       name: token.name,
-      abilities: _.join(token.abilities, ', '),
+      abilities: join(token.abilities, ', '),
       createdAt: (new Date(token.created_at)).toLocaleString(),
       lastUsedAt: token.last_used_at
           ? (new Date(token.last_used_at)).toLocaleString()

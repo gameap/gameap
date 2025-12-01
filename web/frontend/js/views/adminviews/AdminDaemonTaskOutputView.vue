@@ -54,7 +54,7 @@ import {storeToRefs} from "pinia"
 import {useDaemonTaskStore} from "../../store/daemonTask";
 import GStatusBadge from "../../components/GStatusBadge.vue";
 import Loading from "../../components/Loading.vue";
-import _ from "lodash";
+import { replace } from "lodash-es";
 
 const daemonTaskStore = useDaemonTaskStore()
 const route = useRoute()
@@ -89,6 +89,6 @@ const output = computed(() => {
     return ''
   }
 
-  return _.replace(task.value.output, /(\r\n|\n|\r)/gm, "\n")
+  return replace(task.value.output, /(\r\n|\n|\r)/gm, "\n")
 })
 </script>

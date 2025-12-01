@@ -198,7 +198,7 @@ import {NForm, NFormItem, NSwitch} from "naive-ui"
 import GButton from "@/components/GButton.vue"
 import {useRoute, useRouter} from "vue-router"
 import {storeToRefs} from "pinia"
-import _ from "lodash"
+import { capitalize } from "lodash-es"
 import {errorNotification, notification} from "@/parts/dialogs";
 import {useServerStore} from "@/store/server"
 import {useGameListStore} from "@/store/gameList"
@@ -271,9 +271,9 @@ const loading = computed(() => {
 })
 
 const statusOptions = [
-  {value: 0, label: _.capitalize(trans('servers.not_installed')) },
-  {value: 1, label: _.capitalize(trans('servers.installed')) },
-  {value: 2, label: _.capitalize(trans('servers.installation')) },
+  {value: 0, label: capitalize(trans('servers.not_installed')) },
+  {value: 1, label: capitalize(trans('servers.installed')) },
+  {value: 2, label: capitalize(trans('servers.installation')) },
 ]
 
 const gamesCodeName = computed(() => {

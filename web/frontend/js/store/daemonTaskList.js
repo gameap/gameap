@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import axios from '../config/axios'
-import _ from 'lodash'
+import { join } from 'lodash-es'
 
 export const useDaemonTaskListStore = defineStore('daemonTaskList', {
     state: () => ({
@@ -28,15 +28,15 @@ export const useDaemonTaskListStore = defineStore('daemonTaskList', {
                 }
 
                 if (filter.tasks) {
-                    params['filter[task]'] = _.join(filter.tasks, ',')
+                    params['filter[task]'] = join(filter.tasks, ',')
                 }
 
                 if (filter.statuses) {
-                    params['filter[status]'] = _.join(filter.statuses, ',')
+                    params['filter[status]'] = join(filter.statuses, ',')
                 }
 
                 if (filter.nodes) {
-                    params['filter[dedicated_server_id]'] = _.join(filter.nodes, ',')
+                    params['filter[dedicated_server_id]'] = join(filter.nodes, ',')
                 }
 
                 const response = await axios.get('/api/gdaemon_tasks', {

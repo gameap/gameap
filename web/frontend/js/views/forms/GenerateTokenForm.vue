@@ -62,7 +62,7 @@ import {
 } from "naive-ui"
 import Loading from "@/components/Loading.vue";
 import {isArrayNotEmptyValidator, requiredValidator} from "@/parts/validators";
-import _ from "lodash";
+import { isEmpty } from "lodash-es";
 
 const props = defineProps({
   loading: {
@@ -91,7 +91,7 @@ const rules = {
   abilities: {
     required: true,
     validator: (rule, value) => {
-      if (_.isEmpty(value)) {
+      if (isEmpty(value)) {
         return new Error(
             trans('tokens.validation.abilities_required')
         )

@@ -9,7 +9,7 @@
 export { default as axios } from '@/config/axios'
 
 // Lodash utilities
-export { default as _ } from 'lodash'
+export * as _ from 'lodash-es'
 
 // i18n functions
 export { trans, pluralize, changeLanguage, getCurrentLanguage, pageLanguage } from '@/i18n/i18n'

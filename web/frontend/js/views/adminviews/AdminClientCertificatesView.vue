@@ -88,7 +88,7 @@
 <script setup>
 import GBreadcrumbs from "@/components/GBreadcrumbs.vue"
 import {computed, h, ref, onMounted} from "vue"
-import _ from "lodash"
+import { camelCase } from "lodash-es"
 import {trans} from "@/i18n/i18n"
 import GButton from "@/components/GButton.vue"
 import {errorNotification, notification} from "@/parts/dialogs"
@@ -175,7 +175,7 @@ const clientCertificatesData = computed(() => {
         fingerprint: certificate.fingerprint,
         expires: certificate.expires,
         info: Object.fromEntries(
-            Object.entries(certificate.info).map(([k, v]) => [_.camelCase(k), v])
+            Object.entries(certificate.info).map(([k, v]) => [camelCase(k), v])
         ),
       };
     },

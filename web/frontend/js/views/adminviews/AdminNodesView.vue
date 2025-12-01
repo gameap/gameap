@@ -39,7 +39,7 @@ import {useNodeListStore} from "../../store/nodeList"
 import {errorNotification, notification} from "../../parts/dialogs"
 import Loading from "../../components/Loading.vue"
 import {storeToRefs} from "pinia"
-import _ from "lodash"
+import { join } from "lodash-es"
 import {
   NEmpty,
   NDataTable,
@@ -72,7 +72,7 @@ const createColumns = () => {
       title: trans('dedicated_servers.ip'),
       key: "ip",
       render(row) {
-        return _.join(row.ip, ', ')
+        return join(row.ip, ', ')
       }
     },
     {

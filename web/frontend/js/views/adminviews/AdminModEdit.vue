@@ -15,7 +15,7 @@
 import GBreadcrumbs from "@/components/GBreadcrumbs.vue"
 import Loading from "@/components/Loading.vue"
 import {computed, ref, onMounted} from "vue"
-import _ from "lodash"
+import { camelCase, snakeCase } from "lodash-es"
 import {trans} from "@/i18n/i18n"
 import UpdateModForm from "./forms/UpdateModForm.vue"
 import {useGameStore} from "@/store/game"
@@ -71,7 +71,7 @@ onMounted(() => {
     gameModStore.fetchMod().then(() => {
 
       modUpdateModel.value = Object.fromEntries(
-          Object.entries(mod.value).map(([k, v]) => [_.camelCase(k), v])
+          Object.entries(mod.value).map(([k, v]) => [camelCase(k), v])
       );
     }).catch((error) => {
       errorNotification(error)
@@ -86,7 +86,7 @@ const modUpdateModel = ref({})
 
 const onUpdateMod = () => {
   const fields = Object.fromEntries(
-      Object.entries(modUpdateModel.value).map(([k, v]) => [_.snakeCase(k), v])
+      Object.entries(modUpdateModel.value).map(([k, v]) => [snakeCase(k), v])
   );
   gameModStore.saveMod(fields).then(() => {
     notification({
