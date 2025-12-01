@@ -177,11 +177,11 @@
         {{ trans('servers.files') }}
       </template>
 
-      <div class="flex flex-wrap mt-2">
-        <div class="md:w-full">
+      <div class="flex flex-wrap mt-2 h-[calc(100vh-14rem)]">
+        <div class="md:w-full h-full">
           <div
               class="flex flex-col min-w-0 rounded break-words border bg-white
-              dark:bg-stone-800 border-1 border-stone-300 dark:border-stone-700 p-2"
+              dark:bg-stone-800 border-1 border-stone-300 dark:border-stone-700 h-full"
           >
             <file-manager
                 :settings="{

@@ -142,12 +142,16 @@ export default {
         text-overflow: ellipsis;
     }
 
-    tr {
-        @apply border-b dark:border-stone-700;
+    tr:nth-child(odd) {
+        @apply bg-stone-50 dark:bg-stone-800;
+    }
+
+    tr:nth-child(even) {
+        @apply bg-white dark:bg-stone-900;
     }
 
     tr:hover {
-      @apply bg-stone-100 dark:bg-stone-900;
+        @apply bg-stone-100 dark:bg-[#3d3836];
     }
 
     .w-10 {

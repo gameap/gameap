@@ -62,7 +62,10 @@ export default {
      * @returns {*}
      */
     getFile(disk, path) {
-        return HTTP.get('download', { params: { disk, path } });
+        return HTTP.get('download', {
+            responseType: 'text',
+            params: { disk, path },
+        });
     },
 
     /**

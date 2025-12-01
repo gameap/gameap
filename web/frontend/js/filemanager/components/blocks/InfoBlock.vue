@@ -1,6 +1,6 @@
 <template>
     <div class="fm-info-block d-flex justify-content-between grid grid-cols-3">
-        <div class="col-auto">
+        <div class="col-auto text-xs">
             <span v-show="selectedCount">
                 {{ `${lang.info.selected} ${selectedCount}` }}
                 {{ `${lang.info.selectedSize} ${selectedFilesSize}` }}
@@ -26,7 +26,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-auto text-right">
+        <div class="col-auto text-right text-xs">
             <div class="spinner-border spinner-border-sm text-info" role="status" v-show="loadingSpinner">
                 <span class="visually-hidden">Loading...</span>
             </div>
@@ -153,10 +153,9 @@ export default {
 
 <style lang="scss">
 .fm-info-block {
-    @apply border-b dark:border-stone-700;
+    @apply border-t dark:border-stone-700 hidden sm:flex;
     flex: 0 0 auto;
     padding-top: 0.2rem;
-    padding-bottom: 0.4rem;
 
     .progress {
         margin-top: 0.3rem;
@@ -165,6 +164,12 @@ export default {
     .text-right > span {
         padding-left: 0.5rem;
         cursor: pointer;
+    }
+}
+
+@media (max-height: 500px) {
+    .fm-info-block {
+        display: none !important;
     }
 }
 </style>

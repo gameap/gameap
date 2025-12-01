@@ -1,7 +1,7 @@
 <template>
-    <div class="fm-content d-flex flex-column">
+    <div class="fm-content">
         <bread-crumb v-bind:manager="manager" />
-        <div class="fm-content-body h-[40vh]">
+        <div class="fm-content-body">
             <table-view v-if="viewType === 'table'" v-bind:manager="manager" />
             <grid-view v-else v-bind:manager="manager" />
         </div>
@@ -40,20 +40,14 @@ export default {
 
 <style lang="scss">
 .fm-content {
-    padding-left: 1rem;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 
     .fm-content-body {
-        overflow-y: scroll;
-
-        //@media screen and (min-height: 800px) {
-        //    height: 370px;
-        //}
-        //@media screen and (max-height: 800px) {
-        //    height: 270px;
-        //}
-        //@media screen and (max-height: 600px) {
-        //    height: 170px;
-        //}
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
     }
 }
 </style>

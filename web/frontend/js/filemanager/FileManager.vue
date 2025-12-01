@@ -1,27 +1,27 @@
 <template>
     <div class="fm flex flex-col" v-bind:class="{ 'fm-full-screen': fullScreen }">
         <navbar-block />
-        <div class="fm-body flex">
+        <div class="fm-body flex min-h-0">
             <notification-block />
             <context-menu />
             <modal-block v-if="showModal" />
             <template v-if="windowsConfig === 1">
-                <left-manager class="relative flex-grow max-w-full flex-1 px-4" manager="left" />
+                <left-manager class="relative flex-grow max-w-full flex-1 h-full" manager="left" />
             </template>
             <template v-else-if="windowsConfig === 2">
-                <folder-tree class="w-1/3 md:w-1/4 pr-4 pl-4" />
-                <left-manager class="w-2/3 md:w-3/4 pr-4 pl-4" manager="left" />
+                <folder-tree class="w-1/3 md:w-1/4 pr-4 pl-4 h-full" />
+                <left-manager class="w-2/3 md:w-3/4 pr-4 pl-4 h-full" manager="left" />
             </template>
             <template v-else-if="windowsConfig === 3">
                 <left-manager
-                    class="w-full sm:w-1/2 pr-4 pl-4"
+                    class="w-full sm:w-1/2 pr-4 pl-4 h-full"
                     manager="left"
                     v-on:click.native="selectManager('left')"
                     v-on:contextmenu.native="selectManager('left')"
                 >
                 </left-manager>
                 <right-manager
-                    class="w-full sm:w-1/2 pr-4 pl-4"
+                    class="w-full sm:w-1/2 pr-4 pl-4 h-full"
                     manager="right"
                     v-on:click.native="selectManager('right')"
                     v-on:contextmenu.native="selectManager('right')"
@@ -251,12 +251,10 @@ export default {
     padding: 1rem;
 
     .fm-body {
-        @apply border-b border-t dark:border-stone-700;
-        flex: 1 1 auto;
+        flex: 1 1 0;
+        min-height: 0;
         overflow: hidden;
         position: relative;
-        padding-top: 1rem;
-        padding-bottom: 1rem;
     }
 
     .unselectable {
