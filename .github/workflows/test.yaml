@@ -51,6 +51,19 @@ jobs:
           --health-timeout=5s
           --health-retries=3
 
+      minio:
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd="curl -f http://localhost:9000/minio/health/live"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
     steps:
       - name: Install Go
         uses: actions/setup-go@v6
@@ -83,11 +96,19 @@ jobs:
             sleep 2
           done
 
+      - name: Setup MinIO bucket
+        run: |
+          curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+          ./mc alias set myminio http://127.0.0.1:9000 minioadmin minioadmin
+          ./mc mb myminio/test-bucket
+
       - name: Unit Tests
         env:
           TEST_MYSQL_DSN: 'root:testpassword@tcp(127.0.0.1:3306)/gameap?parseTime=true'
           TEST_POSTGRES_DSN: 'host=127.0.0.1 port=5432 user=postgres password=testpassword dbname=gameap sslmode=disable'
           TEST_REDIS_ADDR: '127.0.0.1:6379'
+          TEST_S3_DSN: 's3://minioadmin:minioadmin@127.0.0.1:9000/test-bucket?ssl=false'
         run: go test -race -v $(go list ./... | grep -v /test/ | grep -v /repositories/testing ) -coverprofile=coverage.out
 
       - name: Coverage Report

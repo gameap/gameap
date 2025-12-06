@@ -68,13 +68,13 @@ func (fm *LocalFileManager) mkdirAll(path string) error {
 	parent := filepath.Dir(path)
 	if parent != path && parent != "." {
 		if err := fm.mkdirAll(parent); err != nil {
-			return err
+			return errors.Wrapf(err, "failed to create directory: %s", parent)
 		}
 	}
 
 	err = fm.root.Mkdir(path, defaultLocalDirPerm)
 	if err != nil && !os.IsExist(err) {
-		return err
+		return errors.Wrapf(err, "failed to create directory: %s", path)
 	}
 
 	return nil
