@@ -43,9 +43,9 @@ type ServerResponse struct {
 }
 
 type ServerSettingResponse struct {
-	ServerID uint                      `json:"server_id"`
-	Name     string                    `json:"name"`
-	Value    domain.ServerSettingValue `json:"value"`
+	ServerID uint   `json:"server_id"`
+	Name     string `json:"name"`
+	Value    string `json:"value"`
 }
 
 type GameResponse struct {
@@ -110,10 +110,15 @@ func newServerResponse(
 
 	settingsResponse := make([]ServerSettingResponse, 0, len(settings))
 	for i := range settings {
+		stringValue, ok := settings[i].Value.String()
+		if !ok {
+			stringValue = ""
+		}
+
 		settingsResponse = append(settingsResponse, ServerSettingResponse{
 			ServerID: settings[i].ServerID,
 			Name:     settings[i].Name,
-			Value:    settings[i].Value,
+			Value:    stringValue,
 		})
 	}
 

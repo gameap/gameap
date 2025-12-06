@@ -404,12 +404,17 @@ func TestHandler_ResponseStructure(t *testing.T) {
 	assert.Equal(t, "Classic", serverResp.GameMod.Name)
 	require.NotNil(t, serverResp.GameMod.DefaultStartCmd)
 	assert.Equal(t, "./hlds_run -game cstrike", *serverResp.GameMod.DefaultStartCmd)
+	require.NotNil(t, serverResp.GameMod.DefaultStartCmdLinux)
+	assert.Equal(t, "./hlds_run -game cstrike", *serverResp.GameMod.DefaultStartCmdLinux)
+	require.NotNil(t, serverResp.GameMod.DefaultStartCmdWindows)
+	assert.Equal(t, "hlds.exe -game cstrike", *serverResp.GameMod.DefaultStartCmdWindows)
 	require.NotNil(t, serverResp.GameMod.RemoteRepository)
 	assert.Equal(t, "http://example.com/mod", *serverResp.GameMod.RemoteRepository)
 
 	require.Len(t, serverResp.Settings, 1)
 	assert.Equal(t, uint(1), serverResp.Settings[0].ServerID)
 	assert.Equal(t, "autostart", serverResp.Settings[0].Name)
+	assert.Equal(t, "true", serverResp.Settings[0].Value)
 }
 
 func TestHandler_WindowsOS(t *testing.T) {
@@ -461,6 +466,7 @@ func TestHandler_WindowsOS(t *testing.T) {
 		ID:                      1,
 		GameCode:                "cs16",
 		Name:                    "Classic",
+		StartCmdLinux:           lo.ToPtr("./hlds_run -game cstrike"),
 		StartCmdWindows:         lo.ToPtr("hlds.exe -game cstrike"),
 		RemoteRepositoryWindows: lo.ToPtr("http://example.com/mod-win"),
 		LocalRepositoryWindows:  lo.ToPtr("C:\\local\\mod"),
@@ -514,6 +520,10 @@ func TestHandler_WindowsOS(t *testing.T) {
 
 	require.NotNil(t, serverResp.GameMod.DefaultStartCmd)
 	assert.Equal(t, "hlds.exe -game cstrike", *serverResp.GameMod.DefaultStartCmd)
+	require.NotNil(t, serverResp.GameMod.DefaultStartCmdLinux)
+	assert.Equal(t, "./hlds_run -game cstrike", *serverResp.GameMod.DefaultStartCmdLinux)
+	require.NotNil(t, serverResp.GameMod.DefaultStartCmdWindows)
+	assert.Equal(t, "hlds.exe -game cstrike", *serverResp.GameMod.DefaultStartCmdWindows)
 	require.NotNil(t, serverResp.GameMod.RemoteRepository)
 	assert.Equal(t, "http://example.com/mod-win", *serverResp.GameMod.RemoteRepository)
 }
