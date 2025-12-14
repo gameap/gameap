@@ -207,8 +207,13 @@ document.head.appendChild(meta)
 async function initializeApp() {
     try {
         await authStore.initializeAuth()
+
+        if (authStore.isAuthenticated) {
+            const { loadPlugins } = await import('./plugins/loader')
+            await loadPlugins(router)
+        }
     } catch (error) {
-        console.error('Failed to initialize authentication:', error)
+        console.error('Failed to initialize:', error)
     }
 
     try {

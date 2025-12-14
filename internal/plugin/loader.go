@@ -104,10 +104,19 @@ func (l *Loader) Load(ctx context.Context, filename string) (*pkgplugin.LoadedPl
 		return nil, errors.WithMessage(err, "failed to load plugin")
 	}
 
-	slog.Info("plugin loaded",
-		slog.String("id", loaded.Info.Id),
-		slog.String("name", loaded.Info.Name),
-		slog.String("version", loaded.Info.Version))
+	attr := []slog.Attr{
+		{Key: "id", Value: slog.StringValue(loaded.Info.Id)},
+		{Key: "name", Value: slog.StringValue(loaded.Info.Name)},
+		{Key: "version", Value: slog.StringValue(loaded.Info.Version)},
+		{Key: "description", Value: slog.StringValue(loaded.Info.Description)},
+		{Key: "author", Value: slog.StringValue(loaded.Info.Author)},
+		{Key: "api_version", Value: slog.StringValue(loaded.Info.ApiVersion)},
+	}
+	if len(loaded.FrontendBundle) > 0 {
+		attr = append(attr, slog.Attr{Key: "frontend_bundle_size", Value: slog.IntValue(len(loaded.FrontendBundle))})
+	}
+
+	slog.LogAttrs(ctx, slog.LevelInfo, "plugin loaded", attr...)
 
 	return loaded, nil
 }

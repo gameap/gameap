@@ -49,6 +49,27 @@
           </div>
         </div>
       </GButton>
+
+      <template v-for="btn in homeButtons" :key="btn.pluginId + '-' + btn.name">
+        <component
+            v-if="btn.component"
+            :is="btn.component"
+            v-bind="btn.props"
+            :plugin-id="btn.pluginId"
+        />
+        <GButton
+            v-else
+            class="px-8 py-8 bg-stone-50 hover:bg-stone-100
+              border dark:border-stone-700 dark:bg-stone-800
+              dark:hover:bg-stone-900 m-2 h-28 min-w-48"
+            :route="btn.props.route"
+        >
+          <div class="text-lg">
+            <i :class="btn.icon"></i>
+            {{ pluginsStore.resolvePluginText(btn.pluginId, btn.label) }}
+          </div>
+        </GButton>
+      </template>
     </div>
 
 
@@ -184,12 +205,16 @@
       </div>
     </div>
   </div>
+
+  <PluginSlot v-if="pluginsStore.isInitialized" name="dashboard-widgets" :context="{ isAdmin }" />
 </template>
 
 <script setup>
 import {computed, onMounted} from "vue"
 import GButton from "../components/GButton.vue"
+import PluginSlot from "../plugins/components/PluginSlot.vue"
 import {useAuthStore} from "../store/auth"
+import {usePluginsStore} from "../store/plugins"
 import {useNodeListStore} from "../store/nodeList"
 import {useServerListStore} from "../store/serverList"
 import {trans, pageLanguage} from "../i18n/i18n"
@@ -198,6 +223,7 @@ import {errorNotification} from "../parts/dialogs";
 const authStore = useAuthStore()
 const nodeListStore = useNodeListStore()
 const serverListStore = useServerListStore()
+const pluginsStore = usePluginsStore()
 
 const isAdmin = computed(() => {
   return authStore.isAdmin
@@ -205,6 +231,10 @@ const isAdmin = computed(() => {
 
 const loading = computed(() => {
   return serverListStore.loading || nodeListStore.loading
+})
+
+const homeButtons = computed(() => {
+  return pluginsStore.getSlotComponents('home-buttons')
 })
 
 onMounted(() => {

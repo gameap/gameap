@@ -175,6 +175,7 @@ func (h *HTTPHandler) matchRoute(
 			return route, pathParams
 		}
 	}
+
 	return nil, nil
 }
 

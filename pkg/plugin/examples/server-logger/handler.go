@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,19 @@ import (
 	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk/servers"
 )
+
+//go:embed frontend/dist/plugin.js
+var frontendBundle []byte
+
+func (p *ServerLoggerPlugin) GetFrontendBundle(
+	_ context.Context,
+	_ *pluginproto.GetFrontendBundleRequest,
+) (*pluginproto.GetFrontendBundleResponse, error) {
+	return &pluginproto.GetFrontendBundleResponse{
+		HasBundle: true,
+		Bundle:    frontendBundle,
+	}, nil
+}
 
 func (p *ServerLoggerPlugin) GetHTTPRoutes(
 	_ context.Context,

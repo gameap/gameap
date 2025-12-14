@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
@@ -10,6 +11,7 @@ import (
 
 // pluginServiceWrapper wraps WASM module calls to implement proto.PluginService.
 type pluginServiceWrapper struct {
+	mu                  sync.Mutex
 	module              api.Module
 	malloc              api.Function
 	free                api.Function
@@ -20,6 +22,7 @@ type pluginServiceWrapper struct {
 	getsubscribedevents api.Function
 	gethttproutes       api.Function
 	handlehttprequest   api.Function
+	getfrontendbundle   api.Function
 }
 
 func (p *pluginServiceWrapper) callFunction(
@@ -27,6 +30,9 @@ func (p *pluginServiceWrapper) callFunction(
 	fn api.Function,
 	request vtMarshaler,
 ) ([]byte, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	data, err := request.MarshalVT()
 	if err != nil {
 		return nil, err
@@ -196,6 +202,27 @@ func (p *pluginServiceWrapper) HandleHTTPRequest(
 	}
 
 	response := new(proto.HTTPResponse)
+	if err = response.UnmarshalVT(bytes); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (p *pluginServiceWrapper) GetFrontendBundle(
+	ctx context.Context,
+	request *proto.GetFrontendBundleRequest,
+) (*proto.GetFrontendBundleResponse, error) {
+	if p.getfrontendbundle == nil {
+		return &proto.GetFrontendBundleResponse{HasBundle: false}, nil
+	}
+
+	bytes, err := p.callFunction(ctx, p.getfrontendbundle, request)
+	if err != nil {
+		return nil, err
+	}
+
+	response := new(proto.GetFrontendBundleResponse)
 	if err = response.UnmarshalVT(bytes); err != nil {
 		return nil, err
 	}

@@ -121,6 +121,9 @@ service PluginService {
 
   // HandleHTTPRequest handles an HTTP request for a plugin route
   rpc HandleHTTPRequest(HTTPRequest) returns (HTTPResponse);
+
+  // GetFrontendBundle returns the pre-compiled frontend JavaScript bundle
+  rpc GetFrontendBundle(GetFrontendBundleRequest) returns (GetFrontendBundleResponse);
 }
 
 // Plugin metadata
@@ -208,4 +211,14 @@ message HTTPResponse {
   int32 status_code = 1;
   map<string, string> headers = 2;
   bytes body = 3;
+}
+
+// Frontend bundle request/response
+message GetFrontendBundleRequest {}
+
+message GetFrontendBundleResponse {
+  // Pre-compiled JavaScript bundle content
+  bytes bundle = 1;
+  // Whether the plugin has a frontend bundle
+  bool has_bundle = 2;
 }

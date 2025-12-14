@@ -24,11 +24,12 @@ type HostLibrary interface {
 
 // LoadedPlugin represents a loaded plugin instance.
 type LoadedPlugin struct {
-	Info       *proto.PluginInfo
-	Instance   proto.PluginService
-	Config     map[string]string
-	Enabled    bool
-	HTTPRoutes []*proto.HTTPRoute
+	Info           *proto.PluginInfo
+	Instance       proto.PluginService
+	Config         map[string]string
+	Enabled        bool
+	HTTPRoutes     []*proto.HTTPRoute
+	FrontendBundle []byte
 
 	runtime wazero.Runtime
 }
@@ -47,7 +48,7 @@ type ManagerConfig struct {
 	Libraries []HostLibrary
 }
 
-// Manager handles plugin lifecycle and event dispatch.
+// Manager handles plugin lifecycle.
 type Manager struct {
 	mu      sync.RWMutex
 	plugins map[string]*LoadedPlugin
@@ -253,13 +254,25 @@ func (m *Manager) initializePlugin(
 		return nil, errors.WithMessage(err, "failed to get HTTP routes")
 	}
 
+	var frontendBundle []byte
+	bundleResp, err := plugin.GetFrontendBundle(ctx, &proto.GetFrontendBundleRequest{})
+	if err != nil {
+		slog.Debug("plugin has no frontend bundle",
+			slog.String("plugin_id", info.Id),
+			slog.String("error", err.Error()),
+		)
+	} else if bundleResp.HasBundle && len(bundleResp.Bundle) > 0 {
+		frontendBundle = bundleResp.Bundle
+	}
+
 	return &LoadedPlugin{
-		Info:       info,
-		Instance:   plugin,
-		Config:     config,
-		Enabled:    true,
-		HTTPRoutes: httpRoutes,
-		runtime:    r,
+		Info:           info,
+		Instance:       plugin,
+		Config:         config,
+		Enabled:        true,
+		HTTPRoutes:     httpRoutes,
+		FrontendBundle: frontendBundle,
+		runtime:        r,
 	}, nil
 }
 
@@ -328,6 +341,9 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 		funcs[name] = fn
 	}
 
+	// Optional exports (not all plugins implement these)
+	getFrontendBundle := module.ExportedFunction("plugin_service_get_frontend_bundle")
+
 	return &pluginServiceWrapper{
 		module:              module,
 		malloc:              funcs["malloc"],
@@ -339,6 +355,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 		getsubscribedevents: funcs["plugin_service_get_subscribed_events"],
 		gethttproutes:       funcs["plugin_service_get_http_routes"],
 		handlehttprequest:   funcs["plugin_service_handle_http_request"],
+		getfrontendbundle:   getFrontendBundle,
 	}, nil
 }
 

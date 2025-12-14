@@ -227,6 +227,23 @@
       </div>
     </n-tab-pane>
 
+    <n-tab-pane
+        v-for="tab in pluginTabs"
+        :key="'plugin-' + tab.pluginId + '-' + (tab.name || 'tab')"
+        :name="'plugin-' + tab.pluginId + '-' + (tab.name || 'tab')"
+    >
+      <template #tab>
+        <i v-if="tab.icon" :class="tab.icon" class="mr-1"></i>
+        {{ pluginsStore.resolvePluginText(tab.pluginId, tab.label) }}
+      </template>
+      <component
+          :is="tab.component"
+          :server-id="serverId"
+          :server="server"
+          :plugin-id="tab.pluginId"
+      />
+    </n-tab-pane>
+
     <template #suffix v-if="isAdmin">
       <div class="order-last ml-auto text-red-500 hover:text-red-600">
         <router-link :to="{name: 'admin.servers.edit', params: {id: serverId}}">
@@ -278,7 +295,8 @@ import Loading from "../components/Loading.vue";
 
 import {useServerStore} from "@/store/server"
 import {useServerRconStore} from "@/store/serverRcon"
-import {useAuthStore} from "@/store/auth";
+import {useAuthStore} from "@/store/auth"
+import {usePluginsStore} from "@/store/plugins"
 import {trans, pageLanguage} from "@/i18n/i18n";
 import GameIcon from "../components/GameIcon.vue";
 import InactiveServer from "./InactiveServer.vue";
@@ -287,6 +305,7 @@ const route = useRoute()
 const serverStore = useServerStore()
 const serverRconStore = useServerRconStore()
 const authStore = useAuthStore()
+const pluginsStore = usePluginsStore()
 
 const {
   serverId,
@@ -366,6 +385,10 @@ const breadcrumbs = computed(() => {
 
 const isAdmin = computed(() => {
   return authStore.isAdmin
+})
+
+const pluginTabs = computed(() => {
+  return pluginsStore.getSlotComponents('server-tabs')
 })
 
 </script>

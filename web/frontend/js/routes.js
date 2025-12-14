@@ -219,6 +219,15 @@ const routes = [
         }
     },
     {
+        path: '/plugins/:pluginId/:pathMatch(.*)*',
+        name: 'plugin.pending',
+        component: () => import('./views/PluginPendingView.vue'),
+        meta: {
+            requiresAuth: true,
+            isPluginRoute: true,
+        }
+    },
+    {
         path: '/:pathMatch(.*)*',
         redirect: '/404'
     },

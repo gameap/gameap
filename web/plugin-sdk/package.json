@@ -1,0 +1,43 @@
+{
+  "name": "@gameap/plugin-sdk",
+  "version": "0.1.0",
+  "description": "SDK for developing GameAP frontend plugins",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./vite": {
+      "import": "./vite.config.js"
+    }
+  },
+  "files": [
+    "dist",
+    "vite.config.js",
+    "templates"
+  ],
+  "scripts": {
+    "build": "vite build && tsc --emitDeclarationOnly",
+    "dev": "vite build --watch"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "typescript": "^5.3.0",
+    "vite": "^7.1.0",
+    "vue": "^3.5.22"
+  },
+  "keywords": [
+    "gameap",
+    "plugin",
+    "sdk",
+    "vue"
+  ],
+  "license": "MIT"
+}

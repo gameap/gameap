@@ -1,0 +1,23 @@
+{
+  "name": "server-logger-plugin",
+  "version": "1.0.0",
+  "description": "Server Logger GameAP plugin frontend",
+  "type": "module",
+  "main": "./dist/plugin.js",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "dependencies": {
+    "@gameap/plugin-sdk": "file:../../../../../web/plugin-sdk"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "typescript": "^5.3.0",
+    "vite": "^7.1.0",
+    "vue": "^3.5.22"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  }
+}

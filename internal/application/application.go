@@ -128,6 +128,13 @@ func Run(runParams RunParams) {
 		os.Exit(1)
 	}
 
+	err = container.PluginDispatcher().RefreshSubscriptions(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to refresh plugin subscriptions", slog.String("error", err.Error()))
+
+		os.Exit(1)
+	}
+
 	server := container.HTTPServer()
 
 	err = server.ListenAndServe()

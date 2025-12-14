@@ -39,7 +39,7 @@ func (p *ServerLoggerPlugin) GetInfo(
 	_ *pluginproto.GetInfoRequest,
 ) (*pluginproto.PluginInfo, error) {
 	return &pluginproto.PluginInfo{
-		Id:          "server-logger",
+		Id:          "fwgfo26jzwnm4",
 		Name:        "Server Logger",
 		Version:     "1.0.0",
 		Description: "Logs server lifecycle events",

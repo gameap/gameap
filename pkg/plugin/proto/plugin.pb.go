@@ -854,6 +854,46 @@ func (x *HTTPResponse) GetBody() []byte {
 	return nil
 }
 
+// Frontend bundle request/response
+type GetFrontendBundleRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *GetFrontendBundleRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+type GetFrontendBundleResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Pre-compiled JavaScript bundle content
+	Bundle []byte `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
+	// Whether the plugin has a frontend bundle
+	HasBundle bool `protobuf:"varint,2,opt,name=has_bundle,json=hasBundle,proto3" json:"has_bundle,omitempty"`
+}
+
+func (x *GetFrontendBundleResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *GetFrontendBundleResponse) GetBundle() []byte {
+	if x != nil {
+		return x.Bundle
+	}
+	return nil
+}
+
+func (x *GetFrontendBundleResponse) GetHasBundle() bool {
+	if x != nil {
+		return x.HasBundle
+	}
+	return false
+}
+
 // PluginService is the interface that plugins must implement
 // go:plugin type=plugin version=1
 type PluginService interface {
@@ -871,4 +911,6 @@ type PluginService interface {
 	GetHTTPRoutes(context.Context, *GetHTTPRoutesRequest) (*GetHTTPRoutesResponse, error)
 	// HandleHTTPRequest handles an HTTP request for a plugin route
 	HandleHTTPRequest(context.Context, *HTTPRequest) (*HTTPResponse, error)
+	// GetFrontendBundle returns the pre-compiled frontend JavaScript bundle
+	GetFrontendBundle(context.Context, *GetFrontendBundleRequest) (*GetFrontendBundleResponse, error)
 }

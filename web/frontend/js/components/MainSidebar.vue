@@ -11,6 +11,14 @@
             <router-link v-for="link in serversLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2">
               <i :class="link.icon" class="ml-1"></i>
             </router-link>
+            <router-link
+                v-for="item in pluginServersMenuItems"
+                :key="item.pluginId + '-' + item.text"
+                :to="item.route"
+                class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+            >
+              <i :class="item.icon" class="ml-1"></i>
+            </router-link>
           </div>
         </div>
 
@@ -23,8 +31,34 @@
             <router-link v-for="link in adminLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2">
               <i :class="link.icon" class="ml-1"></i>
             </router-link>
+            <router-link
+                v-for="item in pluginAdminMenuItems"
+                :key="item.pluginId + '-' + item.text"
+                :to="item.route"
+                class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+            >
+              <i :class="item.icon" class="ml-1"></i>
+            </router-link>
           </div>
         </div>
+
+        <template v-for="(items, section) in customPluginSections" :key="section">
+          <a class="flex items-center w-full px-3 mt-3" href="#">
+            <span class="ml-2 w-full text-center text-sm font-bold">—</span>
+          </a>
+          <div class="w-full px-2">
+            <div class="flex flex-col items-center w-full mb-3 border-stone-700">
+              <router-link
+                  v-for="item in items"
+                  :key="item.pluginId + '-' + item.text"
+                  :to="item.route"
+                  class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+              >
+                <i :class="item.icon" class="ml-1"></i>
+              </router-link>
+            </div>
+          </div>
+        </template>
 
         <div class="w-full px-2 mt-3">
           <div class="flex flex-col items-center w-full mb-3 border-stone-700">
@@ -54,6 +88,15 @@
               <span class="ml-2 text-sm font-medium">{{ link.text }}</span>
             </router-link>
           </template>
+          <router-link
+              v-for="item in pluginServersMenuItems"
+              :key="item.pluginId + '-' + item.text"
+              :to="item.route"
+              class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+          >
+            <i :class="item.icon" class="ml-1"></i>
+            <span class="ml-2 text-sm font-medium">{{ pluginsStore.resolvePluginText(item.pluginId, item.text) }}</span>
+          </router-link>
         </div>
       </div>
 
@@ -67,8 +110,36 @@
             <i :class="link.icon" class="ml-1"></i>
             <span class="ml-2 text-sm font-medium">{{ link.text }}</span>
           </router-link>
+          <router-link
+              v-for="item in pluginAdminMenuItems"
+              :key="item.pluginId + '-' + item.text"
+              :to="item.route"
+              class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+          >
+            <i :class="item.icon" class="ml-1"></i>
+            <span class="ml-2 text-sm font-medium">{{ pluginsStore.resolvePluginText(item.pluginId, item.text) }}</span>
+          </router-link>
         </div>
       </div>
+
+      <template v-for="(items, section) in customPluginSections" :key="section">
+        <a class="flex items-center w-full px-3 mt-3" href="#">
+          <span class="ml-2 w-full text-center text-sm font-bold">{{ section }}</span>
+        </a>
+        <div class="w-full px-2">
+          <div class="flex flex-col items-center w-full mb-3 border-stone-700">
+            <router-link
+                v-for="item in items"
+                :key="item.pluginId + '-' + item.text"
+                :to="item.route"
+                class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+            >
+              <i :class="item.icon" class="ml-1"></i>
+              <span class="ml-2 text-sm font-medium">{{ pluginsStore.resolvePluginText(item.pluginId, item.text) }}</span>
+            </router-link>
+          </div>
+        </div>
+      </template>
 
       <div class="w-full px-2 mt-3">
         <div class="flex flex-col items-center w-full mb-3 border-stone-700">
@@ -93,9 +164,11 @@ import {ref, computed} from "vue";
 import {adminLinks, serversLinks} from "./bars";
 import {useAuthStore} from "@/store/auth";
 import {useUISettingsStore} from "@/store/uiSettings";
+import {usePluginsStore} from "@/store/plugins";
 
 const authStore = useAuthStore()
 const uiSettingsStore = useUISettingsStore()
+const pluginsStore = usePluginsStore()
 
 const minimized = computed({
   get: () => uiSettingsStore.isMenuMinimized,
@@ -112,6 +185,24 @@ function toggleMinimized() {
 
 const isAdmin = computed(() => {
   return authStore.isAdmin
+})
+
+const pluginServersMenuItems = computed(() => {
+  return pluginsStore.getMenuItems('servers')
+})
+
+const pluginAdminMenuItems = computed(() => {
+  return pluginsStore.getMenuItems('admin')
+})
+
+const customPluginSections = computed(() => {
+  const items = pluginsStore.getMenuItems('custom')
+  return items.reduce((acc, item) => {
+    const section = item.section || 'Plugins'
+    if (!acc[section]) acc[section] = []
+    acc[section].push(item)
+    return acc
+  }, {})
 })
 </script>
 
