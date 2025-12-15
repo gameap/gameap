@@ -167,7 +167,7 @@ func (l *Loader) processAutoLoad(ctx context.Context) error {
 
 		loaded, err := l.manager.Load(ctx, wasmBytes, nil)
 		if err != nil {
-			return errors.WithMessage(err, "failed to load plugin for info")
+			return errors.WithMessagef(err, "failed to load plugin for info %s", filename)
 		}
 
 		pluginID := pkgplugin.ParsePluginID(loaded.Info.Id)

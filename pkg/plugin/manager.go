@@ -30,6 +30,7 @@ type LoadedPlugin struct {
 	Enabled        bool
 	HTTPRoutes     []*proto.HTTPRoute
 	FrontendBundle []byte
+	FrontendStyles []byte
 
 	runtime wazero.Runtime
 }
@@ -255,14 +256,20 @@ func (m *Manager) initializePlugin(
 	}
 
 	var frontendBundle []byte
+	var frontendStyles []byte
 	bundleResp, err := plugin.GetFrontendBundle(ctx, &proto.GetFrontendBundleRequest{})
 	if err != nil {
 		slog.Debug("plugin has no frontend bundle",
 			slog.String("plugin_id", info.Id),
 			slog.String("error", err.Error()),
 		)
-	} else if bundleResp.HasBundle && len(bundleResp.Bundle) > 0 {
-		frontendBundle = bundleResp.Bundle
+	} else {
+		if bundleResp.HasBundle && len(bundleResp.Bundle) > 0 {
+			frontendBundle = bundleResp.Bundle
+		}
+		if bundleResp.HasStyles && len(bundleResp.Styles) > 0 {
+			frontendStyles = bundleResp.Styles
+		}
 	}
 
 	return &LoadedPlugin{
@@ -272,6 +279,7 @@ func (m *Manager) initializePlugin(
 		Enabled:        true,
 		HTTPRoutes:     httpRoutes,
 		FrontendBundle: frontendBundle,
+		FrontendStyles: frontendStyles,
 		runtime:        r,
 	}, nil
 }

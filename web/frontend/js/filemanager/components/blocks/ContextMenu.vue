@@ -7,6 +7,18 @@
         class="fm-context-menu"
         tabindex="-1"
     >
+        <ul v-if="pluginEditorItems.length > 0" class="list-unstyled">
+          <li
+              v-for="(editorItem, idx) in pluginEditorItems"
+              :key="`pe-${idx}`"
+              :class="{ disabled: editorItem.disabled }"
+              :title="editorItem.disabled ? lang.contextMenu.fileTooLarge : ''"
+              @click="!editorItem.disabled && openPluginEditor(editorItem)"
+          >
+            <i :class="editorItem.editor.icon || 'fa-solid fa-pen-ruler'" />
+            {{ getEditorMenuLabel(editorItem) }}
+          </li>
+        </ul>
         <ul v-for="(group, index) in menu" v-bind:key="`g-${index}`" class="list-unstyled">
             <template v-for="(item, idx) in group">
                 <li v-if="showMenuItem(item.name)" v-on:click="menuAction(item.name)" v-bind:key="`i-${idx}`">
@@ -25,12 +37,16 @@ import { useFileManagerStore } from '../../stores/useFileManagerStore.js'
 import { useSettingsStore } from '../../stores/useSettingsStore.js'
 import { useModalStore } from '../../stores/useModalStore.js'
 import { useTranslate } from '../../composables/useTranslate.js'
+import { useFileEditors, isFileTooLarge } from '../../composables/useFileEditors.js'
+import { usePluginsStore } from '../../../store/plugins'
 import HTTP from '../../http/get.js'
 
 const fm = useFileManagerStore()
+const pluginsStore = usePluginsStore()
 const settings = useSettingsStore()
 const modal = useModalStore()
 const { lang } = useTranslate()
+const { getMatchingEditors } = useFileEditors()
 
 const contextMenu = ref(null)
 const menuVisible = ref(false)
@@ -303,6 +319,37 @@ function menuAction(name) {
     closeMenu()
 }
 
+const pluginEditorItems = computed(() => {
+    if (multiSelect.value || firstItemType.value !== 'file') {
+        return []
+    }
+    const file = selectedItems.value[0]
+    if (!file) return []
+
+    const fileTooLarge = isFileTooLarge(file)
+    return getMatchingEditors(file).map(item => ({
+        ...item,
+        disabled: fileTooLarge
+    }))
+})
+
+function getEditorMenuLabel(editorItem) {
+    const baseName = pluginsStore.resolvePluginText(editorItem.pluginId, editorItem.editor.name)
+    if (editorItem.isDefault) {
+        return `Edit with ${baseName} (default)`
+    }
+    return `Edit with ${baseName}`
+}
+
+function openPluginEditor(editorItem) {
+    modal.openPluginEditor({
+        pluginId: editorItem.pluginId,
+        editor: editorItem.editor,
+        file: selectedItems.value[0]
+    })
+    closeMenu()
+}
+
 onMounted(() => {
     EventBus.on('contextMenu', (event) => showMenu(event))
 })
@@ -335,6 +382,15 @@ onMounted(() => {
         &:hover {
           @apply bg-stone-100 dark:bg-[#262322];
         }
+
+        i {
+            padding-right: 1.5rem;
+        }
+    }
+
+    ul > li.disabled {
+        @apply text-stone-400 dark:text-stone-600;
+        cursor: not-allowed;
 
         i {
             padding-right: 1.5rem;

@@ -15,10 +15,39 @@ window.axios = axios
 // Keep backwards compatibility with render function plugins
 window.__gameap_vue_h = Vue.h
 
+async function loadPluginStyles() {
+    try {
+        const response = await axios.get('/plugins.css', {
+            responseType: 'text',
+            headers: {
+                'Accept': 'text/css'
+            }
+        })
+
+        if (response.data && response.data.trim() !== '') {
+            const existingStyle = document.getElementById('gameap-plugin-styles')
+            if (existingStyle) {
+                existingStyle.remove()
+            }
+
+            const style = document.createElement('style')
+            style.id = 'gameap-plugin-styles'
+            style.textContent = response.data
+            document.head.appendChild(style)
+        }
+    } catch (error) {
+        if (error.response?.status !== 404) {
+            console.error('Failed to load plugin styles:', error)
+        }
+    }
+}
+
 export async function loadPlugins(router) {
     const pluginsStore = usePluginsStore()
 
     pluginsStore.setLoading(true)
+
+    await loadPluginStyles()
 
     try {
         const response = await axios.get('/plugins.js', {
@@ -137,6 +166,12 @@ async function registerPluginDefinition(pluginDef, store) {
                     route: btn.route ? normalizeRoute(btn.route, pluginId) : { name: `plugin.${pluginId}.index` }
                 }
             })
+        }
+    }
+
+    if (pluginDef.fileEditors) {
+        for (const editor of pluginDef.fileEditors) {
+            store.registerFileEditor(pluginId, editor)
         }
     }
 

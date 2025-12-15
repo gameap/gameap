@@ -221,4 +221,8 @@ message GetFrontendBundleResponse {
   bytes bundle = 1;
   // Whether the plugin has a frontend bundle
   bool has_bundle = 2;
+  // CSS styles content
+  bytes styles = 3;
+  // Whether the plugin has styles
+  bool has_styles = 4;
 }

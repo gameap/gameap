@@ -22,12 +22,9 @@
 
 <script setup>
 import { defineProps, defineModel } from 'vue'
-import {trans} from "../../i18n/i18n"
 import GButton from "../GButton.vue"
 import {
-  NDataTable,
   NInput,
-  NSwitch,
 } from "naive-ui"
 
 const props = defineProps({

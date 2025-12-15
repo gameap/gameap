@@ -874,6 +874,10 @@ type GetFrontendBundleResponse struct {
 	Bundle []byte `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	// Whether the plugin has a frontend bundle
 	HasBundle bool `protobuf:"varint,2,opt,name=has_bundle,json=hasBundle,proto3" json:"has_bundle,omitempty"`
+	// CSS styles content
+	Styles []byte `protobuf:"bytes,3,opt,name=styles,proto3" json:"styles,omitempty"`
+	// Whether the plugin has styles
+	HasStyles bool `protobuf:"varint,4,opt,name=has_styles,json=hasStyles,proto3" json:"has_styles,omitempty"`
 }
 
 func (x *GetFrontendBundleResponse) ProtoReflect() protoreflect.Message {
@@ -890,6 +894,20 @@ func (x *GetFrontendBundleResponse) GetBundle() []byte {
 func (x *GetFrontendBundleResponse) GetHasBundle() bool {
 	if x != nil {
 		return x.HasBundle
+	}
+	return false
+}
+
+func (x *GetFrontendBundleResponse) GetStyles() []byte {
+	if x != nil {
+		return x.Styles
+	}
+	return nil
+}
+
+func (x *GetFrontendBundleResponse) GetHasStyles() bool {
+	if x != nil {
+		return x.HasStyles
 	}
 	return false
 }

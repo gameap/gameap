@@ -31,7 +31,7 @@
                 v-bind:title="file.basename"
                 v-bind:class="{ active: checkSelect('files', file.path) }"
                 v-on:click="selectItem('files', file.path, $event)"
-                v-on:dblclick="selectAction(file.path, file.extension)"
+                v-on:dblclick="selectAction(file)"
                 v-on:contextmenu.prevent="contextMenu(file, $event)"
             >
                 <div class="fm-item-icon">
@@ -57,6 +57,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore.js'
 import { useModalStore } from '../../stores/useModalStore.js'
 import { useManager } from '../../composables/useManager.js'
 import { useHelper } from '../../composables/useHelper.js'
+import { useFileEditors } from '../../composables/useFileEditors.js'
 import Thumbnail from './Thumbnail.vue'
 
 const props = defineProps({
@@ -67,6 +68,7 @@ const fm = useFileManagerStore()
 const settings = useSettingsStore()
 const modal = useModalStore()
 const { bytesToHuman, extensionToIcon } = useHelper()
+const { getDefaultEditor, isFileTooLarge } = useFileEditors()
 
 const {
     selectedDisk,
@@ -140,12 +142,24 @@ function handleSelectDirectory(path) {
     selectDirectory(path, true)
 }
 
-function selectAction(path, extension) {
+function selectAction(file) {
+    const { path, extension } = file
+
     if (fm.fileCallback) {
         fm.url({ disk: selectedDisk.value, path }).then((response) => {
             if (response.data.result.status === 'success') {
                 fm.fileCallback(response.data.url)
             }
+        })
+        return
+    }
+
+    const customEditor = getDefaultEditor(file)
+    if (customEditor && !isFileTooLarge(file)) {
+        modal.openPluginEditor({
+            pluginId: customEditor.pluginId,
+            editor: customEditor.editor,
+            file: file
         })
         return
     }

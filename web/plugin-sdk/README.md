@@ -36,6 +36,7 @@ export const myPlugin: PluginDefinition = {
     menuItems: [...],
     slots: {...},
     homeButtons: [...],
+    fileEditors: [...],
 };
 ```
 
@@ -53,6 +54,7 @@ export const myPlugin: PluginDefinition = {
 | `menuItems` | `PluginMenuItem[]` | No | Sidebar menu items |
 | `slots` | `Record<SlotName, PluginSlotComponent[]>` | No | Slot components |
 | `homeButtons` | `PluginHomeButton[]` | No | Home page buttons |
+| `fileEditors` | `PluginFileEditor[]` | No | Custom file editors for file manager |
 | `translations` | `Record<string, Record<string, string>>` | No | Plugin translations by language |
 | `onInit` | `() => void \| Promise<void>` | No | Initialization hook |
 | `onDestroy` | `() => void \| Promise<void>` | No | Cleanup hook |
@@ -142,6 +144,175 @@ homeButtons: [
     },
 ],
 ```
+
+## File Editors
+
+Plugins can register custom file editors for the file manager. Editors provide specialized UIs for editing specific file types.
+
+```typescript
+import type { PluginDefinition } from '@gameap/plugin-sdk';
+import ServerCfgEditor from './components/ServerCfgEditor.vue';
+import IniEditor from './components/IniEditor.vue';
+import HexEditor from './components/HexEditor.vue';
+
+export const myPlugin: PluginDefinition = {
+    id: 'my-plugin',
+    name: 'My Plugin',
+    version: '1.0.0',
+    apiVersion: '1.0',
+    fileEditors: [
+        {
+            id: 'server-cfg',
+            name: 'Server Config Editor',
+            component: ServerCfgEditor,
+            match: {
+                fileName: 'server.cfg',
+                gameCode: 'cstrike'
+            },
+            icon: 'fa-solid fa-gear'
+        },
+        {
+            id: 'ini-editor',
+            name: 'INI Editor',
+            component: IniEditor,
+            match: {
+                extensions: ['ini', 'cfg']
+            }
+        },
+        {
+            id: 'hex-editor',
+            name: 'Hex Editor',
+            component: HexEditor,
+            match: {
+                allFiles: true
+            },
+            contentType: 'binary',
+            icon: 'fa-solid fa-memory'
+        }
+    ]
+};
+```
+
+### File Editor Definition
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | Yes | Unique identifier within the plugin |
+| `name` | `string` | Yes | Display name shown in context menu |
+| `component` | `Component` | Yes | Vue component that renders the editor |
+| `match` | `EditorMatchRules` | Yes | Rules for when this editor is available |
+| `contentType` | `'text' \| 'binary'` | No | Content type (default: 'text') |
+| `readOnly` | `boolean` | No | If true, editor is view-only (no save) |
+| `icon` | `string` | No | Font Awesome icon class for context menu |
+
+### Matching Rules
+
+Editors match files based on these rules (all specified rules must match):
+
+| Rule | Description | Example |
+|------|-------------|---------|
+| `allFiles` | Match all files (lowest specificity) | `true` |
+| `fileName` | Exact file name match | `'server.cfg'` |
+| `pathContains` | File path must contain string | `'amxmodx/configs/'` |
+| `fullPath` | Exact full path match | `'/cstrike/server.cfg'` |
+| `extensions` | Array of file extensions | `['ini', 'cfg', 'json']` |
+| `fileNameRegexp` | Regex pattern for file name | `'^server.*\\.cfg$'` |
+| `gameCode` | Match only for this game code | `'cstrike'` |
+| `gameName` | Match only for this game name | `'Counter-Strike'` |
+
+### Specificity and Default Editor
+
+When multiple editors match a file:
+- All matching editors are shown in the context menu
+- The most specific editor is marked as "(default)" and opens on double-click
+- Specificity order: `fullPath` > `pathContains` > `fileName` > `fileNameRegexp` > `extensions` > `allFiles`
+- Game filters (`gameCode`/`gameName`) add to specificity score
+- `allFiles: true` has the lowest specificity (score=1), useful for generic editors like hex viewers
+
+### Editor Component Props
+
+Editor components receive these props:
+
+```typescript
+interface FileEditorProps {
+    content: string | ArrayBuffer;  // File content
+    filePath: string;               // Full file path
+    fileName: string;               // File name with extension
+    extension: string;              // File extension (without dot)
+    gameCode?: string;              // Current server's game code
+    gameName?: string;              // Current server's game name
+    pluginId: string;               // Plugin ID
+}
+```
+
+### Editor Component Events
+
+Emit these events from your editor component:
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `save` | `string \| ArrayBuffer` | Save the new content |
+| `close` | - | Close the editor without saving |
+
+### Example Editor Component
+
+```vue
+<template>
+    <div class="my-editor">
+        <textarea v-model="editedContent" rows="20" class="w-full"></textarea>
+    </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue';
+
+const props = defineProps({
+    content: { type: String, required: true },
+    filePath: { type: String, required: true },
+    fileName: { type: String, required: true },
+    extension: { type: String, required: true },
+    gameCode: { type: String, default: null },
+    gameName: { type: String, default: null },
+    pluginId: { type: String, required: true }
+});
+
+const emit = defineEmits(['save', 'close']);
+
+const editedContent = ref('');
+
+onMounted(() => {
+    editedContent.value = props.content;
+});
+
+function save() {
+    emit('save', editedContent.value);
+}
+
+function close() {
+    emit('close');
+}
+
+defineExpose({ save, close });
+</script>
+```
+
+### Binary Content
+
+For binary files (images, custom formats), set `contentType: 'binary'`:
+
+```typescript
+fileEditors: [
+    {
+        id: 'image-editor',
+        name: 'Image Editor',
+        component: ImageEditor,
+        match: { extensions: ['png', 'jpg'] },
+        contentType: 'binary'
+    }
+]
+```
+
+The `content` prop will be an `ArrayBuffer` instead of a string.
 
 ## Internationalization (i18n)
 
@@ -349,7 +520,24 @@ export default createPluginConfig({
 
 ## Integration with WASM Plugins
 
-Frontend bundles are embedded in WASM plugins and served by the GameAP backend. The plugin manager calls `GetFrontendBundle` during plugin initialization to retrieve the compiled JavaScript bundle.
+Frontend bundles are embedded in WASM plugins and served by the GameAP backend. The plugin manager calls `GetFrontendBundle` during plugin initialization to retrieve the compiled JavaScript bundle and CSS styles.
+
+### CSS Styles
+
+Plugins can provide CSS styles that will be automatically loaded by GameAP. The CSS is returned alongside the JavaScript bundle in the `GetFrontendBundle` response.
+
+When implementing your WASM plugin's `GetFrontendBundle` method, return styles in the response:
+
+```protobuf
+message GetFrontendBundleResponse {
+  bytes bundle = 1;      // JavaScript bundle
+  bool has_bundle = 2;   // Whether plugin has JS bundle
+  bytes styles = 3;      // CSS styles
+  bool has_styles = 4;   // Whether plugin has CSS styles
+}
+```
+
+CSS from all plugins is combined and served at `/plugins.css`, which is automatically loaded before plugin JavaScript.
 
 ## Development
 

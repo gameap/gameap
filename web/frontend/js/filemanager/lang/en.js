@@ -49,6 +49,7 @@ const en = {
         edit: 'Edit',
         audioPlay: 'Play',
         videoPlay: 'Play',
+        fileTooLarge: 'File too large for editing (max 1MB)',
     },
     info: {
         directories: 'Folders:',

@@ -25,6 +25,8 @@ export interface PluginDefinition {
     slots?: Record<string, PluginSlotComponent[]>;
     /** Home page buttons */
     homeButtons?: PluginHomeButton[];
+    /** Custom file editors to register in file manager */
+    fileEditors?: PluginFileEditor[];
     /** Plugin translations keyed by language code (e.g., { en: { key: 'value' }, ru: { key: 'значение' } }) */
     translations?: Record<string, Record<string, string>>;
     /** Plugin initialization hook */
@@ -198,4 +200,72 @@ export interface ServerTabProps {
 export interface DashboardWidgetProps {
     isAdmin: boolean;
     pluginId: string;
+}
+
+/**
+ * Content type that the editor can handle.
+ */
+export type EditorContentType = 'text' | 'binary';
+
+/**
+ * Matching rules for when a file editor should be available.
+ * Multiple rules can be specified - all provided rules must match (AND logic).
+ */
+export interface EditorMatchRules {
+    /** Match all files (lowest specificity, score=1) */
+    allFiles?: boolean;
+    /** Exact file name match (e.g., "server.properties") */
+    fileName?: string;
+    /** Partial path match - file path must contain this string (e.g., "amxmodx/configs/") */
+    pathContains?: string;
+    /** Exact full path match (e.g., "/cstrike/server.cfg") */
+    fullPath?: string;
+    /** Array of file extensions to match (e.g., ["ini", "cfg", "json"]) */
+    extensions?: string[];
+    /** Regex pattern for file name matching */
+    fileNameRegexp?: string;
+    /** Game code filter - only match for servers with this game_id */
+    gameCode?: string;
+    /** Game name filter - only match for servers with this game name */
+    gameName?: string;
+}
+
+/**
+ * Props passed to file editor components.
+ */
+export interface FileEditorProps {
+    /** File content (string for text, ArrayBuffer for binary) */
+    content: string | ArrayBuffer;
+    /** Full file path */
+    filePath: string;
+    /** File name with extension */
+    fileName: string;
+    /** File extension (without dot) */
+    extension: string;
+    /** Current server's game code (if available) */
+    gameCode?: string;
+    /** Current server's game name (if available) */
+    gameName?: string;
+    /** ID of the plugin that registered this editor */
+    pluginId: string;
+}
+
+/**
+ * Plugin file editor registration definition.
+ */
+export interface PluginFileEditor {
+    /** Unique identifier for this editor within the plugin */
+    id: string;
+    /** Display name shown in context menu (e.g., "Server Config Editor") */
+    name: string;
+    /** Vue component that renders the editor */
+    component: Component;
+    /** Matching rules that determine when this editor is available */
+    match: EditorMatchRules;
+    /** Content type: 'text' (default) or 'binary' */
+    contentType?: EditorContentType;
+    /** If true, editor is read-only (no save button) */
+    readOnly?: boolean;
+    /** Custom icon for context menu (Font Awesome class) */
+    icon?: string;
 }

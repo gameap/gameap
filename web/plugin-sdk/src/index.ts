@@ -30,6 +30,7 @@ export type {
     PluginMenuItem,
     PluginSlotComponent,
     PluginHomeButton,
+    PluginFileEditor,
     SlotName,
     ServerData,
     UserData,
@@ -37,6 +38,9 @@ export type {
     PluginRouteInfo,
     ServerTabProps,
     DashboardWidgetProps,
+    EditorContentType,
+    EditorMatchRules,
+    FileEditorProps,
 } from './types';
 
 // Context hooks

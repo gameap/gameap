@@ -68,6 +68,7 @@ import (
 	"github.com/gameap/gameap/internal/api/nodes/postnode"
 	"github.com/gameap/gameap/internal/api/nodes/putnode"
 	"github.com/gameap/gameap/internal/api/plugins/getfrontendplugins"
+	"github.com/gameap/gameap/internal/api/plugins/getfrontendstyles"
 	"github.com/gameap/gameap/internal/api/profile/getprofile"
 	"github.com/gameap/gameap/internal/api/profile/putprofile"
 	"github.com/gameap/gameap/internal/api/servers/deleteserver"
@@ -181,6 +182,7 @@ func CreateRouter(c container) *http.ServeMux {
 	serverMux.Handle("/lang/", http.StripPrefix("/lang/", http.FileServer(http.FS(i18n.GetFS()))))
 
 	serverMux.Handle("/plugins.js", frontendPluginsHandler(c))
+	serverMux.Handle("/plugins.css", frontendPluginsStylesHandler(c))
 
 	return serverMux
 }
@@ -198,6 +200,23 @@ func frontendPluginsHandler(c container) http.Handler {
 	)
 
 	handler := getfrontendplugins.NewHandler(c.PluginManager())
+
+	return recoveryMiddleware.Middleware(authMiddleware.Middleware(handler))
+}
+
+func frontendPluginsStylesHandler(c container) http.Handler {
+	authMiddleware := middlewares.NewAuthMiddleware(
+		c.AuthService(),
+		c.UserService(),
+		c.PersonalAccessTokenRepository(),
+		c.Responder(),
+	)
+
+	recoveryMiddleware := middlewares.NewRecoveryMiddleware(
+		c.Responder(),
+	)
+
+	handler := getfrontendstyles.NewHandler(c.PluginManager())
 
 	return recoveryMiddleware.Middleware(authMiddleware.Middleware(handler))
 }

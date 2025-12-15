@@ -28,8 +28,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useModalStore } from '../../stores/useModalStore.js'
-import { useTranslate } from '../../composables/useTranslate.js'
+import { useModalStore } from '@/filemanager/stores'
+import { useTranslate } from '@/filemanager/composables'
+import { usePluginsStore } from '@/store/plugins'
 import GButton from '@/components/GButton.vue'
 import NewFileModal from './views/NewFileModal.vue'
 import NewFolderModal from './views/NewFolderModal.vue'
@@ -46,8 +47,10 @@ import VideoPlayerModal from './views/VideoPlayerModal.vue'
 import ZipModal from './views/ZipModal.vue'
 import UnzipModal from './views/UnzipModal.vue'
 import AboutModal from './views/AboutModal.vue'
+import PluginEditorModal from './views/PluginEditorModal.vue'
 
 const modal = useModalStore()
+const pluginsStore = usePluginsStore()
 const { lang } = useTranslate()
 const modalRef = ref(null)
 
@@ -67,6 +70,7 @@ const modalComponents = {
     ZipModal,
     UnzipModal,
     AboutModal,
+    PluginEditorModal,
 }
 
 const showModal = computed({
@@ -94,6 +98,7 @@ const modalConfig = computed(() => ({
     ZipModal: { title: lang.value.modal.zip.title, width: '600px' },
     UnzipModal: { title: lang.value.modal.unzip.title, width: '600px' },
     AboutModal: { title: lang.value.modal.about.title, width: '600px' },
+    PluginEditorModal: { title: pluginsStore.resolvePluginText(modal.pluginEditorState?.pluginId, modal.pluginEditorState?.editor?.name) || lang.value.modal.editor.title, width: '1000px' },
 }))
 
 const currentModalConfig = computed(() => modalConfig.value[modalName.value])

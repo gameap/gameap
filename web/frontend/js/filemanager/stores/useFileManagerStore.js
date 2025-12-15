@@ -504,6 +504,10 @@ export const useFileManagerStore = defineStore('fm', () => {
         return GET.getFile(disk, path)
     }
 
+    function getFileArrayBuffer({ disk, path }) {
+        return GET.getFileArrayBuffer(disk, path)
+    }
+
     async function updateFileAction(formData) {
         const response = await POST.updateFile(formData)
         updateContent({
@@ -872,6 +876,7 @@ export const useFileManagerStore = defineStore('fm', () => {
         selectDisk: selectDiskAction,
         createFile,
         getFile,
+        getFileArrayBuffer,
         updateFile: updateFileAction,
         createDirectory,
         upload,

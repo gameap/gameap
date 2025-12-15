@@ -25,6 +25,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     const initialized = ref(false)
     const loadErrors = ref([])
     const pluginTranslations = ref(new Map())
+    const fileEditors = ref([])
 
     // Getters
     const isLoading = computed(() => loading.value)
@@ -175,6 +176,131 @@ export const usePluginsStore = defineStore('plugins', () => {
         return langTrans[key] ?? key
     }
 
+    function registerFileEditor(pluginId, editor) {
+        fileEditors.value.push({
+            pluginId,
+            editor: {
+                ...editor,
+                _compiledRegexp: editor.match.fileNameRegexp
+                    ? new RegExp(editor.match.fileNameRegexp)
+                    : null
+            }
+        })
+    }
+
+    function calculateMatchScore(editor, fileInfo, serverContext) {
+        const { match } = editor
+        const { fileName, filePath, extension } = fileInfo
+        const { gameCode, gameName } = serverContext || {}
+
+        let score = 0
+        let hasMatch = false
+
+        if (match.gameCode && match.gameCode !== gameCode) {
+            return 0
+        }
+        if (match.gameName && match.gameName !== gameName) {
+            return 0
+        }
+
+        if (match.gameCode && match.gameCode === gameCode) {
+            score += 50
+            hasMatch = true
+        }
+        if (match.gameName && match.gameName === gameName) {
+            score += 40
+            hasMatch = true
+        }
+
+        // allFiles: true matches all files with base score of 1
+        if (match.allFiles) {
+            return score + 1
+        }
+
+        if (match.fullPath) {
+            const normalizedFullPath = match.fullPath.replace(/^\//, '')
+            const normalizedFilePath = filePath.replace(/^\//, '')
+            if (normalizedFilePath === normalizedFullPath) {
+                score += 1000
+                hasMatch = true
+            } else {
+                return 0
+            }
+        }
+
+        if (match.pathContains) {
+            if (filePath.includes(match.pathContains)) {
+                score += 500
+                hasMatch = true
+            } else {
+                return 0
+            }
+        }
+
+        if (match.fileName) {
+            if (fileName === match.fileName) {
+                score += 200
+                hasMatch = true
+            } else {
+                return 0
+            }
+        }
+
+        if (editor._compiledRegexp) {
+            if (editor._compiledRegexp.test(fileName)) {
+                score += 100
+                hasMatch = true
+            } else {
+                return 0
+            }
+        }
+
+        if (match.extensions && match.extensions.length > 0) {
+            const ext = extension?.toLowerCase()
+            if (ext && match.extensions.map(e => e.toLowerCase()).includes(ext)) {
+                score += 10
+                hasMatch = true
+            } else if (!hasMatch) {
+                return 0
+            }
+        }
+
+        if (!hasMatch) {
+            return 0
+        }
+
+        return score
+    }
+
+    function getMatchingEditors(fileInfo, serverContext = null) {
+        const matches = []
+
+        for (const { pluginId, editor } of fileEditors.value) {
+            const score = calculateMatchScore(editor, fileInfo, serverContext)
+            if (score > 0) {
+                matches.push({
+                    pluginId,
+                    editor,
+                    score,
+                    isDefault: false
+                })
+            }
+        }
+
+        matches.sort((a, b) => b.score - a.score)
+
+        if (matches.length > 0) {
+            matches[0].isDefault = true
+        }
+
+        return matches
+    }
+
+    function getDefaultEditor(fileInfo, serverContext = null) {
+        const matches = getMatchingEditors(fileInfo, serverContext)
+        return matches.length > 0 ? matches[0] : null
+    }
+
     function unregisterPlugin(pluginId) {
         plugins.value.delete(pluginId)
 
@@ -185,6 +311,8 @@ export const usePluginsStore = defineStore('plugins', () => {
         for (const section of Object.keys(menuItems)) {
             menuItems[section] = menuItems[section].filter(i => i.pluginId !== pluginId)
         }
+
+        fileEditors.value = fileEditors.value.filter(e => e.pluginId !== pluginId)
     }
 
     return {
@@ -198,6 +326,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         initialized,
         loadErrors,
         pluginTranslations,
+        fileEditors,
 
         // Getters
         isLoading,
@@ -209,12 +338,15 @@ export const usePluginsStore = defineStore('plugins', () => {
         getPlugin,
         getPluginTranslations,
         resolvePluginText,
+        getMatchingEditors,
+        getDefaultEditor,
 
         // Actions
         checkApiVersion,
         registerPlugin,
         registerSlotComponent,
         registerMenuItem,
+        registerFileEditor,
         addPendingRoute,
         registerRoutes,
         setLoading,

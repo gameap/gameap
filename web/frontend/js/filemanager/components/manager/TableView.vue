@@ -64,7 +64,7 @@
                     v-bind:key="`f-${index}`"
                     v-bind:class="{ 'table-info': checkSelect('files', file.path) }"
                     v-on:click="selectItem('files', file.path, $event)"
-                    v-on:dblclick="selectAction(file.path, file.extension)"
+                    v-on:dblclick="selectAction(file)"
                     v-on:contextmenu.prevent="contextMenu(file, $event)"
                 >
                     <td class="fm-content-item unselectable" v-bind:class="acl && file.acl === 0 ? 'text-hidden' : ''">
@@ -93,6 +93,7 @@ import { useModalStore } from '../../stores/useModalStore.js'
 import { useManager } from '../../composables/useManager.js'
 import { useTranslate } from '../../composables/useTranslate.js'
 import { useHelper } from '../../composables/useHelper.js'
+import { useFileEditors } from '../../composables/useFileEditors.js'
 
 const props = defineProps({
     manager: { type: String, required: true },
@@ -103,6 +104,7 @@ const settings = useSettingsStore()
 const modal = useModalStore()
 const { lang } = useTranslate()
 const { bytesToHuman, timestampToDate, extensionToIcon } = useHelper()
+const { getDefaultEditor, isFileTooLarge } = useFileEditors()
 
 const {
     selectedDisk,
@@ -165,12 +167,24 @@ function handleSortBy(field) {
     sortBy(field, null)
 }
 
-function selectAction(path, extension) {
+function selectAction(file) {
+    const { path, extension } = file
+
     if (fm.fileCallback) {
         fm.url({ disk: selectedDisk.value, path }).then((response) => {
             if (response.data.result.status === 'success') {
                 fm.fileCallback(response.data.url)
             }
+        })
+        return
+    }
+
+    const customEditor = getDefaultEditor(file)
+    if (customEditor && !isFileTooLarge(file)) {
+        modal.openPluginEditor({
+            pluginId: customEditor.pluginId,
+            editor: customEditor.editor,
+            file: file
         })
         return
     }
