@@ -209,6 +209,23 @@
       ></ServerTasks>
     </n-tab-pane>
 
+    <n-tab-pane
+        v-for="tab in pluginTabs"
+        :key="'plugin-' + tab.pluginId + '-' + (tab.name || 'tab')"
+        :name="'plugin-' + tab.pluginId + '-' + (tab.name || 'tab')"
+    >
+      <template #tab>
+        <i v-if="tab.icon" :class="tab.icon" class="mr-1"></i>
+        {{ pluginsStore.resolvePluginText(tab.pluginId, tab.label) }}
+      </template>
+      <component
+          :is="tab.component"
+          :server-id="serverId"
+          :server="server"
+          :plugin-id="tab.pluginId"
+      />
+    </n-tab-pane>
+
     <n-tab-pane name="settings" v-if="serverStore.canManageSettings">
       <template #tab>
         <i class="fa fa-cogs mr-1"></i>
@@ -225,23 +242,6 @@
           </n-card>
         </div>
       </div>
-    </n-tab-pane>
-
-    <n-tab-pane
-        v-for="tab in pluginTabs"
-        :key="'plugin-' + tab.pluginId + '-' + (tab.name || 'tab')"
-        :name="'plugin-' + tab.pluginId + '-' + (tab.name || 'tab')"
-    >
-      <template #tab>
-        <i v-if="tab.icon" :class="tab.icon" class="mr-1"></i>
-        {{ pluginsStore.resolvePluginText(tab.pluginId, tab.label) }}
-      </template>
-      <component
-          :is="tab.component"
-          :server-id="serverId"
-          :server="server"
-          :plugin-id="tab.pluginId"
-      />
     </n-tab-pane>
 
     <template #suffix v-if="isAdmin">
