@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.nodecmd;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/nodecmd";
+
+// NodeCmdService provides command execution on daemon nodes
+// go:plugin type=host module=gameap-nodecmd
+service NodeCmdService {
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
+}
+
+message ExecuteCommandRequest {
+  uint64 node_id = 1;
+  string command = 2;
+  optional string work_dir = 3;
+  reserved 4; // Reserved for future use: environment variables
+  reserved 5; // Reserved for future use: timeout
+  reserved 6; // Reserved for future use: run as another user
+}
+
+message ExecuteCommandResponse {
+  string output = 1;
+  int32 exit_code = 2;
+  reserved 3; // Reserved for future use: timed out
+  optional string error = 4;
+}

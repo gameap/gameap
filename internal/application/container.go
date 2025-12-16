@@ -944,6 +944,8 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			hostlibrary.NewCacheHostLibrary(c.Cache(), "plugin:"),
 			hostlibrary.NewHTTPHostLibrary(),
 			hostlibrary.NewLogHostLibrary(slog.Default()),
+			hostlibrary.NewNodeFSHostLibrary(c.DaemonFiles(), c.NodeRepository()),
+			hostlibrary.NewNodeCmdHostLibrary(c.DaemonCommands(), c.NodeRepository()),
 		},
 	})
 }

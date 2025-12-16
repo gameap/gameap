@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.nodefs;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/nodefs";
+
+// NodeFSService provides file system operations on daemon nodes
+// go:plugin type=host module=gameap-nodefs
+service NodeFSService {
+  rpc ReadDir(ReadDirRequest) returns (ReadDirResponse);
+  rpc MkDir(MkDirRequest) returns (MkDirResponse);
+  rpc Copy(CopyRequest) returns (CopyResponse);
+  rpc Move(MoveRequest) returns (MoveResponse);
+  rpc Download(DownloadRequest) returns (DownloadResponse);
+  rpc Upload(UploadRequest) returns (UploadResponse);
+  rpc Remove(RemoveRequest) returns (RemoveResponse);
+  rpc GetFileInfo(GetFileInfoRequest) returns (GetFileInfoResponse);
+  rpc Chmod(ChmodRequest) returns (ChmodResponse);
+}
+
+enum FileType {
+  FILE_TYPE_UNKNOWN = 0;
+  FILE_TYPE_DIR = 1;
+  FILE_TYPE_FILE = 2;
+  FILE_TYPE_DEVICE = 3;
+  FILE_TYPE_BLOCK_DEVICE = 4;
+  FILE_TYPE_NAMED_PIPE = 5;
+  FILE_TYPE_SYMLINK = 6;
+  FILE_TYPE_SOCKET = 7;
+}
+
+message FileInfo {
+  string name = 1;
+  uint64 size = 2;
+  uint64 modified_time = 3;
+  FileType type = 4;
+  uint32 permissions = 5;
+}
+
+message FileDetails {
+  string name = 1;
+  string mime = 2;
+  uint64 size = 3;
+  uint64 modification_time = 4;
+  uint64 access_time = 5;
+  uint64 create_time = 6;
+  uint32 permissions = 7;
+  FileType type = 8;
+}
+
+message ReadDirRequest {
+  uint64 node_id = 1;
+  string path = 2;
+}
+
+message ReadDirResponse {
+  repeated FileInfo files = 1;
+  optional string error = 2;
+}
+
+message MkDirRequest {
+  uint64 node_id = 1;
+  string path = 2;
+}
+
+message MkDirResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message CopyRequest {
+  uint64 node_id = 1;
+  string source = 2;
+  string destination = 3;
+}
+
+message CopyResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message MoveRequest {
+  uint64 node_id = 1;
+  string source = 2;
+  string destination = 3;
+}
+
+message MoveResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message DownloadRequest {
+  uint64 node_id = 1;
+  string path = 2;
+}
+
+message DownloadResponse {
+  bytes content = 1;
+  optional string error = 2;
+}
+
+message UploadRequest {
+  uint64 node_id = 1;
+  string path = 2;
+  bytes content = 3;
+  uint32 permissions = 4;
+}
+
+message UploadResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message RemoveRequest {
+  uint64 node_id = 1;
+  string path = 2;
+  bool recursive = 3;
+}
+
+message RemoveResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message GetFileInfoRequest {
+  uint64 node_id = 1;
+  string path = 2;
+}
+
+message GetFileInfoResponse {
+  optional FileDetails file = 1;
+  bool found = 2;
+  optional string error = 3;
+}
+
+message ChmodRequest {
+  uint64 node_id = 1;
+  string path = 2;
+  uint32 permissions = 3;
+}
+
+message ChmodResponse {
+  bool success = 1;
+  optional string error = 2;
+}

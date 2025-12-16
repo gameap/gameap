@@ -142,6 +142,92 @@ if resp.Success {
 // Stop, restart, update, install, reinstall work similarly
 ```
 
+### gameap-nodefs
+
+Provides file system operations on daemon nodes.
+
+```go
+fs := nodefs.NewNodeFSService()
+
+// Read directory contents
+readDirResp, _ := fs.ReadDir(ctx, &nodefs.ReadDirRequest{
+    NodeId: 1,
+    Path:   "/home/servers",
+})
+for _, file := range readDirResp.Files {
+    fmt.Printf("%s (%d bytes)\n", file.Name, file.Size)
+}
+
+// Download a file
+downloadResp, _ := fs.Download(ctx, &nodefs.DownloadRequest{
+    NodeId: 1,
+    Path:   "/home/servers/server.cfg",
+})
+content := downloadResp.Content
+
+// Upload a file
+fs.Upload(ctx, &nodefs.UploadRequest{
+    NodeId:      1,
+    Path:        "/home/servers/config.txt",
+    Content:     []byte("server config"),
+    Permissions: 0644,
+})
+
+// Create directory
+fs.MkDir(ctx, &nodefs.MkDirRequest{
+    NodeId: 1,
+    Path:   "/home/servers/newdir",
+})
+
+// Copy/Move files
+fs.Copy(ctx, &nodefs.CopyRequest{
+    NodeId:      1,
+    Source:      "/home/servers/file.txt",
+    Destination: "/home/servers/file_backup.txt",
+})
+
+// Remove file or directory
+fs.Remove(ctx, &nodefs.RemoveRequest{
+    NodeId:    1,
+    Path:      "/home/servers/oldfile.txt",
+    Recursive: false,
+})
+
+// Get file info
+infoResp, _ := fs.GetFileInfo(ctx, &nodefs.GetFileInfoRequest{
+    NodeId: 1,
+    Path:   "/home/servers/server.cfg",
+})
+if infoResp.Found {
+    fmt.Printf("Size: %d, Modified: %d\n", infoResp.File.Size, infoResp.File.ModificationTime)
+}
+
+// Change permissions
+fs.Chmod(ctx, &nodefs.ChmodRequest{
+    NodeId:      1,
+    Path:        "/home/servers/script.sh",
+    Permissions: 0755,
+})
+```
+
+### gameap-nodecmd
+
+Provides command execution on daemon nodes.
+
+```go
+cmd := nodecmd.NewNodeCmdService()
+
+// Execute a command
+resp, _ := cmd.ExecuteCommand(ctx, &nodecmd.ExecuteCommandRequest{
+    NodeId:  1,
+    Command: "ls -la /home/servers",
+    WorkDir: proto.String("/home"),
+})
+
+fmt.Printf("Exit code: %d\n", resp.ExitCode)
+fmt.Printf("Output: %s\n", resp.Output)
+```
+
 ### Repository Services
 
 Repository access is split into separate services for better organization:
@@ -465,6 +551,8 @@ pkg/plugin/
 │   ├── daemontasks/          # gameap-daemontasks module
 │   ├── serversettings/       # gameap-serversettings module
 │   ├── servercontrol/        # gameap-servercontrol module
+│   ├── nodefs/               # gameap-nodefs module (file operations)
+│   ├── nodecmd/              # gameap-nodecmd module (command execution)
 │   ├── cache/                # gameap-cache module
 │   ├── http/                 # gameap-http module
 │   └── log/                  # gameap-log module
