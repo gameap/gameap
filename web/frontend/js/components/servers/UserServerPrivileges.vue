@@ -110,7 +110,7 @@
 
     <div class="grid grid-cols-2 gap-x-20 mb-4">
       <div v-for="item in serverPermissions" class="grid grid-cols-4 gap-x-4 mb-6">
-        <div class="col-span-3">{{ item.name }}</div>
+        <div class="col-span-3">{{ trans(item.name) }}</div>
         <n-switch
             v-model:value="item.value"
         />
