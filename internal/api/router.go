@@ -451,6 +451,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.RBAC(),
 				c.Responder(),
+				c.PluginManager(),
 			),
 		},
 		{
@@ -879,6 +880,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.RBAC(),
 				c.Responder(),
+				c.PluginManager(),
 			),
 		},
 
@@ -954,6 +956,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.RBAC(),
 				c.Responder(),
+				c.PluginManager(),
 			),
 			AdminOnly: true,
 		},
@@ -965,6 +968,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.RBAC(),
 				c.Responder(),
+				c.PluginManager(),
 			),
 			AdminOnly: true,
 		},

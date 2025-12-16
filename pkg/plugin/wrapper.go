@@ -23,6 +23,7 @@ type pluginServiceWrapper struct {
 	gethttproutes       api.Function
 	handlehttprequest   api.Function
 	getfrontendbundle   api.Function
+	getserverabilities  api.Function
 }
 
 func (p *pluginServiceWrapper) callFunction(
@@ -223,6 +224,27 @@ func (p *pluginServiceWrapper) GetFrontendBundle(
 	}
 
 	response := new(proto.GetFrontendBundleResponse)
+	if err = response.UnmarshalVT(bytes); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (p *pluginServiceWrapper) GetServerAbilities(
+	ctx context.Context,
+	request *proto.GetServerAbilitiesRequest,
+) (*proto.GetServerAbilitiesResponse, error) {
+	if p.getserverabilities == nil {
+		return &proto.GetServerAbilitiesResponse{Abilities: nil}, nil
+	}
+
+	bytes, err := p.callFunction(ctx, p.getserverabilities, request)
+	if err != nil {
+		return nil, err
+	}
+
+	response := new(proto.GetServerAbilitiesResponse)
 	if err = response.UnmarshalVT(bytes); err != nil {
 		return nil, err
 	}

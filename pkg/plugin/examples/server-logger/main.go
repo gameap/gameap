@@ -65,3 +65,21 @@ func (p *ServerLoggerPlugin) Shutdown(
 		Result: &pluginproto.Result{Success: true},
 	}, nil
 }
+
+func (p *ServerLoggerPlugin) GetServerAbilities(
+	_ context.Context,
+	_ *pluginproto.GetServerAbilitiesRequest,
+) (*pluginproto.GetServerAbilitiesResponse, error) {
+	return &pluginproto.GetServerAbilitiesResponse{
+		Abilities: []*pluginproto.ServerAbility{
+			{
+				Name:  "view-logs",
+				Title: "plugins.fwgfo26jzwnm4.abilities.view-logs",
+			},
+			{
+				Name:  "export-logs",
+				Title: "plugins.fwgfo26jzwnm4.abilities.export-logs",
+			},
+		},
+	}, nil
+}

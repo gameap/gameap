@@ -3,6 +3,7 @@ package putserverperms
 import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/flexible"
+	"github.com/gameap/gameap/pkg/plugin"
 	"github.com/pkg/errors"
 )
 
@@ -14,6 +15,12 @@ type PermissionInput struct {
 type UpdatePermissionsInput []PermissionInput
 
 func (input UpdatePermissionsInput) Validate() error {
+	return input.ValidateWithPluginAbilities(nil)
+}
+
+func (input UpdatePermissionsInput) ValidateWithPluginAbilities(
+	pluginAbilities []plugin.PluginServerAbility,
+) error {
 	if len(input) == 0 {
 		return errors.New("permissions array cannot be empty")
 	}
@@ -21,6 +28,10 @@ func (input UpdatePermissionsInput) Validate() error {
 	validPermissions := make(map[string]bool)
 	for _, ability := range domain.ServersAbilities {
 		validPermissions[string(ability)] = true
+	}
+
+	for _, ability := range pluginAbilities {
+		validPermissions[ability.Name] = true
 	}
 
 	for idx, perm := range input {

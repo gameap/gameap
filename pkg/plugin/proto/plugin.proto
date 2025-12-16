@@ -124,6 +124,9 @@ service PluginService {
 
   // GetFrontendBundle returns the pre-compiled frontend JavaScript bundle
   rpc GetFrontendBundle(GetFrontendBundleRequest) returns (GetFrontendBundleResponse);
+
+  // GetServerAbilities returns the server permissions this plugin provides
+  rpc GetServerAbilities(GetServerAbilitiesRequest) returns (GetServerAbilitiesResponse);
 }
 
 // Plugin metadata
@@ -225,4 +228,16 @@ message GetFrontendBundleResponse {
   bytes styles = 3;
   // Whether the plugin has styles
   bool has_styles = 4;
+}
+
+// Server abilities (permissions) registration
+message ServerAbility {
+  string name = 1;
+  string title = 2;
+}
+
+message GetServerAbilitiesRequest {}
+
+message GetServerAbilitiesResponse {
+  repeated ServerAbility abilities = 1;
 }

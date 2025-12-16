@@ -235,7 +235,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			rbacRepo := inmemory.NewRBACRepository()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, rbacService, responder)
+			handler := NewHandler(serverRepo, rbacService, responder, nil)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(serverRepo, rbacRepo)
@@ -273,7 +273,7 @@ func TestHandler_AdminHasAllAbilities(t *testing.T) {
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, rbacService, responder)
+	handler := NewHandler(serverRepo, rbacService, responder, nil)
 
 	now := time.Now()
 
@@ -324,19 +324,19 @@ func TestHandler_AdminHasAllAbilities(t *testing.T) {
 	var abilities abilitiesResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &abilities))
 
-	assert.True(t, abilities.GameServerCommon)
-	assert.True(t, abilities.GameServerStart)
-	assert.True(t, abilities.GameServerStop)
-	assert.True(t, abilities.GameServerRestart)
-	assert.True(t, abilities.GameServerPause)
-	assert.True(t, abilities.GameServerUpdate)
-	assert.True(t, abilities.GameServerFiles)
-	assert.True(t, abilities.GameServerTasks)
-	assert.True(t, abilities.GameServerSettings)
-	assert.True(t, abilities.GameServerConsoleView)
-	assert.True(t, abilities.GameServerConsoleSend)
-	assert.True(t, abilities.GameServerRconConsole)
-	assert.True(t, abilities.GameServerRconPlayers)
+	assert.True(t, abilities[domain.AbilityNameGameServerCommon])
+	assert.True(t, abilities[domain.AbilityNameGameServerStart])
+	assert.True(t, abilities[domain.AbilityNameGameServerStop])
+	assert.True(t, abilities[domain.AbilityNameGameServerRestart])
+	assert.True(t, abilities[domain.AbilityNameGameServerPause])
+	assert.True(t, abilities[domain.AbilityNameGameServerUpdate])
+	assert.True(t, abilities[domain.AbilityNameGameServerFiles])
+	assert.True(t, abilities[domain.AbilityNameGameServerTasks])
+	assert.True(t, abilities[domain.AbilityNameGameServerSettings])
+	assert.True(t, abilities[domain.AbilityNameGameServerConsoleView])
+	assert.True(t, abilities[domain.AbilityNameGameServerConsoleSend])
+	assert.True(t, abilities[domain.AbilityNameGameServerRconConsole])
+	assert.True(t, abilities[domain.AbilityNameGameServerRconPlayers])
 }
 
 func TestHandler_RegularUserHasLimitedAbilities(t *testing.T) {
@@ -344,7 +344,7 @@ func TestHandler_RegularUserHasLimitedAbilities(t *testing.T) {
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, rbacService, responder)
+	handler := NewHandler(serverRepo, rbacService, responder, nil)
 
 	now := time.Now()
 
@@ -406,19 +406,19 @@ func TestHandler_RegularUserHasLimitedAbilities(t *testing.T) {
 	var abilities abilitiesResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &abilities))
 
-	assert.False(t, abilities.GameServerCommon)
-	assert.True(t, abilities.GameServerStart)
-	assert.True(t, abilities.GameServerStop)
-	assert.False(t, abilities.GameServerRestart)
-	assert.False(t, abilities.GameServerPause)
-	assert.False(t, abilities.GameServerUpdate)
-	assert.False(t, abilities.GameServerFiles)
-	assert.False(t, abilities.GameServerTasks)
-	assert.False(t, abilities.GameServerSettings)
-	assert.False(t, abilities.GameServerConsoleView)
-	assert.False(t, abilities.GameServerConsoleSend)
-	assert.False(t, abilities.GameServerRconConsole)
-	assert.False(t, abilities.GameServerRconPlayers)
+	assert.False(t, abilities[domain.AbilityNameGameServerCommon])
+	assert.True(t, abilities[domain.AbilityNameGameServerStart])
+	assert.True(t, abilities[domain.AbilityNameGameServerStop])
+	assert.False(t, abilities[domain.AbilityNameGameServerRestart])
+	assert.False(t, abilities[domain.AbilityNameGameServerPause])
+	assert.False(t, abilities[domain.AbilityNameGameServerUpdate])
+	assert.False(t, abilities[domain.AbilityNameGameServerFiles])
+	assert.False(t, abilities[domain.AbilityNameGameServerTasks])
+	assert.False(t, abilities[domain.AbilityNameGameServerSettings])
+	assert.False(t, abilities[domain.AbilityNameGameServerConsoleView])
+	assert.False(t, abilities[domain.AbilityNameGameServerConsoleSend])
+	assert.False(t, abilities[domain.AbilityNameGameServerRconConsole])
+	assert.False(t, abilities[domain.AbilityNameGameServerRconPlayers])
 }
 
 func TestHandler_NewHandler(t *testing.T) {
@@ -427,7 +427,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := NewHandler(serverRepo, rbacService, responder)
+	handler := NewHandler(serverRepo, rbacService, responder, nil)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, rbacService, handler.rbac)
@@ -453,17 +453,17 @@ func TestNewAbilitiesResponse(t *testing.T) {
 
 	response := newAbilitiesResponse(abilities)
 
-	assert.True(t, response.GameServerCommon)
-	assert.True(t, response.GameServerStart)
-	assert.False(t, response.GameServerStop)
-	assert.False(t, response.GameServerRestart)
-	assert.False(t, response.GameServerPause)
-	assert.False(t, response.GameServerUpdate)
-	assert.False(t, response.GameServerFiles)
-	assert.False(t, response.GameServerTasks)
-	assert.False(t, response.GameServerSettings)
-	assert.False(t, response.GameServerConsoleView)
-	assert.False(t, response.GameServerConsoleSend)
-	assert.False(t, response.GameServerRconConsole)
-	assert.False(t, response.GameServerRconPlayers)
+	assert.True(t, response[domain.AbilityNameGameServerCommon])
+	assert.True(t, response[domain.AbilityNameGameServerStart])
+	assert.False(t, response[domain.AbilityNameGameServerStop])
+	assert.False(t, response[domain.AbilityNameGameServerRestart])
+	assert.False(t, response[domain.AbilityNameGameServerPause])
+	assert.False(t, response[domain.AbilityNameGameServerUpdate])
+	assert.False(t, response[domain.AbilityNameGameServerFiles])
+	assert.False(t, response[domain.AbilityNameGameServerTasks])
+	assert.False(t, response[domain.AbilityNameGameServerSettings])
+	assert.False(t, response[domain.AbilityNameGameServerConsoleView])
+	assert.False(t, response[domain.AbilityNameGameServerConsoleSend])
+	assert.False(t, response[domain.AbilityNameGameServerRconConsole])
+	assert.False(t, response[domain.AbilityNameGameServerRconPlayers])
 }

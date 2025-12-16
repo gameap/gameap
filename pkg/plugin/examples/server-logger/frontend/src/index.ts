@@ -57,6 +57,8 @@ export const serverLoggerPlugin: PluginDefinition = {
             'status_stopped': 'Stopped',
             'status_unknown': 'Unknown',
             'na': 'N/A',
+            'abilities.view-logs': 'View Server Logs',
+            'abilities.export-logs': 'Export Server Logs',
         },
         ru: {
             'title': 'Логгер серверов',
@@ -103,6 +105,8 @@ export const serverLoggerPlugin: PluginDefinition = {
             'status_stopped': 'Остановлен',
             'status_unknown': 'Неизвестно',
             'na': 'Н/Д',
+            'abilities.view-logs': 'Просмотр логов сервера',
+            'abilities.export-logs': 'Экспорт логов сервера',
         },
     },
 
@@ -149,6 +153,10 @@ export const serverLoggerPlugin: PluginDefinition = {
                 label: '@:server_tab',
                 icon: 'fas fa-clipboard-list',
                 name: 'logger',
+                checkPermission: {
+                    type: 'hasServerPermissions',
+                    permissions: ['plugin:fwgfo26jzwnm4:view-logs'],
+                },
             },
         ],
     },

@@ -10,24 +10,32 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/plugin"
 	"github.com/pkg/errors"
 )
 
+type PluginServerAbilityProvider interface {
+	GetAllServerAbilities() []plugin.PluginServerAbility
+}
+
 type Handler struct {
-	serverFinder *serversbase.ServerFinder
-	rbac         base.RBAC
-	responder    base.Responder
+	serverFinder   *serversbase.ServerFinder
+	rbac           base.RBAC
+	responder      base.Responder
+	pluginProvider PluginServerAbilityProvider
 }
 
 func NewHandler(
 	serverRepo repositories.ServerRepository,
 	rbac base.RBAC,
 	responder base.Responder,
+	pluginProvider PluginServerAbilityProvider,
 ) *Handler {
 	return &Handler{
-		serverFinder: serversbase.NewServerFinder(serverRepo, rbac),
-		rbac:         rbac,
-		responder:    responder,
+		serverFinder:   serversbase.NewServerFinder(serverRepo, rbac),
+		rbac:           rbac,
+		responder:      responder,
+		pluginProvider: pluginProvider,
 	}
 }
 
@@ -84,9 +92,40 @@ func (h *Handler) buildServerAbilities(
 		return nil, errors.WithMessage(err, "failed to check admin permissions")
 	}
 
-	abilities := make(map[domain.AbilityName]bool, len(domain.ServersAbilities))
+	var pluginAbilities []plugin.PluginServerAbility
+	if h.pluginProvider != nil {
+		pluginAbilities = h.pluginProvider.GetAllServerAbilities()
+	}
+
+	totalAbilities := len(domain.ServersAbilities) + len(pluginAbilities)
+	abilities := make(map[domain.AbilityName]bool, totalAbilities)
 
 	for _, abilityName := range domain.ServersAbilities {
+		if isAdmin {
+			abilities[abilityName] = true
+		} else {
+			hasAbility, err := h.rbac.CanForEntity(
+				ctx,
+				user.ID,
+				domain.EntityTypeServer,
+				server.ID,
+				[]domain.AbilityName{abilityName},
+			)
+			if err != nil {
+				return nil, errors.WithMessagef(
+					err,
+					"failed to check ability %s for server %d",
+					abilityName,
+					server.ID,
+				)
+			}
+			abilities[abilityName] = hasAbility
+		}
+	}
+
+	for _, pluginAbility := range pluginAbilities {
+		abilityName := domain.AbilityName(pluginAbility.Name)
+
 		if isAdmin {
 			abilities[abilityName] = true
 		} else {

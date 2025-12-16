@@ -10,14 +10,20 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/plugin"
 	"github.com/pkg/errors"
 )
 
+type PluginServerAbilityProvider interface {
+	GetAllServerAbilities() []plugin.PluginServerAbility
+}
+
 type Handler struct {
-	userRepo   repositories.UserRepository
-	serverRepo repositories.ServerRepository
-	rbac       base.RBAC
-	responder  base.Responder
+	userRepo       repositories.UserRepository
+	serverRepo     repositories.ServerRepository
+	rbac           base.RBAC
+	responder      base.Responder
+	pluginProvider PluginServerAbilityProvider
 }
 
 func NewHandler(
@@ -25,12 +31,14 @@ func NewHandler(
 	serverRepo repositories.ServerRepository,
 	rbac base.RBAC,
 	responder base.Responder,
+	pluginProvider PluginServerAbilityProvider,
 ) *Handler {
 	return &Handler{
-		userRepo:   userRepo,
-		serverRepo: serverRepo,
-		rbac:       rbac,
-		responder:  responder,
+		userRepo:       userRepo,
+		serverRepo:     serverRepo,
+		rbac:           rbac,
+		responder:      responder,
+		pluginProvider: pluginProvider,
 	}
 }
 
@@ -109,16 +117,20 @@ func (h *Handler) buildServerAbilities(
 ) (map[uint]map[domain.AbilityName]bool, error) {
 	abilities := make(map[uint]map[domain.AbilityName]bool)
 
-	for _, server := range servers {
-		serverAbilities := make(map[domain.AbilityName]bool, len(domain.ServersAbilities))
+	var pluginAbilities []plugin.PluginServerAbility
+	if h.pluginProvider != nil {
+		pluginAbilities = h.pluginProvider.GetAllServerAbilities()
+	}
 
-		// For each server ability, check if user has it
+	totalAbilities := len(domain.ServersAbilities) + len(pluginAbilities)
+
+	for _, server := range servers {
+		serverAbilities := make(map[domain.AbilityName]bool, totalAbilities)
+
 		for _, abilityName := range domain.ServersAbilities {
 			if isAdmin {
-				// Admin has all abilities
 				serverAbilities[abilityName] = true
 			} else {
-				// Check user's ability for this specific server
 				hasAbility, err := h.rbac.CanForEntity(
 					ctx,
 					user.ID,
@@ -127,6 +139,26 @@ func (h *Handler) buildServerAbilities(
 					[]domain.AbilityName{
 						abilityName,
 					},
+				)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "failed to check ability %s for server %d", abilityName, server.ID)
+				}
+				serverAbilities[abilityName] = hasAbility
+			}
+		}
+
+		for _, pluginAbility := range pluginAbilities {
+			abilityName := domain.AbilityName(pluginAbility.Name)
+
+			if isAdmin {
+				serverAbilities[abilityName] = true
+			} else {
+				hasAbility, err := h.rbac.CanForEntity(
+					ctx,
+					user.ID,
+					domain.EntityTypeServer,
+					server.ID,
+					[]domain.AbilityName{abilityName},
 				)
 				if err != nil {
 					return nil, errors.WithMessagef(err, "failed to check ability %s for server %d", abilityName, server.ID)

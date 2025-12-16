@@ -387,7 +387,16 @@ const isAdmin = computed(() => {
 })
 
 const pluginTabs = computed(() => {
-  return pluginsStore.getSlotComponents('server-tabs')
+  const allTabs = pluginsStore.getSlotComponents('server-tabs')
+  return allTabs.filter(tab => {
+    if (!tab.checkPermission) return true
+    if (tab.checkPermission.type === 'hasServerPermissions') {
+      return tab.checkPermission.permissions.every(
+          perm => serverStore.abilities[perm] === true
+      )
+    }
+    return true
+  })
 })
 
 </script>

@@ -1,6 +1,9 @@
 package getserverperms
 
-import "github.com/gameap/gameap/internal/domain"
+import (
+	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/pkg/plugin"
+)
 
 type PermissionResponse struct {
 	Permission string `json:"permission"`
@@ -13,6 +16,19 @@ func NewPermissionResponse(abilityName domain.AbilityName, value bool) Permissio
 
 	return PermissionResponse{
 		Permission: string(abilityName),
+		Value:      value,
+		Name:       displayName,
+	}
+}
+
+func NewPluginPermissionResponse(ability plugin.PluginServerAbility, value bool) PermissionResponse {
+	displayName := ability.Title
+	if displayName == "" {
+		displayName = ability.Name
+	}
+
+	return PermissionResponse{
+		Permission: ability.Name,
 		Value:      value,
 		Name:       displayName,
 	}

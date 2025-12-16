@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive, computed, h } from 'vue'
-import PluginRouteWrapper from '../../plugins/components/PluginRouteWrapper.vue'
+import PluginRouteWrapper from '@/plugins/components/PluginRouteWrapper.vue'
+import { trans } from "@/i18n/i18n";
 
 const SUPPORTED_API_VERSIONS = ['1.0']
 
@@ -83,7 +84,8 @@ export const usePluginsStore = defineStore('plugins', () => {
             order: options.order || 0,
             label: options.label || '',
             icon: options.icon || null,
-            name: options.name || ''
+            name: options.name || '',
+            checkPermission: options.checkPermission || null,
         })
 
         slots[slotName].sort((a, b) => a.order - b.order)
@@ -173,7 +175,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         const translations = pluginTranslations.value.get(pluginId)
         const locale = window.gameapLang || 'en'
         const langTrans = translations?.[locale] || translations?.['en'] || {}
-        return langTrans[key] ?? key
+        return langTrans[key] ?? trans(key)
     }
 
     function registerFileEditor(pluginId, editor) {

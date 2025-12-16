@@ -11,14 +11,20 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/plugin"
 	"github.com/pkg/errors"
 )
 
+type PluginServerAbilityProvider interface {
+	GetAllServerAbilities() []plugin.PluginServerAbility
+}
+
 type Handler struct {
-	userRepo   repositories.UserRepository
-	serverRepo repositories.ServerRepository
-	rbac       base.RBAC
-	responder  base.Responder
+	userRepo       repositories.UserRepository
+	serverRepo     repositories.ServerRepository
+	rbac           base.RBAC
+	responder      base.Responder
+	pluginProvider PluginServerAbilityProvider
 }
 
 func NewHandler(
@@ -26,12 +32,14 @@ func NewHandler(
 	serverRepo repositories.ServerRepository,
 	rbac base.RBAC,
 	responder base.Responder,
+	pluginProvider PluginServerAbilityProvider,
 ) *Handler {
 	return &Handler{
-		userRepo:   userRepo,
-		serverRepo: serverRepo,
-		rbac:       rbac,
-		responder:  responder,
+		userRepo:       userRepo,
+		serverRepo:     serverRepo,
+		rbac:           rbac,
+		responder:      responder,
+		pluginProvider: pluginProvider,
 	}
 }
 
@@ -81,7 +89,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = permissionsInput.Validate()
+	var pluginAbilities []plugin.PluginServerAbility
+	if h.pluginProvider != nil {
+		pluginAbilities = h.pluginProvider.GetAllServerAbilities()
+	}
+
+	err = permissionsInput.ValidateWithPluginAbilities(pluginAbilities)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "invalid input"),
@@ -123,7 +136,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	permissions, err := h.buildPermissions(ctx, &users[0], serverID)
+	permissions, err := h.buildPermissions(ctx, &users[0], serverID, pluginAbilities)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to build permissions"))
 
@@ -166,13 +179,15 @@ func (h *Handler) buildPermissions(
 	ctx context.Context,
 	user *domain.User,
 	serverID uint,
+	pluginAbilities []plugin.PluginServerAbility,
 ) ([]PermissionResponse, error) {
 	isAdmin, err := h.rbac.Can(ctx, user.ID, []domain.AbilityName{domain.AbilityNameAdminRolesPermissions})
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to check admin permission")
 	}
 
-	permissions := make([]PermissionResponse, 0, len(domain.ServersAbilities))
+	totalAbilities := len(domain.ServersAbilities) + len(pluginAbilities)
+	permissions := make([]PermissionResponse, 0, totalAbilities)
 
 	for _, abilityName := range domain.ServersAbilities {
 		if isAdmin {
@@ -193,6 +208,29 @@ func (h *Handler) buildPermissions(
 		}
 
 		permissions = append(permissions, NewPermissionResponse(abilityName, can))
+	}
+
+	for _, pluginAbility := range pluginAbilities {
+		abilityName := domain.AbilityName(pluginAbility.Name)
+
+		if isAdmin {
+			permissions = append(permissions, NewPluginPermissionResponse(pluginAbility, true))
+
+			continue
+		}
+
+		can, err := h.rbac.CanForEntity(
+			ctx,
+			user.ID,
+			domain.EntityTypeServer,
+			serverID,
+			[]domain.AbilityName{abilityName},
+		)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "failed to check permission %s", abilityName)
+		}
+
+		permissions = append(permissions, NewPluginPermissionResponse(pluginAbility, can))
 	}
 
 	return permissions, nil

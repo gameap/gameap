@@ -10,14 +10,20 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/plugin"
 	"github.com/pkg/errors"
 )
 
+type PluginServerAbilityProvider interface {
+	GetAllServerAbilities() []plugin.PluginServerAbility
+}
+
 type Handler struct {
-	userRepo   repositories.UserRepository
-	serverRepo repositories.ServerRepository
-	rbac       base.RBAC
-	responder  base.Responder
+	userRepo       repositories.UserRepository
+	serverRepo     repositories.ServerRepository
+	rbac           base.RBAC
+	responder      base.Responder
+	pluginProvider PluginServerAbilityProvider
 }
 
 func NewHandler(
@@ -25,12 +31,14 @@ func NewHandler(
 	serverRepo repositories.ServerRepository,
 	rbac base.RBAC,
 	responder base.Responder,
+	pluginProvider PluginServerAbilityProvider,
 ) *Handler {
 	return &Handler{
-		userRepo:   userRepo,
-		serverRepo: serverRepo,
-		rbac:       rbac,
-		responder:  responder,
+		userRepo:       userRepo,
+		serverRepo:     serverRepo,
+		rbac:           rbac,
+		responder:      responder,
+		pluginProvider: pluginProvider,
 	}
 }
 
@@ -116,7 +124,13 @@ func (h *Handler) buildPermissions(
 		return nil, errors.WithMessage(err, "failed to check admin permission")
 	}
 
-	permissions := make([]PermissionResponse, 0, len(domain.ServersAbilities))
+	var pluginAbilities []plugin.PluginServerAbility
+	if h.pluginProvider != nil {
+		pluginAbilities = h.pluginProvider.GetAllServerAbilities()
+	}
+
+	totalAbilities := len(domain.ServersAbilities) + len(pluginAbilities)
+	permissions := make([]PermissionResponse, 0, totalAbilities)
 
 	for _, abilityName := range domain.ServersAbilities {
 		if isAdmin {
@@ -137,6 +151,29 @@ func (h *Handler) buildPermissions(
 		}
 
 		permissions = append(permissions, NewPermissionResponse(abilityName, can))
+	}
+
+	for _, pluginAbility := range pluginAbilities {
+		abilityName := domain.AbilityName(pluginAbility.Name)
+
+		if isAdmin {
+			permissions = append(permissions, NewPluginPermissionResponse(pluginAbility, true))
+
+			continue
+		}
+
+		can, err := h.rbac.CanForEntity(
+			ctx,
+			user.ID,
+			domain.EntityTypeServer,
+			serverID,
+			[]domain.AbilityName{abilityName},
+		)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "failed to check permission %s", abilityName)
+		}
+
+		permissions = append(permissions, NewPluginPermissionResponse(pluginAbility, can))
 	}
 
 	return permissions, nil

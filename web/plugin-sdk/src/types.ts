@@ -92,6 +92,21 @@ export interface PluginMenuItem {
 }
 
 /**
+ * Permission check for hasServerPermissions.
+ * Requires user to have all specified permissions for the server.
+ */
+export interface HasServerPermissionsCheck {
+    type: 'hasServerPermissions';
+    permissions: string[];
+}
+
+/**
+ * Union type for all permission checks.
+ * Each slot recipient decides which check types it supports.
+ */
+export type PermissionCheck = HasServerPermissionsCheck;
+
+/**
  * Plugin slot component definition.
  */
 export interface PluginSlotComponent {
@@ -107,6 +122,8 @@ export interface PluginSlotComponent {
     name?: string;
     /** Default props to pass to the component */
     props?: Record<string, unknown>;
+    /** Permission check - each slot recipient checks types it understands */
+    checkPermission?: PermissionCheck;
 }
 
 /**

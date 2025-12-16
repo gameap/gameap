@@ -1,8 +1,9 @@
 import { inject, provide, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { useAuthStore } from '../store/auth'
-import { useServerStore } from '../store/server'
-import { usePluginsStore } from '../store/plugins'
+import { useAuthStore } from '@/store/auth'
+import { useServerStore } from '@/store/server'
+import { usePluginsStore } from '@/store/plugins'
+import { trans as systemTrans } from "@/i18n/i18n"
 
 const PLUGIN_CONTEXT_KEY = 'pluginContext'
 const PLUGIN_I18N_KEY = 'pluginI18n'
@@ -73,7 +74,7 @@ function createI18nContext() {
         const pluginId = route.meta?.pluginId
         const translations = pluginId ? pluginsStore.getPluginTranslations(pluginId) : null
         const langTrans = translations?.[locale] || translations?.['en'] || {}
-        let value = langTrans[key] ?? key
+        let value = langTrans[key] ?? systemTrans(key)
 
         if (params) {
             Object.entries(params).forEach(([k, v]) => {

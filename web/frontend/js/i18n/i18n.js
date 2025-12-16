@@ -1,4 +1,3 @@
-// import { createApp } from 'vue';
 import plurals from './plurals';
 import { get, eachRight, replace } from 'lodash-es';
 
@@ -34,9 +33,14 @@ const pluralize = (choice, choicesLength) => {
 const trans = (string, args) => {
     let value = get(window.i18n, string);
 
+    if (!value) {
+        return string;
+    }
+
     eachRight(args, (paramVal, paramKey) => {
         value = replace(value, `:${paramKey}`, paramVal);
     });
+
     return value;
 };
 

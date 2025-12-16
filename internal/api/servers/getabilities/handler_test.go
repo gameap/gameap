@@ -223,7 +223,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			rbacRepo := inmemory.NewRBACRepository()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
-			handler := NewHandler(userRepo, serverRepo, rbacService, responder)
+			handler := NewHandler(userRepo, serverRepo, rbacService, responder, nil)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(userRepo, serverRepo, rbacRepo)
@@ -279,7 +279,7 @@ func TestHandler_AdminUserHasAllAbilities(t *testing.T) {
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
-	handler := NewHandler(userRepo, serverRepo, rbacService, responder)
+	handler := NewHandler(userRepo, serverRepo, rbacService, responder, nil)
 
 	now := time.Now()
 	userName := "Admin User"
@@ -358,7 +358,7 @@ func TestHandler_RegularUserAbilities(t *testing.T) {
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
-	handler := NewHandler(userRepo, serverRepo, rbacService, responder)
+	handler := NewHandler(userRepo, serverRepo, rbacService, responder, nil)
 
 	now := time.Now()
 	userName := "Regular User"
@@ -445,7 +445,7 @@ func TestNewHandler(t *testing.T) {
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := NewHandler(userRepo, serverRepo, rbacService, responder)
+	handler := NewHandler(userRepo, serverRepo, rbacService, responder, nil)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, userRepo, handler.userRepo)

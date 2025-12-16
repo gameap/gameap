@@ -319,7 +319,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			rbacService := rbac.NewRBAC(nil, rbacRepo, 0)
 			responder := api.NewResponder()
 
-			handler := NewHandler(userRepo, serverRepo, rbacService, responder)
+			handler := NewHandler(userRepo, serverRepo, rbacService, responder, nil)
 
 			if tt.setupRepos != nil {
 				tt.setupRepos(userRepo, serverRepo, rbacRepo)
@@ -401,7 +401,7 @@ func TestHandler_PermissionResponseStructure(t *testing.T) {
 	rbacService := rbac.NewRBAC(nil, rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := NewHandler(userRepo, serverRepo, rbacService, responder)
+	handler := NewHandler(userRepo, serverRepo, rbacService, responder, nil)
 
 	now := time.Now()
 
@@ -472,13 +472,13 @@ func TestHandler_PermissionResponseStructure(t *testing.T) {
 	require.NotNil(t, startPerm)
 	assert.Equal(t, "game-server-start", startPerm.Permission)
 	assert.True(t, startPerm.Value)
-	assert.Equal(t, "Start Game Server", startPerm.Name)
+	assert.Equal(t, "users.game-server-start", startPerm.Name)
 
 	stopPerm := findPermission(permissions, "game-server-stop")
 	require.NotNil(t, stopPerm)
 	assert.Equal(t, "game-server-stop", stopPerm.Permission)
 	assert.False(t, stopPerm.Value)
-	assert.Equal(t, "Stop Game Server", stopPerm.Name)
+	assert.Equal(t, "users.game-server-stop", stopPerm.Name)
 }
 
 func TestNewPermissionResponse(t *testing.T) {
@@ -496,7 +496,7 @@ func TestNewPermissionResponse(t *testing.T) {
 			value:        true,
 			wantPerm:     "game-server-start",
 			wantValue:    true,
-			wantDispName: "Start Game Server",
+			wantDispName: "users.game-server-start",
 		},
 		{
 			name:         "game server stop",
@@ -504,7 +504,7 @@ func TestNewPermissionResponse(t *testing.T) {
 			value:        false,
 			wantPerm:     "game-server-stop",
 			wantValue:    false,
-			wantDispName: "Stop Game Server",
+			wantDispName: "users.game-server-stop",
 		},
 		{
 			name:         "rcon players",
@@ -512,7 +512,7 @@ func TestNewPermissionResponse(t *testing.T) {
 			value:        true,
 			wantPerm:     "game-server-rcon-players",
 			wantValue:    true,
-			wantDispName: "RCON players manage",
+			wantDispName: "users.game-server-rcon-players",
 		},
 	}
 

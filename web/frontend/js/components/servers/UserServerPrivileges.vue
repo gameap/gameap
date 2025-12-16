@@ -110,7 +110,7 @@
 
     <div class="grid grid-cols-2 gap-x-20 mb-4">
       <div v-for="item in serverPermissions" class="grid grid-cols-4 gap-x-4 mb-6">
-        <div class="col-span-3">{{ trans(item.name) }}</div>
+        <div class="col-span-3">{{ transWithPlugin(item.name) }}</div>
         <n-switch
             v-model:value="item.value"
         />
@@ -137,11 +137,16 @@ import {
 } from "naive-ui"
 import GButton from "../GButton.vue";
 import GameIcon from "../GameIcon.vue";
-import {trans} from "../../i18n/i18n";
-import {useUserStore} from "../../store/user";
-import {errorNotification, notification} from "../../parts/dialogs";
+import {trans as systemTrans, trans} from "@/i18n/i18n";
+import {useUserStore} from "@/store/user";
+import {errorNotification, notification} from "@/parts/dialogs";
+import {usePluginsStore} from "@/store/plugins";
+
+const locale = window.gameapLang || 'en'
 
 const userStore = useUserStore()
+
+const pluginsStore = usePluginsStore()
 
 const {getServerPermissions} = storeToRefs(userStore)
 
@@ -261,6 +266,22 @@ function onSearch(search) {
           errorNotification(error)
         });
   })
+}
+
+// Translation with plugin support
+const transWithPlugin = (key) => {
+  if (key.startsWith('plugins.')) {
+    const parts = key.split('.');
+    const pluginId = parts[1];
+    const translationKey = parts.slice(2).join('.');
+
+    const translations = pluginId ? pluginsStore.getPluginTranslations(pluginId) : null
+    const langTrans = translations?.[locale] || translations?.['en'] || {}
+
+    return langTrans[translationKey] ?? trans(translationKey)
+  }
+
+  return trans(key)
 }
 
 const renderLabel = (option) => {

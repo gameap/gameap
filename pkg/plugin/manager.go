@@ -24,13 +24,14 @@ type HostLibrary interface {
 
 // LoadedPlugin represents a loaded plugin instance.
 type LoadedPlugin struct {
-	Info           *proto.PluginInfo
-	Instance       proto.PluginService
-	Config         map[string]string
-	Enabled        bool
-	HTTPRoutes     []*proto.HTTPRoute
-	FrontendBundle []byte
-	FrontendStyles []byte
+	Info            *proto.PluginInfo
+	Instance        proto.PluginService
+	Config          map[string]string
+	Enabled         bool
+	HTTPRoutes      []*proto.HTTPRoute
+	FrontendBundle  []byte
+	FrontendStyles  []byte
+	ServerAbilities []*proto.ServerAbility
 
 	runtime wazero.Runtime
 }
@@ -272,15 +273,27 @@ func (m *Manager) initializePlugin(
 		}
 	}
 
+	var serverAbilities []*proto.ServerAbility
+	abilitiesResp, err := plugin.GetServerAbilities(ctx, &proto.GetServerAbilitiesRequest{})
+	if err != nil {
+		slog.Debug("plugin has no server abilities",
+			slog.String("plugin_id", info.Id),
+			slog.String("error", err.Error()),
+		)
+	} else if abilitiesResp != nil && len(abilitiesResp.Abilities) > 0 {
+		serverAbilities = abilitiesResp.Abilities
+	}
+
 	return &LoadedPlugin{
-		Info:           info,
-		Instance:       plugin,
-		Config:         config,
-		Enabled:        true,
-		HTTPRoutes:     httpRoutes,
-		FrontendBundle: frontendBundle,
-		FrontendStyles: frontendStyles,
-		runtime:        r,
+		Info:            info,
+		Instance:        plugin,
+		Config:          config,
+		Enabled:         true,
+		HTTPRoutes:      httpRoutes,
+		FrontendBundle:  frontendBundle,
+		FrontendStyles:  frontendStyles,
+		ServerAbilities: serverAbilities,
+		runtime:         r,
 	}, nil
 }
 
@@ -351,6 +364,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 
 	// Optional exports (not all plugins implement these)
 	getFrontendBundle := module.ExportedFunction("plugin_service_get_frontend_bundle")
+	getServerAbilities := module.ExportedFunction("plugin_service_get_server_abilities")
 
 	return &pluginServiceWrapper{
 		module:              module,
@@ -364,6 +378,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 		gethttproutes:       funcs["plugin_service_get_http_routes"],
 		handlehttprequest:   funcs["plugin_service_handle_http_request"],
 		getfrontendbundle:   getFrontendBundle,
+		getserverabilities:  getServerAbilities,
 	}, nil
 }
 
@@ -476,6 +491,36 @@ func (m *Manager) GetHTTPRoutes() map[string][]*proto.HTTPRoute {
 	}
 
 	return routes
+}
+
+// PluginServerAbility represents a server ability with plugin context.
+type PluginServerAbility struct {
+	PluginID string
+	Name     string
+	Title    string
+}
+
+// GetAllServerAbilities returns all server abilities from all loaded plugins.
+func (m *Manager) GetAllServerAbilities() []PluginServerAbility {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var abilities []PluginServerAbility
+	for pluginID, p := range m.plugins {
+		if !p.Enabled || len(p.ServerAbilities) == 0 {
+			continue
+		}
+
+		for _, ability := range p.ServerAbilities {
+			abilities = append(abilities, PluginServerAbility{
+				PluginID: pluginID,
+				Name:     "plugin:" + pluginID + ":" + ability.Name,
+				Title:    ability.Title,
+			})
+		}
+	}
+
+	return abilities
 }
 
 // fetchAndValidateHTTPRoutes fetches HTTP routes from a plugin and validates them.

@@ -123,6 +123,10 @@ func (p *PluginServicePlugin) Load(ctx context.Context, pluginPath string) (plug
 	if getfrontendbundle == nil {
 		return nil, errors.New("plugin_service_get_frontend_bundle is not exported")
 	}
+	getserverabilities := module.ExportedFunction("plugin_service_get_server_abilities")
+	if getserverabilities == nil {
+		return nil, errors.New("plugin_service_get_server_abilities is not exported")
+	}
 
 	malloc := module.ExportedFunction("malloc")
 	if malloc == nil {
@@ -146,6 +150,7 @@ func (p *PluginServicePlugin) Load(ctx context.Context, pluginPath string) (plug
 		gethttproutes:       gethttproutes,
 		handlehttprequest:   handlehttprequest,
 		getfrontendbundle:   getfrontendbundle,
+		getserverabilities:  getserverabilities,
 	}, nil
 }
 
@@ -169,6 +174,7 @@ type pluginServicePlugin struct {
 	gethttproutes       api.Function
 	handlehttprequest   api.Function
 	getfrontendbundle   api.Function
+	getserverabilities  api.Function
 }
 
 func (p *pluginServicePlugin) GetInfo(ctx context.Context, request *GetInfoRequest) (*PluginInfo, error) {
@@ -653,6 +659,67 @@ func (p *pluginServicePlugin) GetFrontendBundle(ctx context.Context, request *Ge
 	}
 
 	response := new(GetFrontendBundleResponse)
+	if err = response.UnmarshalVT(bytes); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+func (p *pluginServicePlugin) GetServerAbilities(ctx context.Context, request *GetServerAbilitiesRequest) (*GetServerAbilitiesResponse, error) {
+	data, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	dataSize := uint64(len(data))
+
+	var dataPtr uint64
+	// If the input data is not empty, we must allocate the in-Wasm memory to store it, and pass to the plugin.
+	if dataSize != 0 {
+		results, err := p.malloc.Call(ctx, dataSize)
+		if err != nil {
+			return nil, err
+		}
+		dataPtr = results[0]
+		// This pointer is managed by the Wasm module, which is unaware of external usage.
+		// So, we have to free it when finished
+		defer p.free.Call(ctx, dataPtr)
+
+		// The pointer is a linear memory offset, which is where we write the name.
+		if !p.module.Memory().Write(uint32(dataPtr), data) {
+			return nil, fmt.Errorf("Memory.Write(%d, %d) out of range of memory size %d", dataPtr, dataSize, p.module.Memory().Size())
+		}
+	}
+
+	ptrSize, err := p.getserverabilities.Call(ctx, dataPtr, dataSize)
+	if err != nil {
+		return nil, err
+	}
+
+	resPtr := uint32(ptrSize[0] >> 32)
+	resSize := uint32(ptrSize[0])
+	var isErrResponse bool
+	if (resSize & (1 << 31)) > 0 {
+		isErrResponse = true
+		resSize &^= (1 << 31)
+	}
+
+	// We don't need the memory after deserialization: make sure it is freed.
+	if resPtr != 0 {
+		defer p.free.Call(ctx, uint64(resPtr))
+	}
+
+	// The pointer is a linear memory offset, which is where we write the name.
+	bytes, ok := p.module.Memory().Read(resPtr, resSize)
+	if !ok {
+		return nil, fmt.Errorf("Memory.Read(%d, %d) out of range of memory size %d",
+			resPtr, resSize, p.module.Memory().Size())
+	}
+
+	if isErrResponse {
+		return nil, errors.New(string(bytes))
+	}
+
+	response := new(GetServerAbilitiesResponse)
 	if err = response.UnmarshalVT(bytes); err != nil {
 		return nil, err
 	}

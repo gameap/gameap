@@ -148,7 +148,8 @@ async function registerPluginDefinition(pluginDef, store) {
                     order: slotComp.order || 0,
                     label: slotComp.label,
                     icon: slotComp.icon,
-                    name: slotComp.name
+                    name: slotComp.name,
+                    checkPermission: slotComp.checkPermission,
                 })
             }
         }

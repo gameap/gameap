@@ -912,6 +912,63 @@ func (x *GetFrontendBundleResponse) GetHasStyles() bool {
 	return false
 }
 
+// Server abilities (permissions) registration
+type ServerAbility struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name  string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Title string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+}
+
+func (x *ServerAbility) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *ServerAbility) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ServerAbility) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+type GetServerAbilitiesRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *GetServerAbilitiesRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+type GetServerAbilitiesResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Abilities []*ServerAbility `protobuf:"bytes,1,rep,name=abilities,proto3" json:"abilities,omitempty"`
+}
+
+func (x *GetServerAbilitiesResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *GetServerAbilitiesResponse) GetAbilities() []*ServerAbility {
+	if x != nil {
+		return x.Abilities
+	}
+	return nil
+}
+
 // PluginService is the interface that plugins must implement
 // go:plugin type=plugin version=1
 type PluginService interface {
@@ -931,4 +988,6 @@ type PluginService interface {
 	HandleHTTPRequest(context.Context, *HTTPRequest) (*HTTPResponse, error)
 	// GetFrontendBundle returns the pre-compiled frontend JavaScript bundle
 	GetFrontendBundle(context.Context, *GetFrontendBundleRequest) (*GetFrontendBundleResponse, error)
+	// GetServerAbilities returns the server permissions this plugin provides
+	GetServerAbilities(context.Context, *GetServerAbilitiesRequest) (*GetServerAbilitiesResponse, error)
 }
