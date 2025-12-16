@@ -15,7 +15,7 @@ import (
 )
 
 type PluginServerAbilityProvider interface {
-	GetAllServerAbilities() []plugin.PluginServerAbility
+	GetAllServerAbilities() []plugin.ServerAbility
 }
 
 type Handler struct {
@@ -124,7 +124,7 @@ func (h *Handler) buildPermissions(
 		return nil, errors.WithMessage(err, "failed to check admin permission")
 	}
 
-	var pluginAbilities []plugin.PluginServerAbility
+	var pluginAbilities []plugin.ServerAbility
 	if h.pluginProvider != nil {
 		pluginAbilities = h.pluginProvider.GetAllServerAbilities()
 	}

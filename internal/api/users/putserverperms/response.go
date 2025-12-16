@@ -21,7 +21,7 @@ func NewPermissionResponse(abilityName domain.AbilityName, value bool) Permissio
 	}
 }
 
-func NewPluginPermissionResponse(ability plugin.PluginServerAbility, value bool) PermissionResponse {
+func NewPluginPermissionResponse(ability plugin.ServerAbility, value bool) PermissionResponse {
 	displayName := ability.Title
 	if displayName == "" {
 		displayName = ability.Name

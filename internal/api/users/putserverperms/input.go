@@ -19,7 +19,7 @@ func (input UpdatePermissionsInput) Validate() error {
 }
 
 func (input UpdatePermissionsInput) ValidateWithPluginAbilities(
-	pluginAbilities []plugin.PluginServerAbility,
+	pluginAbilities []plugin.ServerAbility,
 ) error {
 	if len(input) == 0 {
 		return errors.New("permissions array cannot be empty")

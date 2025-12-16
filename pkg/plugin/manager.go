@@ -493,26 +493,26 @@ func (m *Manager) GetHTTPRoutes() map[string][]*proto.HTTPRoute {
 	return routes
 }
 
-// PluginServerAbility represents a server ability with plugin context.
-type PluginServerAbility struct {
+// ServerAbility represents a server ability with plugin context.
+type ServerAbility struct {
 	PluginID string
 	Name     string
 	Title    string
 }
 
 // GetAllServerAbilities returns all server abilities from all loaded plugins.
-func (m *Manager) GetAllServerAbilities() []PluginServerAbility {
+func (m *Manager) GetAllServerAbilities() []ServerAbility {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var abilities []PluginServerAbility
+	var abilities []ServerAbility
 	for pluginID, p := range m.plugins {
 		if !p.Enabled || len(p.ServerAbilities) == 0 {
 			continue
 		}
 
 		for _, ability := range p.ServerAbilities {
-			abilities = append(abilities, PluginServerAbility{
+			abilities = append(abilities, ServerAbility{
 				PluginID: pluginID,
 				Name:     "plugin:" + pluginID + ":" + ability.Name,
 				Title:    ability.Title,

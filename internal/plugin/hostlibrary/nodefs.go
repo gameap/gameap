@@ -277,7 +277,7 @@ func convertFileDetailsToProto(d *daemon.FileDetails) *nodefs.FileDetails {
 		AccessTime:       d.AccessTime,
 		CreateTime:       d.CreateTime,
 		Permissions:      d.Perm,
-		Type:             convertFileTypeToProto(daemon.FileType(d.Type)),
+		Type:             convertFileTypeToProto(d.Type),
 	}
 }
 

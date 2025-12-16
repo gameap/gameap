@@ -113,6 +113,14 @@ linters:
           - funlen
           - lll
           - revive
+      - path: internal/api/router\.go
+        linters:
+          - revive
+        text: var-naming
+      - path: pkg/api/
+        linters:
+          - revive
+        text: var-naming
     paths:
       - third_party$
       - builtin$

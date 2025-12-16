@@ -157,7 +157,7 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 
 		time.Sleep(10 * time.Millisecond)
 
-		plugin.Version = "2.0.0"
+		plugin.Version = "2.0.0" //nolint:goconst
 		plugin.Description = "Updated description"
 		plugin.Status = domain.PluginStatusActive
 		plugin.Priority = 50

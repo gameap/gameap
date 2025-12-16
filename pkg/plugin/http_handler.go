@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -23,21 +22,15 @@ const (
 	DefaultMaxBodySize = 1 << 20 // 1MB
 )
 
-// AuthMiddleware interface for authentication middleware.
-type AuthMiddleware interface {
-	Middleware(next http.Handler) http.Handler
-}
-
-// AdminMiddleware interface for admin check middleware.
-type AdminMiddleware interface {
+type Middleware interface {
 	Middleware(next http.Handler) http.Handler
 }
 
 // HTTPHandler handles HTTP requests for plugins.
 type HTTPHandler struct {
 	manager         *Manager
-	authMiddleware  AuthMiddleware
-	adminMiddleware AdminMiddleware
+	authMiddleware  Middleware
+	adminMiddleware Middleware
 	timeout         time.Duration
 	maxBody         int64
 }
@@ -45,8 +38,8 @@ type HTTPHandler struct {
 // NewHTTPHandler creates a new HTTP handler for plugin routes.
 func NewHTTPHandler(
 	manager *Manager,
-	authMiddleware AuthMiddleware,
-	adminMiddleware AdminMiddleware,
+	authMiddleware Middleware,
+	adminMiddleware Middleware,
 ) *HTTPHandler {
 	return &HTTPHandler{
 		manager:         manager,
@@ -64,6 +57,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if pluginID == "" {
 		http.Error(w, "plugin ID is required", http.StatusBadRequest)
+
 		return
 	}
 
@@ -73,11 +67,13 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	plugin, ok := h.manager.GetPlugin(pluginID)
 	if !ok {
 		http.NotFound(w, r)
+
 		return
 	}
 
 	if !plugin.Enabled {
 		http.Error(w, "plugin is disabled", http.StatusServiceUnavailable)
+
 		return
 	}
 
@@ -86,6 +82,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	route, pathParams := h.matchRoute(plugin, r.Method, pluginPath)
 	if route == nil {
 		http.Error(w, "route not found", http.StatusNotFound)
+
 		return
 	}
 
@@ -122,6 +119,7 @@ func (h *HTTPHandler) handlePluginRequest(
 			slog.String("error", err.Error()),
 		)
 		http.Error(w, "failed to process request", http.StatusBadRequest)
+
 		return
 	}
 
@@ -138,10 +136,12 @@ func (h *HTTPHandler) handlePluginRequest(
 
 		if errors.Is(err, context.DeadlineExceeded) {
 			http.Error(w, "request timeout", http.StatusGatewayTimeout)
+
 			return
 		}
 
 		http.Error(w, "plugin error", http.StatusInternalServerError)
+
 		return
 	}
 
@@ -150,13 +150,15 @@ func (h *HTTPHandler) handlePluginRequest(
 
 func extractPluginPath(fullPath, pluginID string) string {
 	prefix := "/api/plugins/" + pluginID
-	if strings.HasPrefix(fullPath, prefix) {
-		path := strings.TrimPrefix(fullPath, prefix)
+	if after, ok := strings.CutPrefix(fullPath, prefix); ok {
+		path := after
 		if path == "" {
 			return "/"
 		}
+
 		return path
 	}
+
 	return "/"
 }
 
@@ -185,6 +187,7 @@ func containsMethod(methods []string, method string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -385,6 +388,7 @@ func expandQueryValues(values []string) []string {
 			result = append(result, value)
 		}
 	}
+
 	return result
 }
 
@@ -408,6 +412,3 @@ func domainEntityTypeToProto(entityType domain.EntityType) gameapProto.EntityTyp
 		return gameapProto.EntityType_ENTITY_TYPE_UNSPECIFIED
 	}
 }
-
-// pathParamRegex matches path parameters like {id} in route patterns.
-var pathParamRegex = regexp.MustCompile(`\{([^}]+)\}`)

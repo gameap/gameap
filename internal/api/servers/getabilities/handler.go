@@ -15,7 +15,7 @@ import (
 )
 
 type PluginServerAbilityProvider interface {
-	GetAllServerAbilities() []plugin.PluginServerAbility
+	GetAllServerAbilities() []plugin.ServerAbility
 }
 
 type Handler struct {
@@ -117,7 +117,7 @@ func (h *Handler) buildServerAbilities(
 ) (map[uint]map[domain.AbilityName]bool, error) {
 	abilities := make(map[uint]map[domain.AbilityName]bool)
 
-	var pluginAbilities []plugin.PluginServerAbility
+	var pluginAbilities []plugin.ServerAbility
 	if h.pluginProvider != nil {
 		pluginAbilities = h.pluginProvider.GetAllServerAbilities()
 	}

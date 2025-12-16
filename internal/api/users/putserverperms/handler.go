@@ -16,7 +16,7 @@ import (
 )
 
 type PluginServerAbilityProvider interface {
-	GetAllServerAbilities() []plugin.PluginServerAbility
+	GetAllServerAbilities() []plugin.ServerAbility
 }
 
 type Handler struct {
@@ -89,7 +89,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var pluginAbilities []plugin.PluginServerAbility
+	var pluginAbilities []plugin.ServerAbility
 	if h.pluginProvider != nil {
 		pluginAbilities = h.pluginProvider.GetAllServerAbilities()
 	}
@@ -179,7 +179,7 @@ func (h *Handler) buildPermissions(
 	ctx context.Context,
 	user *domain.User,
 	serverID uint,
-	pluginAbilities []plugin.PluginServerAbility,
+	pluginAbilities []plugin.ServerAbility,
 ) ([]PermissionResponse, error) {
 	isAdmin, err := h.rbac.Can(ctx, user.ID, []domain.AbilityName{domain.AbilityNameAdminRolesPermissions})
 	if err != nil {
