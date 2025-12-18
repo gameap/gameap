@@ -30,6 +30,7 @@
         // Initialize language detection
         (function() {
             function detectLanguage() {
+                // Check localStorage first for user preference
                 try {
                     const settings = localStorage.getItem('gameap_ui_settings');
                     if (settings) {
@@ -47,16 +48,8 @@
                     console.error('Failed to load language from localStorage:', e);
                 }
 
-                const browserLang = navigator.language || navigator.userLanguage;
-                if (browserLang) {
-                    return browserLang.split('-')[0].toLowerCase();
-                }
-
-                const htmlLang = document.documentElement.lang;
-                if (htmlLang) {
-                    return htmlLang;
-                }
-
+                // In debug mode, default to 'en' instead of browser language
+                // This prevents unexpected language changes based on system settings
                 return 'en';
             }
 

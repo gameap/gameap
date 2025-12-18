@@ -1,1 +1,6 @@
 /packages/gameap-debug/node_modules
+/packages/gameap-debug/dist/*
+!/packages/gameap-debug/dist/.gitkeep
+/packages/gameap-frontend/node_modules
+/packages/gameap-frontend/dist/*
+!/packages/gameap-frontend/dist/.gitkeep

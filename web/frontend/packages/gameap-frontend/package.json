@@ -1,0 +1,35 @@
+{
+  "name": "@gameap/frontend",
+  "version": "4.1.0-dev8",
+  "description": "GameAP Frontend Application",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    },
+    "./style.css": "./dist/frontend.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0",
+    "vue-router": "^4.6.0",
+    "pinia": "^3.0.0",
+    "naive-ui": "^2.43.0",
+    "axios": "^1.12.0"
+  },
+  "dependencies": {
+    "@gameap/plugin-sdk": "^0.2.0"
+  },
+  "devDependencies": {
+    "@gameap/ui": "file:../gameap-ui",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "vite": "^7.1.0"
+  }
+}

@@ -570,7 +570,7 @@ export const handlers = [
 
     http.get('/api/users/:id/servers', async () => {
         await delay(debugState.networkDelay)
-        return HttpResponse.json(mockServers.map(s => ({ id: s.id, name: s.name })))
+        return HttpResponse.json(mockServersList.map((s: ServerListItem) => ({ id: s.id, name: s.name })))
     }),
 
     http.get('/api/users/:id/servers/:serverId/permissions', async () => {

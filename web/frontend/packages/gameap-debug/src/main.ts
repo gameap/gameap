@@ -5,6 +5,9 @@
  * allowing plugin testing in a realistic environment.
  */
 
+// Import frontend styles (bundled in vendor directory)
+import '../vendor/frontend.css'
+
 import { startMockServiceWorker, setPluginContent, updateDebugState } from './mocks/browser'
 
 // Declare window globals for plugin compatibility
@@ -15,6 +18,7 @@ declare global {
         Pinia: typeof import('pinia')
         axios: typeof import('axios').default
         gameapLang: string
+        i18n: Record<string, string>
         gameapDebug: {
             updateDebugState: typeof updateDebugState
             setPluginContent: typeof setPluginContent
@@ -22,6 +26,7 @@ declare global {
         }
     }
 }
+
 
 // Load plugin from dist directory (set via PLUGIN_PATH env var)
 // Using glob imports to handle dynamic file names
@@ -127,9 +132,8 @@ async function init() {
     // Now load the real GameAP frontend
     console.log('[Debug] Loading GameAP frontend...')
 
-    // Import the real app.js - this will initialize the Vue app
-    // @ts-expect-error - Real app import
-    await import('@app/app.js')
+    // Import the frontend from npm package - this will initialize the Vue app
+    await import('@gameap/frontend')
 
     console.log('[Debug] GameAP frontend loaded successfully')
 

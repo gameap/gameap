@@ -1,8 +1,13 @@
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
 export default {
     content: [
-        "./index.html",
-        "./js/**/*.{js,ts,jsx,tsx,vue}",
-        "./packages/**/*.{js,vue,css}",
+        resolve(__dirname, 'index.html'),
+        resolve(__dirname, 'js/**/*.{js,ts,jsx,tsx,vue}'),
+        resolve(__dirname, 'packages/**/*.{js,vue,css}'),
     ],
     theme: {
         extend: {},
