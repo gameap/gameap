@@ -4,29 +4,7 @@
         <div class="fm-body flex min-h-0">
             <context-menu />
             <modal-block />
-            <template v-if="windowsConfig === 1">
-                <left-manager class="relative flex-grow max-w-full flex-1 h-full" manager="left" />
-            </template>
-            <template v-else-if="windowsConfig === 2">
-                <folder-tree class="w-1/3 md:w-1/4 pr-4 pl-4 h-full" />
-                <left-manager class="w-2/3 md:w-3/4 pr-4 pl-4 h-full" manager="left" />
-            </template>
-            <template v-else-if="windowsConfig === 3">
-                <left-manager
-                    class="w-full sm:w-1/2 pr-4 pl-4 h-full"
-                    manager="left"
-                    v-on:click.native="selectManager('left')"
-                    v-on:contextmenu.native="selectManager('left')"
-                >
-                </left-manager>
-                <right-manager
-                    class="w-full sm:w-1/2 pr-4 pl-4 h-full"
-                    manager="right"
-                    v-on:click.native="selectManager('right')"
-                    v-on:contextmenu.native="selectManager('right')"
-                >
-                </right-manager>
-            </template>
+            <manager class="relative flex-grow max-w-full flex-1 h-full" manager="left" />
         </div>
         <info-block />
     </div>
@@ -43,9 +21,7 @@ import { useMessagesStore } from './stores/useMessagesStore.js'
 import { useTranslate } from './composables/useTranslate.js'
 
 import NavbarBlock from './components/blocks/NavbarBlock.vue'
-import FolderTree from './components/tree/FolderTree.vue'
-import LeftManager from './components/manager/Manager.vue'
-import RightManager from './components/manager/Manager.vue'
+import Manager from './components/manager/Manager.vue'
 import ModalBlock from './components/modals/ModalBlock.vue'
 import InfoBlock from './components/blocks/InfoBlock.vue'
 import ContextMenu from './components/blocks/ContextMenu.vue'
@@ -70,8 +46,6 @@ const interceptorIndex = ref({
 })
 
 // Computed
-const windowsConfig = computed(() => settings.windowsConfig)
-const activeManager = computed(() => fm.activeManager)
 const fullScreen = computed(() => fm.fullScreen)
 
 // Methods
@@ -159,12 +133,6 @@ function responseInterceptor() {
             return Promise.reject(error)
         }
     )
-}
-
-function selectManager(managerName) {
-    if (activeManager.value !== managerName) {
-        fm.setActiveManager(managerName)
-    }
 }
 
 // Lifecycle

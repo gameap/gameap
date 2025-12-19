@@ -3,7 +3,6 @@ import { useFileManagerStore } from '../stores/useFileManagerStore.js'
 import { useSettingsStore } from '../stores/useSettingsStore.js'
 import { useMessagesStore } from '../stores/useMessagesStore.js'
 import { useModalStore } from '../stores/useModalStore.js'
-import { useTreeStore } from '../stores/useTreeStore.js'
 import { useManager } from './useManager.js'
 
 /**
@@ -15,11 +14,9 @@ export function useFileManager() {
     const settings = useSettingsStore()
     const messages = useMessagesStore()
     const modal = useModalStore()
-    const tree = useTreeStore()
 
-    // Manager composables
-    const leftManager = useManager('left')
-    const rightManager = useManager('right')
+    // Manager composable
+    const manager = useManager('left')
 
     // Active manager composable (dynamic)
     const activeManagerName = computed(() => fm.activeManager)
@@ -31,10 +28,8 @@ export function useFileManager() {
         settings,
         messages,
         modal,
-        tree,
-        // Manager composables
-        leftManager,
-        rightManager,
+        // Manager composable
+        manager,
         activeManagerName,
         activeManager,
     }

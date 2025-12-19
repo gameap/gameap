@@ -44,8 +44,6 @@ import PreviewModal from './views/PreviewModal.vue'
 import TextEditModal from './views/TextEditModal.vue'
 import AudioPlayerModal from './views/AudioPlayerModal.vue'
 import VideoPlayerModal from './views/VideoPlayerModal.vue'
-import ZipModal from './views/ZipModal.vue'
-import UnzipModal from './views/UnzipModal.vue'
 import AboutModal from './views/AboutModal.vue'
 import PluginEditorModal from './views/PluginEditorModal.vue'
 
@@ -67,8 +65,6 @@ const modalComponents = {
     TextEditModal,
     AudioPlayerModal,
     VideoPlayerModal,
-    ZipModal,
-    UnzipModal,
     AboutModal,
     PluginEditorModal,
 }
@@ -95,8 +91,6 @@ const modalConfig = computed(() => ({
     TextEditModal: { title: lang.value.modal.editor.title, width: '1000px' },
     AudioPlayerModal: { title: lang.value.modal.audioPlayer.title, width: '600px' },
     VideoPlayerModal: { title: lang.value.modal.videoPlayer.title, width: '800px' },
-    ZipModal: { title: lang.value.modal.zip.title, width: '600px' },
-    UnzipModal: { title: lang.value.modal.unzip.title, width: '600px' },
     AboutModal: { title: lang.value.modal.about.title, width: '600px' },
     PluginEditorModal: { title: pluginsStore.resolvePluginText(modal.pluginEditorState?.pluginId, modal.pluginEditorState?.editor?.name) || lang.value.modal.editor.title, width: '1000px' },
 }))

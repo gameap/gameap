@@ -72,8 +72,6 @@ export const useSettingsStore = defineStore('fm-settings', () => {
             { name: 'cut', icon: 'fa-solid fa-scissors' },
             { name: 'rename', icon: 'fa-regular fa-pen-to-square' },
             { name: 'paste', icon: 'fa-regular fa-paste' },
-            { name: 'zip', icon: 'fa-solid fa-box-archive' },
-            { name: 'unzip', icon: 'fa-solid fa-box-open' },
         ],
         [
             { name: 'delete', icon: 'fa-regular fa-trash-can text-danger' },

@@ -41,11 +41,6 @@ export function useContextMenu() {
         return settings.videoExtensions.includes(extension.toLowerCase())
     }
 
-    function isZip(extension) {
-        if (!extension) return false
-        return extension.toLowerCase() === 'zip'
-    }
-
     // Rules (show/hide menu items)
     const openRule = computed(() => !multiSelect.value && firstItemType.value === 'dir')
 
@@ -80,14 +75,6 @@ export function useContextMenu() {
     const cutRule = computed(() => true)
     const renameRule = computed(() => !multiSelect.value)
     const pasteRule = computed(() => !!fm.clipboard.type)
-    const zipRule = computed(() => selectedDiskDriver.value === 'local')
-
-    const unzipRule = computed(() =>
-        selectedDiskDriver.value === 'local' &&
-        !multiSelect.value &&
-        firstItemType.value === 'file' &&
-        isZip(selectedItems.value[0]?.extension)
-    )
 
     const deleteRule = computed(() => true)
     const propertiesRule = computed(() => !multiSelect.value)
@@ -154,14 +141,6 @@ export function useContextMenu() {
         fm.paste()
     }
 
-    function zipAction() {
-        modal.setModalState({ show: true, modalName: 'ZipModal' })
-    }
-
-    function unzipAction() {
-        modal.setModalState({ show: true, modalName: 'UnzipModal' })
-    }
-
     function deleteAction() {
         modal.setModalState({ show: true, modalName: 'DeleteModal' })
     }
@@ -184,8 +163,6 @@ export function useContextMenu() {
             cut: cutRule,
             rename: renameRule,
             paste: pasteRule,
-            zip: zipRule,
-            unzip: unzipRule,
             delete: deleteRule,
             properties: propertiesRule,
         }
@@ -206,8 +183,6 @@ export function useContextMenu() {
             cut: cutAction,
             rename: renameAction,
             paste: pasteAction,
-            zip: zipAction,
-            unzip: unzipAction,
             delete: deleteAction,
             properties: propertiesAction,
         }
@@ -226,7 +201,6 @@ export function useContextMenu() {
         canEdit,
         canAudioPlay,
         canVideoPlay,
-        isZip,
         // Rules
         openRule,
         audioPlayRule,
@@ -239,8 +213,6 @@ export function useContextMenu() {
         cutRule,
         renameRule,
         pasteRule,
-        zipRule,
-        unzipRule,
         deleteRule,
         propertiesRule,
         getRule,
@@ -256,8 +228,6 @@ export function useContextMenu() {
         cutAction,
         renameAction,
         pasteAction,
-        zipAction,
-        unzipAction,
         deleteAction,
         propertiesAction,
         getAction,

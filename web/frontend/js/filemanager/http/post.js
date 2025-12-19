@@ -66,22 +66,4 @@ export default {
     paste(data) {
         return HTTP.post('paste', data);
     },
-
-    /**
-     * Zip
-     * @param data
-     * @returns {*}
-     */
-    zip(data) {
-        return HTTP.post('zip', data);
-    },
-
-    /**
-     * Unzip
-     * @returns {*}
-     * @param data
-     */
-    unzip(data) {
-        return HTTP.post('unzip', data);
-    },
 };

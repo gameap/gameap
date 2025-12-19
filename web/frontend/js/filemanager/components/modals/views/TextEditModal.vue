@@ -24,9 +24,9 @@ import { xml } from '@codemirror/lang-xml'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
 
-import { useFileManagerStore } from '../../../stores/useFileManagerStore.js'
-import { useTranslate } from '../../../composables/useTranslate.js'
-import { useModal } from '../../../composables/useModal.js'
+import { useFileManagerStore } from '@/filemanager/stores'
+import { useTranslate } from '@/filemanager/composables'
+import { useModal } from '@/filemanager/composables'
 
 const fm = useFileManagerStore()
 const { lang } = useTranslate()

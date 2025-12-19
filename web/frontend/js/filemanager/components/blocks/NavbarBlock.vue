@@ -87,28 +87,6 @@
                     </button>
                 </div>
             </div>
-            <div class="text-right">
-                <div class="btn-group" role="group">
-                    <button
-                        type="button"
-                        class="btn btn-small btn-secondary rounded-s border-r"
-                        v-bind:class="[viewType === 'table' ? 'active' : '']"
-                        v-on:click="selectView('table')"
-                        v-bind:title="lang.btn.table"
-                    >
-                        <i class="fa-solid fa-list"></i>
-                    </button>
-                    <button
-                        type="button"
-                        class="btn btn-small btn-secondary rounded-e"
-                        v-bind:class="[viewType === 'grid' ? 'active' : '']"
-                        v-on:click="selectView('grid')"
-                        v-bind:title="lang.btn.grid"
-                    >
-                        <i class="fa-solid fa-grip"></i>
-                    </button>
-                </div>
-            </div>
         </div>
     </div>
 </template>
@@ -142,8 +120,6 @@ const isAnyItemSelected = computed(() => {
     const manager = fm.getManager(activeManager.value)
     return manager.selected.files.length > 0 || manager.selected.directories.length > 0
 })
-
-const viewType = computed(() => fm.getManager(activeManager.value).viewType)
 
 const uploading = computed(() => messages.actionProgress > 0)
 
@@ -192,12 +168,6 @@ function toggleHidden() {
 
 function showModal(modalName) {
     modal.setModalState({ modalName, show: true })
-}
-
-function selectView(type) {
-    if (viewType.value !== type) {
-        fm.setManagerView(activeManager.value, type)
-    }
 }
 
 function screenToggle() {

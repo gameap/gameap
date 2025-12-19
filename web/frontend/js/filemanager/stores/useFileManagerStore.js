@@ -5,7 +5,6 @@ import POST from '../http/post.js'
 import { useSettingsStore } from './useSettingsStore.js'
 import { useMessagesStore } from './useMessagesStore.js'
 import { useModalStore } from './useModalStore.js'
-import { useTreeStore } from './useTreeStore.js'
 
 function createManagerState() {
     return {
@@ -23,7 +22,6 @@ function createManagerState() {
         },
         history: [null],
         historyPointer: 0,
-        viewType: 'table',
     }
 }
 
@@ -193,10 +191,6 @@ export const useFileManagerStore = defineStore('fm', () => {
         getManager(managerName).directories.push(newDirectory)
     }
 
-    function setManagerView(managerName, type) {
-        getManager(managerName).viewType = type
-    }
-
     function setSort(managerName, { field, direction }) {
         const manager = getManager(managerName)
         manager.sort.field = field
@@ -318,8 +312,6 @@ export const useFileManagerStore = defineStore('fm', () => {
 
     // Manager actions
     async function selectDirectory(managerName, { path, history }) {
-        const settings = useSettingsStore()
-        const tree = useTreeStore()
         const manager = getManager(managerName)
 
         setManagerContent(managerName, { directories: [], files: [] })
@@ -333,10 +325,6 @@ export const useFileManagerStore = defineStore('fm', () => {
 
             if (history) {
                 addToHistory(managerName, path)
-            }
-
-            if (settings.windowsConfig === 2 && path && response.data.directories.length) {
-                tree.showSubdirectories(path, manager.selectedDisk)
             }
         }
     }
@@ -414,7 +402,6 @@ export const useFileManagerStore = defineStore('fm', () => {
     // Root actions
     async function initializeApp() {
         const settings = useSettingsStore()
-        const tree = useTreeStore()
 
         const response = await GET.initialize()
         if (response.data.result.status === 'success') {
@@ -424,18 +411,12 @@ export const useFileManagerStore = defineStore('fm', () => {
             let leftDisk = response.data.config.leftDisk
                 ? response.data.config.leftDisk
                 : diskList.value[0]
-            let rightDisk = response.data.config.rightDisk
-                ? response.data.config.rightDisk
-                : diskList.value[0]
             let leftPath = response.data.config.leftPath
-            let rightPath = response.data.config.rightPath
 
             if (window.location.search) {
                 const params = new URLSearchParams(window.location.search)
                 if (params.get('leftDisk')) leftDisk = params.get('leftDisk')
-                if (params.get('rightDisk')) rightDisk = params.get('rightDisk')
                 if (params.get('leftPath')) leftPath = params.get('leftPath')
-                if (params.get('rightPath')) rightPath = params.get('rightPath')
             }
 
             setManagerDisk('left', leftDisk)
@@ -446,20 +427,6 @@ export const useFileManagerStore = defineStore('fm', () => {
             }
 
             getLoadContent({ manager: 'left', disk: leftDisk, path: leftPath })
-
-            if (settings.windowsConfig === 3) {
-                setManagerDisk('right', rightDisk)
-                if (rightPath) {
-                    setManagerDirectory('right', rightPath)
-                    addToHistory('right', rightPath)
-                }
-                getLoadContent({ manager: 'right', disk: rightDisk, path: rightPath })
-            } else if (settings.windowsConfig === 2) {
-                await tree.initTree(leftDisk)
-                if (leftPath) {
-                    tree.reopenPath(leftPath, leftDisk)
-                }
-            }
         }
     }
 
@@ -471,18 +438,10 @@ export const useFileManagerStore = defineStore('fm', () => {
     }
 
     async function selectDiskAction({ disk, manager: managerName }) {
-        const settings = useSettingsStore()
-        const tree = useTreeStore()
-
         const response = await GET.selectDisk(disk)
         if (response.data.result.status === 'success') {
             setManagerDisk(managerName, disk)
             resetHistory(managerName)
-
-            if (settings.windowsConfig === 2) {
-                tree.initTree(disk)
-            }
-
             selectDirectory(managerName, { path: null, history: false })
         }
     }
@@ -569,9 +528,6 @@ export const useFileManagerStore = defineStore('fm', () => {
     }
 
     async function deleteItems(items) {
-        const settings = useSettingsStore()
-        const tree = useTreeStore()
-
         const response = await POST.delete({
             disk: selectedDisk.value,
             items,
@@ -579,18 +535,11 @@ export const useFileManagerStore = defineStore('fm', () => {
 
         if (response.data.result.status === 'success') {
             refreshManagers()
-
-            if (settings.windowsConfig === 2) {
-                const onlyDir = items.filter((item) => item.type === 'dir')
-                tree.deleteFromTree(onlyDir)
-            }
         }
         return response
     }
 
     async function paste() {
-        const settings = useSettingsStore()
-
         const response = await POST.paste({
             disk: selectedDisk.value,
             path: selectedDirectory.value,
@@ -598,7 +547,7 @@ export const useFileManagerStore = defineStore('fm', () => {
         })
 
         if (response.data.result.status === 'success') {
-            refreshAll()
+            refreshManagers()
 
             if (clipboard.value.type === 'cut') {
                 resetClipboard()
@@ -626,39 +575,6 @@ export const useFileManagerStore = defineStore('fm', () => {
         return GET.url(disk, path)
     }
 
-    async function zip(name) {
-        const currentDirectory = selectedDirectory.value
-        const manager = getManager(activeManager.value)
-
-        const response = await POST.zip({
-            disk: selectedDisk.value,
-            path: currentDirectory,
-            name,
-            elements: manager.selected,
-        })
-
-        if (response.data.result.status === 'success' && currentDirectory === selectedDirectory.value) {
-            refreshManagers()
-        }
-        return response
-    }
-
-    async function unzip(folder) {
-        const currentDirectory = selectedDirectory.value
-        const items = getSelectedList(activeManager.value)
-
-        const response = await POST.unzip({
-            disk: selectedDisk.value,
-            path: items[0].path,
-            folder,
-        })
-
-        if (response.data.result.status === 'success' && currentDirectory === selectedDirectory.value) {
-            refreshAll()
-        }
-        return response
-    }
-
     function toClipboard(type) {
         const manager = getManager(activeManager.value)
         if (getSelectedCount(activeManager.value)) {
@@ -672,29 +588,7 @@ export const useFileManagerStore = defineStore('fm', () => {
     }
 
     async function refreshManagers() {
-        const settings = useSettingsStore()
-
-        if (settings.windowsConfig === 3) {
-            return Promise.all([
-                refreshDirectory('left'),
-                refreshDirectory('right'),
-            ])
-        }
         return refreshDirectory('left')
-    }
-
-    async function refreshAll() {
-        const settings = useSettingsStore()
-        const tree = useTreeStore()
-
-        if (settings.windowsConfig === 2) {
-            await tree.initTree(left.selectedDisk)
-            return Promise.all([
-                tree.reopenPath(selectedDirectory.value, left.selectedDisk),
-                refreshManagers(),
-            ])
-        }
-        return refreshManagers()
     }
 
     function repeatSort(managerName) {
@@ -706,9 +600,6 @@ export const useFileManagerStore = defineStore('fm', () => {
     }
 
     function updateContent({ response, oldDir, commitName, type }) {
-        const settings = useSettingsStore()
-        const tree = useTreeStore()
-
         if (response.data.result.status === 'success' && oldDir === selectedDirectory.value) {
             if (commitName === 'addNewFile') {
                 addNewFile(activeManager.value, response.data[type])
@@ -719,34 +610,12 @@ export const useFileManagerStore = defineStore('fm', () => {
             }
 
             repeatSort(activeManager.value)
-
-            if (type === 'directory' && settings.windowsConfig === 2) {
-                tree.addToTree({
-                    parentPath: oldDir,
-                    newDirectory: response.data.tree,
-                })
-            } else if (
-                settings.windowsConfig === 3 &&
-                left.selectedDirectory === right.selectedDirectory &&
-                left.selectedDisk === right.selectedDisk
-            ) {
-                if (commitName === 'addNewFile') {
-                    addNewFile(inactiveManager.value, response.data[type])
-                } else if (commitName === 'updateFile') {
-                    updateFile(inactiveManager.value, response.data[type])
-                } else if (commitName === 'addNewDirectory') {
-                    addNewDirectory(inactiveManager.value, response.data[type])
-                }
-                repeatSort(inactiveManager.value)
-            }
         }
     }
 
     function resetState() {
-        const settings = useSettingsStore()
         const modal = useModalStore()
         const messages = useMessagesStore()
-        const tree = useTreeStore()
 
         // left manager
         setManagerDisk('left', null)
@@ -755,7 +624,6 @@ export const useFileManagerStore = defineStore('fm', () => {
         clearSelection('left')
         resetSortSettings('left')
         resetHistory('left')
-        setManagerView('left', 'table')
 
         // modals
         modal.clearModal()
@@ -765,21 +633,6 @@ export const useFileManagerStore = defineStore('fm', () => {
         messages.clearProgress()
         messages.clearLoading()
         messages.clearErrors()
-
-        if (settings.windowsConfig === 3) {
-            // right manager
-            setManagerDisk('right', null)
-            setManagerDirectory('right', null)
-            setManagerContent('right', { directories: [], files: [] })
-            clearSelection('right')
-            resetSortSettings('right')
-            resetHistory('right')
-            setManagerView('right', 'table')
-        } else if (settings.windowsConfig === 2) {
-            // tree
-            tree.cleanTree()
-            tree.clearTempArray()
-        }
 
         // root state
         activeManager.value = 'left'
@@ -814,11 +667,9 @@ export const useFileManagerStore = defineStore('fm', () => {
         fullScreen,
         // Manager states
         left,
-        right,
         getManager,
         // Root getters
         diskList,
-        inactiveManager,
         selectedDisk,
         selectedDirectory,
         selectedItems,
@@ -853,7 +704,6 @@ export const useFileManagerStore = defineStore('fm', () => {
         addNewFile,
         updateFile,
         addNewDirectory,
-        setManagerView,
         setSort,
         resetSortSettings,
         addToHistory,
@@ -884,11 +734,8 @@ export const useFileManagerStore = defineStore('fm', () => {
         paste,
         rename,
         url,
-        zip,
-        unzip,
         toClipboard,
         refreshManagers,
-        refreshAll,
         repeatSort,
         updateContent,
         resetState,
