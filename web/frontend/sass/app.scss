@@ -1,12 +1,15 @@
+// Variables
+@use "variables" as *;
+
+// GameAP
+@use './gameap' as *;
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 // Fonts
 // @import url("https://fonts.googleapis.com/css?family=Raleway:300,400,600");
-
-// Variables
-@import "variables";
 
 // Font Awesome
 @import '@fortawesome/fontawesome-free/css/all.css';
@@ -15,7 +18,4 @@
 @import '@gameap/ui/style.css';
 
 // GIcon
-@import "gicon/gicon";
-
-// GameAP
-@import './gameap';
+@import "gicon/gicon.css";

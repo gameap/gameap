@@ -133,9 +133,6 @@ import {generateServerName} from "@/parts/nameGenerator"
 import GButton from "@/components/GButton.vue"
 import {useRouter} from "vue-router";
 import {requiredValidator} from "@/parts/validators";
-import GameModSelector from "@/components/servers/GameModSelector.vue";
-import SmartPortSelector from "@/components/servers/SmartPortSelector.vue";
-import DsIpSelector from "@/components/servers/DsIpSelector.vue";
 
 const router = useRouter()
 

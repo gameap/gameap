@@ -1,8 +1,10 @@
+@use "sass:color";
+
 // Body
 $body-bg: #ffffff;
 
 // Borders
-$laravel-border-color: darken($body-bg, 10%);
+$laravel-border-color: color.adjust($body-bg, $lightness: -10%);
 $list-group-border: $laravel-border-color;
 $navbar-default-border: $laravel-border-color;
 $panel-default-border: $laravel-border-color;
@@ -36,9 +38,9 @@ $navbar-default-bg: #fff;
 $btn-default-color: $text-color;
 
 // Inputs
-$input-border: lighten($text-color, 40%);
-$input-border-focus: lighten($brand-primary, 25%);
-$input-color-placeholder: lighten($text-color, 30%);
+$input-border: color.adjust($text-color, $lightness: 40%);
+$input-border-focus: color.adjust($brand-primary, $lightness: 25%);
+$input-color-placeholder: color.adjust($text-color, $lightness: 30%);
 
 // Panels
 $panel-default-heading-bg: #fff;

@@ -33,7 +33,7 @@ export default defineConfig({
             },
             output: {
                 // Merge small chunks to reduce HTTP requests
-                experimentalMinChunkSize: 5000, // 5KB minimum chunk size
+                experimentalMinChunkSize: 20000, // 20KB minimum chunk size
             }
         },
         cssCodeSplit: true
