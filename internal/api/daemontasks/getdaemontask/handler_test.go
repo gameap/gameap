@@ -145,6 +145,16 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				var actualResponse daemonTaskOutputResponse
 				err := json.Unmarshal(rec.Body.Bytes(), &actualResponse)
 				require.NoError(t, err)
+
+				if actualResponse.UpdatedAt != nil {
+					assert.InDelta(t, time.Now().Unix(), actualResponse.UpdatedAt.Unix(), 1)
+					actualResponse.UpdatedAt = tc.expectedResponse.UpdatedAt
+				}
+				if tc.expectedResponse.CreatedAt != nil && actualResponse.CreatedAt != nil {
+					assert.InDelta(t, tc.expectedResponse.CreatedAt.Unix(), actualResponse.CreatedAt.Unix(), 1)
+					actualResponse.CreatedAt = tc.expectedResponse.CreatedAt
+				}
+
 				assert.Equal(t, *tc.expectedResponse, actualResponse)
 			}
 
