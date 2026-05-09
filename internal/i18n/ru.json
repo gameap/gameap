@@ -842,5 +842,13 @@
     "url": "Поле :attribute имеет ошибочный формат.",
     "uuid": "Поле :attribute должно быть корректным UUID.",
     "rule-name": "custom-message"
+  },
+  "ws_status": {
+    "disconnected_title": "Соединение потеряно",
+    "disconnected_text": "Real-time данные временно недоступны. Идёт переподключение…",
+    "proxy_hint_title": "WebSocket недоступен",
+    "proxy_hint_text": "Не удалось установить real-time соединение. Если GameAP работает за reverse proxy (nginx, Apache, Caddy), проверьте проброс WebSocket-заголовков (Upgrade и Connection).",
+    "show_details": "Подробности",
+    "proxy_hint_details": "Для nginx добавьте в конфиг location:\n\nproxy_http_version 1.1;\nproxy_set_header Upgrade $http_upgrade;\nproxy_set_header Connection \"upgrade\";\nproxy_read_timeout 3600s;\n\nДля Apache включите модули:\n  a2enmod proxy proxy_http proxy_wstunnel rewrite\nи добавьте правило:\n  RewriteEngine On\n  RewriteCond %{HTTP:Upgrade} websocket [NC]\n  RewriteRule /(.*) ws://backend/$1 [P,L]\n\nДля Caddy достаточно директивы reverse_proxy без дополнительных настроек."
   }
 }

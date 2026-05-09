@@ -853,5 +853,13 @@
     "url": "The :attribute must be a valid URL.",
     "uuid": "The :attribute must be a valid UUID.",
     "rule-name": "custom-message"
+  },
+  "ws_status": {
+    "disconnected_title": "Connection lost",
+    "disconnected_text": "Real-time updates are temporarily unavailable. Reconnecting…",
+    "proxy_hint_title": "WebSocket unavailable",
+    "proxy_hint_text": "Failed to establish a real-time connection. If GameAP runs behind a reverse proxy (nginx, Apache, Caddy), verify that WebSocket headers (Upgrade and Connection) are forwarded correctly.",
+    "show_details": "Details",
+    "proxy_hint_details": "For nginx, add to your location block:\n\nproxy_http_version 1.1;\nproxy_set_header Upgrade $http_upgrade;\nproxy_set_header Connection \"upgrade\";\nproxy_read_timeout 3600s;\n\nFor Apache, enable modules:\n  a2enmod proxy proxy_http proxy_wstunnel rewrite\nand add a rule:\n  RewriteEngine On\n  RewriteCond %{HTTP:Upgrade} websocket [NC]\n  RewriteRule /(.*) ws://backend/$1 [P,L]\n\nFor Caddy, the reverse_proxy directive handles WebSocket upgrades automatically."
   }
 }

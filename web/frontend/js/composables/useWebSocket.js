@@ -1,4 +1,5 @@
 import { ref, onBeforeUnmount } from 'vue'
+import { useWsStatusStore } from '@/store/wsStatus'
 
 const MAX_RECONNECT_DELAY = 30000
 const PING_INTERVAL = 25000
@@ -9,6 +10,14 @@ function buildWsUrl(path, token) {
     base = base.replace(/^http/, 'ws')
     const separator = path.includes('?') ? '&' : '?'
     return `${base}${path}${separator}token=${encodeURIComponent(token)}`
+}
+
+function generateConnectionId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID()
+    }
+
+    return `ws-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 export function useWebSocket(options = {}) {
@@ -22,6 +31,8 @@ export function useWebSocket(options = {}) {
     } = options
 
     const status = ref('disconnected')
+    const wsStatusStore = useWsStatusStore()
+    const connectionId = generateConnectionId()
 
     let ws = null
     let currentPath = null
@@ -32,6 +43,7 @@ export function useWebSocket(options = {}) {
     let lastPong = 0
     let shouldReconnect = reconnect
     let manualClose = false
+    let registered = false
 
     function connect(urlPath) {
         const token = localStorage.getItem('auth_token')
@@ -48,12 +60,20 @@ export function useWebSocket(options = {}) {
         const url = buildWsUrl(urlPath, token)
         status.value = 'connecting'
 
+        if (!registered) {
+            wsStatusStore.register(connectionId)
+            registered = true
+        }
+        wsStatusStore.setStatus(connectionId, 'connecting', reconnectAttempts)
+
         ws = new WebSocket(url)
 
         ws.onopen = () => {
             status.value = 'connected'
             reconnectAttempts = 0
             lastPong = Date.now()
+            wsStatusStore.setStatus(connectionId, 'connected', 0)
+            wsStatusStore.markEverConnected(connectionId)
             startPing()
             onOpen?.()
         }
@@ -77,6 +97,7 @@ export function useWebSocket(options = {}) {
 
         ws.onclose = () => {
             status.value = 'disconnected'
+            wsStatusStore.setStatus(connectionId, 'disconnected', reconnectAttempts)
             stopPing()
             onClose?.()
 
@@ -110,6 +131,11 @@ export function useWebSocket(options = {}) {
         manualClose = true
         shouldReconnect = false
         cleanup()
+
+        if (registered) {
+            wsStatusStore.unregister(connectionId)
+            registered = false
+        }
     }
 
     function cleanup() {
@@ -135,6 +161,7 @@ export function useWebSocket(options = {}) {
 
     function scheduleReconnect() {
         if (reconnectAttempts >= maxReconnectAttempts) {
+            wsStatusStore.setStatus(connectionId, 'failed', reconnectAttempts)
             return
         }
 
