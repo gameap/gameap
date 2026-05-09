@@ -9,42 +9,6 @@
         <div v-if="user">
           <main-navbar></main-navbar>
 
-          <status-banner
-              v-if="wsBanner.show"
-              :type="wsBanner.type"
-              :title="wsBanner.title"
-              :text="wsBanner.text"
-          >
-            <template v-if="wsBanner.showDetails" #actions>
-              <button
-                  type="button"
-                  class="underline text-sm hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-white/60 rounded px-2 py-1"
-                  @click="wsDetailsOpen = true"
-              >
-                {{ trans('ws_status.show_details') }}
-              </button>
-            </template>
-          </status-banner>
-
-          <n-modal v-model:show="wsDetailsOpen">
-            <n-card
-                :title="trans('ws_status.proxy_hint_title')"
-                style="max-width: 720px"
-                :bordered="false"
-                size="huge"
-                role="dialog"
-                aria-modal="true"
-            >
-              <p class="mb-3">{{ trans('ws_status.proxy_hint_text') }}</p>
-              <pre class="text-xs whitespace-pre-wrap bg-stone-100 dark:bg-stone-800 p-3 rounded border border-stone-300 dark:border-stone-700 overflow-x-auto">{{ trans('ws_status.proxy_hint_details') }}</pre>
-              <template #footer>
-                <div class="flex justify-end">
-                  <GButton @click="wsDetailsOpen = false">{{ trans('main.close') }}</GButton>
-                </div>
-              </template>
-            </n-card>
-          </n-modal>
-
           <div id="main-section" class="mt-16 mr-5 sm:flex">
             <div class="sm:visible invisible flex-none">
               <main-sidebar></main-sidebar>
@@ -53,6 +17,42 @@
             <div class="sm:flex-1">
               <div class="max-w-full">
                 <div class="pt-3 pb-16 max-sm:pl-5 content">
+                  <status-banner
+                      v-if="wsBanner.show"
+                      :type="wsBanner.type"
+                      :title="wsBanner.title"
+                      :text="wsBanner.text"
+                  >
+                    <template v-if="wsBanner.showDetails" #actions>
+                      <button
+                          type="button"
+                          class="underline text-sm hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-white/60 rounded px-2 py-1"
+                          @click="wsDetailsOpen = true"
+                      >
+                        {{ trans('ws_status.show_details') }}
+                      </button>
+                    </template>
+                  </status-banner>
+
+                  <n-modal v-model:show="wsDetailsOpen">
+                    <n-card
+                        :title="trans('ws_status.proxy_hint_title')"
+                        style="max-width: 720px"
+                        :bordered="false"
+                        size="huge"
+                        role="dialog"
+                        aria-modal="true"
+                    >
+                      <p class="mb-3">{{ trans('ws_status.proxy_hint_text') }}</p>
+                      <pre class="text-xs whitespace-pre-wrap bg-stone-100 dark:bg-stone-800 p-3 rounded border border-stone-300 dark:border-stone-700 overflow-x-auto">{{ trans('ws_status.proxy_hint_details') }}</pre>
+                      <template #footer>
+                        <div class="flex justify-end">
+                          <GButton @click="wsDetailsOpen = false">{{ trans('main.close') }}</GButton>
+                        </div>
+                      </template>
+                    </n-card>
+                  </n-modal>
+
                   <content-view></content-view>
 
                   <div v-if="!$route.name">
