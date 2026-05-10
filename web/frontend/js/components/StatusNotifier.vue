@@ -1,7 +1,7 @@
 <template></template>
 
 <script setup>
-import { h, watchEffect, onUnmounted } from 'vue'
+import { h, watchEffect, onMounted, onUnmounted } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
 import { useNotificationsStore } from '@/store/notifications'
 import { useWsStatusNotifications } from '@/composables/useWsStatusNotifications'
@@ -25,11 +25,7 @@ function renderActions(actions) {
     )
 }
 
-function renderNotification(notification) {
-    if (typeof notification.render === 'function') {
-        return notification.render()
-    }
-
+function renderContent(notification) {
     const titleNode = notification.title
         ? h('div', { class: 'font-semibold' }, notification.title)
         : null
@@ -50,13 +46,19 @@ function renderNotification(notification) {
 }
 
 function createMessage(notification) {
-    return message.create('', {
+    const options = {
         type: notification.type ?? 'info',
         duration: notification.duration ?? 0,
         closable: notification.closable ?? true,
-        render: () => renderNotification(notification),
         onClose: () => store.dismiss(notification.id),
-    })
+    }
+
+    if (typeof notification.render === 'function') {
+        options.render = notification.render
+        return message.create('', options)
+    }
+
+    return message.create(() => renderContent(notification), options)
 }
 
 function syncMessages() {
@@ -79,7 +81,22 @@ function syncMessages() {
 
 watchEffect(syncMessages)
 
+onMounted(() => {
+    window.$notifier = {
+        show: (payload) => store.show(payload),
+        dismiss: (id) => store.dismiss(id),
+        clear: () => store.clear(),
+        list: () => [...store.notifications],
+        info: (text, opts = {}) => store.show({ type: 'info', text, ...opts }),
+        success: (text, opts = {}) => store.show({ type: 'success', text, ...opts }),
+        warning: (text, opts = {}) => store.show({ type: 'warning', text, ...opts }),
+        error: (text, opts = {}) => store.show({ type: 'error', text, ...opts }),
+        loading: (text, opts = {}) => store.show({ type: 'loading', text, ...opts }),
+    }
+})
+
 onUnmounted(() => {
+    delete window.$notifier
     for (const msg of messageMap.values()) {
         msg.destroy()
     }

@@ -24,6 +24,10 @@ export const useWsStatusStore = defineStore('wsStatus', {
         },
         hasDisconnected: (state) =>
             Object.values(state.connections).some(c => c.status === 'disconnected' || c.status === 'failed'),
+        hasFailureSignal: (state) =>
+            Object.values(state.connections).some(c =>
+                c.status === 'disconnected' || c.status === 'failed' || c.attempts > 0,
+            ),
     },
     actions: {
         register(id) {

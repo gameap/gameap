@@ -6,7 +6,7 @@ import { trans } from '@/i18n/i18n'
 
 export function useWsStatusNotifications(dialog) {
     const notifier = useStatusNotifier()
-    const { aggregateStatus, failedFirstConnect, anyEverConnected } = storeToRefs(useWsStatusStore())
+    const { aggregateStatus, failedFirstConnect, anyEverConnected, hasFailureSignal } = storeToRefs(useWsStatusStore())
 
     let currentId = null
 
@@ -53,13 +53,13 @@ export function useWsStatusNotifications(dialog) {
     }
 
     watch(
-        [aggregateStatus, failedFirstConnect, anyEverConnected],
-        ([status, failedFirst, everConnected]) => {
+        [aggregateStatus, failedFirstConnect, anyEverConnected, hasFailureSignal],
+        ([status, failedFirst, everConnected, failureSignal]) => {
             if (status === 'connected' || status === 'idle') {
                 dismiss()
             } else if (failedFirst) {
                 showProxyHint()
-            } else if (everConnected) {
+            } else if (everConnected || failureSignal) {
                 showDisconnected()
             } else {
                 dismiss()
