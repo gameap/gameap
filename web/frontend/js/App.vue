@@ -5,7 +5,7 @@
       :theme-overrides="naiveThemeOverrides"
   >
     <n-dialog-provider>
-      <n-message-provider :container-style="{ top: '76px' }">
+      <n-message-provider>
         <div v-if="user">
           <main-navbar></main-navbar>
           <status-notifier />
