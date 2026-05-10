@@ -8,6 +8,7 @@
       <n-message-provider>
         <div v-if="user">
           <main-navbar></main-navbar>
+          <status-notifier />
 
           <div id="main-section" class="mt-16 mr-5 sm:flex">
             <div class="sm:visible invisible flex-none">
@@ -17,42 +18,6 @@
             <div class="sm:flex-1">
               <div class="max-w-full">
                 <div class="pt-3 pb-16 max-sm:pl-5 content">
-                  <status-banner
-                      v-if="wsBanner.show"
-                      :type="wsBanner.type"
-                      :title="wsBanner.title"
-                      :text="wsBanner.text"
-                  >
-                    <template v-if="wsBanner.showDetails" #actions>
-                      <button
-                          type="button"
-                          class="underline text-sm hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-white/60 rounded px-2 py-1"
-                          @click="wsDetailsOpen = true"
-                      >
-                        {{ trans('ws_status.show_details') }}
-                      </button>
-                    </template>
-                  </status-banner>
-
-                  <n-modal v-model:show="wsDetailsOpen">
-                    <n-card
-                        :title="trans('ws_status.proxy_hint_title')"
-                        style="max-width: 720px"
-                        :bordered="false"
-                        size="huge"
-                        role="dialog"
-                        aria-modal="true"
-                    >
-                      <p class="mb-3">{{ trans('ws_status.proxy_hint_text') }}</p>
-                      <pre class="text-xs whitespace-pre-wrap bg-stone-100 dark:bg-stone-800 p-3 rounded border border-stone-300 dark:border-stone-700 overflow-x-auto">{{ trans('ws_status.proxy_hint_details') }}</pre>
-                      <template #footer>
-                        <div class="flex justify-end">
-                          <GButton @click="wsDetailsOpen = false">{{ trans('main.close') }}</GButton>
-                        </div>
-                      </template>
-                    </n-card>
-                  </n-modal>
-
                   <content-view></content-view>
 
                   <div v-if="!$route.name">
@@ -83,13 +48,11 @@
 </template>
 
 <script setup>
-import {computed, onMounted, provide, ref, watch} from "vue"
+import {computed, onMounted, provide, watch} from "vue"
 import {
   NConfigProvider,
   NDialogProvider,
   NMessageProvider,
-  NModal,
-  NCard,
   lightTheme,
   darkTheme,
   ruRU,
@@ -100,8 +63,8 @@ import MainNavbar from "./components/MainNavbar.vue"
 import GuestNavbar from "./components/GuestNavbar.vue"
 import MainSidebar from "./components/MainSidebar.vue"
 import ContentView from "./components/ContentView.vue"
-import StatusBanner from "./components/StatusBanner.vue"
-import {pageLanguage, trans} from "./i18n/i18n"
+import StatusNotifier from "./components/StatusNotifier.vue"
+import {pageLanguage} from "./i18n/i18n"
 
 import {useRoute, useRouter} from "vue-router"
 
@@ -112,7 +75,6 @@ import {useDaemonTaskStore} from "./store/daemonTask"
 import {useGameStore} from "./store/game"
 import {useServerStore} from "./store/server"
 import {useUserStore} from "./store/user"
-import {useWsStatusStore} from "./store/wsStatus"
 
 const route = useRoute()
 const router = useRouter()
@@ -124,39 +86,9 @@ const daemonTaskStore = useDaemonTaskStore()
 const gameStore = useGameStore()
 const serverStore = useServerStore()
 const userStore = useUserStore()
-const wsStatusStore = useWsStatusStore()
 
 const user = computed(() => {
   return authStore.user
-})
-
-const wsDetailsOpen = ref(false)
-
-const wsBanner = computed(() => {
-  const status = wsStatusStore.aggregateStatus
-  const failedFirst = wsStatusStore.failedFirstConnect
-
-  if (status === 'connected' || status === 'idle') {
-    return { show: false }
-  }
-
-  if (failedFirst) {
-    return {
-      show: true,
-      type: 'error',
-      title: trans('ws_status.proxy_hint_title'),
-      text: trans('ws_status.proxy_hint_text'),
-      showDetails: true,
-    }
-  }
-
-  return {
-    show: true,
-    type: 'warning',
-    title: trans('ws_status.disconnected_title'),
-    text: trans('ws_status.disconnected_text'),
-    showDetails: false,
-  }
 })
 
 const lightThemeOverrides = {
