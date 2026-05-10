@@ -1,16 +1,14 @@
 <template></template>
 
 <script setup>
-import { h, watch, onUnmounted } from 'vue'
+import { h, watchEffect, onUnmounted } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
-import { storeToRefs } from 'pinia'
 import { useNotificationsStore } from '@/store/notifications'
 import { useWsStatusNotifications } from '@/composables/useWsStatusNotifications'
 
 const message = useMessage()
 const dialog = useDialog()
 const store = useNotificationsStore()
-const { notifications } = storeToRefs(store)
 
 const messageMap = new Map()
 
@@ -61,7 +59,8 @@ function createMessage(notification) {
     })
 }
 
-function syncMessages(current) {
+function syncMessages() {
+    const current = store.notifications
     const currentIds = new Set(current.map(n => n.id))
 
     for (const [id, msg] of messageMap.entries()) {
@@ -78,7 +77,7 @@ function syncMessages(current) {
     }
 }
 
-watch(notifications, syncMessages, { immediate: true, deep: true })
+watchEffect(syncMessages)
 
 onUnmounted(() => {
     for (const msg of messageMap.values()) {
