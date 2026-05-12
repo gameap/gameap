@@ -132,6 +132,43 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, uint8(1), r.Repeat)
 				assert.NotNil(t, r.Payload)
 				assert.Equal(t, "test payload", *r.Payload)
+				assert.True(t, r.Enabled)
+				assert.Equal(t, "skip", r.OverlapPolicy)
+				assert.Equal(t, "skip", r.CatchupPolicy)
+				assert.Equal(t, uint64(1), r.Version)
+				assert.Nil(t, r.Name)
+				assert.Nil(t, r.Timezone)
+			},
+		},
+		{
+			name:       "successful_task_creation_with_extended_fields",
+			setupAuth:  defaultSetupAuth,
+			setupRepos: defaultSetupRepos,
+			requestBody: map[string]any{
+				"command":        "update",
+				"name":           "weekly update",
+				"enabled":        false,
+				"overlap_policy": "queue",
+				"catchup_policy": "run_once",
+				"timezone":       "Europe/Moscow",
+				"repeat":         3,
+				"repeat_period":  "1 hour",
+				"execute_date":   time.Now().Add(time.Hour).Format(time.RFC3339),
+			},
+			wantStatus: http.StatusCreated,
+			validateResponse: func(t *testing.T, r serverTaskResponse) {
+				t.Helper()
+
+				assert.Equal(t, "update", r.Command)
+				require.NotNil(t, r.Name)
+				assert.Equal(t, "weekly update", *r.Name)
+				assert.False(t, r.Enabled)
+				assert.Equal(t, "queue", r.OverlapPolicy)
+				assert.Equal(t, "run_once", r.CatchupPolicy)
+				require.NotNil(t, r.Timezone)
+				assert.Equal(t, "Europe/Moscow", *r.Timezone)
+				assert.Equal(t, "1 hour", r.RepeatPeriod)
+				assert.Equal(t, uint64(1), r.Version)
 			},
 		},
 		{

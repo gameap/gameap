@@ -177,6 +177,39 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.NotNil(t, r.Payload)
 				assert.Equal(t, "updated payload", *r.Payload)
 				assert.Equal(t, uint(0), r.Counter)
+				assert.NotZero(t, r.Version)
+			},
+		},
+		{
+			name:       "successful_update_with_extended_fields",
+			setupAuth:  defaultSetupAuth,
+			setupRepos: defaultSetupRepos,
+			taskID:     "1",
+			serverID:   "1",
+			requestBody: map[string]any{
+				"command":        "stop",
+				"name":           "graceful shutdown",
+				"enabled":        false,
+				"overlap_policy": "queue",
+				"catchup_policy": "run_once",
+				"timezone":       "America/New_York",
+				"repeat":         1,
+				"execute_date":   time.Now().Add(time.Hour).Format(time.RFC3339),
+			},
+			wantStatus: http.StatusOK,
+			validateResponse: func(t *testing.T, r serverTaskResponse) {
+				t.Helper()
+
+				assert.Equal(t, uint(1), r.ID)
+				assert.Equal(t, "stop", r.Command)
+				require.NotNil(t, r.Name)
+				assert.Equal(t, "graceful shutdown", *r.Name)
+				assert.False(t, r.Enabled)
+				assert.Equal(t, "queue", r.OverlapPolicy)
+				assert.Equal(t, "run_once", r.CatchupPolicy)
+				require.NotNil(t, r.Timezone)
+				assert.Equal(t, "America/New_York", *r.Timezone)
+				assert.NotZero(t, r.Version)
 			},
 		},
 		{

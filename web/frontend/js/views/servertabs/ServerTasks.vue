@@ -1,509 +1,296 @@
+<script setup>
+import { computed, h, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { GDataTable, GEmpty, GIcon, Loading } from '@gameap/ui'
+import GButton from '@/components/GButton.vue'
+import { useServerStore } from '@/store/server'
+import { useServerTasksStore } from '@/store/serverTasks'
+import { confirm, errorNotification } from '@/parts/dialogs'
+import { trans } from '@/i18n/i18n'
+
+import ServerTaskForm from './ServerTaskForm.vue'
+import ServerTaskExecutionsModal from './ServerTaskExecutionsModal.vue'
+
+const props = defineProps({
+    serverId: { type: Number, required: true },
+    privileges: {
+        type: Object,
+        default: () => ({ start: true, stop: true, restart: true, update: true }),
+    },
+})
+
+const serverStore = useServerStore()
+const tasksStore = useServerTasksStore()
+const { tasks, loading } = storeToRefs(tasksStore)
+
+const formVisible = ref(false)
+const executionsVisible = ref(false)
+const selectedTaskIndex = ref(null)
+const executionsTask = ref(null)
+
+const COMMAND_BADGE_CLASS = {
+    start: 'badge-green',
+    stop: 'badge-red',
+    restart: 'badge-orange',
+    update: 'badge-blue',
+    reinstall: 'badge-stone',
+}
+
+const COMMAND_ICON = {
+    start: 'play',
+    stop: 'stop',
+    restart: 'restart',
+    update: 'refresh',
+    reinstall: 'sync',
+}
+
+const REPEAT_ENDLESSLY = 0
+const REPEAT_ONCE = 1
+
+const selectedTask = computed(() => {
+    if (selectedTaskIndex.value === null) return null
+
+    return tasks.value[selectedTaskIndex.value] ?? null
+})
+
+function commandLabel(command) {
+    if (!command) return '—'
+    const key = `servers.${command}`
+    const value = trans(key)
+
+    return value === key ? command : value
+}
+
+function repeatText(row) {
+    const value = parseInt(row.repeat, 10)
+    if (value === REPEAT_ENDLESSLY) return trans('servers_tasks.endlessly')
+    if (value === REPEAT_ONCE) return trans('servers_tasks.once')
+
+    return String(value)
+}
+
+function renderTaskCell(row) {
+    const name = row.name && row.name.length > 0 ? row.name : null
+    const command = row.command
+    const iconName = COMMAND_ICON[command] || 'calendar'
+    const badgeClass = COMMAND_BADGE_CLASS[command] || 'badge-stone'
+
+    const left = h(
+        'span',
+        {
+            class:
+                `${badgeClass} inline-flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0`,
+        },
+        h(GIcon, { name: iconName }),
+    )
+
+    const right = name
+        ? h('div', { class: 'flex flex-col leading-tight' }, [
+            h(
+                'span',
+                { class: 'font-medium text-stone-800 dark:text-stone-100' },
+                name,
+            ),
+            h(
+                'span',
+                { class: 'text-xs text-stone-500 dark:text-stone-400 font-mono' },
+                commandLabel(command),
+            ),
+        ])
+        : h(
+            'span',
+            { class: 'font-medium text-stone-800 dark:text-stone-100' },
+            commandLabel(command),
+        )
+
+    return h('div', { class: 'flex items-center gap-3' }, [left, right])
+}
+
+function renderScheduleCell(row) {
+    const children = [
+        h(
+            'span',
+            { class: 'font-mono text-sm text-stone-800 dark:text-stone-100' },
+            row.execute_date || '—',
+        ),
+    ]
+    if (row.timezone) {
+        children.push(
+            h(
+                'span',
+                { class: 'text-xs text-stone-500 dark:text-stone-400' },
+                row.timezone,
+            ),
+        )
+    }
+
+    return h('div', { class: 'flex flex-col leading-tight' }, children)
+}
+
+function renderRepeatCell(row) {
+    const children = [
+        h(
+            'span',
+            { class: 'text-sm text-stone-800 dark:text-stone-100' },
+            repeatText(row),
+        ),
+    ]
+    if (row.repeat_period && parseInt(row.repeat, 10) !== REPEAT_ONCE) {
+        children.push(
+            h(
+                'span',
+                { class: 'text-xs text-stone-500 dark:text-stone-400' },
+                row.repeat_period,
+            ),
+        )
+    }
+
+    return h('div', { class: 'flex flex-col leading-tight' }, children)
+}
+
+function renderStatusCell(row) {
+    const enabled = row.enabled !== false
+    const badgeClass = enabled ? 'badge-green' : 'badge-stone'
+    const label = enabled
+        ? trans('servers_tasks.active')
+        : trans('servers_tasks.paused')
+
+    return h('span', { class: badgeClass }, label)
+}
+
+function renderActionButton(color, iconName, label, onClick, extraClass = '') {
+    return h(
+        GButton,
+        {
+            color,
+            size: 'small',
+            class: extraClass,
+            onClick,
+        },
+        () => [
+            h(GIcon, { name: iconName }),
+            h('span', { class: 'hidden lg:inline ml-1' }, label),
+        ],
+    )
+}
+
+function renderActionsCell(row, rowIndex) {
+    return h('div', { class: 'flex justify-end' }, [
+        renderActionButton('blue', 'edit', trans('main.edit'), () => openEdit(rowIndex), 'mr-1'),
+        renderActionButton(
+            'black',
+            'eye',
+            trans('servers_tasks.executions'),
+            () => openExecutions(row),
+            'mr-1',
+        ),
+        renderActionButton('red', 'delete', trans('main.delete'), () => deleteTask(rowIndex)),
+    ])
+}
+
+const columns = computed(() => [
+    {
+        title: trans('servers_tasks.task'),
+        key: 'task',
+        render: renderTaskCell,
+    },
+    {
+        title: trans('servers_tasks.schedule'),
+        key: 'schedule',
+        render: renderScheduleCell,
+    },
+    {
+        title: trans('servers_tasks.repeat'),
+        key: 'repeat',
+        render: renderRepeatCell,
+    },
+    {
+        title: trans('servers_tasks.status'),
+        key: 'status',
+        width: 120,
+        render: renderStatusCell,
+    },
+    {
+        title: trans('main.actions'),
+        key: 'actions',
+        align: 'right',
+        render: renderActionsCell,
+    },
+])
+
+function openCreate() {
+    selectedTaskIndex.value = null
+    formVisible.value = true
+}
+
+function openEdit(index) {
+    selectedTaskIndex.value = index
+    formVisible.value = true
+}
+
+function openExecutions(row) {
+    executionsTask.value = row
+    executionsVisible.value = true
+}
+
+function deleteTask(index) {
+    confirm(trans('servers_tasks.confirm_remove'), async () => {
+        try {
+            await tasksStore.destroyTask(index)
+        } catch (e) {
+            errorNotification(e)
+        }
+    })
+}
+
+function refresh() {
+    tasksStore.fetchTasks().catch((e) => errorNotification(e))
+}
+
+onMounted(() => {
+    serverStore.setServerId(props.serverId)
+    refresh()
+})
+</script>
+
 <template>
     <div id="server-task-component">
-        <div class="mb-2">
-          <GButton color="green" size="small" v-on:click="createTask()">
-            <GIcon name="add-square" />
-            {{ trans('main.add') }}
-          </GButton>
+        <div class="flex items-center gap-2 mb-3">
+            <GButton color="green" size="small" @click="openCreate">
+                <GIcon name="add-square" />
+                <span class="ml-1">{{ trans('main.add') }}</span>
+            </GButton>
+            <GButton color="white" size="small" @click="refresh">
+                <GIcon name="refresh" />
+                <span class="ml-1">{{ trans('servers_tasks.refresh') }}</span>
+            </GButton>
         </div>
 
-      <table class="stone-table">
-        <thead class="stone-table-header">
-        <tr>
-          <th scope="col" class="px-4 py-4">{{ trans('servers_tasks.task') }}</th>
-          <th scope="col" class="px-4 py-4">{{ trans('servers_tasks.date') }}</th>
-          <th scope="col" class="px-4 py-4">{{ trans('servers_tasks.repeat') }}</th>
-          <th scope="col" class="px-4 py-4">{{ trans('main.actions') }}</th>
-        </tr>
-        </thead>
-        <tbody v-for="(value, key) in tasks">
-        <tr class="stone-table-row">
-          <td class="px-3 py-4">{{ value.command }}</td>
-          <td class="px-3 py-4">{{ value.execute_date }}</td>
-          <td class="px-3 py-4">{{ humanRepeatText(value.repeat) }}</td>
-          <td class="px-3 py-4">
-            <GButton v-on:click="editTask(key)" color="blue" size="small" class="mr-1">
-              <GIcon name="edit" />
-              <span class="hidden lg:inline">&nbsp;{{ trans('main.edit') }}</span>
-            </GButton>
-            <GButton v-on:click="deleteTask(key)" color="red" size="small">
-              <GIcon name="delete" />
-              <span class="hidden lg:inline">&nbsp;{{ trans('main.delete') }}</span>
-            </GButton>
-          </td>
-        </tr>
-        </tbody>
-      </table>
-
-      <n-modal
-            v-model:show="modalEnabled"
-            class="custom-card"
-            preset="card"
-            :title="modalTitle"
-            :bordered="false"
-            style="width: 600px"
-            :segmented="segmented"
+        <GDataTable
+            :columns="columns"
+            :data="tasks"
+            :loading="loading"
+            :row-key="(row) => row.id"
         >
-            <div>
-                <form>
-                    <div class="mb-3">
-                        <label for="task" class="control-label">{{ trans('servers_tasks.task') }}</label>
-
-                        <n-select v-model:value="command" :options="options" v-on:update="formChange" />
-
-                        <span v-if="errors['command']" class="help-block">
-                            <strong class="text-red-600">{{ errors['command'] }}</strong>
-                        </span>
-                    </div>
-
-                    <div class="mb-3">
-                        <n-date-picker
-                            v-model:formatted-value="taskDate"
-                            value-format="yyyy-MM-dd HH:mm:ss"
-                            type="datetime"
-                            v-on:update="formChange"
-                            clearable
-                        /><br>
-
-                        <span v-if="errors['taskDate']" class="help-block">
-                            <strong class="text-red-600">{{ errors['taskDate'] }}</strong>
-                        </span>
-                    </div>
-
-                    <div class="relative block mb-2">
-                          <n-radio
-                              :checked="taskRepeatRadio === '1' || taskRepeatRadio === 1"
-                              @change="onTaskRepeatRadioChange"
-                              name="repeat"
-                              :label="trans('servers_tasks.no_repeat')"
-                              value="1"
-                          />
-                    </div>
-
-                    <div class="relative block mb-2">
-                        <n-radio
-                            :checked="taskRepeatRadio === '0' || taskRepeatRadio === 0"
-                            @change="onTaskRepeatRadioChange"
-                            name="repeat"
-                            :label="trans('servers_tasks.endlessly_repeat')"
-                            value="0"
-                        />
-                    </div>
-
-                    <div class="relative block mb-2">
-                        <n-radio
-                            :checked="taskRepeatRadio === ''"
-                            @change="onTaskRepeatRadioChange"
-                            name="repeat"
-                            :label="trans('servers_tasks.custom_repeat')"
-                            value=""
-                        />
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="repeat" class="control-label">{{ trans('servers_tasks.repeat_num') }}</label>
-                        <n-input-number
-                            v-model:value="taskRepeatInput"
-                            :disabled="taskRepeatRadio !== ''"
-                            id="repeat"
-                            :min="1"
-                            :max="255"
-                        />
-
-                        <span v-if="errors['taskRepeatInput']" class="help-block">
-                                    <strong class="text-red-600">{{ errors['taskRepeatInput'] }}</strong>
-                                </span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="control-label">{{ trans('servers_tasks.repeat_period') }}</label>
-
-                        <div class="flex flex-wrap ">
-                            <div class="md:w-1/3 pr-4 pl-4">
-                                <n-input-number
-                                    v-model:value="taskRepeatPeriod"
-                                    :disabled="repeat === 1"
-                                    v-on:update="formChange"
-                                    id="repeat_period"
-                                    name="repeat_period"
-                                    type="number"
-                                    :min="repeatMin"
-                                />
-                            </div>
-
-                            <div class="md:w-2/3 pr-4 pl-4">
-                                <n-select
-                                    v-model:value="taskRepeatUnit"
-                                    :disabled="repeat === 1"
-                                    v-on:update="formChange"
-                                    :options="unitOptions"
-                                />
-                            </div>
-                        </div>
-
-                        <span v-if="errors['taskRepeatPeriod']" class="help-block">
-                                    <strong class="text-red-600">{{ errors['taskRepeatPeriod'] }}</strong>
-                                </span>
-
-                    </div>
-
-                </form>
-            </div>
-
-            <template #footer>
-                <GButton color="blue" v-on:click="sendTaskForm" class="mr-1">
-                  {{ buttonName }}
-                </GButton>
-                <GButton color="white" v-on:click="hideModal">
-                  {{ trans('main.close') }}
-                </GButton>
+            <template #loading>
+                <Loading />
             </template>
-      </n-modal>
+            <template #empty>
+                <GEmpty :description="trans('servers_tasks.empty_list')" />
+            </template>
+        </GDataTable>
+
+        <ServerTaskForm
+            v-model:show="formVisible"
+            :task="selectedTask"
+            :task-index="selectedTaskIndex"
+            :privileges="privileges"
+            @saved="formVisible = false"
+        />
+
+        <ServerTaskExecutionsModal
+            v-model:show="executionsVisible"
+            :task="executionsTask"
+        />
     </div>
 </template>
-
-<script>
-    import { ref } from "vue";
-    import { storeToRefs } from 'pinia'
-    import { useServerStore } from '@/store/server'
-    import { useServerTasksStore } from '@/store/serverTasks'
-    import { pluralize, trans } from '@/i18n/i18n'
-    import { GIcon } from '@gameap/ui'
-    import GButton from "@/components/GButton.vue";
-    import {confirm, errorNotification} from "@/parts/dialogs";
-
-
-    const REPEAT_ENDLESSLY          = 0;
-    const REPEAT_ONCE               = 1;
-
-    const RADIO_REPEAT_CUSTOM       = '';
-
-    export default {
-      components: {GButton, GIcon},
-        props: {
-            serverId: Number,
-            privileges: {
-                start: true,
-                stop: true,
-                restart: true,
-                update: true
-            },
-        },
-        setup() {
-            const serverStore = useServerStore()
-            const tasksStore = useServerTasksStore()
-            const { tasks } = storeToRefs(tasksStore)
-
-            return {
-                serverStore,
-                tasksStore,
-                tasks,
-            }
-        },
-        data: function () {
-            return {
-                command: ref(''),
-                taskDate: ref('2007-06-30 12:08:55'),
-                taskRepeatInput: ref(1),
-                taskRepeatRadio: ref(0),
-                taskRepeatPeriod: ref(0),
-                taskRepeatUnit: ref('hours'),
-
-                selectedTaskIndex: ref(null),
-                errors: {},
-
-                modalEnabled: ref(false),
-                modalTitle: ref(''),
-                buttonName: this.trans('main.create'),
-
-                segmented: {
-                    content: 'soft',
-                    footer: 'soft'
-                },
-            }
-        },
-        methods: {
-          trans,
-            createTask() {
-                this.command = null;
-                this.taskDate = null;
-                this.taskRepeatInput = 1;
-                this.taskRepeatPeriod = 1;
-                this.taskRepeatUnit = 'hours';
-
-                this.selectedTaskIndex = null;
-
-                this.buttonName = this.trans('main.create');
-                this.modalTitle = this.trans('servers_tasks.new_task');
-
-                this.showModal();
-            },
-            editTask(index) {
-                this.command = this.tasks[index].command;
-                this.taskDate = this.tasks[index].execute_date;
-                this.taskRepeatInput = '';
-                this.repeat = this.tasks[index].repeat;
-
-                if (this.tasks[index].repeat_period) {
-                    const repeatPeriod = this.tasks[index].repeat_period.split(' ');
-
-                    this.taskRepeatPeriod = parseInt(repeatPeriod[0]);
-                    this.taskRepeatUnit = this.repeatUnitPlural(repeatPeriod[1]);
-                }
-
-                this.selectedTaskIndex = index;
-
-                this.buttonName = this.trans('main.save');
-                this.modalTitle = this.trans('servers_tasks.edit_task');
-
-                this.showModal();
-            },
-            sendTaskForm() {
-                if (!this.checkForm()) {
-                    return;
-                }
-
-                const form = {
-                    server_id: this.serverId,
-                    command: this.command,
-                    execute_date: this.taskDate,
-                    repeat: this.repeat,
-                };
-
-                form.repeat_period = form.repeat !== 1
-                    ? this.taskRepeatPeriod + ' ' + this.taskRepeatUnit
-                    : '';
-
-                if (this.selectedTaskIndex === null) {
-                    this.tasksStore.storeTask(form)
-                        .then(() => {
-                            this.hideModal();
-                        }).catch((e) => {
-                            this.hideModal();
-
-                            errorNotification(e);
-                        });
-                } else {
-                    this.tasksStore.updateTask(this.selectedTaskIndex, form)
-                        .then(() => {
-                            this.hideModal();
-                        }).catch((e) => {
-                            this.hideModal();
-
-                            errorNotification(e);
-                        });
-                }
-            },
-            checkForm() {
-                this.resetErrors();
-                let error = false;
-
-                if (!this.command) {
-                    error = true;
-                    this.errors.task = this.trans('servers_tasks.errors.empty_task_command');
-                }
-
-                if (!this.taskDate) {
-                    error = true;
-                    this.errors.taskDate = this.trans('servers_tasks.errors.empty_task_date');
-                }
-
-                if (this.taskRepeatRadio === RADIO_REPEAT_CUSTOM
-                    && (isNaN(parseInt(this.taskRepeatInput))
-                        || this.taskRepeatInput < 1
-                        || this.taskRepeatInput > 255)
-                ) {
-                    error = true;
-                    this.errors.taskRepeatInput = this.trans('servers_tasks.errors.invalid_repeat_value');
-                }
-
-                if (this.repeat !== REPEAT_ONCE) {
-                    if (!this.taskRepeatUnit) {
-                        error = true;
-                        this.errors.taskRepeatPeriod = this.trans('servers_tasks.errors.empty_period_unit');
-                    } else if (!this.taskRepeatPeriod) {
-                        error = true;
-                        this.errors.taskRepeatPeriod = this.trans('servers_tasks.errors.empty_period');
-                    } else if (this.taskRepeatUnit === 'minutes' && this.taskRepeatPeriod < 10) {
-                        error = true;
-                        this.errors.taskRepeatPeriod = this.trans('servers_tasks.errors.minimum_period');
-                    }
-                }
-
-                return !error;
-            },
-            resetErrors() {
-                this.errors = {
-                    command: null,
-                    taskDate: null,
-                    taskRepeatRadio: null,
-                    taskRepeatInput: null,
-                    taskRepeatPeriod: null,
-                };
-            },
-            onTaskRepeatRadioChange(e) {
-                this.taskRepeatRadio = e.target.value;
-                this.formChange();
-            },
-            formChange() {
-                this.resetErrors();
-            },
-            deleteTask(taskIndex) {
-                confirm(this.trans('servers_tasks.confirm_remove'), () => {
-                    this.tasksStore.destroyTask(taskIndex);
-                })
-            },
-            humanRepeatText(repeatInt) {
-                if (repeatInt === REPEAT_ENDLESSLY) {
-                    return this.trans('servers_tasks.endlessly');
-                }
-
-                if (repeatInt === REPEAT_ONCE) {
-                    return this.trans('servers_tasks.once');
-                }
-
-                return repeatInt;
-            },
-            repeatUnitPlural(unit) {
-                switch (unit) {
-                    case 'm':
-                    case 'min':
-                    case 'minute':
-                        return 'minutes';
-
-                    case 'h':
-                    case 'hour':
-                        return 'hours';
-
-                    case 'd':
-                    case 'day':
-                        return 'days';
-
-                    case 'w':
-                    case 'week':
-                        return 'weeks';
-
-                    case 'month':
-                        return 'months';
-
-                    case 'y':
-                    case 'year':
-                        return 'years';
-                }
-
-                return unit;
-            },
-            showModal() {
-                this.modalEnabled = true;
-            },
-            hideModal() {
-                this.modalEnabled = false;
-            },
-        },
-        computed: {
-            repeat: {
-                get() {
-                    return parseInt(this.taskRepeatRadio === RADIO_REPEAT_CUSTOM
-                        ? this.taskRepeatInput
-                        : this.taskRepeatRadio);
-                },
-                set(repeat) {
-                    repeat = parseInt(repeat);
-                    if (repeat <= 0) {
-                        this.taskRepeatRadio = 0;
-                    } else if (repeat === REPEAT_ONCE) {
-                        this.taskRepeatRadio = 1;
-                    } else {
-                        this.taskRepeatRadio = RADIO_REPEAT_CUSTOM;
-                        this.taskRepeatInput = repeat;
-                    }
-                }
-            },
-            repeatMin: {
-                get() {
-                    if (this.taskRepeatUnit === 'minutes') {
-                        return 10;
-                    } else {
-                        return 1;
-                    }
-                }
-            },
-            unitOptions: {
-                get() {
-                    return [
-                        {
-                            label: pluralize('minute', parseInt(this.taskRepeatPeriod)),
-                            value: 'minutes',
-                        },
-                        {
-                            label: pluralize('hour', parseInt(this.taskRepeatPeriod)),
-                            value: 'hours',
-                        },
-                        {
-                            label: pluralize('day', parseInt(this.taskRepeatPeriod)),
-                            value: 'days',
-                        },
-                        {
-                            label: pluralize('week', parseInt(this.taskRepeatPeriod)),
-                            value: 'weeks',
-                        },
-                        {
-                            label: pluralize('month', parseInt(this.taskRepeatPeriod)),
-                            value: 'months',
-                        },
-                        {
-                            label: pluralize('year', parseInt(this.taskRepeatPeriod)),
-                            value: 'years',
-                        },
-                    ];
-                }
-            },
-            options: {
-                get() {
-                    let result = [];
-
-                    if (this.privileges.restart) {
-                        result.push({
-                            label: trans('servers.restart'),
-                            value: "restart",
-                        })
-                    }
-
-                    if (this.privileges.start) {
-                        result.push({
-                            label: trans('servers.start'),
-                            value: "start",
-                        })
-                    }
-
-                    if (this.privileges.stop) {
-                        result.push({
-                            label: trans('servers.stop'),
-                            value: "stop",
-                        })
-                    }
-
-                    if (this.privileges.update) {
-                        result.push({
-                            label: trans('servers.update'),
-                            value: "update",
-                        })
-                    }
-
-                    if (this.privileges.update) {
-                        result.push({
-                            label: trans('servers.reinstall'),
-                            value: "reinstall",
-                        })
-                    }
-
-                    return result;
-                }
-            }
-        },
-        mounted() {
-            this.serverStore.setServerId(this.serverId);
-            this.tasksStore.fetchTasks();
-        }
-    }
-</script>

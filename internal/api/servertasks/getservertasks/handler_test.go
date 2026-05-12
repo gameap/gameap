@@ -628,19 +628,29 @@ func TestHandler_ServerTasksResponseConversion(t *testing.T) {
 	now := time.Now()
 	executeDate := now.Add(time.Hour)
 	payload := "test payload"
+	taskName := "nightly restart"
+	nodeID := uint(7)
+	timezone := "Europe/Moscow"
 
 	tasks := []domain.ServerTask{
 		{
-			ID:           1,
-			Command:      "start",
-			ServerID:     1,
-			Repeat:       0,
-			RepeatPeriod: 2 * time.Hour,
-			Counter:      0,
-			ExecuteDate:  executeDate,
-			Payload:      &payload,
-			CreatedAt:    &now,
-			UpdatedAt:    &now,
+			ID:            1,
+			Command:       "start",
+			ServerID:      1,
+			NodeID:        &nodeID,
+			Name:          &taskName,
+			Enabled:       true,
+			OverlapPolicy: domain.ServerTaskOverlapPolicyQueue,
+			CatchupPolicy: domain.ServerTaskCatchupPolicyRunOnce,
+			Timezone:      &timezone,
+			Version:       42,
+			Repeat:        0,
+			RepeatPeriod:  2 * time.Hour,
+			Counter:       0,
+			ExecuteDate:   executeDate,
+			Payload:       &payload,
+			CreatedAt:     &now,
+			UpdatedAt:     &now,
 		},
 		{
 			ID:           2,
@@ -662,6 +672,15 @@ func TestHandler_ServerTasksResponseConversion(t *testing.T) {
 	assert.Equal(t, uint(1), response[0].ID)
 	assert.Equal(t, "start", response[0].Command)
 	assert.Equal(t, uint(1), response[0].ServerID)
+	assert.Equal(t, &nodeID, response[0].NodeID)
+	require.NotNil(t, response[0].Name)
+	assert.Equal(t, taskName, *response[0].Name)
+	assert.True(t, response[0].Enabled)
+	assert.Equal(t, "queue", response[0].OverlapPolicy)
+	assert.Equal(t, "run_once", response[0].CatchupPolicy)
+	require.NotNil(t, response[0].Timezone)
+	assert.Equal(t, timezone, *response[0].Timezone)
+	assert.Equal(t, uint64(42), response[0].Version)
 	assert.Equal(t, uint8(0), response[0].Repeat)
 	assert.Equal(t, "2 hours", response[0].RepeatPeriod)
 	assert.Equal(t, uint(0), response[0].Counter)
@@ -674,6 +693,13 @@ func TestHandler_ServerTasksResponseConversion(t *testing.T) {
 	assert.Equal(t, uint(2), response[1].ID)
 	assert.Equal(t, "stop", response[1].Command)
 	assert.Equal(t, uint(1), response[1].ServerID)
+	assert.Nil(t, response[1].NodeID)
+	assert.Nil(t, response[1].Name)
+	assert.False(t, response[1].Enabled)
+	assert.Equal(t, "", response[1].OverlapPolicy)
+	assert.Equal(t, "", response[1].CatchupPolicy)
+	assert.Nil(t, response[1].Timezone)
+	assert.Equal(t, uint64(0), response[1].Version)
 	assert.Equal(t, uint8(1), response[1].Repeat)
 	assert.Equal(t, "1 hour", response[1].RepeatPeriod)
 	assert.Equal(t, uint(10), response[1].Counter)

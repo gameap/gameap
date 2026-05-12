@@ -36,7 +36,7 @@
     </template>
 
     <template #header-extra>
-      <div class="flex flex-wrap gap-1.5">
+      <div class="flex flex-wrap gap-1.5 mr-3">
         <GButton
             color="blue"
             size="small"

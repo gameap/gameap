@@ -7,15 +7,43 @@ import { useServerStore } from './server'
 
 dayjs.extend(utc)
 
-export const useServerTasksStore = defineStore('serverTasks', () => {
-    // State
-    const tasks = ref([])
-    const apiProcesses = ref(0)
+const normalizeTask = (task) => ({
+    ...task,
+    execute_date: dayjs.utc(task.execute_date).local().format('YYYY-MM-DD HH:mm:ss'),
+})
 
-    // Getters
+const normalizeExecution = (execution) => ({
+    ...execution,
+    started_at: execution.started_at
+        ? dayjs.utc(execution.started_at).local().format('YYYY-MM-DD HH:mm:ss')
+        : null,
+    finished_at: execution.finished_at
+        ? dayjs.utc(execution.finished_at).local().format('YYYY-MM-DD HH:mm:ss')
+        : null,
+    created_at: execution.created_at
+        ? dayjs.utc(execution.created_at).local().format('YYYY-MM-DD HH:mm:ss')
+        : null,
+    updated_at: execution.updated_at
+        ? dayjs.utc(execution.updated_at).local().format('YYYY-MM-DD HH:mm:ss')
+        : null,
+})
+
+const serializeTaskForSave = (task) => {
+    const payload = { ...task }
+    if (payload.execute_date) {
+        payload.execute_date = dayjs(payload.execute_date).utc().format('YYYY-MM-DD HH:mm:ss')
+    }
+    return payload
+}
+
+export const useServerTasksStore = defineStore('serverTasks', () => {
+    const tasks = ref([])
+    const executions = ref([])
+    const apiProcesses = ref(0)
+    const executionsLoading = ref(false)
+
     const loading = computed(() => apiProcesses.value > 0)
 
-    // Actions
     async function fetchTasks() {
         const serverStore = useServerStore()
         if (serverStore.serverId <= 0) {
@@ -25,10 +53,7 @@ export const useServerTasksStore = defineStore('serverTasks', () => {
         apiProcesses.value++
         try {
             const response = await axios.get('/api/servers/' + serverStore.serverId + '/tasks')
-            tasks.value = response.data.map(task => ({
-                ...task,
-                execute_date: dayjs.utc(task.execute_date).local().format('YYYY-MM-DD HH:mm:ss')
-            }))
+            tasks.value = response.data.map(normalizeTask)
         } finally {
             apiProcesses.value--
         }
@@ -36,17 +61,12 @@ export const useServerTasksStore = defineStore('serverTasks', () => {
 
     async function storeTask(task) {
         const serverStore = useServerStore()
-
-        const storeTaskData = {
-            ...task,
-            execute_date: dayjs(task.execute_date).utc().format('YYYY-MM-DD HH:mm:ss')
-        }
+        const payload = serializeTaskForSave(task)
 
         apiProcesses.value++
         try {
-            const response = await axios.post('/api/servers/' + serverStore.serverId + '/tasks', storeTaskData)
-            task.id = response.data.serverTaskId
-            tasks.value.push(task)
+            const response = await axios.post('/api/servers/' + serverStore.serverId + '/tasks', payload)
+            tasks.value.push(normalizeTask(response.data))
         } finally {
             apiProcesses.value--
         }
@@ -55,16 +75,15 @@ export const useServerTasksStore = defineStore('serverTasks', () => {
     async function updateTask(taskIndex, task) {
         const serverStore = useServerStore()
         const taskId = tasks.value[taskIndex].id
-
-        const storeTaskData = {
-            ...task,
-            execute_date: dayjs(task.execute_date).utc().format('YYYY-MM-DD HH:mm:ss')
-        }
+        const payload = serializeTaskForSave(task)
 
         apiProcesses.value++
         try {
-            await axios.put('/api/servers/' + serverStore.serverId + '/tasks/' + taskId, storeTaskData)
-            tasks.value[taskIndex] = { ...tasks.value[taskIndex], ...task }
+            const response = await axios.put(
+                '/api/servers/' + serverStore.serverId + '/tasks/' + taskId,
+                payload,
+            )
+            tasks.value[taskIndex] = normalizeTask(response.data)
         } finally {
             apiProcesses.value--
         }
@@ -87,18 +106,45 @@ export const useServerTasksStore = defineStore('serverTasks', () => {
         }
     }
 
+    async function fetchTaskExecutions(taskId, status) {
+        const serverStore = useServerStore()
+        if (serverStore.serverId <= 0 || !taskId) {
+            return
+        }
+
+        const params = {}
+        if (status) {
+            params.status = status
+        }
+
+        executionsLoading.value = true
+        try {
+            const response = await axios.get(
+                '/api/servers/' + serverStore.serverId + '/tasks/' + taskId + '/executions',
+                { params },
+            )
+            const data = Array.isArray(response.data?.data) ? response.data.data : []
+            executions.value = data.map(normalizeExecution)
+        } finally {
+            executionsLoading.value = false
+        }
+    }
+
+    function clearExecutions() {
+        executions.value = []
+    }
+
     return {
-        // State
         tasks,
+        executions,
         apiProcesses,
-
-        // Getters
+        executionsLoading,
         loading,
-
-        // Actions
         fetchTasks,
         storeTask,
         updateTask,
         destroyTask,
+        fetchTaskExecutions,
+        clearExecutions,
     }
 })
