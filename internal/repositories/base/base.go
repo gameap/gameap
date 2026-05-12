@@ -15,7 +15,7 @@ const PermissionsTable = "permissions"
 const PersonalAccessTokensTable = "personal_access_tokens"
 const DaemonTasksTable = "gdaemon_tasks"
 const ServerTasksTable = "servers_tasks"
-const ServerTaskFailsTable = "servers_tasks_fails"
+const ServerTaskExecutionsTable = "servers_task_executions"
 const ServerSettingsTable = "servers_settings"
 const NodesTable = "dedicated_servers"
 const ClientCertificatesTable = "client_certificates"
@@ -35,7 +35,7 @@ var (
 	PersonalAccessTokenFields = allFields(domain.PersonalAccessToken{})
 	DaemonTaskFields          = allFields(domain.DaemonTask{})
 	ServerTaskFields          = allFields(domain.ServerTask{})
-	ServerTaskFailFields      = allFields(domain.ServerTaskFail{})
+	ServerTaskExecutionFields = allFields(domain.ServerTaskExecution{})
 	ServerSettingFields       = allFields(domain.ServerSetting{})
 	NodeFields                = allFields(domain.Node{})
 	ClientCertificateFields   = allFields(domain.ClientCertificate{})

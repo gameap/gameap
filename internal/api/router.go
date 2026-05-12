@@ -23,10 +23,6 @@ import (
 	daemonapigetservers "github.com/gameap/gameap/internal/api/daemonapi/servers/getservers"
 	daemonapipatchservers "github.com/gameap/gameap/internal/api/daemonapi/servers/patchservers"
 	daemonapiputserver "github.com/gameap/gameap/internal/api/daemonapi/servers/putserver"
-	daemonapifailservertask "github.com/gameap/gameap/internal/api/daemonapi/serverstasks/failservertask"
-	daemonapiserverstasks "github.com/gameap/gameap/internal/api/daemonapi/serverstasks/getserverstasks"
-	daemonapigetservertask "github.com/gameap/gameap/internal/api/daemonapi/serverstasks/getservertask"
-	daemonapiupdateservertask "github.com/gameap/gameap/internal/api/daemonapi/serverstasks/updateservertask"
 	daemonapiappendoutput "github.com/gameap/gameap/internal/api/daemonapi/tasks/appendoutput"
 	daemonapitasks "github.com/gameap/gameap/internal/api/daemonapi/tasks/gettask"
 	daemonapiupdatetask "github.com/gameap/gameap/internal/api/daemonapi/tasks/updatetask"
@@ -123,6 +119,7 @@ import (
 	"github.com/gameap/gameap/internal/api/serversettings/getserversettings"
 	"github.com/gameap/gameap/internal/api/serversettings/putserversettings"
 	"github.com/gameap/gameap/internal/api/servertasks/deleteservertask"
+	"github.com/gameap/gameap/internal/api/servertasks/getservertaskexecutions"
 	"github.com/gameap/gameap/internal/api/servertasks/getservertasks"
 	"github.com/gameap/gameap/internal/api/servertasks/postservertask"
 	"github.com/gameap/gameap/internal/api/servertasks/putservertask"
@@ -169,6 +166,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
+	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	uploadservice "github.com/gameap/gameap/internal/upload"
 	"github.com/gameap/gameap/internal/ws"
@@ -200,7 +198,7 @@ type container interface {
 	PersonalAccessTokenRepository() repositories.PersonalAccessTokenRepository
 	DaemonTaskRepository() repositories.DaemonTaskRepository
 	ServerTaskRepository() repositories.ServerTaskRepository
-	ServerTaskFailRepository() repositories.ServerTaskFailRepository
+	ServerTaskExecutionRepository() repositories.ServerTaskExecutionRepository
 	ServerSettingRepository() repositories.ServerSettingRepository
 	NodeRepository() repositories.NodeRepository
 	ClientCertificateRepository() repositories.ClientCertificateRepository
@@ -222,6 +220,7 @@ type container interface {
 	PluginStoreService() *pluginstore.Service
 	PluginsDir() string
 	TaskDispatcher() *taskdispatcher.Dispatcher
+	ServerTaskDispatcher() *servertaskdispatcher.Dispatcher
 	ServerConfigPusher() *serverconfigpush.Pusher
 	EnrollmentService() *enrollment.Service
 	EnrollmentServiceOrNil() *enrollment.Service
@@ -922,6 +921,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerTaskRepository(),
 				c.ServerRepository(),
 				c.RBAC(),
+				c.ServerTaskDispatcher(),
 				c.Responder(),
 			),
 			CheckPATAbilities: []domain.PATAbility{
@@ -935,6 +935,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerTaskRepository(),
 				c.ServerRepository(),
 				c.RBAC(),
+				c.ServerTaskDispatcher(),
 				c.Responder(),
 			),
 			CheckPATAbilities: []domain.PATAbility{
@@ -946,6 +947,21 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/servers/{server}/tasks/{id}",
 			Handler: deleteservertask.NewHandler(
 				c.ServerTaskRepository(),
+				c.ServerRepository(),
+				c.RBAC(),
+				c.ServerTaskDispatcher(),
+				c.Responder(),
+			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerTasksManage,
+			},
+		},
+		{
+			Method: http.MethodGet,
+			Path:   "/api/servers/{server}/tasks/{id}/executions",
+			Handler: getservertaskexecutions.NewHandler(
+				c.ServerTaskRepository(),
+				c.ServerTaskExecutionRepository(),
 				c.ServerRepository(),
 				c.RBAC(),
 				c.Responder(),
@@ -2092,59 +2108,6 @@ func gdaemonAPIRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: daemonapiappendoutput.NewHandler(
 				c.DaemonTaskRepository(),
 				c.PubSub(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodGet,
-			Path:   "/gdaemon_api/servers_tasks",
-			Handler: daemonapiserverstasks.NewHandler(
-				c.ServerTaskRepository(),
-				c.ServerRepository(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodGet,
-			Path:   "/gdaemon_api/servers_tasks/{server_task}",
-			Handler: daemonapigetservertask.NewHandler(
-				c.ServerTaskRepository(),
-				c.ServerRepository(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodPut,
-			Path:   "/gdaemon_api/servers_tasks/{server_task}",
-			Handler: daemonapiupdateservertask.NewHandler(
-				c.ServerTaskRepository(),
-				c.ServerRepository(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodPost,
-			Path:   "/gdaemon_api/servers_tasks/{server_task}/fail",
-			Handler: daemonapifailservertask.NewHandler(
-				c.ServerTaskRepository(),
-				c.ServerTaskFailRepository(),
-				c.ServerRepository(),
 				c.Responder(),
 			),
 			Middlewares: []mux.MiddlewareFunc{

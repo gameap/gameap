@@ -180,6 +180,10 @@ type DaemonMessage struct {
 	//	*DaemonMessage_FileOperationResponse
 	//	*DaemonMessage_StatusResponse
 	//	*DaemonMessage_HttpProxyResponse
+	//	*DaemonMessage_ServerTaskExecutionStarted
+	//	*DaemonMessage_ServerTaskExecutionFinished
+	//	*DaemonMessage_ServerTaskExecutionLog
+	//	*DaemonMessage_ServerTaskResyncRequest
 	Payload       isDaemonMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -391,6 +395,42 @@ func (x *DaemonMessage) GetHttpProxyResponse() *HTTPProxyResponse {
 	return nil
 }
 
+func (x *DaemonMessage) GetServerTaskExecutionStarted() *ServerTaskExecutionStarted {
+	if x != nil {
+		if x, ok := x.Payload.(*DaemonMessage_ServerTaskExecutionStarted); ok {
+			return x.ServerTaskExecutionStarted
+		}
+	}
+	return nil
+}
+
+func (x *DaemonMessage) GetServerTaskExecutionFinished() *ServerTaskExecutionFinished {
+	if x != nil {
+		if x, ok := x.Payload.(*DaemonMessage_ServerTaskExecutionFinished); ok {
+			return x.ServerTaskExecutionFinished
+		}
+	}
+	return nil
+}
+
+func (x *DaemonMessage) GetServerTaskExecutionLog() *ServerTaskExecutionLog {
+	if x != nil {
+		if x, ok := x.Payload.(*DaemonMessage_ServerTaskExecutionLog); ok {
+			return x.ServerTaskExecutionLog
+		}
+	}
+	return nil
+}
+
+func (x *DaemonMessage) GetServerTaskResyncRequest() *ServerTaskResyncRequest {
+	if x != nil {
+		if x, ok := x.Payload.(*DaemonMessage_ServerTaskResyncRequest); ok {
+			return x.ServerTaskResyncRequest
+		}
+	}
+	return nil
+}
+
 type isDaemonMessage_Payload interface {
 	isDaemonMessage_Payload()
 }
@@ -467,6 +507,22 @@ type DaemonMessage_HttpProxyResponse struct {
 	HttpProxyResponse *HTTPProxyResponse `protobuf:"bytes,80,opt,name=http_proxy_response,json=httpProxyResponse,proto3,oneof"`
 }
 
+type DaemonMessage_ServerTaskExecutionStarted struct {
+	ServerTaskExecutionStarted *ServerTaskExecutionStarted `protobuf:"bytes,25,opt,name=server_task_execution_started,json=serverTaskExecutionStarted,proto3,oneof"`
+}
+
+type DaemonMessage_ServerTaskExecutionFinished struct {
+	ServerTaskExecutionFinished *ServerTaskExecutionFinished `protobuf:"bytes,26,opt,name=server_task_execution_finished,json=serverTaskExecutionFinished,proto3,oneof"`
+}
+
+type DaemonMessage_ServerTaskExecutionLog struct {
+	ServerTaskExecutionLog *ServerTaskExecutionLog `protobuf:"bytes,27,opt,name=server_task_execution_log,json=serverTaskExecutionLog,proto3,oneof"`
+}
+
+type DaemonMessage_ServerTaskResyncRequest struct {
+	ServerTaskResyncRequest *ServerTaskResyncRequest `protobuf:"bytes,28,opt,name=server_task_resync_request,json=serverTaskResyncRequest,proto3,oneof"`
+}
+
 func (*DaemonMessage_Register) isDaemonMessage_Payload() {}
 
 func (*DaemonMessage_Heartbeat) isDaemonMessage_Payload() {}
@@ -503,6 +559,14 @@ func (*DaemonMessage_StatusResponse) isDaemonMessage_Payload() {}
 
 func (*DaemonMessage_HttpProxyResponse) isDaemonMessage_Payload() {}
 
+func (*DaemonMessage_ServerTaskExecutionStarted) isDaemonMessage_Payload() {}
+
+func (*DaemonMessage_ServerTaskExecutionFinished) isDaemonMessage_Payload() {}
+
+func (*DaemonMessage_ServerTaskExecutionLog) isDaemonMessage_Payload() {}
+
+func (*DaemonMessage_ServerTaskResyncRequest) isDaemonMessage_Payload() {}
+
 type GatewayMessage struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	RequestId string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -529,6 +593,10 @@ type GatewayMessage struct {
 	//	*GatewayMessage_FileDownloadTask
 	//	*GatewayMessage_StatusRequest
 	//	*GatewayMessage_HttpProxy
+	//	*GatewayMessage_ServerTaskSnapshot
+	//	*GatewayMessage_ServerTaskDelta
+	//	*GatewayMessage_ServerTaskExecutionCancel
+	//	*GatewayMessage_ServerTaskExecutionAck
 	Payload       isGatewayMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -767,6 +835,42 @@ func (x *GatewayMessage) GetHttpProxy() *HTTPProxyRequest {
 	return nil
 }
 
+func (x *GatewayMessage) GetServerTaskSnapshot() *ServerTaskSnapshot {
+	if x != nil {
+		if x, ok := x.Payload.(*GatewayMessage_ServerTaskSnapshot); ok {
+			return x.ServerTaskSnapshot
+		}
+	}
+	return nil
+}
+
+func (x *GatewayMessage) GetServerTaskDelta() *ServerTaskDelta {
+	if x != nil {
+		if x, ok := x.Payload.(*GatewayMessage_ServerTaskDelta); ok {
+			return x.ServerTaskDelta
+		}
+	}
+	return nil
+}
+
+func (x *GatewayMessage) GetServerTaskExecutionCancel() *ServerTaskExecutionCancel {
+	if x != nil {
+		if x, ok := x.Payload.(*GatewayMessage_ServerTaskExecutionCancel); ok {
+			return x.ServerTaskExecutionCancel
+		}
+	}
+	return nil
+}
+
+func (x *GatewayMessage) GetServerTaskExecutionAck() *ServerTaskExecutionAck {
+	if x != nil {
+		if x, ok := x.Payload.(*GatewayMessage_ServerTaskExecutionAck); ok {
+			return x.ServerTaskExecutionAck
+		}
+	}
+	return nil
+}
+
 type isGatewayMessage_Payload interface {
 	isGatewayMessage_Payload()
 }
@@ -855,6 +959,22 @@ type GatewayMessage_HttpProxy struct {
 	HttpProxy *HTTPProxyRequest `protobuf:"bytes,80,opt,name=http_proxy,json=httpProxy,proto3,oneof"`
 }
 
+type GatewayMessage_ServerTaskSnapshot struct {
+	ServerTaskSnapshot *ServerTaskSnapshot `protobuf:"bytes,25,opt,name=server_task_snapshot,json=serverTaskSnapshot,proto3,oneof"`
+}
+
+type GatewayMessage_ServerTaskDelta struct {
+	ServerTaskDelta *ServerTaskDelta `protobuf:"bytes,26,opt,name=server_task_delta,json=serverTaskDelta,proto3,oneof"`
+}
+
+type GatewayMessage_ServerTaskExecutionCancel struct {
+	ServerTaskExecutionCancel *ServerTaskExecutionCancel `protobuf:"bytes,27,opt,name=server_task_execution_cancel,json=serverTaskExecutionCancel,proto3,oneof"`
+}
+
+type GatewayMessage_ServerTaskExecutionAck struct {
+	ServerTaskExecutionAck *ServerTaskExecutionAck `protobuf:"bytes,28,opt,name=server_task_execution_ack,json=serverTaskExecutionAck,proto3,oneof"`
+}
+
 func (*GatewayMessage_RegisterAck) isGatewayMessage_Payload() {}
 
 func (*GatewayMessage_Shutdown) isGatewayMessage_Payload() {}
@@ -897,15 +1017,25 @@ func (*GatewayMessage_StatusRequest) isGatewayMessage_Payload() {}
 
 func (*GatewayMessage_HttpProxy) isGatewayMessage_Payload() {}
 
+func (*GatewayMessage_ServerTaskSnapshot) isGatewayMessage_Payload() {}
+
+func (*GatewayMessage_ServerTaskDelta) isGatewayMessage_Payload() {}
+
+func (*GatewayMessage_ServerTaskExecutionCancel) isGatewayMessage_Payload() {}
+
+func (*GatewayMessage_ServerTaskExecutionAck) isGatewayMessage_Payload() {}
+
 type RegisterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NodeId        uint64                 `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	ApiKey        string                 `protobuf:"bytes,2,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
-	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	Capabilities  []string               `protobuf:"bytes,4,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
-	InFlightTasks []*InFlightTask        `protobuf:"bytes,5,rep,name=in_flight_tasks,json=inFlightTasks,proto3" json:"in_flight_tasks,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                        protoimpl.MessageState         `protogen:"open.v1"`
+	NodeId                       uint64                         `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	ApiKey                       string                         `protobuf:"bytes,2,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
+	Version                      string                         `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Capabilities                 []string                       `protobuf:"bytes,4,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	InFlightTasks                []*InFlightTask                `protobuf:"bytes,5,rep,name=in_flight_tasks,json=inFlightTasks,proto3" json:"in_flight_tasks,omitempty"`
+	ServerTaskSnapshotVersion    uint64                         `protobuf:"varint,6,opt,name=server_task_snapshot_version,json=serverTaskSnapshotVersion,proto3" json:"server_task_snapshot_version,omitempty"`
+	InFlightServerTaskExecutions []*InFlightServerTaskExecution `protobuf:"bytes,7,rep,name=in_flight_server_task_executions,json=inFlightServerTaskExecutions,proto3" json:"in_flight_server_task_executions,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *RegisterRequest) Reset() {
@@ -969,6 +1099,20 @@ func (x *RegisterRequest) GetCapabilities() []string {
 func (x *RegisterRequest) GetInFlightTasks() []*InFlightTask {
 	if x != nil {
 		return x.InFlightTasks
+	}
+	return nil
+}
+
+func (x *RegisterRequest) GetServerTaskSnapshotVersion() uint64 {
+	if x != nil {
+		return x.ServerTaskSnapshotVersion
+	}
+	return 0
+}
+
+func (x *RegisterRequest) GetInFlightServerTaskExecutions() []*InFlightServerTaskExecution {
+	if x != nil {
+		return x.InFlightServerTaskExecutions
 	}
 	return nil
 }
@@ -1042,17 +1186,18 @@ func (x *InFlightTask) GetStartedAt() *timestamppb.Timestamp {
 }
 
 type RegisterAck struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Success           bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	ErrorMessage      string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	Servers           []*Server              `protobuf:"bytes,3,rep,name=servers,proto3" json:"servers,omitempty"`
-	PendingTasks      []*DaemonTask          `protobuf:"bytes,4,rep,name=pending_tasks,json=pendingTasks,proto3" json:"pending_tasks,omitempty"`
-	Games             []*Game                `protobuf:"bytes,5,rep,name=games,proto3" json:"games,omitempty"`
-	GameMods          []*GameMod             `protobuf:"bytes,6,rep,name=game_mods,json=gameMods,proto3" json:"game_mods,omitempty"`
-	HeartbeatInterval *durationpb.Duration   `protobuf:"bytes,7,opt,name=heartbeat_interval,json=heartbeatInterval,proto3" json:"heartbeat_interval,omitempty"`
-	ServerSettings    []*ServerSetting       `protobuf:"bytes,8,rep,name=server_settings,json=serverSettings,proto3" json:"server_settings,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Success            bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ErrorMessage       string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	Servers            []*Server              `protobuf:"bytes,3,rep,name=servers,proto3" json:"servers,omitempty"`
+	PendingTasks       []*DaemonTask          `protobuf:"bytes,4,rep,name=pending_tasks,json=pendingTasks,proto3" json:"pending_tasks,omitempty"`
+	Games              []*Game                `protobuf:"bytes,5,rep,name=games,proto3" json:"games,omitempty"`
+	GameMods           []*GameMod             `protobuf:"bytes,6,rep,name=game_mods,json=gameMods,proto3" json:"game_mods,omitempty"`
+	HeartbeatInterval  *durationpb.Duration   `protobuf:"bytes,7,opt,name=heartbeat_interval,json=heartbeatInterval,proto3" json:"heartbeat_interval,omitempty"`
+	ServerSettings     []*ServerSetting       `protobuf:"bytes,8,rep,name=server_settings,json=serverSettings,proto3" json:"server_settings,omitempty"`
+	ServerTaskSnapshot *ServerTaskSnapshot    `protobuf:"bytes,9,opt,name=server_task_snapshot,json=serverTaskSnapshot,proto3" json:"server_task_snapshot,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *RegisterAck) Reset() {
@@ -1137,6 +1282,13 @@ func (x *RegisterAck) GetHeartbeatInterval() *durationpb.Duration {
 func (x *RegisterAck) GetServerSettings() []*ServerSetting {
 	if x != nil {
 		return x.ServerSettings
+	}
+	return nil
+}
+
+func (x *RegisterAck) GetServerTaskSnapshot() *ServerTaskSnapshot {
+	if x != nil {
+		return x.ServerTaskSnapshot
 	}
 	return nil
 }
@@ -3932,7 +4084,7 @@ var File_pkg_proto_gateway_proto protoreflect.FileDescriptor
 
 const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"\n" +
-	"\x17pkg/proto/gateway.proto\x12\x06gameap\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1apkg/proto/daemontask.proto\x1a\x16pkg/proto/server.proto\x1a\x14pkg/proto/game.proto\x1a\x17pkg/proto/gamemod.proto\x1a\x1cpkg/proto/filetransfer.proto\x1a\x1dpkg/proto/serversetting.proto\"\xf7\t\n" +
+	"\x17pkg/proto/gateway.proto\x12\x06gameap\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1apkg/proto/daemontask.proto\x1a\x16pkg/proto/server.proto\x1a\x14pkg/proto/game.proto\x1a\x17pkg/proto/gamemod.proto\x1a\x1cpkg/proto/filetransfer.proto\x1a\x1dpkg/proto/serversetting.proto\x1a\x1apkg/proto/servertask.proto\"\x89\r\n" +
 	"\rDaemonMessage\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x125\n" +
@@ -3956,9 +4108,12 @@ const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"\x12file_list_response\x18> \x01(\v2\x18.gameap.FileListResponseH\x00R\x10fileListResponse\x12W\n" +
 	"\x17file_operation_response\x18? \x01(\v2\x1d.gameap.FileOperationResponseH\x00R\x15fileOperationResponse\x12A\n" +
 	"\x0fstatus_response\x18F \x01(\v2\x16.gameap.StatusResponseH\x00R\x0estatusResponse\x12K\n" +
-	"\x13http_proxy_response\x18P \x01(\v2\x19.gameap.HTTPProxyResponseH\x00R\x11httpProxyResponseB\t\n" +
-	"\apayload\"\xdb\n" +
-	"\n" +
+	"\x13http_proxy_response\x18P \x01(\v2\x19.gameap.HTTPProxyResponseH\x00R\x11httpProxyResponse\x12g\n" +
+	"\x1dserver_task_execution_started\x18\x19 \x01(\v2\".gameap.ServerTaskExecutionStartedH\x00R\x1aserverTaskExecutionStarted\x12j\n" +
+	"\x1eserver_task_execution_finished\x18\x1a \x01(\v2#.gameap.ServerTaskExecutionFinishedH\x00R\x1bserverTaskExecutionFinished\x12[\n" +
+	"\x19server_task_execution_log\x18\x1b \x01(\v2\x1e.gameap.ServerTaskExecutionLogH\x00R\x16serverTaskExecutionLog\x12^\n" +
+	"\x1aserver_task_resync_request\x18\x1c \x01(\v2\x1f.gameap.ServerTaskResyncRequestH\x00R\x17serverTaskResyncRequestB\t\n" +
+	"\apayload\"\xb5\r\n" +
 	"\x0eGatewayMessage\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x128\n" +
@@ -3986,20 +4141,26 @@ const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"\x12file_download_task\x18A \x01(\v2\x18.gameap.FileDownloadTaskH\x00R\x10fileDownloadTask\x12>\n" +
 	"\x0estatus_request\x18F \x01(\v2\x15.gameap.StatusRequestH\x00R\rstatusRequest\x129\n" +
 	"\n" +
-	"http_proxy\x18P \x01(\v2\x18.gameap.HTTPProxyRequestH\x00R\thttpProxyB\t\n" +
-	"\apayload\"\xbf\x01\n" +
+	"http_proxy\x18P \x01(\v2\x18.gameap.HTTPProxyRequestH\x00R\thttpProxy\x12N\n" +
+	"\x14server_task_snapshot\x18\x19 \x01(\v2\x1a.gameap.ServerTaskSnapshotH\x00R\x12serverTaskSnapshot\x12E\n" +
+	"\x11server_task_delta\x18\x1a \x01(\v2\x17.gameap.ServerTaskDeltaH\x00R\x0fserverTaskDelta\x12d\n" +
+	"\x1cserver_task_execution_cancel\x18\x1b \x01(\v2!.gameap.ServerTaskExecutionCancelH\x00R\x19serverTaskExecutionCancel\x12[\n" +
+	"\x19server_task_execution_ack\x18\x1c \x01(\v2\x1e.gameap.ServerTaskExecutionAckH\x00R\x16serverTaskExecutionAckB\t\n" +
+	"\apayload\"\xed\x02\n" +
 	"\x0fRegisterRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\x04R\x06nodeId\x12\x17\n" +
 	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\"\n" +
 	"\fcapabilities\x18\x04 \x03(\tR\fcapabilities\x12<\n" +
-	"\x0fin_flight_tasks\x18\x05 \x03(\v2\x14.gameap.InFlightTaskR\rinFlightTasks\"\xbb\x01\n" +
+	"\x0fin_flight_tasks\x18\x05 \x03(\v2\x14.gameap.InFlightTaskR\rinFlightTasks\x12?\n" +
+	"\x1cserver_task_snapshot_version\x18\x06 \x01(\x04R\x19serverTaskSnapshotVersion\x12k\n" +
+	" in_flight_server_task_executions\x18\a \x03(\v2#.gameap.InFlightServerTaskExecutionR\x1cinFlightServerTaskExecutions\"\xbb\x01\n" +
 	"\fInFlightTask\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\x04R\x06taskId\x120\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x18.gameap.DaemonTaskStatusR\x06status\x12%\n" +
 	"\x0epartial_output\x18\x03 \x01(\tR\rpartialOutput\x129\n" +
 	"\n" +
-	"started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\"\x8b\x03\n" +
+	"started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\"\xd9\x03\n" +
 	"\vRegisterAck\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
 	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\x12(\n" +
@@ -4008,7 +4169,8 @@ const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"\x05games\x18\x05 \x03(\v2\f.gameap.GameR\x05games\x12,\n" +
 	"\tgame_mods\x18\x06 \x03(\v2\x0f.gameap.GameModR\bgameMods\x12H\n" +
 	"\x12heartbeat_interval\x18\a \x01(\v2\x19.google.protobuf.DurationR\x11heartbeatInterval\x12>\n" +
-	"\x0fserver_settings\x18\b \x03(\v2\x15.gameap.ServerSettingR\x0eserverSettings\"}\n" +
+	"\x0fserver_settings\x18\b \x03(\v2\x15.gameap.ServerSettingR\x0eserverSettings\x12L\n" +
+	"\x14server_task_snapshot\x18\t \x01(\v2\x1a.gameap.ServerTaskSnapshotR\x12serverTaskSnapshot\"}\n" +
 	"\tHeartbeat\x128\n" +
 	"\ttimestamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x126\n" +
 	"\fsystem_stats\x18\x02 \x01(\v2\x13.gameap.SystemStatsR\vsystemStats\"\x8d\x02\n" +
@@ -4283,68 +4445,77 @@ func file_pkg_proto_gateway_proto_rawDescGZIP() []byte {
 var file_pkg_proto_gateway_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_pkg_proto_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
 var file_pkg_proto_gateway_proto_goTypes = []any{
-	(MetricType)(0),               // 0: gameap.MetricType
-	(MetricUnit)(0),               // 1: gameap.MetricUnit
-	(*DaemonMessage)(nil),         // 2: gameap.DaemonMessage
-	(*GatewayMessage)(nil),        // 3: gameap.GatewayMessage
-	(*RegisterRequest)(nil),       // 4: gameap.RegisterRequest
-	(*InFlightTask)(nil),          // 5: gameap.InFlightTask
-	(*RegisterAck)(nil),           // 6: gameap.RegisterAck
-	(*Heartbeat)(nil),             // 7: gameap.Heartbeat
-	(*SystemStats)(nil),           // 8: gameap.SystemStats
-	(*MetricPoint)(nil),           // 9: gameap.MetricPoint
-	(*MetricSeries)(nil),          // 10: gameap.MetricSeries
-	(*MetricsRequest)(nil),        // 11: gameap.MetricsRequest
-	(*CurrentMetricsRequest)(nil), // 12: gameap.CurrentMetricsRequest
-	(*MetricsHistoryRequest)(nil), // 13: gameap.MetricsHistoryRequest
-	(*MetricsResponse)(nil),       // 14: gameap.MetricsResponse
-	(*TaskStatusUpdate)(nil),      // 15: gameap.TaskStatusUpdate
-	(*TaskOutput)(nil),            // 16: gameap.TaskOutput
-	(*TaskCancel)(nil),            // 17: gameap.TaskCancel
-	(*CommandRequest)(nil),        // 18: gameap.CommandRequest
-	(*CommandOutput)(nil),         // 19: gameap.CommandOutput
-	(*CommandResult)(nil),         // 20: gameap.CommandResult
-	(*ServerStatus)(nil),          // 21: gameap.ServerStatus
-	(*ServerStatusBatch)(nil),     // 22: gameap.ServerStatusBatch
-	(*ServerConfigBatch)(nil),     // 23: gameap.ServerConfigBatch
-	(*ServerConfigUpdate)(nil),    // 24: gameap.ServerConfigUpdate
-	(*ShutdownNotification)(nil),  // 25: gameap.ShutdownNotification
-	(*FileReadRequest)(nil),       // 26: gameap.FileReadRequest
-	(*FileReadResponse)(nil),      // 27: gameap.FileReadResponse
-	(*FileWriteRequest)(nil),      // 28: gameap.FileWriteRequest
-	(*FileWriteResponse)(nil),     // 29: gameap.FileWriteResponse
-	(*FileListRequest)(nil),       // 30: gameap.FileListRequest
-	(*FileListResponse)(nil),      // 31: gameap.FileListResponse
-	(*FileUploadTask)(nil),        // 32: gameap.FileUploadTask
-	(*FileDownloadTask)(nil),      // 33: gameap.FileDownloadTask
-	(*EnrollRequest)(nil),         // 34: gameap.EnrollRequest
-	(*EnrollResponse)(nil),        // 35: gameap.EnrollResponse
-	(*AttachRequest)(nil),         // 36: gameap.AttachRequest
-	(*AttachStarted)(nil),         // 37: gameap.AttachStarted
-	(*AttachInput)(nil),           // 38: gameap.AttachInput
-	(*AttachOutput)(nil),          // 39: gameap.AttachOutput
-	(*AttachDetach)(nil),          // 40: gameap.AttachDetach
-	(*AttachClosed)(nil),          // 41: gameap.AttachClosed
-	(*ConsoleLogRequest)(nil),     // 42: gameap.ConsoleLogRequest
-	(*ConsoleLogResponse)(nil),    // 43: gameap.ConsoleLogResponse
-	(*StatusRequest)(nil),         // 44: gameap.StatusRequest
-	(*StatusResponse)(nil),        // 45: gameap.StatusResponse
-	(*HeaderEntry)(nil),           // 46: gameap.HeaderEntry
-	(*HTTPProxyRequest)(nil),      // 47: gameap.HTTPProxyRequest
-	(*HTTPProxyResponse)(nil),     // 48: gameap.HTTPProxyResponse
-	nil,                           // 49: gameap.MetricSeries.LabelsEntry
-	nil,                           // 50: gameap.MetricsResponse.CommonLabelsEntry
-	(*FileOperationResponse)(nil), // 51: gameap.FileOperationResponse
-	(*DaemonTask)(nil),            // 52: gameap.DaemonTask
-	(*Server)(nil),                // 53: gameap.Server
-	(*FileOperationRequest)(nil),  // 54: gameap.FileOperationRequest
-	(DaemonTaskStatus)(0),         // 55: gameap.DaemonTaskStatus
-	(*timestamppb.Timestamp)(nil), // 56: google.protobuf.Timestamp
-	(*Game)(nil),                  // 57: gameap.Game
-	(*GameMod)(nil),               // 58: gameap.GameMod
-	(*durationpb.Duration)(nil),   // 59: google.protobuf.Duration
-	(*ServerSetting)(nil),         // 60: gameap.ServerSetting
-	(*FileStat)(nil),              // 61: gameap.FileStat
+	(MetricType)(0),                     // 0: gameap.MetricType
+	(MetricUnit)(0),                     // 1: gameap.MetricUnit
+	(*DaemonMessage)(nil),               // 2: gameap.DaemonMessage
+	(*GatewayMessage)(nil),              // 3: gameap.GatewayMessage
+	(*RegisterRequest)(nil),             // 4: gameap.RegisterRequest
+	(*InFlightTask)(nil),                // 5: gameap.InFlightTask
+	(*RegisterAck)(nil),                 // 6: gameap.RegisterAck
+	(*Heartbeat)(nil),                   // 7: gameap.Heartbeat
+	(*SystemStats)(nil),                 // 8: gameap.SystemStats
+	(*MetricPoint)(nil),                 // 9: gameap.MetricPoint
+	(*MetricSeries)(nil),                // 10: gameap.MetricSeries
+	(*MetricsRequest)(nil),              // 11: gameap.MetricsRequest
+	(*CurrentMetricsRequest)(nil),       // 12: gameap.CurrentMetricsRequest
+	(*MetricsHistoryRequest)(nil),       // 13: gameap.MetricsHistoryRequest
+	(*MetricsResponse)(nil),             // 14: gameap.MetricsResponse
+	(*TaskStatusUpdate)(nil),            // 15: gameap.TaskStatusUpdate
+	(*TaskOutput)(nil),                  // 16: gameap.TaskOutput
+	(*TaskCancel)(nil),                  // 17: gameap.TaskCancel
+	(*CommandRequest)(nil),              // 18: gameap.CommandRequest
+	(*CommandOutput)(nil),               // 19: gameap.CommandOutput
+	(*CommandResult)(nil),               // 20: gameap.CommandResult
+	(*ServerStatus)(nil),                // 21: gameap.ServerStatus
+	(*ServerStatusBatch)(nil),           // 22: gameap.ServerStatusBatch
+	(*ServerConfigBatch)(nil),           // 23: gameap.ServerConfigBatch
+	(*ServerConfigUpdate)(nil),          // 24: gameap.ServerConfigUpdate
+	(*ShutdownNotification)(nil),        // 25: gameap.ShutdownNotification
+	(*FileReadRequest)(nil),             // 26: gameap.FileReadRequest
+	(*FileReadResponse)(nil),            // 27: gameap.FileReadResponse
+	(*FileWriteRequest)(nil),            // 28: gameap.FileWriteRequest
+	(*FileWriteResponse)(nil),           // 29: gameap.FileWriteResponse
+	(*FileListRequest)(nil),             // 30: gameap.FileListRequest
+	(*FileListResponse)(nil),            // 31: gameap.FileListResponse
+	(*FileUploadTask)(nil),              // 32: gameap.FileUploadTask
+	(*FileDownloadTask)(nil),            // 33: gameap.FileDownloadTask
+	(*EnrollRequest)(nil),               // 34: gameap.EnrollRequest
+	(*EnrollResponse)(nil),              // 35: gameap.EnrollResponse
+	(*AttachRequest)(nil),               // 36: gameap.AttachRequest
+	(*AttachStarted)(nil),               // 37: gameap.AttachStarted
+	(*AttachInput)(nil),                 // 38: gameap.AttachInput
+	(*AttachOutput)(nil),                // 39: gameap.AttachOutput
+	(*AttachDetach)(nil),                // 40: gameap.AttachDetach
+	(*AttachClosed)(nil),                // 41: gameap.AttachClosed
+	(*ConsoleLogRequest)(nil),           // 42: gameap.ConsoleLogRequest
+	(*ConsoleLogResponse)(nil),          // 43: gameap.ConsoleLogResponse
+	(*StatusRequest)(nil),               // 44: gameap.StatusRequest
+	(*StatusResponse)(nil),              // 45: gameap.StatusResponse
+	(*HeaderEntry)(nil),                 // 46: gameap.HeaderEntry
+	(*HTTPProxyRequest)(nil),            // 47: gameap.HTTPProxyRequest
+	(*HTTPProxyResponse)(nil),           // 48: gameap.HTTPProxyResponse
+	nil,                                 // 49: gameap.MetricSeries.LabelsEntry
+	nil,                                 // 50: gameap.MetricsResponse.CommonLabelsEntry
+	(*FileOperationResponse)(nil),       // 51: gameap.FileOperationResponse
+	(*ServerTaskExecutionStarted)(nil),  // 52: gameap.ServerTaskExecutionStarted
+	(*ServerTaskExecutionFinished)(nil), // 53: gameap.ServerTaskExecutionFinished
+	(*ServerTaskExecutionLog)(nil),      // 54: gameap.ServerTaskExecutionLog
+	(*ServerTaskResyncRequest)(nil),     // 55: gameap.ServerTaskResyncRequest
+	(*DaemonTask)(nil),                  // 56: gameap.DaemonTask
+	(*Server)(nil),                      // 57: gameap.Server
+	(*FileOperationRequest)(nil),        // 58: gameap.FileOperationRequest
+	(*ServerTaskSnapshot)(nil),          // 59: gameap.ServerTaskSnapshot
+	(*ServerTaskDelta)(nil),             // 60: gameap.ServerTaskDelta
+	(*ServerTaskExecutionCancel)(nil),   // 61: gameap.ServerTaskExecutionCancel
+	(*ServerTaskExecutionAck)(nil),      // 62: gameap.ServerTaskExecutionAck
+	(*InFlightServerTaskExecution)(nil), // 63: gameap.InFlightServerTaskExecution
+	(DaemonTaskStatus)(0),               // 64: gameap.DaemonTaskStatus
+	(*timestamppb.Timestamp)(nil),       // 65: google.protobuf.Timestamp
+	(*Game)(nil),                        // 66: gameap.Game
+	(*GameMod)(nil),                     // 67: gameap.GameMod
+	(*durationpb.Duration)(nil),         // 68: google.protobuf.Duration
+	(*ServerSetting)(nil),               // 69: gameap.ServerSetting
+	(*FileStat)(nil),                    // 70: gameap.FileStat
 }
 var file_pkg_proto_gateway_proto_depIdxs = []int32{
 	4,  // 0: gameap.DaemonMessage.register:type_name -> gameap.RegisterRequest
@@ -4365,72 +4536,82 @@ var file_pkg_proto_gateway_proto_depIdxs = []int32{
 	51, // 15: gameap.DaemonMessage.file_operation_response:type_name -> gameap.FileOperationResponse
 	45, // 16: gameap.DaemonMessage.status_response:type_name -> gameap.StatusResponse
 	48, // 17: gameap.DaemonMessage.http_proxy_response:type_name -> gameap.HTTPProxyResponse
-	6,  // 18: gameap.GatewayMessage.register_ack:type_name -> gameap.RegisterAck
-	25, // 19: gameap.GatewayMessage.shutdown:type_name -> gameap.ShutdownNotification
-	11, // 20: gameap.GatewayMessage.metrics_request:type_name -> gameap.MetricsRequest
-	52, // 21: gameap.GatewayMessage.task:type_name -> gameap.DaemonTask
-	17, // 22: gameap.GatewayMessage.task_cancel:type_name -> gameap.TaskCancel
-	18, // 23: gameap.GatewayMessage.command:type_name -> gameap.CommandRequest
-	36, // 24: gameap.GatewayMessage.attach_request:type_name -> gameap.AttachRequest
-	38, // 25: gameap.GatewayMessage.attach_input:type_name -> gameap.AttachInput
-	40, // 26: gameap.GatewayMessage.attach_detach:type_name -> gameap.AttachDetach
-	42, // 27: gameap.GatewayMessage.console_log_request:type_name -> gameap.ConsoleLogRequest
-	53, // 28: gameap.GatewayMessage.server_config:type_name -> gameap.Server
-	23, // 29: gameap.GatewayMessage.server_config_batch:type_name -> gameap.ServerConfigBatch
-	24, // 30: gameap.GatewayMessage.server_config_update:type_name -> gameap.ServerConfigUpdate
-	26, // 31: gameap.GatewayMessage.file_read:type_name -> gameap.FileReadRequest
-	28, // 32: gameap.GatewayMessage.file_write:type_name -> gameap.FileWriteRequest
-	30, // 33: gameap.GatewayMessage.file_list:type_name -> gameap.FileListRequest
-	32, // 34: gameap.GatewayMessage.file_upload_task:type_name -> gameap.FileUploadTask
-	54, // 35: gameap.GatewayMessage.file_operation:type_name -> gameap.FileOperationRequest
-	33, // 36: gameap.GatewayMessage.file_download_task:type_name -> gameap.FileDownloadTask
-	44, // 37: gameap.GatewayMessage.status_request:type_name -> gameap.StatusRequest
-	47, // 38: gameap.GatewayMessage.http_proxy:type_name -> gameap.HTTPProxyRequest
-	5,  // 39: gameap.RegisterRequest.in_flight_tasks:type_name -> gameap.InFlightTask
-	55, // 40: gameap.InFlightTask.status:type_name -> gameap.DaemonTaskStatus
-	56, // 41: gameap.InFlightTask.started_at:type_name -> google.protobuf.Timestamp
-	53, // 42: gameap.RegisterAck.servers:type_name -> gameap.Server
-	52, // 43: gameap.RegisterAck.pending_tasks:type_name -> gameap.DaemonTask
-	57, // 44: gameap.RegisterAck.games:type_name -> gameap.Game
-	58, // 45: gameap.RegisterAck.game_mods:type_name -> gameap.GameMod
-	59, // 46: gameap.RegisterAck.heartbeat_interval:type_name -> google.protobuf.Duration
-	60, // 47: gameap.RegisterAck.server_settings:type_name -> gameap.ServerSetting
-	56, // 48: gameap.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
-	8,  // 49: gameap.Heartbeat.system_stats:type_name -> gameap.SystemStats
-	56, // 50: gameap.MetricPoint.timestamp:type_name -> google.protobuf.Timestamp
-	0,  // 51: gameap.MetricSeries.type:type_name -> gameap.MetricType
-	1,  // 52: gameap.MetricSeries.unit:type_name -> gameap.MetricUnit
-	49, // 53: gameap.MetricSeries.labels:type_name -> gameap.MetricSeries.LabelsEntry
-	9,  // 54: gameap.MetricSeries.points:type_name -> gameap.MetricPoint
-	12, // 55: gameap.MetricsRequest.current:type_name -> gameap.CurrentMetricsRequest
-	13, // 56: gameap.MetricsRequest.history:type_name -> gameap.MetricsHistoryRequest
-	56, // 57: gameap.MetricsResponse.timestamp:type_name -> google.protobuf.Timestamp
-	50, // 58: gameap.MetricsResponse.common_labels:type_name -> gameap.MetricsResponse.CommonLabelsEntry
-	10, // 59: gameap.MetricsResponse.series:type_name -> gameap.MetricSeries
-	55, // 60: gameap.TaskStatusUpdate.status:type_name -> gameap.DaemonTaskStatus
-	59, // 61: gameap.CommandRequest.timeout:type_name -> google.protobuf.Duration
-	56, // 62: gameap.ServerStatus.last_check:type_name -> google.protobuf.Timestamp
-	21, // 63: gameap.ServerStatusBatch.statuses:type_name -> gameap.ServerStatus
-	53, // 64: gameap.ServerConfigBatch.servers:type_name -> gameap.Server
-	60, // 65: gameap.ServerConfigBatch.server_settings:type_name -> gameap.ServerSetting
-	53, // 66: gameap.ServerConfigUpdate.server:type_name -> gameap.Server
-	60, // 67: gameap.ServerConfigUpdate.settings:type_name -> gameap.ServerSetting
-	57, // 68: gameap.ServerConfigUpdate.game:type_name -> gameap.Game
-	58, // 69: gameap.ServerConfigUpdate.game_mod:type_name -> gameap.GameMod
-	59, // 70: gameap.ShutdownNotification.reconnect_delay:type_name -> google.protobuf.Duration
-	61, // 71: gameap.FileListResponse.files:type_name -> gameap.FileStat
-	46, // 72: gameap.HTTPProxyRequest.headers:type_name -> gameap.HeaderEntry
-	59, // 73: gameap.HTTPProxyRequest.timeout:type_name -> google.protobuf.Duration
-	46, // 74: gameap.HTTPProxyResponse.headers:type_name -> gameap.HeaderEntry
-	2,  // 75: gameap.DaemonGateway.Connect:input_type -> gameap.DaemonMessage
-	34, // 76: gameap.DaemonGateway.Enroll:input_type -> gameap.EnrollRequest
-	3,  // 77: gameap.DaemonGateway.Connect:output_type -> gameap.GatewayMessage
-	35, // 78: gameap.DaemonGateway.Enroll:output_type -> gameap.EnrollResponse
-	77, // [77:79] is the sub-list for method output_type
-	75, // [75:77] is the sub-list for method input_type
-	75, // [75:75] is the sub-list for extension type_name
-	75, // [75:75] is the sub-list for extension extendee
-	0,  // [0:75] is the sub-list for field type_name
+	52, // 18: gameap.DaemonMessage.server_task_execution_started:type_name -> gameap.ServerTaskExecutionStarted
+	53, // 19: gameap.DaemonMessage.server_task_execution_finished:type_name -> gameap.ServerTaskExecutionFinished
+	54, // 20: gameap.DaemonMessage.server_task_execution_log:type_name -> gameap.ServerTaskExecutionLog
+	55, // 21: gameap.DaemonMessage.server_task_resync_request:type_name -> gameap.ServerTaskResyncRequest
+	6,  // 22: gameap.GatewayMessage.register_ack:type_name -> gameap.RegisterAck
+	25, // 23: gameap.GatewayMessage.shutdown:type_name -> gameap.ShutdownNotification
+	11, // 24: gameap.GatewayMessage.metrics_request:type_name -> gameap.MetricsRequest
+	56, // 25: gameap.GatewayMessage.task:type_name -> gameap.DaemonTask
+	17, // 26: gameap.GatewayMessage.task_cancel:type_name -> gameap.TaskCancel
+	18, // 27: gameap.GatewayMessage.command:type_name -> gameap.CommandRequest
+	36, // 28: gameap.GatewayMessage.attach_request:type_name -> gameap.AttachRequest
+	38, // 29: gameap.GatewayMessage.attach_input:type_name -> gameap.AttachInput
+	40, // 30: gameap.GatewayMessage.attach_detach:type_name -> gameap.AttachDetach
+	42, // 31: gameap.GatewayMessage.console_log_request:type_name -> gameap.ConsoleLogRequest
+	57, // 32: gameap.GatewayMessage.server_config:type_name -> gameap.Server
+	23, // 33: gameap.GatewayMessage.server_config_batch:type_name -> gameap.ServerConfigBatch
+	24, // 34: gameap.GatewayMessage.server_config_update:type_name -> gameap.ServerConfigUpdate
+	26, // 35: gameap.GatewayMessage.file_read:type_name -> gameap.FileReadRequest
+	28, // 36: gameap.GatewayMessage.file_write:type_name -> gameap.FileWriteRequest
+	30, // 37: gameap.GatewayMessage.file_list:type_name -> gameap.FileListRequest
+	32, // 38: gameap.GatewayMessage.file_upload_task:type_name -> gameap.FileUploadTask
+	58, // 39: gameap.GatewayMessage.file_operation:type_name -> gameap.FileOperationRequest
+	33, // 40: gameap.GatewayMessage.file_download_task:type_name -> gameap.FileDownloadTask
+	44, // 41: gameap.GatewayMessage.status_request:type_name -> gameap.StatusRequest
+	47, // 42: gameap.GatewayMessage.http_proxy:type_name -> gameap.HTTPProxyRequest
+	59, // 43: gameap.GatewayMessage.server_task_snapshot:type_name -> gameap.ServerTaskSnapshot
+	60, // 44: gameap.GatewayMessage.server_task_delta:type_name -> gameap.ServerTaskDelta
+	61, // 45: gameap.GatewayMessage.server_task_execution_cancel:type_name -> gameap.ServerTaskExecutionCancel
+	62, // 46: gameap.GatewayMessage.server_task_execution_ack:type_name -> gameap.ServerTaskExecutionAck
+	5,  // 47: gameap.RegisterRequest.in_flight_tasks:type_name -> gameap.InFlightTask
+	63, // 48: gameap.RegisterRequest.in_flight_server_task_executions:type_name -> gameap.InFlightServerTaskExecution
+	64, // 49: gameap.InFlightTask.status:type_name -> gameap.DaemonTaskStatus
+	65, // 50: gameap.InFlightTask.started_at:type_name -> google.protobuf.Timestamp
+	57, // 51: gameap.RegisterAck.servers:type_name -> gameap.Server
+	56, // 52: gameap.RegisterAck.pending_tasks:type_name -> gameap.DaemonTask
+	66, // 53: gameap.RegisterAck.games:type_name -> gameap.Game
+	67, // 54: gameap.RegisterAck.game_mods:type_name -> gameap.GameMod
+	68, // 55: gameap.RegisterAck.heartbeat_interval:type_name -> google.protobuf.Duration
+	69, // 56: gameap.RegisterAck.server_settings:type_name -> gameap.ServerSetting
+	59, // 57: gameap.RegisterAck.server_task_snapshot:type_name -> gameap.ServerTaskSnapshot
+	65, // 58: gameap.Heartbeat.timestamp:type_name -> google.protobuf.Timestamp
+	8,  // 59: gameap.Heartbeat.system_stats:type_name -> gameap.SystemStats
+	65, // 60: gameap.MetricPoint.timestamp:type_name -> google.protobuf.Timestamp
+	0,  // 61: gameap.MetricSeries.type:type_name -> gameap.MetricType
+	1,  // 62: gameap.MetricSeries.unit:type_name -> gameap.MetricUnit
+	49, // 63: gameap.MetricSeries.labels:type_name -> gameap.MetricSeries.LabelsEntry
+	9,  // 64: gameap.MetricSeries.points:type_name -> gameap.MetricPoint
+	12, // 65: gameap.MetricsRequest.current:type_name -> gameap.CurrentMetricsRequest
+	13, // 66: gameap.MetricsRequest.history:type_name -> gameap.MetricsHistoryRequest
+	65, // 67: gameap.MetricsResponse.timestamp:type_name -> google.protobuf.Timestamp
+	50, // 68: gameap.MetricsResponse.common_labels:type_name -> gameap.MetricsResponse.CommonLabelsEntry
+	10, // 69: gameap.MetricsResponse.series:type_name -> gameap.MetricSeries
+	64, // 70: gameap.TaskStatusUpdate.status:type_name -> gameap.DaemonTaskStatus
+	68, // 71: gameap.CommandRequest.timeout:type_name -> google.protobuf.Duration
+	65, // 72: gameap.ServerStatus.last_check:type_name -> google.protobuf.Timestamp
+	21, // 73: gameap.ServerStatusBatch.statuses:type_name -> gameap.ServerStatus
+	57, // 74: gameap.ServerConfigBatch.servers:type_name -> gameap.Server
+	69, // 75: gameap.ServerConfigBatch.server_settings:type_name -> gameap.ServerSetting
+	57, // 76: gameap.ServerConfigUpdate.server:type_name -> gameap.Server
+	69, // 77: gameap.ServerConfigUpdate.settings:type_name -> gameap.ServerSetting
+	66, // 78: gameap.ServerConfigUpdate.game:type_name -> gameap.Game
+	67, // 79: gameap.ServerConfigUpdate.game_mod:type_name -> gameap.GameMod
+	68, // 80: gameap.ShutdownNotification.reconnect_delay:type_name -> google.protobuf.Duration
+	70, // 81: gameap.FileListResponse.files:type_name -> gameap.FileStat
+	46, // 82: gameap.HTTPProxyRequest.headers:type_name -> gameap.HeaderEntry
+	68, // 83: gameap.HTTPProxyRequest.timeout:type_name -> google.protobuf.Duration
+	46, // 84: gameap.HTTPProxyResponse.headers:type_name -> gameap.HeaderEntry
+	2,  // 85: gameap.DaemonGateway.Connect:input_type -> gameap.DaemonMessage
+	34, // 86: gameap.DaemonGateway.Enroll:input_type -> gameap.EnrollRequest
+	3,  // 87: gameap.DaemonGateway.Connect:output_type -> gameap.GatewayMessage
+	35, // 88: gameap.DaemonGateway.Enroll:output_type -> gameap.EnrollResponse
+	87, // [87:89] is the sub-list for method output_type
+	85, // [85:87] is the sub-list for method input_type
+	85, // [85:85] is the sub-list for extension type_name
+	85, // [85:85] is the sub-list for extension extendee
+	0,  // [0:85] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_gateway_proto_init() }
@@ -4444,6 +4625,7 @@ func file_pkg_proto_gateway_proto_init() {
 	file_pkg_proto_gamemod_proto_init()
 	file_pkg_proto_filetransfer_proto_init()
 	file_pkg_proto_serversetting_proto_init()
+	file_pkg_proto_servertask_proto_init()
 	file_pkg_proto_gateway_proto_msgTypes[0].OneofWrappers = []any{
 		(*DaemonMessage_Register)(nil),
 		(*DaemonMessage_Heartbeat)(nil),
@@ -4463,6 +4645,10 @@ func file_pkg_proto_gateway_proto_init() {
 		(*DaemonMessage_FileOperationResponse)(nil),
 		(*DaemonMessage_StatusResponse)(nil),
 		(*DaemonMessage_HttpProxyResponse)(nil),
+		(*DaemonMessage_ServerTaskExecutionStarted)(nil),
+		(*DaemonMessage_ServerTaskExecutionFinished)(nil),
+		(*DaemonMessage_ServerTaskExecutionLog)(nil),
+		(*DaemonMessage_ServerTaskResyncRequest)(nil),
 	}
 	file_pkg_proto_gateway_proto_msgTypes[1].OneofWrappers = []any{
 		(*GatewayMessage_RegisterAck)(nil),
@@ -4486,6 +4672,10 @@ func file_pkg_proto_gateway_proto_init() {
 		(*GatewayMessage_FileDownloadTask)(nil),
 		(*GatewayMessage_StatusRequest)(nil),
 		(*GatewayMessage_HttpProxy)(nil),
+		(*GatewayMessage_ServerTaskSnapshot)(nil),
+		(*GatewayMessage_ServerTaskDelta)(nil),
+		(*GatewayMessage_ServerTaskExecutionCancel)(nil),
+		(*GatewayMessage_ServerTaskExecutionAck)(nil),
 	}
 	file_pkg_proto_gateway_proto_msgTypes[7].OneofWrappers = []any{
 		(*MetricPoint_DoubleValue)(nil),

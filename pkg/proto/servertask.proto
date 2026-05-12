@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package gameap;
+
+option go_package = "github.com/gameap/gameap/pkg/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+enum ServerTaskCommand {
+  SERVER_TASK_COMMAND_UNSPECIFIED = 0;
+  SERVER_TASK_COMMAND_START       = 1;
+  SERVER_TASK_COMMAND_STOP        = 2;
+  SERVER_TASK_COMMAND_RESTART     = 3;
+  SERVER_TASK_COMMAND_UPDATE      = 4;
+  SERVER_TASK_COMMAND_REINSTALL   = 5;
+}
+
+enum ServerTaskOverlapPolicy {
+  SERVER_TASK_OVERLAP_POLICY_UNSPECIFIED = 0;
+  SERVER_TASK_OVERLAP_POLICY_SKIP        = 1;
+  SERVER_TASK_OVERLAP_POLICY_QUEUE       = 2;
+}
+
+enum ServerTaskCatchupPolicy {
+  SERVER_TASK_CATCHUP_POLICY_UNSPECIFIED = 0;
+  SERVER_TASK_CATCHUP_POLICY_SKIP        = 1;
+  SERVER_TASK_CATCHUP_POLICY_RUN_ONCE    = 2;
+}
+
+enum ServerTaskExecutionStatus {
+  SERVER_TASK_EXECUTION_STATUS_UNSPECIFIED = 0;
+  SERVER_TASK_EXECUTION_STATUS_RUNNING     = 1;
+  SERVER_TASK_EXECUTION_STATUS_SUCCESS     = 2;
+  SERVER_TASK_EXECUTION_STATUS_FAILED      = 3;
+  SERVER_TASK_EXECUTION_STATUS_CANCELED    = 4;
+  SERVER_TASK_EXECUTION_STATUS_SKIPPED     = 5;
+  SERVER_TASK_EXECUTION_STATUS_TIMED_OUT   = 6;
+}
+
+// Schedule definition shipped to the daemon. The daemon owns the cron tick;
+// the API only persists/edits the schedule and consumes execution events.
+//
+// `version` is monotonic per task_id. Daemons MUST drop deltas whose
+// version <= cached version (ordering / late-message safety).
+//
+// `payload` is opaque application-level data. The daemon stores and passes
+// it back unmodified in `ServerTaskExecutionStarted` /
+// `ServerTaskExecutionFinished`.
+message ServerTask {
+  uint64 id          = 1;
+  uint64 server_id   = 2;
+  uint64 node_id     = 3;
+  ServerTaskCommand command = 4;
+  google.protobuf.Timestamp execute_date  = 5;
+  google.protobuf.Duration  repeat_period = 6;
+  uint32 repeat_count = 7;
+  uint32 counter      = 8;
+  string payload      = 9;
+  uint64 version      = 10;
+  ServerTaskOverlapPolicy overlap_policy = 11;
+  ServerTaskCatchupPolicy catchup_policy = 12;
+  bool   enabled      = 13;
+  string name         = 14;
+  string timezone     = 15;
+  google.protobuf.Timestamp updated_at = 16;
+}
+
+// Full snapshot delivered in `RegisterAck.server_task_snapshot` and on
+// explicit `ServerTaskResyncRequest`. Daemon replaces its local cache
+// wholesale.
+message ServerTaskSnapshot {
+  repeated ServerTask tasks = 1;
+  uint64 snapshot_version   = 2;
+  google.protobuf.Timestamp generated_at = 3;
+}
+
+message ServerTaskDeleted {
+  uint64 id      = 1;
+  uint64 version = 2;
+}
+
+// Incremental update: API → daemon on CRUD.
+message ServerTaskDelta {
+  oneof kind {
+    ServerTask        upserted = 1;
+    ServerTaskDeleted deleted  = 2;
+  }
+}
+
+// Daemon → API. Triggered when the daemon suspects its local cache is
+// stale (e.g. version gap detected). API replies by sending a fresh
+// `ServerTaskSnapshot` on the stream.
+message ServerTaskResyncRequest {
+  uint64 last_known_snapshot_version = 1;
+}
+
+// Daemon → API. Emitted when the daemon's scheduler fires a task. The
+// daemon generates `execution_id` (UUIDv4) as the idempotency key — the
+// API uses ON CONFLICT (execution_id) DO NOTHING.
+//
+// `task_version` is the version on which this run is based. If the user
+// edits the task mid-run, the recorded execution still reflects the
+// version actually executed.
+message ServerTaskExecutionStarted {
+  string execution_id = 1;
+  uint64 task_id      = 2;
+  uint64 task_version = 3;
+  uint64 server_id    = 4;
+  uint64 node_id      = 5;
+  ServerTaskCommand command = 6;
+  google.protobuf.Timestamp started_at = 7;
+}
+
+// Daemon → API. Sent when execution terminates. For small output the
+// daemon sets `output_inline` (≤64 KB). For large output it streams
+// chunks via `ServerTaskExecutionLog` during the run and sets
+// `output_streamed=true` + `output_storage_path` here.
+message ServerTaskExecutionFinished {
+  string execution_id = 1;
+  uint64 task_id      = 2;
+  ServerTaskExecutionStatus status = 3;
+  int32  exit_code    = 4;
+  string error_message = 5;
+  google.protobuf.Timestamp finished_at = 6;
+  google.protobuf.Duration  duration    = 7;
+  bytes  output_inline = 8;
+  bool   output_streamed = 9;
+  string output_storage_path = 10;
+}
+
+// Daemon → API. Optional log chunks for large output, ordered by
+// `sequence`. The API streams them to file-transfer storage keyed by
+// `execution_id`.
+message ServerTaskExecutionLog {
+  string execution_id = 1;
+  uint64 sequence     = 2;
+  bytes  chunk        = 3;
+  bool   is_final     = 4;
+}
+
+// API → daemon. Request cancellation of an in-flight execution.
+message ServerTaskExecutionCancel {
+  string execution_id = 1;
+  uint64 task_id      = 2;
+  string reason       = 3;
+}
+
+// API → daemon. Acknowledge receipt of a finished execution. Daemon
+// drops the local "pending ack" buffer entry on receipt.
+message ServerTaskExecutionAck {
+  string execution_id = 1;
+}
+
+// Reported by daemon on register so the API can reconcile rows left in
+// `running` state by the previous session.
+message InFlightServerTaskExecution {
+  string execution_id = 1;
+  uint64 task_id      = 2;
+  google.protobuf.Timestamp started_at = 3;
+}

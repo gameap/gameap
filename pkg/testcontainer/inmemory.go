@@ -31,6 +31,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
+	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	"github.com/gameap/gameap/internal/upload"
 	"github.com/gameap/gameap/internal/ws"
@@ -42,33 +43,33 @@ import (
 )
 
 type InmemoryContainer struct {
-	cfg                   *config.Config
-	responder             *pkgapi.Responder
-	gameRepo              repositories.GameRepository
-	gameModRepo           repositories.GameModRepository
-	serverRepo            repositories.ServerRepository
-	userRepo              repositories.UserRepository
-	authService           auth.Service
-	userService           *services.UserService
-	rbacRepo              repositories.RBACRepository
-	tokenRepo             repositories.PersonalAccessTokenRepository
-	daemonTaskRepo        repositories.DaemonTaskRepository
-	serverTaskRepo        repositories.ServerTaskRepository
-	serverTaskFailRepo    repositories.ServerTaskFailRepository
-	serverSettingRepo     repositories.ServerSettingRepository
-	nodeRepo              repositories.NodeRepository
-	clientCertificateRepo repositories.ClientCertificateRepository
-	rbacService           *rbac.RBAC
-	serverControlService  *servercontrol.Service
-	gameUpgradeService    *services.GameUpgradeService
-	fileManager           files.FileManager
-	cacheService          cache.Cache
-	certificatesService   *certificates.Service
-	globalAPIService      *services.GlobalAPIService
-	daemonStatusService   *daemon.StatusService
-	daemonFilesService    *daemon.FileService
-	daemonCommandsService *daemon.CommandService
-	uploadSessionService  *upload.Service
+	cfg                     *config.Config
+	responder               *pkgapi.Responder
+	gameRepo                repositories.GameRepository
+	gameModRepo             repositories.GameModRepository
+	serverRepo              repositories.ServerRepository
+	userRepo                repositories.UserRepository
+	authService             auth.Service
+	userService             *services.UserService
+	rbacRepo                repositories.RBACRepository
+	tokenRepo               repositories.PersonalAccessTokenRepository
+	daemonTaskRepo          repositories.DaemonTaskRepository
+	serverTaskRepo          repositories.ServerTaskRepository
+	serverTaskExecutionRepo repositories.ServerTaskExecutionRepository
+	serverSettingRepo       repositories.ServerSettingRepository
+	nodeRepo                repositories.NodeRepository
+	clientCertificateRepo   repositories.ClientCertificateRepository
+	rbacService             *rbac.RBAC
+	serverControlService    *servercontrol.Service
+	gameUpgradeService      *services.GameUpgradeService
+	fileManager             files.FileManager
+	cacheService            cache.Cache
+	certificatesService     *certificates.Service
+	globalAPIService        *services.GlobalAPIService
+	daemonStatusService     *daemon.StatusService
+	daemonFilesService      *daemon.FileService
+	daemonCommandsService   *daemon.CommandService
+	uploadSessionService    *upload.Service
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -97,8 +98,8 @@ func (c *InmemoryContainer) DaemonTaskRepository() repositories.DaemonTaskReposi
 func (c *InmemoryContainer) ServerTaskRepository() repositories.ServerTaskRepository {
 	return c.serverTaskRepo
 }
-func (c *InmemoryContainer) ServerTaskFailRepository() repositories.ServerTaskFailRepository {
-	return c.serverTaskFailRepo
+func (c *InmemoryContainer) ServerTaskExecutionRepository() repositories.ServerTaskExecutionRepository {
+	return c.serverTaskExecutionRepo
 }
 func (c *InmemoryContainer) ServerSettingRepository() repositories.ServerSettingRepository {
 	return c.serverSettingRepo
@@ -132,14 +133,17 @@ func (c *InmemoryContainer) PelicanEggImporter() *pelicaneggimporter.Importer { 
 func (c *InmemoryContainer) GameAPImporter() *gameapimporter.Importer         { return nil }
 func (c *InmemoryContainer) GameExporter() *gameexporter.Exporter             { return nil }
 func (c *InmemoryContainer) TaskDispatcher() *taskdispatcher.Dispatcher       { return nil }
-func (c *InmemoryContainer) ServerConfigPusher() *serverconfigpush.Pusher     { return nil }
-func (c *InmemoryContainer) WSHub() *ws.Hub                                   { return ws.NewHub(nil) }
-func (c *InmemoryContainer) SessionRegistry() *session.Registry               { return nil }
-func (c *InmemoryContainer) CommandHandler() *grpchandlers.CommandHandler     { return nil }
-func (c *InmemoryContainer) AttachHandler() *grpchandlers.AttachHandler       { return nil }
-func (c *InmemoryContainer) MetricsHub() metrics.Hub                          { return nil }
-func (c *InmemoryContainer) PubSub() pubsub.PubSub                            { return nil }
-func (c *InmemoryContainer) ACMEService() *acme.Service                       { return nil }
+func (c *InmemoryContainer) ServerTaskDispatcher() *servertaskdispatcher.Dispatcher {
+	return nil
+}
+func (c *InmemoryContainer) ServerConfigPusher() *serverconfigpush.Pusher { return nil }
+func (c *InmemoryContainer) WSHub() *ws.Hub                               { return ws.NewHub(nil) }
+func (c *InmemoryContainer) SessionRegistry() *session.Registry           { return nil }
+func (c *InmemoryContainer) CommandHandler() *grpchandlers.CommandHandler { return nil }
+func (c *InmemoryContainer) AttachHandler() *grpchandlers.AttachHandler   { return nil }
+func (c *InmemoryContainer) MetricsHub() metrics.Hub                      { return nil }
+func (c *InmemoryContainer) PubSub() pubsub.PubSub                        { return nil }
+func (c *InmemoryContainer) ACMEService() *acme.Service                   { return nil }
 func (c *InmemoryContainer) EnrollmentService() *enrollment.Service {
 	keyManager := enrollment.NewSetupKeyManager(c.cacheService, "")
 
@@ -184,21 +188,21 @@ func buildInmemoryTestContainer() *InmemoryContainer {
 			AuthSecret:    "test-secret-key-for-testing",
 			EncryptionKey: "test-encryption-key-testing",
 		},
-		responder:             pkgapi.NewResponder(),
-		gameRepo:              inmemory.NewGameRepository(),
-		gameModRepo:           inmemory.NewGameModRepository(),
-		serverRepo:            serverRepo,
-		userRepo:              userRepo,
-		authService:           auth.NewJWTService([]byte("test-secret-key-for-testing")),
-		userService:           services.NewUserService(userRepo),
-		rbacRepo:              rbacRepo,
-		tokenRepo:             inmemory.NewPersonalAccessTokenRepository(),
-		daemonTaskRepo:        daemonTaskRepo,
-		serverTaskRepo:        inmemory.NewServerTaskRepository(serverRepo),
-		serverTaskFailRepo:    inmemory.NewServerTaskFailRepository(),
-		serverSettingRepo:     serverSettingRepo,
-		nodeRepo:              inmemory.NewNodeRepository(),
-		clientCertificateRepo: inmemory.NewClientCertificateRepository(),
+		responder:               pkgapi.NewResponder(),
+		gameRepo:                inmemory.NewGameRepository(),
+		gameModRepo:             inmemory.NewGameModRepository(),
+		serverRepo:              serverRepo,
+		userRepo:                userRepo,
+		authService:             auth.NewJWTService([]byte("test-secret-key-for-testing")),
+		userService:             services.NewUserService(userRepo),
+		rbacRepo:                rbacRepo,
+		tokenRepo:               inmemory.NewPersonalAccessTokenRepository(),
+		daemonTaskRepo:          daemonTaskRepo,
+		serverTaskRepo:          inmemory.NewServerTaskRepository(serverRepo),
+		serverTaskExecutionRepo: inmemory.NewServerTaskExecutionRepository(),
+		serverSettingRepo:       serverSettingRepo,
+		nodeRepo:                inmemory.NewNodeRepository(),
+		clientCertificateRepo:   inmemory.NewClientCertificateRepository(),
 		// Use a very short cache TTL so that role/permission changes are observed
 		// immediately by tests (e.g. revoking admin must remove access on the next request).
 		rbacService:           rbac.NewRBAC(tm, rbacRepo, time.Millisecond),

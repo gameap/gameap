@@ -1,0 +1,83 @@
+type: object
+description: |
+  One run of a scheduled server task. Replaces the legacy `servers_tasks_fails`
+  table: both successes and failures land here, keyed by a daemon-generated
+  UUID for idempotency.
+properties:
+  id:
+    type: integer
+    description: API-side surrogate ID (cursor for pagination).
+  execution_id:
+    type: string
+    format: uuid
+    description: Daemon-generated idempotency key. The API uses
+      `ON CONFLICT (execution_id) DO NOTHING` on inserts so a retried
+      start event never duplicates the row.
+  server_task_id:
+    type: integer
+  server_id:
+    type: integer
+  node_id:
+    type: integer
+  command:
+    $ref: './common/ServerTaskCommand.yaml'
+  task_version:
+    type: integer
+    format: int64
+    description: Version of `ServerTask` on which this run was based. If the
+      user edits the task mid-run, this stays pinned to the version actually
+      executed.
+  status:
+    type: string
+    enum: [running, success, failed, canceled, skipped, timed_out]
+  exit_code:
+    type:
+      - integer
+      - "null"
+  error_message:
+    type:
+      - string
+      - "null"
+  started_at:
+    type: string
+    format: date-time
+  finished_at:
+    type:
+      - string
+      - "null"
+    format: date-time
+  duration_ms:
+    type:
+      - integer
+      - "null"
+    format: int64
+  output_inline:
+    type:
+      - string
+      - "null"
+    description: Truncated tail of stdout/stderr (≤64KB). For full output
+      consult `output_storage_path`.
+  output_storage_path:
+    type:
+      - string
+      - "null"
+    description: URI into file-transfer storage for the full streamed output.
+      Set when the daemon decided the output was too large to inline.
+  created_at:
+    type: string
+    format: date-time
+  updated_at:
+    type: string
+    format: date-time
+required:
+  - id
+  - execution_id
+  - server_task_id
+  - server_id
+  - node_id
+  - command
+  - task_version
+  - status
+  - started_at
+  - created_at
+  - updated_at

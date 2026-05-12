@@ -81,6 +81,15 @@ const (
 
 	MetricsSubscribers    = Prefix + "metrics:subscribers:"
 	MetricsSubscribersAll = Prefix + "metrics:subscribers:*"
+
+	DaemonServerTaskDelta     = DaemonPrefix + "server_task:delta:"
+	DaemonServerTaskDeltaAll  = DaemonPrefix + "server_task:delta:*"
+	DaemonServerTaskResync    = DaemonPrefix + "server_task:resync:"
+	DaemonServerTaskResyncAll = DaemonPrefix + "server_task:resync:*"
+
+	RealtimeServerTaskExecution = RealtimePrefix + "server_task:execution:"
+	RealtimeServerTaskLog       = RealtimePrefix + "server_task:log:"
+	RealtimeServerTaskAll       = RealtimePrefix + "server_task:*"
 )
 
 func BuildCacheInvalidateChannel(entityType string, entityID string) string {
@@ -193,4 +202,20 @@ func BuildDaemonMetricsResponseChannel(instanceID string) string {
 
 func BuildMetricsSubscribersChannel(nodeID uint64) string {
 	return MetricsSubscribers + strconv.FormatUint(nodeID, 10)
+}
+
+func BuildDaemonServerTaskDeltaChannel(nodeID uint64) string {
+	return DaemonServerTaskDelta + strconv.FormatUint(nodeID, 10)
+}
+
+func BuildDaemonServerTaskResyncChannel(nodeID uint64) string {
+	return DaemonServerTaskResync + strconv.FormatUint(nodeID, 10)
+}
+
+func BuildRealtimeServerTaskExecutionChannel(taskID uint64) string {
+	return RealtimeServerTaskExecution + strconv.FormatUint(taskID, 10)
+}
+
+func BuildRealtimeServerTaskLogChannel(executionID string) string {
+	return RealtimeServerTaskLog + executionID
 }

@@ -59,6 +59,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
+	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskreaper"
 	"github.com/gameap/gameap/internal/transfers"
@@ -127,7 +128,7 @@ type Container struct {
 	personalAccessTokenRepository repositories.PersonalAccessTokenRepository
 	daemonTasksRepository         repositories.DaemonTaskRepository
 	serverTaskRepository          repositories.ServerTaskRepository
-	serverTaskFailRepository      repositories.ServerTaskFailRepository
+	serverTaskExecutionRepository repositories.ServerTaskExecutionRepository
 	serverSettingRepository       repositories.ServerSettingRepository
 	nodeRepository                repositories.NodeRepository
 	clientCertificateRepository   repositories.ClientCertificateRepository
@@ -139,6 +140,7 @@ type Container struct {
 	userService          *services.UserService
 	serverControlService *servercontrol.Service
 	taskDispatcher       *taskdispatcher.Dispatcher
+	serverTaskDispatcher *servertaskdispatcher.Dispatcher
 	serverConfigPusher   *serverconfigpush.Pusher
 	globalAPIService     *services.GlobalAPIService
 	pluginStoreService   *pluginstore.Service
@@ -672,6 +674,20 @@ func (c *Container) TaskDispatcher() *taskdispatcher.Dispatcher {
 	return c.taskDispatcher
 }
 
+func (c *Container) ServerTaskDispatcher() *servertaskdispatcher.Dispatcher {
+	if c.serverTaskDispatcher == nil {
+		c.serverTaskDispatcher = servertaskdispatcher.NewDispatcher(
+			c.SessionRegistry(),
+			c.ServerTaskRepository(),
+			c.ServerTaskExecutionRepository(),
+			c.PubSub(),
+			slog.Default(),
+		)
+	}
+
+	return c.serverTaskDispatcher
+}
+
 func (c *Container) ServerConfigPusher() *serverconfigpush.Pusher {
 	if c.serverConfigPusher == nil {
 		c.serverConfigPusher = serverconfigpush.NewPusher(
@@ -854,27 +870,26 @@ func (c *Container) createServerTaskRepository() repositories.ServerTaskReposito
 	}
 }
 
-func (c *Container) ServerTaskFailRepository() repositories.ServerTaskFailRepository {
-	if c.serverTaskFailRepository == nil {
-		c.serverTaskFailRepository = c.createServerTaskFailRepository()
+func (c *Container) ServerTaskExecutionRepository() repositories.ServerTaskExecutionRepository {
+	if c.serverTaskExecutionRepository == nil {
+		c.serverTaskExecutionRepository = c.createServerTaskExecutionRepository()
 	}
 
-	return c.serverTaskFailRepository
+	return c.serverTaskExecutionRepository
 }
 
-func (c *Container) createServerTaskFailRepository() repositories.ServerTaskFailRepository {
+func (c *Container) createServerTaskExecutionRepository() repositories.ServerTaskExecutionRepository {
 	switch c.config.DatabaseDriver {
 	case databaseDriverMySQL:
-		return mysql.NewServerTaskFailRepository(c.TransactionalDB())
+		return mysql.NewServerTaskExecutionRepository(c.TransactionalDB())
 	case databaseDriverPostgres, databaseDriverPGX:
-		return postgres.NewServerTaskFailRepository(c.TransactionalDB())
+		return postgres.NewServerTaskExecutionRepository(c.TransactionalDB())
 	case databaseDriverSQLite:
-		return sqlite.NewServerTaskFailRepository(c.TransactionalDB())
+		return sqlite.NewServerTaskExecutionRepository(c.TransactionalDB())
 	case databaseDriverInMemory:
-		return inmemory.NewServerTaskFailRepository()
+		return inmemory.NewServerTaskExecutionRepository()
 	default:
-		// Use in-memory repository as fallback
-		return inmemory.NewServerTaskFailRepository()
+		return inmemory.NewServerTaskExecutionRepository()
 	}
 }
 
@@ -1873,6 +1888,7 @@ func (c *Container) GatewayService() *gateway.Service {
 			c.ServerStatusHandler(),
 			c.AttachHandler(),
 			c.MetricsHandler(),
+			c.ServerTaskDispatcher(),
 			c.EnrollmentService(),
 			slog.Default(),
 		)

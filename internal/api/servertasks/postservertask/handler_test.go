@@ -715,7 +715,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			// Create handler
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
-			handler := NewHandler(serverTasksRepo, serversRepo, rbacService, responder)
+			handler := NewHandler(serverTasksRepo, serversRepo, rbacService, nil, responder)
 
 			// Setup auth context
 			ctx := context.Background()

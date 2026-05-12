@@ -457,6 +457,7 @@ func newServiceWithDeps(t *testing.T) (*Service, *serviceDeps) {
 		deps.attachHandler,
 		deps.metricsHandler,
 		nil,
+		nil,
 		silentLogger(),
 	)
 

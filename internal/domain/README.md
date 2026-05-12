@@ -38,7 +38,10 @@ SSL/TLS certificates for secure communication with GameAP Daemon.
 Low-level tasks executed by GameAP Daemon on nodes. Supports server lifecycle operations, updates, and custom command execution.
 
 ### ServerTask (`server_task.go`)
-High-level scheduled tasks for game servers with support for recurring execution and failure logging.
+High-level scheduled tasks for game servers. Definition only — execution lives in the daemon. Supports recurring runs, soft-delete, version/ETag for safe live edits, per-task overlap and catch-up policies.
+
+### ServerTaskExecution (`server_task_execution.go`)
+Unified audit log of scheduled task runs (success + failure). Daemon-generated `execution_id` (UUID) is the idempotency key. Status covers `running`/`success`/`failed`/`canceled`/`skipped`/`timed_out`. Large stdout/stderr is offloaded to file-transfer storage via `OutputStoragePath`; `OutputInline` carries the truncated tail.
 
 ## Settings
 

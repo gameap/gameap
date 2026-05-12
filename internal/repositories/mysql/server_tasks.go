@@ -54,7 +54,8 @@ func (r *ServerTaskRepository) FindAll(
 	pagination *filters.Pagination,
 ) ([]domain.ServerTask, error) {
 	builder := sq.Select(wrappedServerTaskFields...).
-		From(base.ServerTasksTable)
+		From(base.ServerTasksTable).
+		Where(sq.Eq{"deleted_at": nil})
 
 	return r.find(ctx, builder, order, pagination, false)
 }
@@ -77,7 +78,6 @@ func (r *ServerTaskRepository) Find(
 	builder := sq.Select(fields...).
 		From(base.ServerTasksTable)
 
-	// Add JOIN if filtering by NodeIDs
 	if useJoin {
 		builder = builder.
 			Join(base.ServersTable + " ON " + base.ServerTasksTable + ".server_id = " + base.ServersTable + ".id").
@@ -121,7 +121,7 @@ func (r *ServerTaskRepository) find(
 		return nil, errors.WithMessage(err, "failed to build query")
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, args...) //nolint:sqlclosecheck // closed in defer
+	rows, err := r.db.QueryContext(ctx, query, args...) //nolint:sqlclosecheck
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to execute query")
 	}
@@ -158,12 +158,30 @@ func (r *ServerTaskRepository) Save(ctx context.Context, task *domain.ServerTask
 		task.CreatedAt = new(time.Now())
 	}
 
+	if task.Version == 0 {
+		task.Version = 1
+	}
+	if task.OverlapPolicy == "" {
+		task.OverlapPolicy = domain.ServerTaskOverlapPolicySkip
+	}
+	if task.CatchupPolicy == "" {
+		task.CatchupPolicy = domain.ServerTaskCatchupPolicySkip
+	}
+
 	query, args, err := sq.Insert(base.ServerTasksTable).
 		Columns(wrappedServerTaskFields...).
 		Values(
 			task.ID,
 			task.Command,
 			task.ServerID,
+			task.NodeID,
+			task.Name,
+			task.Enabled,
+			task.OverlapPolicy,
+			task.CatchupPolicy,
+			task.CreatedByUserID,
+			task.Version,
+			task.Timezone,
 			task.Repeat,
 			task.RepeatPeriod.Seconds(),
 			task.Counter,
@@ -171,16 +189,26 @@ func (r *ServerTaskRepository) Save(ctx context.Context, task *domain.ServerTask
 			task.Payload,
 			task.CreatedAt,
 			task.UpdatedAt,
+			task.DeletedAt,
 		).
 		Suffix("ON DUPLICATE KEY UPDATE " +
 			"`command`=VALUES(`command`)," +
 			"`server_id`=VALUES(`server_id`)," +
+			"`node_id`=VALUES(`node_id`)," +
+			"`name`=VALUES(`name`)," +
+			"`enabled`=VALUES(`enabled`)," +
+			"`overlap_policy`=VALUES(`overlap_policy`)," +
+			"`catchup_policy`=VALUES(`catchup_policy`)," +
+			"`created_by_user_id`=VALUES(`created_by_user_id`)," +
+			"`version`=VALUES(`version`)," +
+			"`timezone`=VALUES(`timezone`)," +
 			"`repeat`=VALUES(`repeat`)," +
 			"`repeat_period`=VALUES(`repeat_period`)," +
 			"`counter`=VALUES(`counter`)," +
 			"`execute_date`=VALUES(`execute_date`)," +
 			"`payload`=VALUES(`payload`)," +
-			"`updated_at`=VALUES(`updated_at`)").
+			"`updated_at`=VALUES(`updated_at`)," +
+			"`deleted_at`=VALUES(`deleted_at`)").
 		PlaceholderFormat(sq.Question).
 		ToSql()
 	if err != nil {
@@ -193,14 +221,46 @@ func (r *ServerTaskRepository) Save(ctx context.Context, task *domain.ServerTask
 	}
 
 	if task.ID == 0 {
-		lastID, err := result.LastInsertId()
-		if err != nil {
-			return errors.WithMessage(err, "failed to get last insert ID")
+		lastID, lastErr := result.LastInsertId()
+		if lastErr != nil {
+			return errors.WithMessage(lastErr, "failed to get last insert ID")
 		}
 		if lastID < 0 {
 			return errors.New("invalid last insert ID")
 		}
 		task.ID = uint(lastID)
+	}
+
+	return nil
+}
+
+func (r *ServerTaskRepository) BumpVersion(ctx context.Context, id uint) (uint64, error) {
+	now := time.Now()
+	if _, err := r.db.ExecContext(ctx,
+		"UPDATE "+base.ServerTasksTable+" SET `version` = `version` + 1, `updated_at` = ? WHERE `id` = ?",
+		now, id,
+	); err != nil {
+		return 0, errors.WithMessage(err, "failed to bump version")
+	}
+
+	var version uint64
+	if err := r.db.QueryRowContext(ctx,
+		"SELECT `version` FROM "+base.ServerTasksTable+" WHERE `id` = ?", id,
+	).Scan(&version); err != nil {
+		return 0, errors.WithMessage(err, "failed to read bumped version")
+	}
+
+	return version, nil
+}
+
+func (r *ServerTaskRepository) SoftDelete(ctx context.Context, id uint) error {
+	now := time.Now()
+	if _, err := r.db.ExecContext(ctx,
+		"UPDATE "+base.ServerTasksTable+
+			" SET `deleted_at` = ?, `version` = `version` + 1, `updated_at` = ? WHERE `id` = ?",
+		now, now, id,
+	); err != nil {
+		return errors.WithMessage(err, "failed to soft-delete task")
 	}
 
 	return nil
@@ -232,6 +292,14 @@ func (r *ServerTaskRepository) scan(row base.Scanner) (*domain.ServerTask, error
 		&task.ID,
 		&task.Command,
 		&task.ServerID,
+		&task.NodeID,
+		&task.Name,
+		&task.Enabled,
+		&task.OverlapPolicy,
+		&task.CatchupPolicy,
+		&task.CreatedByUserID,
+		&task.Version,
+		&task.Timezone,
 		&task.Repeat,
 		&repeatPeriodInSeconds,
 		&task.Counter,
@@ -239,6 +307,7 @@ func (r *ServerTaskRepository) scan(row base.Scanner) (*domain.ServerTask, error
 		&task.Payload,
 		&task.CreatedAt,
 		&task.UpdatedAt,
+		&task.DeletedAt,
 	)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to scan row")
@@ -250,30 +319,36 @@ func (r *ServerTaskRepository) scan(row base.Scanner) (*domain.ServerTask, error
 }
 
 func (r *ServerTaskRepository) filterToSq(filter *filters.FindServerTask, useJoin bool) sq.Sqlizer {
-	if filter == nil {
-		return nil
-	}
-	and := make(sq.And, 0, 6)
+	and := make(sq.And, 0, 8)
 
-	var idField, serverIDField string
+	var idField, serverIDField, deletedAtField, enabledField string
 	if useJoin {
 		idField = base.ServerTasksTable + ".id"
 		serverIDField = base.ServerTasksTable + ".server_id"
+		deletedAtField = base.ServerTasksTable + ".deleted_at"
+		enabledField = base.ServerTasksTable + ".enabled"
 	} else {
 		idField = "id"
 		serverIDField = "server_id"
+		deletedAtField = "deleted_at"
+		enabledField = "enabled"
 	}
 
-	if len(filter.IDs) > 0 {
-		and = append(and, sq.Eq{idField: filter.IDs})
+	if filter == nil || !filter.IncludeDeleted {
+		and = append(and, sq.Eq{deletedAtField: nil})
 	}
 
-	if len(filter.ServersIDs) > 0 {
-		and = append(and, sq.Eq{serverIDField: filter.ServersIDs})
+	if filter != nil {
+		if len(filter.IDs) > 0 {
+			and = append(and, sq.Eq{idField: filter.IDs})
+		}
+		if len(filter.ServersIDs) > 0 {
+			and = append(and, sq.Eq{serverIDField: filter.ServersIDs})
+		}
+		if filter.OnlyEnabled {
+			and = append(and, sq.Eq{enabledField: true})
+		}
 	}
-
-	// NodeIDs is handled in the Find method via JOIN condition
-	// No need to add it here since it's already in the WHERE clause
 
 	return and
 }

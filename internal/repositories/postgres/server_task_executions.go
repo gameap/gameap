@@ -1,0 +1,345 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"log/slog"
+	"strings"
+	"time"
+
+	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/repositories/base"
+	"github.com/samber/lo"
+
+	sq "github.com/Masterminds/squirrel"
+	"github.com/pkg/errors"
+)
+
+var wrappedServerTaskExecutionFields = lo.Map(
+	base.ServerTaskExecutionFields,
+	func(s string, _ int) string {
+		b := strings.Builder{}
+		b.Grow(len(s) + 2)
+		b.WriteByte('"')
+		b.WriteString(s)
+		b.WriteByte('"')
+
+		return b.String()
+	},
+)
+
+type ServerTaskExecutionRepository struct {
+	db base.DB
+}
+
+func NewServerTaskExecutionRepository(db base.DB) *ServerTaskExecutionRepository {
+	return &ServerTaskExecutionRepository{db: db}
+}
+
+func (r *ServerTaskExecutionRepository) Create(
+	ctx context.Context, exec *domain.ServerTaskExecution,
+) error {
+	now := time.Now()
+	if exec.CreatedAt.IsZero() {
+		exec.CreatedAt = now
+	}
+	if exec.UpdatedAt.IsZero() {
+		exec.UpdatedAt = now
+	}
+	if exec.Status == "" {
+		exec.Status = domain.ServerTaskExecutionStatusRunning
+	}
+
+	query := `INSERT INTO ` + base.ServerTaskExecutionsTable + ` (
+		"execution_id", "server_task_id", "server_id", "node_id", "command",
+		"task_version", "status", "exit_code", "error_message",
+		"started_at", "finished_at", "duration_ms",
+		"output_inline", "output_storage_path",
+		"created_at", "updated_at"
+	) VALUES (
+		$1, $2, $3, $4, $5,
+		$6, $7, $8, $9,
+		$10, $11, $12,
+		$13, $14,
+		$15, $16
+	) ON CONFLICT (execution_id) DO NOTHING RETURNING id`
+
+	row := r.db.QueryRowContext(ctx, query,
+		exec.ExecutionID, exec.ServerTaskID, exec.ServerID, exec.NodeID, exec.Command,
+		exec.TaskVersion, exec.Status, exec.ExitCode, exec.ErrorMessage,
+		exec.StartedAt, exec.FinishedAt, exec.DurationMS,
+		exec.OutputInline, exec.OutputStoragePath,
+		exec.CreatedAt, exec.UpdatedAt,
+	)
+
+	var newID uint
+	if err := row.Scan(&newID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Conflict, row already exists. Idempotent — not an error.
+			return nil
+		}
+
+		return errors.WithMessage(err, "failed to insert execution")
+	}
+
+	exec.ID = newID
+
+	return nil
+}
+
+func (r *ServerTaskExecutionRepository) UpdateFinish(
+	ctx context.Context,
+	executionID string,
+	patch repositories.ServerTaskExecutionFinishPatch,
+) error {
+	if patch.FinishedAt.IsZero() {
+		patch.FinishedAt = time.Now()
+	}
+
+	query := `UPDATE ` + base.ServerTaskExecutionsTable + ` SET
+		"status" = $1,
+		"exit_code" = COALESCE($2, "exit_code"),
+		"error_message" = COALESCE($3, "error_message"),
+		"finished_at" = $4,
+		"duration_ms" = COALESCE($5, "duration_ms"),
+		"output_inline" = COALESCE($6, "output_inline"),
+		"output_storage_path" = COALESCE($7, "output_storage_path"),
+		"updated_at" = $8
+		WHERE "execution_id" = $9`
+
+	_, err := r.db.ExecContext(ctx, query,
+		patch.Status,
+		patch.ExitCode,
+		patch.ErrorMessage,
+		patch.FinishedAt,
+		patch.DurationMS,
+		patch.OutputInline,
+		patch.OutputStoragePath,
+		patch.FinishedAt,
+		executionID,
+	)
+	if err != nil {
+		return errors.WithMessage(err, "failed to update execution finish")
+	}
+
+	return nil
+}
+
+func (r *ServerTaskExecutionRepository) AppendOutputInline(
+	ctx context.Context, executionID string, chunk []byte, maxBytes int,
+) error {
+	if len(chunk) == 0 {
+		return nil
+	}
+
+	query := `UPDATE ` + base.ServerTaskExecutionsTable + ` SET
+		"output_inline" = RIGHT(COALESCE("output_inline", '') || $1, $2),
+		"updated_at" = $3
+		WHERE "execution_id" = $4`
+
+	if _, err := r.db.ExecContext(ctx, query, string(chunk), maxBytes, time.Now(), executionID); err != nil {
+		return errors.WithMessage(err, "failed to append output")
+	}
+
+	return nil
+}
+
+func (r *ServerTaskExecutionRepository) FindAll(
+	ctx context.Context,
+	order []filters.Sorting,
+	pagination *filters.Pagination,
+) ([]domain.ServerTaskExecution, error) {
+	builder := sq.Select(wrappedServerTaskExecutionFields...).
+		From(base.ServerTaskExecutionsTable)
+
+	return r.find(ctx, builder, order, pagination)
+}
+
+func (r *ServerTaskExecutionRepository) Find(
+	ctx context.Context,
+	filter *filters.FindServerTaskExecution,
+	order []filters.Sorting,
+	pagination *filters.Pagination,
+) ([]domain.ServerTaskExecution, error) {
+	builder := sq.Select(wrappedServerTaskExecutionFields...).
+		From(base.ServerTaskExecutionsTable)
+
+	if filter != nil {
+		builder = builder.Where(r.filterToSq(filter))
+	}
+
+	return r.find(ctx, builder, order, pagination)
+}
+
+func (r *ServerTaskExecutionRepository) find(
+	ctx context.Context,
+	builder sq.SelectBuilder,
+	order []filters.Sorting,
+	pagination *filters.Pagination,
+) ([]domain.ServerTaskExecution, error) {
+	if len(order) > 0 {
+		for _, o := range order {
+			builder = builder.OrderBy(o.Field + " " + o.Direction.String())
+		}
+	} else {
+		builder = builder.OrderBy("started_at DESC")
+	}
+
+	if pagination != nil {
+		if pagination.Limit == 0 {
+			pagination.Limit = filters.DefaultLimit
+		}
+
+		builder = builder.Limit(pagination.Limit).Offset(pagination.Offset)
+	}
+
+	query, args, err := builder.PlaceholderFormat(sq.Dollar).ToSql()
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to build query")
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...) //nolint:sqlclosecheck
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to execute query")
+	}
+	defer func(rows *sql.Rows) {
+		if cErr := rows.Close(); cErr != nil {
+			slog.ErrorContext(ctx, "failed to close rows", "err", cErr)
+		}
+	}(rows)
+
+	var execs []domain.ServerTaskExecution
+
+	for rows.Next() {
+		exec, scanErr := r.scan(rows)
+		if scanErr != nil {
+			return nil, errors.WithMessage(scanErr, "failed to scan row")
+		}
+
+		execs = append(execs, *exec)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, errors.WithMessage(err, "rows iteration error")
+	}
+
+	return execs, nil
+}
+
+func (r *ServerTaskExecutionRepository) MarkAbandoned(
+	ctx context.Context,
+	nodeID uint,
+	keepExecutionIDs []string,
+	reason string,
+) (int, error) {
+	now := time.Now()
+
+	builder := sq.Update(base.ServerTaskExecutionsTable).
+		Set("status", domain.ServerTaskExecutionStatusFailed).
+		Set("error_message", reason).
+		Set("finished_at", now).
+		Set("updated_at", now).
+		Where(sq.Eq{"node_id": nodeID}).
+		Where(sq.Eq{"status": domain.ServerTaskExecutionStatusRunning})
+
+	if len(keepExecutionIDs) > 0 {
+		builder = builder.Where(sq.NotEq{"execution_id": keepExecutionIDs})
+	}
+
+	query, args, err := builder.PlaceholderFormat(sq.Dollar).ToSql()
+	if err != nil {
+		return 0, errors.WithMessage(err, "failed to build mark-abandoned query")
+	}
+
+	res, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, errors.WithMessage(err, "failed to mark abandoned")
+	}
+
+	n, _ := res.RowsAffected()
+
+	return int(n), nil
+}
+
+func (r *ServerTaskExecutionRepository) DeleteOlderThan(
+	ctx context.Context,
+	status domain.ServerTaskExecutionStatus,
+	before time.Time,
+) (int, error) {
+	query := `DELETE FROM ` + base.ServerTaskExecutionsTable +
+		` WHERE "status" = $1 AND "finished_at" < $2`
+
+	res, err := r.db.ExecContext(ctx, query, status, before)
+	if err != nil {
+		return 0, errors.WithMessage(err, "failed to delete old executions")
+	}
+
+	n, _ := res.RowsAffected()
+
+	return int(n), nil
+}
+
+func (r *ServerTaskExecutionRepository) scan(row base.Scanner) (*domain.ServerTaskExecution, error) {
+	var exec domain.ServerTaskExecution
+
+	err := row.Scan(
+		&exec.ID,
+		&exec.ExecutionID,
+		&exec.ServerTaskID,
+		&exec.ServerID,
+		&exec.NodeID,
+		&exec.Command,
+		&exec.TaskVersion,
+		&exec.Status,
+		&exec.ExitCode,
+		&exec.ErrorMessage,
+		&exec.StartedAt,
+		&exec.FinishedAt,
+		&exec.DurationMS,
+		&exec.OutputInline,
+		&exec.OutputStoragePath,
+		&exec.CreatedAt,
+		&exec.UpdatedAt,
+	)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to scan row")
+	}
+
+	return &exec, nil
+}
+
+func (r *ServerTaskExecutionRepository) filterToSq(filter *filters.FindServerTaskExecution) sq.Sqlizer {
+	and := make(sq.And, 0, 8)
+
+	if len(filter.IDs) > 0 {
+		and = append(and, sq.Eq{"id": filter.IDs})
+	}
+	if len(filter.ExecutionIDs) > 0 {
+		and = append(and, sq.Eq{"execution_id": filter.ExecutionIDs})
+	}
+	if len(filter.ServerTaskIDs) > 0 {
+		and = append(and, sq.Eq{"server_task_id": filter.ServerTaskIDs})
+	}
+	if len(filter.ServerIDs) > 0 {
+		and = append(and, sq.Eq{"server_id": filter.ServerIDs})
+	}
+	if len(filter.NodeIDs) > 0 {
+		and = append(and, sq.Eq{"node_id": filter.NodeIDs})
+	}
+	if len(filter.Statuses) > 0 {
+		and = append(and, sq.Eq{"status": filter.Statuses})
+	}
+	if len(filter.NotStatuses) > 0 {
+		and = append(and, sq.NotEq{"status": filter.NotStatuses})
+	}
+	if filter.StartedAfter != nil {
+		and = append(and, sq.GtOrEq{"started_at": *filter.StartedAfter})
+	}
+	if filter.StartedBefore != nil {
+		and = append(and, sq.Lt{"started_at": *filter.StartedBefore})
+	}
+
+	return and
+}

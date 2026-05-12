@@ -41,6 +41,8 @@ DaemonTask:
   $ref: './DaemonTask.yaml'
 ServerTask:
   $ref: './ServerTask.yaml'
+ServerTaskExecution:
+  $ref: './ServerTaskExecution.yaml'
 ServerSetting:
   $ref: './ServerSetting.yaml'
 ServerPermission:

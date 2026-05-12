@@ -907,7 +907,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
 
-			handler := NewHandler(taskRepo, serverRepo, rbacService, responder)
+			handler := NewHandler(taskRepo, serverRepo, rbacService, nil, responder)
 
 			body, err := json.Marshal(tt.requestBody)
 			require.NoError(t, err)

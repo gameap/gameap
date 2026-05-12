@@ -52,6 +52,12 @@ const (
 	TypeDaemonMetricsRequest  = "daemon.metrics.request"
 	TypeDaemonMetricsResponse = "daemon.metrics.response"
 	TypeMetricsSubscribers    = "metrics.subscribers"
+
+	TypeDaemonServerTaskDelta       = "daemon.server_task.delta"
+	TypeDaemonServerTaskResync      = "daemon.server_task.resync"
+	TypeServerTaskExecutionStarted  = "server_task.execution.started"
+	TypeServerTaskExecutionFinished = "server_task.execution.finished"
+	TypeServerTaskExecutionLog      = "server_task.execution.log"
 )
 
 type CacheInvalidatePayload struct {
@@ -267,6 +273,42 @@ type MetricsSubscribersPayload struct {
 	NodeID     uint64    `json:"node_id"`
 	Count      int       `json:"count"`
 	Timestamp  time.Time `json:"timestamp"`
+}
+
+// DaemonServerTaskDeltaPayload routes a serialised GatewayMessage that
+// carries either a ServerTaskDelta.upserted or .deleted arm. The owning
+// API instance for the daemon's bidi session forwards it to the stream.
+type DaemonServerTaskDeltaPayload struct {
+	NodeID    uint64 `json:"node_id"`
+	RequestID string `json:"request_id"`
+	TaskID    uint64 `json:"task_id"`
+	Data      []byte `json:"data"`
+}
+
+// DaemonServerTaskResyncPayload is the daemon-initiated resync trigger
+// observed by the session-owning instance; it relays a snapshot back
+// over the bidi stream.
+type DaemonServerTaskResyncPayload struct {
+	NodeID           uint64 `json:"node_id"`
+	LastKnownVersion uint64 `json:"last_known_version"`
+}
+
+type ServerTaskExecutionStatusPayload struct {
+	ExecutionID  string `json:"execution_id"`
+	TaskID       uint64 `json:"task_id"`
+	ServerID     uint64 `json:"server_id"`
+	NodeID       uint64 `json:"node_id"`
+	Status       string `json:"status"`
+	ExitCode     *int32 `json:"exit_code,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
+}
+
+type ServerTaskExecutionLogPayload struct {
+	ExecutionID string `json:"execution_id"`
+	TaskID      uint64 `json:"task_id"`
+	Sequence    uint64 `json:"sequence"`
+	Chunk       []byte `json:"chunk"`
+	IsFinal     bool   `json:"is_final"`
 }
 
 func NewMessage(channel, msgType string, payload any) (*pubsub.Message, error) {

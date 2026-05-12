@@ -8,6 +8,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -325,4 +326,130 @@ func clampToInt32(v int) int32 {
 
 func clampToUint32(v uint) uint32 {
 	return uint32(min(v, math.MaxUint32)) //nolint:gosec // value clamped to uint32 range
+}
+
+func DomainServerTaskToProto(task *domain.ServerTask) *proto.ServerTask {
+	var nodeID uint64
+	if task.NodeID != nil {
+		nodeID = uint64(*task.NodeID)
+	}
+
+	var name, timezone, payload string
+	if task.Name != nil {
+		name = *task.Name
+	}
+	if task.Timezone != nil {
+		timezone = *task.Timezone
+	}
+	if task.Payload != nil {
+		payload = *task.Payload
+	}
+
+	var updatedAt *timestamppb.Timestamp
+	if task.UpdatedAt != nil {
+		updatedAt = timestamppb.New(*task.UpdatedAt)
+	}
+
+	return &proto.ServerTask{
+		Id:            uint64(task.ID),
+		ServerId:      uint64(task.ServerID),
+		NodeId:        nodeID,
+		Command:       domainServerTaskCommandToProto(task.Command),
+		ExecuteDate:   timestamppb.New(task.ExecuteDate),
+		RepeatPeriod:  durationpb.New(task.RepeatPeriod),
+		RepeatCount:   uint32(task.Repeat),
+		Counter:       clampToUint32(task.Counter),
+		Payload:       payload,
+		Version:       task.Version,
+		OverlapPolicy: domainServerTaskOverlapPolicyToProto(task.OverlapPolicy),
+		CatchupPolicy: domainServerTaskCatchupPolicyToProto(task.CatchupPolicy),
+		Enabled:       task.Enabled,
+		Name:          name,
+		Timezone:      timezone,
+		UpdatedAt:     updatedAt,
+	}
+}
+
+func DomainServerTasksToProtoList(tasks []domain.ServerTask) []*proto.ServerTask {
+	out := make([]*proto.ServerTask, 0, len(tasks))
+	for i := range tasks {
+		out = append(out, DomainServerTaskToProto(&tasks[i]))
+	}
+
+	return out
+}
+
+func domainServerTaskCommandToProto(c domain.ServerTaskCommand) proto.ServerTaskCommand {
+	switch c {
+	case domain.ServerTaskCommandStart:
+		return proto.ServerTaskCommand_SERVER_TASK_COMMAND_START
+	case domain.ServerTaskCommandStop:
+		return proto.ServerTaskCommand_SERVER_TASK_COMMAND_STOP
+	case domain.ServerTaskCommandRestart:
+		return proto.ServerTaskCommand_SERVER_TASK_COMMAND_RESTART
+	case domain.ServerTaskCommandUpdate:
+		return proto.ServerTaskCommand_SERVER_TASK_COMMAND_UPDATE
+	case domain.ServerTaskCommandReinstall:
+		return proto.ServerTaskCommand_SERVER_TASK_COMMAND_REINSTALL
+	default:
+		return proto.ServerTaskCommand_SERVER_TASK_COMMAND_UNSPECIFIED
+	}
+}
+
+func ProtoServerTaskCommandToDomain(c proto.ServerTaskCommand) domain.ServerTaskCommand {
+	switch c {
+	case proto.ServerTaskCommand_SERVER_TASK_COMMAND_START:
+		return domain.ServerTaskCommandStart
+	case proto.ServerTaskCommand_SERVER_TASK_COMMAND_STOP:
+		return domain.ServerTaskCommandStop
+	case proto.ServerTaskCommand_SERVER_TASK_COMMAND_RESTART:
+		return domain.ServerTaskCommandRestart
+	case proto.ServerTaskCommand_SERVER_TASK_COMMAND_UPDATE:
+		return domain.ServerTaskCommandUpdate
+	case proto.ServerTaskCommand_SERVER_TASK_COMMAND_REINSTALL:
+		return domain.ServerTaskCommandReinstall
+	default:
+		return ""
+	}
+}
+
+func domainServerTaskOverlapPolicyToProto(p domain.ServerTaskOverlapPolicy) proto.ServerTaskOverlapPolicy {
+	switch p {
+	case domain.ServerTaskOverlapPolicySkip:
+		return proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_SKIP
+	case domain.ServerTaskOverlapPolicyQueue:
+		return proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_QUEUE
+	default:
+		return proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_SKIP
+	}
+}
+
+func domainServerTaskCatchupPolicyToProto(p domain.ServerTaskCatchupPolicy) proto.ServerTaskCatchupPolicy {
+	switch p {
+	case domain.ServerTaskCatchupPolicySkip:
+		return proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_SKIP
+	case domain.ServerTaskCatchupPolicyRunOnce:
+		return proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_RUN_ONCE
+	default:
+		return proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_SKIP
+	}
+}
+
+func ProtoServerTaskExecutionStatusToDomain(s proto.ServerTaskExecutionStatus) domain.ServerTaskExecutionStatus {
+	switch s {
+	case proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_RUNNING:
+		return domain.ServerTaskExecutionStatusRunning
+	case proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_SUCCESS:
+		return domain.ServerTaskExecutionStatusSuccess
+	case proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_FAILED:
+		return domain.ServerTaskExecutionStatusFailed
+	case proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_CANCELED:
+		return domain.ServerTaskExecutionStatusCanceled
+	case proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_SKIPPED:
+		return domain.ServerTaskExecutionStatusSkipped
+	case proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_TIMED_OUT:
+		return domain.ServerTaskExecutionStatusTimedOut
+	default:
+		return ""
+	}
 }

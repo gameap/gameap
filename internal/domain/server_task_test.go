@@ -210,60 +210,24 @@ func TestServerTask_RepeatPeriodDurations(t *testing.T) {
 	}
 }
 
-func TestServerTaskFail_Fields(t *testing.T) {
+func TestServerTaskExecution_Fields(t *testing.T) {
 	now := time.Now()
 	output := "Error: connection timeout"
 
-	taskFail := ServerTaskFail{
+	exec := ServerTaskExecution{
 		ID:           1,
+		ExecutionID:  "9a8b7c6d-1234-4abc-9def-0fedcba98765",
 		ServerTaskID: 10,
-		Output:       output,
-		CreatedAt:    &now,
-		UpdatedAt:    &now,
+		Status:       ServerTaskExecutionStatusFailed,
+		ErrorMessage: &output,
+		StartedAt:    now,
+		FinishedAt:   &now,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
-	assert.Equal(t, uint(1), taskFail.ID)
-	assert.Equal(t, uint(10), taskFail.ServerTaskID)
-	assert.Equal(t, output, taskFail.Output)
-	assert.Equal(t, &now, taskFail.CreatedAt)
-	assert.Equal(t, &now, taskFail.UpdatedAt)
-}
-
-func TestServerTaskFail_WithoutOptionalFields(t *testing.T) {
-	taskFail := ServerTaskFail{
-		ID:           1,
-		ServerTaskID: 10,
-		Output:       "Error occurred",
-		CreatedAt:    nil,
-		UpdatedAt:    nil,
-	}
-
-	assert.Equal(t, uint(1), taskFail.ID)
-	assert.Equal(t, uint(10), taskFail.ServerTaskID)
-	assert.Equal(t, "Error occurred", taskFail.Output)
-	assert.Nil(t, taskFail.CreatedAt)
-	assert.Nil(t, taskFail.UpdatedAt)
-}
-
-func TestServerTaskFail_EmptyOutput(t *testing.T) {
-	taskFail := ServerTaskFail{
-		ID:           1,
-		ServerTaskID: 10,
-		Output:       "",
-	}
-
-	assert.Equal(t, "", taskFail.Output)
-}
-
-func TestServerTaskFail_LongOutput(t *testing.T) {
-	longOutput := "Error: " + string(make([]byte, 1000))
-
-	taskFail := ServerTaskFail{
-		ID:           1,
-		ServerTaskID: 10,
-		Output:       longOutput,
-	}
-
-	assert.Equal(t, longOutput, taskFail.Output)
-	assert.Len(t, taskFail.Output, len(longOutput))
+	assert.Equal(t, uint(1), exec.ID)
+	assert.Equal(t, ServerTaskExecutionStatusFailed, exec.Status)
+	assert.NotNil(t, exec.ErrorMessage)
+	assert.Equal(t, output, *exec.ErrorMessage)
 }

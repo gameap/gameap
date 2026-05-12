@@ -1,6 +1,7 @@
 package postservertask
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -13,10 +14,18 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Dispatcher signals the daemon when a task is created. The HTTP handler
+// is happy with a write-only contract; the concrete implementation lives
+// in `internal/services/servertaskdispatcher`.
+type Dispatcher interface {
+	DispatchUpsert(ctx context.Context, task *domain.ServerTask) error
+}
+
 type Handler struct {
 	serverTasksRepo repositories.ServerTaskRepository
 	serverFinder    *serversbase.ServerFinder
 	abilityChecker  *serversbase.AbilityChecker
+	dispatcher      Dispatcher
 	responder       base.Responder
 }
 
@@ -24,12 +33,14 @@ func NewHandler(
 	serverTasksRepo repositories.ServerTaskRepository,
 	serversRepo repositories.ServerRepository,
 	rbac base.RBAC,
+	dispatcher Dispatcher,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
 		serverTasksRepo: serverTasksRepo,
 		serverFinder:    serversbase.NewServerFinder(serversRepo, rbac),
 		abilityChecker:  serversbase.NewAbilityChecker(rbac),
+		dispatcher:      dispatcher,
 		responder:       responder,
 	}
 }
@@ -106,11 +117,25 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	nodeID := server.DSID
+	serverTask.NodeID = &nodeID
+	uid := session.User.ID
+	serverTask.CreatedByUserID = &uid
+
 	err = h.serverTasksRepo.Save(ctx, serverTask)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save server task"))
 
 		return
+	}
+
+	if h.dispatcher != nil {
+		if dispatchErr := h.dispatcher.DispatchUpsert(ctx, serverTask); dispatchErr != nil {
+			// Persisted successfully; dispatch failures are logged inside
+			// the dispatcher and recovered via daemon resync. Do not
+			// surface them to the HTTP caller.
+			_ = dispatchErr
+		}
 	}
 
 	response := newServerTaskResponseFromServerTask(serverTask)

@@ -48,6 +48,7 @@ type Service struct {
 	serverHandler     ServerStatusHandler
 	attachHandler     AttachHandler
 	metricsHandler    MetricsHandler
+	serverTaskHandler ServerTaskHandler
 	enrollmentSvc     *enrollment.Service
 	shutdownCtx       context.Context
 }
@@ -91,6 +92,18 @@ type MetricsHandler interface {
 	HandleMetricsResponse(ctx context.Context, nodeID uint64, requestID string, resp *proto.MetricsResponse) error
 }
 
+// ServerTaskHandler is the dispatcher facade the gateway needs for the
+// server-task arms of the bidi stream. Implemented by
+// servertaskdispatcher.Dispatcher.
+type ServerTaskHandler interface {
+	BuildSnapshot(ctx context.Context, nodeID uint64) (*proto.ServerTaskSnapshot, error)
+	HandleExecutionStarted(ctx context.Context, nodeID uint64, evt *proto.ServerTaskExecutionStarted) error
+	HandleExecutionFinished(ctx context.Context, nodeID uint64, evt *proto.ServerTaskExecutionFinished) error
+	HandleExecutionLog(ctx context.Context, nodeID uint64, evt *proto.ServerTaskExecutionLog) error
+	HandleResyncRequest(ctx context.Context, nodeID uint64, req *proto.ServerTaskResyncRequest) error
+	ReconcileWorkingExecutions(ctx context.Context, nodeID uint64, inFlightExecIDs []string, reason string) (int, error)
+}
+
 type Config struct {
 	HeartbeatInterval int32
 }
@@ -110,6 +123,7 @@ func NewService(
 	serverHandler ServerStatusHandler,
 	attachHandler AttachHandler,
 	metricsHandler MetricsHandler,
+	serverTaskHandler ServerTaskHandler,
 	enrollmentSvc *enrollment.Service,
 	logger *slog.Logger,
 ) *Service {
@@ -132,6 +146,7 @@ func NewService(
 		serverHandler:     serverHandler,
 		attachHandler:     attachHandler,
 		metricsHandler:    metricsHandler,
+		serverTaskHandler: serverTaskHandler,
 		enrollmentSvc:     enrollmentSvc,
 		shutdownCtx:       context.Background(),
 		logger:            logger,
@@ -166,6 +181,7 @@ func (s *Service) Connect(stream proto.DaemonGateway_ConnectServer) error {
 	}
 
 	s.reconcileAbandonedTasks(ctx, reg)
+	s.reconcileAbandonedServerTaskExecutions(ctx, reg)
 
 	sessionCtx, cancel := context.WithCancel(stream.Context())
 	go func() {
@@ -264,6 +280,33 @@ func (s *Service) reconcileAbandonedTasks(ctx context.Context, reg *proto.Regist
 		ctx, reg.NodeId, inFlightIDs, ReconcileReasonDaemonRestart,
 	); err != nil {
 		s.logger.Warn("failed to reconcile working tasks on register",
+			"node_id", reg.NodeId,
+			"error", err,
+		)
+	}
+}
+
+// reconcileAbandonedServerTaskExecutions flips any execution this node
+// left in `running` state to `failed` if it is not advertised in the
+// daemon's `RegisterRequest.in_flight_server_task_executions` list. In v1
+// the list is always empty (daemon does not journal), so any execution
+// row outstanding at register is flipped to failed with reason
+// "daemon_restart". Future daemons with a local journal will populate
+// the field and recover in-flight runs.
+func (s *Service) reconcileAbandonedServerTaskExecutions(ctx context.Context, reg *proto.RegisterRequest) {
+	if s.serverTaskHandler == nil {
+		return
+	}
+
+	inFlight := make([]string, 0, len(reg.InFlightServerTaskExecutions))
+	for _, e := range reg.InFlightServerTaskExecutions {
+		inFlight = append(inFlight, e.ExecutionId)
+	}
+
+	if _, err := s.serverTaskHandler.ReconcileWorkingExecutions(
+		ctx, reg.NodeId, inFlight, ReconcileReasonDaemonRestart,
+	); err != nil {
+		s.logger.Warn("failed to reconcile server task executions on register",
 			"node_id", reg.NodeId,
 			"error", err,
 		)
@@ -388,7 +431,7 @@ func (s *Service) buildRegisterAck(ctx context.Context, reg *proto.RegisterReque
 		"game_mods", len(protoGameMods),
 	)
 
-	return &proto.RegisterAck{
+	ack := &proto.RegisterAck{
 		Success:           true,
 		Servers:           protoServers,
 		PendingTasks:      pendingTasks,
@@ -396,7 +439,20 @@ func (s *Service) buildRegisterAck(ctx context.Context, reg *proto.RegisterReque
 		GameMods:          protoGameMods,
 		HeartbeatInterval: durationpb.New(defaultHeartbeatInterval),
 		ServerSettings:    protoSettings,
-	}, nil
+	}
+
+	if s.serverTaskHandler != nil {
+		snapshot, snapErr := s.serverTaskHandler.BuildSnapshot(ctx, reg.NodeId)
+		if snapErr != nil {
+			s.logger.Warn("failed to build server task snapshot for register ack",
+				"node_id", reg.NodeId, "error", snapErr,
+			)
+		} else {
+			ack.ServerTaskSnapshot = snapshot
+		}
+	}
+
+	return ack, nil
 }
 
 func (s *Service) handleMessages(ctx context.Context, sess *session.Session) error {
@@ -451,6 +507,7 @@ func (s *Service) handleMessages(ctx context.Context, sess *session.Session) err
 	}
 }
 
+//nolint:gocyclo,funlen // big switch over oneof arms; flat structure is easier to follow than a router map
 func (s *Service) processMessage(ctx context.Context, sess *session.Session, msg *proto.DaemonMessage) error {
 	switch payload := msg.Payload.(type) {
 	case *proto.DaemonMessage_Heartbeat:
@@ -532,6 +589,26 @@ func (s *Service) processMessage(ctx context.Context, sess *session.Session, msg
 	case *proto.DaemonMessage_MetricsResponse:
 		if s.metricsHandler != nil {
 			return s.metricsHandler.HandleMetricsResponse(ctx, sess.NodeID, msg.RequestId, payload.MetricsResponse)
+		}
+
+	case *proto.DaemonMessage_ServerTaskExecutionStarted:
+		if s.serverTaskHandler != nil {
+			return s.serverTaskHandler.HandleExecutionStarted(ctx, sess.NodeID, payload.ServerTaskExecutionStarted)
+		}
+
+	case *proto.DaemonMessage_ServerTaskExecutionFinished:
+		if s.serverTaskHandler != nil {
+			return s.serverTaskHandler.HandleExecutionFinished(ctx, sess.NodeID, payload.ServerTaskExecutionFinished)
+		}
+
+	case *proto.DaemonMessage_ServerTaskExecutionLog:
+		if s.serverTaskHandler != nil {
+			return s.serverTaskHandler.HandleExecutionLog(ctx, sess.NodeID, payload.ServerTaskExecutionLog)
+		}
+
+	case *proto.DaemonMessage_ServerTaskResyncRequest:
+		if s.serverTaskHandler != nil {
+			return s.serverTaskHandler.HandleResyncRequest(ctx, sess.NodeID, payload.ServerTaskResyncRequest)
 		}
 
 	default:

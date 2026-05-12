@@ -1,6 +1,7 @@
 package putservertask
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -14,10 +15,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+type Dispatcher interface {
+	DispatchUpsert(ctx context.Context, task *domain.ServerTask) error
+}
+
 type Handler struct {
 	serverTasksRepo repositories.ServerTaskRepository
 	serverFinder    *serversbase.ServerFinder
 	abilityChecker  *serversbase.AbilityChecker
+	dispatcher      Dispatcher
 	responder       base.Responder
 }
 
@@ -25,12 +31,14 @@ func NewHandler(
 	serverTasksRepo repositories.ServerTaskRepository,
 	serversRepo repositories.ServerRepository,
 	rbac base.RBAC,
+	dispatcher Dispatcher,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
 		serverTasksRepo: serverTasksRepo,
 		serverFinder:    serversbase.NewServerFinder(serversRepo, rbac),
 		abilityChecker:  serversbase.NewAbilityChecker(rbac),
+		dispatcher:      dispatcher,
 		responder:       responder,
 	}
 }
@@ -151,6 +159,18 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to update server task"))
 
 		return
+	}
+
+	newVersion, err := h.serverTasksRepo.BumpVersion(ctx, updatedTask.ID)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to bump task version"))
+
+		return
+	}
+	updatedTask.Version = newVersion
+
+	if h.dispatcher != nil {
+		_ = h.dispatcher.DispatchUpsert(ctx, updatedTask)
 	}
 
 	response := newServerTaskResponseFromServerTask(updatedTask)

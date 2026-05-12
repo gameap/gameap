@@ -1,7 +1,6 @@
-package deleteservertask
+package getservertaskexecutions
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
@@ -14,31 +13,29 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Dispatcher interface {
-	DispatchDelete(ctx context.Context, taskID uint64, nodeID uint64, version uint64) error
-}
-
+// Handler returns the audit log of executions for one scheduled task,
+// ordered by started_at DESC. Optional `status` query filters the set.
 type Handler struct {
-	serverTasksRepo repositories.ServerTaskRepository
-	serverFinder    *serversbase.ServerFinder
-	abilityChecker  *serversbase.AbilityChecker
-	dispatcher      Dispatcher
-	responder       base.Responder
+	serverTaskRepo repositories.ServerTaskRepository
+	executionRepo  repositories.ServerTaskExecutionRepository
+	serverFinder   *serversbase.ServerFinder
+	abilityChecker *serversbase.AbilityChecker
+	responder      base.Responder
 }
 
 func NewHandler(
-	serverTasksRepo repositories.ServerTaskRepository,
+	serverTaskRepo repositories.ServerTaskRepository,
+	executionRepo repositories.ServerTaskExecutionRepository,
 	serversRepo repositories.ServerRepository,
 	rbac base.RBAC,
-	dispatcher Dispatcher,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		serverTasksRepo: serverTasksRepo,
-		serverFinder:    serversbase.NewServerFinder(serversRepo, rbac),
-		abilityChecker:  serversbase.NewAbilityChecker(rbac),
-		dispatcher:      dispatcher,
-		responder:       responder,
+		serverTaskRepo: serverTaskRepo,
+		executionRepo:  executionRepo,
+		serverFinder:   serversbase.NewServerFinder(serversRepo, rbac),
+		abilityChecker: serversbase.NewAbilityChecker(rbac),
+		responder:      responder,
 	}
 }
 
@@ -84,56 +81,51 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.abilityChecker.CheckOrError(
-		ctx,
-		session.User.ID,
-		server.ID,
+	if err = h.abilityChecker.CheckOrError(
+		ctx, session.User.ID, server.ID,
 		[]domain.AbilityName{domain.AbilityNameGameServerTasks},
-	)
-	if err != nil {
+	); err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}
 
-	tasks, err := h.serverTasksRepo.Find(
-		ctx,
-		&filters.FindServerTask{
-			IDs:        []uint{taskID},
-			ServersIDs: []uint{serverID},
-		},
-		nil,
-		nil,
-	)
+	tasks, err := h.serverTaskRepo.Find(ctx, &filters.FindServerTask{
+		IDs:        []uint{taskID},
+		ServersIDs: []uint{serverID},
+		// allow listing executions for soft-deleted tasks so the audit
+		// trail does not vanish the moment the task is removed.
+		IncludeDeleted: true,
+	}, nil, nil)
 	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to find server task"))
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "find task"))
 
 		return
 	}
-
 	if len(tasks) == 0 {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.New("server task not found"),
-			http.StatusNotFound,
+			errors.New("server task not found"), http.StatusNotFound,
 		))
 
 		return
 	}
 
-	existing := &tasks[0]
+	filter := &filters.FindServerTaskExecution{
+		ServerTaskIDs: []uint{taskID},
+	}
 
-	err = h.serverTasksRepo.SoftDelete(ctx, taskID)
+	if statusParam := r.URL.Query().Get("status"); statusParam != "" {
+		filter.Statuses = []domain.ServerTaskExecutionStatus{
+			domain.ServerTaskExecutionStatus(statusParam),
+		}
+	}
+
+	executions, err := h.executionRepo.Find(ctx, filter, nil, nil)
 	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to delete server task"))
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "load executions"))
 
 		return
 	}
 
-	if h.dispatcher != nil && existing.NodeID != nil {
-		_ = h.dispatcher.DispatchDelete(
-			ctx, uint64(taskID), uint64(*existing.NodeID), existing.Version+1,
-		)
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
+	h.responder.Write(ctx, rw, newExecutionsResponse(executions))
 }

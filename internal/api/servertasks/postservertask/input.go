@@ -27,17 +27,27 @@ var (
 	)
 	ErrRepeatPeriodIsTooShort = api.NewValidationError("10 minutes is minimum repeat period")
 	ErrRepeatPeriodIsTooLong  = api.NewValidationError("repeat period is too long")
+	ErrInvalidOverlapPolicy   = api.NewValidationError("invalid overlap_policy, must be one of: skip, queue")
+	ErrInvalidCatchupPolicy   = api.NewValidationError("invalid catchup_policy, must be one of: skip, run_once")
+	ErrInvalidName            = api.NewValidationError("name must be at most 128 characters")
 )
 
 var validCommands = []string{"start", "stop", "restart", "update", "reinstall"}
+var validOverlapPolicies = []string{"skip", "queue"}
+var validCatchupPolicies = []string{"skip", "run_once"}
 var repeatPeriodRegex = regexp.MustCompile(`^\d+\s\w+$`)
 
 type serverTaskInput struct {
-	Command      string         `json:"command"`
-	Repeat       *int           `json:"repeat"`
-	RepeatPeriod *string        `json:"repeat_period,omitempty"`
-	ExecuteDate  *flexible.Time `json:"execute_date"`
-	Payload      *string        `json:"payload,omitempty"`
+	Command       string         `json:"command"`
+	Name          *string        `json:"name,omitempty"`
+	Enabled       *bool          `json:"enabled,omitempty"`
+	OverlapPolicy *string        `json:"overlap_policy,omitempty"`
+	CatchupPolicy *string        `json:"catchup_policy,omitempty"`
+	Timezone      *string        `json:"timezone,omitempty"`
+	Repeat        *int           `json:"repeat"`
+	RepeatPeriod  *string        `json:"repeat_period,omitempty"`
+	ExecuteDate   *flexible.Time `json:"execute_date"`
+	Payload       *string        `json:"payload,omitempty"`
 }
 
 func (s *serverTaskInput) Validate() error {
@@ -55,6 +65,18 @@ func (s *serverTaskInput) Validate() error {
 
 	if s.ExecuteDate.Before(time.Now().Add(-1 * time.Minute)) {
 		return ErrExecuteDateInPast
+	}
+
+	if s.Name != nil && len(*s.Name) > 128 {
+		return ErrInvalidName
+	}
+
+	if s.OverlapPolicy != nil && !slices.Contains(validOverlapPolicies, *s.OverlapPolicy) {
+		return ErrInvalidOverlapPolicy
+	}
+
+	if s.CatchupPolicy != nil && !slices.Contains(validCatchupPolicies, *s.CatchupPolicy) {
+		return ErrInvalidCatchupPolicy
 	}
 
 	if s.Repeat != nil { //nolint:nestif
@@ -80,10 +102,30 @@ func (s *serverTaskInput) ToDomain(serverID uint) (*domain.ServerTask, error) {
 	var err error
 
 	task := &domain.ServerTask{
-		Command:     domain.NewServerTaskCommandFromString(s.Command),
-		ServerID:    serverID,
-		ExecuteDate: s.ExecuteDate.Time,
-		Payload:     s.Payload,
+		Command:       domain.NewServerTaskCommandFromString(s.Command),
+		ServerID:      serverID,
+		ExecuteDate:   s.ExecuteDate.Time,
+		Payload:       s.Payload,
+		Enabled:       true,
+		OverlapPolicy: domain.ServerTaskOverlapPolicySkip,
+		CatchupPolicy: domain.ServerTaskCatchupPolicySkip,
+		Version:       1,
+	}
+
+	if s.Name != nil {
+		task.Name = s.Name
+	}
+	if s.Enabled != nil {
+		task.Enabled = *s.Enabled
+	}
+	if s.OverlapPolicy != nil {
+		task.OverlapPolicy = domain.NewServerTaskOverlapPolicyFromString(*s.OverlapPolicy)
+	}
+	if s.CatchupPolicy != nil {
+		task.CatchupPolicy = domain.NewServerTaskCatchupPolicyFromString(*s.CatchupPolicy)
+	}
+	if s.Timezone != nil {
+		task.Timezone = s.Timezone
 	}
 
 	if s.Repeat != nil && *s.Repeat < math.MaxUint8 {

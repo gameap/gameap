@@ -49,6 +49,9 @@ func (r *ServerTaskRepository) FindAll(
 
 	tasks := make([]domain.ServerTask, 0, len(r.tasks))
 	for _, task := range r.tasks {
+		if task.DeletedAt != nil {
+			continue
+		}
 		tasks = append(tasks, *task)
 	}
 
@@ -68,11 +71,22 @@ func (r *ServerTaskRepository) Find(
 
 	candidateIDs := r.getFilteredTaskIDs(filter)
 
+	includeDeleted := filter != nil && filter.IncludeDeleted
+	onlyEnabled := filter != nil && filter.OnlyEnabled
+
 	tasks := make([]domain.ServerTask, 0, len(candidateIDs))
 	for taskID := range candidateIDs {
-		if task, exists := r.tasks[taskID]; exists {
-			tasks = append(tasks, *task)
+		task, exists := r.tasks[taskID]
+		if !exists {
+			continue
 		}
+		if !includeDeleted && task.DeletedAt != nil {
+			continue
+		}
+		if onlyEnabled && !task.Enabled {
+			continue
+		}
+		tasks = append(tasks, *task)
 	}
 
 	r.sortTasks(tasks, order)
@@ -98,20 +112,72 @@ func (r *ServerTaskRepository) Save(_ context.Context, task *domain.ServerTask) 
 		task.ID = uint(r.nextID.Add(1))
 	}
 
+	if task.Version == 0 {
+		task.Version = 1
+	}
+	if task.OverlapPolicy == "" {
+		task.OverlapPolicy = domain.ServerTaskOverlapPolicySkip
+	}
+	if task.CatchupPolicy == "" {
+		task.CatchupPolicy = domain.ServerTaskCatchupPolicySkip
+	}
+
 	r.tasks[task.ID] = &domain.ServerTask{
-		ID:           task.ID,
-		Command:      task.Command,
-		ServerID:     task.ServerID,
-		Repeat:       task.Repeat,
-		RepeatPeriod: task.RepeatPeriod,
-		Counter:      task.Counter,
-		ExecuteDate:  task.ExecuteDate,
-		Payload:      task.Payload,
-		CreatedAt:    task.CreatedAt,
-		UpdatedAt:    task.UpdatedAt,
+		ID:              task.ID,
+		Command:         task.Command,
+		ServerID:        task.ServerID,
+		NodeID:          task.NodeID,
+		Name:            task.Name,
+		Enabled:         task.Enabled,
+		OverlapPolicy:   task.OverlapPolicy,
+		CatchupPolicy:   task.CatchupPolicy,
+		CreatedByUserID: task.CreatedByUserID,
+		Version:         task.Version,
+		Timezone:        task.Timezone,
+		Repeat:          task.Repeat,
+		RepeatPeriod:    task.RepeatPeriod,
+		Counter:         task.Counter,
+		ExecuteDate:     task.ExecuteDate,
+		Payload:         task.Payload,
+		CreatedAt:       task.CreatedAt,
+		UpdatedAt:       task.UpdatedAt,
+		DeletedAt:       task.DeletedAt,
 	}
 
 	r.addToIndexes(r.tasks[task.ID])
+
+	return nil
+}
+
+func (r *ServerTaskRepository) BumpVersion(_ context.Context, id uint) (uint64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	task, ok := r.tasks[id]
+	if !ok {
+		return 0, nil
+	}
+
+	task.Version++
+	now := time.Now()
+	task.UpdatedAt = &now
+
+	return task.Version, nil
+}
+
+func (r *ServerTaskRepository) SoftDelete(_ context.Context, id uint) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	task, ok := r.tasks[id]
+	if !ok {
+		return nil
+	}
+
+	now := time.Now()
+	task.DeletedAt = &now
+	task.UpdatedAt = &now
+	task.Version++
 
 	return nil
 }

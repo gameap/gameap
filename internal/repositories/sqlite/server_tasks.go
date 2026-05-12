@@ -54,7 +54,8 @@ func (r *ServerTaskRepository) FindAll(
 	pagination *filters.Pagination,
 ) ([]domain.ServerTask, error) {
 	builder := sq.Select(wrappedServerTaskFields...).
-		From(base.ServerTasksTable)
+		From(base.ServerTasksTable).
+		Where(sq.Eq{"deleted_at": nil})
 
 	return r.find(ctx, builder, order, pagination, false)
 }
@@ -157,12 +158,25 @@ func (r *ServerTaskRepository) Save(ctx context.Context, task *domain.ServerTask
 		task.CreatedAt = new(time.Now())
 	}
 
-	var createdAtStr, updatedAtStr *string
+	if task.Version == 0 {
+		task.Version = 1
+	}
+	if task.OverlapPolicy == "" {
+		task.OverlapPolicy = domain.ServerTaskOverlapPolicySkip
+	}
+	if task.CatchupPolicy == "" {
+		task.CatchupPolicy = domain.ServerTaskCatchupPolicySkip
+	}
+
+	var createdAtStr, updatedAtStr, deletedAtStr *string
 	if task.CreatedAt != nil {
 		createdAtStr = new(task.CreatedAt.Format(time.RFC3339))
 	}
 	if task.UpdatedAt != nil {
 		updatedAtStr = new(task.UpdatedAt.Format(time.RFC3339))
+	}
+	if task.DeletedAt != nil {
+		deletedAtStr = new(task.DeletedAt.Format(time.RFC3339))
 	}
 
 	executeDateStr := task.ExecuteDate.Format(time.RFC3339)
@@ -173,6 +187,14 @@ func (r *ServerTaskRepository) Save(ctx context.Context, task *domain.ServerTask
 			lo.EmptyableToPtr(task.ID),
 			task.Command,
 			task.ServerID,
+			task.NodeID,
+			task.Name,
+			task.Enabled,
+			task.OverlapPolicy,
+			task.CatchupPolicy,
+			task.CreatedByUserID,
+			task.Version,
+			task.Timezone,
 			task.Repeat,
 			task.RepeatPeriod.Seconds(),
 			task.Counter,
@@ -180,16 +202,26 @@ func (r *ServerTaskRepository) Save(ctx context.Context, task *domain.ServerTask
 			task.Payload,
 			createdAtStr,
 			updatedAtStr,
+			deletedAtStr,
 		).
 		Suffix("ON CONFLICT(id) DO UPDATE SET " +
 			"`command`=excluded.`command`," +
 			"`server_id`=excluded.`server_id`," +
+			"`node_id`=excluded.`node_id`," +
+			"`name`=excluded.`name`," +
+			"`enabled`=excluded.`enabled`," +
+			"`overlap_policy`=excluded.`overlap_policy`," +
+			"`catchup_policy`=excluded.`catchup_policy`," +
+			"`created_by_user_id`=excluded.`created_by_user_id`," +
+			"`version`=excluded.`version`," +
+			"`timezone`=excluded.`timezone`," +
 			"`repeat`=excluded.`repeat`," +
 			"`repeat_period`=excluded.`repeat_period`," +
 			"`counter`=excluded.`counter`," +
 			"`execute_date`=excluded.`execute_date`," +
 			"`payload`=excluded.`payload`," +
-			"`updated_at`=excluded.`updated_at` " +
+			"`updated_at`=excluded.`updated_at`," +
+			"`deleted_at`=excluded.`deleted_at` " +
 			"RETURNING id").
 		ToSql()
 	if err != nil {
@@ -204,6 +236,38 @@ func (r *ServerTaskRepository) Save(ctx context.Context, task *domain.ServerTask
 
 	if task.ID == 0 {
 		task.ID = returnedID
+	}
+
+	return nil
+}
+
+func (r *ServerTaskRepository) BumpVersion(ctx context.Context, id uint) (uint64, error) {
+	now := time.Now().Format(time.RFC3339)
+	if _, err := r.db.ExecContext(ctx,
+		"UPDATE "+base.ServerTasksTable+" SET `version` = `version` + 1, `updated_at` = ? WHERE `id` = ?",
+		now, id,
+	); err != nil {
+		return 0, errors.WithMessage(err, "failed to bump version")
+	}
+
+	var version uint64
+	if err := r.db.QueryRowContext(ctx,
+		"SELECT `version` FROM "+base.ServerTasksTable+" WHERE `id` = ?", id,
+	).Scan(&version); err != nil {
+		return 0, errors.WithMessage(err, "failed to read bumped version")
+	}
+
+	return version, nil
+}
+
+func (r *ServerTaskRepository) SoftDelete(ctx context.Context, id uint) error {
+	now := time.Now().Format(time.RFC3339)
+	if _, err := r.db.ExecContext(ctx,
+		"UPDATE "+base.ServerTasksTable+
+			" SET `deleted_at` = ?, `version` = `version` + 1, `updated_at` = ? WHERE `id` = ?",
+		now, now, id,
+	); err != nil {
+		return errors.WithMessage(err, "failed to soft-delete task")
 	}
 
 	return nil
@@ -229,12 +293,20 @@ func (r *ServerTaskRepository) scan(row base.Scanner) (*domain.ServerTask, error
 	var task domain.ServerTask
 	var repeatPeriodSeconds float64
 	var executeDateStr string
-	var createdAtStr, updatedAtStr *string
+	var createdAtStr, updatedAtStr, deletedAtStr *string
 
 	err := row.Scan(
 		&task.ID,
 		&task.Command,
 		&task.ServerID,
+		&task.NodeID,
+		&task.Name,
+		&task.Enabled,
+		&task.OverlapPolicy,
+		&task.CatchupPolicy,
+		&task.CreatedByUserID,
+		&task.Version,
+		&task.Timezone,
 		&task.Repeat,
 		&repeatPeriodSeconds,
 		&task.Counter,
@@ -242,6 +314,7 @@ func (r *ServerTaskRepository) scan(row base.Scanner) (*domain.ServerTask, error
 		&task.Payload,
 		&createdAtStr,
 		&updatedAtStr,
+		&deletedAtStr,
 	)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to scan row")
@@ -256,45 +329,62 @@ func (r *ServerTaskRepository) scan(row base.Scanner) (*domain.ServerTask, error
 	task.ExecuteDate = executeDate
 
 	if createdAtStr != nil && *createdAtStr != "" {
-		createdAt, err := base.ParseTime(*createdAtStr)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to parse created_at time")
+		createdAt, parseErr := base.ParseTime(*createdAtStr)
+		if parseErr != nil {
+			return nil, errors.WithMessage(parseErr, "failed to parse created_at time")
 		}
 		task.CreatedAt = &createdAt
 	}
 
 	if updatedAtStr != nil && *updatedAtStr != "" {
-		updatedAt, err := base.ParseTime(*updatedAtStr)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to parse updated_at time")
+		updatedAt, parseErr := base.ParseTime(*updatedAtStr)
+		if parseErr != nil {
+			return nil, errors.WithMessage(parseErr, "failed to parse updated_at time")
 		}
 		task.UpdatedAt = &updatedAt
+	}
+
+	if deletedAtStr != nil && *deletedAtStr != "" {
+		deletedAt, parseErr := base.ParseTime(*deletedAtStr)
+		if parseErr != nil {
+			return nil, errors.WithMessage(parseErr, "failed to parse deleted_at time")
+		}
+		task.DeletedAt = &deletedAt
 	}
 
 	return &task, nil
 }
 
 func (r *ServerTaskRepository) filterToSq(filter *filters.FindServerTask, useJoin bool) sq.Sqlizer {
-	if filter == nil {
-		return nil
-	}
-	and := make(sq.And, 0, 6)
+	and := make(sq.And, 0, 8)
 
-	var idField, serverIDField string
+	var idField, serverIDField, deletedAtField, enabledField string
 	if useJoin {
 		idField = base.ServerTasksTable + ".id"
 		serverIDField = base.ServerTasksTable + ".server_id"
+		deletedAtField = base.ServerTasksTable + ".deleted_at"
+		enabledField = base.ServerTasksTable + ".enabled"
 	} else {
 		idField = "id"
 		serverIDField = "server_id"
+		deletedAtField = "deleted_at"
+		enabledField = "enabled"
 	}
 
-	if len(filter.IDs) > 0 {
-		and = append(and, sq.Eq{idField: filter.IDs})
+	if filter == nil || !filter.IncludeDeleted {
+		and = append(and, sq.Eq{deletedAtField: nil})
 	}
 
-	if len(filter.ServersIDs) > 0 {
-		and = append(and, sq.Eq{serverIDField: filter.ServersIDs})
+	if filter != nil {
+		if len(filter.IDs) > 0 {
+			and = append(and, sq.Eq{idField: filter.IDs})
+		}
+		if len(filter.ServersIDs) > 0 {
+			and = append(and, sq.Eq{serverIDField: filter.ServersIDs})
+		}
+		if filter.OnlyEnabled {
+			and = append(and, sq.Eq{enabledField: 1})
+		}
 	}
 
 	return and

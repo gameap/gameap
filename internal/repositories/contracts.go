@@ -184,24 +184,85 @@ type ServerTaskRepository interface {
 
 	Save(ctx context.Context, task *domain.ServerTask) error
 
+	// BumpVersion atomically increments the task's `version` column and
+	// returns the new value. Callers persist edits via Save first, then
+	// call BumpVersion to obtain the version to ship in the delta.
+	BumpVersion(ctx context.Context, id uint) (uint64, error)
+
+	// SoftDelete marks the row deleted (sets `deleted_at = now()`) so
+	// executions logged against it retain a valid FK target. Bumps
+	// `version` so daemons drop the schedule.
+	SoftDelete(ctx context.Context, id uint) error
+
 	Delete(ctx context.Context, id uint) error
 }
 
-type ServerTaskFailRepository interface {
+// ServerTaskExecutionFinishPatch carries the fields written when an
+// execution terminates. Only set fields the daemon reported; nil/zero
+// leaves the column unchanged.
+type ServerTaskExecutionFinishPatch struct {
+	Status            domain.ServerTaskExecutionStatus
+	ExitCode          *int
+	ErrorMessage      *string
+	FinishedAt        time.Time
+	DurationMS        *int64
+	OutputInline      *string
+	OutputStoragePath *string
+}
+
+type ServerTaskExecutionRepository interface {
+	// Create inserts a row keyed by ExecutionID. Implementations MUST be
+	// idempotent (e.g. INSERT ... ON CONFLICT (execution_id) DO NOTHING)
+	// because the daemon may retry started events across reconnects.
+	Create(ctx context.Context, exec *domain.ServerTaskExecution) error
+
+	UpdateFinish(
+		ctx context.Context,
+		executionID string,
+		patch ServerTaskExecutionFinishPatch,
+	) error
+
+	// AppendOutputInline appends the given chunk to output_inline,
+	// truncating the front so the column stays within maxBytes. Used for
+	// streaming-log fan-out into the executions row without ever
+	// overflowing the column.
+	AppendOutputInline(
+		ctx context.Context,
+		executionID string,
+		chunk []byte,
+		maxBytes int,
+	) error
+
 	FindAll(
 		ctx context.Context,
 		order []filters.Sorting,
 		pagination *filters.Pagination,
-	) ([]domain.ServerTaskFail, error)
+	) ([]domain.ServerTaskExecution, error)
 
 	Find(
 		ctx context.Context,
-		filter *filters.FindServerTaskFail,
+		filter *filters.FindServerTaskExecution,
 		order []filters.Sorting,
 		pagination *filters.Pagination,
-	) ([]domain.ServerTaskFail, error)
+	) ([]domain.ServerTaskExecution, error)
 
-	Save(ctx context.Context, fail *domain.ServerTaskFail) error
+	// MarkAbandoned flips every execution for nodeID still in `running`
+	// state whose ExecutionID is NOT in keepExecutionIDs to `failed` with
+	// `error_message = reason`. Returns the count of affected rows.
+	MarkAbandoned(
+		ctx context.Context,
+		nodeID uint,
+		keepExecutionIDs []string,
+		reason string,
+	) (int, error)
+
+	// DeleteOlderThan purges executions whose finished_at < before AND
+	// status = the given value. Used by the retention cron.
+	DeleteOlderThan(
+		ctx context.Context,
+		status domain.ServerTaskExecutionStatus,
+		before time.Time,
+	) (int, error)
 }
 
 type ServerSettingRepository interface {

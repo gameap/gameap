@@ -11,6 +11,56 @@ properties:
     type: integer
     description: Server ID
     example: 1
+  node_id:
+    type:
+      - integer
+      - "null"
+    description: Node (dedicated server) that owns scheduling for this task.
+      Denormalised from servers.ds_id so the daemon can filter without a JOIN.
+  name:
+    type:
+      - string
+      - "null"
+    description: Human-readable display label
+  enabled:
+    type: boolean
+    description: When false the daemon ignores this task. Use this to pause
+      a schedule without deleting it.
+    default: true
+  overlap_policy:
+    type: string
+    enum: [skip, queue]
+    description: |
+      What to do when a tick fires while a previous run is still active:
+      - `skip` (default): drop the new tick.
+      - `queue`: run after the current run finishes.
+    default: skip
+  catchup_policy:
+    type: string
+    enum: [skip, run_once]
+    description: |
+      What to do when the scheduled time passed while the daemon was offline:
+      - `skip` (default): fire-and-forget; missed slots vanish.
+      - `run_once`: collapse all missed slots into a single execution at
+        daemon connect.
+    default: skip
+  created_by_user_id:
+    type:
+      - integer
+      - "null"
+    description: User that originally scheduled this task (audit).
+  version:
+    type: integer
+    format: int64
+    description: Monotonic version, bumped on every update. The daemon uses
+      this as an ETag to drop stale deltas.
+    example: 1
+  timezone:
+    type:
+      - string
+      - "null"
+    description: IANA timezone name. When null, execute_date is interpreted in UTC.
+    example: "Europe/Moscow"
   repeat:
     type: integer
     description: Repeat count (0 = no repeat, 1+ = repeat N times)
@@ -47,8 +97,19 @@ properties:
       - "null"
     format: date-time
     description: Last update timestamp
+  deleted_at:
+    type:
+      - string
+      - "null"
+    format: date-time
+    description: Soft-delete timestamp. Tasks with deleted_at set are hidden
+      from the daemon but remain visible in execution history for audit.
 required:
   - id
   - command
   - server_id
+  - enabled
+  - overlap_policy
+  - catchup_policy
+  - version
   - execute_date

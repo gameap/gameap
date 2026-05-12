@@ -12,6 +12,7 @@ import "pkg/proto/game.proto";
 import "pkg/proto/gamemod.proto";
 import "pkg/proto/filetransfer.proto";
 import "pkg/proto/serversetting.proto";
+import "pkg/proto/servertask.proto";
 
 service DaemonGateway {
   rpc Connect(stream DaemonMessage) returns (stream GatewayMessage);
@@ -46,6 +47,11 @@ message DaemonMessage {
     StatusResponse status_response = 70;
 
     HTTPProxyResponse http_proxy_response = 80;
+
+    ServerTaskExecutionStarted  server_task_execution_started  = 25;
+    ServerTaskExecutionFinished server_task_execution_finished = 26;
+    ServerTaskExecutionLog      server_task_execution_log      = 27;
+    ServerTaskResyncRequest     server_task_resync_request     = 28;
   }
 }
 
@@ -80,6 +86,11 @@ message GatewayMessage {
     StatusRequest status_request = 70;
 
     HTTPProxyRequest http_proxy = 80;
+
+    ServerTaskSnapshot        server_task_snapshot         = 25;
+    ServerTaskDelta           server_task_delta            = 26;
+    ServerTaskExecutionCancel server_task_execution_cancel = 27;
+    ServerTaskExecutionAck    server_task_execution_ack    = 28;
   }
 }
 
@@ -89,6 +100,8 @@ message RegisterRequest {
   string version = 3;
   repeated string capabilities = 4;
   repeated InFlightTask in_flight_tasks = 5;
+  uint64 server_task_snapshot_version = 6;
+  repeated InFlightServerTaskExecution in_flight_server_task_executions = 7;
 }
 
 message InFlightTask {
@@ -107,6 +120,7 @@ message RegisterAck {
   repeated GameMod game_mods = 6;
   google.protobuf.Duration heartbeat_interval = 7;
   repeated ServerSetting server_settings = 8;
+  ServerTaskSnapshot server_task_snapshot = 9;
 }
 
 message Heartbeat {
