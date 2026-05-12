@@ -15,6 +15,7 @@ import (
 	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/gameap/gameap/pkg/proto"
 	"github.com/pkg/errors"
+	"github.com/rs/xid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -144,13 +145,18 @@ func (d *Dispatcher) DispatchDelete(
 func (d *Dispatcher) HandleExecutionStarted(
 	ctx context.Context, _ uint64, evt *proto.ServerTaskExecutionStarted,
 ) error {
+	execID, err := xid.FromString(evt.ExecutionId)
+	if err != nil {
+		return errors.WithMessagef(err, "parse execution id %q", evt.ExecutionId)
+	}
+
 	startedAt := time.Now()
 	if evt.StartedAt != nil {
 		startedAt = evt.StartedAt.AsTime()
 	}
 
 	exec := &domain.ServerTaskExecution{
-		ExecutionID:  evt.ExecutionId,
+		ExecutionID:  execID,
 		ServerTaskID: uint(evt.TaskId),
 		ServerID:     uint(evt.ServerId),
 		NodeID:       uint(evt.NodeId),
@@ -164,7 +170,7 @@ func (d *Dispatcher) HandleExecutionStarted(
 		return errors.WithMessage(err, "persist execution started")
 	}
 
-	d.publishExecutionStatus(ctx, evt.TaskId, evt.ServerId, evt.NodeId, exec.ExecutionID, exec.Status, nil, "")
+	d.publishExecutionStatus(ctx, evt.TaskId, evt.ServerId, evt.NodeId, evt.ExecutionId, exec.Status, nil, "")
 
 	return nil
 }
@@ -172,6 +178,11 @@ func (d *Dispatcher) HandleExecutionStarted(
 func (d *Dispatcher) HandleExecutionFinished(
 	ctx context.Context, nodeID uint64, evt *proto.ServerTaskExecutionFinished,
 ) error {
+	execID, err := xid.FromString(evt.ExecutionId)
+	if err != nil {
+		return errors.WithMessagef(err, "parse execution id %q", evt.ExecutionId)
+	}
+
 	patch := repositories.ServerTaskExecutionFinishPatch{
 		Status:     gateway.ProtoServerTaskExecutionStatusToDomain(evt.Status),
 		FinishedAt: time.Now(),
@@ -201,7 +212,7 @@ func (d *Dispatcher) HandleExecutionFinished(
 		patch.OutputStoragePath = &osp
 	}
 
-	if err := d.executionRepo.UpdateFinish(ctx, evt.ExecutionId, patch); err != nil {
+	if err := d.executionRepo.UpdateFinish(ctx, execID, patch); err != nil {
 		return errors.WithMessage(err, "persist execution finish")
 	}
 
@@ -226,10 +237,15 @@ func (d *Dispatcher) HandleExecutionLog(
 		return nil
 	}
 
+	execID, err := xid.FromString(evt.ExecutionId)
+	if err != nil {
+		return errors.WithMessagef(err, "parse execution id %q", evt.ExecutionId)
+	}
+
 	// Append a truncated tail to the inline output column. The full log
 	// is meant for file-transfer storage (follow-up); for now we keep
 	// the rolling tail so the executions row stays self-describing.
-	if err := d.executionRepo.AppendOutputInline(ctx, evt.ExecutionId, evt.Chunk, outputInlineMaxBytes); err != nil {
+	if err := d.executionRepo.AppendOutputInline(ctx, execID, evt.Chunk, outputInlineMaxBytes); err != nil {
 		d.logger.Warn("failed to append execution output chunk",
 			"execution_id", evt.ExecutionId, "node_id", nodeID, "error", err,
 		)
@@ -269,7 +285,20 @@ func (d *Dispatcher) ReconcileWorkingExecutions(
 		reason = domain.ExecutionAbandonedReasonDaemonRestart
 	}
 
-	n, err := d.executionRepo.MarkAbandoned(ctx, uint(nodeID), inFlightExecIDs, reason)
+	keepIDs := make([]xid.ID, 0, len(inFlightExecIDs))
+	for _, s := range inFlightExecIDs {
+		id, err := xid.FromString(s)
+		if err != nil {
+			d.logger.Warn("skipping malformed in-flight execution id",
+				"node_id", nodeID, "execution_id", s, "error", err,
+			)
+
+			continue
+		}
+		keepIDs = append(keepIDs, id)
+	}
+
+	n, err := d.executionRepo.MarkAbandoned(ctx, uint(nodeID), keepIDs, reason)
 	if err != nil {
 		return 0, errors.WithMessage(err, "mark abandoned executions")
 	}

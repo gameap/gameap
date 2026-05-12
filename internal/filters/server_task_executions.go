@@ -4,11 +4,12 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/rs/xid"
 )
 
 type FindServerTaskExecution struct {
 	IDs           []uint
-	ExecutionIDs  []string
+	ExecutionIDs  []xid.ID
 	ServerTaskIDs []uint
 	ServerIDs     []uint
 	NodeIDs       []uint

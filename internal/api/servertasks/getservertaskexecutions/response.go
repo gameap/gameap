@@ -4,11 +4,12 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/rs/xid"
 )
 
 type executionResponse struct {
 	ID                uint       `json:"id"`
-	ExecutionID       string     `json:"execution_id"`
+	ExecutionID       xid.ID     `json:"execution_id"`
 	ServerTaskID      uint       `json:"server_task_id"`
 	ServerID          uint       `json:"server_id"`
 	NodeID            uint       `json:"node_id"`
@@ -30,29 +31,34 @@ type executionsResponse struct {
 	Data []executionResponse `json:"data"`
 }
 
-func newExecutionsResponse(execs []domain.ServerTaskExecution) executionsResponse {
+func newExecutionsResponse(execs []domain.ServerTaskExecution, isAdmin bool) executionsResponse {
 	out := make([]executionResponse, 0, len(execs))
 	for i := range execs {
 		e := &execs[i]
-		out = append(out, executionResponse{
-			ID:                e.ID,
-			ExecutionID:       e.ExecutionID,
-			ServerTaskID:      e.ServerTaskID,
-			ServerID:          e.ServerID,
-			NodeID:            e.NodeID,
-			Command:           string(e.Command),
-			TaskVersion:       e.TaskVersion,
-			Status:            string(e.Status),
-			ExitCode:          e.ExitCode,
-			ErrorMessage:      e.ErrorMessage,
-			StartedAt:         e.StartedAt,
-			FinishedAt:        e.FinishedAt,
-			DurationMS:        e.DurationMS,
-			OutputInline:      e.OutputInline,
-			OutputStoragePath: e.OutputStoragePath,
-			CreatedAt:         e.CreatedAt,
-			UpdatedAt:         e.UpdatedAt,
-		})
+		resp := executionResponse{
+			ID:           e.ID,
+			ExecutionID:  e.ExecutionID,
+			ServerTaskID: e.ServerTaskID,
+			ServerID:     e.ServerID,
+			NodeID:       e.NodeID,
+			Command:      string(e.Command),
+			TaskVersion:  e.TaskVersion,
+			Status:       string(e.Status),
+			ExitCode:     e.ExitCode,
+			ErrorMessage: e.ErrorMessage,
+			StartedAt:    e.StartedAt,
+			FinishedAt:   e.FinishedAt,
+			DurationMS:   e.DurationMS,
+			CreatedAt:    e.CreatedAt,
+			UpdatedAt:    e.UpdatedAt,
+		}
+
+		if isAdmin {
+			resp.OutputInline = e.OutputInline
+			resp.OutputStoragePath = e.OutputStoragePath
+		}
+
+		out = append(out, resp)
 	}
 
 	return executionsResponse{Data: out}

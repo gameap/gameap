@@ -1,6 +1,10 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"github.com/rs/xid"
+)
 
 type ServerTaskExecutionStatus string
 
@@ -20,7 +24,7 @@ const ExecutionAbandonedReasonDaemonRestart = "daemon_restart"
 
 type ServerTaskExecution struct {
 	ID                uint                      `db:"id"`
-	ExecutionID       string                    `db:"execution_id"`
+	ExecutionID       xid.ID                    `db:"execution_id"`
 	ServerTaskID      uint                      `db:"server_task_id"`
 	ServerID          uint                      `db:"server_id"`
 	NodeID            uint                      `db:"node_id"`

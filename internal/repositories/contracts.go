@@ -7,6 +7,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/pubsub/dlq"
+	"github.com/rs/xid"
 )
 
 type GameRepository interface {
@@ -218,7 +219,7 @@ type ServerTaskExecutionRepository interface {
 
 	UpdateFinish(
 		ctx context.Context,
-		executionID string,
+		executionID xid.ID,
 		patch ServerTaskExecutionFinishPatch,
 	) error
 
@@ -228,7 +229,7 @@ type ServerTaskExecutionRepository interface {
 	// overflowing the column.
 	AppendOutputInline(
 		ctx context.Context,
-		executionID string,
+		executionID xid.ID,
 		chunk []byte,
 		maxBytes int,
 	) error
@@ -252,7 +253,7 @@ type ServerTaskExecutionRepository interface {
 	MarkAbandoned(
 		ctx context.Context,
 		nodeID uint,
-		keepExecutionIDs []string,
+		keepExecutionIDs []xid.ID,
 		reason string,
 	) (int, error)
 

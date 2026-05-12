@@ -11,6 +11,9 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/base"
+	"github.com/gameap/gameap/pkg/idgen"
+	"github.com/google/uuid"
+	"github.com/rs/xid"
 	"github.com/samber/lo"
 
 	sq "github.com/Masterminds/squirrel"
@@ -36,6 +39,15 @@ type ServerTaskExecutionRepository struct {
 
 func NewServerTaskExecutionRepository(db base.DB) *ServerTaskExecutionRepository {
 	return &ServerTaskExecutionRepository{db: db}
+}
+
+func convertXIDsToUUIDsSQLite(ids []xid.ID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, idgen.XIDToUUID(id).String())
+	}
+
+	return out
 }
 
 func (r *ServerTaskExecutionRepository) Create(
@@ -66,6 +78,8 @@ func (r *ServerTaskExecutionRepository) Create(
 		errorMessage = *exec.ErrorMessage
 	}
 
+	executionUUID := idgen.XIDToUUID(exec.ExecutionID).String()
+
 	query := "INSERT OR IGNORE INTO " + base.ServerTaskExecutionsTable + " (" +
 		"`execution_id`, `server_task_id`, `server_id`, `node_id`, `command`," +
 		"`task_version`, `status`, `exit_code`, `error_message`," +
@@ -75,7 +89,7 @@ func (r *ServerTaskExecutionRepository) Create(
 		") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 	res, err := r.db.ExecContext(ctx, query,
-		exec.ExecutionID, exec.ServerTaskID, exec.ServerID, exec.NodeID, exec.Command,
+		executionUUID, exec.ServerTaskID, exec.ServerID, exec.NodeID, exec.Command,
 		exec.TaskVersion, exec.Status, exec.ExitCode, errorMessage,
 		exec.StartedAt.Format(time.RFC3339), finishedAt, exec.DurationMS,
 		outputInline, outputStoragePath,
@@ -103,12 +117,14 @@ func (r *ServerTaskExecutionRepository) Create(
 
 func (r *ServerTaskExecutionRepository) UpdateFinish(
 	ctx context.Context,
-	executionID string,
+	executionID xid.ID,
 	patch repositories.ServerTaskExecutionFinishPatch,
 ) error {
 	if patch.FinishedAt.IsZero() {
 		patch.FinishedAt = time.Now()
 	}
+
+	executionUUID := idgen.XIDToUUID(executionID).String()
 
 	query := "UPDATE " + base.ServerTaskExecutionsTable + " SET " +
 		"`status` = ?, " +
@@ -133,7 +149,7 @@ func (r *ServerTaskExecutionRepository) UpdateFinish(
 		patch.OutputInline,
 		patch.OutputStoragePath,
 		updatedAt,
-		executionID,
+		executionUUID,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "failed to update execution finish")
@@ -143,11 +159,13 @@ func (r *ServerTaskExecutionRepository) UpdateFinish(
 }
 
 func (r *ServerTaskExecutionRepository) AppendOutputInline(
-	ctx context.Context, executionID string, chunk []byte, maxBytes int,
+	ctx context.Context, executionID xid.ID, chunk []byte, maxBytes int,
 ) error {
 	if len(chunk) == 0 {
 		return nil
 	}
+
+	executionUUID := idgen.XIDToUUID(executionID).String()
 
 	query := "UPDATE " + base.ServerTaskExecutionsTable + " SET " +
 		"`output_inline` = substr(IFNULL(`output_inline`, '') || ?, -?), " +
@@ -155,7 +173,7 @@ func (r *ServerTaskExecutionRepository) AppendOutputInline(
 		"WHERE `execution_id` = ?"
 
 	if _, err := r.db.ExecContext(ctx, query, string(chunk), maxBytes,
-		time.Now().Format(time.RFC3339), executionID); err != nil {
+		time.Now().Format(time.RFC3339), executionUUID); err != nil {
 		return errors.WithMessage(err, "failed to append output")
 	}
 
@@ -247,10 +265,12 @@ func (r *ServerTaskExecutionRepository) find(
 func (r *ServerTaskExecutionRepository) MarkAbandoned(
 	ctx context.Context,
 	nodeID uint,
-	keepExecutionIDs []string,
+	keepExecutionIDs []xid.ID,
 	reason string,
 ) (int, error) {
 	now := time.Now().Format(time.RFC3339)
+
+	keepUUIDs := convertXIDsToUUIDsSQLite(keepExecutionIDs)
 
 	builder := sq.Update(base.ServerTaskExecutionsTable).
 		Set("status", domain.ServerTaskExecutionStatusFailed).
@@ -260,8 +280,8 @@ func (r *ServerTaskExecutionRepository) MarkAbandoned(
 		Where(sq.Eq{"node_id": nodeID}).
 		Where(sq.Eq{"status": domain.ServerTaskExecutionStatusRunning})
 
-	if len(keepExecutionIDs) > 0 {
-		builder = builder.Where(sq.NotEq{"execution_id": keepExecutionIDs})
+	if len(keepUUIDs) > 0 {
+		builder = builder.Where(sq.NotEq{"execution_id": keepUUIDs})
 	}
 
 	query, args, err := builder.ToSql()
@@ -300,13 +320,14 @@ func (r *ServerTaskExecutionRepository) DeleteOlderThan(
 
 func (r *ServerTaskExecutionRepository) scan(row base.Scanner) (*domain.ServerTaskExecution, error) {
 	var exec domain.ServerTaskExecution
+	var executionUUIDStr string
 
 	var startedAtStr, createdAtStr, updatedAtStr string
 	var finishedAtStr *string
 
 	err := row.Scan(
 		&exec.ID,
-		&exec.ExecutionID,
+		&executionUUIDStr,
 		&exec.ServerTaskID,
 		&exec.ServerID,
 		&exec.NodeID,
@@ -326,6 +347,12 @@ func (r *ServerTaskExecutionRepository) scan(row base.Scanner) (*domain.ServerTa
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to scan row")
 	}
+
+	parsed, err := uuid.Parse(executionUUIDStr)
+	if err != nil {
+		return nil, errors.WithMessage(err, "parse execution uuid")
+	}
+	exec.ExecutionID = idgen.UUIDToXID(parsed)
 
 	startedAt, err := base.ParseTime(startedAtStr)
 	if err != nil {
@@ -363,7 +390,7 @@ func (r *ServerTaskExecutionRepository) filterToSq(filter *filters.FindServerTas
 		and = append(and, sq.Eq{"id": filter.IDs})
 	}
 	if len(filter.ExecutionIDs) > 0 {
-		and = append(and, sq.Eq{"execution_id": filter.ExecutionIDs})
+		and = append(and, sq.Eq{"execution_id": convertXIDsToUUIDsSQLite(filter.ExecutionIDs)})
 	}
 	if len(filter.ServerTaskIDs) > 0 {
 		and = append(and, sq.Eq{"server_task_id": filter.ServerTaskIDs})

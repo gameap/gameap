@@ -20,6 +20,7 @@ type Handler struct {
 	executionRepo  repositories.ServerTaskExecutionRepository
 	serverFinder   *serversbase.ServerFinder
 	abilityChecker *serversbase.AbilityChecker
+	rbac           base.RBAC
 	responder      base.Responder
 }
 
@@ -35,6 +36,7 @@ func NewHandler(
 		executionRepo:  executionRepo,
 		serverFinder:   serversbase.NewServerFinder(serversRepo, rbac),
 		abilityChecker: serversbase.NewAbilityChecker(rbac),
+		rbac:           rbac,
 		responder:      responder,
 	}
 }
@@ -90,6 +92,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isAdmin, err := h.rbac.Can(
+		ctx, session.User.ID,
+		[]domain.AbilityName{domain.AbilityNameAdminRolesPermissions},
+	)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to check admin permissions"))
+
+		return
+	}
+
 	tasks, err := h.serverTaskRepo.Find(ctx, &filters.FindServerTask{
 		IDs:        []uint{taskID},
 		ServersIDs: []uint{serverID},
@@ -127,5 +139,5 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.responder.Write(ctx, rw, newExecutionsResponse(executions))
+	h.responder.Write(ctx, rw, newExecutionsResponse(executions, isAdmin))
 }

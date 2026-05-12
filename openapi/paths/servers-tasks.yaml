@@ -165,3 +165,75 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+
+/api/servers/{server}/tasks/{id}/executions:
+  get:
+    tags:
+      - ServerTasks
+    summary: List server task executions
+    description: |
+      Returns the audit log of executions for a single scheduled server task,
+      ordered by `started_at` DESC. Each row is one run (success or failure).
+      The list is not paginated.
+
+      Sensitive fields `output_inline` and `output_storage_path` are returned
+      only to users with the `admin roles & permissions` ability; for other
+      users these fields are omitted from each item.
+    operationId: listServerTaskExecutions
+    parameters:
+      - name: server
+        in: path
+        required: true
+        description: Server ID
+        schema:
+          type: integer
+      - name: id
+        in: path
+        required: true
+        description: Task ID
+        schema:
+          type: integer
+      - name: status
+        in: query
+        required: false
+        description: Filter by execution status
+        schema:
+          type: string
+          enum: [running, success, failed, canceled, skipped, timed_out]
+    responses:
+      '200':
+        description: List of executions
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '../schemas/ServerTaskExecution.yaml'
+      '400':
+        description: Invalid server or task ID
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden — missing `gameserver.tasks` ability
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or task not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'

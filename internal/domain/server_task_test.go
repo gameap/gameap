@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/xid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -213,10 +214,11 @@ func TestServerTask_RepeatPeriodDurations(t *testing.T) {
 func TestServerTaskExecution_Fields(t *testing.T) {
 	now := time.Now()
 	output := "Error: connection timeout"
+	execID := xid.New()
 
 	exec := ServerTaskExecution{
 		ID:           1,
-		ExecutionID:  "9a8b7c6d-1234-4abc-9def-0fedcba98765",
+		ExecutionID:  execID,
 		ServerTaskID: 10,
 		Status:       ServerTaskExecutionStatusFailed,
 		ErrorMessage: &output,
@@ -227,6 +229,7 @@ func TestServerTaskExecution_Fields(t *testing.T) {
 	}
 
 	assert.Equal(t, uint(1), exec.ID)
+	assert.Equal(t, execID, exec.ExecutionID)
 	assert.Equal(t, ServerTaskExecutionStatusFailed, exec.Status)
 	assert.NotNil(t, exec.ErrorMessage)
 	assert.Equal(t, output, *exec.ErrorMessage)

@@ -2,17 +2,19 @@ type: object
 description: |
   One run of a scheduled server task. Replaces the legacy `servers_tasks_fails`
   table: both successes and failures land here, keyed by a daemon-generated
-  UUID for idempotency.
+  XID for idempotency.
 properties:
   id:
     type: integer
     description: API-side surrogate ID (cursor for pagination).
   execution_id:
     type: string
-    format: uuid
-    description: Daemon-generated idempotency key. The API uses
-      `ON CONFLICT (execution_id) DO NOTHING` on inserts so a retried
-      start event never duplicates the row.
+    description: Daemon-generated XID (github.com/rs/xid) used as the
+      idempotency key. The API uses `ON CONFLICT (execution_id) DO NOTHING`
+      on inserts so a retried start event never duplicates the row.
+    minLength: 20
+    maxLength: 20
+    example: "9m4e2mr0ui3e8a215n4g"
   server_task_id:
     type: integer
   server_id:
@@ -56,13 +58,17 @@ properties:
       - string
       - "null"
     description: Truncated tail of stdout/stderr (≤64KB). For full output
-      consult `output_storage_path`.
+      consult `output_storage_path`. Visible only to administrators
+      (`admin roles & permissions` ability); omitted from the response for
+      other users.
   output_storage_path:
     type:
       - string
       - "null"
     description: URI into file-transfer storage for the full streamed output.
       Set when the daemon decided the output was too large to inline.
+      Visible only to administrators (`admin roles & permissions` ability);
+      omitted from the response for other users.
   created_at:
     type: string
     format: date-time

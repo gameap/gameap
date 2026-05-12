@@ -48,21 +48,71 @@ enum ServerTaskExecutionStatus {
 // it back unmodified in `ServerTaskExecutionStarted` /
 // `ServerTaskExecutionFinished`.
 message ServerTask {
-  uint64 id          = 1;
-  uint64 server_id   = 2;
-  uint64 node_id     = 3;
+  // Stable API-side identifier. Daemons key their local cache on this.
+  uint64 id = 1;
+
+  // Game server this task acts on. Matches Server.id in api.
+  uint64 server_id = 2;
+
+  // Dedicated server (node) that owns scheduling. Denormalised from
+  // servers.ds_id so the daemon can filter the snapshot without joining.
+  uint64 node_id = 3;
+
+  // Action the daemon must perform on each tick (start/stop/restart/
+  // update/reinstall). Maps to gameservercommands.ServerCommandFactory.
   ServerTaskCommand command = 4;
-  google.protobuf.Timestamp execute_date  = 5;
-  google.protobuf.Duration  repeat_period = 6;
+
+  // First/next scheduled execution time (UTC). Recurring tasks update
+  // this locally after each fire by adding repeat_period.
+  google.protobuf.Timestamp execute_date = 5;
+
+  // Interval between consecutive fires. Zero means one-shot (combined
+  // with repeat_count semantics below).
+  google.protobuf.Duration repeat_period = 6;
+
+  // How many times to fire. 0 or 1 = one-shot. >1 = bounded recurring.
+  // No "unlimited" sentinel — `repeat` field on the api side is a
+  // uint8 so range is 0..255.
   uint32 repeat_count = 7;
-  uint32 counter      = 8;
-  string payload      = 9;
-  uint64 version      = 10;
+
+  // How many times this task has already fired. Maintained primarily
+  // by the api side; bumped on every recorded execution.
+  uint32 counter = 8;
+
+  // Opaque application-level payload. The daemon stores it on the local
+  // task record and passes it back unmodified in execution events.
+  string payload = 9;
+
+  // Monotonic ETag, bumped on every Save/SoftDelete. Daemons MUST drop
+  // deltas whose version <= cached version (idempotency + ordering for
+  // late-arriving pubsub messages).
+  uint64 version = 10;
+
+  // What to do when a tick fires while a previous run is still active
+  // for the same (server_id, task_id). Default SKIP.
   ServerTaskOverlapPolicy overlap_policy = 11;
+
+  // What to do with slots that passed while the daemon was offline.
+  // Default SKIP. RUN_ONCE collapses all missed slots into a single
+  // execution at register time.
   ServerTaskCatchupPolicy catchup_policy = 12;
-  bool   enabled      = 13;
-  string name         = 14;
-  string timezone     = 15;
+
+  // Pause flag. When false the daemon must not fire this task. Disabled
+  // tasks are still part of the snapshot so the daemon can pick them up
+  // immediately when the operator re-enables them.
+  bool enabled = 13;
+
+  // Optional human-readable label for UI/audit. Not interpreted by the
+  // daemon.
+  string name = 14;
+
+  // IANA timezone (e.g. "Europe/Moscow"). Empty string means UTC. The
+  // daemon uses this when computing next-fire wall-clock for cron-like
+  // semantics; recurring intervals stay in absolute duration.
+  string timezone = 15;
+
+  // Last modification time of the api row. Useful for logs / debug;
+  // ordering of deltas is driven by `version`, not by this field.
   google.protobuf.Timestamp updated_at = 16;
 }
 
@@ -96,8 +146,8 @@ message ServerTaskResyncRequest {
 }
 
 // Daemon → API. Emitted when the daemon's scheduler fires a task. The
-// daemon generates `execution_id` (UUIDv4) as the idempotency key — the
-// API uses ON CONFLICT (execution_id) DO NOTHING.
+// daemon generates `execution_id` (XID, github.com/rs/xid) as the
+// idempotency key — the API uses ON CONFLICT (execution_id) DO NOTHING.
 //
 // `task_version` is the version on which this run is based. If the user
 // edits the task mid-run, the recorded execution still reflects the
@@ -117,15 +167,50 @@ message ServerTaskExecutionStarted {
 // chunks via `ServerTaskExecutionLog` during the run and sets
 // `output_streamed=true` + `output_storage_path` here.
 message ServerTaskExecutionFinished {
+  // Same XID the daemon used in the matching ExecutionStarted event.
+  // The api updates the row keyed by this id, so retries during
+  // reconnect are safe.
   string execution_id = 1;
-  uint64 task_id      = 2;
+
+  // ServerTask.id this run belonged to. Helps the api fan out realtime
+  // events to subscribers of that task without a DB lookup.
+  uint64 task_id = 2;
+
+  // Terminal status. RUNNING here is invalid — use one of
+  // SUCCESS/FAILED/CANCELED/SKIPPED/TIMED_OUT.
   ServerTaskExecutionStatus status = 3;
-  int32  exit_code    = 4;
+
+  // Process exit code, when meaningful. 0 by default; populated for
+  // SUCCESS and non-zero on FAILED/TIMED_OUT.
+  int32 exit_code = 4;
+
+  // Optional human-readable failure reason. For CANCELED set to the
+  // cancel reason supplied by api. Empty on SUCCESS.
   string error_message = 5;
+
+  // Wall-clock end time. May differ slightly from
+  // ExecutionStarted.started_at + duration on heavily-loaded daemons —
+  // store both, don't recompute.
   google.protobuf.Timestamp finished_at = 6;
-  google.protobuf.Duration  duration    = 7;
-  bytes  output_inline = 8;
-  bool   output_streamed = 9;
+
+  // Total wall-clock execution time. Persisted as duration_ms on the
+  // api side for easy ordering / aggregation.
+  google.protobuf.Duration duration = 7;
+
+  // Truncated tail of stdout/stderr (last <= 64 KB). Always populated
+  // for small runs; for large runs this is the convenience tail while
+  // the full body lives at output_storage_path.
+  bytes output_inline = 8;
+
+  // True when the daemon streamed full output through
+  // ServerTaskExecutionLog chunks during the run (or uploaded to
+  // file-transfer storage). The api uses this to mark the executions
+  // row as having external full output.
+  bool output_streamed = 9;
+
+  // URI into file-transfer storage holding the complete log. Set only
+  // when output_streamed=true AND the daemon successfully finalised
+  // the upload. Empty for inline-only runs.
   string output_storage_path = 10;
 }
 

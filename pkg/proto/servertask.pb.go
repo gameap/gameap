@@ -250,23 +250,58 @@ func (ServerTaskExecutionStatus) EnumDescriptor() ([]byte, []int) {
 // it back unmodified in `ServerTaskExecutionStarted` /
 // `ServerTaskExecutionFinished`.
 type ServerTask struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
-	Id            uint64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	ServerId      uint64                  `protobuf:"varint,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
-	NodeId        uint64                  `protobuf:"varint,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
-	Command       ServerTaskCommand       `protobuf:"varint,4,opt,name=command,proto3,enum=gameap.ServerTaskCommand" json:"command,omitempty"`
-	ExecuteDate   *timestamppb.Timestamp  `protobuf:"bytes,5,opt,name=execute_date,json=executeDate,proto3" json:"execute_date,omitempty"`
-	RepeatPeriod  *durationpb.Duration    `protobuf:"bytes,6,opt,name=repeat_period,json=repeatPeriod,proto3" json:"repeat_period,omitempty"`
-	RepeatCount   uint32                  `protobuf:"varint,7,opt,name=repeat_count,json=repeatCount,proto3" json:"repeat_count,omitempty"`
-	Counter       uint32                  `protobuf:"varint,8,opt,name=counter,proto3" json:"counter,omitempty"`
-	Payload       string                  `protobuf:"bytes,9,opt,name=payload,proto3" json:"payload,omitempty"`
-	Version       uint64                  `protobuf:"varint,10,opt,name=version,proto3" json:"version,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Stable API-side identifier. Daemons key their local cache on this.
+	Id uint64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Game server this task acts on. Matches Server.id in api.
+	ServerId uint64 `protobuf:"varint,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Dedicated server (node) that owns scheduling. Denormalised from
+	// servers.ds_id so the daemon can filter the snapshot without joining.
+	NodeId uint64 `protobuf:"varint,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	// Action the daemon must perform on each tick (start/stop/restart/
+	// update/reinstall). Maps to gameservercommands.ServerCommandFactory.
+	Command ServerTaskCommand `protobuf:"varint,4,opt,name=command,proto3,enum=gameap.ServerTaskCommand" json:"command,omitempty"`
+	// First/next scheduled execution time (UTC). Recurring tasks update
+	// this locally after each fire by adding repeat_period.
+	ExecuteDate *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=execute_date,json=executeDate,proto3" json:"execute_date,omitempty"`
+	// Interval between consecutive fires. Zero means one-shot (combined
+	// with repeat_count semantics below).
+	RepeatPeriod *durationpb.Duration `protobuf:"bytes,6,opt,name=repeat_period,json=repeatPeriod,proto3" json:"repeat_period,omitempty"`
+	// How many times to fire. 0 or 1 = one-shot. >1 = bounded recurring.
+	// No "unlimited" sentinel — `repeat` field on the api side is a
+	// uint8 so range is 0..255.
+	RepeatCount uint32 `protobuf:"varint,7,opt,name=repeat_count,json=repeatCount,proto3" json:"repeat_count,omitempty"`
+	// How many times this task has already fired. Maintained primarily
+	// by the api side; bumped on every recorded execution.
+	Counter uint32 `protobuf:"varint,8,opt,name=counter,proto3" json:"counter,omitempty"`
+	// Opaque application-level payload. The daemon stores it on the local
+	// task record and passes it back unmodified in execution events.
+	Payload string `protobuf:"bytes,9,opt,name=payload,proto3" json:"payload,omitempty"`
+	// Monotonic ETag, bumped on every Save/SoftDelete. Daemons MUST drop
+	// deltas whose version <= cached version (idempotency + ordering for
+	// late-arriving pubsub messages).
+	Version uint64 `protobuf:"varint,10,opt,name=version,proto3" json:"version,omitempty"`
+	// What to do when a tick fires while a previous run is still active
+	// for the same (server_id, task_id). Default SKIP.
 	OverlapPolicy ServerTaskOverlapPolicy `protobuf:"varint,11,opt,name=overlap_policy,json=overlapPolicy,proto3,enum=gameap.ServerTaskOverlapPolicy" json:"overlap_policy,omitempty"`
+	// What to do with slots that passed while the daemon was offline.
+	// Default SKIP. RUN_ONCE collapses all missed slots into a single
+	// execution at register time.
 	CatchupPolicy ServerTaskCatchupPolicy `protobuf:"varint,12,opt,name=catchup_policy,json=catchupPolicy,proto3,enum=gameap.ServerTaskCatchupPolicy" json:"catchup_policy,omitempty"`
-	Enabled       bool                    `protobuf:"varint,13,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	Name          string                  `protobuf:"bytes,14,opt,name=name,proto3" json:"name,omitempty"`
-	Timezone      string                  `protobuf:"bytes,15,opt,name=timezone,proto3" json:"timezone,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp  `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Pause flag. When false the daemon must not fire this task. Disabled
+	// tasks are still part of the snapshot so the daemon can pick them up
+	// immediately when the operator re-enables them.
+	Enabled bool `protobuf:"varint,13,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// Optional human-readable label for UI/audit. Not interpreted by the
+	// daemon.
+	Name string `protobuf:"bytes,14,opt,name=name,proto3" json:"name,omitempty"`
+	// IANA timezone (e.g. "Europe/Moscow"). Empty string means UTC. The
+	// daemon uses this when computing next-fire wall-clock for cron-like
+	// semantics; recurring intervals stay in absolute duration.
+	Timezone string `protobuf:"bytes,15,opt,name=timezone,proto3" json:"timezone,omitempty"`
+	// Last modification time of the api row. Useful for logs / debug;
+	// ordering of deltas is driven by `version`, not by this field.
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -659,8 +694,8 @@ func (x *ServerTaskResyncRequest) GetLastKnownSnapshotVersion() uint64 {
 }
 
 // Daemon → API. Emitted when the daemon's scheduler fires a task. The
-// daemon generates `execution_id` (UUIDv4) as the idempotency key — the
-// API uses ON CONFLICT (execution_id) DO NOTHING.
+// daemon generates `execution_id` (XID, github.com/rs/xid) as the
+// idempotency key — the API uses ON CONFLICT (execution_id) DO NOTHING.
 //
 // `task_version` is the version on which this run is based. If the user
 // edits the task mid-run, the recorded execution still reflects the
@@ -762,17 +797,43 @@ func (x *ServerTaskExecutionStarted) GetStartedAt() *timestamppb.Timestamp {
 // chunks via `ServerTaskExecutionLog` during the run and sets
 // `output_streamed=true` + `output_storage_path` here.
 type ServerTaskExecutionFinished struct {
-	state             protoimpl.MessageState    `protogen:"open.v1"`
-	ExecutionId       string                    `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
-	TaskId            uint64                    `protobuf:"varint,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	Status            ServerTaskExecutionStatus `protobuf:"varint,3,opt,name=status,proto3,enum=gameap.ServerTaskExecutionStatus" json:"status,omitempty"`
-	ExitCode          int32                     `protobuf:"varint,4,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
-	ErrorMessage      string                    `protobuf:"bytes,5,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	FinishedAt        *timestamppb.Timestamp    `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
-	Duration          *durationpb.Duration      `protobuf:"bytes,7,opt,name=duration,proto3" json:"duration,omitempty"`
-	OutputInline      []byte                    `protobuf:"bytes,8,opt,name=output_inline,json=outputInline,proto3" json:"output_inline,omitempty"`
-	OutputStreamed    bool                      `protobuf:"varint,9,opt,name=output_streamed,json=outputStreamed,proto3" json:"output_streamed,omitempty"`
-	OutputStoragePath string                    `protobuf:"bytes,10,opt,name=output_storage_path,json=outputStoragePath,proto3" json:"output_storage_path,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Same XID the daemon used in the matching ExecutionStarted event.
+	// The api updates the row keyed by this id, so retries during
+	// reconnect are safe.
+	ExecutionId string `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	// ServerTask.id this run belonged to. Helps the api fan out realtime
+	// events to subscribers of that task without a DB lookup.
+	TaskId uint64 `protobuf:"varint,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	// Terminal status. RUNNING here is invalid — use one of
+	// SUCCESS/FAILED/CANCELED/SKIPPED/TIMED_OUT.
+	Status ServerTaskExecutionStatus `protobuf:"varint,3,opt,name=status,proto3,enum=gameap.ServerTaskExecutionStatus" json:"status,omitempty"`
+	// Process exit code, when meaningful. 0 by default; populated for
+	// SUCCESS and non-zero on FAILED/TIMED_OUT.
+	ExitCode int32 `protobuf:"varint,4,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	// Optional human-readable failure reason. For CANCELED set to the
+	// cancel reason supplied by api. Empty on SUCCESS.
+	ErrorMessage string `protobuf:"bytes,5,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	// Wall-clock end time. May differ slightly from
+	// ExecutionStarted.started_at + duration on heavily-loaded daemons —
+	// store both, don't recompute.
+	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	// Total wall-clock execution time. Persisted as duration_ms on the
+	// api side for easy ordering / aggregation.
+	Duration *durationpb.Duration `protobuf:"bytes,7,opt,name=duration,proto3" json:"duration,omitempty"`
+	// Truncated tail of stdout/stderr (last <= 64 KB). Always populated
+	// for small runs; for large runs this is the convenience tail while
+	// the full body lives at output_storage_path.
+	OutputInline []byte `protobuf:"bytes,8,opt,name=output_inline,json=outputInline,proto3" json:"output_inline,omitempty"`
+	// True when the daemon streamed full output through
+	// ServerTaskExecutionLog chunks during the run (or uploaded to
+	// file-transfer storage). The api uses this to mark the executions
+	// row as having external full output.
+	OutputStreamed bool `protobuf:"varint,9,opt,name=output_streamed,json=outputStreamed,proto3" json:"output_streamed,omitempty"`
+	// URI into file-transfer storage holding the complete log. Set only
+	// when output_streamed=true AND the daemon successfully finalised
+	// the upload. Empty for inline-only runs.
+	OutputStoragePath string `protobuf:"bytes,10,opt,name=output_storage_path,json=outputStoragePath,proto3" json:"output_storage_path,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }

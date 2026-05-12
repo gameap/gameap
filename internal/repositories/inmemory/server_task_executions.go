@@ -11,17 +11,18 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/rs/xid"
 )
 
 type ServerTaskExecutionRepository struct {
 	mu     sync.RWMutex
-	execs  map[string]*domain.ServerTaskExecution
+	execs  map[xid.ID]*domain.ServerTaskExecution
 	nextID atomic.Uint32
 }
 
 func NewServerTaskExecutionRepository() *ServerTaskExecutionRepository {
 	return &ServerTaskExecutionRepository{
-		execs: make(map[string]*domain.ServerTaskExecution),
+		execs: make(map[xid.ID]*domain.ServerTaskExecution),
 	}
 }
 
@@ -56,7 +57,7 @@ func (r *ServerTaskExecutionRepository) Create(
 
 func (r *ServerTaskExecutionRepository) UpdateFinish(
 	_ context.Context,
-	executionID string,
+	executionID xid.ID,
 	patch repositories.ServerTaskExecutionFinishPatch,
 ) error {
 	r.mu.Lock()
@@ -94,7 +95,7 @@ func (r *ServerTaskExecutionRepository) UpdateFinish(
 }
 
 func (r *ServerTaskExecutionRepository) AppendOutputInline(
-	_ context.Context, executionID string, chunk []byte, maxBytes int,
+	_ context.Context, executionID xid.ID, chunk []byte, maxBytes int,
 ) error {
 	if len(chunk) == 0 {
 		return nil
@@ -165,13 +166,13 @@ func (r *ServerTaskExecutionRepository) Find(
 func (r *ServerTaskExecutionRepository) MarkAbandoned(
 	_ context.Context,
 	nodeID uint,
-	keepExecutionIDs []string,
+	keepExecutionIDs []xid.ID,
 	reason string,
 ) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	keep := make(map[string]struct{}, len(keepExecutionIDs))
+	keep := make(map[xid.ID]struct{}, len(keepExecutionIDs))
 	for _, id := range keepExecutionIDs {
 		keep[id] = struct{}{}
 	}
@@ -235,7 +236,7 @@ func (r *ServerTaskExecutionRepository) matches(
 	if len(filter.IDs) > 0 && !containsUint(filter.IDs, exec.ID) {
 		return false
 	}
-	if len(filter.ExecutionIDs) > 0 && !containsString(filter.ExecutionIDs, exec.ExecutionID) {
+	if len(filter.ExecutionIDs) > 0 && !slices.Contains(filter.ExecutionIDs, exec.ExecutionID) {
 		return false
 	}
 	if len(filter.ServerTaskIDs) > 0 && !containsUint(filter.ServerTaskIDs, exec.ServerTaskID) {
@@ -264,10 +265,6 @@ func (r *ServerTaskExecutionRepository) matches(
 }
 
 func containsUint(xs []uint, x uint) bool {
-	return slices.Contains(xs, x)
-}
-
-func containsString(xs []string, x string) bool {
 	return slices.Contains(xs, x)
 }
 

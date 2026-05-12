@@ -377,6 +377,8 @@ paths:
     $ref: './paths/servers-tasks.yaml#/~1api~1servers~1{server}~1tasks'
   /api/servers/{server}/tasks/{id}:
     $ref: './paths/servers-tasks.yaml#/~1api~1servers~1{server}~1tasks~1{id}'
+  /api/servers/{server}/tasks/{id}/executions:
+    $ref: './paths/servers-tasks.yaml#/~1api~1servers~1{server}~1tasks~1{id}~1executions'
 
   # Server Settings
   /api/servers/{server}/settings:
