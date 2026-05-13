@@ -15,7 +15,7 @@ import (
 
 var (
 	xidPattern  = regexp.MustCompile(`^[0-9a-v]{20}$`)
-	typePattern = regexp.MustCompile(`^[a-z]+(\.[a-z_]+)*$`)
+	typePattern = regexp.MustCompile(`^[a-z][a-z_]*(\.[a-z_]+)*$`)
 )
 
 func TestNewMessage(t *testing.T) {
@@ -416,40 +416,45 @@ func TestParsePayload_RoundTrips(t *testing.T) {
 
 func TestTypeConstants(t *testing.T) {
 	all := map[string]string{
-		"TypeCacheInvalidate":            TypeCacheInvalidate,
-		"TypePluginEvent":                TypePluginEvent,
-		"TypeServerStatus":               TypeServerStatus,
-		"TypeTaskProgress":               TypeTaskProgress,
-		"TypeNotification":               TypeNotification,
-		"TypeDaemonConnected":            TypeDaemonConnected,
-		"TypeDaemonClosed":               TypeDaemonClosed,
-		"TypeDaemonTask":                 TypeDaemonTask,
-		"TypeDaemonCommand":              TypeDaemonCommand,
-		"TypeDaemonServerConfig":         TypeDaemonServerConfig,
-		"TypeTaskStatus":                 TypeTaskStatus,
-		"TypeTaskOutput":                 TypeTaskOutput,
-		"TypeTaskComplete":               TypeTaskComplete,
-		"TypeConsoleOutput":              TypeConsoleOutput,
-		"TypeConsoleResult":              TypeConsoleResult,
-		"TypeDaemonFileRequest":          TypeDaemonFileRequest,
-		"TypeDaemonFileResponse":         TypeDaemonFileResponse,
-		"TypeDaemonFileTransferComplete": TypeDaemonFileTransferComplete,
-		"TypeDaemonCommandRequest":       TypeDaemonCommandRequest,
-		"TypeDaemonCommandResponse":      TypeDaemonCommandResponse,
-		"TypeDaemonStatusRequest":        TypeDaemonStatusRequest,
-		"TypeDaemonStatusResponse":       TypeDaemonStatusResponse,
-		"TypeDaemonConsoleLogRequest":    TypeDaemonConsoleLogRequest,
-		"TypeDaemonConsoleLogResponse":   TypeDaemonConsoleLogResponse,
-		"TypeAttachStarted":              TypeAttachStarted,
-		"TypeAttachOutput":               TypeAttachOutput,
-		"TypeAttachClosed":               TypeAttachClosed,
-		"TypeDaemonAttach":               TypeDaemonAttach,
-		"TypeDaemonHTTPProxyRequest":     TypeDaemonHTTPProxyRequest,
-		"TypeDaemonHTTPProxyResponse":    TypeDaemonHTTPProxyResponse,
-		"TypeMetricsLive":                TypeMetricsLive,
-		"TypeDaemonMetricsRequest":       TypeDaemonMetricsRequest,
-		"TypeDaemonMetricsResponse":      TypeDaemonMetricsResponse,
-		"TypeMetricsSubscribers":         TypeMetricsSubscribers,
+		"TypeCacheInvalidate":             TypeCacheInvalidate,
+		"TypePluginEvent":                 TypePluginEvent,
+		"TypeServerStatus":                TypeServerStatus,
+		"TypeTaskProgress":                TypeTaskProgress,
+		"TypeNotification":                TypeNotification,
+		"TypeDaemonConnected":             TypeDaemonConnected,
+		"TypeDaemonClosed":                TypeDaemonClosed,
+		"TypeDaemonTask":                  TypeDaemonTask,
+		"TypeDaemonCommand":               TypeDaemonCommand,
+		"TypeDaemonServerConfig":          TypeDaemonServerConfig,
+		"TypeTaskStatus":                  TypeTaskStatus,
+		"TypeTaskOutput":                  TypeTaskOutput,
+		"TypeTaskComplete":                TypeTaskComplete,
+		"TypeConsoleOutput":               TypeConsoleOutput,
+		"TypeConsoleResult":               TypeConsoleResult,
+		"TypeDaemonFileRequest":           TypeDaemonFileRequest,
+		"TypeDaemonFileResponse":          TypeDaemonFileResponse,
+		"TypeDaemonFileTransferComplete":  TypeDaemonFileTransferComplete,
+		"TypeDaemonCommandRequest":        TypeDaemonCommandRequest,
+		"TypeDaemonCommandResponse":       TypeDaemonCommandResponse,
+		"TypeDaemonStatusRequest":         TypeDaemonStatusRequest,
+		"TypeDaemonStatusResponse":        TypeDaemonStatusResponse,
+		"TypeDaemonConsoleLogRequest":     TypeDaemonConsoleLogRequest,
+		"TypeDaemonConsoleLogResponse":    TypeDaemonConsoleLogResponse,
+		"TypeAttachStarted":               TypeAttachStarted,
+		"TypeAttachOutput":                TypeAttachOutput,
+		"TypeAttachClosed":                TypeAttachClosed,
+		"TypeDaemonAttach":                TypeDaemonAttach,
+		"TypeDaemonHTTPProxyRequest":      TypeDaemonHTTPProxyRequest,
+		"TypeDaemonHTTPProxyResponse":     TypeDaemonHTTPProxyResponse,
+		"TypeMetricsLive":                 TypeMetricsLive,
+		"TypeDaemonMetricsRequest":        TypeDaemonMetricsRequest,
+		"TypeDaemonMetricsResponse":       TypeDaemonMetricsResponse,
+		"TypeMetricsSubscribers":          TypeMetricsSubscribers,
+		"TypeDaemonServerTaskDelta":       TypeDaemonServerTaskDelta,
+		"TypeDaemonServerTaskResync":      TypeDaemonServerTaskResync,
+		"TypeServerTaskExecutionStarted":  TypeServerTaskExecutionStarted,
+		"TypeServerTaskExecutionFinished": TypeServerTaskExecutionFinished,
+		"TypeServerTaskExecutionLog":      TypeServerTaskExecutionLog,
 	}
 
 	t.Run("all_constants_are_non_empty", func(t *testing.T) {
@@ -461,7 +466,7 @@ func TestTypeConstants(t *testing.T) {
 	t.Run("all_constants_match_subsystem_subtype_shape", func(t *testing.T) {
 		for name, value := range all {
 			assert.Regexp(t, typePattern, value,
-				"constant %s = %q must match shape `^[a-z]+(\\.[a-z_]+)*$`", name, value)
+				"constant %s = %q must match shape `^[a-z][a-z_]*(\\.[a-z_]+)*$`", name, value)
 		}
 	})
 
@@ -481,6 +486,11 @@ func TestTypeConstants(t *testing.T) {
 		assert.Equal(t, "daemon.connected", TypeDaemonConnected)
 		assert.Equal(t, "daemon.file.transfer.complete", TypeDaemonFileTransferComplete)
 		assert.Equal(t, "metrics.subscribers", TypeMetricsSubscribers)
+		assert.Equal(t, "daemon.server_task.delta", TypeDaemonServerTaskDelta)
+		assert.Equal(t, "daemon.server_task.resync", TypeDaemonServerTaskResync)
+		assert.Equal(t, "server_task.execution.started", TypeServerTaskExecutionStarted)
+		assert.Equal(t, "server_task.execution.finished", TypeServerTaskExecutionFinished)
+		assert.Equal(t, "server_task.execution.log", TypeServerTaskExecutionLog)
 	})
 }
 
@@ -513,6 +523,18 @@ func TestPayloadStructs_AreJSONRoundTrippable(t *testing.T) {
 		MetricsLivePayload{NodeID: 1, Data: []byte{0x0B}},
 		DaemonMetricsRequestPayload{NodeID: 1, RequestID: "r", InstanceID: "i", Data: []byte{0x0C}},
 		DaemonMetricsResponsePayload{RequestID: "r", NodeID: 1, Error: "", Data: []byte{0x0D}},
+		DaemonServerTaskDeltaPayload{NodeID: 1, RequestID: "r", TaskID: 42, Data: []byte{0x0E}},
+		DaemonServerTaskResyncPayload{NodeID: 1, LastKnownVersion: 99},
+		ServerTaskExecutionStatusPayload{
+			ExecutionID:  "exec-1",
+			TaskID:       42,
+			ServerID:     7,
+			NodeID:       3,
+			Status:       "finished",
+			ExitCode:     new(int32(137)),
+			ErrorMessage: "killed",
+		},
+		ServerTaskExecutionLogPayload{ExecutionID: "exec-1", TaskID: 42, Sequence: 5, Chunk: []byte("hello"), IsFinal: true},
 	}
 
 	for _, want := range cases {
@@ -530,6 +552,247 @@ func TestPayloadStructs_AreJSONRoundTrippable(t *testing.T) {
 				"round-tripping %T must preserve all fields", want)
 		})
 	}
+}
+
+func TestServerTaskExecutionStatusPayload_RoundTrip(t *testing.T) {
+	tests := []struct {
+		name string
+		want ServerTaskExecutionStatusPayload
+	}{
+		{
+			name: "finished_with_exit_code_and_error",
+			want: ServerTaskExecutionStatusPayload{
+				ExecutionID:  "exec-abc",
+				TaskID:       42,
+				ServerID:     7,
+				NodeID:       3,
+				Status:       "failed",
+				ExitCode:     new(int32(137)),
+				ErrorMessage: "killed by signal",
+			},
+		},
+		{
+			name: "started_without_exit_code_or_error",
+			want: ServerTaskExecutionStatusPayload{
+				ExecutionID: "exec-xyz",
+				TaskID:      1,
+				ServerID:    2,
+				NodeID:      3,
+				Status:      "started",
+			},
+		},
+		{
+			name: "exit_code_zero_pointer_must_survive_round_trip",
+			want: ServerTaskExecutionStatusPayload{
+				ExecutionID: "exec-zero",
+				TaskID:      1,
+				ServerID:    2,
+				NodeID:      3,
+				Status:      "finished",
+				ExitCode:    new(int32(0)),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE + ACT
+			got := roundTrip[ServerTaskExecutionStatusPayload](t, tt.want)
+
+			// ASSERT
+			assert.Equal(t, tt.want.ExecutionID, got.ExecutionID, "ExecutionID must survive round-trip")
+			assert.Equal(t, tt.want.TaskID, got.TaskID, "TaskID must survive round-trip")
+			assert.Equal(t, tt.want.ServerID, got.ServerID, "ServerID must survive round-trip")
+			assert.Equal(t, tt.want.NodeID, got.NodeID, "NodeID must survive round-trip")
+			assert.Equal(t, tt.want.Status, got.Status, "Status must survive round-trip")
+			assert.Equal(t, tt.want.ErrorMessage, got.ErrorMessage, "ErrorMessage must survive round-trip")
+
+			if tt.want.ExitCode == nil {
+				assert.Nil(t, got.ExitCode, "nil ExitCode must round-trip as nil")
+			} else {
+				require.NotNil(t, got.ExitCode, "non-nil ExitCode must round-trip as non-nil")
+				assert.Equal(t, *tt.want.ExitCode, *got.ExitCode, "ExitCode value must round-trip")
+			}
+		})
+	}
+}
+
+func TestServerTaskExecutionStatusPayload_OmitsNilExitCodeAndErrorMessage(t *testing.T) {
+	// ARRANGE
+	payload := ServerTaskExecutionStatusPayload{
+		ExecutionID: "exec-1",
+		TaskID:      42,
+		ServerID:    7,
+		NodeID:      3,
+		Status:      "started",
+	}
+
+	// ACT
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	// ASSERT
+	body := string(data)
+	assert.NotContains(t, body, `"exit_code"`, "nil *int32 ExitCode must be omitted via omitempty")
+	assert.NotContains(t, body, `"error_message"`, "empty ErrorMessage must be omitted via omitempty")
+	assert.Contains(t, body, `"execution_id":"exec-1"`, "ExecutionID must be present")
+	assert.Contains(t, body, `"status":"started"`, "Status must be present")
+}
+
+func TestServerTaskExecutionStatusPayload_EncodesExitCodeZero(t *testing.T) {
+	// ARRANGE
+	payload := ServerTaskExecutionStatusPayload{
+		ExecutionID: "exec-1",
+		TaskID:      1,
+		ServerID:    1,
+		NodeID:      1,
+		Status:      "finished",
+		ExitCode:    new(int32(0)),
+	}
+
+	// ACT
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	// ASSERT
+	assert.Contains(t, string(data), `"exit_code":0`,
+		"non-nil pointer to zero must still be encoded (this is why ExitCode is a pointer)")
+}
+
+func TestServerTaskExecutionLogPayload_RoundTrip(t *testing.T) {
+	tests := []struct {
+		name string
+		want ServerTaskExecutionLogPayload
+	}{
+		{
+			name: "binary_chunk_with_non_final_flag",
+			want: ServerTaskExecutionLogPayload{
+				ExecutionID: "exec-1",
+				TaskID:      42,
+				Sequence:    5,
+				Chunk:       []byte{0x00, 0x01, 0xff, 'h', 'i'},
+				IsFinal:     true,
+			},
+		},
+		{
+			name: "empty_chunk",
+			want: ServerTaskExecutionLogPayload{
+				ExecutionID: "exec-1",
+				TaskID:      1,
+				Sequence:    0,
+				Chunk:       []byte{},
+				IsFinal:     false,
+			},
+		},
+		{
+			name: "utf8_text_chunk",
+			want: ServerTaskExecutionLogPayload{
+				ExecutionID: "exec-2",
+				TaskID:      2,
+				Sequence:    100,
+				Chunk:       []byte("hello, ä-world"),
+				IsFinal:     false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE + ACT
+			got := roundTrip[ServerTaskExecutionLogPayload](t, tt.want)
+
+			// ASSERT
+			assert.Equal(t, tt.want.ExecutionID, got.ExecutionID, "ExecutionID must survive round-trip")
+			assert.Equal(t, tt.want.TaskID, got.TaskID, "TaskID must survive round-trip")
+			assert.Equal(t, tt.want.Sequence, got.Sequence, "Sequence must survive round-trip")
+			assert.Equal(t, tt.want.IsFinal, got.IsFinal, "IsFinal must survive round-trip")
+			assert.Equal(t, tt.want.Chunk, got.Chunk,
+				"Chunk bytes must round-trip identically (encoding/json base64)")
+		})
+	}
+}
+
+func TestServerTaskExecutionLogPayload_ChunkEncodedAsBase64(t *testing.T) {
+	// ARRANGE
+	payload := ServerTaskExecutionLogPayload{
+		ExecutionID: "exec-1",
+		TaskID:      1,
+		Sequence:    1,
+		Chunk:       []byte{0x01, 0x02, 0x03},
+		IsFinal:     true,
+	}
+
+	// ACT
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	// ASSERT
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	expected := base64.StdEncoding.EncodeToString([]byte{0x01, 0x02, 0x03})
+	assert.Equal(t, expected, raw["chunk"],
+		"[]byte must be base64-encoded by encoding/json")
+}
+
+func TestDaemonServerTaskDeltaPayload_RoundTrip(t *testing.T) {
+	// ARRANGE
+	want := DaemonServerTaskDeltaPayload{
+		NodeID:    7,
+		RequestID: "req-1",
+		TaskID:    42,
+		Data:      []byte{0x10, 0x20, 0x30, 0xff},
+	}
+
+	// ACT
+	got := roundTrip[DaemonServerTaskDeltaPayload](t, want)
+
+	// ASSERT
+	assert.Equal(t, want.NodeID, got.NodeID, "NodeID must survive round-trip")
+	assert.Equal(t, want.RequestID, got.RequestID, "RequestID must survive round-trip")
+	assert.Equal(t, want.TaskID, got.TaskID, "TaskID must survive round-trip")
+	assert.Equal(t, want.Data, got.Data, "opaque Data bytes must round-trip identically")
+}
+
+func TestDaemonServerTaskResyncPayload_RoundTrip(t *testing.T) {
+	// ARRANGE
+	want := DaemonServerTaskResyncPayload{
+		NodeID:           7,
+		LastKnownVersion: 12345,
+	}
+
+	// ACT
+	got := roundTrip[DaemonServerTaskResyncPayload](t, want)
+
+	// ASSERT
+	assert.Equal(t, want, got, "all fields must survive round-trip")
+}
+
+func TestNewMessage_BuildsServerTaskExecutionStatus(t *testing.T) {
+	// ARRANGE
+	channel := "gameap:realtime:server_task:execution:42"
+	payload := ServerTaskExecutionStatusPayload{
+		ExecutionID: "exec-1",
+		TaskID:      42,
+		ServerID:    7,
+		NodeID:      3,
+		Status:      "started",
+	}
+
+	// ACT
+	msg, err := NewMessage(channel, TypeServerTaskExecutionStarted, payload)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, msg)
+	assert.Equal(t, channel, msg.Channel, "channel must be preserved on the Message")
+	assert.Equal(t, TypeServerTaskExecutionStarted, msg.Type, "type must be preserved on the Message")
+	assert.True(t, xidPattern.MatchString(msg.ID), "ID %q must match XID format", msg.ID)
+	assert.WithinDuration(t, time.Now(), msg.Timestamp, time.Second, "timestamp must be set to ~now")
+
+	parsed, err := ParsePayload[ServerTaskExecutionStatusPayload](msg)
+	require.NoError(t, err)
+	assert.Equal(t, payload, parsed, "round-tripping the payload via the Message envelope must preserve all fields")
 }
 
 func roundTrip[T any](t *testing.T, in T) T {

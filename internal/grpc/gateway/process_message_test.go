@@ -357,6 +357,252 @@ func TestService_processMessage(t *testing.T) {
 
 		require.NoError(t, err, "nil/unknown payload must be a no-op")
 	})
+
+	t.Run("server_task_execution_started_routed_to_server_task_handler", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		sess := session.NewSession(7, newStubStream(context.Background()), "v", nil, func() {})
+		evt := &proto.ServerTaskExecutionStarted{ExecutionId: "exec-1", TaskId: 42}
+
+		// ACT
+		err := svc.processMessage(context.Background(), sess, &proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_ServerTaskExecutionStarted{ServerTaskExecutionStarted: evt},
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		got := deps.serverTaskHandler.Started()
+		require.Len(t, got, 1)
+		assert.Equal(t, "exec-1", got[0].ExecutionId, "execution id must be forwarded unchanged")
+		assert.Equal(t, uint64(42), got[0].TaskId)
+	})
+
+	t.Run("server_task_execution_finished_routed_to_server_task_handler", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
+		evt := &proto.ServerTaskExecutionFinished{ExecutionId: "exec-2"}
+
+		// ACT
+		err := svc.processMessage(context.Background(), sess, &proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_ServerTaskExecutionFinished{ServerTaskExecutionFinished: evt},
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		got := deps.serverTaskHandler.Finished()
+		require.Len(t, got, 1)
+		assert.Equal(t, "exec-2", got[0].ExecutionId)
+	})
+
+	t.Run("server_task_execution_log_routed_to_server_task_handler", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
+		evt := &proto.ServerTaskExecutionLog{ExecutionId: "exec-3"}
+
+		// ACT
+		err := svc.processMessage(context.Background(), sess, &proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_ServerTaskExecutionLog{ServerTaskExecutionLog: evt},
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		got := deps.serverTaskHandler.Logs()
+		require.Len(t, got, 1)
+		assert.Equal(t, "exec-3", got[0].ExecutionId)
+	})
+
+	t.Run("server_task_resync_request_routed_to_server_task_handler", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
+		req := &proto.ServerTaskResyncRequest{LastKnownSnapshotVersion: 17}
+
+		// ACT
+		err := svc.processMessage(context.Background(), sess, &proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_ServerTaskResyncRequest{ServerTaskResyncRequest: req},
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		got := deps.serverTaskHandler.Resyncs()
+		require.Len(t, got, 1)
+		assert.Equal(t, uint64(17), got[0].LastKnownSnapshotVersion)
+	})
+
+	t.Run("nil_server_task_handler_swallowed_for_all_server_task_messages", func(t *testing.T) {
+		// ARRANGE
+		svc, _ := newServiceWithDeps(t)
+		svc.serverTaskHandler = nil
+		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
+
+		messages := []*proto.DaemonMessage{
+			{Payload: &proto.DaemonMessage_ServerTaskExecutionStarted{
+				ServerTaskExecutionStarted: &proto.ServerTaskExecutionStarted{ExecutionId: "x"},
+			}},
+			{Payload: &proto.DaemonMessage_ServerTaskExecutionFinished{
+				ServerTaskExecutionFinished: &proto.ServerTaskExecutionFinished{ExecutionId: "x"},
+			}},
+			{Payload: &proto.DaemonMessage_ServerTaskExecutionLog{
+				ServerTaskExecutionLog: &proto.ServerTaskExecutionLog{ExecutionId: "x"},
+			}},
+			{Payload: &proto.DaemonMessage_ServerTaskResyncRequest{
+				ServerTaskResyncRequest: &proto.ServerTaskResyncRequest{},
+			}},
+		}
+
+		// ACT + ASSERT
+		for _, m := range messages {
+			err := svc.processMessage(context.Background(), sess, m)
+			require.NoError(t, err, "nil server-task handler must be safely ignored for %T", m.Payload)
+		}
+	})
+
+	t.Run("server_task_execution_started_propagates_handler_error", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		deps.serverTaskHandler.startedErr = errSentinel
+		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
+
+		// ACT
+		err := svc.processMessage(context.Background(), sess, &proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_ServerTaskExecutionStarted{
+				ServerTaskExecutionStarted: &proto.ServerTaskExecutionStarted{ExecutionId: "exec-err"},
+			},
+		})
+
+		// ASSERT
+		require.Error(t, err, "handler error must be surfaced to processMessage caller")
+		assert.ErrorIs(t, err, errSentinel)
+	})
+
+	t.Run("server_task_execution_finished_propagates_handler_error", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		deps.serverTaskHandler.finishedErr = errSentinel
+		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
+
+		// ACT
+		err := svc.processMessage(context.Background(), sess, &proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_ServerTaskExecutionFinished{
+				ServerTaskExecutionFinished: &proto.ServerTaskExecutionFinished{ExecutionId: "exec-err"},
+			},
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.ErrorIs(t, err, errSentinel)
+	})
+}
+
+func TestService_Connect_reconcilesAbandonedServerTaskExecutionsOnRegister(t *testing.T) {
+	t.Run("forwards_in_flight_execution_ids_with_daemon_restart_reason", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		setupAuthorizedNode(t, deps, "k")
+
+		stream := newStubConnectServer(context.Background())
+		stream.PushMessage(&proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_Register{
+				Register: &proto.RegisterRequest{
+					NodeId: 1, ApiKey: "k",
+					InFlightServerTaskExecutions: []*proto.InFlightServerTaskExecution{
+						{ExecutionId: "exec-a"},
+						{ExecutionId: "exec-b"},
+					},
+				},
+			},
+		})
+		stream.CloseRecv()
+
+		// ACT
+		require.NoError(t, svc.Connect(stream))
+
+		// ASSERT
+		calls := deps.serverTaskHandler.ReconcileCalls()
+		require.Len(t, calls, 1)
+		assert.Equal(t, uint64(1), calls[0].nodeID)
+		assert.Equal(t, []string{"exec-a", "exec-b"}, calls[0].inFlightIDs,
+			"reconcile must receive the daemon-advertised in-flight execution ids")
+		assert.Equal(t, ReconcileReasonDaemonRestart, calls[0].reason)
+	})
+
+	t.Run("empty_in_flight_passes_empty_slice", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		setupAuthorizedNode(t, deps, "k")
+
+		stream := newStubConnectServer(context.Background())
+		stream.PushMessage(&proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_Register{
+				Register: &proto.RegisterRequest{NodeId: 1, ApiKey: "k"},
+			},
+		})
+		stream.CloseRecv()
+
+		// ACT
+		require.NoError(t, svc.Connect(stream))
+
+		// ASSERT
+		calls := deps.serverTaskHandler.ReconcileCalls()
+		require.Len(t, calls, 1, "reconcile is called even when there is nothing in flight; v1 daemons never journal")
+		assert.Empty(t, calls[0].inFlightIDs)
+		assert.Equal(t, ReconcileReasonDaemonRestart, calls[0].reason)
+	})
+
+	t.Run("reconcile_error_does_not_fail_registration", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		setupAuthorizedNode(t, deps, "k")
+		deps.serverTaskHandler.reconcileErr = errSentinel
+
+		stream := newStubConnectServer(context.Background())
+		stream.PushMessage(&proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_Register{
+				Register: &proto.RegisterRequest{NodeId: 1, ApiKey: "k"},
+			},
+		})
+		stream.CloseRecv()
+
+		// ACT
+		err := svc.Connect(stream)
+
+		// ASSERT
+		require.NoError(t, err, "server-task reconcile failure must not block register")
+		require.Len(t, stream.Sent(), 1, "RegisterAck must still be sent")
+		assert.True(t, stream.Sent()[0].GetRegisterAck().Success)
+	})
+
+	t.Run("nil_server_task_handler_skips_reconcile", func(t *testing.T) {
+		// ARRANGE
+		svc, deps := newServiceWithDeps(t)
+		setupAuthorizedNode(t, deps, "k")
+		svc.serverTaskHandler = nil
+
+		stream := newStubConnectServer(context.Background())
+		stream.PushMessage(&proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_Register{
+				Register: &proto.RegisterRequest{
+					NodeId: 1, ApiKey: "k",
+					InFlightServerTaskExecutions: []*proto.InFlightServerTaskExecution{
+						{ExecutionId: "ignored"},
+					},
+				},
+			},
+		})
+		stream.CloseRecv()
+
+		// ACT
+		err := svc.Connect(stream)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.Len(t, stream.Sent(), 1, "RegisterAck must still be sent when handler is nil")
+		assert.True(t, stream.Sent()[0].GetRegisterAck().Success)
+		assert.Empty(t, deps.serverTaskHandler.ReconcileCalls(),
+			"the deps fake is detached when svc.serverTaskHandler is nil; no reconcile should be observable")
+	})
 }
 
 func TestResolveResponse_alwaysReturnsNilAndDispatchesToSession(t *testing.T) {

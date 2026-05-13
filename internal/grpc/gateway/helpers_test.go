@@ -397,6 +397,134 @@ func (f *fakeMetricsHandler) Responses() []*proto.MetricsResponse {
 	return slices.Clone(f.responses)
 }
 
+// serverTaskReconcileCall captures one invocation of
+// ServerTaskHandler.ReconcileWorkingExecutions for assertion in register tests.
+type serverTaskReconcileCall struct {
+	nodeID      uint64
+	inFlightIDs []string
+	reason      string
+}
+
+// fakeServerTaskHandler records calls to ServerTaskHandler methods.
+type fakeServerTaskHandler struct {
+	mu sync.Mutex
+
+	snapshotErr error
+	snapshot    *proto.ServerTaskSnapshot
+
+	started    []*proto.ServerTaskExecutionStarted
+	startedErr error
+
+	finished    []*proto.ServerTaskExecutionFinished
+	finishedErr error
+
+	logs   []*proto.ServerTaskExecutionLog
+	logErr error
+
+	resyncs   []*proto.ServerTaskResyncRequest
+	resyncErr error
+
+	reconcileCalls  []serverTaskReconcileCall
+	reconcileMarked int
+	reconcileErr    error
+}
+
+func (f *fakeServerTaskHandler) BuildSnapshot(_ context.Context, _ uint64) (*proto.ServerTaskSnapshot, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.snapshot, f.snapshotErr
+}
+
+func (f *fakeServerTaskHandler) HandleExecutionStarted(
+	_ context.Context, _ uint64, evt *proto.ServerTaskExecutionStarted,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.started = append(f.started, evt)
+
+	return f.startedErr
+}
+
+func (f *fakeServerTaskHandler) HandleExecutionFinished(
+	_ context.Context, _ uint64, evt *proto.ServerTaskExecutionFinished,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.finished = append(f.finished, evt)
+
+	return f.finishedErr
+}
+
+func (f *fakeServerTaskHandler) HandleExecutionLog(
+	_ context.Context, _ uint64, evt *proto.ServerTaskExecutionLog,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.logs = append(f.logs, evt)
+
+	return f.logErr
+}
+
+func (f *fakeServerTaskHandler) HandleResyncRequest(
+	_ context.Context, _ uint64, req *proto.ServerTaskResyncRequest,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resyncs = append(f.resyncs, req)
+
+	return f.resyncErr
+}
+
+func (f *fakeServerTaskHandler) ReconcileWorkingExecutions(
+	_ context.Context, nodeID uint64, inFlightExecIDs []string, reason string,
+) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reconcileCalls = append(f.reconcileCalls, serverTaskReconcileCall{
+		nodeID:      nodeID,
+		inFlightIDs: inFlightExecIDs,
+		reason:      reason,
+	})
+
+	return f.reconcileMarked, f.reconcileErr
+}
+
+func (f *fakeServerTaskHandler) Started() []*proto.ServerTaskExecutionStarted {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.started)
+}
+
+func (f *fakeServerTaskHandler) Finished() []*proto.ServerTaskExecutionFinished {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.finished)
+}
+
+func (f *fakeServerTaskHandler) Logs() []*proto.ServerTaskExecutionLog {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.logs)
+}
+
+func (f *fakeServerTaskHandler) Resyncs() []*proto.ServerTaskResyncRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.resyncs)
+}
+
+func (f *fakeServerTaskHandler) ReconcileCalls() []serverTaskReconcileCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.reconcileCalls)
+}
+
 // serviceDeps bundles the in-memory repositories used by the gateway.Service.
 type serviceDeps struct {
 	registry          *session.Registry
@@ -413,6 +541,7 @@ type serviceDeps struct {
 	serverHandler     *fakeServerStatusHandler
 	attachHandler     *fakeAttachHandler
 	metricsHandler    *fakeMetricsHandler
+	serverTaskHandler *fakeServerTaskHandler
 }
 
 // newServiceWithDeps assembles a *Service backed entirely by in-memory
@@ -439,6 +568,7 @@ func newServiceWithDeps(t *testing.T) (*Service, *serviceDeps) {
 		serverHandler:     &fakeServerStatusHandler{},
 		attachHandler:     &fakeAttachHandler{},
 		metricsHandler:    &fakeMetricsHandler{},
+		serverTaskHandler: &fakeServerTaskHandler{},
 	}
 
 	svc := NewService(
@@ -456,7 +586,7 @@ func newServiceWithDeps(t *testing.T) (*Service, *serviceDeps) {
 		deps.serverHandler,
 		deps.attachHandler,
 		deps.metricsHandler,
-		nil,
+		deps.serverTaskHandler,
 		nil,
 		silentLogger(),
 	)

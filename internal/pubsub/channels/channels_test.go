@@ -109,6 +109,24 @@ func TestUint64ChannelBuilders(t *testing.T) {
 			wantExact: "gameap:metrics:subscribers:123",
 		},
 		{
+			name:      "daemon_server_task_delta_happy",
+			builder:   channels.BuildDaemonServerTaskDeltaChannel,
+			inputID:   happyID,
+			wantExact: "gameap:daemon:server_task:delta:123",
+		},
+		{
+			name:      "daemon_server_task_resync_happy",
+			builder:   channels.BuildDaemonServerTaskResyncChannel,
+			inputID:   happyID,
+			wantExact: "gameap:daemon:server_task:resync:123",
+		},
+		{
+			name:      "realtime_server_task_execution_happy",
+			builder:   channels.BuildRealtimeServerTaskExecutionChannel,
+			inputID:   happyID,
+			wantExact: "gameap:realtime:server_task:execution:123",
+		},
+		{
 			name:      "daemon_task_dispatch_zero_id",
 			builder:   channels.BuildDaemonTaskDispatchChannel,
 			inputID:   0,
@@ -199,6 +217,12 @@ func TestStringChannelBuilders(t *testing.T) {
 			builder:   channels.BuildDaemonMetricsResponseChannel,
 			input:     happyInput,
 			wantExact: "gameap:daemon:metrics:response:abc-123",
+		},
+		{
+			name:      "realtime_server_task_log_happy",
+			builder:   channels.BuildRealtimeServerTaskLogChannel,
+			input:     happyInput,
+			wantExact: "gameap:realtime:server_task:log:abc-123",
 		},
 		{
 			name:      "daemon_file_response_empty_input",
@@ -414,5 +438,239 @@ func TestChannelConstants(t *testing.T) {
 	t.Run("metrics_subscribers_descends_from_root_prefix", func(t *testing.T) {
 		assert.True(t, strings.HasPrefix(channels.MetricsSubscribers, channels.Prefix))
 		assert.True(t, strings.HasPrefix(channels.MetricsSubscribersAll, channels.Prefix))
+	})
+
+	t.Run("server_task_constants_descend_from_their_group_prefix", func(t *testing.T) {
+		assert.True(
+			t,
+			strings.HasPrefix(channels.DaemonServerTaskDelta, channels.DaemonPrefix),
+			"DaemonServerTaskDelta must start with DaemonPrefix",
+		)
+		assert.True(
+			t,
+			strings.HasPrefix(channels.DaemonServerTaskDeltaAll, channels.DaemonPrefix),
+			"DaemonServerTaskDeltaAll must start with DaemonPrefix",
+		)
+		assert.True(
+			t,
+			strings.HasPrefix(channels.DaemonServerTaskResync, channels.DaemonPrefix),
+			"DaemonServerTaskResync must start with DaemonPrefix",
+		)
+		assert.True(
+			t,
+			strings.HasPrefix(channels.DaemonServerTaskResyncAll, channels.DaemonPrefix),
+			"DaemonServerTaskResyncAll must start with DaemonPrefix",
+		)
+		assert.True(
+			t,
+			strings.HasPrefix(channels.RealtimeServerTaskExecution, channels.RealtimePrefix),
+			"RealtimeServerTaskExecution must start with RealtimePrefix",
+		)
+		assert.True(
+			t,
+			strings.HasPrefix(channels.RealtimeServerTaskLog, channels.RealtimePrefix),
+			"RealtimeServerTaskLog must start with RealtimePrefix",
+		)
+		assert.True(
+			t,
+			strings.HasPrefix(channels.RealtimeServerTaskAll, channels.RealtimePrefix),
+			"RealtimeServerTaskAll must start with RealtimePrefix",
+		)
+	})
+
+	t.Run("server_task_wildcard_constants_end_with_star", func(t *testing.T) {
+		assert.True(t, strings.HasSuffix(channels.DaemonServerTaskDeltaAll, ":*"))
+		assert.True(t, strings.HasSuffix(channels.DaemonServerTaskResyncAll, ":*"))
+		assert.True(t, strings.HasSuffix(channels.RealtimeServerTaskAll, ":*"))
+	})
+
+	t.Run("server_task_id_appended_constants_end_with_colon", func(t *testing.T) {
+		assert.True(t, strings.HasSuffix(channels.DaemonServerTaskDelta, ":"))
+		assert.True(t, strings.HasSuffix(channels.DaemonServerTaskResync, ":"))
+		assert.True(t, strings.HasSuffix(channels.RealtimeServerTaskExecution, ":"))
+		assert.True(t, strings.HasSuffix(channels.RealtimeServerTaskLog, ":"))
+	})
+}
+
+func TestBuildDaemonServerTaskDeltaChannel(t *testing.T) {
+	tests := []struct {
+		name      string
+		nodeID    uint64
+		wantExact string
+	}{
+		{
+			name:      "formats_with_node_id",
+			nodeID:    42,
+			wantExact: "gameap:daemon:server_task:delta:42",
+		},
+		{
+			name:      "zero_node_id",
+			nodeID:    0,
+			wantExact: "gameap:daemon:server_task:delta:0",
+		},
+		{
+			name:      "max_uint64_node_id",
+			nodeID:    math.MaxUint64,
+			wantExact: "gameap:daemon:server_task:delta:18446744073709551615",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := channels.BuildDaemonServerTaskDeltaChannel(tt.nodeID)
+
+			assert.Equal(t, tt.wantExact, got, "delta channel string mismatch")
+			assert.True(
+				t,
+				strings.HasPrefix(got, channels.DaemonServerTaskDelta),
+				"result must start with DaemonServerTaskDelta prefix",
+			)
+		})
+	}
+}
+
+func TestBuildDaemonServerTaskResyncChannel(t *testing.T) {
+	tests := []struct {
+		name      string
+		nodeID    uint64
+		wantExact string
+	}{
+		{
+			name:      "formats_with_node_id",
+			nodeID:    42,
+			wantExact: "gameap:daemon:server_task:resync:42",
+		},
+		{
+			name:      "zero_node_id",
+			nodeID:    0,
+			wantExact: "gameap:daemon:server_task:resync:0",
+		},
+		{
+			name:      "max_uint64_node_id",
+			nodeID:    math.MaxUint64,
+			wantExact: "gameap:daemon:server_task:resync:18446744073709551615",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := channels.BuildDaemonServerTaskResyncChannel(tt.nodeID)
+
+			assert.Equal(t, tt.wantExact, got, "resync channel string mismatch")
+			assert.True(
+				t,
+				strings.HasPrefix(got, channels.DaemonServerTaskResync),
+				"result must start with DaemonServerTaskResync prefix",
+			)
+		})
+	}
+}
+
+func TestBuildRealtimeServerTaskExecutionChannel(t *testing.T) {
+	tests := []struct {
+		name      string
+		taskID    uint64
+		wantExact string
+	}{
+		{
+			name:      "formats_with_task_id",
+			taskID:    7,
+			wantExact: "gameap:realtime:server_task:execution:7",
+		},
+		{
+			name:      "zero_task_id",
+			taskID:    0,
+			wantExact: "gameap:realtime:server_task:execution:0",
+		},
+		{
+			name:      "max_uint64_task_id",
+			taskID:    math.MaxUint64,
+			wantExact: "gameap:realtime:server_task:execution:18446744073709551615",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := channels.BuildRealtimeServerTaskExecutionChannel(tt.taskID)
+
+			assert.Equal(t, tt.wantExact, got, "execution channel string mismatch")
+			assert.True(
+				t,
+				strings.HasPrefix(got, channels.RealtimeServerTaskExecution),
+				"result must start with RealtimeServerTaskExecution prefix",
+			)
+		})
+	}
+}
+
+func TestBuildRealtimeServerTaskLogChannel(t *testing.T) {
+	tests := []struct {
+		name        string
+		executionID string
+		wantExact   string
+	}{
+		{
+			name:        "formats_with_xid_execution_id",
+			executionID: "cqu1f5e0abcdef012345",
+			wantExact:   "gameap:realtime:server_task:log:cqu1f5e0abcdef012345",
+		},
+		{
+			name:        "empty_execution_id",
+			executionID: "",
+			wantExact:   "gameap:realtime:server_task:log:",
+		},
+		{
+			name:        "execution_id_with_special_chars",
+			executionID: "id:with:colons*and-star",
+			wantExact:   "gameap:realtime:server_task:log:id:with:colons*and-star",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := channels.BuildRealtimeServerTaskLogChannel(tt.executionID)
+
+			assert.Equal(t, tt.wantExact, got, "log channel string mismatch")
+			assert.True(
+				t,
+				strings.HasPrefix(got, channels.RealtimeServerTaskLog),
+				"result must start with RealtimeServerTaskLog prefix",
+			)
+		})
+	}
+}
+
+func TestServerTaskWildcardConstants(t *testing.T) {
+	tests := []struct {
+		name   string
+		prefix string
+		all    string
+	}{
+		{
+			name:   "daemon_server_task_delta_wildcard_matches_prefix_plus_star",
+			prefix: channels.DaemonServerTaskDelta,
+			all:    channels.DaemonServerTaskDeltaAll,
+		},
+		{
+			name:   "daemon_server_task_resync_wildcard_matches_prefix_plus_star",
+			prefix: channels.DaemonServerTaskResync,
+			all:    channels.DaemonServerTaskResyncAll,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.prefix+"*", tt.all,
+				"wildcard constant must equal `prefix + \"*\"` to keep psubscribe consistent with builders")
+		})
+	}
+
+	t.Run("realtime_server_task_all_covers_execution_and_log_prefixes", func(t *testing.T) {
+		assert.Equal(t, "gameap:realtime:server_task:*", channels.RealtimeServerTaskAll,
+			"RealtimeServerTaskAll wildcard must stay stable")
+		assert.Equal(t, "gameap:realtime:server_task:execution:", channels.RealtimeServerTaskExecution,
+			"RealtimeServerTaskExecution must share the server_task: stem with the wildcard")
+		assert.Equal(t, "gameap:realtime:server_task:log:", channels.RealtimeServerTaskLog,
+			"RealtimeServerTaskLog must share the server_task: stem with the wildcard")
 	})
 }

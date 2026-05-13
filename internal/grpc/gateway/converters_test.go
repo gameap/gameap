@@ -712,3 +712,442 @@ func TestClampToUint32(t *testing.T) {
 		})
 	}
 }
+
+func TestDomainServerTaskToProto(t *testing.T) {
+	executeDate := time.Date(2026, 5, 13, 10, 0, 0, 0, time.UTC)
+	updatedAt := time.Date(2026, 5, 13, 11, 30, 0, 0, time.UTC)
+	repeatPeriod := 15 * time.Minute
+	nodeID := uint(42)
+	name := "nightly_restart"
+	timezone := "Europe/Moscow"
+	payload := `{"reason":"weekly"}`
+
+	tests := []struct {
+		name      string
+		task      *domain.ServerTask
+		assertion func(*testing.T, *proto.ServerTask)
+	}{
+		{
+			name: "full_task_all_fields",
+			task: &domain.ServerTask{
+				ID:            10,
+				ServerID:      7,
+				NodeID:        &nodeID,
+				Command:       domain.ServerTaskCommandRestart,
+				ExecuteDate:   executeDate,
+				RepeatPeriod:  repeatPeriod,
+				Repeat:        5,
+				Counter:       2,
+				Payload:       &payload,
+				Version:       99,
+				OverlapPolicy: domain.ServerTaskOverlapPolicyQueue,
+				CatchupPolicy: domain.ServerTaskCatchupPolicyRunOnce,
+				Enabled:       true,
+				Name:          &name,
+				Timezone:      &timezone,
+				UpdatedAt:     &updatedAt,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, uint64(10), p.Id)
+				assert.Equal(t, uint64(7), p.ServerId)
+				assert.Equal(t, uint64(42), p.NodeId)
+				assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_RESTART, p.Command)
+				require.NotNil(t, p.ExecuteDate)
+				assert.Equal(t, executeDate, p.ExecuteDate.AsTime())
+				require.NotNil(t, p.RepeatPeriod)
+				assert.Equal(t, repeatPeriod, p.RepeatPeriod.AsDuration())
+				assert.Equal(t, uint32(5), p.RepeatCount)
+				assert.Equal(t, uint32(2), p.Counter)
+				assert.Equal(t, payload, p.Payload)
+				assert.Equal(t, uint64(99), p.Version)
+				assert.Equal(t, proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_QUEUE, p.OverlapPolicy)
+				assert.Equal(t, proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_RUN_ONCE, p.CatchupPolicy)
+				assert.True(t, p.Enabled)
+				assert.Equal(t, name, p.Name)
+				assert.Equal(t, timezone, p.Timezone)
+				require.NotNil(t, p.UpdatedAt)
+				assert.Equal(t, updatedAt, p.UpdatedAt.AsTime())
+			},
+		},
+		{
+			name: "task_with_nil_optional_fields",
+			task: &domain.ServerTask{
+				ID:            1,
+				ServerID:      2,
+				NodeID:        nil,
+				Command:       domain.ServerTaskCommandStart,
+				ExecuteDate:   executeDate,
+				RepeatPeriod:  0,
+				Repeat:        0,
+				Counter:       0,
+				Payload:       nil,
+				Version:       1,
+				OverlapPolicy: domain.ServerTaskOverlapPolicySkip,
+				CatchupPolicy: domain.ServerTaskCatchupPolicySkip,
+				Enabled:       false,
+				Name:          nil,
+				Timezone:      nil,
+				UpdatedAt:     nil,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, uint64(1), p.Id)
+				assert.Equal(t, uint64(2), p.ServerId)
+				assert.Equal(t, uint64(0), p.NodeId)
+				assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_START, p.Command)
+				assert.Empty(t, p.Name)
+				assert.Empty(t, p.Timezone)
+				assert.Empty(t, p.Payload)
+				assert.False(t, p.Enabled)
+				require.NotNil(t, p.ExecuteDate)
+				require.NotNil(t, p.RepeatPeriod)
+				assert.Equal(t, time.Duration(0), p.RepeatPeriod.AsDuration())
+				assert.Nil(t, p.UpdatedAt, "nil UpdatedAt must remain nil on the proto side")
+			},
+		},
+		{
+			name: "command_mapping_start",
+			task: &domain.ServerTask{
+				ID:          1,
+				ServerID:    1,
+				Command:     domain.ServerTaskCommandStart,
+				ExecuteDate: executeDate,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_START, p.Command)
+			},
+		},
+		{
+			name: "command_mapping_stop",
+			task: &domain.ServerTask{
+				ID:          1,
+				ServerID:    1,
+				Command:     domain.ServerTaskCommandStop,
+				ExecuteDate: executeDate,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_STOP, p.Command)
+			},
+		},
+		{
+			name: "command_mapping_restart",
+			task: &domain.ServerTask{
+				ID:          1,
+				ServerID:    1,
+				Command:     domain.ServerTaskCommandRestart,
+				ExecuteDate: executeDate,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_RESTART, p.Command)
+			},
+		},
+		{
+			name: "command_mapping_update",
+			task: &domain.ServerTask{
+				ID:          1,
+				ServerID:    1,
+				Command:     domain.ServerTaskCommandUpdate,
+				ExecuteDate: executeDate,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_UPDATE, p.Command)
+			},
+		},
+		{
+			name: "command_mapping_reinstall",
+			task: &domain.ServerTask{
+				ID:          1,
+				ServerID:    1,
+				Command:     domain.ServerTaskCommandReinstall,
+				ExecuteDate: executeDate,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_REINSTALL, p.Command)
+			},
+		},
+		{
+			name: "overlap_policy_skip",
+			task: &domain.ServerTask{
+				ID:            1,
+				ServerID:      1,
+				Command:       domain.ServerTaskCommandStart,
+				ExecuteDate:   executeDate,
+				OverlapPolicy: domain.ServerTaskOverlapPolicySkip,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_SKIP, p.OverlapPolicy)
+			},
+		},
+		{
+			name: "overlap_policy_queue",
+			task: &domain.ServerTask{
+				ID:            1,
+				ServerID:      1,
+				Command:       domain.ServerTaskCommandStart,
+				ExecuteDate:   executeDate,
+				OverlapPolicy: domain.ServerTaskOverlapPolicyQueue,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_QUEUE, p.OverlapPolicy)
+			},
+		},
+		{
+			name: "catchup_policy_skip",
+			task: &domain.ServerTask{
+				ID:            1,
+				ServerID:      1,
+				Command:       domain.ServerTaskCommandStart,
+				ExecuteDate:   executeDate,
+				CatchupPolicy: domain.ServerTaskCatchupPolicySkip,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_SKIP, p.CatchupPolicy)
+			},
+		},
+		{
+			name: "catchup_policy_run_once",
+			task: &domain.ServerTask{
+				ID:            1,
+				ServerID:      1,
+				Command:       domain.ServerTaskCommandStart,
+				ExecuteDate:   executeDate,
+				CatchupPolicy: domain.ServerTaskCatchupPolicyRunOnce,
+			},
+			assertion: func(t *testing.T, p *proto.ServerTask) {
+				t.Helper()
+				assert.Equal(t, proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_RUN_ONCE, p.CatchupPolicy)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DomainServerTaskToProto(tt.task)
+
+			require.NotNil(t, got)
+			tt.assertion(t, got)
+		})
+	}
+}
+
+func TestDomainServerTasksToProtoList(t *testing.T) {
+	executeDate := time.Date(2026, 5, 13, 10, 0, 0, 0, time.UTC)
+
+	t.Run("empty_slice_returns_empty_not_nil", func(t *testing.T) {
+		got := DomainServerTasksToProtoList([]domain.ServerTask{})
+
+		require.NotNil(t, got, "result must be empty slice, not nil")
+		require.Len(t, got, 0)
+	})
+
+	t.Run("nil_slice_returns_empty_not_nil", func(t *testing.T) {
+		got := DomainServerTasksToProtoList(nil)
+
+		require.NotNil(t, got, "converter must return an empty slice for nil input")
+		require.Len(t, got, 0)
+	})
+
+	t.Run("preserves_order", func(t *testing.T) {
+		tasks := []domain.ServerTask{
+			{ID: 1, ServerID: 10, Command: domain.ServerTaskCommandStart, ExecuteDate: executeDate},
+			{ID: 2, ServerID: 20, Command: domain.ServerTaskCommandStop, ExecuteDate: executeDate},
+			{ID: 3, ServerID: 30, Command: domain.ServerTaskCommandRestart, ExecuteDate: executeDate},
+		}
+
+		got := DomainServerTasksToProtoList(tasks)
+
+		require.Len(t, got, 3)
+		assert.Equal(t, uint64(1), got[0].Id)
+		assert.Equal(t, uint64(10), got[0].ServerId)
+		assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_START, got[0].Command)
+		assert.Equal(t, uint64(2), got[1].Id)
+		assert.Equal(t, uint64(20), got[1].ServerId)
+		assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_STOP, got[1].Command)
+		assert.Equal(t, uint64(3), got[2].Id)
+		assert.Equal(t, uint64(30), got[2].ServerId)
+		assert.Equal(t, proto.ServerTaskCommand_SERVER_TASK_COMMAND_RESTART, got[2].Command)
+	})
+}
+
+func TestDomainServerTaskCommandToProto(t *testing.T) {
+	tests := []struct {
+		name string
+		in   domain.ServerTaskCommand
+		want proto.ServerTaskCommand
+	}{
+		{name: "start_to_proto_start", in: domain.ServerTaskCommandStart, want: proto.ServerTaskCommand_SERVER_TASK_COMMAND_START},
+		{name: "stop_to_proto_stop", in: domain.ServerTaskCommandStop, want: proto.ServerTaskCommand_SERVER_TASK_COMMAND_STOP},
+		{name: "restart_to_proto_restart", in: domain.ServerTaskCommandRestart, want: proto.ServerTaskCommand_SERVER_TASK_COMMAND_RESTART},
+		{name: "update_to_proto_update", in: domain.ServerTaskCommandUpdate, want: proto.ServerTaskCommand_SERVER_TASK_COMMAND_UPDATE},
+		{name: "reinstall_to_proto_reinstall", in: domain.ServerTaskCommandReinstall, want: proto.ServerTaskCommand_SERVER_TASK_COMMAND_REINSTALL},
+		{name: "empty_domain_command_to_unspecified", in: "", want: proto.ServerTaskCommand_SERVER_TASK_COMMAND_UNSPECIFIED},
+		{name: "unknown_domain_command_to_unspecified", in: "garbage", want: proto.ServerTaskCommand_SERVER_TASK_COMMAND_UNSPECIFIED},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := domainServerTaskCommandToProto(tt.in)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProtoServerTaskCommandToDomain(t *testing.T) {
+	tests := []struct {
+		name string
+		in   proto.ServerTaskCommand
+		want domain.ServerTaskCommand
+	}{
+		{name: "proto_start_to_domain_start", in: proto.ServerTaskCommand_SERVER_TASK_COMMAND_START, want: domain.ServerTaskCommandStart},
+		{name: "proto_stop_to_domain_stop", in: proto.ServerTaskCommand_SERVER_TASK_COMMAND_STOP, want: domain.ServerTaskCommandStop},
+		{name: "proto_restart_to_domain_restart", in: proto.ServerTaskCommand_SERVER_TASK_COMMAND_RESTART, want: domain.ServerTaskCommandRestart},
+		{name: "proto_update_to_domain_update", in: proto.ServerTaskCommand_SERVER_TASK_COMMAND_UPDATE, want: domain.ServerTaskCommandUpdate},
+		{name: "proto_reinstall_to_domain_reinstall", in: proto.ServerTaskCommand_SERVER_TASK_COMMAND_REINSTALL, want: domain.ServerTaskCommandReinstall},
+		{name: "unspecified_to_empty_string", in: proto.ServerTaskCommand_SERVER_TASK_COMMAND_UNSPECIFIED, want: ""},
+		{name: "unknown_enum_value_to_empty_string", in: proto.ServerTaskCommand(9999), want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ProtoServerTaskCommandToDomain(tt.in)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDomainServerTaskOverlapPolicyToProto(t *testing.T) {
+	tests := []struct {
+		name string
+		in   domain.ServerTaskOverlapPolicy
+		want proto.ServerTaskOverlapPolicy
+	}{
+		{
+			name: "skip_to_proto_skip",
+			in:   domain.ServerTaskOverlapPolicySkip,
+			want: proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_SKIP,
+		},
+		{
+			name: "queue_to_proto_queue",
+			in:   domain.ServerTaskOverlapPolicyQueue,
+			want: proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_QUEUE,
+		},
+		{
+			name: "empty_domain_policy_defaults_to_proto_skip",
+			in:   "",
+			want: proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_SKIP,
+		},
+		{
+			name: "unknown_domain_policy_defaults_to_proto_skip",
+			in:   "garbage",
+			want: proto.ServerTaskOverlapPolicy_SERVER_TASK_OVERLAP_POLICY_SKIP,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := domainServerTaskOverlapPolicyToProto(tt.in)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDomainServerTaskCatchupPolicyToProto(t *testing.T) {
+	tests := []struct {
+		name string
+		in   domain.ServerTaskCatchupPolicy
+		want proto.ServerTaskCatchupPolicy
+	}{
+		{
+			name: "skip_to_proto_skip",
+			in:   domain.ServerTaskCatchupPolicySkip,
+			want: proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_SKIP,
+		},
+		{
+			name: "run_once_to_proto_run_once",
+			in:   domain.ServerTaskCatchupPolicyRunOnce,
+			want: proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_RUN_ONCE,
+		},
+		{
+			name: "empty_domain_policy_defaults_to_proto_skip",
+			in:   "",
+			want: proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_SKIP,
+		},
+		{
+			name: "unknown_domain_policy_defaults_to_proto_skip",
+			in:   "garbage",
+			want: proto.ServerTaskCatchupPolicy_SERVER_TASK_CATCHUP_POLICY_SKIP,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := domainServerTaskCatchupPolicyToProto(tt.in)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProtoServerTaskExecutionStatusToDomain(t *testing.T) {
+	tests := []struct {
+		name string
+		in   proto.ServerTaskExecutionStatus
+		want domain.ServerTaskExecutionStatus
+	}{
+		{
+			name: "running_to_domain_running",
+			in:   proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_RUNNING,
+			want: domain.ServerTaskExecutionStatusRunning,
+		},
+		{
+			name: "success_to_domain_success",
+			in:   proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_SUCCESS,
+			want: domain.ServerTaskExecutionStatusSuccess,
+		},
+		{
+			name: "failed_to_domain_failed",
+			in:   proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_FAILED,
+			want: domain.ServerTaskExecutionStatusFailed,
+		},
+		{
+			name: "canceled_to_domain_canceled",
+			in:   proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_CANCELED,
+			want: domain.ServerTaskExecutionStatusCanceled,
+		},
+		{
+			name: "skipped_to_domain_skipped",
+			in:   proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_SKIPPED,
+			want: domain.ServerTaskExecutionStatusSkipped,
+		},
+		{
+			name: "timed_out_to_domain_timed_out",
+			in:   proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_TIMED_OUT,
+			want: domain.ServerTaskExecutionStatusTimedOut,
+		},
+		{
+			name: "unspecified_to_empty_string",
+			in:   proto.ServerTaskExecutionStatus_SERVER_TASK_EXECUTION_STATUS_UNSPECIFIED,
+			want: "",
+		},
+		{
+			name: "unknown_enum_value_to_empty_string",
+			in:   proto.ServerTaskExecutionStatus(9999),
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ProtoServerTaskExecutionStatusToDomain(tt.in)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
