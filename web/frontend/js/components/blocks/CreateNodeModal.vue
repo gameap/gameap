@@ -115,7 +115,29 @@
                 </li>
                 <li>{{ trans('dedicated_servers.autosetup_download_archive') }}</li>
                 <li>{{ trans('dedicated_servers.autosetup_run_gameapctl') }}</li>
+                <template v-if="!hasCustomParams">
+                  <li>{{ trans('dedicated_servers.autosetup_click_install') }}</li>
+                  <li>
+                    {{ trans('dedicated_servers.autosetup_paste_connect_url') }}
+                    <div class="curl-container">
+                      <code class="curl-link">{{ connectURL }}</code>
+                      <button v-if="canCopy" class="copy-btn" @click="copyToClipboard('win-url', connectURL)" :title="trans('main.copy')">
+                        <Transition name="icon-fade" mode="out-in">
+                          <GIcon v-if="copiedKey === 'win-url'" name="check" class="copied-icon" key="check" />
+                          <GIcon v-else name="copy" key="copy" />
+                        </Transition>
+                      </button>
+                    </div>
+                  </li>
+                  <li>{{ trans('dedicated_servers.autosetup_push_install') }}</li>
+                </template>
               </ol>
+
+              <p>
+                {{ hasCustomParams
+                    ? trans('dedicated_servers.autosetup_run_command_windows')
+                    : trans('dedicated_servers.autosetup_or_install_cli') }}
+              </p>
 
               <div class="curl-container">
                 <code class="curl-link">{{ windowsCmd }}</code>
@@ -272,6 +294,8 @@ const windowsCmd = computed(() => {
   }
   return cmd
 })
+
+const connectURL = computed(() => autoSetupData.value.connect_url || '')
 
 const showModal = computed({
   get: () => props.modelValue,
