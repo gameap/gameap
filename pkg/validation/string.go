@@ -1,6 +1,10 @@
 package validation
 
-import "regexp"
+import (
+	"regexp"
+	"slices"
+	"strings"
+)
 
 // IsAlphanumeric checks if a string contains only lowercase letters (a-z) and digits (0-9).
 // Returns true if the string is alphanumeric, false otherwise.
@@ -57,4 +61,33 @@ var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-
 
 func IsEmail(s string) bool {
 	return emailRegex.MatchString(s)
+}
+
+// IsRelativeServerPath reports whether s is a safe relative server directory:
+// not anchored to a filesystem root, not a Windows drive path, and free of ".."
+// segments. Used to reject inputs that would land on the daemon as an absolute
+// path and trigger a double-join with the daemon's own work directory.
+// Empty strings are not considered valid; callers that allow optional values
+// should check emptiness separately.
+func IsRelativeServerPath(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	if s[0] == '/' || s[0] == '\\' {
+		return false
+	}
+
+	if len(s) >= 2 && s[1] == ':' && IsASCIILetter(s[0]) {
+		return false
+	}
+
+	normalized := strings.ReplaceAll(s, "\\", "/")
+
+	return !slices.Contains(strings.Split(normalized, "/"), "..")
+}
+
+// IsASCIILetter reports whether c is an ASCII letter (a-z or A-Z).
+func IsASCIILetter(c byte) bool {
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 }

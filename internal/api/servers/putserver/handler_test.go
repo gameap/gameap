@@ -582,7 +582,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"query_port": 27016,
 				"rcon_port": 27017,
 				"start_command": "./hlds_run -game cstrike",
-				"dir": "/servers/cstrike"
+				"dir": "servers/cstrike"
 			}`,
 			setupRepo: func(repo *inmemory.ServerRepository, _ *inmemory.NodeRepository, _ *inmemory.GameRepository, _ *inmemory.GameModRepository) {
 				err := repo.Save(context.Background(), &domain.Server{
@@ -825,6 +825,76 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 			wantStatus: http.StatusUnprocessableEntity,
 			wantError:  "ram_limit must be >= 0",
+		},
+		{
+			name:     "dir_with_windows_drive_letter_is_rejected",
+			serverID: "1",
+			requestBody: `{
+				"name": "Server with windows path",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "192.168.1.100",
+				"server_port": 27015,
+				"dir": "C:\\gameap\\servers\\cs"
+			}`,
+			setupRepo: func(repo *inmemory.ServerRepository, _ *inmemory.NodeRepository, _ *inmemory.GameRepository, _ *inmemory.GameModRepository) {
+				_ = repo.Save(context.Background(), &domain.Server{
+					ID:         1,
+					UID:        uuid.New(),
+					UUIDShort:  "12345678",
+					Name:       "Test Server",
+					GameID:     "cstrike",
+					DSID:       1,
+					GameModID:  1,
+					ServerIP:   "192.168.1.1",
+					ServerPort: 27015,
+				})
+			},
+			setupAuth: func(ctx context.Context) context.Context {
+				session := &auth.Session{
+					User: &domain.User{ID: 1},
+				}
+
+				return auth.ContextWithSession(ctx, session)
+			},
+			wantStatus: http.StatusUnprocessableEntity,
+			wantError:  "dir must be a relative path without drive letter or '..' segments",
+		},
+		{
+			name:     "dir_with_dot_dot_segment_is_rejected",
+			serverID: "1",
+			requestBody: `{
+				"name": "Server with traversal dir",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "192.168.1.100",
+				"server_port": 27015,
+				"dir": "../etc/passwd"
+			}`,
+			setupRepo: func(repo *inmemory.ServerRepository, _ *inmemory.NodeRepository, _ *inmemory.GameRepository, _ *inmemory.GameModRepository) {
+				_ = repo.Save(context.Background(), &domain.Server{
+					ID:         1,
+					UID:        uuid.New(),
+					UUIDShort:  "12345678",
+					Name:       "Test Server",
+					GameID:     "cstrike",
+					DSID:       1,
+					GameModID:  1,
+					ServerIP:   "192.168.1.1",
+					ServerPort: 27015,
+				})
+			},
+			setupAuth: func(ctx context.Context) context.Context {
+				session := &auth.Session{
+					User: &domain.User{ID: 1},
+				}
+
+				return auth.ContextWithSession(ctx, session)
+			},
+			wantStatus: http.StatusUnprocessableEntity,
+			wantError:  "dir must be a relative path without drive letter or '..' segments",
 		},
 		{
 			name:     "node_not_found_when_ds_id_changed",
@@ -1097,7 +1167,7 @@ func TestHandler_ServerUpdatePersistence(t *testing.T) {
 		"query_port":    new(27017),
 		"rcon_port":     new(27018),
 		"start_command": new("./hlds_run -game valve"),
-		"dir":           new("/servers/valve"),
+		"dir":           new("servers/valve"),
 	}
 
 	body, err := json.Marshal(updateData)
@@ -1139,7 +1209,7 @@ func TestHandler_ServerUpdatePersistence(t *testing.T) {
 	assert.Equal(t, new(27018), server.RconPort)
 	require.NotNil(t, server.StartCommand)
 	assert.Equal(t, new("./hlds_run -game valve"), server.StartCommand)
-	assert.Equal(t, "/servers/valve", server.Dir)
+	assert.Equal(t, "servers/valve", server.Dir)
 }
 
 func TestHandler_ServerUpdatePersistence_WithVarsAndLimits(t *testing.T) {

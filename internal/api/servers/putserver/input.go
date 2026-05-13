@@ -37,6 +37,7 @@ var (
 	)
 	ErrInvalidCPULimit = api.NewValidationError("cpu_limit must be >= 0")
 	ErrInvalidRAMLimit = api.NewValidationError("ram_limit must be >= 0")
+	ErrInvalidDir      = api.NewValidationError("dir must be a relative path without drive letter or '..' segments")
 )
 
 type updateServerInput struct {
@@ -111,6 +112,10 @@ func (in *updateServerInput) Validate() error {
 
 	if in.RAMLimit != nil && in.RAMLimit.Int() < 0 {
 		return ErrInvalidRAMLimit
+	}
+
+	if in.Dir != nil && *in.Dir != "" && !validation.IsRelativeServerPath(*in.Dir) {
+		return ErrInvalidDir
 	}
 
 	return nil

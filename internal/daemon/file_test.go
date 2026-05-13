@@ -1537,6 +1537,13 @@ func TestStripWorkPath(t *testing.T) {
 		{"empty_after_strip_with_slash_returns_dot", "/srv/gameap", "/srv/gameap/", "."},
 		{"no_workpath_prefix_keeps_path", "/srv/gameap", "/other/file", "other/file"},
 		{"empty_workpath_returns_path", "", "abc/def", "abc/def"},
+		{"windows_workpath_matching_backslashes", `C:\gameap`, `C:\gameap\servers\x`, "servers/x"},
+		{"windows_workpath_mixed_separators", `C:\gameap`, `C:\gameap/servers/x`, "servers/x"},
+		{"windows_absolute_with_empty_workpath_strips_drive_letter", "", `C:\gameap\servers\x`, "gameap/servers/x"},
+		{"windows_absolute_with_mismatched_workpath_strips_drive_letter", "/srv/gameap", `C:\gameap\servers\x`, "gameap/servers/x"},
+		{"lowercase_drive_letter_is_stripped", "", `d:\data\file`, "data/file"},
+		{"unc_share_path_is_neutralized", "", `\\server\share\dir`, "server/share/dir"},
+		{"trailing_backslash_in_workpath", `C:\gameap\`, `C:\gameap\servers\x`, "servers/x"},
 	}
 
 	for _, tt := range tests {

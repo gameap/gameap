@@ -27,6 +27,7 @@ var (
 	ErrInvalidQueryPort    = api.NewValidationError("query_port must be between 1 and 65535")
 	ErrInvalidRconPort     = api.NewValidationError("rcon_port must be between 1 and 65535")
 	ErrSettingNameRequired = api.NewValidationError("setting name is required")
+	ErrInvalidDir          = api.NewValidationError("dir must be a relative path without drive letter or '..' segments")
 )
 
 type settingInput struct {
@@ -90,6 +91,10 @@ func (s *serverInput) Validate() error {
 
 	if s.RconPort != nil && (s.RconPort.Int() < minPort || s.RconPort.Int() > maxPort) {
 		return ErrInvalidRconPort
+	}
+
+	if s.Dir != nil && *s.Dir != "" && !validation.IsRelativeServerPath(*s.Dir) {
+		return ErrInvalidDir
 	}
 
 	for _, setting := range s.Settings {

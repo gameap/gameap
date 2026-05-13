@@ -408,6 +408,48 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectedStatus: http.StatusCreated,
 		},
 		{
+			name: "dir_with_leading_slash_is_rejected",
+			requestBody: `{
+				"name": "Server with absolute dir",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "192.168.1.100",
+				"server_port": 27015,
+				"dir": "/srv/gameap/servers/cs"
+			}`,
+			expectedStatus: http.StatusUnprocessableEntity,
+			wantError:      "dir must be a relative path without drive letter or '..' segments",
+		},
+		{
+			name: "dir_with_windows_drive_letter_is_rejected",
+			requestBody: `{
+				"name": "Server with windows path",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "192.168.1.100",
+				"server_port": 27015,
+				"dir": "C:\\gameap\\servers\\cs"
+			}`,
+			expectedStatus: http.StatusUnprocessableEntity,
+			wantError:      "dir must be a relative path without drive letter or '..' segments",
+		},
+		{
+			name: "dir_with_dot_dot_segment_is_rejected",
+			requestBody: `{
+				"name": "Server with traversal dir",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "192.168.1.100",
+				"server_port": 27015,
+				"dir": "../etc/passwd"
+			}`,
+			expectedStatus: http.StatusUnprocessableEntity,
+			wantError:      "dir must be a relative path without drive letter or '..' segments",
+		},
+		{
 			name: "valid hostname",
 			requestBody: `{
 				"name": "Server with hostname",

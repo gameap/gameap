@@ -19,6 +19,7 @@ import (
 	"github.com/gameap/gameap/internal/transfers"
 	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/gameap/gameap/pkg/proto"
+	"github.com/gameap/gameap/pkg/validation"
 	"github.com/pkg/errors"
 )
 
@@ -1010,9 +1011,22 @@ func safeUint64ToInt64(v uint64) int64 {
 	return int64(v)
 }
 
+// stripWorkPath returns fullPath relative to workPath, defensively handling Windows
+// separators and drive letters. Both inputs may use any mix of "/" and "\" as separators;
+// the result is forward-slash relative. If a Windows volume name survives the prefix trim
+// (e.g. workPath was empty or stored with a mismatched shape), it is stripped so the
+// daemon cannot receive an absolute path and produce a doubled-join (C:\gameap\C:\gameap\...).
 func stripWorkPath(workPath, fullPath string) string {
-	rel := strings.TrimPrefix(fullPath, workPath)
-	rel = strings.TrimPrefix(rel, "/")
+	normWork := strings.ReplaceAll(workPath, "\\", "/")
+	normFull := strings.ReplaceAll(fullPath, "\\", "/")
+
+	rel := strings.TrimPrefix(normFull, normWork)
+
+	if len(rel) >= 2 && rel[1] == ':' && validation.IsASCIILetter(rel[0]) {
+		rel = rel[2:]
+	}
+
+	rel = strings.TrimLeft(rel, "/")
 
 	if rel == "" {
 		return "."
