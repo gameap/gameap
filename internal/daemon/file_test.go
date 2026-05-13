@@ -1544,6 +1544,8 @@ func TestStripWorkPath(t *testing.T) {
 		{"lowercase_drive_letter_is_stripped", "", `d:\data\file`, "data/file"},
 		{"unc_share_path_is_neutralized", "", `\\server\share\dir`, "server/share/dir"},
 		{"trailing_backslash_in_workpath", `C:\gameap\`, `C:\gameap\servers\x`, "servers/x"},
+		{"partial_prefix_match_keeps_extra_chars", "/srv/game", "/srv/gameap/x", "ap/x"},
+		{"windows_workpath_with_leading_backslash", `\srv\gameap`, `\srv\gameap\x`, "x"},
 	}
 
 	for _, tt := range tests {

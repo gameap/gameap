@@ -231,6 +231,18 @@ func TestIsASCIILetter(t *testing.T) {
 	for _, c := range []byte("0123456789-_./:\\") {
 		assert.False(t, IsASCIILetter(c), "expected %q to not be a letter", c)
 	}
+
+	boundaryBytes := []byte{
+		0x40, // '@' — one below 'A'
+		0x5B, // '[' — one above 'Z'
+		0x60, // '`' — one below 'a'
+		0x7B, // '{' — one above 'z'
+		0x00, // null byte
+		0xFF, // high byte
+	}
+	for _, c := range boundaryBytes {
+		assert.False(t, IsASCIILetter(c), "expected boundary byte 0x%02X to not be a letter", c)
+	}
 }
 
 func TestIsRelativeServerPath(t *testing.T) {
@@ -253,6 +265,14 @@ func TestIsRelativeServerPath(t *testing.T) {
 		{"contains_dot_dot_segment_middle", "servers/../etc", false},
 		{"contains_dot_dot_segment_backslash", `servers\..\etc`, false},
 		{"single_dot_is_allowed_only_inside", "servers/./x", true},
+		{"dot_dot_alone", "..", false},
+		{"single_dot_alone", ".", true},
+		{"single_letter_no_colon", "C", true},
+		{"drive_letter_only_no_path", "C:", false},
+		{"segment_contains_dot_dot_as_substring", "foo..bar", true},
+		{"four_dots_segment", "....", true},
+		{"colon_not_at_position_one_is_allowed", "ab:cd", true},
+		{"mixed_separators_with_dot_dot", `a/b\..\c`, false},
 	}
 
 	for _, tt := range tests {
