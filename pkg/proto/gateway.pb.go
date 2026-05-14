@@ -2562,6 +2562,9 @@ type FileWriteRequest struct {
 	Content       []byte                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
 	Mode          int32                  `protobuf:"varint,3,opt,name=mode,proto3" json:"mode,omitempty"`
 	CreateDirs    bool                   `protobuf:"varint,4,opt,name=create_dirs,json=createDirs,proto3" json:"create_dirs,omitempty"`
+	OwnerUser     string                 `protobuf:"bytes,5,opt,name=owner_user,json=ownerUser,proto3" json:"owner_user,omitempty"`
+	OwnerUid      int32                  `protobuf:"varint,6,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
+	OwnerGid      int32                  `protobuf:"varint,7,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2622,6 +2625,27 @@ func (x *FileWriteRequest) GetCreateDirs() bool {
 		return x.CreateDirs
 	}
 	return false
+}
+
+func (x *FileWriteRequest) GetOwnerUser() string {
+	if x != nil {
+		return x.OwnerUser
+	}
+	return ""
+}
+
+func (x *FileWriteRequest) GetOwnerUid() int32 {
+	if x != nil {
+		return x.OwnerUid
+	}
+	return 0
+}
+
+func (x *FileWriteRequest) GetOwnerGid() int32 {
+	if x != nil {
+		return x.OwnerGid
+	}
+	return 0
 }
 
 type FileWriteResponse struct {
@@ -2818,6 +2842,10 @@ type FileUploadTask struct {
 	Path           string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	ChecksumSha256 string                 `protobuf:"bytes,3,opt,name=checksum_sha256,json=checksumSha256,proto3" json:"checksum_sha256,omitempty"`
 	TotalSize      int64                  `protobuf:"varint,4,opt,name=total_size,json=totalSize,proto3" json:"total_size,omitempty"`
+	OwnerUser      string                 `protobuf:"bytes,5,opt,name=owner_user,json=ownerUser,proto3" json:"owner_user,omitempty"`
+	OwnerUid       int32                  `protobuf:"varint,6,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
+	OwnerGid       int32                  `protobuf:"varint,7,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
+	Mode           int32                  `protobuf:"varint,8,opt,name=mode,proto3" json:"mode,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -2876,6 +2904,34 @@ func (x *FileUploadTask) GetChecksumSha256() string {
 func (x *FileUploadTask) GetTotalSize() int64 {
 	if x != nil {
 		return x.TotalSize
+	}
+	return 0
+}
+
+func (x *FileUploadTask) GetOwnerUser() string {
+	if x != nil {
+		return x.OwnerUser
+	}
+	return ""
+}
+
+func (x *FileUploadTask) GetOwnerUid() int32 {
+	if x != nil {
+		return x.OwnerUid
+	}
+	return 0
+}
+
+func (x *FileUploadTask) GetOwnerGid() int32 {
+	if x != nil {
+		return x.OwnerGid
+	}
+	return 0
+}
+
+func (x *FileUploadTask) GetMode() int32 {
+	if x != nil {
+		return x.Mode
 	}
 	return 0
 }
@@ -4124,13 +4180,17 @@ const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"\acontent\x18\x03 \x01(\fR\acontent\x12\x1f\n" +
 	"\vtransfer_id\x18\x04 \x01(\tR\n" +
 	"transferId\x12\x14\n" +
-	"\x05error\x18\x05 \x01(\tR\x05error\"u\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\xce\x01\n" +
 	"\x10FileWriteRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\fR\acontent\x12\x12\n" +
 	"\x04mode\x18\x03 \x01(\x05R\x04mode\x12\x1f\n" +
 	"\vcreate_dirs\x18\x04 \x01(\bR\n" +
-	"createDirs\"b\n" +
+	"createDirs\x12\x1d\n" +
+	"\n" +
+	"owner_user\x18\x05 \x01(\tR\townerUser\x12\x1b\n" +
+	"\towner_uid\x18\x06 \x01(\x05R\bownerUid\x12\x1b\n" +
+	"\towner_gid\x18\a \x01(\x05R\bownerGid\"b\n" +
 	"\x11FileWriteResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
@@ -4145,14 +4205,19 @@ const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12&\n" +
 	"\x05files\x18\x03 \x03(\v2\x10.gameap.FileStatR\x05files\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\tR\x05error\"\x8d\x01\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\xfa\x01\n" +
 	"\x0eFileUploadTask\x12\x1f\n" +
 	"\vtransfer_id\x18\x01 \x01(\tR\n" +
 	"transferId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12'\n" +
 	"\x0fchecksum_sha256\x18\x03 \x01(\tR\x0echecksumSha256\x12\x1d\n" +
 	"\n" +
-	"total_size\x18\x04 \x01(\x03R\ttotalSize\"p\n" +
+	"total_size\x18\x04 \x01(\x03R\ttotalSize\x12\x1d\n" +
+	"\n" +
+	"owner_user\x18\x05 \x01(\tR\townerUser\x12\x1b\n" +
+	"\towner_uid\x18\x06 \x01(\x05R\bownerUid\x12\x1b\n" +
+	"\towner_gid\x18\a \x01(\x05R\bownerGid\x12\x12\n" +
+	"\x04mode\x18\b \x01(\x05R\x04mode\"p\n" +
 	"\x10FileDownloadTask\x12\x1f\n" +
 	"\vtransfer_id\x18\x01 \x01(\tR\n" +
 	"transferId\x12\x12\n" +

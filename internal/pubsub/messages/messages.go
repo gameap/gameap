@@ -146,6 +146,10 @@ type DaemonFileRequestPayload struct {
 	Data        []byte `json:"data,omitempty"`
 	TransferID  string `json:"transfer_id,omitempty"`
 	StoragePath string `json:"storage_path,omitempty"`
+	OwnerUser   string `json:"owner_user,omitempty"`
+	OwnerUID    int32  `json:"owner_uid,omitempty"`
+	OwnerGID    int32  `json:"owner_gid,omitempty"`
+	Mode        int32  `json:"mode,omitempty"`
 }
 
 type DaemonFileResponsePayload struct {

@@ -832,6 +832,23 @@ func (m *MkdirParams) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.OwnerGid != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.OwnerGid))
+		i--
+		dAtA[i] = 0x30
+	}
+	if m.OwnerUid != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.OwnerUid))
+		i--
+		dAtA[i] = 0x28
+	}
+	if len(m.OwnerUser) > 0 {
+		i -= len(m.OwnerUser)
+		copy(dAtA[i:], m.OwnerUser)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.OwnerUser)))
+		i--
+		dAtA[i] = 0x22
+	}
 	if m.Mode != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Mode))
 		i--
@@ -1803,6 +1820,16 @@ func (m *MkdirParams) SizeVT() (n int) {
 	}
 	if m.Mode != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.Mode))
+	}
+	l = len(m.OwnerUser)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.OwnerUid != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.OwnerUid))
+	}
+	if m.OwnerGid != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.OwnerGid))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -3981,6 +4008,76 @@ func (m *MkdirParams) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.Mode |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OwnerUser", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.OwnerUser = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OwnerUid", wireType)
+			}
+			m.OwnerUid = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.OwnerUid |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OwnerGid", wireType)
+			}
+			m.OwnerGid = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.OwnerGid |= int32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

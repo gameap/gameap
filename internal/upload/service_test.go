@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/upload"
@@ -48,6 +49,7 @@ func (f *fakeDaemon) UploadStreamPrepared(
 	node *domain.Node,
 	fullPath, transferID, checksum string,
 	totalSize uint64,
+	_ daemon.OwnerOptions,
 ) error {
 	if f.block {
 		<-ctx.Done()

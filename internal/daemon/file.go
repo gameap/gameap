@@ -515,6 +515,7 @@ func (s *FileService) Upload(
 	filePath string,
 	content []byte,
 	perms os.FileMode,
+	owner OwnerOptions,
 ) error {
 	nodeID := uint64(node.ID)
 	relPath := stripWorkPath(node.WorkPath, filePath)
@@ -530,10 +531,10 @@ func (s *FileService) Upload(
 	}
 
 	if local {
-		return s.gateway.RequestFileWrite(ctx, nodeID, relPath, content, mode, true)
+		return s.gateway.RequestFileWrite(ctx, nodeID, relPath, content, mode, true, owner)
 	}
 
-	return s.dispatcher.DispatchFileWrite(ctx, nodeID, relPath, content, mode, true)
+	return s.dispatcher.DispatchFileWrite(ctx, nodeID, relPath, content, mode, true, owner)
 }
 
 func (s *FileService) UploadStreamPrepared(
@@ -543,6 +544,7 @@ func (s *FileService) UploadStreamPrepared(
 	transferID string,
 	checksum string,
 	totalSize uint64,
+	owner OwnerOptions,
 ) error {
 	nodeID := uint64(node.ID)
 	relPath := stripWorkPath(node.WorkPath, filePath)
@@ -558,7 +560,7 @@ func (s *FileService) UploadStreamPrepared(
 
 	if local && s.registry.HasCapability(nodeID, capabilityFileTransfer) {
 		if reqErr := s.gateway.RequestFileUploadTask(
-			ctx, nodeID, transferID, relPath, checksum, safeUint64ToInt64(totalSize),
+			ctx, nodeID, transferID, relPath, checksum, safeUint64ToInt64(totalSize), 0, owner,
 		); reqErr != nil {
 			return errors.WithMessage(reqErr, "upload task")
 		}
@@ -566,7 +568,9 @@ func (s *FileService) UploadStreamPrepared(
 		return nil
 	}
 
-	if dispatchErr := s.dispatcher.DispatchUploadTask(ctx, nodeID, transferID, relPath); dispatchErr != nil {
+	if dispatchErr := s.dispatcher.DispatchUploadTask(
+		ctx, nodeID, transferID, relPath, 0, owner,
+	); dispatchErr != nil {
 		return errors.WithMessage(dispatchErr, "dispatched upload task")
 	}
 
@@ -668,6 +672,7 @@ func (s *FileService) UploadStream(
 	r io.Reader,
 	size uint64,
 	perms os.FileMode,
+	owner OwnerOptions,
 ) error {
 	nodeID := uint64(node.ID)
 	relPath := stripWorkPath(node.WorkPath, filePath)
@@ -688,7 +693,7 @@ func (s *FileService) UploadStream(
 			return errors.Wrap(readErr, "reading upload content")
 		}
 
-		return s.gateway.RequestFileWrite(ctx, nodeID, relPath, content, mode, true)
+		return s.gateway.RequestFileWrite(ctx, nodeID, relPath, content, mode, true, owner)
 	}
 
 	transferID := idgen.New()
@@ -704,7 +709,9 @@ func (s *FileService) UploadStream(
 	checksum := hex.EncodeToString(hasher.Sum(nil))
 
 	if local && s.registry.HasCapability(nodeID, capabilityFileTransfer) {
-		err := s.gateway.RequestFileUploadTask(ctx, nodeID, transferID, relPath, checksum, safeUint64ToInt64(size))
+		err := s.gateway.RequestFileUploadTask(
+			ctx, nodeID, transferID, relPath, checksum, safeUint64ToInt64(size), mode, owner,
+		)
 		_ = s.storage.Delete(context.Background(), storagePath)
 
 		if err != nil {
@@ -714,7 +721,9 @@ func (s *FileService) UploadStream(
 		return nil
 	}
 
-	if err := s.dispatcher.DispatchUploadTask(ctx, nodeID, transferID, relPath); err != nil {
+	if err := s.dispatcher.DispatchUploadTask(
+		ctx, nodeID, transferID, relPath, mode, owner,
+	); err != nil {
 		_ = s.storage.Delete(context.Background(), storagePath)
 
 		return errors.WithMessage(err, "dispatched upload task")
@@ -723,7 +732,9 @@ func (s *FileService) UploadStream(
 	return nil
 }
 
-func (s *FileService) MkDir(ctx context.Context, node *domain.Node, directory string) error {
+func (s *FileService) MkDir(
+	ctx context.Context, node *domain.Node, directory string, owner OwnerOptions,
+) error {
 	nodeID := uint64(node.ID)
 	if s.legacy != nil && !s.registry.IsConnected(nodeID) && !s.registry.IsConnectedAnywhere(nodeID) {
 		return s.legacy.MkDir(ctx, node, directory)
@@ -735,6 +746,9 @@ func (s *FileService) MkDir(ctx context.Context, node *domain.Node, directory st
 			MkdirParams: &proto.MkdirParams{
 				Path:      stripWorkPath(node.WorkPath, directory),
 				Recursive: true,
+				OwnerUser: owner.User,
+				OwnerUid:  owner.UID,
+				OwnerGid:  owner.GID,
 			},
 		},
 	})

@@ -47,7 +47,10 @@ type daemonCommands interface {
 
 type fileService interface {
 	Download(ctx context.Context, node *domain.Node, filePath string) ([]byte, error)
-	Upload(ctx context.Context, node *domain.Node, filePath string, content []byte, perms os.FileMode) error
+	Upload(
+		ctx context.Context, node *domain.Node, filePath string,
+		content []byte, perms os.FileMode, owner daemon.OwnerOptions,
+	) error
 }
 
 type Handler struct {
@@ -393,7 +396,10 @@ func (h *Handler) sendLegacyInput(
 
 	inputPath := filepath.Join(server.Dir, "input.txt")
 
-	if err := h.fileService.Upload(ctx, node, inputPath, []byte(input), 0644); err != nil { //nolint:mnd
+	err := h.fileService.Upload(
+		ctx, node, inputPath, []byte(input), 0o644, daemon.OwnerFromServer(server),
+	)
+	if err != nil {
 		h.logger.Warn("failed to upload input", "server_id", server.ID, "error", err)
 		client.SendMessage(ws.NewErrorMessage("failed to send input"))
 	}

@@ -315,6 +315,9 @@ message FileWriteRequest {
   bytes content = 2;
   int32 mode = 3;
   bool create_dirs = 4;
+  string owner_user = 5;
+  int32 owner_uid = 6;
+  int32 owner_gid = 7;
 }
 
 message FileWriteResponse {
@@ -341,6 +344,10 @@ message FileUploadTask {
   string path = 2;
   string checksum_sha256 = 3;
   int64 total_size = 4;
+  string owner_user = 5;
+  int32 owner_uid = 6;
+  int32 owner_gid = 7;
+  int32 mode = 8;
 }
 
 message FileDownloadTask {

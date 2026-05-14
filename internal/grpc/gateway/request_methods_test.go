@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/pkg/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,7 +110,7 @@ func TestService_RequestFileRead(t *testing.T) {
 func TestService_RequestFileWrite(t *testing.T) {
 	t.Run("not_connected_returns_error", func(t *testing.T) {
 		svc, _ := newServiceWithDeps(t)
-		err := svc.RequestFileWrite(context.Background(), 1, "/x", []byte("a"), 0o644, false)
+		err := svc.RequestFileWrite(context.Background(), 1, "/x", []byte("a"), 0o644, false, daemon.OwnerOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "node not connected")
 	})
@@ -127,7 +128,7 @@ func TestService_RequestFileWrite(t *testing.T) {
 			}
 		})
 
-		err := svc.RequestFileWrite(context.Background(), 1, "/x", []byte("a"), 0o644, false)
+		err := svc.RequestFileWrite(context.Background(), 1, "/x", []byte("a"), 0o644, false, daemon.OwnerOptions{})
 		require.NoError(t, err)
 	})
 
@@ -144,7 +145,7 @@ func TestService_RequestFileWrite(t *testing.T) {
 			}
 		})
 
-		err := svc.RequestFileWrite(context.Background(), 1, "/x", []byte("a"), 0o644, false)
+		err := svc.RequestFileWrite(context.Background(), 1, "/x", []byte("a"), 0o644, false, daemon.OwnerOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "disk full")
 	})
@@ -354,7 +355,7 @@ func TestService_RequestHTTPProxy(t *testing.T) {
 func TestService_RequestFileUploadTask(t *testing.T) {
 	t.Run("not_connected_returns_error", func(t *testing.T) {
 		svc, _ := newServiceWithDeps(t)
-		err := svc.RequestFileUploadTask(context.Background(), 1, "tx-1", "/p", "abc", 100)
+		err := svc.RequestFileUploadTask(context.Background(), 1, "tx-1", "/p", "abc", 100, 0, daemon.OwnerOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "node not connected")
 	})
@@ -372,7 +373,7 @@ func TestService_RequestFileUploadTask(t *testing.T) {
 			}
 		})
 
-		err := svc.RequestFileUploadTask(context.Background(), 1, "tx-1", "/p", "abc", 100)
+		err := svc.RequestFileUploadTask(context.Background(), 1, "tx-1", "/p", "abc", 100, 0, daemon.OwnerOptions{})
 		require.NoError(t, err)
 	})
 
@@ -389,7 +390,7 @@ func TestService_RequestFileUploadTask(t *testing.T) {
 			}
 		})
 
-		err := svc.RequestFileUploadTask(context.Background(), 1, "tx-1", "/p", "abc", 100)
+		err := svc.RequestFileUploadTask(context.Background(), 1, "tx-1", "/p", "abc", 100, 0, daemon.OwnerOptions{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "transfer failed")
 	})

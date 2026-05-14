@@ -41,6 +41,7 @@ func (m *mockFileService) Upload(
 	filePath string,
 	content []byte,
 	perms os.FileMode,
+	_ daemon.OwnerOptions,
 ) error {
 	if m.uploadFunc != nil {
 		return m.uploadFunc(ctx, node, filePath, content, perms)

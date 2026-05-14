@@ -77,7 +77,7 @@ func (s *NodeFSServiceImpl) MkDir(
 		return &nodefs.MkDirResponse{Success: false, Error: new("node not found")}, nil
 	}
 
-	err = s.fileService.MkDir(ctx, node, req.Path)
+	err = s.fileService.MkDir(ctx, node, req.Path, daemon.OwnerOptions{})
 	if err != nil {
 		return &nodefs.MkDirResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -161,7 +161,7 @@ func (s *NodeFSServiceImpl) Upload(
 		return &nodefs.UploadResponse{Success: false, Error: new("node not found")}, nil
 	}
 
-	err = s.fileService.Upload(ctx, node, req.Path, req.Content, os.FileMode(req.Permissions))
+	err = s.fileService.Upload(ctx, node, req.Path, req.Content, os.FileMode(req.Permissions), daemon.OwnerOptions{})
 	if err != nil {
 		return &nodefs.UploadResponse{Success: false, Error: new(err.Error())}, nil
 	}

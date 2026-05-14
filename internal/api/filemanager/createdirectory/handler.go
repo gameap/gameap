@@ -19,7 +19,7 @@ import (
 )
 
 type fileService interface {
-	MkDir(ctx context.Context, node *domain.Node, directory string) error
+	MkDir(ctx context.Context, node *domain.Node, directory string, owner daemon.OwnerOptions) error
 	GetFileInfo(ctx context.Context, node *domain.Node, path string) (*daemon.FileDetails, error)
 }
 
@@ -115,7 +115,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.createDirectory(ctx, node, server.Dir, &req)
+	response, err := h.createDirectory(ctx, node, server, &req)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -145,7 +145,7 @@ func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error
 func (h *Handler) createDirectory(
 	ctx context.Context,
 	node *domain.Node,
-	serverDir string,
+	server *domain.Server,
 	req *createDirectoryRequest,
 ) (createDirectoryResponse, error) {
 	if err := validatePath(req.Path); err != nil {
@@ -157,9 +157,9 @@ func (h *Handler) createDirectory(
 	}
 
 	relativePath := filepath.Join(req.Path, req.Name)
-	fullPath := filepath.Join(node.WorkPath, serverDir, relativePath)
+	fullPath := filepath.Join(node.WorkPath, server.Dir, relativePath)
 
-	err := h.daemonFiles.MkDir(ctx, node, fullPath)
+	err := h.daemonFiles.MkDir(ctx, node, fullPath, daemon.OwnerFromServer(server))
 	if err != nil {
 		return createDirectoryResponse{}, errors.WithMessage(err, "failed to create directory")
 	}

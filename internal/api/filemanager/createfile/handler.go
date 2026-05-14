@@ -20,7 +20,10 @@ import (
 )
 
 type fileService interface {
-	Upload(ctx context.Context, node *domain.Node, filePath string, content []byte, perms os.FileMode) error
+	Upload(
+		ctx context.Context, node *domain.Node, filePath string,
+		content []byte, perms os.FileMode, owner daemon.OwnerOptions,
+	) error
 	GetFileInfo(ctx context.Context, node *domain.Node, path string) (*daemon.FileDetails, error)
 }
 
@@ -116,7 +119,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.createFile(ctx, node, server.Dir, &req)
+	response, err := h.createFile(ctx, node, server, &req)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -146,7 +149,7 @@ func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error
 func (h *Handler) createFile(
 	ctx context.Context,
 	node *domain.Node,
-	serverDir string,
+	server *domain.Server,
 	req *createFileRequest,
 ) (createFileResponse, error) {
 	if err := validatePath(req.Path); err != nil {
@@ -158,9 +161,9 @@ func (h *Handler) createFile(
 	}
 
 	relativePath := filepath.Join(req.Path, req.Name)
-	fullPath := filepath.Join(node.WorkPath, serverDir, relativePath)
+	fullPath := filepath.Join(node.WorkPath, server.Dir, relativePath)
 
-	err := h.daemonFiles.Upload(ctx, node, fullPath, []byte{}, 0o644)
+	err := h.daemonFiles.Upload(ctx, node, fullPath, []byte{}, 0o644, daemon.OwnerFromServer(server))
 	if err != nil {
 		return createFileResponse{}, errors.WithMessage(err, "failed to create file")
 	}

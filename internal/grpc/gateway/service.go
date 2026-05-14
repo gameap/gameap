@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/enrollment"
 	"github.com/gameap/gameap/internal/filters"
@@ -596,7 +597,8 @@ func (s *Service) RequestFileRead(
 }
 
 func (s *Service) RequestFileWrite(
-	ctx context.Context, nodeID uint64, path string, content []byte, mode int32, createDirs bool,
+	ctx context.Context, nodeID uint64, path string,
+	content []byte, mode int32, createDirs bool, owner daemon.OwnerOptions,
 ) error {
 	sess, ok := s.registry.GetSession(nodeID)
 	if !ok {
@@ -615,6 +617,9 @@ func (s *Service) RequestFileWrite(
 				Content:    content,
 				Mode:       mode,
 				CreateDirs: createDirs,
+				OwnerUser:  owner.User,
+				OwnerUid:   owner.UID,
+				OwnerGid:   owner.GID,
 			},
 		},
 	}); err != nil {
@@ -890,6 +895,8 @@ func (s *Service) RequestFileUploadTask(
 	nodeID uint64,
 	transferID, destPath, checksum string,
 	totalSize int64,
+	mode int32,
+	owner daemon.OwnerOptions,
 ) error {
 	sess, ok := s.registry.GetSession(nodeID)
 	if !ok {
@@ -908,6 +915,10 @@ func (s *Service) RequestFileUploadTask(
 				Path:           destPath,
 				ChecksumSha256: checksum,
 				TotalSize:      totalSize,
+				Mode:           mode,
+				OwnerUser:      owner.User,
+				OwnerUid:       owner.UID,
+				OwnerGid:       owner.GID,
 			},
 		},
 	}); err != nil {

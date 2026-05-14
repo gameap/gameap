@@ -227,7 +227,8 @@ func (f *fakeFileService) Download(_ context.Context, node *domain.Node, filePat
 }
 
 func (f *fakeFileService) Upload(
-	_ context.Context, node *domain.Node, filePath string, content []byte, perms os.FileMode,
+	_ context.Context, node *domain.Node, filePath string,
+	content []byte, perms os.FileMode, _ daemon.OwnerOptions,
 ) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

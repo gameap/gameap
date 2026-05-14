@@ -3,8 +3,27 @@ package daemon
 import (
 	"context"
 
+	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/proto"
 )
+
+type OwnerOptions struct {
+	User string
+	UID  int32
+	GID  int32
+}
+
+func (o OwnerOptions) IsZero() bool {
+	return o.User == "" && o.UID == 0 && o.GID == 0
+}
+
+func OwnerFromServer(server *domain.Server) OwnerOptions {
+	if server == nil || server.SuUser == nil {
+		return OwnerOptions{}
+	}
+
+	return OwnerOptions{User: *server.SuUser}
+}
 
 type FileGateway interface {
 	RequestFileList(
@@ -14,13 +33,15 @@ type FileGateway interface {
 		ctx context.Context, nodeID uint64, path string, offset int64, length int64,
 	) (*proto.FileReadResponse, error)
 	RequestFileWrite(
-		ctx context.Context, nodeID uint64, path string, content []byte, mode int32, createDirs bool,
+		ctx context.Context, nodeID uint64, path string,
+		content []byte, mode int32, createDirs bool, owner OwnerOptions,
 	) error
 	RequestFileOperation(
 		ctx context.Context, nodeID uint64, req *proto.FileOperationRequest,
 	) (*proto.FileOperationResponse, error)
 	RequestFileUploadTask(
-		ctx context.Context, nodeID uint64, transferID, destPath, checksum string, totalSize int64,
+		ctx context.Context, nodeID uint64, transferID, destPath, checksum string,
+		totalSize int64, mode int32, owner OwnerOptions,
 	) error
 	RequestFileDownloadTask(
 		ctx context.Context, nodeID uint64, transferID, srcPath string,
@@ -46,9 +67,13 @@ type FileDispatcher interface {
 		ctx context.Context, nodeID uint64, path string, offset int64, length int64,
 	) (*FileReadResult, error)
 	DispatchFileWrite(
-		ctx context.Context, nodeID uint64, path string, content []byte, mode int32, createDirs bool,
+		ctx context.Context, nodeID uint64, path string,
+		content []byte, mode int32, createDirs bool, owner OwnerOptions,
 	) error
-	DispatchUploadTask(ctx context.Context, nodeID uint64, transferID string, destPath string) error
+	DispatchUploadTask(
+		ctx context.Context, nodeID uint64, transferID string, destPath string,
+		mode int32, owner OwnerOptions,
+	) error
 	DispatchDownloadTask(ctx context.Context, nodeID uint64, transferID string, srcPath string) error
 }
 

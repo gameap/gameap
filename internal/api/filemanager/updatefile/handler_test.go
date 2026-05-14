@@ -92,6 +92,7 @@ func (m *mockFileService) UploadStream(
 	r io.Reader,
 	size uint64,
 	perms os.FileMode,
+	_ daemon.OwnerOptions,
 ) error {
 	if m.uploadStreamFunc != nil {
 		return m.uploadStreamFunc(ctx, node, filePath, r, size, perms)
