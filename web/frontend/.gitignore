@@ -4,3 +4,8 @@
 /packages/gameap-frontend/node_modules
 /packages/gameap-frontend/dist/*
 !/packages/gameap-frontend/dist/.gitkeep
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
