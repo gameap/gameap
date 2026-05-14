@@ -40,7 +40,9 @@ func (m *mockFileService) ReadDir(ctx context.Context, node *domain.Node, path s
 	return nil, nil
 }
 
-func (m *mockFileService) MkDir(ctx context.Context, node *domain.Node, path string) error {
+func (m *mockFileService) MkDir(
+	ctx context.Context, node *domain.Node, path string, _ daemon.OwnerOptions,
+) error {
 	if m.mkDirFunc != nil {
 		return m.mkDirFunc(ctx, node, path)
 	}
@@ -78,6 +80,7 @@ func (m *mockFileService) Upload(
 	path string,
 	content []byte,
 	perm os.FileMode,
+	_ daemon.OwnerOptions,
 ) error {
 	if m.uploadFunc != nil {
 		return m.uploadFunc(ctx, node, path, content, perm)
@@ -176,7 +179,7 @@ func (s *nodeFSServiceImplForTest) MkDir(
 		return &nodefs.MkDirResponse{Success: false, Error: new("node not found")}, nil
 	}
 
-	err = s.fileService.MkDir(ctx, node, req.Path)
+	err = s.fileService.MkDir(ctx, node, req.Path, daemon.OwnerOptions{})
 	if err != nil {
 		return &nodefs.MkDirResponse{Success: false, Error: new(err.Error())}, nil
 	}

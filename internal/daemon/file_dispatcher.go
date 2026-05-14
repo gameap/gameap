@@ -188,13 +188,17 @@ func (d *fileDispatcher) DispatchFileRead(
 }
 
 func (d *fileDispatcher) DispatchFileWrite(
-	ctx context.Context, nodeID uint64, path string, content []byte, mode int32, createDirs bool,
+	ctx context.Context, nodeID uint64, path string,
+	content []byte, mode int32, createDirs bool, owner OwnerOptions,
 ) error {
 	req := &proto.FileWriteRequest{
 		Path:       path,
 		Content:    content,
 		Mode:       mode,
 		CreateDirs: createDirs,
+		OwnerUser:  owner.User,
+		OwnerUid:   owner.UID,
+		OwnerGid:   owner.GID,
 	}
 	reqData, err := req.MarshalVT()
 	if err != nil {
@@ -241,6 +245,7 @@ func (d *fileDispatcher) DispatchFileOperation(
 
 func (d *fileDispatcher) DispatchUploadTask(
 	ctx context.Context, nodeID uint64, transferID string, destPath string,
+	mode int32, owner OwnerOptions,
 ) error {
 	_, err := d.dispatchAndWait(ctx, nodeID, messages.DaemonFileRequestPayload{
 		NodeID:      nodeID,
@@ -249,6 +254,10 @@ func (d *fileDispatcher) DispatchUploadTask(
 		Operation:   "upload_task",
 		TransferID:  transferID,
 		StoragePath: destPath,
+		OwnerUser:   owner.User,
+		OwnerUID:    owner.UID,
+		OwnerGID:    owner.GID,
+		Mode:        mode,
 	}, fileTransferTimeout)
 
 	return err
@@ -393,7 +402,10 @@ func (d *fileDispatcher) execFileWrite(
 		return messages.DaemonFileResponsePayload{Error: err.Error()}
 	}
 
-	err := d.gateway.RequestFileWrite(ctx, payload.NodeID, req.Path, req.Content, req.Mode, req.CreateDirs)
+	err := d.gateway.RequestFileWrite(
+		ctx, payload.NodeID, req.Path, req.Content, req.Mode, req.CreateDirs,
+		OwnerOptions{User: req.OwnerUser, UID: req.OwnerUid, GID: req.OwnerGid},
+	)
 	if err != nil {
 		return messages.DaemonFileResponsePayload{Error: err.Error()}
 	}
@@ -428,7 +440,8 @@ func (d *fileDispatcher) execUploadTask(
 	payload messages.DaemonFileRequestPayload,
 ) messages.DaemonFileResponsePayload {
 	err := d.gateway.RequestFileUploadTask(
-		ctx, payload.NodeID, payload.TransferID, payload.StoragePath, "", 0,
+		ctx, payload.NodeID, payload.TransferID, payload.StoragePath, "", 0, payload.Mode,
+		OwnerOptions{User: payload.OwnerUser, UID: payload.OwnerUID, GID: payload.OwnerGID},
 	)
 	if err != nil {
 		return messages.DaemonFileResponsePayload{Error: err.Error()}

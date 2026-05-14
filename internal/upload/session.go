@@ -21,6 +21,7 @@ type Session struct {
 	NodeID           uint      `json:"node_id"`
 	UserID           uint      `json:"user_id"`
 	FullPath         string    `json:"full_path"`
+	SuUser           string    `json:"su_user,omitempty"`
 	TotalSize        uint64    `json:"total_size"`
 	ChunkSize        uint64    `json:"chunk_size"`
 	TotalChunks      uint      `json:"total_chunks"`

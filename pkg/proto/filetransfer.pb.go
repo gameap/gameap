@@ -995,6 +995,9 @@ type MkdirParams struct {
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	Recursive     bool                   `protobuf:"varint,2,opt,name=recursive,proto3" json:"recursive,omitempty"`
 	Mode          int32                  `protobuf:"varint,3,opt,name=mode,proto3" json:"mode,omitempty"`
+	OwnerUser     string                 `protobuf:"bytes,4,opt,name=owner_user,json=ownerUser,proto3" json:"owner_user,omitempty"`
+	OwnerUid      int32                  `protobuf:"varint,5,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
+	OwnerGid      int32                  `protobuf:"varint,6,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1046,6 +1049,27 @@ func (x *MkdirParams) GetRecursive() bool {
 func (x *MkdirParams) GetMode() int32 {
 	if x != nil {
 		return x.Mode
+	}
+	return 0
+}
+
+func (x *MkdirParams) GetOwnerUser() string {
+	if x != nil {
+		return x.OwnerUser
+	}
+	return ""
+}
+
+func (x *MkdirParams) GetOwnerUid() int32 {
+	if x != nil {
+		return x.OwnerUid
+	}
+	return 0
+}
+
+func (x *MkdirParams) GetOwnerGid() int32 {
+	if x != nil {
+		return x.OwnerGid
 	}
 	return 0
 }
@@ -1740,11 +1764,15 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"\vChownParams\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x10\n" +
 	"\x03uid\x18\x02 \x01(\x05R\x03uid\x12\x10\n" +
-	"\x03gid\x18\x03 \x01(\x05R\x03gid\"S\n" +
+	"\x03gid\x18\x03 \x01(\x05R\x03gid\"\xac\x01\n" +
 	"\vMkdirParams\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1c\n" +
 	"\trecursive\x18\x02 \x01(\bR\trecursive\x12\x12\n" +
-	"\x04mode\x18\x03 \x01(\x05R\x04mode\"!\n" +
+	"\x04mode\x18\x03 \x01(\x05R\x04mode\x12\x1d\n" +
+	"\n" +
+	"owner_user\x18\x04 \x01(\tR\townerUser\x12\x1b\n" +
+	"\towner_uid\x18\x05 \x01(\x05R\bownerUid\x12\x1b\n" +
+	"\towner_gid\x18\x06 \x01(\x05R\bownerGid\"!\n" +
 	"\vTouchParams\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\" \n" +
 	"\n" +

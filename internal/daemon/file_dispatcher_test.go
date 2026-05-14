@@ -33,6 +33,10 @@ type fakeFileGateway struct {
 
 	uploadCalls   atomic.Int32
 	downloadCalls atomic.Int32
+
+	lastWriteOwner      OwnerOptions
+	lastUploadTaskOwner OwnerOptions
+	lastUploadTaskMode  int32
 }
 
 func (f *fakeFileGateway) RequestFileList(
@@ -62,9 +66,11 @@ func (f *fakeFileGateway) RequestFileRead(
 }
 
 func (f *fakeFileGateway) RequestFileWrite(
-	ctx context.Context, nodeID uint64, path string, content []byte, mode int32, createDirs bool,
+	ctx context.Context, nodeID uint64, path string,
+	content []byte, mode int32, createDirs bool, owner OwnerOptions,
 ) error {
 	f.mu.Lock()
+	f.lastWriteOwner = owner
 	fn := f.requestFileWrite
 	f.mu.Unlock()
 	if fn == nil {
@@ -88,10 +94,13 @@ func (f *fakeFileGateway) RequestFileOperation(
 }
 
 func (f *fakeFileGateway) RequestFileUploadTask(
-	ctx context.Context, nodeID uint64, transferID, destPath, checksum string, totalSize int64,
+	ctx context.Context, nodeID uint64, transferID, destPath, checksum string,
+	totalSize int64, mode int32, owner OwnerOptions,
 ) error {
 	f.uploadCalls.Add(1)
 	f.mu.Lock()
+	f.lastUploadTaskOwner = owner
+	f.lastUploadTaskMode = mode
 	fn := f.requestUploadTask
 	f.mu.Unlock()
 	if fn == nil {
@@ -146,6 +155,7 @@ func (f *fakeConnectionChecker) setConnectedAnywhere(nodeID uint64, value bool) 
 	f.connectedAnywhere[nodeID] = value
 }
 
+//nolint:unparam // capability arg is generic by design; tests currently only use capabilityFileTransfer
 func (f *fakeConnectionChecker) setCapability(nodeID uint64, capability string, value bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -367,7 +377,9 @@ func TestDispatchFileWrite_Success(t *testing.T) {
 	}
 
 	// ACT
-	err := s.dispatcher.DispatchFileWrite(testContext(t), nodeID, "/srv/out.txt", []byte("payload"), 0o644, true)
+	err := s.dispatcher.DispatchFileWrite(
+		testContext(t), nodeID, "/srv/out.txt", []byte("payload"), 0o644, true, OwnerOptions{},
+	)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -388,7 +400,9 @@ func TestDispatchFileWrite_GatewayError(t *testing.T) {
 	}
 
 	// ACT
-	err := s.dispatcher.DispatchFileWrite(testContext(t), nodeID, "/srv/out.txt", []byte("payload"), 0o644, true)
+	err := s.dispatcher.DispatchFileWrite(
+		testContext(t), nodeID, "/srv/out.txt", []byte("payload"), 0o644, true, OwnerOptions{},
+	)
 
 	// ASSERT
 	require.Error(t, err)
@@ -455,7 +469,7 @@ func TestDispatchUploadTask_Success(t *testing.T) {
 	}
 
 	// ACT
-	err := s.dispatcher.DispatchUploadTask(testContext(t), nodeID, "xfer-1", "/srv/dest.txt")
+	err := s.dispatcher.DispatchUploadTask(testContext(t), nodeID, "xfer-1", "/srv/dest.txt", 0, OwnerOptions{})
 
 	// ASSERT
 	require.NoError(t, err)
@@ -502,7 +516,7 @@ func TestDispatchUploadTask_GatewayError(t *testing.T) {
 	}
 
 	// ACT
-	err := s.dispatcher.DispatchUploadTask(testContext(t), nodeID, "xfer-x", "/srv/dest")
+	err := s.dispatcher.DispatchUploadTask(testContext(t), nodeID, "xfer-x", "/srv/dest", 0, OwnerOptions{})
 
 	// ASSERT
 	require.Error(t, err)

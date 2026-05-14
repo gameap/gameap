@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/ws"
 )
@@ -80,7 +81,9 @@ func (h *Handler) sendLegacyCommand(
 
 	inputPath := filepath.Join(server.Dir, "input.txt")
 
-	err := h.fileService.Upload(ctx, node, inputPath, []byte(command), 0644) //nolint:mnd
+	err := h.fileService.Upload(
+		ctx, node, inputPath, []byte(command), 0o644, daemon.OwnerFromServer(server),
+	)
 	if err != nil {
 		h.logger.Warn("failed to upload console command",
 			"server_id", server.ID,

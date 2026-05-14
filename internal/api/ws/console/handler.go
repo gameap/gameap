@@ -39,7 +39,10 @@ type daemonCommands interface {
 
 type fileService interface {
 	Download(ctx context.Context, node *domain.Node, filePath string) ([]byte, error)
-	Upload(ctx context.Context, node *domain.Node, filePath string, content []byte, perms os.FileMode) error
+	Upload(
+		ctx context.Context, node *domain.Node, filePath string,
+		content []byte, perms os.FileMode, owner daemon.OwnerOptions,
+	) error
 }
 
 type consoleLogService interface {

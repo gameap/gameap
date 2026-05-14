@@ -543,7 +543,7 @@ func TestFileService_Upload_Local_Small(t *testing.T) {
 	}
 
 	// ACT
-	err := s.service.Upload(testContext(t), node, "/srv/gameap/out.txt", []byte("hello"), 0o644)
+	err := s.service.Upload(testContext(t), node, "/srv/gameap/out.txt", []byte("hello"), 0o644, OwnerOptions{})
 
 	// ASSERT
 	require.NoError(t, err)
@@ -573,7 +573,7 @@ func TestFileService_Upload_Remote_Dispatched(t *testing.T) {
 	svc := NewFileService(s.gateway, s.registry, stubDispatcher, s.storage, s.transferReg, nil, slog.Default())
 
 	// ACT
-	err := svc.Upload(testContext(t), node, "/srv/gameap/sub/file.txt", []byte("hi"), 0o644)
+	err := svc.Upload(testContext(t), node, "/srv/gameap/sub/file.txt", []byte("hi"), 0o644, OwnerOptions{})
 
 	// ASSERT
 	require.NoError(t, err)
@@ -587,7 +587,7 @@ func TestFileService_Upload_NotConnected(t *testing.T) {
 	node := newTestNode(11)
 
 	// ACT
-	err := s.service.Upload(testContext(t), node, "/srv/gameap/out.txt", []byte("x"), 0o644)
+	err := s.service.Upload(testContext(t), node, "/srv/gameap/out.txt", []byte("x"), 0o644, OwnerOptions{})
 
 	// ASSERT
 	require.Error(t, err)
@@ -611,7 +611,7 @@ func TestFileService_UploadStream_SmallLocal(t *testing.T) {
 	// ACT
 	err := s.service.UploadStream(
 		testContext(t), node, "/srv/gameap/out.txt",
-		bytes.NewReader(expected), uint64(len(expected)), 0o644,
+		bytes.NewReader(expected), uint64(len(expected)), 0o644, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -647,7 +647,7 @@ func TestFileService_UploadStream_LargeLocalUsesUploadTask(t *testing.T) {
 	// ACT
 	err := s.service.UploadStream(
 		testContext(t), node, "/srv/gameap/big.bin",
-		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o600,
+		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o600, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -672,7 +672,7 @@ func TestFileService_UploadStream_LargeLocalUploadTaskError(t *testing.T) {
 	// ACT
 	err := s.service.UploadStream(
 		testContext(t), node, "/srv/gameap/big.bin",
-		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o600,
+		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o600, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -704,7 +704,7 @@ func TestFileService_UploadStream_RemoteDispatched(t *testing.T) {
 	// ACT
 	err := svc.UploadStream(
 		testContext(t), node, "/srv/gameap/big.bin",
-		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o600,
+		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o600, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -737,7 +737,7 @@ func TestFileService_UploadStream_RemoteDispatchError(t *testing.T) {
 	// ACT
 	err := svc.UploadStream(
 		testContext(t), node, "/srv/gameap/big.bin",
-		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o600,
+		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o600, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -751,7 +751,7 @@ func TestFileService_UploadStream_NotConnected(t *testing.T) {
 	node := newTestNode(77)
 
 	// ACT
-	err := s.service.UploadStream(testContext(t), node, "/srv/gameap/x", bytes.NewReader([]byte("hi")), 2, 0o600)
+	err := s.service.UploadStream(testContext(t), node, "/srv/gameap/x", bytes.NewReader([]byte("hi")), 2, 0o600, OwnerOptions{})
 
 	// ASSERT
 	require.Error(t, err)
@@ -786,7 +786,7 @@ func TestFileService_UploadStreamPrepared_LocalWithCapability(t *testing.T) {
 
 	// ACT
 	err := s.service.UploadStreamPrepared(
-		testContext(t), node, "/srv/gameap/sub/file.bin", transferID, checksum, totalSize,
+		testContext(t), node, "/srv/gameap/sub/file.bin", transferID, checksum, totalSize, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -822,7 +822,7 @@ func TestFileService_UploadStreamPrepared_RemoteDispatched(t *testing.T) {
 
 	// ACT
 	err := svc.UploadStreamPrepared(
-		testContext(t), node, "/srv/gameap/big.bin", transferID, "sum", 8192,
+		testContext(t), node, "/srv/gameap/big.bin", transferID, "sum", 8192, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -838,7 +838,7 @@ func TestFileService_UploadStreamPrepared_NotConnectedNoLegacy(t *testing.T) {
 
 	// ACT
 	err := s.service.UploadStreamPrepared(
-		testContext(t), node, "/srv/gameap/x.bin", "tid-no-legacy", "sum", 1024,
+		testContext(t), node, "/srv/gameap/x.bin", "tid-no-legacy", "sum", 1024, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -866,7 +866,7 @@ func TestFileService_UploadStreamPrepared_NotConnectedLegacyMissingData(t *testi
 
 	// ACT
 	err := svc.UploadStreamPrepared(
-		testContext(t), node, "/srv/gameap/x.bin", transferID, "sum", 1024,
+		testContext(t), node, "/srv/gameap/x.bin", transferID, "sum", 1024, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -897,7 +897,7 @@ func TestFileService_UploadStreamPrepared_NotConnectedLegacyTooLarge(t *testing.
 
 	// ACT
 	err := svc.UploadStreamPrepared(
-		testContext(t), node, "/srv/gameap/huge.bin", transferID, "sum", oversize,
+		testContext(t), node, "/srv/gameap/huge.bin", transferID, "sum", oversize, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -928,7 +928,7 @@ func TestFileService_UploadStreamPrepared_NotConnectedLegacySizeMismatch(t *test
 
 	// ACT — declare 100 bytes but storage only has 7
 	err := svc.UploadStreamPrepared(
-		testContext(t), node, "/srv/gameap/x.bin", transferID, "sum", 100,
+		testContext(t), node, "/srv/gameap/x.bin", transferID, "sum", 100, OwnerOptions{},
 	)
 
 	// ASSERT
@@ -961,7 +961,7 @@ func TestFileService_UploadStreamPrepared_NotConnectedLegacyDataPresent(t *testi
 
 	// ACT
 	err := svc.UploadStreamPrepared(
-		testContext(t), node, "/srv/gameap/x.bin", transferID, "sum", uint64(len("staged-data")),
+		testContext(t), node, "/srv/gameap/x.bin", transferID, "sum", uint64(len("staged-data")), OwnerOptions{},
 	)
 
 	// ASSERT
@@ -990,7 +990,7 @@ func TestFileService_MkDir_Local(t *testing.T) {
 	}
 
 	// ACT
-	err := s.service.MkDir(testContext(t), node, "/srv/gameap/newdir/sub")
+	err := s.service.MkDir(testContext(t), node, "/srv/gameap/newdir/sub", OwnerOptions{})
 
 	// ASSERT
 	require.NoError(t, err)
@@ -1010,7 +1010,7 @@ func TestFileService_MkDir_DaemonFailure(t *testing.T) {
 	}
 
 	// ACT
-	err := s.service.MkDir(testContext(t), node, "/srv/gameap/newdir")
+	err := s.service.MkDir(testContext(t), node, "/srv/gameap/newdir", OwnerOptions{})
 
 	// ASSERT
 	require.Error(t, err)
@@ -1705,6 +1705,10 @@ type fakeDispatcher struct {
 	dispatchFileWrite    func(ctx context.Context, nodeID uint64, path string, content []byte, mode int32, createDirs bool) error
 	dispatchUploadTask   func(ctx context.Context, nodeID uint64, transferID, destPath string) error
 	dispatchDownloadTask func(ctx context.Context, nodeID uint64, transferID, srcPath string) error
+
+	lastWriteOwner      OwnerOptions
+	lastUploadTaskOwner OwnerOptions
+	lastUploadTaskMode  int32
 }
 
 func (f *fakeDispatcher) Start(_ context.Context) error { return nil }
@@ -1740,8 +1744,10 @@ func (f *fakeDispatcher) DispatchFileRead(
 }
 
 func (f *fakeDispatcher) DispatchFileWrite(
-	ctx context.Context, nodeID uint64, path string, content []byte, mode int32, createDirs bool,
+	ctx context.Context, nodeID uint64, path string,
+	content []byte, mode int32, createDirs bool, owner OwnerOptions,
 ) error {
+	f.lastWriteOwner = owner
 	if f.dispatchFileWrite == nil {
 		return nil
 	}
@@ -1749,7 +1755,11 @@ func (f *fakeDispatcher) DispatchFileWrite(
 	return f.dispatchFileWrite(ctx, nodeID, path, content, mode, createDirs)
 }
 
-func (f *fakeDispatcher) DispatchUploadTask(ctx context.Context, nodeID uint64, transferID, destPath string) error {
+func (f *fakeDispatcher) DispatchUploadTask(
+	ctx context.Context, nodeID uint64, transferID, destPath string, mode int32, owner OwnerOptions,
+) error {
+	f.lastUploadTaskOwner = owner
+	f.lastUploadTaskMode = mode
 	if f.dispatchUploadTask == nil {
 		return nil
 	}
@@ -1767,4 +1777,124 @@ func (f *fakeDispatcher) DispatchDownloadTask(ctx context.Context, nodeID uint64
 
 func testTime() time.Time {
 	return time.Unix(1700000000, 0)
+}
+
+func TestOwnerFromServer(t *testing.T) {
+	t.Run("nil_server_returns_empty_options", func(t *testing.T) {
+		owner := OwnerFromServer(nil)
+
+		assert.True(t, owner.IsZero())
+	})
+
+	t.Run("server_with_nil_su_user_returns_empty_options", func(t *testing.T) {
+		owner := OwnerFromServer(&domain.Server{})
+
+		assert.True(t, owner.IsZero())
+	})
+
+	t.Run("server_with_su_user_returns_options", func(t *testing.T) {
+		suUser := "gameap"
+		owner := OwnerFromServer(&domain.Server{SuUser: &suUser})
+
+		assert.Equal(t, "gameap", owner.User)
+	})
+}
+
+func TestFileService_UploadStream_SmallFile_OwnerForwardedToWrite(t *testing.T) {
+	s := setupFileService(t)
+	node := newTestNode(201)
+	s.registry.setConnected(uint64(node.ID), true)
+	s.registry.setCapability(uint64(node.ID), capabilityFileTransfer, true)
+
+	err := s.service.UploadStream(
+		testContext(t), node, "/srv/gameap/small.txt",
+		bytes.NewReader([]byte("hi")), 2, 0o644,
+		OwnerOptions{User: "gameap"},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "gameap", s.gateway.lastWriteOwner.User,
+		"owner must be forwarded to RequestFileWrite for small uploads")
+}
+
+func TestFileService_UploadStream_LargeFile_OwnerForwardedToUploadTask(t *testing.T) {
+	s := setupFileService(t)
+	node := newTestNode(202)
+	s.registry.setConnected(uint64(node.ID), true)
+	s.registry.setCapability(uint64(node.ID), capabilityFileTransfer, true)
+
+	largeContent := bytes.Repeat([]byte("X"), 2*1024*1024)
+
+	err := s.service.UploadStream(
+		testContext(t), node, "/srv/gameap/large.bin",
+		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o600,
+		OwnerOptions{User: "gameap"},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "gameap", s.gateway.lastUploadTaskOwner.User,
+		"owner must be forwarded to RequestFileUploadTask for large uploads")
+	assert.Equal(t, int32(0o600), s.gateway.lastUploadTaskMode,
+		"mode must be forwarded to RequestFileUploadTask")
+}
+
+func TestFileService_UploadStream_RemoteDispatch_OwnerForwarded(t *testing.T) {
+	s := setupFileService(t)
+	node := newTestNode(203)
+	s.registry.setConnected(uint64(node.ID), false)
+	s.registry.setConnectedAnywhere(uint64(node.ID), true)
+
+	largeContent := bytes.Repeat([]byte("Y"), 2*1024*1024)
+	stubDispatcher := &fakeDispatcher{}
+	svc := NewFileService(s.gateway, s.registry, stubDispatcher, s.storage, s.transferReg, nil, slog.Default())
+
+	err := svc.UploadStream(
+		testContext(t), node, "/srv/gameap/remote.bin",
+		bytes.NewReader(largeContent), uint64(len(largeContent)), 0o644,
+		OwnerOptions{User: "gameap"},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "gameap", stubDispatcher.lastUploadTaskOwner.User,
+		"owner must traverse the pubsub dispatch path")
+}
+
+func TestFileService_Upload_OwnerForwarded(t *testing.T) {
+	s := setupFileService(t)
+	node := newTestNode(204)
+	s.registry.setConnected(uint64(node.ID), true)
+
+	err := s.service.Upload(
+		testContext(t), node, "/srv/gameap/tiny.txt",
+		[]byte("z"), 0o644, OwnerOptions{User: "gameap", UID: 1000, GID: 1000},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "gameap", s.gateway.lastWriteOwner.User)
+	assert.Equal(t, int32(1000), s.gateway.lastWriteOwner.UID)
+	assert.Equal(t, int32(1000), s.gateway.lastWriteOwner.GID)
+}
+
+func TestFileService_MkDir_OwnerForwardedInProto(t *testing.T) {
+	s := setupFileService(t)
+	node := newTestNode(205)
+	s.registry.setConnected(uint64(node.ID), true)
+
+	var capturedOwner string
+	s.gateway.requestFileOp = func(
+		_ context.Context, _ uint64, req *proto.FileOperationRequest,
+	) (*proto.FileOperationResponse, error) {
+		params := req.GetMkdirParams()
+		if params != nil {
+			capturedOwner = params.OwnerUser
+		}
+
+		return &proto.FileOperationResponse{Success: true}, nil
+	}
+
+	err := s.service.MkDir(testContext(t), node, "/srv/gameap/newdir", OwnerOptions{User: "gameap"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "gameap", capturedOwner,
+		"MkDir must populate MkdirParams.OwnerUser in the proto message")
 }

@@ -28,7 +28,10 @@ type daemonCommands interface {
 }
 
 type fileService interface {
-	Upload(ctx context.Context, node *domain.Node, filePath string, content []byte, perms os.FileMode) error
+	Upload(
+		ctx context.Context, node *domain.Node, filePath string,
+		content []byte, perms os.FileMode, owner daemon.OwnerOptions,
+	) error
 }
 
 type Handler struct {
@@ -158,13 +161,17 @@ func (h *Handler) sendConsoleCommand(ctx context.Context, server *domain.Server,
 		return nil
 	}
 
-	return h.uploadInputFile(ctx, node, server.Dir, command)
+	return h.uploadInputFile(ctx, node, server, command)
 }
 
-func (h *Handler) uploadInputFile(ctx context.Context, node *domain.Node, serverDir string, command string) error {
-	inputPath := filepath.Join(serverDir, "input.txt")
+func (h *Handler) uploadInputFile(
+	ctx context.Context, node *domain.Node, server *domain.Server, command string,
+) error {
+	inputPath := filepath.Join(server.Dir, "input.txt")
 
-	err := h.fileService.Upload(ctx, node, inputPath, []byte(command), 0644)
+	err := h.fileService.Upload(
+		ctx, node, inputPath, []byte(command), 0o644, daemon.OwnerFromServer(server),
+	)
 	if err != nil {
 		return errors.WithMessage(err, "failed to upload console command")
 	}

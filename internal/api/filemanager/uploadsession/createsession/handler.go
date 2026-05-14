@@ -76,11 +76,17 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	fullPath := filepath.Join(resolved.Node.WorkPath, resolved.Server.Dir, input.Path, input.Filename)
 
+	var suUser string
+	if resolved.Server.SuUser != nil {
+		suUser = *resolved.Server.SuUser
+	}
+
 	sess, err := h.service.Create(ctx, upload.CreateParams{
 		ServerID:         resolved.Server.ID,
 		NodeID:           resolved.Node.ID,
 		UserID:           session.User.ID,
 		FullPath:         fullPath,
+		SuUser:           suUser,
 		TotalSize:        input.TotalSize,
 		ExpectedChecksum: input.ExpectedChecksum,
 	})

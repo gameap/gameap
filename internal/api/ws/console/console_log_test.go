@@ -65,7 +65,8 @@ func (f *fakeFileService) Download(
 }
 
 func (f *fakeFileService) Upload(
-	_ context.Context, _ *domain.Node, filePath string, content []byte, _ os.FileMode,
+	_ context.Context, _ *domain.Node, filePath string,
+	content []byte, _ os.FileMode, _ daemon.OwnerOptions,
 ) error {
 	f.uploadCalls.Add(1)
 	f.uploadPath = filePath

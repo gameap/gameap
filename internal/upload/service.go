@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/pkg/errors"
@@ -29,6 +30,7 @@ type CreateParams struct {
 	NodeID           uint
 	UserID           uint
 	FullPath         string
+	SuUser           string
 	TotalSize        uint64
 	ExpectedChecksum string
 }
@@ -94,6 +96,7 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (*Session, error) 
 		NodeID:           p.NodeID,
 		UserID:           p.UserID,
 		FullPath:         p.FullPath,
+		SuUser:           p.SuUser,
 		TotalSize:        p.TotalSize,
 		ChunkSize:        chunkSize,
 		TotalChunks:      totalChunks,
@@ -271,6 +274,7 @@ func (s *Service) Complete(
 
 	if dispatchErr := s.daemon.UploadStreamPrepared(
 		dispatchCtx, node, sess.FullPath, sess.UploadID, actualChecksum, sess.TotalSize,
+		daemon.OwnerOptions{User: sess.SuUser},
 	); dispatchErr != nil {
 		s.logger.Error(
 			"upload daemon dispatch failed",

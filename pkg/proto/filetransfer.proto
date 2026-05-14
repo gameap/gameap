@@ -120,6 +120,9 @@ message MkdirParams {
   string path = 1;
   bool recursive = 2;
   int32 mode = 3;
+  string owner_user = 4;
+  int32 owner_uid = 5;
+  int32 owner_gid = 6;
 }
 
 message TouchParams {

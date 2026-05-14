@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 )
 
@@ -27,6 +28,7 @@ type DaemonUploader interface {
 		transferID string,
 		checksum string,
 		totalSize uint64,
+		owner daemon.OwnerOptions,
 	) error
 }
 

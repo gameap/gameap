@@ -163,7 +163,7 @@ func (c *InmemoryContainer) GRPCExternalPort() uint16                    { retur
 type nopUploader struct{}
 
 func (nopUploader) UploadStreamPrepared(
-	context.Context, *domain.Node, string, string, string, uint64,
+	context.Context, *domain.Node, string, string, string, uint64, daemon.OwnerOptions,
 ) error {
 	return nil
 }

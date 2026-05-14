@@ -75,7 +75,9 @@ type mockFileService struct {
 	getFileInfoFunc func(ctx context.Context, node *domain.Node, path string) (*daemon.FileDetails, error)
 }
 
-func (m *mockFileService) MkDir(ctx context.Context, node *domain.Node, directory string) error {
+func (m *mockFileService) MkDir(
+	ctx context.Context, node *domain.Node, directory string, _ daemon.OwnerOptions,
+) error {
 	if m.mkdirFunc != nil {
 		return m.mkdirFunc(ctx, node, directory)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -39,6 +40,7 @@ type fileService interface {
 		r io.Reader,
 		size uint64,
 		perms os.FileMode,
+		owner daemon.OwnerOptions,
 	) error
 }
 
@@ -165,7 +167,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.processFiles(ctx, node, server.Dir, path, files)
+	err = h.processFiles(ctx, node, server, path, files)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -195,10 +197,12 @@ func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error
 func (h *Handler) processFiles(
 	ctx context.Context,
 	node *domain.Node,
-	serverDir string,
+	server *domain.Server,
 	targetPath string,
 	files []*multipart.FileHeader,
 ) error {
+	owner := daemon.OwnerFromServer(server)
+
 	for _, fileHeader := range files {
 		if fileHeader.Size > maxUploadSize {
 			return api.WrapHTTPError(
@@ -211,7 +215,7 @@ func (h *Handler) processFiles(
 			return api.WrapHTTPError(err, http.StatusBadRequest)
 		}
 
-		fullPath := filepath.Join(node.WorkPath, serverDir, targetPath, fileHeader.Filename)
+		fullPath := filepath.Join(node.WorkPath, server.Dir, targetPath, fileHeader.Filename)
 
 		file, err := fileHeader.Open()
 		if err != nil {
@@ -232,6 +236,7 @@ func (h *Handler) processFiles(
 			file,
 			fileSize,
 			defaultPerms,
+			owner,
 		)
 
 		_ = file.Close()

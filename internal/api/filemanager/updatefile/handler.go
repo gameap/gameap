@@ -46,6 +46,7 @@ type fileService interface {
 		r io.Reader,
 		size uint64,
 		perms os.FileMode,
+		owner daemon.OwnerOptions,
 	) error
 	GetFileInfo(ctx context.Context, node *domain.Node, path string) (*daemon.FileDetails, error)
 }
@@ -141,7 +142,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.updateFile(ctx, node, server.Dir, path, fileHeader)
+	response, err := h.updateFile(ctx, node, server, path, fileHeader)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -205,12 +206,12 @@ func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error
 func (h *Handler) updateFile(
 	ctx context.Context,
 	node *domain.Node,
-	serverDir string,
+	server *domain.Server,
 	targetPath string,
 	fileHeader *multipart.FileHeader,
 ) (updateFileResponse, error) {
 	relativePath := filepath.Join(targetPath, fileHeader.Filename)
-	fullPath := filepath.Join(node.WorkPath, serverDir, relativePath)
+	fullPath := filepath.Join(node.WorkPath, server.Dir, relativePath)
 
 	file, err := fileHeader.Open()
 	if err != nil {
@@ -240,6 +241,7 @@ func (h *Handler) updateFile(
 		file,
 		fileSize,
 		defaultPerms,
+		daemon.OwnerFromServer(server),
 	)
 	if err != nil {
 		return updateFileResponse{}, errors.WithMessage(err, "failed to upload file")
