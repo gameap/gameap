@@ -85,6 +85,7 @@ linters:
         - "created_at"
         - "updated_at"
         - "mysql"
+        - "status"
     loggercheck:
       slog: true
   exclusions:
@@ -138,3 +139,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+
