@@ -16,7 +16,17 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: '**/heavy/**',
+    },
+    {
+      name: 'heavy',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/heavy/**/*.spec.ts',
+      timeout: 10 * 60_000,
+    },
   ],
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1 --port 5173 --strictPort',
