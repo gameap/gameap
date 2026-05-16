@@ -1,45 +1,7 @@
-import { test, expect, type APIResponse, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { loginViaAPI } from '../fixtures/auth';
 import { createUser, deleteUser, getProfile } from '../fixtures/users';
-
-// Server 500s are masked to a generic body by the API responder; surface the
-// response text in the failure message so a backend error is self-describing
-// without a re-run.
-async function expectStatus(
-  response: APIResponse,
-  expected: number,
-  label: string,
-): Promise<void> {
-  const actual = response.status();
-  if (actual === expected) {
-    return;
-  }
-
-  let body = '<unavailable>';
-  try {
-    body = await response.text();
-  } catch {
-    // The response body can be evicted when the page navigates (e.g. LoginView
-    // calls location.reload() right after a successful login), so reading it is
-    // best-effort and only attempted on a status mismatch.
-  }
-
-  expect(actual, `${label} (body: ${body})`).toBe(expected);
-}
-
-// naive-ui $dialog (notification) renders role="dialog" with a single "Close"
-// action button. Scope to the dialog (top-most when several stack) so a stray
-// card-header close "X" (aria-label="close") elsewhere on the page does not
-// cause a strict-mode match.
-async function dismissTopDialog(page: Page): Promise<void> {
-  const close = page
-    .getByRole('dialog')
-    .last()
-    .getByRole('button', { name: CLOSE });
-  await expect(close).toBeVisible({ timeout: 10_000 });
-  await close.click();
-  await expect(close).toBeHidden({ timeout: 10_000 });
-}
+import { expectStatus, dismissTopDialog } from '../fixtures/ui';
 
 const STAMP = Date.now();
 const LOGIN = `e2e_pe_${STAMP}`;
@@ -53,7 +15,6 @@ const NEW_NAME = `PE New ${STAMP}`;
 // unpopulated (i18n.js trans() returns the key), so every text matcher covers
 // English, Russian and the raw key — same convention as login.spec.ts.
 const SIGN_IN = /sign.?in|login|вход|войти|auth\.sign_in/i;
-const CLOSE = /close|закрыть|main\.close/i;
 const PROFILE_ITEM = /profile|профиль|navbar\.profile/i;
 const SIGN_OUT_ITEM = /sign[\s_-]?out|выйти|navbar\.sign_out/i;
 
