@@ -1,7 +1,7 @@
 <template>
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
-  <GButton color="green" size="middle" class="mb-5" v-on:click="onClickUpdate()">
+  <GButton color="green" size="middle" class="mb-5" data-testid="profile-edit-button" v-on:click="onClickUpdate()">
     <GIcon name="edit" class="mr-1" />
     <span>{{ trans('profile.edit')}}</span>
   </GButton>
@@ -19,7 +19,7 @@
       </tr>
       <tr>
         <td><strong>{{ trans('users.name') }}:</strong></td>
-        <td>{{ user.name }}</td>
+        <td data-testid="profile-name-value">{{ user.name }}</td>
       </tr>
       <tr>
         <td><strong>{{ trans('users.roles') }}:</strong></td>
