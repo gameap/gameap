@@ -1,5 +1,6 @@
 import { ref, onBeforeUnmount } from 'vue'
 import { useWsStatusStore } from '@/store/wsStatus'
+import { useAuthStore } from '@/store/auth'
 
 const MAX_RECONNECT_DELAY = 30000
 const PING_INTERVAL = 25000
@@ -32,6 +33,7 @@ export function useWebSocket(options = {}) {
 
     const status = ref('disconnected')
     const wsStatusStore = useWsStatusStore()
+    const authStore = useAuthStore()
     const connectionId = generateConnectionId()
 
     let ws = null
@@ -45,9 +47,9 @@ export function useWebSocket(options = {}) {
     let manualClose = false
     let registered = false
 
-    function connect(urlPath) {
-        const token = localStorage.getItem('auth_token')
-        if (!token) {
+    async function connect(urlPath) {
+        // No long-lived session → nothing to exchange for a short-lived token.
+        if (!localStorage.getItem('auth_token')) {
             return
         }
 
@@ -57,7 +59,6 @@ export function useWebSocket(options = {}) {
 
         cleanup()
 
-        const url = buildWsUrl(urlPath, token)
         status.value = 'connecting'
 
         if (!registered) {
@@ -66,6 +67,31 @@ export function useWebSocket(options = {}) {
         }
         wsStatusStore.setStatus(connectionId, 'connecting', reconnectAttempts)
 
+        // The browser cannot set headers on a WS upgrade, so the token must
+        // travel in the URL. Use a single-use, short-lived token (re-minted
+        // on every reconnect) instead of the long-lived one, so a copy
+        // captured from proxy logs or history is worthless.
+        let token
+        try {
+            token = await authStore.fetchShortLivedToken()
+        } catch (e) {
+            // A 401 is handled globally by the axios interceptor (redirect to
+            // login). Treat any failure as a failed attempt and let the
+            // reconnect logic retry with a fresh token.
+            status.value = 'disconnected'
+            wsStatusStore.setStatus(connectionId, 'disconnected', reconnectAttempts)
+            if (shouldReconnect && !manualClose) {
+                scheduleReconnect()
+            }
+            return
+        }
+
+        // close() or a newer connect() may have run while awaiting the token.
+        if (manualClose || currentPath !== urlPath) {
+            return
+        }
+
+        const url = buildWsUrl(urlPath, token)
         ws = new WebSocket(url)
 
         ws.onopen = () => {

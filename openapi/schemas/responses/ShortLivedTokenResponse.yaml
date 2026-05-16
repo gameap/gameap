@@ -1,0 +1,17 @@
+type: object
+description: Short-lived token response
+properties:
+  token:
+    type: string
+    description: |
+      Single-use authorization token. Prefixed with `glst_`. Pass it as the
+      `?token=` query parameter on the WebSocket upgrade or file download. It
+      is invalidated on first use.
+    example: "glst_aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9f"
+  expires_in:
+    type: integer
+    description: Token lifetime in seconds (≤ 10)
+    example: 10
+required:
+  - token
+  - expires_in

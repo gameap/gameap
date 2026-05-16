@@ -65,6 +65,17 @@ export const useAuthStore = defineStore('auth', {
                 this.apiProcesses--
             }
         },
+        // Exchanges the long-lived token (sent in the Authorization header by
+        // the configured axios instance) for a single-use, short-lived token
+        // safe to put in a URL — used for WebSocket upgrades where the browser
+        // cannot set headers. Intentionally not counted in apiProcesses: it
+        // runs before every (re)connect and must not flicker the global
+        // loading indicator; the WS status store reflects connection state.
+        async fetchShortLivedToken() {
+            const response = await axios.post('/api/auth/short-lived-token')
+
+            return response.data.token
+        },
         async login(credentials) {
             this.apiProcesses++
             try {

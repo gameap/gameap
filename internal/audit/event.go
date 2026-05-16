@@ -39,31 +39,33 @@ const (
 	EventLoginBlocked       EventType = "auth.login.blocked"
 	EventAccessDenied       EventType = "access.denied"
 
-	EventUserUpdate       EventType = "user.update"
-	EventUserRolesAssign  EventType = "user.roles.assign"
-	EventPATCreate        EventType = "token.pat.create"
-	EventPATRevoke        EventType = "token.pat.revoke"
-	EventDaemonTokenIssue EventType = "token.daemon.issue"
-	EventNodeCreate       EventType = "node.create"
-	EventNodeUpdate       EventType = "node.update"
-	EventNodeDelete       EventType = "node.delete"
-	EventFileDelete       EventType = "file.delete"
-	EventFileRename       EventType = "file.rename"
-	EventFileChmod        EventType = "file.chmod"
-	EventFileWrite        EventType = "file.write"
-	EventFileUpload       EventType = "file.upload"
-	EventPluginInstall    EventType = "plugin.install"
-	EventPluginUninstall  EventType = "plugin.uninstall"
+	EventUserUpdate           EventType = "user.update"
+	EventUserRolesAssign      EventType = "user.roles.assign"
+	EventPATCreate            EventType = "token.pat.create"
+	EventPATRevoke            EventType = "token.pat.revoke"
+	EventDaemonTokenIssue     EventType = "token.daemon.issue"
+	EventShortLivedTokenIssue EventType = "token.shortlived.issue"
+	EventNodeCreate           EventType = "node.create"
+	EventNodeUpdate           EventType = "node.update"
+	EventNodeDelete           EventType = "node.delete"
+	EventFileDelete           EventType = "file.delete"
+	EventFileRename           EventType = "file.rename"
+	EventFileChmod            EventType = "file.chmod"
+	EventFileWrite            EventType = "file.write"
+	EventFileUpload           EventType = "file.upload"
+	EventPluginInstall        EventType = "plugin.install"
+	EventPluginUninstall      EventType = "plugin.uninstall"
 )
 
 // AuthMethod describes how the actor authenticated for the audited request.
 type AuthMethod string
 
 const (
-	AuthMethodSession   AuthMethod = "session"
-	AuthMethodPAT       AuthMethod = "pat"
-	AuthMethodDaemon    AuthMethod = "daemon"
-	AuthMethodAnonymous AuthMethod = "anonymous"
+	AuthMethodSession    AuthMethod = "session"
+	AuthMethodPAT        AuthMethod = "pat"
+	AuthMethodShortLived AuthMethod = "shortlived"
+	AuthMethodDaemon     AuthMethod = "daemon"
+	AuthMethodAnonymous  AuthMethod = "anonymous"
 )
 
 // Event is the stable audit-record schema. Zero-valued fields are omitted

@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/internal/acme/http01"
 	"github.com/gameap/gameap/internal/api/auth/login"
 	"github.com/gameap/gameap/internal/api/auth/logout"
+	"github.com/gameap/gameap/internal/api/auth/shorttoken"
 	"github.com/gameap/gameap/internal/api/clientcertificates/deleteclientcertificates"
 	"github.com/gameap/gameap/internal/api/clientcertificates/getclientcertificates"
 	"github.com/gameap/gameap/internal/api/clientcertificates/postclientcertificates"
@@ -282,6 +283,7 @@ func frontendPluginsHandler(c container) http.Handler {
 		c.UserService(),
 		c.PersonalAccessTokenRepository(),
 		auth.NewCacheRevocation(c.Cache()),
+		c.Cache(),
 		c.Responder(),
 		c.AuditLogger(),
 	)
@@ -301,6 +303,7 @@ func frontendPluginsStylesHandler(c container) http.Handler {
 		c.UserService(),
 		c.PersonalAccessTokenRepository(),
 		auth.NewCacheRevocation(c.Cache()),
+		c.Cache(),
 		c.Responder(),
 		c.AuditLogger(),
 	)
@@ -374,12 +377,13 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 	)
 
 	routes := []struct {
-		Method            string
-		Path              string
-		Handler           http.Handler
-		AllowGuestAccess  bool
-		AdminOnly         bool
-		CheckPATAbilities []domain.PATAbility
+		Method               string
+		Path                 string
+		Handler              http.Handler
+		AllowGuestAccess     bool
+		AdminOnly            bool
+		AllowShortLivedToken bool
+		CheckPATAbilities    []domain.PATAbility
 	}{
 		{
 			Method:           http.MethodGet,
@@ -415,6 +419,16 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.AuthService(),
 				auth.NewCacheRevocation(c.Cache()),
 				c.Responder(),
+			),
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/auth/short-lived-token",
+			Handler: shorttoken.NewHandler(
+				c.Cache(),
+				c.Config().ShortLivedTokenTTL,
+				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 
@@ -1225,7 +1239,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.CertificatesService(),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:            true,
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1234,7 +1249,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.CertificatesService(),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:            true,
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1447,7 +1463,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:            true,
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1458,7 +1475,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:            true,
+			AllowShortLivedToken: true,
 		},
 
 		// Games
@@ -1786,6 +1804,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				wsOriginPatterns(c.Config()),
 				c.Responder(),
 			),
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1803,6 +1822,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ConsoleLogService(),
 				c.Responder(),
 			),
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1819,6 +1839,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1831,7 +1852,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				wsOriginPatterns(c.Config()),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:            true,
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1844,7 +1866,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				wsOriginPatterns(c.Config()),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:            true,
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1857,6 +1880,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				wsOriginPatterns(c.Config()),
 				c.Responder(),
 			),
+			AllowShortLivedToken: true,
 		},
 	}
 
@@ -1865,6 +1889,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		c.UserService(),
 		c.PersonalAccessTokenRepository(),
 		auth.NewCacheRevocation(c.Cache()),
+		c.Cache(),
 		c.Responder(),
 		c.AuditLogger(),
 	)
@@ -1886,6 +1911,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		c.Responder(),
 	)
 
+	shortLivedScopeMiddleware := middlewares.NewShortLivedScopeMiddleware(
+		c.Responder(),
+		c.AuditLogger(),
+	)
+
 	for _, r := range routes {
 		handler := r.Handler
 
@@ -1898,6 +1928,10 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		if r.AdminOnly {
 			handler = isAdminMiddleware.Middleware(handler)
 		}
+
+		// Runs right after auth (which sets the session): a short-lived
+		// token is only honoured on routes that opted in.
+		handler = shortLivedScopeMiddleware.Middleware(handler, r.AllowShortLivedToken)
 
 		if !r.AllowGuestAccess {
 			handler = authMiddleware.Middleware(handler)

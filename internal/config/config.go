@@ -51,6 +51,12 @@ type Config struct {
 	AuthSecret    string `env:"AUTH_SECRET,required,notEmpty" envDefault:""`
 	AuthService   string `env:"AUTH_SERVICE" envDefault:"paseto"`
 
+	// ShortLivedTokenTTL bounds the lifetime of single-use authorization
+	// tokens issued for contexts where the token must travel in the URL
+	// (WebSocket upgrades, file downloads). It is hard-capped at 10s by the
+	// issuing handler regardless of a larger configured value.
+	ShortLivedTokenTTL time.Duration `env:"AUTH_SHORT_LIVED_TOKEN_TTL" envDefault:"10s"`
+
 	RBAC struct {
 		CacheTTL string `env:"RBAC_CACHE_TTL" envDefault:"30s"`
 	}

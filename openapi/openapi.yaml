@@ -72,9 +72,14 @@ info:
     ## WebSocket endpoints
 
     OpenAPI does not natively model WebSocket flows; this section documents
-    them informally. All WS endpoints accept the same Bearer token via the
-    `?token=` query parameter (the browser does not allow setting headers
-    on a WebSocket upgrade). Outbound frames are JSON
+    them informally. WS endpoints take the token via the `?token=` query
+    parameter (the browser does not allow setting headers on a WebSocket
+    upgrade). Mint a **single-use, short-lived** token with
+    `POST /api/auth/short-lived-token` and use that — never a long-lived
+    token — in the URL, so the credential cannot be replayed from proxy
+    logs or browser history. Fetch a fresh one before every (re)connection.
+    A long-lived Bearer/PAT is still accepted for non-browser clients.
+    Outbound frames are JSON
     `{"type": string, "payload": any, "ts": int64}` envelopes.
 
     ### `/api/ws/nodes/metrics` (admin only)
@@ -316,6 +321,8 @@ paths:
     $ref: './paths/auth.yaml#/~1api~1auth~1login'
   /api/auth/logout:
     $ref: './paths/auth.yaml#/~1api~1auth~1logout'
+  /api/auth/short-lived-token:
+    $ref: './paths/auth.yaml#/~1api~1auth~1short-lived-token'
 
   # User & Profile
   /api/user:

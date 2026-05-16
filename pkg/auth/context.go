@@ -19,6 +19,11 @@ type Session struct {
 
 	User  *domain.User
 	Token *domain.PersonalAccessToken
+
+	// ShortLived is true when the session was established from a single-use
+	// short-lived token. The scope guard uses it to reject such tokens on
+	// endpoints that did not explicitly opt in (see ShortLivedScopeMiddleware).
+	ShortLived bool
 }
 
 func (s *Session) IsAuthenticated() bool {

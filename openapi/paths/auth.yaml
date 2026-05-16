@@ -201,3 +201,70 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+
+/api/auth/short-lived-token:
+  post:
+    tags:
+      - Auth
+    summary: Issue a short-lived token
+    description: |
+      Issues a **single-use, short-lived** authorization token (TTL ≤ 10s)
+      for the authenticated caller.
+
+      Use it where a credential must travel in the URL — the WebSocket
+      upgrade (`/api/ws/*?token=...`) and the file-download endpoints — so the
+      long-lived token never leaks into proxy logs, browser history or the
+      network inspector. The token is invalidated the first time it
+      authenticates a request, so a captured copy is worthless once the
+      connection is established. Request a fresh one before every
+      (re)connection.
+
+      The minting request itself must authenticate with the long-lived token
+      in the `Authorization` header (never the URL). A short-lived token is
+      rejected here and on every endpoint that did not explicitly opt in
+      (returning `403`); it is accepted only on the WebSocket and
+      file-download routes.
+    operationId: createShortLivedToken
+    x-codeSamples:
+      - lang: cURL
+        label: CLI
+        source: |
+          curl -s -X POST "https://demo.gameap.com/api/auth/short-lived-token" \
+            -H "Authorization: Bearer YOUR_LONG_LIVED_TOKEN" \
+            -w "\nHTTP Status: %{http_code}\n"
+
+      - lang: NodeJS
+        source: |
+          // 1. Mint a short-lived token (long-lived token stays in the header)
+          const res = await fetch(
+            'https://demo.gameap.com/api/auth/short-lived-token',
+            {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${longLivedToken}` },
+            },
+          );
+          const { token } = await res.json();
+
+          // 2. Use it immediately for the WebSocket upgrade
+          const ws = new WebSocket(
+            `wss://demo.gameap.com/api/ws/servers/6/console?token=${encodeURIComponent(token)}`,
+          );
+    responses:
+      '200':
+        description: Short-lived token issued
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/responses/ShortLivedTokenResponse.yaml'
+      '401':
+        description: Missing or invalid token
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: A short-lived token cannot be used to mint another
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'

@@ -29,9 +29,12 @@ func actorFrom(ctx context.Context, e *Event) {
 	if s := auth.SessionFromContext(ctx); s.IsAuthenticated() {
 		e.ActorID = s.User.ID
 		e.ActorLogin = s.User.Login
-		if s.IsTokenSession() {
+		switch {
+		case s.ShortLived:
+			e.AuthMethod = AuthMethodShortLived
+		case s.IsTokenSession():
 			e.AuthMethod = AuthMethodPAT
-		} else {
+		default:
 			e.AuthMethod = AuthMethodSession
 		}
 

@@ -3,12 +3,14 @@ package middlewares
 import (
 	"context"
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/audit"
+	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -28,6 +30,7 @@ var (
 	errUnsupportedPATType       = errors.New("unsupported personal access token type")
 	errUserNotFoundForPAT       = errors.New("user not found for personal access token")
 	errInvalidOrExpiredToken    = errors.New("invalid or expired token")
+	errInvalidShortToken        = errors.New("invalid or expired short-lived token")
 	errInvalidTokenSubject      = errors.New("invalid token subject")
 	errUserNotFound             = errors.New("user not found")
 	errUserNotAuthenticated     = errors.New("user not authenticated")
@@ -41,6 +44,7 @@ const (
 	tokenTypeUnknown tokenType = iota
 	tokenTypePersonalAccess
 	tokenTypeUserAuth
+	tokenTypeShortLived
 )
 
 type AuthMiddleware struct {
@@ -48,6 +52,7 @@ type AuthMiddleware struct {
 	userRepo    repositories.UserRepository
 	tokenRepo   repositories.PersonalAccessTokenRepository
 	revocation  auth.TokenRevocation
+	cache       cache.Cache
 	responder   base.Responder
 	audit       audit.Logger
 }
@@ -57,6 +62,7 @@ func NewAuthMiddleware(
 	userRepo repositories.UserRepository,
 	tokenRepo repositories.PersonalAccessTokenRepository,
 	revocation auth.TokenRevocation,
+	tokenCache cache.Cache,
 	responder base.Responder,
 	auditLogger audit.Logger,
 ) *AuthMiddleware {
@@ -72,6 +78,7 @@ func NewAuthMiddleware(
 		userRepo:    userRepo,
 		tokenRepo:   tokenRepo,
 		revocation:  revocation,
+		cache:       tokenCache,
 		responder:   responder,
 		audit:       auditLogger,
 	}
@@ -113,6 +120,8 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 			session, err = m.processUserAuthToken(r.Context(), tokenString)
 		case tokenTypePersonalAccess:
 			session, err = m.processPersonalAccessToken(r.Context(), tokenString)
+		case tokenTypeShortLived:
+			session, err = m.processShortLivedToken(r.Context(), tokenString)
 		default:
 			audit.TokenRejected(r.Context(), m.audit, "unknown_token_type")
 			m.responder.WriteError(r.Context(), w, api.WrapHTTPError(
@@ -192,6 +201,8 @@ func authRejectReason(err error) (string, bool) {
 		return "user_not_found_for_pat", true
 	case errors.Is(err, errInvalidOrExpiredToken):
 		return "invalid_or_expired_token", true
+	case errors.Is(err, errInvalidShortToken):
+		return "shorttoken_invalid_or_expired", true
 	case errors.Is(err, errInvalidTokenSubject):
 		return "invalid_token_subject", true
 	case errors.Is(err, errUserNotFound):
@@ -233,6 +244,10 @@ func (m *AuthMiddleware) extractToken(r *http.Request) string {
 // JWT: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 // Personal Access Token: 13|gKwaw8PjGrkmxRg...
 func (m *AuthMiddleware) detectTokenType(token string) tokenType {
+	if m.cache != nil && auth.IsShortLivedToken(token) {
+		return tokenTypeShortLived
+	}
+
 	if strings.HasPrefix(token, "v4.local.") ||
 		strings.HasPrefix(token, "v4.public.") ||
 		strings.HasPrefix(token, "eyJ") {
@@ -336,6 +351,78 @@ func (m *AuthMiddleware) processPersonalAccessToken(ctx context.Context, token s
 		User:  user,
 		Token: dbToken,
 	}, nil
+}
+
+// processShortLivedToken validates a single-use short-lived token. The cache
+// entry is deleted before the session is built so a replayed token — and any
+// concurrent reuse race — loses. The reconstructed session inherits the PAT
+// abilities of the session that minted it (if any), so a short-lived token is
+// never broader than its origin.
+func (m *AuthMiddleware) processShortLivedToken(
+	ctx context.Context, token string,
+) (*auth.Session, error) {
+	key := auth.ShortLivedCacheKey(token)
+
+	raw, err := m.cache.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, cache.ErrNotFound) {
+			return nil, api.WrapHTTPError(
+				errInvalidShortToken,
+				http.StatusUnauthorized,
+			)
+		}
+
+		return nil, errors.WithMessage(err, "failed to load short-lived token from cache")
+	}
+
+	if delErr := m.cache.Delete(ctx, key); delErr != nil {
+		slog.WarnContext(ctx, "failed to delete consumed short-lived token", "error", delErr)
+	}
+
+	payload, err := auth.UnmarshalShortLivedPayload(raw)
+	if err != nil {
+		return nil, api.WrapHTTPError(
+			errInvalidShortToken,
+			http.StatusUnauthorized,
+		)
+	}
+
+	users, err := m.userRepo.Find(
+		ctx,
+		filters.FindUserByIDs(payload.UserID),
+		nil,
+		&filters.Pagination{Limit: 1},
+	)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to load user for short-lived token")
+	}
+
+	if len(users) == 0 {
+		return nil, api.WrapHTTPError(
+			errUserNotFound,
+			http.StatusUnauthorized,
+		)
+	}
+
+	user := &users[0]
+
+	session := &auth.Session{
+		ID:         xid.New().String(),
+		Login:      user.Login,
+		Email:      user.Email,
+		User:       user,
+		ShortLived: true,
+	}
+
+	if payload.PATID != 0 {
+		abilities := payload.Abilities
+		session.Token = &domain.PersonalAccessToken{
+			ID:        payload.PATID,
+			Abilities: &abilities,
+		}
+	}
+
+	return session, nil
 }
 
 // processUserAuthToken processes standard user authentication tokens (PASETO, JWT).
