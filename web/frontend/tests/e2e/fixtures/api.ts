@@ -222,6 +222,28 @@ export async function getDaemonTask(
   return (await response.json()) as DaemonTaskRecord;
 }
 
+// /api/gdaemon_tasks/{id} omits `output` (route wired withOutput=false +
+// json:"output,omitempty"). The captured daemon/steamcmd log lives only on the
+// admin-only sibling endpoint, which the e2e admin token can reach.
+export async function getDaemonTaskOutput(
+  request: APIRequestContext,
+  token: string,
+  id: number,
+): Promise<string> {
+  const response = await request.get(
+    `${BASE_URL}/api/gdaemon_tasks/${id}/output`,
+    { headers: authHeader(token) },
+  );
+
+  if (!response.ok()) {
+    return `<failed to fetch task output: ${response.status()}>`;
+  }
+
+  const body = (await response.json()) as { output?: string | null };
+
+  return body.output ?? '(empty)';
+}
+
 // Matches openapi/schemas/common/ServerInstalledStatus.yaml.
 export const ServerInstalled = {
   NotInstalled: 0,

@@ -4,6 +4,7 @@ import {
   createGameMod,
   createServer,
   getDaemonTask,
+  getDaemonTaskOutput,
   getGameModId,
   getServer,
   listNodes,
@@ -106,18 +107,30 @@ export async function waitForInstallSuccess(
   }
 
   if (task.status !== 'success') {
+    const output = await getDaemonTaskOutput(
+      request,
+      token,
+      provisioned.taskId,
+    );
+
     throw new Error(
       `install task ${provisioned.taskId} finished with status ` +
-        `"${task.status}".\n--- task output ---\n${task.output ?? '(empty)'}`,
+        `"${task.status}".\n--- task output ---\n${output}`,
     );
   }
 
   const server = await getServer(request, token, provisioned.serverId);
   if (server.installed !== ServerInstalled.Installed) {
+    const output = await getDaemonTaskOutput(
+      request,
+      token,
+      provisioned.taskId,
+    );
+
     throw new Error(
       `task succeeded but server ${provisioned.serverId} installed flag is ` +
         `${server.installed} (expected ${ServerInstalled.Installed}); ` +
-        `task output:\n${task.output ?? '(empty)'}`,
+        `task output:\n${output}`,
     );
   }
 
