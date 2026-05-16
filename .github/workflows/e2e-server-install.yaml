@@ -185,7 +185,10 @@ jobs:
           docker exec gameap-daemon bash -c "\
             dpkg --add-architecture i386 && \
             apt-get update -qq && \
-            apt-get install -y -qq lib32gcc-s1 lib32stdc++6 ca-certificates curl tar xz-utils"
+            apt-get install -y -qq lib32gcc-s1 lib32stdc++6 ca-certificates curl tar xz-utils && \
+            mkdir -p /srv/gameap/steamcmd && \
+            curl -sqL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
+              | tar -xz -C /srv/gameap/steamcmd"
 
       - name: Run Playwright steamcmd heavy tests (temporary, every push)
         working-directory: web/frontend

@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	apiKeyLength    = 64
-	defaultPort     = 31717
-	defaultWorkPath = "/srv/gameap"
+	apiKeyLength        = 64
+	defaultPort         = 31717
+	defaultWorkPath     = "/srv/gameap"
+	defaultSteamCMDPath = "/srv/gameap/steamcmd"
 )
 
 type EnrollResult struct {
@@ -100,6 +101,7 @@ func (s *Service) Enroll(ctx context.Context, setupKey string, input *EnrollInpu
 		Provider:            new("Unknown"),
 		IPs:                 domain.IPList{input.Host},
 		WorkPath:            defaultWorkPath,
+		SteamcmdPath:        new(defaultSteamCMDPath),
 		GdaemonHost:         input.Host,
 		GdaemonPort:         port,
 		GdaemonAPIKey:       apiKey,
