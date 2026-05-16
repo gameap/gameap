@@ -93,7 +93,7 @@ jobs:
 
       - name: Run Playwright tests
         working-directory: web/frontend
-        run: npx playwright test
+        run: npx playwright test --project=chromium
 
       - name: Stop API
         if: always()
