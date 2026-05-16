@@ -17,7 +17,9 @@ on:
 jobs:
   e2e-server-install:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Quake 2 (every push) finishes well under 30 min; the ceiling is raised
+    # for the nightly steamcmd (app 90) install, which is large and slow.
+    timeout-minutes: 60
 
     services:
       postgres:
@@ -167,9 +169,27 @@ jobs:
         working-directory: web/frontend
         run: npx playwright install --with-deps chromium
 
-      - name: Run Playwright heavy tests
+      - name: Run Playwright heavy tests (Quake 2, every push)
         working-directory: web/frontend
         run: npx playwright test --project=heavy
+
+      # steamcmd is a 32-bit binary and needs i386 libraries that the bare
+      # ubuntu:24.04 daemon container does not ship.
+      #
+      # TEMPORARY (e2e validation): the steamcmd install (CS 1.6 / app 90) runs
+      # on EVERY push. Before final merge to main, restore the nightly guard on
+      # the two steps below:
+      #   if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      - name: Install steamcmd prerequisites in daemon (temporary, every push)
+        run: |
+          docker exec gameap-daemon bash -c "\
+            dpkg --add-architecture i386 && \
+            apt-get update -qq && \
+            apt-get install -y -qq lib32gcc-s1 lib32stdc++6 ca-certificates curl tar xz-utils"
+
+      - name: Run Playwright steamcmd heavy tests (temporary, every push)
+        working-directory: web/frontend
+        run: npx playwright test --project=heavy-steam
 
       - name: Stop API
         if: always()

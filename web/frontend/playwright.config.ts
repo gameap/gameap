@@ -29,7 +29,15 @@ export default defineConfig({
       name: 'heavy',
       use: { ...devices['Desktop Chrome'] },
       testMatch: '**/heavy/**/*.spec.ts',
+      testIgnore: '**/heavy/**/*.steam.spec.ts',
       timeout: 10 * 60_000,
+    },
+    {
+      // Real steamcmd installs (HLDS app 90) are slow and flaky — nightly only.
+      name: 'heavy-steam',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/heavy/**/*.steam.spec.ts',
+      timeout: 25 * 60_000,
     },
   ],
   webServer: {
