@@ -48,6 +48,23 @@ func TestShortLivedScopeMiddleware(t *testing.T) {
 			wantDenied:      true,
 		},
 		{
+			// The guard must key off ShortLived, not the presence of a Token:
+			// a PAT-derived short-lived session is still URL-borne and must be
+			// confined to opted-in routes even though it carries PAT abilities.
+			name: "pat_derived_short_lived_session_on_other_route_is_denied",
+			session: &auth.Session{
+				User:       authedUser,
+				ShortLived: true,
+				Token: &domain.PersonalAccessToken{
+					ID:        7,
+					Abilities: &[]domain.PATAbility{domain.PATAbilityServerList},
+				},
+			},
+			allowShortLived: false,
+			wantStatus:      http.StatusForbidden,
+			wantDenied:      true,
+		},
+		{
 			name:            "normal_session_is_unaffected",
 			session:         &auth.Session{User: authedUser},
 			allowShortLived: false,

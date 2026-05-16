@@ -77,6 +77,21 @@ func daemonSessionCtx(id uint, name string) context.Context {
 	})
 }
 
+func shortLivedSessionCtx(id uint, login string) context.Context {
+	return auth.ContextWithSession(context.Background(), &auth.Session{
+		User:       &domain.User{ID: id, Login: login},
+		ShortLived: true,
+	})
+}
+
+func patDerivedShortLivedSessionCtx(id uint, login string, tokenID uint) context.Context {
+	return auth.ContextWithSession(context.Background(), &auth.Session{
+		User:       &domain.User{ID: id, Login: login},
+		Token:      &domain.PersonalAccessToken{ID: tokenID},
+		ShortLived: true,
+	})
+}
+
 // TestActorDerivation covers OWASP API8:2023.
 // The actor on an event with no preset AuthMethod must be derived from the
 // request context: user session → session, PAT session → pat, daemon
@@ -135,6 +150,60 @@ func TestActorDerivation(t *testing.T) {
 			assert.Equal(t, tt.wantAuthMethod, got.AuthMethod, "auth_method must reflect the session kind")
 			assert.Equal(t, tt.wantActorID, got.ActorID, "actor_id must be taken from the session principal")
 			assert.Equal(t, tt.wantActorLogin, got.ActorLogin, "actor_login must be taken from the session principal")
+		})
+	}
+}
+
+// TestActorDerivation_ShortLivedSession covers OWASP API8:2023.
+// An action performed with a single-use short-lived token must be attributed
+// to the short-lived auth method (so the audit trail distinguishes it from a
+// full session) while still recording the acting principal. The ShortLived
+// classification must take precedence over the PAT classification: a
+// PAT-derived short-lived session is short-lived first, so a leaked URL token
+// is never logged as if it were the long-lived PAT itself.
+func TestActorDerivation_ShortLivedSession(t *testing.T) {
+	tests := []struct {
+		name           string
+		ctx            context.Context
+		wantAuthMethod audit.AuthMethod
+		wantActorID    uint
+		wantActorLogin string
+	}{
+		{
+			name:           "session_derived_short_lived_yields_shortlived_actor",
+			ctx:            shortLivedSessionCtx(7, "alice"),
+			wantAuthMethod: audit.AuthMethodShortLived,
+			wantActorID:    7,
+			wantActorLogin: "alice",
+		},
+		{
+			name:           "pat_derived_short_lived_still_yields_shortlived_actor",
+			ctx:            patDerivedShortLivedSessionCtx(7, "alice", 99),
+			wantAuthMethod: audit.AuthMethodShortLived,
+			wantActorID:    7,
+			wantActorLogin: "alice",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			recorder := &captureLogger{}
+
+			// ACT
+			// SensitiveOp leaves AuthMethod empty, so actor derivation runs.
+			audit.SensitiveOp(tt.ctx, recorder, audit.EventNodeUpdate, audit.CategoryNodeOp,
+				"node", "1", "update")
+
+			// ASSERT
+			got, ok := recorder.last()
+			require.True(t, ok, "an event must have been recorded")
+			assert.Equal(t, tt.wantAuthMethod, got.AuthMethod,
+				"a short-lived session must be attributed shortlived, never session/pat")
+			assert.Equal(t, tt.wantActorID, got.ActorID,
+				"actor_id must still be taken from the session principal")
+			assert.Equal(t, tt.wantActorLogin, got.ActorLogin,
+				"actor_login must still be taken from the session principal")
 		})
 	}
 }

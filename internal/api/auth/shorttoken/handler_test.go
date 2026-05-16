@@ -26,9 +26,23 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// failingSetCache is a tokenCache whose Set always fails, used to drive the
+// storage-failure branch a real cache never exercises. The cache is the
+// system boundary, so a fake is appropriate here for error injection.
+type failingSetCache struct {
+	err error
+}
+
+func (c failingSetCache) Set(
+	_ context.Context, _ string, _ any, _ ...cache.Option,
+) error {
+	return c.err
+}
 
 type auditCapture struct {
 	mu     sync.Mutex
@@ -238,4 +252,38 @@ func TestHandler_TokensAreUnique(t *testing.T) {
 	second := mint()
 
 	assert.NotEqual(t, first, second, "each mint must yield a fresh secret")
+}
+
+// TestHandler_StoreFailure covers OWASP API2:2023: if the token cannot be
+// persisted the caller must get a 500 (not a token that was never stored, which
+// would always fail to authenticate), and — critically — NO issuance audit
+// record may be written, since the audit trail must only claim a token was
+// issued when it actually was.
+func TestHandler_StoreFailure(t *testing.T) {
+	// ARRANGE
+	recorder := &auditCapture{}
+	c := failingSetCache{err: errors.New("storage backend offline")}
+	handler := NewHandler(c, 10*time.Second, api.NewResponder(), recorder)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/short-lived-token", http.NoBody)
+	req = req.WithContext(auth.ContextWithSession(req.Context(),
+		&auth.Session{Login: "alice", Email: "alice@example.com", User: sessionUser()}))
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "error", response["status"])
+	// The wrapped "failed to store token" detail is logged server-side but
+	// the Responder sanitises 5xx bodies — the client only sees the generic
+	// message, so an internal failure never leaks backend internals.
+	assert.Contains(t, response["error"], "Internal Server Error")
+
+	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventShortLivedTokenIssue),
+		"a token that was never stored must not leave an issuance audit record")
 }
