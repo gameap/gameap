@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
@@ -21,6 +23,47 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// auditCapture is a concurrency-safe audit.Logger that records every event
+// the handler emits (mirrors router_security_auditlog_test.go).
+type auditCapture struct {
+	mu     sync.Mutex
+	events []audit.Event
+}
+
+func (a *auditCapture) Record(_ context.Context, e audit.Event) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.events = append(a.events, e)
+}
+
+func (a *auditCapture) snapshot() []audit.Event {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return append([]audit.Event(nil), a.events...)
+}
+
+func findEvent(events []audit.Event, t audit.EventType) (audit.Event, bool) {
+	for _, e := range events {
+		if e.Type == t {
+			return e, true
+		}
+	}
+
+	return audit.Event{}, false
+}
+
+func countEvents(events []audit.Event, t audit.EventType) int {
+	n := 0
+	for _, e := range events {
+		if e.Type == t {
+			n++
+		}
+	}
+
+	return n
+}
 
 const validCertPEM = `-----BEGIN CERTIFICATE-----
 MIIDBDCCAewCEGZ4yqqHhhnItdDl32wOqxUwDQYJKoZIhvcNAQELBQAwMjELMAkG
@@ -594,4 +637,103 @@ func TestHandler_CertificateFileCleanup(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, deletedFiles, "certs/oldcert.crt")
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API8:2023 Security Misconfiguration — mutating a node's configuration
+//     is an infrastructure change that must be recorded (OWASP ASVS §7.2.1)
+//     so node configuration drift is auditable.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestHandler_Audit_SuccessfulNodeUpdateIsRecorded covers OWASP API8:2023. A
+// successful node update must emit exactly one node.update event with outcome
+// success, category node_op, and the updated node id as the resource.
+func TestHandler_Audit_SuccessfulNodeUpdateIsRecorded(t *testing.T) {
+	// ARRANGE
+	repo := inmemory.NewNodeRepository()
+	now := time.Now()
+	require.NoError(t, repo.Save(context.Background(), &domain.Node{
+		ID:                  2,
+		Enabled:             true,
+		Name:                "Test Node",
+		OS:                  "linux",
+		Location:            "US",
+		IPs:                 []string{"10.0.0.2"},
+		WorkPath:            "/srv/gameap",
+		GdaemonHost:         "10.0.0.2",
+		GdaemonPort:         12345,
+		GdaemonAPIKey:       "test-key",
+		GdaemonServerCert:   "certs/test.crt",
+		ClientCertificateID: 1,
+		CreatedAt:           &now,
+		UpdatedAt:           &now,
+	}))
+
+	recorder := &auditCapture{}
+	handler := NewHandler(repo, &files.MockFileManager{}, api.NewResponder(), recorder)
+
+	body, err := json.Marshal(updateNodeInput{
+		Name:     new("Partially Updated Node"),
+		Location: new("EU"),
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/nodes/2", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": "2"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "node update must succeed; body=%s", w.Body.String())
+
+	events := recorder.snapshot()
+	require.Equal(t, 1, countEvents(events, audit.EventNodeUpdate),
+		"exactly one node.update event must be emitted per successful update")
+
+	ev, ok := findEvent(events, audit.EventNodeUpdate)
+	require.True(t, ok, "a successful node update must leave a node.update audit event")
+	assert.Equal(t, audit.OutcomeSuccess, ev.Outcome, "a completed sensitive op records success")
+	assert.Equal(t, audit.CategoryNodeOp, ev.Category)
+	assert.Equal(t, "node", ev.ResourceType)
+	assert.Equal(t, "2", ev.ResourceID, "the updated node id must be recorded")
+	assert.Equal(t, "update", ev.Action)
+}
+
+// TestHandler_Audit_FailedNodeUpdateDoesNotEmitNodeUpdate covers OWASP
+// API8:2023. An update targeting a non-existent node must NOT emit a
+// node.update event (the audit trail must not claim a change that did not
+// happen).
+func TestHandler_Audit_FailedNodeUpdateDoesNotEmitNodeUpdate(t *testing.T) {
+	// ARRANGE
+	repo := inmemory.NewNodeRepository()
+	recorder := &auditCapture{}
+	handler := NewHandler(repo, &files.MockFileManager{}, api.NewResponder(), recorder)
+
+	body, err := json.Marshal(updateNodeInput{
+		Name:     new("Ghost Node"),
+		Location: new("EU"),
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/nodes/999", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": "999"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.NotEqual(t, http.StatusOK, w.Code,
+		"updating a non-existent node must not succeed; body=%s", w.Body.String())
+	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventNodeUpdate),
+		"a failed update must not be recorded as a successful node.update")
 }

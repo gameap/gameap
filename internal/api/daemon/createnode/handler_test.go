@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	daemonbase "github.com/gameap/gameap/internal/api/daemon/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/certificates"
 	"github.com/gameap/gameap/internal/domain"
@@ -22,6 +24,47 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// auditCapture is a concurrency-safe audit.Logger that records every event
+// the handler emits (mirrors router_security_auditlog_test.go).
+type auditCapture struct {
+	mu     sync.Mutex
+	events []audit.Event
+}
+
+func (a *auditCapture) Record(_ context.Context, e audit.Event) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.events = append(a.events, e)
+}
+
+func (a *auditCapture) snapshot() []audit.Event {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return append([]audit.Event(nil), a.events...)
+}
+
+func findEvent(events []audit.Event, t audit.EventType) (audit.Event, bool) {
+	for _, e := range events {
+		if e.Type == t {
+			return e, true
+		}
+	}
+
+	return audit.Event{}, false
+}
+
+func countEvents(events []audit.Event, t audit.EventType) int {
+	n := 0
+	for _, e := range events {
+		if e.Type == t {
+			n++
+		}
+	}
+
+	return n
+}
 
 const testCSR = `-----BEGIN CERTIFICATE REQUEST-----
 MIICkzCCAXsCAQAwTjELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUx
@@ -89,6 +132,114 @@ func TestHandler_ServeHTTP_Success(t *testing.T) {
 
 	val, err := cacheInstance.Get(context.Background(), daemonbase.AutoCreateTokenCacheKey)
 	assert.True(t, err != nil || val == nil, "token should be deleted from cache")
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API8:2023 Security Misconfiguration — auto-provisioning a node is an
+//     infrastructure-mutation event that must be recorded (OWASP ASVS
+//     §7.2.1) so node onboarding is auditable.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestHandler_Audit_SuccessfulNodeCreateIsRecorded covers OWASP API8:2023. A
+// successful node creation must emit exactly one node.create event with
+// outcome success, category node_op, and the created node id as the resource.
+func TestHandler_Audit_SuccessfulNodeCreateIsRecorded(t *testing.T) {
+	// ARRANGE
+	cacheInstance := cache.NewInMemory()
+	nodesRepo := inmemory.NewNodeRepository()
+	clientCertsRepo := inmemory.NewClientCertificateRepository()
+	certsSvc := certificates.NewService(files.NewInMemoryFileManager())
+	recorder := &auditCapture{}
+	handler := NewHandler(
+		cacheInstance, nodesRepo, clientCertsRepo, certsSvc, api.NewResponder(), recorder,
+	)
+
+	require.NoError(t, cacheInstance.Set(
+		context.Background(), daemonbase.AutoCreateTokenCacheKey, "test-token",
+		cache.WithExpiration(300*time.Second),
+	))
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("gdaemon_server_cert", "server.csr")
+	require.NoError(t, err)
+	_, err = part.Write([]byte(testCSR))
+	require.NoError(t, err)
+	require.NoError(t, writer.WriteField("ip[]", "192.168.1.100"))
+	require.NoError(t, writer.WriteField("location", "Test Location"))
+	require.NoError(t, writer.WriteField("gdaemon_host", "gameap.example.com"))
+	require.NoError(t, writer.WriteField("gdaemon_port", "31717"))
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/gdaemon/create/test-token", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req = mux.SetURLVars(req, map[string]string{"token": "test-token"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "node creation must succeed; body=%s", w.Body.String())
+
+	events := recorder.snapshot()
+	require.Equal(t, 1, countEvents(events, audit.EventNodeCreate),
+		"exactly one node.create event must be emitted per successful creation")
+
+	ev, ok := findEvent(events, audit.EventNodeCreate)
+	require.True(t, ok, "a successful node creation must leave a node.create audit event")
+	assert.Equal(t, audit.OutcomeSuccess, ev.Outcome, "a completed sensitive op records success")
+	assert.Equal(t, audit.CategoryNodeOp, ev.Category)
+	assert.Equal(t, "node", ev.ResourceType)
+	assert.Equal(t, "create", ev.Action)
+	assert.NotEmpty(t, ev.ResourceID, "the created node id must be recorded as resource_id")
+}
+
+// TestHandler_Audit_RejectedNodeCreateIsNotRecorded covers OWASP API8:2023.
+// A request with an invalid create token is rejected before any node is
+// created and must NOT emit a node.create event.
+func TestHandler_Audit_RejectedNodeCreateIsNotRecorded(t *testing.T) {
+	// ARRANGE
+	cacheInstance := cache.NewInMemory()
+	nodesRepo := inmemory.NewNodeRepository()
+	clientCertsRepo := inmemory.NewClientCertificateRepository()
+	certsSvc := certificates.NewService(files.NewInMemoryFileManager())
+	recorder := &auditCapture{}
+	handler := NewHandler(
+		cacheInstance, nodesRepo, clientCertsRepo, certsSvc, api.NewResponder(), recorder,
+	)
+
+	require.NoError(t, cacheInstance.Set(
+		context.Background(), daemonbase.AutoCreateTokenCacheKey, "valid-token",
+		cache.WithExpiration(300*time.Second),
+	))
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("gdaemon_server_cert", "server.csr")
+	require.NoError(t, err)
+	_, err = part.Write([]byte(testCSR))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/gdaemon/create/wrong-token", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req = mux.SetURLVars(req, map[string]string{"token": "wrong-token"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusUnauthorized, w.Code,
+		"an invalid create token must be rejected; body=%s", w.Body.String())
+	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventNodeCreate),
+		"a rejected creation must not be recorded as a successful node.create")
 }
 
 func TestHandler_ServeHTTP_InvalidToken(t *testing.T) {

@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
@@ -17,6 +19,47 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// auditCapture is a concurrency-safe audit.Logger that records every event
+// the login handler emits (mirrors router_security_auditlog_test.go).
+type auditCapture struct {
+	mu     sync.Mutex
+	events []audit.Event
+}
+
+func (a *auditCapture) Record(_ context.Context, e audit.Event) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.events = append(a.events, e)
+}
+
+func (a *auditCapture) snapshot() []audit.Event {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return append([]audit.Event(nil), a.events...)
+}
+
+func findEvent(events []audit.Event, t audit.EventType) (audit.Event, bool) {
+	for _, e := range events {
+		if e.Type == t {
+			return e, true
+		}
+	}
+
+	return audit.Event{}, false
+}
+
+func countEvents(events []audit.Event, t audit.EventType) int {
+	n := 0
+	for _, e := range events {
+		if e.Type == t {
+			n++
+		}
+	}
+
+	return n
+}
 
 func TestHandler_ServeHTTP(t *testing.T) {
 	hashedPassword, _ := auth.HashPassword("password123")
@@ -410,4 +453,153 @@ func TestHandler_TokenValidation(t *testing.T) {
 	expiresIn, ok := response["expires_in"].(float64)
 	require.True(t, ok)
 	assert.Equal(t, float64(86400), expiresIn)
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API2:2023 Broken Authentication — a successful interactive login must
+//     leave an auth.login.success audit event attributed to the authenticated
+//     principal (OWASP ASVS §7.1.3). The session is not yet in context at the
+//     emission point, so the handler must pass the actor explicitly; this test
+//     pins that. A failed login must NOT be recorded as a success.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestHandler_Audit_SuccessfulLoginIsRecorded covers OWASP API2:2023. A
+// successful login (by username or by email) must emit exactly one
+// auth.login.success event with outcome success, auth_method session, and the
+// authenticated user's id/login as the actor.
+func TestHandler_Audit_SuccessfulLoginIsRecorded(t *testing.T) {
+	hashedPassword, _ := auth.HashPassword("password123")
+	now := time.Now()
+	user := &domain.User{
+		ID:        42,
+		Login:     "audituser",
+		Email:     "audit@example.com",
+		Password:  hashedPassword,
+		Name:      new("Audit User"),
+		CreatedAt: &now,
+		UpdatedAt: &now,
+	}
+
+	tests := []struct {
+		name        string
+		requestBody string
+	}{
+		{
+			name:        "login_by_username_attributes_actor",
+			requestBody: `{"login":"audituser","password":"password123"}`,
+		},
+		{
+			name:        "login_by_email_attributes_actor",
+			requestBody: `{"email":"audit@example.com","password":"password123"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			repo := inmemory.NewUserRepository()
+			require.NoError(t, repo.Save(context.Background(), user))
+			recorder := &auditCapture{}
+			handler := NewHandler(
+				auth.NewJWTService([]byte("test-secret-key")), repo, api.NewResponder(), recorder,
+			)
+
+			req := httptest.NewRequest(
+				http.MethodPost, "/auth/login", bytes.NewBufferString(tt.requestBody),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusOK, w.Code, "login must succeed; body=%s", w.Body.String())
+
+			events := recorder.snapshot()
+			require.Equal(t, 1, countEvents(events, audit.EventLoginSuccess),
+				"exactly one login-success event must be emitted per successful login")
+
+			ev, ok := findEvent(events, audit.EventLoginSuccess)
+			require.True(t, ok, "a successful login must leave an auth.login.success event")
+			assert.Equal(t, audit.OutcomeSuccess, ev.Outcome, "a completed login records success")
+			assert.Equal(t, audit.CategoryAuthentication, ev.Category)
+			assert.Equal(t, audit.AuthMethodSession, ev.AuthMethod,
+				"an interactive login establishes a session")
+			assert.Equal(t, user.ID, ev.ActorID,
+				"the authenticated user's id must be attributed as the actor")
+			assert.Equal(t, user.Login, ev.ActorLogin,
+				"the actor must be the resolved login, even when authenticating by email")
+		})
+	}
+}
+
+// TestHandler_Audit_FailedLoginIsNotRecordedAsSuccess covers OWASP API2:2023.
+// An invalid-credentials attempt must not emit an auth.login.success event —
+// only a genuine authentication may produce the success record.
+func TestHandler_Audit_FailedLoginIsNotRecordedAsSuccess(t *testing.T) {
+	hashedPassword, _ := auth.HashPassword("password123")
+	now := time.Now()
+	user := &domain.User{
+		ID:        1,
+		Login:     "audituser",
+		Email:     "audit@example.com",
+		Password:  hashedPassword,
+		Name:      new("Audit User"),
+		CreatedAt: &now,
+		UpdatedAt: &now,
+	}
+
+	tests := []struct {
+		name        string
+		setupRepo   func(*inmemory.UserRepository)
+		requestBody string
+		wantStatus  int
+	}{
+		{
+			name: "wrong_password_records_no_success",
+			setupRepo: func(repo *inmemory.UserRepository) {
+				require.NoError(t, repo.Save(context.Background(), user))
+			},
+			requestBody: `{"login":"audituser","password":"wrongpassword"}`,
+			wantStatus:  http.StatusUnauthorized,
+		},
+		{
+			name:        "unknown_user_records_no_success",
+			setupRepo:   func(_ *inmemory.UserRepository) {},
+			requestBody: `{"login":"ghost","password":"password123"}`,
+			wantStatus:  http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			repo := inmemory.NewUserRepository()
+			tt.setupRepo(repo)
+			recorder := &auditCapture{}
+			handler := NewHandler(
+				auth.NewJWTService([]byte("test-secret-key")), repo, api.NewResponder(), recorder,
+			)
+
+			req := httptest.NewRequest(
+				http.MethodPost, "/auth/login", bytes.NewBufferString(tt.requestBody),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, tt.wantStatus, w.Code, "body=%s", w.Body.String())
+			assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventLoginSuccess),
+				"a failed login must never be recorded as auth.login.success")
+		})
+	}
 }

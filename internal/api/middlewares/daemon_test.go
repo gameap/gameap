@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
@@ -254,4 +255,135 @@ func TestDaemonAuthMiddleware_NodeWithNullToken(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 	assert.Equal(t, "error", response["status"])
 	assert.Contains(t, response["error"], "invalid api token")
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API2:2023 Broken Authentication — every rejected daemon (node)
+//     authentication attempt must leave an auth.daemon.rejected audit event
+//     with outcome failure and a stable, non-sensitive reason so an operator
+//     can detect a node-token brute force or a misconfigured agent
+//     (OWASP ASVS §7.1.3). A silent rejection is a detective-control gap.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestDaemonAuthMiddleware_Audit_RejectionEmitsEvent covers OWASP API2:2023.
+// Both rejection branches (no X-Auth-Token at all, and a token that matches
+// no node) must emit exactly one auth.daemon.rejected event with outcome
+// failure and the branch-specific stable reason.
+func TestDaemonAuthMiddleware_Audit_RejectionEmitsEvent(t *testing.T) {
+	nodeRepo := inmemory.NewNodeRepository()
+	now := time.Now()
+	storedToken := pkgstrings.SHA256("valid-test-token-123")
+	require.NoError(t, nodeRepo.Save(context.Background(), &domain.Node{
+		ID:              1,
+		Enabled:         true,
+		Name:            "Test Node",
+		OS:              "linux",
+		GdaemonHost:     "localhost",
+		GdaemonPort:     8080,
+		GdaemonAPIToken: &storedToken,
+		WorkPath:        "/var/gameap",
+		CreatedAt:       &now,
+		UpdatedAt:       &now,
+	}))
+
+	tests := []struct {
+		name       string
+		authToken  string
+		wantReason string
+	}{
+		{
+			name:       "missing_header_has_token_not_set_reason",
+			authToken:  "",
+			wantReason: "token_not_set",
+		},
+		{
+			name:       "unknown_token_has_invalid_api_token_reason",
+			authToken:  "this-token-matches-no-node",
+			wantReason: "invalid_api_token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			recorder := &auditCapture{}
+			mw := NewDaemonAuthMiddleware(nodeRepo, api.NewResponder(), recorder)
+			handler := mw.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			if tt.authToken != "" {
+				req.Header.Set("X-Auth-Token", tt.authToken)
+			}
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusUnauthorized, w.Code,
+				"a rejected daemon request must not reach the protected handler; body=%s", w.Body.String())
+
+			events := recorder.snapshot()
+			require.Equal(t, 1, countEvents(events, audit.EventAuthDaemonRejected),
+				"exactly one daemon-rejected event must be emitted per rejected request")
+
+			ev, ok := findEvent(events, audit.EventAuthDaemonRejected)
+			require.True(t, ok, "a daemon-rejected audit event must be emitted")
+			assert.Equal(t, audit.OutcomeFailure, ev.Outcome, "a rejected daemon auth attempt is a failure")
+			assert.Equal(t, audit.CategoryAuthentication, ev.Category)
+			assert.Equal(t, tt.wantReason, ev.Reason,
+				"the failure reason must be the branch-specific stable token")
+			assert.Equal(t, audit.AuthMethodAnonymous, ev.AuthMethod,
+				"a node that never authenticated must be attributed anonymous")
+		})
+	}
+}
+
+// TestDaemonAuthMiddleware_Audit_ValidTokenIsNotRejected covers OWASP
+// API2:2023. A valid node token must pass authentication and must NOT leave
+// a daemon-rejected event (no false-positive failures in the audit trail).
+func TestDaemonAuthMiddleware_Audit_ValidTokenIsNotRejected(t *testing.T) {
+	// ARRANGE
+	nodeRepo := inmemory.NewNodeRepository()
+	now := time.Now()
+	validToken := "valid-test-token-123"
+	storedToken := pkgstrings.SHA256(validToken)
+	require.NoError(t, nodeRepo.Save(context.Background(), &domain.Node{
+		ID:              1,
+		Enabled:         true,
+		Name:            "Test Node",
+		OS:              "linux",
+		GdaemonHost:     "localhost",
+		GdaemonPort:     8080,
+		GdaemonAPIToken: &storedToken,
+		WorkPath:        "/var/gameap",
+		CreatedAt:       &now,
+		UpdatedAt:       &now,
+	}))
+
+	recorder := &auditCapture{}
+	mw := NewDaemonAuthMiddleware(nodeRepo, api.NewResponder(), recorder)
+	handler := mw.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("X-Auth-Token", validToken)
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code,
+		"a valid daemon token must authenticate; body=%s", w.Body.String())
+	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventAuthDaemonRejected),
+		"a successfully authenticated node must not produce a false-positive rejection event")
 }

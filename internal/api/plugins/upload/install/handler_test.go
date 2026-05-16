@@ -8,9 +8,11 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/gameap/gameap/internal/api/plugins/upload/install"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
@@ -21,6 +23,57 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// auditCapture is a concurrency-safe audit.Logger that records every event
+// the handler emits (mirrors router_security_auditlog_test.go).
+type auditCapture struct {
+	mu     sync.Mutex
+	events []audit.Event
+}
+
+func (a *auditCapture) Record(_ context.Context, e audit.Event) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.events = append(a.events, e)
+}
+
+func (a *auditCapture) snapshot() []audit.Event {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return append([]audit.Event(nil), a.events...)
+}
+
+func findEvent(events []audit.Event, t audit.EventType) (audit.Event, bool) {
+	for _, e := range events {
+		if e.Type == t {
+			return e, true
+		}
+	}
+
+	return audit.Event{}, false
+}
+
+func countEvents(events []audit.Event, t audit.EventType) int {
+	n := 0
+	for _, e := range events {
+		if e.Type == t {
+			n++
+		}
+	}
+
+	return n
+}
+
+func extraString(e audit.Event, key string) (string, bool) {
+	for _, a := range e.Extra {
+		if a.Key == key {
+			return a.Value.String(), true
+		}
+	}
+
+	return "", false
+}
 
 type mockLoaderManager struct {
 	loadFunc   func(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error)
@@ -43,6 +96,7 @@ func (m *mockLoaderManager) Unload(ctx context.Context, pluginID string) error {
 	return nil
 }
 
+//nolint:unparam // filename is fixed today but kept as a parameter for clarity at call sites
 func createMultipartRequest(t *testing.T, filename string, content []byte) *http.Request {
 	t.Helper()
 
@@ -236,4 +290,111 @@ func TestInstall_no_file_uploaded(t *testing.T) {
 	h.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API8:2023 Security Misconfiguration — installing a plugin loads
+//     attacker-supplied executable code into the platform; it must be
+//     recorded (OWASP ASVS §7.2.1) so code provenance is auditable.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestInstall_Audit_SuccessfulInstallIsRecorded covers OWASP API8:2023. A
+// successful plugin install must emit exactly one plugin.install event with
+// outcome success, category plugin_op, the plugin id as the resource, and the
+// plugin identifier recorded in Extra for provenance.
+func TestInstall_Audit_SuccessfulInstallIsRecorded(t *testing.T) {
+	// ARRANGE
+	pluginRepo := inmemory.NewPluginRepository()
+	fileManager := files.NewInMemoryFileManager()
+	mockManager := &mockLoaderManager{
+		loadFunc: func(_ context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
+			return &pkgplugin.LoadedPlugin{
+				Info: &proto.PluginInfo{
+					Id:          "testplugin",
+					Name:        "Test Plugin",
+					Version:     "1.0.0",
+					Description: "A test plugin",
+					Author:      "Test Author",
+					ApiVersion:  "v1",
+				},
+			}, nil
+		},
+		unloadFunc: func(_ context.Context, _ string) error { return nil },
+	}
+
+	recorder := &auditCapture{}
+	h := install.NewHandler(
+		mockManager, pluginRepo, fileManager, nil, "plugins", api.NewResponder(), recorder,
+	)
+	w := httptest.NewRecorder()
+
+	// ACT
+	h.ServeHTTP(w, createMultipartRequest(t, "plugin.wasm", validWASMBytes()))
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "install must succeed; body=%s", w.Body.String())
+
+	events := recorder.snapshot()
+	require.Equal(t, 1, countEvents(events, audit.EventPluginInstall),
+		"exactly one plugin.install event must be emitted per successful install")
+
+	ev, ok := findEvent(events, audit.EventPluginInstall)
+	require.True(t, ok, "a successful plugin install must leave a plugin.install audit event")
+	assert.Equal(t, audit.OutcomeSuccess, ev.Outcome, "a completed sensitive op records success")
+	assert.Equal(t, audit.CategoryPluginOp, ev.Category)
+	assert.Equal(t, "plugin", ev.ResourceType)
+	assert.NotEmpty(t, ev.ResourceID, "the installed plugin id must be recorded as resource_id")
+	assert.Equal(t, "install", ev.Action)
+	pluginID, hasPlugin := extraString(ev, "plugin")
+	require.True(t, hasPlugin, "the plugin identifier must be recorded for provenance")
+	assert.Equal(t, "testplugin", pluginID)
+}
+
+// TestInstall_Audit_AlreadyInstalledIsNotRecorded covers OWASP API8:2023. An
+// install rejected because the plugin is already present must NOT emit a
+// plugin.install event (no executable code was newly loaded).
+func TestInstall_Audit_AlreadyInstalledIsNotRecorded(t *testing.T) {
+	// ARRANGE
+	pluginRepo := inmemory.NewPluginRepository()
+	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
+		ID:      pkgplugin.ParsePluginID("testplugin"),
+		Name:    "Test Plugin",
+		Version: "1.0.0",
+		Status:  domain.PluginStatusActive,
+	}))
+
+	mockManager := &mockLoaderManager{
+		loadFunc: func(_ context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
+			return &pkgplugin.LoadedPlugin{
+				Info: &proto.PluginInfo{
+					Id:         "testplugin",
+					Name:       "Test Plugin",
+					Version:    "1.0.0",
+					ApiVersion: "v1",
+				},
+			}, nil
+		},
+		unloadFunc: func(_ context.Context, _ string) error { return nil },
+	}
+
+	recorder := &auditCapture{}
+	h := install.NewHandler(
+		mockManager, pluginRepo, files.NewInMemoryFileManager(), nil, "plugins",
+		api.NewResponder(), recorder,
+	)
+	w := httptest.NewRecorder()
+
+	// ACT
+	h.ServeHTTP(w, createMultipartRequest(t, "plugin.wasm", validWASMBytes()))
+
+	// ASSERT
+	require.Equal(t, http.StatusConflict, w.Code,
+		"an already-installed plugin must be rejected; body=%s", w.Body.String())
+	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventPluginInstall),
+		"a rejected install must not be recorded as a successful plugin.install")
 }

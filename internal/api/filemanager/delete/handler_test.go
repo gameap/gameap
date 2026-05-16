@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
@@ -21,6 +23,47 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// auditCapture is a concurrency-safe audit.Logger that records every event
+// the handler emits (mirrors router_security_auditlog_test.go).
+type auditCapture struct {
+	mu     sync.Mutex
+	events []audit.Event
+}
+
+func (a *auditCapture) Record(_ context.Context, e audit.Event) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.events = append(a.events, e)
+}
+
+func (a *auditCapture) snapshot() []audit.Event {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return append([]audit.Event(nil), a.events...)
+}
+
+func findEvent(events []audit.Event, t audit.EventType) (audit.Event, bool) {
+	for _, e := range events {
+		if e.Type == t {
+			return e, true
+		}
+	}
+
+	return audit.Event{}, false
+}
+
+func countEvents(events []audit.Event, t audit.EventType) int {
+	n := 0
+	for _, e := range events {
+		if e.Type == t {
+			n++
+		}
+	}
+
+	return n
+}
 
 //nolint:unparam
 func allowUserFilesAbility(t *testing.T, rbacRepo *inmemory.RBACRepository, userID, serverID uint) {
@@ -966,6 +1009,149 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API8:2023 Security Misconfiguration — a destructive file operation that
+//     succeeds without being recorded is a detective-control gap (OWASP ASVS
+//     §7.2.1). The audit event must be scoped to the exact server and
+//     attributed to the acting principal.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestHandler_Audit_SuccessfulDeleteIsRecorded covers OWASP API8:2023. A
+// successful file deletion must emit exactly one file.delete event with
+// outcome success, category file_op, the server as the scoped resource, and
+// the acting user attributed as the actor.
+func TestHandler_Audit_SuccessfulDeleteIsRecorded(t *testing.T) {
+	// ARRANGE
+	serverRepo := inmemory.NewServerRepository()
+	nodeRepo := inmemory.NewNodeRepository()
+	rbacRepo := inmemory.NewRBACRepository()
+	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+	now := time.Now()
+	require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{
+		ID:        1,
+		UID:       uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		UUIDShort: "short1",
+		Enabled:   true,
+		Installed: 1,
+		Name:      "Test Server 1",
+		GameID:    "cs",
+		DSID:      1,
+		GameModID: 1,
+		ServerIP:  "127.0.0.1",
+		Dir:       "servers/test1",
+		CreatedAt: &now,
+		UpdatedAt: &now,
+	}))
+	serverRepo.AddUserServer(1, 1)
+	allowUserFilesAbility(t, rbacRepo, 1, 1)
+	node := testNode
+	require.NoError(t, nodeRepo.Save(context.Background(), &node))
+
+	recorder := &auditCapture{}
+	handler := NewHandler(
+		serverRepo, nodeRepo, rbacService, &mockFileService{}, api.NewResponder(), recorder,
+	)
+
+	body, err := json.Marshal(deleteRequest{
+		Disk:  "server",
+		Items: []deleteItem{{Path: "test.txt", Type: "file"}},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/file-manager/1/delete", bytes.NewReader(body))
+	req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+		Login: "testuser",
+		Email: "test@example.com",
+		User:  &testUser1,
+	}))
+	req = mux.SetURLVars(req, map[string]string{"server": "1"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "deletion must succeed; body=%s", w.Body.String())
+
+	events := recorder.snapshot()
+	require.Equal(t, 1, countEvents(events, audit.EventFileDelete),
+		"exactly one file-delete event must be emitted per successful deletion")
+
+	ev, ok := findEvent(events, audit.EventFileDelete)
+	require.True(t, ok, "a successful deletion must leave a file.delete audit event")
+	assert.Equal(t, audit.OutcomeSuccess, ev.Outcome, "a completed sensitive op records success")
+	assert.Equal(t, audit.CategoryFileOp, ev.Category)
+	assert.Equal(t, "server", ev.ResourceType, "a file op is scoped to its server")
+	assert.Equal(t, "1", ev.ResourceID, "the targeted server id must be recorded")
+	assert.Equal(t, "delete", ev.Action)
+	assert.Equal(t, testUser1.ID, ev.ActorID, "the acting user must be attributed as the actor")
+	assert.Equal(t, audit.AuthMethodSession, ev.AuthMethod)
+}
+
+// TestHandler_Audit_DeniedDeleteDoesNotEmitFileDelete covers OWASP API8:2023.
+// A deletion refused by the per-server ability check must NOT emit a
+// file.delete success event (the audit trail must not claim a destructive op
+// happened when it did not).
+func TestHandler_Audit_DeniedDeleteDoesNotEmitFileDelete(t *testing.T) {
+	// ARRANGE
+	serverRepo := inmemory.NewServerRepository()
+	nodeRepo := inmemory.NewNodeRepository()
+	rbacRepo := inmemory.NewRBACRepository()
+	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+	now := time.Now()
+	require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{
+		ID:        1,
+		UID:       uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		UUIDShort: "short1",
+		Enabled:   true,
+		Installed: 1,
+		Name:      "Test Server 1",
+		GameID:    "cs",
+		Dir:       "servers/test1",
+		CreatedAt: &now,
+		UpdatedAt: &now,
+	}))
+	// Deliberately grant the user no files ability for this server.
+	node := testNode
+	require.NoError(t, nodeRepo.Save(context.Background(), &node))
+
+	recorder := &auditCapture{}
+	handler := NewHandler(
+		serverRepo, nodeRepo, rbacService, &mockFileService{}, api.NewResponder(), recorder,
+	)
+
+	body, err := json.Marshal(deleteRequest{
+		Disk:  "server",
+		Items: []deleteItem{{Path: "test.txt", Type: "file"}},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/file-manager/1/delete", bytes.NewReader(body))
+	req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+		Login: "testuser",
+		Email: "test@example.com",
+		User:  &testUser1,
+	}))
+	req = mux.SetURLVars(req, map[string]string{"server": "1"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.NotEqual(t, http.StatusOK, w.Code,
+		"a user without the files ability must be denied; body=%s", w.Body.String())
+	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventFileDelete),
+		"a refused deletion must not be recorded as a successful file.delete")
 }
 
 func TestValidatePath(t *testing.T) {

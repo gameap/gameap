@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/stretchr/testify/assert"
@@ -265,4 +266,173 @@ func TestLoginRateLimitMiddleware_NonNumericCacheValueTreatedAsZero(t *testing.T
 	handler.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusUnauthorized, w.Code,
 		"corrupt cache value must not lock the user out before any failures are counted")
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API2:2023 Broken Authentication — a brute-force-throttled login
+//     endpoint must record both the throttled (blocked) attempts and the
+//     individual failed attempts so an operator can detect a credential-
+//     stuffing campaign (OWASP ASVS §7.1.3). The submitted identifier must be
+//     recorded as attempted_login in Extra, NEVER as the actor (it is an
+//     unauthenticated, attacker-controlled value — OWASP ASVS §7.1.4).
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestLoginRateLimitMiddleware_Audit_OverLimitEmitsBlocked covers OWASP
+// API2:2023. Once a counter is over its limit the limiter must refuse the
+// attempt (429) AND emit an auth.login.blocked event with outcome blocked,
+// category ratelimit, the blocked-by reason ("ip" or "username"), and the
+// submitted identifier carried only in Extra.attempted_login.
+func TestLoginRateLimitMiddleware_Audit_OverLimitEmitsBlocked(t *testing.T) {
+	tests := []struct {
+		name       string
+		opts       []LoginRateLimitOption
+		priming    int
+		wantReason string
+	}{
+		{
+			name: "blocked_by_username_records_username_reason",
+			opts: []LoginRateLimitOption{
+				WithLoginRateLimitPerUsername(2),
+				WithLoginRateLimitPerIP(100),
+				WithLoginRateLimitWindow(time.Minute),
+			},
+			priming:    2,
+			wantReason: "username",
+		},
+		{
+			name: "blocked_by_ip_records_ip_reason",
+			opts: []LoginRateLimitOption{
+				WithLoginRateLimitPerIP(2),
+				WithLoginRateLimitPerUsername(100),
+				WithLoginRateLimitWindow(time.Minute),
+			},
+			priming:    2,
+			wantReason: "ip",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			recorder := &auditCapture{}
+			c := cache.NewInMemory()
+			opts := make([]LoginRateLimitOption, 0, len(tt.opts)+1)
+			opts = append(opts, tt.opts...)
+			opts = append(opts, WithLoginRateLimitAuditLogger(recorder))
+			mw := NewLoginRateLimitMiddleware(c, api.NewResponder(), opts...)
+			handler := mw.Middleware(&loginAttemptHandler{outcome: http.StatusUnauthorized})
+
+			// Burn enough failures to push the relevant counter to its limit.
+			for range tt.priming {
+				req := newLoginRequest(t, "alice", "wrong", "10.0.0.80:1")
+				handler.ServeHTTP(httptest.NewRecorder(), req)
+			}
+
+			req := newLoginRequest(t, "alice", "wrong", "10.0.0.80:1")
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusTooManyRequests, w.Code,
+				"an over-limit attempt must be refused before credentials are checked")
+
+			ev, ok := findEvent(recorder.snapshot(), audit.EventLoginBlocked)
+			require.True(t, ok, "a blocked login attempt must leave an auth.login.blocked event")
+			assert.Equal(t, audit.OutcomeBlocked, ev.Outcome, "a rate-limited attempt is blocked")
+			assert.Equal(t, audit.CategoryRateLimit, ev.Category)
+			assert.Equal(t, tt.wantReason, ev.Reason, "the blocked-by reason must be recorded")
+			assert.Equal(t, audit.AuthMethodAnonymous, ev.AuthMethod,
+				"a throttled attempt is unauthenticated")
+			assert.Zero(t, ev.ActorID,
+				"the attacker-controlled login must never be attributed as an actor id")
+			assert.Empty(t, ev.ActorLogin,
+				"the submitted identifier must never be recorded as actor_login")
+			login, hasLogin := extraString(ev, "attempted_login")
+			require.True(t, hasLogin, "the submitted identifier must be carried as attempted_login")
+			assert.Equal(t, "alice", login,
+				"attempted_login must hold the submitted (lowercased) identifier")
+		})
+	}
+}
+
+// TestLoginRateLimitMiddleware_Audit_DownstreamUnauthorizedEmitsFailure
+// covers OWASP API2:2023. When the wrapped login handler answers 401 the
+// limiter must record an auth.login.failure event with the submitted
+// identifier in Extra.attempted_login (never as the actor) so individual
+// failed attempts are auditable, not just the throttled ones.
+func TestLoginRateLimitMiddleware_Audit_DownstreamUnauthorizedEmitsFailure(t *testing.T) {
+	// ARRANGE
+	recorder := &auditCapture{}
+	c := cache.NewInMemory()
+	mw := NewLoginRateLimitMiddleware(c, api.NewResponder(),
+		WithLoginRateLimitPerIP(100),
+		WithLoginRateLimitPerUsername(100),
+		WithLoginRateLimitAuditLogger(recorder),
+	)
+	handler := mw.Middleware(&loginAttemptHandler{outcome: http.StatusUnauthorized})
+
+	req := newLoginRequest(t, "Bob@Example.com", "wrong", "10.0.0.81:1")
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusUnauthorized, w.Code,
+		"the downstream 401 must be passed through; body=%s", w.Body.String())
+
+	events := recorder.snapshot()
+	assert.Equal(t, 0, countEvents(events, audit.EventLoginBlocked),
+		"a first failed attempt under the limit must not be recorded as blocked")
+
+	ev, ok := findEvent(events, audit.EventLoginFailure)
+	require.True(t, ok, "a downstream 401 must leave an auth.login.failure event")
+	assert.Equal(t, audit.OutcomeFailure, ev.Outcome, "a failed login is a failure")
+	assert.Equal(t, audit.CategoryAuthentication, ev.Category)
+	assert.Equal(t, audit.AuthMethodAnonymous, ev.AuthMethod)
+	assert.Zero(t, ev.ActorID,
+		"a failed credential check must not attribute an actor id")
+	assert.Empty(t, ev.ActorLogin,
+		"the submitted identifier must never be recorded as actor_login")
+	login, hasLogin := extraString(ev, "attempted_login")
+	require.True(t, hasLogin, "the submitted identifier must be carried as attempted_login")
+	assert.Equal(t, "bob@example.com", login,
+		"attempted_login must hold the submitted email, lowercased, never as the actor")
+}
+
+// TestLoginRateLimitMiddleware_Audit_SuccessIsNotAudited covers OWASP
+// API2:2023. A successful login is recorded by the login handler itself
+// (auth.login.success); the rate limiter must NOT additionally emit a
+// failure or blocked event for a 200 response.
+func TestLoginRateLimitMiddleware_Audit_SuccessIsNotAudited(t *testing.T) {
+	// ARRANGE
+	recorder := &auditCapture{}
+	c := cache.NewInMemory()
+	mw := NewLoginRateLimitMiddleware(c, api.NewResponder(),
+		WithLoginRateLimitPerIP(100),
+		WithLoginRateLimitPerUsername(100),
+		WithLoginRateLimitAuditLogger(recorder),
+	)
+	handler := mw.Middleware(&loginAttemptHandler{outcome: http.StatusOK})
+
+	req := newLoginRequest(t, "alice", "right", "10.0.0.82:1")
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code)
+	events := recorder.snapshot()
+	assert.Equal(t, 0, countEvents(events, audit.EventLoginFailure),
+		"the rate limiter must not record a failure for a successful login")
+	assert.Equal(t, 0, countEvents(events, audit.EventLoginBlocked),
+		"the rate limiter must not record a block for a successful login")
 }

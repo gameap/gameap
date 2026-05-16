@@ -4,9 +4,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/gameap/gameap/internal/api/plugins/uninstall"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
@@ -17,6 +19,47 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// auditCapture is a concurrency-safe audit.Logger that records every event
+// the handler emits (mirrors router_security_auditlog_test.go).
+type auditCapture struct {
+	mu     sync.Mutex
+	events []audit.Event
+}
+
+func (a *auditCapture) Record(_ context.Context, e audit.Event) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.events = append(a.events, e)
+}
+
+func (a *auditCapture) snapshot() []audit.Event {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return append([]audit.Event(nil), a.events...)
+}
+
+func findEvent(events []audit.Event, t audit.EventType) (audit.Event, bool) {
+	for _, e := range events {
+		if e.Type == t {
+			return e, true
+		}
+	}
+
+	return audit.Event{}, false
+}
+
+func countEvents(events []audit.Event, t audit.EventType) int {
+	n := 0
+	for _, e := range events {
+		if e.Type == t {
+			n++
+		}
+	}
+
+	return n
+}
 
 type mockPluginManager struct {
 	plugins      map[string]*pkgplugin.LoadedPlugin
@@ -241,4 +284,87 @@ func TestUninstall_plugin_not_loaded_in_manager(t *testing.T) {
 	remaining, err := pluginRepo.Find(context.Background(), nil, nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API8:2023 Security Misconfiguration — uninstalling a plugin removes
+//     executable code and its DB record; it must be recorded (OWASP ASVS
+//     §7.2.1) so the platform's code inventory changes are auditable.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestUninstall_Audit_SuccessfulUninstallIsRecorded covers OWASP API8:2023. A
+// successful plugin uninstall must emit exactly one plugin.uninstall event
+// with outcome success, category plugin_op, and the plugin id as the resource.
+func TestUninstall_Audit_SuccessfulUninstallIsRecorded(t *testing.T) {
+	// ARRANGE
+	pluginRepo := inmemory.NewPluginRepository()
+	fileManager := files.NewInMemoryFileManager()
+	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
+		ID:       pkgplugin.ParsePluginID("testplugin123"),
+		Name:     "Test Plugin",
+		Version:  "1.0.0",
+		Filename: new("testplugin123.wasm"),
+		Status:   domain.PluginStatusActive,
+	}))
+	require.NoError(t, fileManager.Write(
+		context.Background(), "plugins/testplugin123.wasm", []byte("wasm content"),
+	))
+
+	recorder := &auditCapture{}
+	h := uninstall.NewHandler(
+		pluginRepo, fileManager, nil, "plugins", api.NewResponder(), recorder,
+	)
+	w := httptest.NewRecorder()
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/admin/plugins/testplugin123", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "testplugin123"})
+
+	// ACT
+	h.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusNoContent, w.Code,
+		"uninstall must succeed; body=%s", w.Body.String())
+
+	events := recorder.snapshot()
+	require.Equal(t, 1, countEvents(events, audit.EventPluginUninstall),
+		"exactly one plugin.uninstall event must be emitted per successful uninstall")
+
+	ev, ok := findEvent(events, audit.EventPluginUninstall)
+	require.True(t, ok, "a successful uninstall must leave a plugin.uninstall audit event")
+	assert.Equal(t, audit.OutcomeSuccess, ev.Outcome, "a completed sensitive op records success")
+	assert.Equal(t, audit.CategoryPluginOp, ev.Category)
+	assert.Equal(t, "plugin", ev.ResourceType)
+	assert.NotEmpty(t, ev.ResourceID, "the uninstalled plugin id must be recorded as resource_id")
+	assert.Equal(t, "uninstall", ev.Action)
+}
+
+// TestUninstall_Audit_NotInstalledIsNotRecorded covers OWASP API8:2023. An
+// uninstall request for a plugin that is not installed must NOT emit a
+// plugin.uninstall event (nothing was removed).
+func TestUninstall_Audit_NotInstalledIsNotRecorded(t *testing.T) {
+	// ARRANGE
+	recorder := &auditCapture{}
+	h := uninstall.NewHandler(
+		inmemory.NewPluginRepository(), files.NewInMemoryFileManager(), nil, "plugins",
+		api.NewResponder(), recorder,
+	)
+	w := httptest.NewRecorder()
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/admin/plugins/ghostplugin", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "ghostplugin"})
+
+	// ACT
+	h.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusNotFound, w.Code,
+		"uninstalling a missing plugin must 404; body=%s", w.Body.String())
+	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventPluginUninstall),
+		"a no-op uninstall must not be recorded as a successful plugin.uninstall")
 }

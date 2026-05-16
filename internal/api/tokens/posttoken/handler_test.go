@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/tokens/posttoken"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/rbac"
@@ -23,6 +25,57 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// auditCapture is a concurrency-safe audit.Logger that records every event
+// the handler emits (mirrors router_security_auditlog_test.go).
+type auditCapture struct {
+	mu     sync.Mutex
+	events []audit.Event
+}
+
+func (a *auditCapture) Record(_ context.Context, e audit.Event) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.events = append(a.events, e)
+}
+
+func (a *auditCapture) snapshot() []audit.Event {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return append([]audit.Event(nil), a.events...)
+}
+
+func findEvent(events []audit.Event, t audit.EventType) (audit.Event, bool) {
+	for _, e := range events {
+		if e.Type == t {
+			return e, true
+		}
+	}
+
+	return audit.Event{}, false
+}
+
+func countEvents(events []audit.Event, t audit.EventType) int {
+	n := 0
+	for _, e := range events {
+		if e.Type == t {
+			n++
+		}
+	}
+
+	return n
+}
+
+func extraString(e audit.Event, key string) (string, bool) {
+	for _, a := range e.Extra {
+		if a.Key == key {
+			return a.Value.String(), true
+		}
+	}
+
+	return "", false
+}
 
 func TestHandler_ServeHTTP(t *testing.T) {
 	tests := []struct {
@@ -731,4 +784,123 @@ func generateManyAbilities(count int) []string {
 	}
 
 	return abilities
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API8:2023 Security Misconfiguration — issuing a personal access token
+//     is a credential-issuance event that must be recorded (OWASP ASVS
+//     §7.2.1) so token sprawl is auditable. The audit record must never
+//     contain the plaintext token value (OWASP ASVS §7.1.1 redaction).
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestHandler_Audit_SuccessfulTokenCreationIsRecorded covers OWASP
+// API8:2023. A successful PAT creation must emit exactly one token.pat.create
+// event with outcome success, category token_op, the created token id as the
+// resource, the acting user as the actor, and must NOT leak the plaintext
+// token value into any audit field.
+func TestHandler_Audit_SuccessfulTokenCreationIsRecorded(t *testing.T) {
+	// ARRANGE
+	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
+	rbacRepo := inmemory.NewRBACRepository()
+	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+	recorder := &auditCapture{}
+	handler := posttoken.NewHandler(tokenRepo, rbacService, api.NewResponder(), recorder)
+
+	body, err := json.Marshal(map[string]any{
+		"token_name": "CI Token",
+		"abilities":  []string{"server:start", "server:stop"},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tokens", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+		Login: "tokenuser",
+		Email: "token@example.com",
+		User:  &domain.User{ID: 7, Login: "tokenuser", Email: "token@example.com"},
+	}))
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "token creation must succeed; body=%s", w.Body.String())
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	plainToken, ok := response["token"].(string)
+	require.True(t, ok)
+	require.NotEmpty(t, plainToken)
+
+	events := recorder.snapshot()
+	require.Equal(t, 1, countEvents(events, audit.EventPATCreate),
+		"exactly one token.pat.create event must be emitted per successful creation")
+
+	ev, ok := findEvent(events, audit.EventPATCreate)
+	require.True(t, ok, "a successful PAT creation must leave a token.pat.create audit event")
+	assert.Equal(t, audit.OutcomeSuccess, ev.Outcome, "a completed sensitive op records success")
+	assert.Equal(t, audit.CategoryTokenOp, ev.Category)
+	assert.Equal(t, "token", ev.ResourceType)
+	assert.Equal(t, "create", ev.Action)
+	assert.NotEmpty(t, ev.ResourceID, "the created token id must be recorded as resource_id")
+	assert.Equal(t, uint(7), ev.ActorID, "the creating user must be attributed as the actor")
+	assert.Equal(t, audit.AuthMethodSession, ev.AuthMethod)
+
+	name, hasName := extraString(ev, "token_name")
+	require.True(t, hasName, "the token name must be recorded for forensics")
+	assert.Equal(t, "CI Token", name)
+
+	// The plaintext credential must never appear anywhere in the audit record.
+	assert.NotEqual(t, plainToken, ev.ResourceID,
+		"resource_id must be the token id, never the secret value")
+	tokenName, _ := extraString(ev, "token_name")
+	assert.NotContains(t, tokenName, plainToken)
+	for _, a := range ev.Extra {
+		assert.NotContains(t, a.Value.String(), plainToken,
+			"no Extra attr may contain the plaintext token value")
+	}
+}
+
+// TestHandler_Audit_RejectedTokenCreationIsNotRecorded covers OWASP
+// API8:2023. A creation rejected before persistence (token session) must NOT
+// emit a token.pat.create event — the audit trail must not claim a token was
+// issued when none was.
+func TestHandler_Audit_RejectedTokenCreationIsNotRecorded(t *testing.T) {
+	// ARRANGE
+	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
+	rbacRepo := inmemory.NewRBACRepository()
+	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+	recorder := &auditCapture{}
+	handler := posttoken.NewHandler(tokenRepo, rbacService, api.NewResponder(), recorder)
+
+	body, err := json.Marshal(map[string]any{
+		"token_name": "Nested Token",
+		"abilities":  []string{"server:start"},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tokens", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+		Login: "tokenuser",
+		Email: "token@example.com",
+		User:  &domain.User{ID: 7, Login: "tokenuser"},
+		Token: &domain.PersonalAccessToken{ID: 1},
+	}))
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusForbidden, w.Code,
+		"a token session must not be allowed to mint new tokens; body=%s", w.Body.String())
+	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventPATCreate),
+		"a rejected creation must not be recorded as a successful token.pat.create")
 }
