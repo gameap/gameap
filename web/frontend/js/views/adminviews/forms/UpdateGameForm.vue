@@ -39,6 +39,7 @@
                     <n-input
                         v-model:value="form.name"
                         type="text"
+                        data-testid="game-name"
                     />
                   </n-form-item>
 
@@ -46,6 +47,7 @@
                     <n-input
                         v-model:value="form.engine"
                         type="text"
+                        data-testid="game-engine"
                     />
                   </n-form-item>
 
@@ -53,6 +55,7 @@
                     <n-input
                         v-model:value="form.engineVersion"
                         type="text"
+                        data-testid="game-engine-version"
                     />
                   </n-form-item>
                 </div>
@@ -78,18 +81,21 @@
                     <n-input
                         v-model:value="form.steamAppIdLinux"
                         type="text"
+                        data-testid="game-steam-app-id-linux"
                     />
                   </n-form-item>
                   <n-form-item :label="trans('labels.steam_app_id_windows')" path="steamAppIdWindows">
                     <n-input
                         v-model:value="form.steamAppIdWindows"
                         type="text"
+                        data-testid="game-steam-app-id-windows"
                     />
                   </n-form-item>
                   <n-form-item :label="trans('labels.steam_app_set_config')" path="steamAppSetConfig">
                     <n-input
                         v-model:value="form.steamAppSetConfig"
                         type="text"
+                        data-testid="game-steam-app-set-config"
                     />
                   </n-form-item>
                 </div>
@@ -111,6 +117,7 @@
                     <n-input
                         v-model:value="form.localRepositoryLinux"
                         type="text"
+                        data-testid="game-local-repo-linux"
                     />
                   </n-form-item>
 
@@ -118,6 +125,7 @@
                     <n-input
                         v-model:value="form.localRepositoryWindows"
                         type="text"
+                        data-testid="game-local-repo-windows"
                     />
                   </n-form-item>
                 </div>
@@ -138,6 +146,7 @@
                     <n-input
                         v-model:value="form.remoteRepositoryLinux"
                         type="text"
+                        data-testid="game-remote-repo-linux"
                     />
                   </n-form-item>
 
@@ -145,6 +154,7 @@
                     <n-input
                         v-model:value="form.remoteRepositoryWindows"
                         type="text"
+                        data-testid="game-remote-repo-windows"
                     />
                   </n-form-item>
                 </div>
@@ -158,19 +168,21 @@
             {{ trans('games.metadata') }}
           </template>
 
-          <InputManyList
-              v-model="form.metadata"
-              class="mb-4"
-              :labels="[trans('labels.key'), trans('labels.the_value')]"
-              :keys="['key', 'value']"
-              :input-types="['text', 'text']"
-          />
+          <div data-testid="game-metadata">
+            <InputManyList
+                v-model="form.metadata"
+                class="mb-4"
+                :labels="[trans('labels.key'), trans('labels.the_value')]"
+                :keys="['key', 'value']"
+                :input-types="['text', 'text']"
+            />
+          </div>
         </n-tab-pane>
       </n-tabs>
     </n-form>
 
     <GFixedBottomBar>
-      <GButton color="green" v-on:click="onClickUpdate">
+      <GButton color="green" data-testid="game-save" v-on:click="onClickUpdate">
         <GIcon name="save" class="mr-0.5" />
         <span class="inline">{{ trans('main.save') }}</span>
       </GButton>
