@@ -1,11 +1,13 @@
 name: E2E Server Install
 
 on:
-  push:
-    branches: [main]
-  # TEMPORARY: validate heavy pipeline on the e2e branch before merge.
-  # Remove this pull_request trigger before final merge to main —
+  # TEMPORARY (e2e validation): run the heavy pipeline on EVERY push to ANY
+  # branch. Revert to `push: branches: [main]` before final merge to main —
   # heavy E2E should run only on main / nightly / manual dispatch.
+  push:
+    branches: ['**']
+  # TEMPORARY: validate heavy pipeline on the e2e branch before merge.
+  # Remove this pull_request trigger before final merge to main.
   pull_request:
     branches: [main]
   schedule:
