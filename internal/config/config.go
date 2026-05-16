@@ -110,6 +110,15 @@ type Config struct {
 		LogDBQueries bool   `env:"LOGGER_LOG_DB_QUERIES" envDefault:"false"`
 	}
 
+	Audit struct {
+		// Enabled toggles the structured security audit log (auth
+		// failures, access-control denials, sensitive operations).
+		Enabled bool `env:"AUDIT_ENABLED" envDefault:"true"`
+		// ClientIPHeader is the trusted reverse-proxy header to read the
+		// real client IP from (e.g. X-Real-IP); empty uses RemoteAddr.
+		ClientIPHeader string `env:"AUDIT_CLIENT_IP_HEADER" envDefault:""`
+	}
+
 	Legacy struct {
 		Path    string `env:"LEGACY_PATH" envDefault:""`
 		EnvPath string `env:"LEGACY_ENV_PATH" envDefault:""`

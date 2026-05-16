@@ -451,7 +451,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				tt.setupFileManager(fileManager)
 			}
 
-			handler := NewHandler(repo, fileManager, responder)
+			handler := NewHandler(repo, fileManager, responder, nil)
 
 			body, err := json.Marshal(tt.input)
 			require.NoError(t, err)
@@ -518,7 +518,7 @@ func TestHandler_UpdatedAtTimestamp(t *testing.T) {
 		UpdatedAt:           &oldTime,
 	})
 
-	handler := NewHandler(repo, fileManager, responder)
+	handler := NewHandler(repo, fileManager, responder, nil)
 
 	input := updateNodeInput{
 		Name: new("Updated Name"),
@@ -576,7 +576,7 @@ func TestHandler_CertificateFileCleanup(t *testing.T) {
 		UpdatedAt:           &now,
 	})
 
-	handler := NewHandler(repo, fileManager, responder)
+	handler := NewHandler(repo, fileManager, responder, nil)
 
 	input := updateNodeInput{
 		GdaemonServerCert: new(validCertPEM),

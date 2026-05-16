@@ -2,9 +2,11 @@ package deletenode
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
@@ -20,17 +22,24 @@ type Handler struct {
 	nodesRepo   repositories.NodeRepository
 	serversRepo repositories.ServerRepository
 	responder   base.Responder
+	audit       audit.Logger
 }
 
 func NewHandler(
 	nodesRepo repositories.NodeRepository,
 	serversRepo repositories.ServerRepository,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		nodesRepo:   nodesRepo,
 		serversRepo: serversRepo,
 		responder:   responder,
+		audit:       auditLogger,
 	}
 }
 
@@ -104,6 +113,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventNodeDelete, audit.CategoryNodeOp,
+		"node", strconv.FormatUint(uint64(nodeID), 10), "delete")
 
 	rw.WriteHeader(http.StatusNoContent)
 }

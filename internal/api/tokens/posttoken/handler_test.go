@@ -514,7 +514,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
 
-			handler := posttoken.NewHandler(tokenRepo, rbacService, responder)
+			handler := posttoken.NewHandler(tokenRepo, rbacService, responder, nil)
 
 			var body []byte
 			if str, ok := tt.requestBody.(string); ok {
@@ -567,7 +567,7 @@ func TestHandler_TokenUniqueness(t *testing.T) {
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := posttoken.NewHandler(tokenRepo, rbacService, responder)
+	handler := posttoken.NewHandler(tokenRepo, rbacService, responder, nil)
 
 	ctx := auth.ContextWithSession(context.Background(), &auth.Session{
 		Login: "testuser",
@@ -615,7 +615,7 @@ func TestHandler_ConcurrentTokenCreation(t *testing.T) {
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := posttoken.NewHandler(tokenRepo, rbacService, responder)
+	handler := posttoken.NewHandler(tokenRepo, rbacService, responder, nil)
 
 	ctx := auth.ContextWithSession(context.Background(), &auth.Session{
 		Login: "testuser",
@@ -665,7 +665,7 @@ func TestHandler_TokenStorageVerification(t *testing.T) {
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := posttoken.NewHandler(tokenRepo, rbacService, responder)
+	handler := posttoken.NewHandler(tokenRepo, rbacService, responder, nil)
 
 	ctx := auth.ContextWithSession(context.Background(), &auth.Session{
 		Login: "testuser",

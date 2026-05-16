@@ -60,6 +60,15 @@ info:
     }
     ```
 
+    ## Request correlation
+
+    Every HTTP response carries an `X-Request-Id` header — a per-request
+    correlation ID. If the client sends an `X-Request-Id` request header
+    with a short, safe value (≤ 64 chars, `[A-Za-z0-9._-]`) it is echoed
+    back; otherwise the server generates one. The same ID appears in the
+    server-side structured audit log, so a client can quote it when
+    reporting an issue.
+
     ## WebSocket endpoints
 
     OpenAPI does not natively model WebSocket flows; this section documents

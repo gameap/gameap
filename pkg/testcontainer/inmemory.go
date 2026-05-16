@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/acme"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/certificates"
 	"github.com/gameap/gameap/internal/config"
@@ -70,6 +71,7 @@ type InmemoryContainer struct {
 	daemonFilesService      *daemon.FileService
 	daemonCommandsService   *daemon.CommandService
 	uploadSessionService    *upload.Service
+	auditLogger             audit.Logger
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -144,6 +146,23 @@ func (c *InmemoryContainer) AttachHandler() *grpchandlers.AttachHandler   { retu
 func (c *InmemoryContainer) MetricsHub() metrics.Hub                      { return nil }
 func (c *InmemoryContainer) PubSub() pubsub.PubSub                        { return nil }
 func (c *InmemoryContainer) ACMEService() *acme.Service                   { return nil }
+
+// AuditLogger returns the configured audit logger, defaulting to a no-op.
+// Tests asserting on audit output inject a capturing logger via
+// SetAuditLogger.
+func (c *InmemoryContainer) AuditLogger() audit.Logger {
+	if c.auditLogger == nil {
+		c.auditLogger = audit.NopLogger{}
+	}
+
+	return c.auditLogger
+}
+
+// SetAuditLogger overrides the audit logger (e.g. with a capturing logger
+// in audit-assertion tests).
+func (c *InmemoryContainer) SetAuditLogger(l audit.Logger) {
+	c.auditLogger = l
+}
 func (c *InmemoryContainer) EnrollmentService() *enrollment.Service {
 	keyManager := enrollment.NewSetupKeyManager(c.cacheService, "")
 

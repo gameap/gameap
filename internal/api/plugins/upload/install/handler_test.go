@@ -133,6 +133,7 @@ func TestInstall(t *testing.T) {
 				nil,
 				"plugins",
 				api.NewResponder(),
+				nil,
 			)
 			recorder := httptest.NewRecorder()
 
@@ -206,6 +207,7 @@ func TestInstall_already_installed_returns_409(t *testing.T) {
 		nil,
 		"plugins",
 		api.NewResponder(),
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 
@@ -224,6 +226,7 @@ func TestInstall_no_file_uploaded(t *testing.T) {
 		nil,
 		"plugins",
 		api.NewResponder(),
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 

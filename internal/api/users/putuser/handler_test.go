@@ -334,6 +334,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0),
 				services.NewNilTransactionManager(),
 				responder,
+				nil,
 			)
 
 			if tt.setupRepo != nil {
@@ -395,6 +396,7 @@ func TestHandler_UpdateUserFields(t *testing.T) {
 		rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0),
 		services.NewNilTransactionManager(),
 		responder,
+		nil,
 	)
 
 	now := time.Now()

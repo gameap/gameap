@@ -97,6 +97,7 @@ import (
 	"github.com/gameap/gameap/internal/api/profile/getprofile"
 	"github.com/gameap/gameap/internal/api/profile/putprofile"
 	"github.com/gameap/gameap/internal/api/publicconfig"
+	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/api/servers/deleteserver"
 	"github.com/gameap/gameap/internal/api/servers/getabilities"
 	"github.com/gameap/gameap/internal/api/servers/getconsole"
@@ -142,6 +143,7 @@ import (
 	wsnodesmetrics "github.com/gameap/gameap/internal/api/ws/nodesmetrics"
 	wsservermetrics "github.com/gameap/gameap/internal/api/ws/servermetrics"
 	wstaskstatus "github.com/gameap/gameap/internal/api/ws/taskstatus"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/certificates"
 	"github.com/gameap/gameap/internal/config"
@@ -234,9 +236,15 @@ type container interface {
 	MetricsHub() metrics.Hub
 	PubSub() pubsub.PubSub
 	ACMEService() *acme.Service
+	AuditLogger() audit.Logger
 }
 
 func CreateRouter(c container) *http.ServeMux {
+	// Per-server ability checks are constructed inside ~38 handlers; install
+	// the process-wide audit sink once so every denial is logged without
+	// threading the logger through each handler.
+	serversbase.SetAuditLogger(c.AuditLogger())
+
 	serverMux := http.NewServeMux()
 
 	router := mux.NewRouter().StrictSlash(true)
@@ -275,6 +283,7 @@ func frontendPluginsHandler(c container) http.Handler {
 		c.PersonalAccessTokenRepository(),
 		auth.NewCacheRevocation(c.Cache()),
 		c.Responder(),
+		c.AuditLogger(),
 	)
 
 	recoveryMiddleware := middlewares.NewRecoveryMiddleware(
@@ -293,6 +302,7 @@ func frontendPluginsStylesHandler(c container) http.Handler {
 		c.PersonalAccessTokenRepository(),
 		auth.NewCacheRevocation(c.Cache()),
 		c.Responder(),
+		c.AuditLogger(),
 	)
 
 	recoveryMiddleware := middlewares.NewRecoveryMiddleware(
@@ -388,8 +398,13 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		{
 			Method: http.MethodPost,
 			Path:   "/api/auth/login",
-			Handler: middlewares.NewLoginRateLimitMiddleware(c.Cache(), c.Responder()).Middleware(
-				login.NewHandler(c.AuthService(), c.UserService(), c.Responder()),
+			Handler: middlewares.NewLoginRateLimitMiddleware(
+				c.Cache(),
+				c.Responder(),
+				middlewares.WithLoginRateLimitAuditLogger(c.AuditLogger()),
+				middlewares.WithLoginRateLimitClientIPHeader(c.Config().Audit.ClientIPHeader),
+			).Middleware(
+				login.NewHandler(c.AuthService(), c.UserService(), c.Responder(), c.AuditLogger()),
 			),
 			AllowGuestAccess: true,
 		},
@@ -444,6 +459,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PersonalAccessTokenRepository(),
 				c.RBAC(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 		{
@@ -452,6 +468,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: deletetoken.NewHandler(
 				c.PersonalAccessTokenRepository(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 		{
@@ -736,6 +753,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.DaemonFiles(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 		{
@@ -747,6 +765,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.DaemonFiles(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 		{
@@ -804,6 +823,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.DaemonFiles(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 		{
@@ -842,6 +862,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.DaemonFiles(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 		{
@@ -853,6 +874,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.DaemonFiles(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 		{
@@ -1146,6 +1168,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.TransactionManager(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -1318,6 +1341,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.NodeRepository(),
 				c.FileManager(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -1329,6 +1353,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.NodeRepository(),
 				c.FileManager(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -1339,6 +1364,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.NodeRepository(),
 				c.ServerRepository(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -1350,6 +1376,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.NodeRepository(),
 				c.ServerRepository(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -1706,6 +1733,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 				c.PluginsDir(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -1730,6 +1758,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginLoader(),
 				c.PluginsDir(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -1837,6 +1866,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		c.PersonalAccessTokenRepository(),
 		auth.NewCacheRevocation(c.Cache()),
 		c.Responder(),
+		c.AuditLogger(),
 	)
 
 	corsMiddleware := middlewares.NewCORSMiddleware(c.Config())
@@ -1849,6 +1879,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 	isAdminMiddleware := middlewares.NewIsAdminMiddleware(
 		c.RBAC(),
 		c.Responder(),
+		c.AuditLogger(),
 	)
 
 	recoveryMiddleware := middlewares.NewRecoveryMiddleware(
@@ -1949,6 +1980,7 @@ func gdaemonSetupRoutes(c container, router *mux.Router) *mux.Router {
 				c.ClientCertificateRepository(),
 				c.CertificatesService(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 		{
@@ -1988,6 +2020,7 @@ func gdaemonAPIRoutes(c container, router *mux.Router) *mux.Router {
 	daemonAuthMiddleware := middlewares.NewDaemonAuthMiddleware(
 		c.NodeRepository(),
 		c.Responder(),
+		c.AuditLogger(),
 	)
 
 	// The wrap loop below applies middleware entries in order, so the LAST
@@ -2012,7 +2045,7 @@ func gdaemonAPIRoutes(c container, router *mux.Router) *mux.Router {
 		{
 			Method:  http.MethodGet,
 			Path:    "/gdaemon_api/get_token",
-			Handler: daemonapiinit.NewHandler(c.NodeRepository(), c.SessionRegistry(), c.Responder()),
+			Handler: daemonapiinit.NewHandler(c.NodeRepository(), c.SessionRegistry(), c.Responder(), c.AuditLogger()),
 		},
 		{
 			Method:  http.MethodGet,

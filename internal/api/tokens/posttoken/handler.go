@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
@@ -23,17 +26,24 @@ type Handler struct {
 	tokenRepo repositories.PersonalAccessTokenRepository
 	rbac      base.RBAC
 	responder base.Responder
+	audit     audit.Logger
 }
 
 func NewHandler(
 	tokenRepo repositories.PersonalAccessTokenRepository,
 	rbac base.RBAC,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		tokenRepo: tokenRepo,
 		rbac:      rbac,
 		responder: responder,
+		audit:     auditLogger,
 	}
 }
 
@@ -120,6 +130,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventPATCreate, audit.CategoryTokenOp,
+		"token", strconv.FormatUint(uint64(token.ID), 10), "create",
+		slog.String("token_name", token.Name),
+		slog.Int("abilities", len(input.Abilities)))
 
 	response := newTokenResponse(token, plainToken)
 	h.responder.Write(ctx, rw, response)

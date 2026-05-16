@@ -1140,7 +1140,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
 			fileService := tt.setupFileService()
-			handler := NewHandler(serverRepo, nodeRepo, rbacService, fileService, responder)
+			handler := NewHandler(serverRepo, nodeRepo, rbacService, fileService, responder, nil)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(serverRepo, nodeRepo, rbacRepo)

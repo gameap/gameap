@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
@@ -15,15 +16,22 @@ import (
 type DaemonAuthMiddleware struct {
 	nodeRepo  repositories.NodeRepository
 	responder base.Responder
+	audit     audit.Logger
 }
 
 func NewDaemonAuthMiddleware(
 	nodeRepo repositories.NodeRepository,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *DaemonAuthMiddleware {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &DaemonAuthMiddleware{
 		nodeRepo:  nodeRepo,
 		responder: responder,
+		audit:     auditLogger,
 	}
 }
 
@@ -31,6 +39,7 @@ func (m *DaemonAuthMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authToken := r.Header.Get("X-Auth-Token")
 		if authToken == "" {
+			audit.DaemonRejected(r.Context(), m.audit, "token_not_set")
 			m.responder.WriteError(r.Context(), w, api.WrapHTTPError(
 				errors.New("token not set"),
 				http.StatusUnauthorized,
@@ -61,6 +70,7 @@ func (m *DaemonAuthMiddleware) Middleware(next http.Handler) http.Handler {
 		}
 
 		if len(nodes) == 0 {
+			audit.DaemonRejected(r.Context(), m.audit, "invalid_api_token")
 			m.responder.WriteError(r.Context(), w, api.WrapHTTPError(
 				errors.New("invalid api token"),
 				http.StatusUnauthorized,

@@ -159,7 +159,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				tt.setupRepo(repo)
 			}
 			responder := api.NewResponder()
-			handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder)
+			handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder, nil)
 
 			body := []byte(tt.requestBody)
 
@@ -192,7 +192,7 @@ func TestHandler_MultipleUsers(t *testing.T) {
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder)
+	handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder, nil)
 
 	// Create multiple users
 	hashedPassword1, _ := auth.HashPassword("pass1")
@@ -298,7 +298,7 @@ func TestHandler_SpecialCharacters(t *testing.T) {
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder)
+	handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder, nil)
 
 	// Create user with special characters
 	specialPassword := "p@$$w0rd!#%&*()"
@@ -363,7 +363,7 @@ func TestHandler_TokenValidation(t *testing.T) {
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder)
+	handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder, nil)
 
 	hashedPassword, _ := auth.HashPassword("testpass")
 	now := time.Now()

@@ -82,7 +82,7 @@ func TestDaemonAuthMiddleware_Middleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup middleware
 			responder := api.NewResponder()
-			daemonMiddleware := NewDaemonAuthMiddleware(nodeRepo, responder)
+			daemonMiddleware := NewDaemonAuthMiddleware(nodeRepo, responder, nil)
 
 			var daemonSession *auth.DaemonSession
 
@@ -167,7 +167,7 @@ func TestDaemonAuthMiddleware_MultipleNodes(t *testing.T) {
 	_ = nodeRepo.Save(context.Background(), node2)
 
 	responder := api.NewResponder()
-	daemonMiddleware := NewDaemonAuthMiddleware(nodeRepo, responder)
+	daemonMiddleware := NewDaemonAuthMiddleware(nodeRepo, responder, nil)
 
 	tests := []struct {
 		name         string
@@ -232,7 +232,7 @@ func TestDaemonAuthMiddleware_NodeWithNullToken(t *testing.T) {
 	_ = nodeRepo.Save(context.Background(), nodeWithNullToken)
 
 	responder := api.NewResponder()
-	daemonMiddleware := NewDaemonAuthMiddleware(nodeRepo, responder)
+	daemonMiddleware := NewDaemonAuthMiddleware(nodeRepo, responder, nil)
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

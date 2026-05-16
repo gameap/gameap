@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/filters"
@@ -29,17 +31,24 @@ type Handler struct {
 	repo        repositories.NodeRepository
 	fileManager files.FileManager
 	responder   base.Responder
+	audit       audit.Logger
 }
 
 func NewHandler(
 	repo repositories.NodeRepository,
 	fileManager files.FileManager,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		repo:        repo,
 		fileManager: fileManager,
 		responder:   responder,
+		audit:       auditLogger,
 	}
 }
 
@@ -92,6 +101,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventNodeUpdate, audit.CategoryNodeOp,
+		"node", strconv.FormatUint(uint64(nodeID), 10), "update")
 
 	response := newNodeResponse(updatedNode)
 	h.responder.Write(ctx, rw, response)

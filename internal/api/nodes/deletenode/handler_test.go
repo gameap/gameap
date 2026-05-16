@@ -155,7 +155,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			nodesRepo := inmemory.NewNodeRepository()
 			serversRepo := inmemory.NewServerRepository()
 			responder := api.NewResponder()
-			handler := NewHandler(nodesRepo, serversRepo, responder)
+			handler := NewHandler(nodesRepo, serversRepo, responder, nil)
 
 			if tt.setupRepos != nil {
 				tt.setupRepos(nodesRepo, serversRepo)
@@ -195,7 +195,7 @@ func TestHandler_NodeActuallySoftDeleted(t *testing.T) {
 	nodesRepo := inmemory.NewNodeRepository()
 	serversRepo := inmemory.NewServerRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(nodesRepo, serversRepo, responder)
+	handler := NewHandler(nodesRepo, serversRepo, responder, nil)
 
 	now := time.Now()
 	node := &domain.Node{
@@ -241,7 +241,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	serversRepo := inmemory.NewServerRepository()
 	responder := api.NewResponder()
 
-	handler := NewHandler(nodesRepo, serversRepo, responder)
+	handler := NewHandler(nodesRepo, serversRepo, responder, nil)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, nodesRepo, handler.nodesRepo)

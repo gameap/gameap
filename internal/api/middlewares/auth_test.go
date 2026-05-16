@@ -131,6 +131,7 @@ func TestAuthMiddleware_Middleware(t *testing.T) {
 				tokenRepo,
 				auth.NoopRevocation{},
 				responder,
+				nil,
 			)
 
 			var session *auth.Session
@@ -242,7 +243,7 @@ func TestAuthMiddleware_OptionalMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup middleware
 			responder := api.NewResponder()
-			authMiddleware := NewAuthMiddleware(auth.NewJWTService([]byte(testJWTSecret)), userRepo, tokenRepo, auth.NoopRevocation{}, responder)
+			authMiddleware := NewAuthMiddleware(auth.NewJWTService([]byte(testJWTSecret)), userRepo, tokenRepo, auth.NoopRevocation{}, responder, nil)
 
 			var session *auth.Session
 			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -330,7 +331,7 @@ func TestTokenExtractionPriority(t *testing.T) {
 	tokenCookie, _ := jwtService.GenerateTokenForUser(testUser3, 24*time.Hour)
 
 	responder := api.NewResponder()
-	authMiddleware := NewAuthMiddleware(auth.NewJWTService([]byte(testJWTSecret)), userRepo, tokenRepo, auth.NoopRevocation{}, responder)
+	authMiddleware := NewAuthMiddleware(auth.NewJWTService([]byte(testJWTSecret)), userRepo, tokenRepo, auth.NoopRevocation{}, responder, nil)
 
 	// Test handler
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

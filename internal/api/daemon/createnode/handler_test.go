@@ -48,7 +48,7 @@ func TestHandler_ServeHTTP_Success(t *testing.T) {
 	certsSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
 
-	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder)
+	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder, nil)
 
 	err := cacheInstance.Set(context.Background(), daemonbase.AutoCreateTokenCacheKey, "test-token", cache.WithExpiration(300*time.Second))
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestHandler_ServeHTTP_InvalidToken(t *testing.T) {
 	certsSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
 
-	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder)
+	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder, nil)
 
 	err := cacheInstance.Set(context.Background(), daemonbase.AutoCreateTokenCacheKey, "valid-token", cache.WithExpiration(300*time.Second))
 	require.NoError(t, err)
@@ -134,7 +134,7 @@ func TestHandler_ServeHTTP_TokenNotFound(t *testing.T) {
 	certsSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
 
-	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder)
+	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder, nil)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -166,7 +166,7 @@ func TestHandler_ServeHTTP_MissingCertificate(t *testing.T) {
 	certsSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
 
-	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder)
+	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder, nil)
 
 	err := cacheInstance.Set(context.Background(), daemonbase.AutoCreateTokenCacheKey, "test-token", cache.WithExpiration(300*time.Second))
 	require.NoError(t, err)
@@ -199,7 +199,7 @@ func TestHandler_ServeHTTP_InvalidPort(t *testing.T) {
 	certsSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
 
-	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder)
+	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder, nil)
 
 	err := cacheInstance.Set(context.Background(), daemonbase.AutoCreateTokenCacheKey, "test-token", cache.WithExpiration(300*time.Second))
 	require.NoError(t, err)
@@ -237,7 +237,7 @@ func TestHandler_ServeHTTP_DefaultValues(t *testing.T) {
 	certsSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
 
-	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder)
+	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder, nil)
 
 	err := cacheInstance.Set(context.Background(), daemonbase.AutoCreateTokenCacheKey, "test-token", cache.WithExpiration(300*time.Second))
 	require.NoError(t, err)
@@ -286,7 +286,7 @@ func TestHandler_ServeHTTP_WithAllFields(t *testing.T) {
 	certsSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
 
-	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder)
+	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder, nil)
 
 	err := cacheInstance.Set(context.Background(), daemonbase.AutoCreateTokenCacheKey, "test-token", cache.WithExpiration(300*time.Second))
 	require.NoError(t, err)
@@ -343,7 +343,7 @@ func TestHandler_ResponseFormat(t *testing.T) {
 	certsSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
 
-	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder)
+	handler := NewHandler(cacheInstance, nodesRepo, clientCertsRepo, certsSvc, responder, nil)
 
 	err := cacheInstance.Set(context.Background(), daemonbase.AutoCreateTokenCacheKey, "test-token", cache.WithExpiration(300*time.Second))
 	require.NoError(t, err)

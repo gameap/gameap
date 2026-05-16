@@ -3,9 +3,13 @@ package putuser
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories"
@@ -20,6 +24,7 @@ type Handler struct {
 	rbac        base.RBAC
 	tm          base.TransactionManager
 	responder   base.Responder
+	audit       audit.Logger
 }
 
 func NewHandler(
@@ -28,13 +33,19 @@ func NewHandler(
 	rbac base.RBAC,
 	tm base.TransactionManager,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		usersRepo:   usersRepo,
 		serversRepo: serversRepo,
 		rbac:        rbac,
 		tm:          tm,
 		responder:   responder,
+		audit:       auditLogger,
 	}
 }
 
@@ -139,6 +150,15 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.responder.WriteError(ctx, rw, err)
 
 		return
+	}
+
+	userResID := strconv.FormatUint(uint64(user.ID), 10)
+	audit.SensitiveOp(ctx, h.audit, audit.EventUserUpdate, audit.CategoryAdminOp,
+		"user", userResID, "update")
+	if len(updateInput.Roles) > 0 {
+		audit.SensitiveOp(ctx, h.audit, audit.EventUserRolesAssign, audit.CategoryAdminOp,
+			"user", userResID, "role_assign",
+			slog.String("roles", strings.Join(updateInput.Roles, ",")))
 	}
 
 	roleNames, err := h.rbac.GetRoles(ctx, user.ID)

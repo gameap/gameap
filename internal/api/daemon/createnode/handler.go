@@ -8,10 +8,12 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
 	daemonbase "github.com/gameap/gameap/internal/api/daemon/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/certificates"
 	"github.com/gameap/gameap/internal/domain"
@@ -40,6 +42,7 @@ type Handler struct {
 	clientCertificateRepo repositories.ClientCertificateRepository
 	certificatesSvc       *certificates.Service
 	responder             base.Responder
+	audit                 audit.Logger
 }
 
 func NewHandler(
@@ -48,13 +51,19 @@ func NewHandler(
 	clientCertificateRepo repositories.ClientCertificateRepository,
 	certificatesSvc *certificates.Service,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		cache:                 cache,
 		nodesRepo:             nodesRepo,
 		clientCertificateRepo: clientCertificateRepo,
 		certificatesSvc:       certificatesSvc,
 		responder:             responder,
+		audit:                 auditLogger,
 	}
 }
 
@@ -121,6 +130,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventNodeCreate, audit.CategoryNodeOp,
+		"node", strconv.FormatUint(uint64(node.ID), 10), "create")
 
 	if err := h.cache.Delete(ctx, daemonbase.AutoCreateTokenCacheKey); err != nil {
 		slog.Warn(fmt.Sprintf("failed to delete create token from cache: %v", err))

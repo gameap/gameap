@@ -2,23 +2,62 @@ package base
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/pkg/errors"
 )
 
-// AbilityChecker is responsible for checking server abilities.
-type AbilityChecker struct {
-	rbac base.RBAC
+// packageAuditLogger is the audit sink used by every AbilityChecker that was
+// not given an explicit one. It mirrors the project's existing reliance on a
+// process-wide logger (slog.Default) and lets the ~38 handler call sites that
+// build a checker keep doing NewAbilityChecker(rbac) unchanged while still
+// emitting access-denied events. Set once at startup via SetAuditLogger.
+var packageAuditLogger audit.Logger = audit.NopLogger{}
+
+// SetAuditLogger installs the process-wide audit logger for ability checks.
+// Call once during application/router setup.
+func SetAuditLogger(l audit.Logger) {
+	if l != nil {
+		packageAuditLogger = l
+	}
 }
 
-func NewAbilityChecker(rbac base.RBAC) *AbilityChecker {
-	return &AbilityChecker{
-		rbac: rbac,
+// AbilityChecker is responsible for checking server abilities.
+type AbilityChecker struct {
+	rbac  base.RBAC
+	audit audit.Logger
+}
+
+// AbilityCheckerOption customises an AbilityChecker at construction time.
+type AbilityCheckerOption func(*AbilityChecker)
+
+// WithAuditLogger overrides the audit logger for this checker (used in tests
+// and where explicit injection is preferred over the package default).
+func WithAuditLogger(l audit.Logger) AbilityCheckerOption {
+	return func(c *AbilityChecker) {
+		if l != nil {
+			c.audit = l
+		}
 	}
+}
+
+func NewAbilityChecker(rbac base.RBAC, opts ...AbilityCheckerOption) *AbilityChecker {
+	c := &AbilityChecker{
+		rbac:  rbac,
+		audit: packageAuditLogger,
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
 // Check checks if a user has all the specified abilities for a server.
@@ -66,6 +105,15 @@ func (c *AbilityChecker) CheckOrError(
 	}
 
 	if !hasAbility {
+		audit.AccessDenied(
+			ctx,
+			c.audit,
+			"server",
+			strconv.FormatUint(uint64(serverID), 10),
+			"missing_ability",
+			slog.String("required_abilities", joinAbilities(abilities)),
+		)
+
 		return api.WrapHTTPError(
 			errors.Errorf("user does not have required permissions"),
 			http.StatusForbidden,
@@ -73,4 +121,13 @@ func (c *AbilityChecker) CheckOrError(
 	}
 
 	return nil
+}
+
+func joinAbilities(abilities []domain.AbilityName) string {
+	parts := make([]string, len(abilities))
+	for i, a := range abilities {
+		parts[i] = string(a)
+	}
+
+	return strings.Join(parts, ",")
 }

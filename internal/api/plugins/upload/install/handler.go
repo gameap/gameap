@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/repositories"
@@ -32,6 +33,7 @@ type Handler struct {
 	loader      *plugin.Loader
 	pluginsDir  string
 	responder   base.Responder
+	audit       audit.Logger
 }
 
 func NewHandler(
@@ -41,7 +43,12 @@ func NewHandler(
 	loader *plugin.Loader,
 	pluginsDir string,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		manager:     manager,
 		pluginRepo:  pluginRepo,
@@ -49,6 +56,7 @@ func NewHandler(
 		loader:      loader,
 		pluginsDir:  pluginsDir,
 		responder:   responder,
+		audit:       auditLogger,
 	}
 }
 
@@ -112,6 +120,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventPluginInstall, audit.CategoryPluginOp,
+		"plugin", strconv.FormatUint(uint64(dbID), 10), "install",
+		slog.String("plugin", loaded.Info.Id))
 
 	if err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(

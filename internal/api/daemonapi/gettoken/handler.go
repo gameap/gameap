@@ -2,10 +2,12 @@ package gettoken
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
@@ -19,17 +21,24 @@ type Handler struct {
 	nodeRepo    repositories.NodeRepository
 	connChecker DaemonConnectionChecker
 	responder   base.Responder
+	audit       audit.Logger
 }
 
 func NewHandler(
 	nodeRepo repositories.NodeRepository,
 	connChecker DaemonConnectionChecker,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		nodeRepo:    nodeRepo,
 		connChecker: connChecker,
 		responder:   responder,
+		audit:       auditLogger,
 	}
 }
 
@@ -116,6 +125,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventDaemonTokenIssue, audit.CategoryTokenOp,
+		"node", strconv.FormatUint(uint64(node.ID), 10), "issue")
 
 	response := newTokenResponse(token, now.Unix())
 

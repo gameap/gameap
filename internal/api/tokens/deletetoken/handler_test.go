@@ -127,7 +127,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				savedTokens = append(savedTokens, &tokenCopy)
 			}
 
-			handler := deletetoken.NewHandler(tokensRepo, responder)
+			handler := deletetoken.NewHandler(tokensRepo, responder, nil)
 
 			req := httptest.NewRequest(http.MethodDelete, "/api/tokens/"+tt.tokenID, nil)
 			if tt.tokenID != "" {

@@ -2,8 +2,10 @@ package deletetoken
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
@@ -14,15 +16,22 @@ import (
 type Handler struct {
 	tokensRepo repositories.PersonalAccessTokenRepository
 	responder  base.Responder
+	audit      audit.Logger
 }
 
 func NewHandler(
 	tokensRepo repositories.PersonalAccessTokenRepository,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		tokensRepo: tokensRepo,
 		responder:  responder,
+		audit:      auditLogger,
 	}
 }
 
@@ -81,6 +90,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventPATRevoke, audit.CategoryTokenOp,
+		"token", strconv.FormatUint(uint64(id), 10), "revoke")
 
 	rw.WriteHeader(http.StatusNoContent)
 }

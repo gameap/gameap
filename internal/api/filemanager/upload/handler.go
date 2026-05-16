@@ -3,14 +3,17 @@ package upload
 import (
 	"context"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -50,6 +53,7 @@ type Handler struct {
 	nodeRepo       repositories.NodeRepository
 	daemonFiles    fileService
 	responder      base.Responder
+	audit          audit.Logger
 }
 
 func NewHandler(
@@ -58,13 +62,19 @@ func NewHandler(
 	rbac base.RBAC,
 	daemonFiles fileService,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		serverFinder:   serversbase.NewServerFinder(serverRepo, rbac),
 		abilityChecker: serversbase.NewAbilityChecker(rbac),
 		nodeRepo:       nodeRepo,
 		daemonFiles:    daemonFiles,
 		responder:      responder,
+		audit:          auditLogger,
 	}
 }
 
@@ -173,6 +183,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventFileUpload, audit.CategoryFileOp,
+		"server", strconv.FormatUint(uint64(serverID), 10), "upload",
+		slog.Int("files", len(files)))
 
 	h.responder.Write(ctx, rw, newUploadResponse())
 }

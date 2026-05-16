@@ -69,6 +69,7 @@ func TestUninstall_successful(t *testing.T) {
 		nil,
 		"plugins",
 		api.NewResponder(),
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 
@@ -96,6 +97,7 @@ func TestUninstall_not_installed(t *testing.T) {
 		nil,
 		"plugins",
 		api.NewResponder(),
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 
@@ -135,6 +137,7 @@ func TestUninstall_with_manager(t *testing.T) {
 		manager,
 		"plugins",
 		api.NewResponder(),
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 
@@ -180,6 +183,7 @@ func TestUninstall_manager_unload_error(t *testing.T) {
 		manager,
 		"plugins",
 		api.NewResponder(),
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 
@@ -222,6 +226,7 @@ func TestUninstall_plugin_not_loaded_in_manager(t *testing.T) {
 		manager,
 		"plugins",
 		api.NewResponder(),
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 

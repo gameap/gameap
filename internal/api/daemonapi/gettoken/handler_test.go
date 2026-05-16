@@ -150,7 +150,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			nodesRepo := inmemory.NewNodeRepository()
 			responder := api.NewResponder()
 			connChecker := &fakeConnectionChecker{connected: tt.grpcConnected}
-			handler := NewHandler(nodesRepo, connChecker, responder)
+			handler := NewHandler(nodesRepo, connChecker, responder, nil)
 
 			var node *domain.Node
 			if tt.setupRepo != nil {
@@ -207,7 +207,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 func TestHandler_TokenGeneration(t *testing.T) {
 	nodesRepo := inmemory.NewNodeRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(nodesRepo, &fakeConnectionChecker{}, responder)
+	handler := NewHandler(nodesRepo, &fakeConnectionChecker{}, responder, nil)
 
 	now := time.Now()
 	node := &domain.Node{
@@ -255,7 +255,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	responder := api.NewResponder()
 	connChecker := &fakeConnectionChecker{}
 
-	handler := NewHandler(nodesRepo, connChecker, responder)
+	handler := NewHandler(nodesRepo, connChecker, responder, nil)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, nodesRepo, handler.nodeRepo)
@@ -276,7 +276,7 @@ func TestNewTokenResponse(t *testing.T) {
 func TestHandler_TokenResponseJSON(t *testing.T) {
 	nodesRepo := inmemory.NewNodeRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(nodesRepo, &fakeConnectionChecker{}, responder)
+	handler := NewHandler(nodesRepo, &fakeConnectionChecker{}, responder, nil)
 
 	now := time.Now()
 	node := &domain.Node{
@@ -321,7 +321,7 @@ func TestHandler_TokenResponseJSON(t *testing.T) {
 func TestHandler_UpdatesNodeTimestamp(t *testing.T) {
 	nodesRepo := inmemory.NewNodeRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(nodesRepo, &fakeConnectionChecker{}, responder)
+	handler := NewHandler(nodesRepo, &fakeConnectionChecker{}, responder, nil)
 
 	originalTime := time.Now().Add(-1 * time.Hour)
 	node := &domain.Node{

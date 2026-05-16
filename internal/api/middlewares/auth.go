@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -48,6 +49,7 @@ type AuthMiddleware struct {
 	tokenRepo   repositories.PersonalAccessTokenRepository
 	revocation  auth.TokenRevocation
 	responder   base.Responder
+	audit       audit.Logger
 }
 
 func NewAuthMiddleware(
@@ -56,9 +58,13 @@ func NewAuthMiddleware(
 	tokenRepo repositories.PersonalAccessTokenRepository,
 	revocation auth.TokenRevocation,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *AuthMiddleware {
 	if revocation == nil {
 		revocation = auth.NoopRevocation{}
+	}
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
 	}
 
 	return &AuthMiddleware{
@@ -67,6 +73,7 @@ func NewAuthMiddleware(
 		tokenRepo:   tokenRepo,
 		revocation:  revocation,
 		responder:   responder,
+		audit:       auditLogger,
 	}
 }
 
@@ -90,6 +97,7 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 				return
 			}
 
+			audit.TokenRejected(r.Context(), m.audit, "missing_token")
 			m.responder.WriteError(r.Context(), w, api.WrapHTTPError(
 				errMissingAuthToken,
 				http.StatusUnauthorized,
@@ -106,6 +114,7 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 		case tokenTypePersonalAccess:
 			session, err = m.processPersonalAccessToken(r.Context(), tokenString)
 		default:
+			audit.TokenRejected(r.Context(), m.audit, "unknown_token_type")
 			m.responder.WriteError(r.Context(), w, api.WrapHTTPError(
 				errInvalidOrExpiredToken,
 				http.StatusUnauthorized,
@@ -114,6 +123,10 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 			return
 		}
 		if err != nil {
+			if reason, ok := authRejectReason(err); ok {
+				audit.TokenRejected(r.Context(), m.audit, reason)
+			}
+
 			if optional {
 				var wrappedHTTPErr *api.WrappedError
 				if errors.As(err, &wrappedHTTPErr) && wrappedHTTPErr.HTTPStatus() == http.StatusUnauthorized {
@@ -138,6 +151,8 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 			return
 		}
 		if revoked {
+			audit.TokenRejected(r.Context(), m.audit, "token_revoked")
+
 			if optional {
 				next.ServeHTTP(w, r)
 
@@ -156,6 +171,34 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// authRejectReason maps a credential-processing error to a stable, non-
+// sensitive audit reason token. It returns ok=false for internal errors
+// (e.g. repository failures) so those are not mislabelled as auth failures.
+func authRejectReason(err error) (string, bool) {
+	switch {
+	case errors.Is(err, errInvalidPATFormat):
+		return "invalid_pat_format", true
+	case errors.Is(err, errInvalidPATID):
+		return "invalid_pat_id", true
+	case errors.Is(err, errPATNotFound):
+		return "pat_not_found", true
+	case errors.Is(err, errInvalidPAT):
+		return "invalid_pat", true
+	case errors.Is(err, errUnsupportedPATType):
+		return "unsupported_pat_type", true
+	case errors.Is(err, errUserNotFoundForPAT):
+		return "user_not_found_for_pat", true
+	case errors.Is(err, errInvalidOrExpiredToken):
+		return "invalid_or_expired_token", true
+	case errors.Is(err, errInvalidTokenSubject):
+		return "invalid_token_subject", true
+	case errors.Is(err, errUserNotFound):
+		return "user_not_found", true
+	default:
+		return "", false
+	}
 }
 
 func (m *AuthMiddleware) extractToken(r *http.Request) string {
@@ -360,15 +403,22 @@ func (m *AuthMiddleware) processUserAuthToken(ctx context.Context, token string)
 type IsAdminMiddleware struct {
 	rbac      base.RBAC
 	responder base.Responder
+	audit     audit.Logger
 }
 
 func NewIsAdminMiddleware(
 	rbac base.RBAC,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *IsAdminMiddleware {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &IsAdminMiddleware{
 		rbac:      rbac,
 		responder: responder,
+		audit:     auditLogger,
 	}
 }
 
@@ -378,6 +428,7 @@ func (m *IsAdminMiddleware) Middleware(next http.Handler) http.Handler {
 		session := auth.SessionFromContext(ctx)
 
 		if !session.IsAuthenticated() {
+			audit.AccessDenied(ctx, m.audit, "admin", "", "not_authenticated")
 			m.responder.WriteError(ctx, w, api.WrapHTTPError(
 				errUserNotAuthenticated,
 				http.StatusUnauthorized,
@@ -397,6 +448,7 @@ func (m *IsAdminMiddleware) Middleware(next http.Handler) http.Handler {
 		}
 
 		if !isAdmin {
+			audit.AccessDenied(ctx, m.audit, "admin", "", "admin_required")
 			m.responder.WriteError(ctx, w, api.WrapHTTPError(
 				errAdminPermissionsRequired,
 				http.StatusForbidden,

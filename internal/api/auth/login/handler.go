@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -23,15 +24,24 @@ type Handler struct {
 	userRepo    repositories.UserRepository
 	responder   base.Responder
 	authService auth.Service
+	audit       audit.Logger
 }
 
 func NewHandler(
-	authService auth.Service, userRepo repositories.UserRepository, responder base.Responder,
+	authService auth.Service,
+	userRepo repositories.UserRepository,
+	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		userRepo:    userRepo,
 		responder:   responder,
 		authService: authService,
+		audit:       auditLogger,
 	}
 }
 
@@ -111,6 +121,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.LoginSuccess(ctx, h.audit, user.ID, user.Login)
 
 	response := newLoginResponseFromUser(&user, token, DefaultTokenDuration)
 	h.responder.Write(ctx, rw, response)

@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/pkg/api"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
@@ -51,6 +51,7 @@ type LoginRateLimitMiddleware struct {
 	maxPerUser     int
 	clock          func() time.Time
 	clientIPHeader string // optional header to consult before RemoteAddr (e.g. X-Real-IP); empty disables
+	audit          audit.Logger
 }
 
 // LoginRateLimitOption configures the middleware at construction time.
@@ -77,6 +78,16 @@ func WithLoginRateLimitClientIPHeader(h string) LoginRateLimitOption {
 	return func(m *LoginRateLimitMiddleware) { m.clientIPHeader = h }
 }
 
+// WithLoginRateLimitAuditLogger wires the security audit logger so failed
+// and rate-limit-blocked login attempts are recorded.
+func WithLoginRateLimitAuditLogger(l audit.Logger) LoginRateLimitOption {
+	return func(m *LoginRateLimitMiddleware) {
+		if l != nil {
+			m.audit = l
+		}
+	}
+}
+
 func NewLoginRateLimitMiddleware(
 	c cache.Cache,
 	responder base.Responder,
@@ -89,6 +100,7 @@ func NewLoginRateLimitMiddleware(
 		maxPerIP:   defaultLoginRateLimitMaxPerIP,
 		maxPerUser: defaultLoginRateLimitMaxPerUsername,
 		clock:      time.Now,
+		audit:      audit.NopLogger{},
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -101,7 +113,7 @@ func (m *LoginRateLimitMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		ip := m.extractClientIP(r)
+		ip := audit.ClientIP(r, m.clientIPHeader)
 		username, body := m.peekUsernameAndRestoreBody(r)
 
 		// Pre-check both counters; if either is already over the limit, refuse
@@ -109,6 +121,11 @@ func (m *LoginRateLimitMiddleware) Middleware(next http.Handler) http.Handler {
 		// the limit by varying the username while attacking a single account
 		// (or vice versa).
 		if retryAfter, blocked, reason := m.shouldBlock(ctx, ip, username); blocked {
+			blockedBy := "username"
+			if errors.Is(reason, errLoginRateLimitedByIP) {
+				blockedBy = "ip"
+			}
+			audit.LoginBlocked(ctx, m.audit, username, blockedBy)
 			m.respond429(ctx, w, retryAfter, reason)
 
 			_ = body
@@ -121,6 +138,7 @@ func (m *LoginRateLimitMiddleware) Middleware(next http.Handler) http.Handler {
 
 		switch recorder.statusCode {
 		case http.StatusUnauthorized:
+			audit.LoginFailure(ctx, m.audit, username, "invalid_credentials")
 			m.recordFailure(ctx, ip, username)
 		case http.StatusOK:
 			// Only reset the username counter; the IP counter intentionally keeps
@@ -206,26 +224,6 @@ func (m *LoginRateLimitMiddleware) respond429(
 		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 	}
 	m.responder.WriteError(ctx, w, api.WrapHTTPError(reason, http.StatusTooManyRequests))
-}
-
-func (m *LoginRateLimitMiddleware) extractClientIP(r *http.Request) string {
-	if m.clientIPHeader != "" {
-		if v := strings.TrimSpace(r.Header.Get(m.clientIPHeader)); v != "" {
-			// X-Forwarded-For may carry a comma-separated list — keep the first.
-			if idx := strings.IndexByte(v, ','); idx >= 0 {
-				v = strings.TrimSpace(v[:idx])
-			}
-
-			return v
-		}
-	}
-
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-
-	return host
 }
 
 // peekUsernameAndRestoreBody reads the JSON body, extracts the lowercased

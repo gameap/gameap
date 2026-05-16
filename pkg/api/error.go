@@ -70,3 +70,9 @@ func (e *WrappedError) Title() string {
 func (e *WrappedError) Error() string {
 	return e.cause.Error()
 }
+
+// Unwrap exposes the wrapped cause so errors.Is / errors.As can match
+// against the original sentinel error.
+func (e *WrappedError) Unwrap() error {
+	return e.cause
+}

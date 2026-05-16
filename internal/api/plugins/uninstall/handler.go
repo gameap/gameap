@@ -4,8 +4,10 @@ import (
 	"context"
 	"net/http"
 	"path"
+	"strconv"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/filters"
@@ -26,6 +28,7 @@ type Handler struct {
 	manager     PluginManager
 	pluginsDir  string
 	responder   base.Responder
+	audit       audit.Logger
 }
 
 func NewHandler(
@@ -34,13 +37,19 @@ func NewHandler(
 	manager PluginManager,
 	pluginsDir string,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		pluginRepo:  pluginRepo,
 		fileManager: fileManager,
 		manager:     manager,
 		pluginsDir:  pluginsDir,
 		responder:   responder,
+		audit:       auditLogger,
 	}
 }
 
@@ -100,6 +109,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventPluginUninstall, audit.CategoryPluginOp,
+		"plugin", strconv.FormatUint(uint64(dbID), 10), "uninstall")
 
 	rw.WriteHeader(http.StatusNoContent)
 }

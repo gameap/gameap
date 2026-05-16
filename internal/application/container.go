@@ -22,6 +22,7 @@ import (
 	acmestorage "github.com/gameap/gameap/internal/acme/storage"
 	internalapi "github.com/gameap/gameap/internal/api"
 	"github.com/gameap/gameap/internal/api/middlewares"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/certificates"
 	"github.com/gameap/gameap/internal/config"
@@ -189,6 +190,7 @@ type Container struct {
 	httpServer  *http.Server
 	httpsServer *http.Server
 	responder   *api.Responder
+	auditLogger audit.Logger
 
 	// ACME
 	acmeService *acme.Service
@@ -503,6 +505,10 @@ func (c *Container) createHTTPServer() *http.Server {
 		handler = middlewares.HTTPSRedirectMiddleware(c.config.HTTPSPort)(handler)
 	}
 
+	// Outermost: assign/propagate the correlation ID and capture per-request
+	// metadata so every audit event of the request is joinable.
+	handler = audit.NewRequestContextMiddleware(c.config.Audit.ClientIPHeader).Middleware(handler)
+
 	return &http.Server{
 		Addr:         net.JoinHostPort(c.config.HTTPBindIP, strconv.Itoa(int(c.config.HTTPPort))),
 		Handler:      handler,
@@ -521,7 +527,9 @@ func (c *Container) HTTPSServer() *http.Server {
 }
 
 func (c *Container) createHTTPSServer() *http.Server {
-	handler := c.Router()
+	var handler http.Handler = c.Router()
+
+	handler = audit.NewRequestContextMiddleware(c.config.Audit.ClientIPHeader).Middleware(handler)
 
 	return &http.Server{
 		Addr:         net.JoinHostPort(c.config.HTTPBindIP, strconv.Itoa(int(c.config.HTTPSPort))),
@@ -588,6 +596,21 @@ func (c *Container) Responder() *api.Responder {
 
 func (c *Container) createResponder() *api.Responder {
 	return api.NewResponder()
+}
+
+// AuditLogger returns the structured security audit logger. When audit
+// logging is disabled in config it returns a no-op logger so call sites
+// never need to guard.
+func (c *Container) AuditLogger() audit.Logger {
+	if c.auditLogger == nil {
+		if c.config.Audit.Enabled {
+			c.auditLogger = audit.NewLogger(slog.Default())
+		} else {
+			c.auditLogger = audit.NopLogger{}
+		}
+	}
+
+	return c.auditLogger
 }
 
 func (c *Container) UserRepository() repositories.UserRepository {

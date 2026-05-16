@@ -23,7 +23,7 @@ attack surface.
 | Application type | Self-hosted REST/JSON API + gRPC daemon control plane (with embedded SPA + WebSocket) |
 | Primary trust boundaries | (a) public Internet → API HTTP/WS server; (b) game daemon → API gRPC bidi + legacy daemon HTTP API; (c) operator → admin endpoints; (d) plugin (WASM) → host runtime |
 | L1 baseline | [`docs/security/ASVS.md`](./ASVS.md) (last reviewed 2026-04-28) |
-| Last reviewed | 2026-05-15 |
+| Last reviewed | 2026-05-16 (C-3 / T-2 resolved) |
 | Owners | gameap-api maintainers |
 | Audit method | Static review of source + test suite; no penetration testing engagement |
 
@@ -69,7 +69,7 @@ score = Met / (Met + Partial * 0.5 + Not met)
 | V4 Access control | 6 | 2 | 3 | — | 64% |
 | V5 Validation / encoding | 13 | 2 | 1 | 6 | 88% |
 | V6 Stored cryptography | 5 | 4 | 3 | — | 58% |
-| V7 Error handling & logging | 4 | 3 | 5 | — | 46% |
+| V7 Error handling & logging | 6 | 3 | 2 | — | 63% |
 | V8 Data protection | 3 | 3 | 4 | 1 | 45% |
 | V9 Communications | 3 | 3 | 2 | — | 56% |
 | V10 Malicious code | 1 | 2 | 0 | 4 | 67% |
@@ -77,13 +77,14 @@ score = Met / (Met + Partial * 0.5 + Not met)
 | V12 Files & resources | 9 | 2 | 4 | 1 | 67% |
 | V13 API & web service | 7 | 2 | 2 | 2 | 73% |
 | V14 Configuration | 8 | 5 | 6 | — | 55% |
-| **Total** | **88** | **43** | **53** | **20** | **57%** |
+| **Total** | **90** | **43** | **50** | **20** | **58%** |
 
-**L2 conformance: ~57%** — the project has a strong testing baseline,
-solid AuthN/AuthZ enforcement, and good defaults around cryptographic
-primitives, but is held back by missing security HTTP headers, no
-audit logging, no MFA, and a handful of high-severity gaps documented
-in §3. Realistic estimate: **~80% achievable in 3 sprints**, full L2
+**L2 conformance: ~58%** — the project has a strong testing baseline,
+solid AuthN/AuthZ enforcement, good defaults around cryptographic
+primitives, and now a structured security audit log (**C-3 / T-2
+resolved 2026-05-16**), but is still held back by missing security HTTP
+headers, no MFA, and a handful of high-severity gaps documented in §3.
+Realistic estimate: **~80% achievable in 3 sprints**, full L2
 conformance after the MFA + threat-model deliverables (§7).
 
 ### 2.2 Strengths worth preserving
@@ -126,7 +127,7 @@ panels lack:
 | # | Gap | ASVS req | Severity |
 | --- | --- | --- | --- |
 | T-1 | No security HTTP headers (HSTS, X-CTO, X-Frame-Options, CSP, Referrer-Policy) | 14.3.2, 14.4.6, 14.4.7 | **High** |
-| T-2 | No structured audit log (auth failures, AC denials, sensitive ops) | 7.1.3, 7.2.1, 7.2.2 | **High** |
+| T-2 | ~~No structured audit log (auth failures, AC denials, sensitive ops)~~ **Resolved 2026-05-16** (`internal/audit/`; remote forwarding 7.2.2 still deferred to Sprint 3) | 7.1.3, 7.2.1 | ~~High~~ |
 | T-3 | Legacy daemon outbound TLS allows TLS 1.0 + `InsecureSkipVerify=true` | 9.1.2, 9.2.1 | **High** |
 | T-4 | No MFA (TOTP / WebAuthn / OOB) for users or admins | 2.7.x, 2.8.x, 4.3.1 | High |
 | T-5 | `node.GdaemonAPIKey` stored plaintext in DB (used per-request by gRPC) | 2.10.2, 6.1.3, 8.3.4 | High |
@@ -237,13 +238,39 @@ report-only deploy first.
 
 ---
 
-### C-3 · **High** · No structured audit log for security events
+### C-3 · ~~**High**~~ · ✅ Resolved · No structured audit log for security events
 
 | | |
 | --- | --- |
 | Files | `internal/api/middlewares/auth.go` (no `slog` on rejection branches), `internal/api/middlewares/personal_access.go`, `internal/api/middlewares/daemon.go` |
 | CWE | CWE-778 (Insufficient logging), CWE-223 (Omission of security-relevant information) |
 | ASVS | 7.1.3 (Successful/failed auth logged), 7.1.4 (Sufficient context), 7.2.1 (Security event logging), 7.2.2 (Log forwarding), 4.1.5 (AC failure logging) |
+| Status | ✅ **Resolved 2026-05-16** — see "Resolution" below. Residual: 7.2.2 (remote/SIEM forwarding) and 7.3.1 (log integrity) remain open (Sprint 3). |
+
+**Resolution (2026-05-16).** Added the `internal/audit/` package
+(stable schema: `event_type, category, outcome, actor, resource,
+action, reason, request_id, ip, user_agent, http_method, path`; emitted
+via `slog` tagged `component=audit`, failures/denials at WARN, success
+at INFO; `NopLogger` when `AUDIT_ENABLED=false`). A global
+`RequestContextMiddleware` (wired once in
+`internal/application/container.go` over both HTTP/HTTPS servers)
+assigns/propagates a sanitized `X-Request-Id` and captures IP/UA so
+every record is joinable. Wired into: (1) `AuthMiddleware` /
+`IsAdminMiddleware` / `DaemonAuthMiddleware` rejection paths; (2)
+`LoginRateLimitMiddleware` block/failure + login-success in the login
+handler; (3) RBAC denials at the single choke point
+`AbilityChecker.CheckOrError` (covers all ~38 call sites via a
+process-wide audit sink set in `CreateRouter`); (4) 13 sensitive-op
+handlers (user update / role assign, PAT create/revoke, daemon-token
+issue, node create/update/delete, file delete/rename/chmod/write/upload,
+plugin install/uninstall). Secrets/token values/file contents are never
+logged (`reason` is a stable enum; submitted unauthenticated logins go
+to `attempted_login`, never `actor_login`). Config: `AUDIT_ENABLED`
+(default true), `AUDIT_CLIENT_IP_HEADER`. Tests: `internal/audit/*_test.go`
+(schema/severity, actor derivation, request-id sanitization, ClientIP)
+and `internal/api/router_security_auditlog_test.go` (end-to-end).
+
+The original finding is preserved below for history.
 
 The auth middleware returns 401/403 on every failure path without ever
 calling `slog`. Same in the personal-access, daemon, and admin
@@ -652,7 +679,7 @@ preserved verbatim from the existing test suite.
 | 4.1.2 | AC attributes not user-controllable | ✅ Met | `TestRouterSecurity_API3_Escalation_RegularUserCannotEditOtherUsers`, `FuzzPutUserBody_MassAssignment`. |
 | 4.1.3 | Least privilege | ✅ Met | Granular abilities (`internal/domain/rbac.go`); assignment guard `internal/domain/auth.go:157-166`. |
 | 4.1.4 | Deny by default | ✅ Met | Auth middleware 401 on missing token (`auth.go:86-97`); admin middleware 403 on missing ability (`auth.go:399-403`). |
-| 4.1.5 | AC failures logged, alerts on repeats | 🟡→❌ | Failures surface to client but **not** to a structured audit log (**C-3 / T-2**). |
+| 4.1.5 | AC failures logged, alerts on repeats | 🟡 Partial | AC failures now logged as `access.denied` audit events at the single RBAC choke point + admin gate (`internal/api/servers/base/abilitychecker.go`, `internal/api/middlewares/auth.go` `IsAdminMiddleware`); automated alerting on repeats is still an operator/SIEM concern (depends on 7.2.2). |
 | 4.2.1 | Sensitive data and APIs protected from IDOR | ✅ Met | `serverfinder.go:30-57` + `TestRouterSecurity_API1_BOLA_*` (7 cases) + `FuzzServerIDPathParam_*`, `FuzzFileManagerPath_*`. |
 | 4.2.2 | CSRF defenses for state-changing ops | 🟡 Partial | Authorization header default mitigates; cookie path lacks SameSite. |
 | 4.3.1 | Admin interfaces use MFA | ❌ Not met | **T-4 / C-9**. |
@@ -721,17 +748,19 @@ preserved verbatim from the existing test suite.
 | --- | --- | --- | --- |
 | 7.1.1 | No sensitive data in logs | 🟡 Partial | Passwords not logged; query-string tokens (**C-4**) may leak via upstream proxy access logs. |
 | 7.1.2 | No credentials / secrets in logs | 🟡 Partial | Same as 7.1.1. |
-| 7.1.3 | Successful and failed authn logged | ❌ Not met | Auth middleware silently rejects (**C-3 / T-2**). |
-| 7.1.4 | Logs include enough context (user, IP, ts, request_id) | 🟡 Partial | gRPC interceptor logs method/peer/duration (`internal/grpc/interceptors/logging.go`); no per-request correlation ID; HTTP requests not logged at all by default. |
-| 7.2.1 | Security event logging | ❌ Not met | No audit stream (**C-3 / T-2**). |
-| 7.2.2 | Log forwarding to remote / SIEM | ❌ Not met | stdout/stderr only. |
+| 7.1.3 | Successful and failed authn logged | ✅ Met | `internal/audit/` emits `auth.login.success/failure/blocked`, `auth.token.rejected`, `auth.daemon.rejected` (`internal/api/middlewares/{auth,daemon,login_ratelimit}.go`, `internal/api/auth/login`). Tests: `internal/audit/*_test.go`, `internal/api/router_security_auditlog_test.go`. |
+| 7.1.4 | Logs include enough context (user, IP, ts, request_id) | ✅ Met | `audit.RequestContextMiddleware` assigns/propagates a sanitized `X-Request-Id` and captures IP/UA/method/path; every audit record carries actor + `request_id` (`internal/audit/{middleware,logger,context}.go`, wired in `internal/application/container.go`). |
+| 7.2.1 | Security event logging | ✅ Met | Structured `slog` audit stream tagged `component=audit` over auth, RBAC denials and sensitive ops (`internal/audit/`, `internal/api/servers/base/abilitychecker.go`, 13 sensitive-op handlers). |
+| 7.2.2 | Log forwarding to remote / SIEM | ❌ Not met | stdout/stderr only; records are tagged `component=audit` so an operator can split/forward them, but no built-in remote/SIEM shipper (Sprint 3). |
 | 7.3.1 | Log integrity (write-once / append-only) | ❌ Not met | Operator-controlled. |
 | 7.3.3 | Logs synced to time source | 🟡 Partial | Uses `time.Now()` (system clock); operator must maintain NTP. |
 | 7.4.1 | Generic error messages to clients (≥ 500) | ✅ Met | `pkg/api/responder.go:114-116`. |
 | 7.4.2 | Sensitive detail only in server logs | ✅ Met | Wrapped via `errors.WithMessage`; `responder.go` strips on 5xx. |
 | 7.4.3 | Recovery / last-resort handler | ✅ Met | `internal/api/middlewares/recovery.go` + `recovery_test.go`. |
 
-**V7 score: 46%** (4 Met / 3 Partial / 5 Not met of 11 L2-applicable).
+**V7 score: 63%** (6 Met / 3 Partial / 2 Not met of 11 L2-applicable).
+7.2.2 (remote forwarding) and 7.3.1 (log integrity / append-only) remain
+open and are tracked for Sprint 3.
 
 ---
 
@@ -961,7 +990,7 @@ Priority is `impact × ease`; one-line each — see §3 for context.
 
 ### Sprint 2 — high impact, medium effort (~2-3 weeks)
 
-7. **C-3 / T-2**: `internal/audit/` package + correlation-ID middleware + wire into auth/AC/sensitive-op paths (5 d).
+7. ~~**C-3 / T-2**: `internal/audit/` package + correlation-ID middleware + wire into auth/AC/sensitive-op paths (5 d).~~ ✅ **Done 2026-05-16** (remote forwarding split out to Sprint 3 item 15).
 8. **C-8 / T-9**: magic-byte/MIME validation on file upload (2 d).
 9. **T-6**: password policy (min length, max length surfaced, breached check via HIBP k-anonymity API) (3 d).
 10. **T-7**: idle session timeout (sliding TTL in revocation cache) (3 d).
