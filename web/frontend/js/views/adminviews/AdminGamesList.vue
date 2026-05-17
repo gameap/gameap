@@ -2,7 +2,7 @@
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
   <div class="mb-5">
-    <GButton class="mr-1" color="green" v-on:click="onClickGameCreate()">
+    <GButton class="mr-1" color="green" data-testid="games-add-button" v-on:click="onClickGameCreate()">
       <GIcon name="add-square" />&nbsp;{{ trans('games.add') }}
     </GButton>
 

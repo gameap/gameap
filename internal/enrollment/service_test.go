@@ -136,6 +136,8 @@ func TestService_Enroll_creates_node_with_correct_fields(t *testing.T) {
 	assert.Equal(t, domain.NodeOSWindows, node.OS)
 	assert.Equal(t, domain.IPList{"gameap.example.com"}, node.IPs)
 	assert.Equal(t, defaultWorkPath, node.WorkPath)
+	require.NotNil(t, node.SteamcmdPath)
+	assert.Equal(t, defaultSteamCMDPath, *node.SteamcmdPath)
 	assert.Equal(t, domain.NodePreferInstallMethodAuto, node.PreferInstallMethod)
 	assert.Len(t, node.GdaemonAPIKey, apiKeyLength)
 	assert.NotNil(t, node.CreatedAt)

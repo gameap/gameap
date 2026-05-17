@@ -14,6 +14,7 @@
             show-count
             v-model:value="form.code"
             type="text"
+            data-testid="create-game-code"
         />
       </n-form-item>
 
@@ -21,6 +22,7 @@
         <n-input
             v-model:value="form.name"
             type="text"
+            data-testid="create-game-name"
         />
       </n-form-item>
 
@@ -54,7 +56,7 @@
       </n-form-item>
     </n-form>
 
-    <GButton color="green" v-on:click="onClickCreate">
+    <GButton color="green" data-testid="create-game-submit" v-on:click="onClickCreate">
       <GIcon name="add-square" />
       <span class="hidden lg:inline">&nbsp;{{ trans('main.create') }}</span>
     </GButton>

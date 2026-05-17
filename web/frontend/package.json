@@ -8,7 +8,9 @@
     "build-debug": "vite build --debug",
     "build": "vite build",
     "preview": "vite preview",
-    "dev": "vite"
+    "dev": "vite",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.5.2",
@@ -33,9 +35,11 @@
   },
   "devDependencies": {
     "@originjs/vite-plugin-commonjs": "^1.0.3",
+    "@playwright/test": "^1.60.0",
     "@types/lodash-es": "^4.17.12",
     "@vue/compiler-sfc": "^3.1.0",
     "css-loader": "^6.10.0",
+    "dotenv": "^17.4.2",
     "naive-ui": "^2.43.2",
     "postcss": "^8.4.38",
     "postcss-loader": "^8.1.1",

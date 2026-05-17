@@ -2,7 +2,7 @@
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
   <div class="mb-5">
-    <GButton class="mr-1" color="green" v-on:click="onClickGenerate()">
+    <GButton class="mr-1" color="green" data-testid="tokens-generate-button" v-on:click="onClickGenerate()">
       <GIcon name="add-square" />&nbsp;{{ trans('tokens.generate_token') }}
     </GButton>
   </div>

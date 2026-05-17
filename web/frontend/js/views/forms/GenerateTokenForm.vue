@@ -13,6 +13,7 @@
           <n-input
               v-model:value="form.name"
               type="text"
+              data-testid="token-form-name"
           />
         </n-form-item>
 
@@ -28,7 +29,7 @@
                 <ul>
                   <li class="ml-4 m-2" v-for="(abilityName, ability) in abilitiesList">
                     <div class="flex flex-wrap">
-                      <n-checkbox class="md:w-1/3" :value="ability" :label="ability" />
+                      <n-checkbox class="md:w-1/3" :value="ability" :label="ability" :data-testid="`token-ability-${ability}`" />
                       <div class="md:w-2/3">
                         {{ abilityName }}
                       </div>
@@ -42,7 +43,7 @@
       </div>
     </n-form>
 
-    <GButton color="green" v-on:click="onClickGenerate">
+    <GButton color="green" data-testid="token-form-submit" v-on:click="onClickGenerate">
       <GIcon name="add-square" />
       <span class="hidden lg:inline">&nbsp;{{ trans('main.generate') }}</span>
     </GButton>

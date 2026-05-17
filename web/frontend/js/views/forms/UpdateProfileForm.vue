@@ -11,6 +11,7 @@
         <n-input
             v-model:value="form.name"
             type="text"
+            data-testid="profile-form-name"
         />
       </n-form-item>
 
@@ -34,6 +35,7 @@
                 show-password-on="click"
                 :placeholder="trans('labels.current_password')"
                 :input-props="{ autocomplete: 'one-time-code' }"
+                data-testid="profile-form-current-password"
             />
           </div>
         </div>
@@ -48,6 +50,7 @@
                 show-password-on="click"
                 :placeholder="trans('labels.new_password')"
                 :input-props="{ autocomplete: 'one-time-code' }"
+                data-testid="profile-form-new-password"
             />
 
             <n-input
@@ -56,6 +59,7 @@
                 show-password-on="click"
                 :input-props="{ autocomplete: 'one-time-code' }"
                 :placeholder="trans('labels.password_confirmation')"
+                data-testid="profile-form-password-confirmation"
             />
           </div>
         </div>
@@ -63,7 +67,7 @@
     </n-form>
 
     <div class="flex justify-end mt-4">
-      <GButton color="green" v-on:click="onClickUpdate">
+      <GButton color="green" data-testid="profile-form-save" v-on:click="onClickUpdate">
         <GIcon name="save" class="mr-0.5" />
         <span class="inline">{{ trans('main.save') }}</span>
       </GButton>

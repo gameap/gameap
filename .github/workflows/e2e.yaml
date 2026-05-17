@@ -1,0 +1,119 @@
+name: E2E
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: ['*']
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: gameap
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_DRIVER: postgres
+      DATABASE_URL: 'postgres://postgres:testpassword@127.0.0.1:5432/gameap?sslmode=disable'
+      AUTH_SECRET: e2e-test-secret-do-not-use-in-prod-32b
+      HTTP_PORT: '8025'
+      FILES_LOCAL_BASE_PATH: /tmp/gameap-files
+      ADMIN_LOGIN: admin
+      ADMIN_EMAIL: admin@localhost
+      ADMIN_PASSWORD: e2e-admin-password
+      E2E_ADMIN_USER: admin
+      E2E_ADMIN_PASSWORD: e2e-admin-password
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.26.x
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/frontend/package-lock.json
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h 127.0.0.1 -p 5432 -U postgres; do
+            echo 'waiting for postgres...'
+            sleep 2
+          done
+
+      - name: Build Go API
+        run: go build -o /tmp/gameap ./cmd/gameap
+
+      - name: Prepare file storage
+        run: mkdir -p /tmp/gameap-files
+
+      - name: Start Go API in background
+        run: |
+          /tmp/gameap > /tmp/gameap.log 2>&1 &
+          echo $! > /tmp/gameap.pid
+          for i in {1..60}; do
+            if curl -sf http://127.0.0.1:8025/api/health > /dev/null 2>&1; then
+              echo "API ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API failed to start"
+          cat /tmp/gameap.log
+          exit 1
+
+      - name: Install frontend deps
+        working-directory: web/frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: web/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        working-directory: web/frontend
+        run: npx playwright test --project=chromium
+
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f /tmp/gameap.pid ]; then
+            kill "$(cat /tmp/gameap.pid)" || true
+          fi
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/frontend/playwright-report/
+          retention-days: 14
+
+      - name: Upload gameap-api log
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: gameap-api-log
+          path: /tmp/gameap.log
+          retention-days: 7
