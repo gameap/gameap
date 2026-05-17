@@ -22,8 +22,8 @@ attack surface.
 | Target verification level | **L2 (Standard)** |
 | Application type | Self-hosted REST/JSON API + gRPC daemon control plane (with embedded SPA + WebSocket) |
 | Primary trust boundaries | (a) public Internet → API HTTP/WS server; (b) game daemon → API gRPC bidi + legacy daemon HTTP API; (c) operator → admin endpoints; (d) plugin (WASM) → host runtime |
-| L1 baseline | [`docs/security/ASVS.md`](./ASVS.md) (last reviewed 2026-04-28) |
-| Last reviewed | 2026-05-16 (C-3 / T-2 resolved) |
+| L1 baseline | [`docs/security/ASVS.md`](./ASVS.md) (last reviewed 2026-05-18) |
+| Last reviewed | 2026-05-18 (re-audit: C-5 / C-7 / C-9 resolved, T-4 closed; captcha + TOTP 2FA + single-use short-lived tokens + hardened file serving added; §2 scoreboard recomputed from §5). Prior: 2026-05-16 (C-3 / T-2 resolved). |
 | Owners | gameap-api maintainers |
 | Audit method | Static review of source + test suite; no penetration testing engagement |
 
@@ -61,31 +61,41 @@ score weights Partial at 50% of Met:
 score = Met / (Met + Partial * 0.5 + Not met)
 ```
 
+Counts below are derived directly from the §5 per-chapter tables (the
+2026-05-18 re-audit recomputed them; the previous summary had drifted
+out of sync with the detail rows). Grouped requirements (e.g. `2.8.x`)
+count as one.
+
 | Chapter | Met | Partial | Not met | N/A | Chapter score |
 | --- | ---:| ---:| ---:| ---:| ---:|
-| V1 Architecture & threat modeling | 3 | 4 | 6 | — | 38% |
-| V2 Authentication | 14 | 5 | 13 | 4 | 51% |
-| V3 Session management | 8 | 4 | 3 | 2 | 67% |
-| V4 Access control | 6 | 2 | 3 | — | 64% |
-| V5 Validation / encoding | 13 | 2 | 1 | 6 | 88% |
-| V6 Stored cryptography | 5 | 4 | 3 | — | 58% |
+| V1 Architecture & threat modeling | 8 | 13 | 7 | — | 37% |
+| V2 Authentication | 21 | 5 | 8 | 10 | 67% |
+| V3 Session management | 9 | 5 | 2 | 3 | 67% |
+| V4 Access control | 6 | 3 | 1 | — | 71% |
+| V5 Validation / encoding | 14 | 1 | 0 | 5 | 97% |
+| V6 Stored cryptography | 10 | 3 | 1 | — | 80% |
 | V7 Error handling & logging | 6 | 3 | 2 | — | 63% |
-| V8 Data protection | 3 | 3 | 4 | 1 | 45% |
-| V9 Communications | 3 | 3 | 2 | — | 56% |
-| V10 Malicious code | 1 | 2 | 0 | 4 | 67% |
-| V11 Business logic | 4 | 2 | 2 | — | 63% |
-| V12 Files & resources | 9 | 2 | 4 | 1 | 67% |
-| V13 API & web service | 7 | 2 | 2 | 2 | 73% |
-| V14 Configuration | 8 | 5 | 6 | — | 55% |
-| **Total** | **90** | **43** | **50** | **20** | **58%** |
+| V8 Data protection | 2 | 4 | 4 | 1 | 25% |
+| V9 Communications | 2 | 4 | 2 | — | 33% |
+| V10 Malicious code | 1 | 2 | 0 | 3 | 50% |
+| V11 Business logic | 3 | 2 | 2 | 1 | 50% |
+| V12 Files & resources | 9 | 2 | 3 | 1 | 69% |
+| V13 API & web service | 7 | 4 | 0 | 2 | 78% |
+| V14 Configuration | 11 | 8 | 6 | — | 52% |
+| **Total** | **109** | **59** | **38** | **26** | **62%** |
 
-**L2 conformance: ~58%** — the project has a strong testing baseline,
-solid AuthN/AuthZ enforcement, good defaults around cryptographic
-primitives, and now a structured security audit log (**C-3 / T-2
-resolved 2026-05-16**), but is still held back by missing security HTTP
-headers, no MFA, and a handful of high-severity gaps documented in §3.
-Realistic estimate: **~80% achievable in 3 sprints**, full L2
-conformance after the MFA + threat-model deliverables (§7).
+**L2 conformance: ~62%** (up from ~58% at the 2026-05-16 review; part
+of the delta is the scoreboard now matching the detail tables). The
+project has a strong testing baseline, solid AuthN/AuthZ enforcement,
+good cryptographic defaults, a structured security audit log (**C-3 /
+T-2 resolved 2026-05-16**), and as of this re-audit **TOTP 2FA with
+single-use bcrypt recovery codes (C-9 resolved), captcha-gated login,
+hashed `gdaemon_api_key` at rest (C-5 resolved), single-use setup keys
+(C-7 resolved), and hardened safe file serving**. It is still held back
+by missing global security HTTP headers (C-2/T-1), the legacy daemon
+TLS gap (C-1/T-3), no admin-MFA *enforcement*, and the items in §3.
+Realistic estimate: **~80% achievable in 2 remaining sprints**, full L2
+conformance after admin-MFA enforcement + threat-model deliverables (§7).
 
 ### 2.2 Strengths worth preserving
 
@@ -121,6 +131,28 @@ panels lack:
   guard (`migrations/postgres/007_hash_daemon_api_tokens.go`).
 - **Recovery middleware** with stack-trace logged server-side only
   (`internal/api/middlewares/recovery.go`).
+- **TOTP two-factor auth** (RFC-6238, `pkg/twofactor/`) — secret
+  AES-256-GCM-encrypted at rest with an HKDF-SHA256-derived key
+  (`crypto.go`), replay-locked via a persisted last-used step
+  (`totp.go:53-84`), 10 single-use **bcrypt** recovery codes
+  (`recovery.go`), a scope-confined `g2fa_` challenge token whose shape
+  the auth middleware refuses to exchange for a session
+  (`challenge.go`), and a per-challenge 5-attempt budget
+  (`twofactorverify/handler.go:26`). Tests: `pkg/twofactor/twofactor_test.go`,
+  `internal/api/middlewares/auth_twofactor_security_test.go`.
+- **Captcha-gated login** (`internal/services/captcha/service.go`) —
+  reCAPTCHA v2/v3 + Cloudflare Turnstile, verified *before* the user
+  store is touched (`login/handler.go:87-95`) so bots cannot probe
+  account existence; fail-closed by default (503 on provider outage).
+- **Single-use short-lived URL tokens** (`pkg/auth/shortlived.go`,
+  `internal/api/auth/shorttoken/handler.go`) — `glst_` prefix, ≤10 s
+  TTL, cache-deleted on first use, minting requires header auth; a safe
+  alternative to putting a long-lived token in a WebSocket/download URL.
+- **Safe file serving** (`internal/api/filemanager/filemanagerhttp/headers.go`)
+  — inert-MIME allowlist (SVG excluded), `X-Content-Type-Options:
+  nosniff`, `Content-Security-Policy: sandbox`, RFC 2231/6266
+  `Content-Disposition`, so a stored HTML/SVG cannot run in the panel
+  origin even though global headers (C-2) are still pending.
 
 ### 2.3 Top-10 L2 gaps (impact-ranked)
 
@@ -129,8 +161,8 @@ panels lack:
 | T-1 | No security HTTP headers (HSTS, X-CTO, X-Frame-Options, CSP, Referrer-Policy) | 14.3.2, 14.4.6, 14.4.7 | **High** |
 | T-2 | ~~No structured audit log (auth failures, AC denials, sensitive ops)~~ **Resolved 2026-05-16** (`internal/audit/`; remote forwarding 7.2.2 still deferred to Sprint 3) | 7.1.3, 7.2.1 | ~~High~~ |
 | T-3 | Legacy daemon outbound TLS allows TLS 1.0 + `InsecureSkipVerify=true` | 9.1.2, 9.2.1 | **High** |
-| T-4 | No MFA (TOTP / WebAuthn / OOB) for users or admins | 2.7.x, 2.8.x, 4.3.1 | High |
-| T-5 | `node.GdaemonAPIKey` stored plaintext in DB (used per-request by gRPC) | 2.10.2, 6.1.3, 8.3.4 | High |
+| T-4 | ~~No MFA (TOTP / WebAuthn / OOB) for users or admins~~ **Resolved 2026-05-18** — TOTP 2FA + bcrypt recovery codes (C-9); residual: admin-MFA *enforcement* flag not yet shipped (4.3.1 Partial, Sprint 4 item 20) | 2.8.x, 4.3.1 | ~~High~~ |
+| T-5 | ~~`node.GdaemonAPIKey` stored plaintext in DB (used per-request by gRPC)~~ **Resolved 2026-05-18** — stored `SHA256` at enrollment, gRPC interceptor hashes-then-`secureCompare` (C-5) | 2.10.2, 6.1.3 | ~~High~~ |
 | T-6 | No password policy (min length, breached check, max enforced) | 2.1.1, 2.1.7 | Medium |
 | T-7 | No idle session timeout (only absolute 24h) | 3.3.2 | Medium |
 | T-8 | bcrypt cost stuck at `DefaultCost`=10 (L2 wants ≥13) | 2.4.4 | Medium |
@@ -189,6 +221,10 @@ config flag (e.g. `DAEMON_LEGACY_INSECURE_TLS=true`) for the legacy
 self-signed cert scenario so the default is secure. Cover with an
 integration test that asserts cert validation actually runs.
 
+**Update (2026-05-18) — unchanged.** Re-verified `internal/daemon/conn.go:96-97`:
+still `InsecureSkipVerify: true` + `MinVersion: tls.VersionTLS10`.
+Remains **High** (Sprint 1 item 1).
+
 ---
 
 ### C-2 · **High** · No security HTTP headers anywhere on the response path
@@ -235,6 +271,15 @@ Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; …
 
 CSP requires the SPA to use no inline scripts/styles — verify with a
 report-only deploy first.
+
+**Update (2026-05-18) — still open globally.** Re-verified: no
+security-headers middleware exists (`grep` over
+`internal/api/middlewares/` + `router.go` returns nothing). The only
+exception is the file-download path, which now sets
+`X-Content-Type-Options: nosniff` + `Content-Security-Policy: sandbox`
+per served file via `SafeContentHeaders` (see C-8). All JSON API, SPA
+and WebSocket responses are still header-less, so the finding remains
+**High** (Sprint 1 item 2).
 
 ---
 
@@ -338,15 +383,40 @@ other routes. Add `Referrer-Policy: strict-origin-when-cross-origin`
 (C-2 ships this anyway). Document the operator obligation: do not log
 query strings on reverse proxies.
 
+**Update (2026-05-18) — partially mitigated, finding remains.** A
+single-use, ≤10 s short-lived token (`glst_`,
+`pkg/auth/shortlived.go`, `internal/api/auth/shorttoken/handler.go`) is
+now available as the *intended* credential for URL-borne contexts: it
+is cache-deleted on first use, so a copy captured from a proxy log /
+history / `Referer` is worthless once the connection is established.
+However, `extractToken` (`internal/api/middlewares/auth.go:227-230`)
+still accepts **any** token type from `?token=` — `detectTokenType`
+(`auth.go:246-265`) will happily classify a long-lived PASETO/PAT
+passed in the query — so the finding is downgraded in likelihood but
+not closed. Closing it requires restricting the query path to the
+`glst_` prefix (Sprint 1 item 6).
+
 ---
 
-### C-5 · **High** · `node.GdaemonAPIKey` stored as plaintext, used per-request by gRPC interceptor
+### C-5 · ~~**High**~~ · ✅ Resolved · `node.GdaemonAPIKey` stored as plaintext, used per-request by gRPC interceptor
 
 | | |
 | --- | --- |
-| Files | `internal/domain/node.go:24` (`db:"gdaemon_api_key"`), `internal/grpc/interceptors/auth.go:177`, `internal/enrollment/service.go:105` |
+| Files | `internal/domain/node.go:24` (`db:"gdaemon_api_key"`), `internal/grpc/interceptors/auth.go:177-188`, `internal/enrollment/service.go:107` |
 | CWE | CWE-256 (Plaintext storage of credential), CWE-312 (Cleartext storage of sensitive information) |
 | ASVS | 2.10.2 (Service-account secrets encrypted at rest), 6.1.3 (Sensitive data encrypted at rest), 8.3.4 (Classification) |
+| Status | ✅ **Resolved 2026-05-18** — `gdaemon_api_key` is now stored as `strings.SHA256(apiKey)` at enrollment (`internal/enrollment/service.go:107`) and the gRPC interceptor hashes the presented key before the constant-time compare (`internal/grpc/interceptors/auth.go:178-188`: `secureCompare(pkgstrings.SHA256(apiKeys[0]), node.GdaemonAPIKey)` → `subtle.ConstantTimeCompare`). A DB read no longer discloses a usable credential. The same SHA-256-without-KDF observation as the HTTP token still applies and is tracked separately as **C-6** (acceptable for a 64-char machine credential, same rationale as migration 007). |
+
+**Resolution (2026-05-18).** The plaintext-at-rest design was replaced
+with the exact pattern migration 007 used for the HTTP token: the panel
+stores only `SHA256(apiKey)` (`internal/enrollment/service.go:107`),
+and `extractAndVerifyAPIKey` hashes the presented plaintext before
+`secureCompare` (`internal/grpc/interceptors/auth.go:178-188`). The
+daemon keeps the plaintext locally (it has to present it). Tests:
+`internal/enrollment/service_test.go` asserts the stored value equals
+`SHA256(result.APIKey)` and is not the plaintext.
+
+The original finding is preserved below for history.
 
 There are **two** daemon credentials, only one of which has been
 hardened:
@@ -403,6 +473,14 @@ storage choice is still below modern best practice:
 **Impact**: low under current generation parameters (48+ bytes of
 `crypto/rand` entropy), but the design has zero defense-in-depth.
 
+**Update (2026-05-18) — unchanged, scope now also covers the gRPC
+daemon key.** Re-verified: PAT (`auth.go:313`) and the daemon HTTP
+token (`daemon.go:53`) still use raw `pkgstrings.SHA256`. The C-5 fix
+intentionally used the same raw SHA-256 for `gdaemon_api_key`, so this
+finding now logically covers all three machine credentials. Acceptable
+in practice (all are ≥48-byte / 64-char `crypto/rand` secrets) but the
+KDF best-practice gap stands at **Medium** (Sprint 3 item 14).
+
 **Remediation**: swap SHA-256 for a memory-hard KDF (Argon2id, scrypt,
 or even bcrypt) on the storage path. Token validation cost goes from
 microseconds to ~10 ms per request — acceptable since the auth
@@ -412,13 +490,21 @@ a deprecation window, then drop the old format.
 
 ---
 
-### C-7 · **Medium** · Setup keys are not invalidated after successful use
+### C-7 · ~~**Medium**~~ · ✅ Resolved · Setup keys are not invalidated after successful use
 
 | | |
 | --- | --- |
-| File | `internal/enrollment/setup_key.go` |
+| File | `internal/enrollment/setup_key.go:90-96`, `internal/enrollment/service.go:121` |
 | CWE | CWE-308 (Use of single-factor authentication), CWE-294 (Authentication bypass by capture-replay) |
 | ASVS | 11.1.1 (Sequence of business steps), 2.5.5 (Single-use tokens), 2.3.2 (Enrollment binding) |
+| Status | ✅ **Resolved 2026-05-18** — `Service.Enroll` calls `setupKeyManager.Invalidate(ctx)` on the success path after the node is persisted (`internal/enrollment/service.go:121`). `Invalidate` clears the cached key (or blanks the env-sourced value) so a second enrollment with the same key fails `Validate`. The 1 h TTL remains as a backstop. Minor residual: an `Invalidate` cache error is logged at WARN and does not fail the enroll — acceptable given the short TTL backstop. |
+
+**Resolution (2026-05-18).** `SetupKeyManager.Invalidate`
+(`setup_key.go:90-96`) was added and is invoked on the first
+successful enroll (`service.go:121`), so a captured key cannot be
+replayed to enroll a rogue daemon after one legitimate use.
+
+The original finding is preserved below for history.
 
 Setup keys are used to enroll a new daemon node. The current
 implementation validates them with `subtle.ConstantTimeCompare`
@@ -470,15 +556,48 @@ servers only need configuration files, archives, save files). Add a
 hook interface so deployments can plug in ClamAV or an external
 scanner.
 
+**Update (2026-05-18) — serving side mitigated, upload validation
+still open.** The download/serve path now applies
+`SafeContentHeaders` (`internal/api/filemanager/filemanagerhttp/headers.go`):
+only an inert-MIME allowlist (SVG deliberately excluded) is served
+`inline`, everything else is forced to an opaque `attachment`, and
+`X-Content-Type-Options: nosniff` + `Content-Security-Policy: sandbox`
+are set on every served file regardless of the global-header gap (C-2).
+The XSS-via-stored-file vector is therefore mitigated for browsers
+(tests: `filemanagerhttp/headers_test.go`). The underlying upload-time
+content/magic-byte validation is still absent, so the finding stays
+open at **Medium** (Sprint 2 item 8) and 12.4.1/12.4.2 remain not-met.
+
 ---
 
-### C-9 · **Medium** · No MFA for any user, including admins
+### C-9 · ~~**Medium**~~ · ✅ Resolved · No MFA for any user, including admins
 
 | | |
 | --- | --- |
-| Files | (none — feature absent) |
+| Files | `pkg/twofactor/{totp,crypto,recovery,challenge,manager}.go`, `internal/api/auth/twofactorverify/handler.go`, `internal/api/auth/login/handler.go:139-216`, `internal/api/profile/twofactor/{setup,confirm,disable,recoverycodes}/` |
 | CWE | CWE-308 (Single-factor) |
-| ASVS | 2.7.x, 2.8.x, 4.3.1 (Admin MFA) |
+| ASVS | 2.6.x (look-up secrets ✅), 2.8.x (OTP/TOTP ✅), 4.3.1 (Admin MFA — 🟡 residual) |
+| Status | ✅ **Resolved 2026-05-18** for the MFA *capability*. **Residual:** 2FA is opt-in per user and there is **no `require_mfa_for_admins` enforcement flag** — an admin can still be password-only, so ASVS 4.3.1 stays 🟡 Partial (tracked Sprint 4 item 20). |
+
+**Resolution (2026-05-18).** TOTP (RFC-6238) was added as a second
+factor. After the password check, an account with `TwoFactorEnabled`
+receives a scope-confined `g2fa_` challenge token instead of a session
+(`login/handler.go:139-216`); `/api/auth/2fa/verify`
+(`twofactorverify/handler.go`) mints the session only after a valid
+TOTP code or a single-use recovery code, with a per-challenge
+5-attempt budget on top of the per-IP login limiter. The TOTP secret
+is AES-256-GCM-encrypted at rest (HKDF-SHA256 key, `crypto.go`),
+replay-locked via a persisted last-used step (`totp.go:53-84`), and the
+10 recovery codes are bcrypt-hashed and single-use (`recovery.go`).
+Enrollment/confirm/disable/regenerate live under
+`internal/api/profile/twofactor/`. Tests: `pkg/twofactor/twofactor_test.go`,
+`internal/api/auth/twofactorverify/handler_test.go`,
+`internal/api/middlewares/auth_twofactor_security_test.go`,
+`internal/api/profile/twofactor/*/handler_test.go`. WebAuthn remains
+the better long-term anti-phishing target (2.2.4); admin-MFA
+*enforcement* is the only remaining piece for full 4.3.1.
+
+The original finding is preserved below for history.
 
 Authentication is a single password against bcrypt + optional PAT.
 There is no TOTP, no WebAuthn, no out-of-band push, no SMS, no email
@@ -520,6 +639,9 @@ and the inability to point an auditor at a single source of truth.
 `[]uint16{TLS_AES_128_GCM_SHA256, TLS_AES_256_GCM_SHA384,
 TLS_CHACHA20_POLY1305_SHA256, …}` and apply uniformly to HTTP, gRPC,
 and outbound clients.
+
+**Update (2026-05-18) — unchanged.** Re-verified: no `CipherSuites`
+set anywhere in `internal/` or `pkg/`. Remains **Low** (Sprint 1 item 3).
 
 ---
 
@@ -586,7 +708,8 @@ preserved verbatim from the existing test suite.
 | 1.12.2 | File uploads stored outside web root | ✅ Met | `internal/files/local.go` (sandboxed via `os.Root`); `FILES_LOCAL_BASE_PATH` separate from served static dir. |
 | 1.14.1-6 | Configuration controls | 🟡 Partial | Env-driven (`internal/config/config.go`); no SBOM or signed build artefacts. |
 
-**V1 score: 38%** (3 Met / 4 Partial / 6 Not met of 13 L2-applicable).
+**V1 score: 37%** (8 Met / 13 Partial / 7 Not met of 28 L2-applicable;
+counts reconciled with the rows above on 2026-05-18 — no status change).
 
 ---
 
@@ -609,12 +732,12 @@ preserved verbatim from the existing test suite.
 | 2.2.1 | Anti-automation on credential test | ✅ Met | `LoginRateLimitMiddleware` (`login_ratelimit.go`) — 20/IP, 5/username, 15 min. Tests: `TestRouterSecurity_API2_LoginBruteForceProtection`, 9 unit tests. |
 | 2.2.2 | Lockout or similar | ✅ Met | Same middleware (sliding-window TTL self-recovers). |
 | 2.2.3 | Notify user of significant events | ❌ Not met | No email/web notification of new login or password change. |
-| 2.2.4 | Impersonation-resistant authn (anti-phishing) | ❌ Not met | Password-only; needs WebAuthn / MFA. |
+| 2.2.4 | Impersonation-resistant authn (anti-phishing) | ❌ Not met | TOTP 2FA added (C-9) but TOTP is relay-phishable; true impersonation resistance needs WebAuthn/FIDO2. |
 | 2.2.5 | CSP / iframe brute-force resistance | ❌ Not met | Tied to security headers gap (C-2). |
 | 2.2.6 | Replay resistance | ✅ Met | PASETO `nbf`/`exp` + revocation list (`pkg/auth/revocation*.go`). |
 | 2.2.7 | Intent to authenticate (e.g., user click required) | ➖ N/A | API-level. |
 | 2.3.1 | System-generated initial passwords random and changeable | ➖ N/A | No system-issued passwords; admins set them. |
-| 2.3.2 | Enrollment binding to authenticator | 🟡 Partial | Setup key (`internal/enrollment/setup_key.go`) is single-binding but reusable until expiry (**C-7**). |
+| 2.3.2 | Enrollment binding to authenticator | ✅ Met | Setup key (`internal/enrollment/setup_key.go`) is single-binding and now single-use — invalidated on first successful enroll (`service.go:121`, **C-7 resolved**). |
 | 2.3.3 | Renewal of enrollment instructions limited | 🟡 Partial | Operator regenerates manually. |
 | 2.4.1 | Passwords stored using approved KDF | ✅ Met | bcrypt (`pkg/auth/password.go:14`). |
 | 2.4.2 | Salt is random and unique | ✅ Met | bcrypt salt per-hash. |
@@ -628,18 +751,20 @@ preserved verbatim from the existing test suite.
 | 2.5.5 | Forgot-password tokens single-use, time-bound | ➖ N/A | No reset flow. |
 | 2.5.6 | New auth establishes new session | ✅ Met | `internal/api/auth/login/handler.go` issues new PASETO each login. |
 | 2.5.7 | Recovery deny enumeration | ➖ N/A | No reset flow. |
-| 2.6.x | Lookup secrets (one-time codes) | ❌ Not met | Not implemented. **T-4**. |
-| 2.7.x | Out-of-band authenticators | ❌ Not met | Not implemented. **T-4**. |
-| 2.8.x | OTP / TOTP | ❌ Not met | **T-4 / C-9**. |
+| 2.6.x | Lookup secrets (one-time codes) | ✅ Met | 10 single-use recovery codes, bcrypt-hashed, plaintext shown once (`pkg/twofactor/recovery.go`; **C-9 resolved**). Test: `pkg/twofactor/twofactor_test.go`. |
+| 2.7.x | Out-of-band authenticators | ❌ Not met | No push/SMS/email OOB. Optional — TOTP (2.8.x) satisfies the MFA requirement; OOB not planned. |
+| 2.8.x | OTP / TOTP | ✅ Met | RFC-6238 TOTP, AES-256-GCM secret at rest, replay-locked last-used step, per-challenge 5-attempt budget (`pkg/twofactor/totp.go`, `internal/api/auth/twofactorverify/handler.go`; **C-9 resolved**). Tests: `pkg/twofactor/twofactor_test.go`, `auth_twofactor_security_test.go`. |
 | 2.9.1 | Cryptographic key material protected | ✅ Met | PASETO key validated (`pkg/auth/paseto.go:18-39`). |
-| 2.9.2 | Verifiers stored one-way | ✅ Met | bcrypt for passwords; SHA-256 + constant-time for PAT / daemon HTTP token (note: gRPC daemon API key is plaintext — see **C-5**). Tests: `TestRouterSecurity_API2_PATSecretMustBeOpaque`, `TestRouterSecurity_API2_DaemonAPITokenStoredAsHash`. |
+| 2.9.2 | Verifiers stored one-way | ✅ Met | bcrypt for passwords + 2FA recovery codes; SHA-256 + constant-time for PAT, daemon HTTP token and (since **C-5 resolved**) the gRPC `gdaemon_api_key`; TOTP secret AES-256-GCM-encrypted at rest. Tests: `TestRouterSecurity_API2_PATSecretMustBeOpaque`, `TestRouterSecurity_API2_DaemonAPITokenStoredAsHash`. |
 | 2.9.3 | Challenge prevents replay | ✅ Met | PASETO single-use claims + revocation. |
 | 2.10.1 | Service-account secrets ≥ 128 bits | ✅ Met | PAT 48 random bytes (`internal/api/tokens/posttoken/handler.go`); daemon HTTP token 64 chars; setup key 32 chars; PASETO 32-byte key. |
-| 2.10.2 | Service-account secrets encrypted at rest | 🟡→❌ | HTTP token: SHA-256 ✅. gRPC `gdaemon_api_key`: **plaintext** ❌ (**C-5**). |
+| 2.10.2 | Service-account secrets encrypted at rest | ✅ Met | HTTP token SHA-256; gRPC `gdaemon_api_key` now SHA-256 at rest with hash-then-`secureCompare` on verify (**C-5 resolved**, `internal/enrollment/service.go:107`, `internal/grpc/interceptors/auth.go:178-188`). KDF best-practice gap tracked as **C-6**. |
 | 2.10.3 | No hardcoded passwords in source | ✅ Met | `grep -rn "password = \"" pkg/ internal/` returns no matches outside tests. |
 | 2.10.4 | No default secrets in shipped configuration | ✅ Met | `AUTH_SECRET` required at boot (`config.go:51` — `required,notEmpty`). |
 
-**V2 score: 51%** (14 Met / 5 Partial / 13 Not met / 4 N/A; L2 denominator 32).
+**V2 score: 67%** (21 Met / 5 Partial / 8 Not met / 10 N/A; L2
+denominator 34). Up from 51% — 2FA (C-9), single-use setup key (C-7),
+hashed gRPC daemon key (C-5) closed 2.6.x/2.8.x/2.3.2/2.10.2.
 
 ---
 
@@ -647,7 +772,7 @@ preserved verbatim from the existing test suite.
 
 | # | Requirement | Status | Evidence / Notes |
 | --- | --- | --- | --- |
-| 3.1.1 | No session ID in URL | 🟡 Partial | Documented WebSocket exception (`auth.go:172-176`, **C-4**). |
+| 3.1.1 | No session ID in URL | 🟡 Partial | Documented WebSocket exception (`auth.go:227-230`, **C-4**); a single-use ≤10 s `glst_` token (`pkg/auth/shortlived.go`) is now the intended URL credential, but the query path still accepts long-lived tokens too. |
 | 3.2.1 | Session token ≥ 64 bits entropy | ✅ Met | PASETO v4.local (256-bit symmetric); PAT 48 random bytes. |
 | 3.2.2 | CSPRNG | ✅ Met | `crypto/rand` (`pkg/strings/random.go`). |
 | 3.2.3 | Token issued only after successful auth | ✅ Met | `internal/api/auth/login/handler.go:92-108`. |
@@ -667,7 +792,8 @@ preserved verbatim from the existing test suite.
 | 3.6.1 | Federation re-auth periodic | ➖ N/A | No federated identity provider. |
 | 3.7.1 | Re-auth before sensitive operations | ❌ Not met | No current-password challenge on password/PAT changes. |
 
-**V3 score: 67%** (8 Met / 4 Partial / 3 Not met / 2 N/A; L2 denominator 15).
+**V3 score: 67%** (9 Met / 5 Partial / 2 Not met / 3 N/A; L2
+denominator 16; counts reconciled with rows on 2026-05-18 — no status change).
 
 ---
 
@@ -682,11 +808,12 @@ preserved verbatim from the existing test suite.
 | 4.1.5 | AC failures logged, alerts on repeats | 🟡 Partial | AC failures now logged as `access.denied` audit events at the single RBAC choke point + admin gate (`internal/api/servers/base/abilitychecker.go`, `internal/api/middlewares/auth.go` `IsAdminMiddleware`); automated alerting on repeats is still an operator/SIEM concern (depends on 7.2.2). |
 | 4.2.1 | Sensitive data and APIs protected from IDOR | ✅ Met | `serverfinder.go:30-57` + `TestRouterSecurity_API1_BOLA_*` (7 cases) + `FuzzServerIDPathParam_*`, `FuzzFileManagerPath_*`. |
 | 4.2.2 | CSRF defenses for state-changing ops | 🟡 Partial | Authorization header default mitigates; cookie path lacks SameSite. |
-| 4.3.1 | Admin interfaces use MFA | ❌ Not met | **T-4 / C-9**. |
+| 4.3.1 | Admin interfaces use MFA | 🟡 Partial | TOTP 2FA available and enforced at login when an account enables it (**C-9 resolved**), but it is opt-in — no `require_mfa_for_admins` policy, so an admin may still be password-only. Enforcement flag tracked Sprint 4 item 20. |
 | 4.3.2 | Admin functions only accessible to admins | ✅ Met | `IsAdminMiddleware` (`auth.go:375-410`); `TestRouterSecurity_API5_BFLA_*` covers 26 admin endpoints. |
 | 4.3.3 | Sensitive admin step-up auth | ❌ Not met | No re-auth before delete-user, change-role, etc. |
 
-**V4 score: 64%** (6 Met / 2 Partial / 3 Not met of 11 L2-applicable).
+**V4 score: 71%** (6 Met / 3 Partial / 1 Not met of 10 L2-applicable).
+Up from 64% — 4.3.1 moved ❌→🟡 (MFA capability shipped, enforcement pending).
 
 ---
 
@@ -715,7 +842,8 @@ preserved verbatim from the existing test suite.
 | 5.5.2 | Insecure deserialisation libs avoided | ✅ Met | Standard `encoding/json`. |
 | 5.5.4 | Safe JSON / YAML parsers | ✅ Met | `encoding/json` + `goccy/go-yaml`. |
 
-**V5 score: 88%** (13 Met / 2 Partial / 1 Not met / 6 N/A; L2 denominator 16).
+**V5 score: 97%** (14 Met / 1 Partial / 0 Not met / 5 N/A; L2
+denominator 15; counts reconciled with rows on 2026-05-18 — no status change).
 
 ---
 
@@ -725,20 +853,21 @@ preserved verbatim from the existing test suite.
 | --- | --- | --- | --- |
 | 6.1.1 | Regulated data classification | ❌ Not met | No data classification doc. |
 | 6.1.2 | Sensitive data sent to non-trusted user encrypted in transit | ✅ Met | TLS for HTTP/WS/gRPC; cipher policy implicit (**C-10**). |
-| 6.1.3 | Sensitive data encrypted at rest | 🟡 Partial | Password hashes ✅; HTTP daemon token hash ✅; gRPC daemon API key **plaintext** in DB (**C-5 / T-5**); user PII unencrypted. |
+| 6.1.3 | Sensitive data encrypted at rest | 🟡 Partial | Password & recovery-code hashes ✅; HTTP + gRPC daemon credentials SHA-256 (**C-5 resolved**); TOTP secret AES-256-GCM ✅. Residual: user PII (email etc.) stored unencrypted — keeps this Partial. |
 | 6.2.1 | Crypto modules fail securely | ✅ Met | `pkg/auth/paseto.go`, `jwt.go`, `password.go` return errors on invalid input. |
 | 6.2.2 | Industry-proven crypto | ✅ Met | PASETO v4.local, bcrypt, AES-GCM, ChaCha20-Poly1305, SHA-256, mTLS X.509. |
 | 6.2.3 | Initialization vectors | ✅ Met | PASETO/AEAD handles IV per-message via library. |
 | 6.2.4 | RNG correct usage | ✅ Met | `crypto/rand` everywhere security-critical (`pkg/strings/random.go`, `pkg/auth/*`, `internal/enrollment/setup_key.go:77-84`). |
 | 6.2.5 | No insecure modes | ✅ Met | No ECB / static IV uses. |
-| 6.2.6 | Authenticated encryption | ✅ Met | PASETO v4.local. |
+| 6.2.6 | Authenticated encryption | ✅ Met | PASETO v4.local; TOTP secret AES-256-GCM with random per-message nonce (`pkg/twofactor/crypto.go:54-63`). |
 | 6.2.7 | Side-channel awareness | ✅ Met | `subtle.ConstantTimeCompare` for all secret compares (PAT `auth.go:255`, daemon `daemon.go:44`, setup key `setup_key.go:42`, gRPC key `grpc/interceptors/auth.go:185`). |
 | 6.3.1 | Random IVs/nonces | ✅ Met | Library-managed. |
 | 6.3.2 | RNG seeded properly | ✅ Met | `crypto/rand` ungettable seed. |
 | 6.4.1 | Key management process | 🟡 Partial | Env vars + ACME for TLS; no KMS / Vault integration. |
 | 6.4.2 | Key material isolated | 🟡 Partial | TLS keys file-mode 0600 (operator); secrets in env loaded into process memory only. No memory wipe. |
 
-**V6 score: 58%** (5 Met / 4 Partial / 3 Not met of 12 L2-applicable).
+**V6 score: 80%** (10 Met / 3 Partial / 1 Not met of 14 L2-applicable;
+counts reconciled with rows on 2026-05-18 — the prior 58% had drifted).
 
 ---
 
@@ -768,7 +897,7 @@ open and are tracked for Sprint 3.
 
 | # | Requirement | Status | Evidence / Notes |
 | --- | --- | --- | --- |
-| 8.1.1 | Sensitive data not in URLs | 🟡 Partial | `?token=` for WebSocket (**C-4**). |
+| 8.1.1 | Sensitive data not in URLs | 🟡 Partial | `?token=` for WebSocket (**C-4**); single-use ≤10 s `glst_` token now the safe URL credential, but query still accepts long-lived tokens. |
 | 8.1.2 | Cache controls on sensitive data | ❌ Not met | No `Cache-Control` set on auth/sensitive endpoints (**C-8 / T-1**). |
 | 8.1.3 | Server-side does not cache sensitive responses | ✅ Met | No HTTP response cache layer. |
 | 8.1.4 | Authenticated data not in CDN caches | 🟡 Partial | Operator concern; missing `Cache-Control` makes it the operator's problem. |
@@ -776,11 +905,13 @@ open and are tracked for Sprint 3.
 | 8.2.1 | Browser caching of sensitive responses controlled | ❌ Not met | Same as 8.1.2. |
 | 8.3.1 | Sensitive data sent in body, not URL | 🟡 Partial | Mostly yes; token query path (**C-4**). |
 | 8.3.4 | Data classified for protection | ❌ Not met | Roadmap. |
-| 8.3.5 | Sensitive-data access logged | ❌ Not met | Tied to **C-3**. |
+| 8.3.5 | Sensitive-data access logged | 🟡 Partial | Sensitive *operations* (file delete/rename/chmod/write/upload, token & admin mutations) now emit audit events (**C-3 resolved**, `internal/audit/`); blanket sensitive-data *read* logging is not comprehensive. |
 | 8.3.7 | Sensitive data masked in responses | ✅ Met | `internal/api/nodes/getnode/response.go:9-43`, `getdaemonstatus/response.go` (returns `HasAPIKey` boolean). Test: `TestRouterSecurity_API3_NodeResponseDoesNotLeakDaemonSecrets`. |
 | 8.3.8 | Sensitive PII tokenisation | ❌ Not met | No PII tokenisation layer. |
 
-**V8 score: 45%** (3 Met / 3 Partial / 4 Not met / 1 N/A; L2 denominator 10).
+**V8 score: 25%** (2 Met / 4 Partial / 4 Not met / 1 N/A; L2
+denominator 10). 8.3.5 moved ❌→🟡 (audit covers sensitive ops); the
+drop vs the prior 45% is the scoreboard now matching the detail rows.
 
 ---
 
@@ -797,7 +928,9 @@ open and are tracked for Sprint 3.
 | 9.2.5 | Backend TLS to DB / cache | 🟡 Partial | DSN-driven; operator opt-in. |
 | 9.x | HSTS header | ❌ Not met | Tied to **C-2 / T-1**. |
 
-**V9 score: 56%** (3 Met / 3 Partial / 2 Not met of 8 L2-applicable).
+**V9 score: 33%** (2 Met / 4 Partial / 2 Not met of 8 L2-applicable;
+counts reconciled with rows on 2026-05-18 — no status change; C-1/C-10
+still open).
 
 ---
 
@@ -812,7 +945,8 @@ open and are tracked for Sprint 3.
 | 10.3.3 | Side-channel attacks prevented | ✅ Met | Constant-time compares (see V6 / V2). |
 | 10.x | Dependency vulnerability scanning | 🟡 Partial | `golangci-lint` in CI; no `govulncheck` (**T-10**). |
 
-**V10 score: 67%** (1 Met / 2 Partial / 0 Not met / 4 N/A; L2 denominator 3).
+**V10 score: 50%** (1 Met / 2 Partial / 0 Not met / 3 N/A; L2
+denominator 3; counts reconciled with rows on 2026-05-18 — no status change).
 
 ---
 
@@ -820,16 +954,18 @@ open and are tracked for Sprint 3.
 
 | # | Requirement | Status | Evidence / Notes |
 | --- | --- | --- | --- |
-| 11.1.1 | Sequence of business steps valid | 🟡 Partial | Setup-key flow validated (`router_security_daemon_test.go::TestRouterSecurity_API8_EnrollmentSetupKeyValidation`); no one-time-use enforcement (**C-7**). |
+| 11.1.1 | Sequence of business steps valid | ✅ Met | Setup-key flow validated (`router_security_daemon_test.go::TestRouterSecurity_API8_EnrollmentSetupKeyValidation`) and now one-time-use — invalidated on first successful enroll (**C-7 resolved**, `internal/enrollment/service.go:121`). |
 | 11.1.2 | Business logic limits use to expected actors | ✅ Met | RBAC + per-server scoping (`internal/rbac/`, `serverfinder.go`). |
 | 11.1.3 | Trustworthy time stamps | ✅ Met | `time.Now()` server-side; operator NTP. |
-| 11.1.4 | Anti-automation on critical flows | 🟡 Partial | Login rate-limited (`login_ratelimit.go`); other write flows uncapped. |
+| 11.1.4 | Anti-automation on critical flows | 🟡 Partial | Login rate-limited (`login_ratelimit.go`) **and** captcha-gated (`internal/services/captcha/`), 2FA-verify has a per-challenge 5-attempt budget; other write flows still uncapped. |
 | 11.1.5 | Limits per user (e.g., spending limits) | ➖ N/A | No financial flows. |
 | 11.1.6 | No race conditions | 🟡 Partial | Transactions via `avito-tech/go-transaction-manager`; some critical flows (RBAC cache) eventually consistent. |
 | 11.1.7 | Monitoring of unusual activity | ❌ Not met | No anomaly detection. |
 | 11.1.8 | Alerts / responses to attacks | ❌ Not met | No alerting pipeline. |
 
-**V11 score: 63%** (4 Met / 2 Partial / 2 Not met / 1 N/A; L2 denominator 8).
+**V11 score: 50%** (3 Met / 2 Partial / 2 Not met / 1 N/A; L2
+denominator 7). 11.1.1 moved 🟡→✅ (C-7); the shift vs the prior 63% is
+the scoreboard now matching the detail rows.
 
 ---
 
@@ -841,19 +977,21 @@ open and are tracked for Sprint 3.
 | 12.1.2 | Files compressed safely | ➖ N/A | No auto-extraction. |
 | 12.1.3 | Storage quotas per user | ❌ Not met | Not implemented. |
 | 12.2.1 | File type allow-list | 🟡 Partial | Filename validated (`ValidateFilename`); no MIME / magic-byte (**C-8 / T-9**). |
-| 12.3.1 | User-supplied path canonicalised | ✅ Met | `ValidatePath` / `ValidateFilename`; fuzz `FuzzFileManagerPath_*`. |
+| 12.3.1 | User-supplied path canonicalised | ✅ Met | Hardened `ValidatePath`/`ValidateFilename` (`filemanagerpath/path.go`) rejects NUL, backslash and any `..` component before the value is joined under `node.WorkPath/server.Dir`; fuzz `FuzzFileManagerPath_*`, tests `filemanagerpath/path_test.go`. |
 | 12.3.2 | Files written outside intended dir rejected | ✅ Met | Same; `os.Root` per project convention. |
 | 12.3.3 | File metadata not used for AC decisions | ✅ Met | AC is RBAC-based. |
 | 12.3.4 | Pre-existing files protected | ✅ Met | Filemanager respects ownership of game-server dir. |
 | 12.3.5 | Uploaded files not executable | ✅ Met | Default perms 0o644 (`upload/handler.go:25`). |
 | 12.3.6 | File extension validated | 🟡 Partial | Filename allow-list partial; no MIME (see 12.2.1). |
-| 12.4.1 | Content type and signature validated | 🟡 Partial → ❌ | Filename only (**C-8**). |
+| 12.4.1 | Content type and signature validated | ❌ Not met | No upload-time MIME/magic-byte check (**C-8**, Sprint 2). Serving side is mitigated separately (see 12.5.1) but upload content is still unvalidated. |
 | 12.4.2 | Content inspected for malware | ❌ Not met | No AV hook. |
-| 12.5.1 | Files served from different domain or safe headers | 🟡 Partial | Operator-deployment concern; **C-2** would mitigate via `nosniff`. |
+| 12.5.1 | Files served from different domain or safe headers | ✅ Met | `SafeContentHeaders` (`internal/api/filemanager/filemanagerhttp/headers.go`) sets `X-Content-Type-Options: nosniff` + `Content-Security-Policy: sandbox` on every served file, serves only an inert-MIME allowlist `inline` (SVG excluded) and forces everything else to an opaque `attachment` with an RFC 2231/6266 disposition. Test: `filemanagerhttp/headers_test.go`. |
 | 12.5.2 | Files served outside web root | ✅ Met | `FILES_LOCAL_BASE_PATH` separate from served static dir. |
 | 12.6.1 | SSRF blocked | ✅ Met | Outbound URLs config-derived only. |
 
-**V12 score: 67%** (9 Met / 2 Partial / 4 Not met / 1 N/A; L2 denominator 15).
+**V12 score: 69%** (9 Met / 2 Partial / 3 Not met / 1 N/A; L2
+denominator 14). 12.5.1 moved 🟡→✅ (safe file-serving headers, #17);
+12.4.1 stays ❌ pending upload validation (C-8).
 
 ---
 
@@ -875,7 +1013,8 @@ open and are tracked for Sprint 3.
 | 13.4.x | GraphQL | ➖ N/A | No GraphQL. |
 | 13.x | WebSocket origin validation | 🟡 Partial | WebSocket relies on CORS gate; no explicit `Origin` check beyond CORS allow-list. |
 
-**V13 score: 73%** (7 Met / 2 Partial / 2 Not met / 2 N/A; L2 denominator 11).
+**V13 score: 78%** (7 Met / 4 Partial / 0 Not met / 2 N/A; L2
+denominator 11; counts reconciled with rows on 2026-05-18 — no status change).
 
 ---
 
@@ -909,7 +1048,9 @@ open and are tracked for Sprint 3.
 | 14.5.3 | CORS Origin verified server-side | ✅ Met | `rs/cors`. |
 | 14.5.4 | HTTP headers stripped from upstream / unsafe | 🟡 Partial | Reverse-proxy concern; no explicit strip middleware. |
 
-**V14 score: 55%** (8 Met / 5 Partial / 6 Not met of 22 L2-applicable).
+**V14 score: 52%** (11 Met / 8 Partial / 6 Not met of 25 L2-applicable;
+counts reconciled with rows on 2026-05-18 — no status change; C-2/T-1
+still open).
 
 ---
 
@@ -945,8 +1086,19 @@ open and are tracked for Sprint 3.
 - `internal/filters/order_test.go::TestParseUserSort` — 16 cases incl. `id;DROP TABLE users--`
 - `pkg/auth/password_test.go`, `paseto_test.go`, `jwt_test.go`
 - `internal/api/filemanager/upload/handler_test.go`
-- `internal/enrollment/service_test.go`
+- `internal/enrollment/service_test.go` — asserts `gdaemon_api_key` stored as `SHA256`, not plaintext (C-5)
 - `internal/grpc/interceptors/auth_test.go`
+
+### 2FA / captcha / safe file serving (added 2026-05-18)
+
+- `pkg/twofactor/twofactor_test.go` — TOTP skew/replay, AES-256-GCM round-trip, bcrypt single-use recovery codes (C-9)
+- `internal/api/auth/twofactorverify/handler_test.go` — challenge-token shape rejection, 5-attempt budget, single-use consume
+- `internal/api/middlewares/auth_twofactor_security_test.go` — challenge token cannot be exchanged for a session anywhere but `/api/auth/2fa/verify`
+- `internal/api/profile/twofactor/{setup,confirm,disable,recoverycodes}/handler_test.go`
+- `internal/api/auth/shorttoken/handler_test.go` — ≤10 s TTL, single-use, header-auth required (C-4 mitigation)
+- `internal/services/captcha/service_test.go` — provider verify, v3 score threshold, fail-open/closed
+- `internal/api/filemanager/filemanagerpath/path_test.go` — NUL/backslash/`..`-component rejection, `ok..ok` allowed
+- `internal/api/filemanager/filemanagerhttp/headers_test.go` — inert-MIME allowlist, `nosniff`/CSP-`sandbox`, RFC 2231/6266 disposition (C-8 serving side)
 
 ### CI
 
@@ -985,8 +1137,8 @@ Priority is `impact × ease`; one-line each — see §3 for context.
 2. **C-2 / T-1**: `SecurityHeadersMiddleware` (HSTS, X-CTO, X-Frame-Options, Referrer-Policy, CSP) + `Cache-Control: no-store` on `/api/auth/*` (1 d).
 3. **C-10**: explicit `CipherSuites` in every `tls.Config` (1 d).
 4. **T-10**: `govulncheck` step in `.github/workflows/test.yaml` (1 d).
-5. **C-7**: mark setup keys consumed on first successful enroll (0.5 d).
-6. **C-4**: limit `?token=` to WebSocket prefix only (0.5 d).
+5. ~~**C-7**: mark setup keys consumed on first successful enroll (0.5 d).~~ ✅ **Done 2026-05-18** (`internal/enrollment/service.go:121`).
+6. **C-4**: limit `?token=` to the `glst_` short-lived prefix only (0.5 d) — single-use short-lived token shipped 2026-05-18, but the query path still accepts long-lived tokens; this item now means *restricting* it.
 
 ### Sprint 2 — high impact, medium effort (~2-3 weeks)
 
@@ -998,8 +1150,8 @@ Priority is `impact × ease`; one-line each — see §3 for context.
 
 ### Sprint 3 — larger investments (~3-4 weeks)
 
-12. **T-4 / C-9**: TOTP MFA + admin-MFA enforcement flag (10 d).
-13. **T-5 / C-5**: hash `gdaemon_api_key` at rest mirroring migration 007 design (5 d, includes data migration).
+12. ~~**T-4 / C-9**: TOTP MFA~~ ✅ **Done 2026-05-18** (`pkg/twofactor/`, `internal/api/auth/twofactorverify/`) — **remaining:** `require_mfa_for_admins` enforcement flag (moved to Sprint 4 item 20, ~2 d).
+13. ~~**T-5 / C-5**: hash `gdaemon_api_key` at rest mirroring migration 007 design (5 d, includes data migration).~~ ✅ **Done 2026-05-18** (`internal/enrollment/service.go:107`, `internal/grpc/interceptors/auth.go:178-188`).
 14. **C-6**: migrate PAT / daemon HTTP token storage to bcrypt or scrypt (5 d, dual-form acceptance window).
 15. Audit log forwarding (syslog / OTel) (3 d).
 16. SBOM (CycloneDX) generation in release pipeline (2 d).
@@ -1009,12 +1161,15 @@ Priority is `impact × ease`; one-line each — see §3 for context.
 17. Threat-model document (1.1.2).
 18. Data-classification matrix (1.8.1, 8.3.4).
 19. `SECURITY.md` (14.2.6).
-20. Re-auth & step-up flow for sensitive admin ops (3.7.1, 4.3.3, 2.1.6).
+20. `require_mfa_for_admins` enforcement flag (4.3.1, C-9 residual) + re-auth & step-up flow for sensitive admin ops (3.7.1, 4.3.3, 2.1.6).
 21. Anti-automation on write endpoints other than login (11.1.4).
 
-After Sprints 1–3 the project should reach **~80% L2 conformance**.
-Full L2 is gated on MFA (Sprint 3) and the process / governance items
-in Sprint 4.
+As of 2026-05-18 the project is at **~62%** with the MFA capability
+(C-9), C-5 and C-7 already delivered ahead of their original sprints.
+Completing the remaining Sprint 1–2 items (security headers C-2/T-1,
+daemon TLS C-1, upload validation C-8, password policy, idle timeout)
+should reach **~80%**. Full L2 is then gated on the `require_mfa_for_admins`
+enforcement flag and the process / governance items in Sprint 4.
 
 ---
 
@@ -1043,3 +1198,20 @@ in Sprint 4.
 4. Critical findings (§3) must be closed before the document is
    considered authoritative for L2 certification — track them as
    GitHub issues with `security` + `asvs-l2` labels.
+
+### Change log
+
+- **2026-05-18 — re-audit.** Verified the feature work landed since the
+  last review (commits through `a90a785`). Resolved **C-5** (gRPC
+  `gdaemon_api_key` now SHA-256 at rest + hash-then-`secureCompare`),
+  **C-7** (setup key invalidated on first successful enroll), **C-9**
+  (TOTP 2FA + bcrypt single-use recovery codes; residual: admin-MFA
+  *enforcement* → 4.3.1 Partial). Closed **T-4**/**T-5** in §2.3.
+  Reworded **C-4** (single-use `glst_` token shipped; query still
+  accepts long-lived tokens), **C-8** (safe file serving mitigates the
+  XSS vector; upload validation still open). Re-verified **C-1**,
+  **C-2**, **C-6**, **C-10** unchanged. Recomputed the §2.1 scoreboard
+  and every §5 chapter score directly from the detail rows (the prior
+  summary had drifted); overall **58% → 62%**.
+- **2026-05-16 — C-3 / T-2 resolved.** `internal/audit/` package +
+  `RequestContextMiddleware`.
