@@ -689,3 +689,73 @@ func TestHandler_SecretsAtRest(t *testing.T) {
 	assert.Equal(t, pkgstrings.SHA256(newPlainAPIKey), stored.GdaemonAPIKey,
 		"API key must be persisted as its SHA-256 digest")
 }
+
+// TestHandler_ClearGdaemonPassword — OWASP API Security Top 10:2023
+// API8:2023 Security Misconfiguration. Explicitly clearing the SSH password
+// (gdaemon_password: "") must persist an empty value — not an enc:-prefixed
+// blob and not the previously stored password. The encrypt branch is only
+// skipped because the cipher is a no-op on empty input; this locks that
+// fragile ApplyToNode/cipher interaction so a future refactor cannot silently
+// retain the old password on an explicit clear.
+func TestHandler_ClearGdaemonPassword(t *testing.T) {
+	// ARRANGE
+	repo := inmemory.NewNodeRepository()
+	fileManager := &files.MockFileManager{
+		WriteFunc:  func(_ context.Context, _ string, _ []byte) error { return nil },
+		DeleteFunc: func(_ context.Context, _ string) error { return nil },
+	}
+	responder := api.NewResponder()
+
+	cipher, err := secret.NewCipher("node-encryption-key")
+	require.NoError(t, err)
+
+	now := time.Now()
+	require.NoError(t, repo.Save(context.Background(), &domain.Node{
+		ID:                  1,
+		Enabled:             true,
+		Name:                "Secret Node",
+		OS:                  "linux",
+		Location:            "US",
+		IPs:                 []string{"10.0.0.1"},
+		WorkPath:            "/srv/gameap",
+		GdaemonHost:         "10.0.0.1",
+		GdaemonPort:         12345,
+		GdaemonAPIKey:       pkgstrings.SHA256("old-api-key"),
+		GdaemonPassword:     new("old-password"),
+		GdaemonServerCert:   "certs/old.crt",
+		ClientCertificateID: 1,
+		CreatedAt:           &now,
+		UpdatedAt:           &now,
+	}))
+
+	handler := NewHandler(repo, fileManager, cipher, responder)
+
+	body, err := json.Marshal(updateNodeInput{
+		GdaemonPassword: new(""),
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/nodes/1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code)
+
+	nodes, err := repo.FindAll(context.Background(), nil, nil)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	stored := nodes[0]
+
+	require.NotNil(t, stored.GdaemonPassword)
+	assert.Equal(t, "", *stored.GdaemonPassword,
+		"explicitly cleared password must persist as empty, got %q", *stored.GdaemonPassword)
+	assert.False(t, strings.HasPrefix(*stored.GdaemonPassword, secret.EncPrefix),
+		"an empty password must not be enc:-prefixed")
+	assert.NotEqual(t, "old-password", *stored.GdaemonPassword,
+		"the previously stored password must not survive an explicit clear")
+}

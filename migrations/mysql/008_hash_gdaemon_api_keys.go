@@ -20,13 +20,16 @@ func Up008(ctx context.Context, tx *sql.Tx) error {
 	return hashGDaemonAPIKeys(ctx, tx)
 }
 
-// Down008 cannot reverse a one-way hash. gdaemon_api_key is NOT NULL, so we
-// blank it to make the "node must re-enroll" requirement explicit.
-func Down008(ctx context.Context, tx *sql.Tx) error {
-	_, err := tx.ExecContext(ctx,
-		`UPDATE dedicated_servers SET gdaemon_api_key = '' WHERE gdaemon_api_key IS NOT NULL`)
-
-	return err
+// Down008 is intentionally a no-op. SHA-256 is one-way so the original keys
+// cannot be restored; blanking every gdaemon_api_key on rollback would also
+// destroy rows that pre-dated this migration and were never touched by Up008,
+// turning a quick same-day rollback into a fleet-wide re-enroll. The hashed
+// values are left in place: Up008 is idempotent (already-hashed rows are
+// skipped), so re-applying after a rollback is safe, and any node that still
+// needs its original plaintext key must re-enroll via
+// /gdaemon_api/get_token regardless of what this function does.
+func Down008(_ context.Context, _ *sql.Tx) error {
+	return nil
 }
 
 func hashGDaemonAPIKeys(ctx context.Context, tx *sql.Tx) error {
@@ -49,7 +52,7 @@ func hashGDaemonAPIKeys(ctx context.Context, tx *sql.Tx) error {
 			return err
 		}
 
-		if looksLikeSHA256Hex(p.key) {
+		if pkgstrings.IsSHA256Hex(p.key) {
 			continue
 		}
 

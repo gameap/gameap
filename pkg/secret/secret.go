@@ -29,6 +29,12 @@ type Cipher struct {
 
 // NewCipher derives a 256-bit key from key via SHA-256 and returns an
 // AES-256-GCM cipher. An empty key yields a disabled cipher.
+//
+// The derivation is a single, unsalted SHA-256 (intentionally not a slow KDF —
+// it runs on every request). It therefore preserves, but does not amplify, the
+// entropy of the configured value. ENCRYPTION_KEY must be a high-entropy random
+// secret (e.g. 32 bytes from a CSPRNG), not a human-chosen passphrase: a
+// low-entropy key is feasible to brute-force offline if the ciphertext leaks.
 func NewCipher(key string) (*Cipher, error) {
 	if key == "" {
 		return &Cipher{}, nil

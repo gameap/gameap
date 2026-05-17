@@ -17,15 +17,16 @@ import (
 // file cannot execute in the panel origin and steal another user's session.
 //
 // daemonMime is the content type reported by the daemon/detector. It is only
-// honored for an allowlist of inert types (images except SVG, text/plain,
-// application/pdf); anything else is served as an opaque attachment.
+// honored, and only as its bare type with parameters stripped, for an explicit
+// allowlist of inert types (common raster images, text/plain, application/pdf);
+// anything else is served as an opaque attachment.
 func SafeContentHeaders(h http.Header, filename, daemonMime string) {
 	disposition := "attachment"
 	contentType := "application/octet-stream"
 
-	if inlineAllowed(daemonMime) {
+	if bare, ok := inlineMime(daemonMime); ok {
 		disposition = "inline"
-		contentType = daemonMime
+		contentType = bare
 	}
 
 	h.Set("Content-Type", contentType)
@@ -34,25 +35,37 @@ func SafeContentHeaders(h http.Header, filename, daemonMime string) {
 	h.Set("Content-Security-Policy", "sandbox")
 }
 
-func inlineAllowed(m string) bool {
+// inlineSafeMimes is an explicit allowlist of inert media types browsers render
+// without executing script. image/svg+xml is intentionally absent (SVG can
+// embed script); a HasPrefix("image/") check is deliberately avoided so an
+// unknown or future image/* subtype a browser treats as active content is
+// still forced to download. Everything not listed is an opaque attachment.
+var inlineSafeMimes = map[string]struct{}{
+	"image/png":                {},
+	"image/jpeg":               {},
+	"image/gif":                {},
+	"image/webp":               {},
+	"image/bmp":                {},
+	"image/x-icon":             {},
+	"image/vnd.microsoft.icon": {},
+	"text/plain":               {},
+	"application/pdf":          {},
+}
+
+// inlineMime returns the bare, lowercased media type (parameters such as
+// "; charset=binary" stripped) and whether it is on the inline allowlist. The
+// bare form is what is written to Content-Type so a daemon-supplied parameter
+// cannot ride along into the response header and the value always matches the
+// allowlist check.
+func inlineMime(m string) (string, bool) {
 	m = strings.ToLower(strings.TrimSpace(m))
 	if i := strings.IndexByte(m, ';'); i >= 0 {
 		m = strings.TrimSpace(m[:i])
 	}
 
-	switch {
-	case m == "image/svg+xml":
-		// SVG can embed scripts — never inline.
-		return false
-	case strings.HasPrefix(m, "image/"):
-		return true
-	case m == "text/plain":
-		return true
-	case m == "application/pdf":
-		return true
-	default:
-		return false
-	}
+	_, ok := inlineSafeMimes[m]
+
+	return m, ok
 }
 
 // contentDisposition builds an RFC 2231 / 6266 compliant header value so a

@@ -73,6 +73,12 @@ func TestSafeContentHeaders_Disposition(t *testing.T) {
 			wantDisposition: "attachment",
 		},
 		{
+			name:            "unknown_image_subtype_is_forced_to_attachment_not_inline",
+			daemonMime:      "image/x-unknown-scriptable",
+			wantContentType: "application/octet-stream",
+			wantDisposition: "attachment",
+		},
+		{
 			name:            "png_renders_inline",
 			daemonMime:      "image/png",
 			wantContentType: "image/png",
@@ -81,7 +87,7 @@ func TestSafeContentHeaders_Disposition(t *testing.T) {
 		{
 			name:            "png_with_charset_param_renders_inline_as_bare_mime",
 			daemonMime:      "image/png; charset=binary",
-			wantContentType: "image/png; charset=binary",
+			wantContentType: "image/png",
 			wantDisposition: "inline",
 		},
 		{
@@ -99,7 +105,7 @@ func TestSafeContentHeaders_Disposition(t *testing.T) {
 		{
 			name:            "uppercase_mime_is_normalized_and_renders_inline",
 			daemonMime:      "IMAGE/PNG",
-			wantContentType: "IMAGE/PNG",
+			wantContentType: "image/png",
 			wantDisposition: "inline",
 		},
 	}

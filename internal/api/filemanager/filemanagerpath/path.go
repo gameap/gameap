@@ -10,6 +10,7 @@ import (
 var (
 	ErrPathContainsTraversal         = errors.New("path contains invalid directory traversal")
 	ErrPathContainsNullByte          = errors.New("path contains a null byte")
+	ErrPathContainsBackslash         = errors.New("path contains a backslash")
 	ErrPathEscapesBaseDirectory      = errors.New("path attempts to escape base directory")
 	ErrFilenameEmpty                 = errors.New("filename is empty")
 	ErrFilenameContainsTraversal     = errors.New("filename contains invalid directory traversal")
@@ -39,7 +40,7 @@ func ValidatePath(p string) error {
 	}
 
 	if strings.ContainsRune(p, '\\') {
-		return ErrPathContainsTraversal
+		return ErrPathContainsBackslash
 	}
 
 	rel := strings.TrimPrefix(p, "/")

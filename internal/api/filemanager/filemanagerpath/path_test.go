@@ -80,12 +80,12 @@ func TestValidatePath(t *testing.T) {
 		{
 			name:      "invalid_backslash_windows_traversal",
 			path:      "configs\\..\\..\\windows",
-			wantError: "path contains invalid directory traversal",
+			wantError: "path contains a backslash",
 		},
 		{
 			name:      "invalid_plain_backslash",
 			path:      "dir\\file.txt",
-			wantError: "path contains invalid directory traversal",
+			wantError: "path contains a backslash",
 		},
 		{
 			name:      "invalid_null_byte",

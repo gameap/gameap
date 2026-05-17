@@ -192,8 +192,24 @@ func (r *NodeRepository) Delete(ctx context.Context, id uint) error {
 func (r *NodeRepository) UpdateGDaemonAPIToken(
 	ctx context.Context, nodeID uint, hashedToken string, updatedAt time.Time,
 ) error {
+	// Capture the previous token hash before the rotation (the inner repo still
+	// holds the pre-rotation row). Find caches auth lookups under
+	// apitoken:<hash>; without invalidating the old entry the superseded token
+	// keeps authenticating from cache until its TTL.
+	var oldToken string
+	prev, findErr := r.inner.Find(ctx, &filters.FindNode{IDs: []uint{nodeID}}, nil, nil)
+	if findErr == nil && len(prev) > 0 && prev[0].GdaemonAPIToken != nil {
+		oldToken = *prev[0].GdaemonAPIToken
+	}
+
 	if err := r.inner.UpdateGDaemonAPIToken(ctx, nodeID, hashedToken, updatedAt); err != nil {
 		return errors.WithMessage(err, "failed to update node gdaemon api token")
+	}
+
+	if oldToken != "" && oldToken != hashedToken {
+		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apitoken", oldToken)); err != nil {
+			return errors.WithMessage(err, "failed to invalidate node cache by previous API token after update")
+		}
 	}
 
 	if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apitoken", hashedToken)); err != nil {

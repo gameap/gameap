@@ -20,6 +20,7 @@ export const useServerStore = defineStore('server', () => {
         'game-server-console-send': false,
         'game-server-rcon-console': false,
         'game-server-rcon-players': false,
+        'game-server-metrics': false,
     })
     const server = ref({
         id: 0,
@@ -67,6 +68,7 @@ export const useServerStore = defineStore('server', () => {
     const canManageFiles = computed(() => Boolean(abilities.value['game-server-files']))
     const canManageTasks = computed(() => Boolean(abilities.value['game-server-tasks']))
     const canManageSettings = computed(() => Boolean(abilities.value['game-server-settings']))
+    const canViewMetrics = computed(() => Boolean(abilities.value['game-server-metrics']))
     const getServer = computed(() => server.value)
 
     // Actions
@@ -188,6 +190,7 @@ export const useServerStore = defineStore('server', () => {
         canManageFiles,
         canManageTasks,
         canManageSettings,
+        canViewMetrics,
         getServer,
 
         // Actions
