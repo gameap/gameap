@@ -368,6 +368,22 @@ Used by the resumable file-manager upload endpoints
 - `PLUGIN_STORE_URL` - GameAP plugin store URL (default: `https://plugins.gameap.dev/api`)
 - `PLUGIN_STORE_LICENSE_KEY` - License key for plugin store
 
+### CAPTCHA Configuration
+
+Optional CAPTCHA protection for the login endpoint (`POST /api/auth/login`)
+against automated credential stuffing. Disabled until `CAPTCHA_PROVIDER` is
+set. The login form discovers the provider and public site key through
+`GET /api/config/public`; the secret key is never exposed there. The token
+is sent as the `captcha` field of the login request and is verified before
+the user lookup.
+
+- `CAPTCHA_PROVIDER` - CAPTCHA provider (options: `recaptcha_v2`, `recaptcha_v3`, `turnstile`; empty disables CAPTCHA, default: empty)
+- `CAPTCHA_SITE_KEY` - Public site key for the provider widget (safe to expose to browsers)
+- `CAPTCHA_SECRET_KEY` - Server-side secret key used to verify tokens (kept server-side)
+- `CAPTCHA_MIN_SCORE` - Pass threshold for reCAPTCHA v3 only, `0.0`–`1.0`; ignored by the checkbox/Turnstile providers (default: `0.5`)
+- `CAPTCHA_FAIL_OPEN` - Allow login when the provider's verify call itself fails (network/5xx). Default `false` (fail-closed: a verification outage blocks login with `503`)
+- `CAPTCHA_VERIFY_URL` - Override the provider's `siteverify` endpoint (egress proxies, testing). Empty uses the provider default
+
 ### Example Configuration
 
 ```bash
@@ -443,4 +459,11 @@ LOGGER_LEVEL=info
 # Plugin Store
 # PLUGIN_STORE_URL=https://plugins.gameap.dev/api
 # PLUGIN_STORE_LICENSE_KEY=your-license-key
+
+# CAPTCHA (login protection) — leave CAPTCHA_PROVIDER empty to disable
+# CAPTCHA_PROVIDER=turnstile          # recaptcha_v2 | recaptcha_v3 | turnstile
+# CAPTCHA_SITE_KEY=your-public-site-key
+# CAPTCHA_SECRET_KEY=your-server-side-secret-key
+# CAPTCHA_MIN_SCORE=0.5               # reCAPTCHA v3 only
+# CAPTCHA_FAIL_OPEN=false             # true = allow login if the provider is unreachable
 ```

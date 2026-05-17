@@ -176,7 +176,18 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '422':
-        description: Validation error
+        description: >-
+          Validation error, or CAPTCHA verification failed (missing token,
+          provider rejection, or reCAPTCHA v3 score below threshold) when a
+          CAPTCHA provider is configured.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '503':
+        description: >-
+          CAPTCHA provider unreachable while fail-closed (CAPTCHA_FAIL_OPEN
+          disabled).
         content:
           application/json:
             schema:

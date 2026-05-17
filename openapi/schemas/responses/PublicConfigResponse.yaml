@@ -5,3 +5,24 @@ properties:
     type: string
     description: Default language code
     example: "en"
+  captcha:
+    type: object
+    description: >-
+      Present only when a CAPTCHA provider is configured. The login form uses
+      it to render the correct widget. The secret key is never exposed.
+    properties:
+      provider:
+        type: string
+        description: Configured CAPTCHA provider
+        enum:
+          - recaptcha_v2
+          - recaptcha_v3
+          - turnstile
+        example: "turnstile"
+      site_key:
+        type: string
+        description: Public site key for the provider widget
+        example: "1x00000000000000000000AA"
+    required:
+      - provider
+      - site_key

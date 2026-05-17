@@ -44,7 +44,9 @@
     "send_reset_link": "Send Password Reset Link",
     "failed": "These credentials do not match our records.",
     "throttle": "Too many login attempts. Please try again in :seconds seconds.",
-    "registration_not_allowed": "Registration not allowed."
+    "registration_not_allowed": "Registration not allowed.",
+    "captcha_required": "Please complete the CAPTCHA verification.",
+    "captcha_failed": "CAPTCHA verification failed. Please try again."
   },
   "client_certificates": {
     "title_create": "Create Certificate",

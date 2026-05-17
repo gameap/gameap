@@ -15,8 +15,10 @@ import (
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	"github.com/gameap/gameap/internal/services/captcha"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,6 +42,8 @@ func (a *auditCapture) snapshot() []audit.Event {
 
 	return append([]audit.Event(nil), a.events...)
 }
+
+var errCaptchaUpstream = errors.New("upstream")
 
 func findEvent(events []audit.Event, t audit.EventType) (audit.Event, bool) {
 	for _, e := range events {
@@ -234,7 +238,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			}
 			responder := api.NewResponder()
 			handler := NewHandler(
-				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil,
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil,
 			)
 
 			body := []byte(tt.requestBody)
@@ -264,12 +268,138 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	}
 }
 
+// stubCaptcha is a captchaVerifier double recording the token and remote IP
+// it received.
+type stubCaptcha struct {
+	enabled bool
+	err     error
+	gotTok  string
+	gotIP   string
+}
+
+func (s *stubCaptcha) Enabled() bool { return s.enabled }
+
+func (s *stubCaptcha) Verify(_ context.Context, token, remoteIP string) error {
+	s.gotTok = token
+	s.gotIP = remoteIP
+
+	return s.err
+}
+
+// TestHandler_Captcha pins the login/captcha contract: when a provider is
+// configured the token is verified before the user store is touched, and a
+// missing/rejected token blocks the login with a 422; a disabled verifier
+// leaves the flow untouched.
+func TestHandler_Captcha(t *testing.T) {
+	hashedPassword, _ := auth.HashPassword("password123")
+	now := time.Now()
+	testUser := &domain.User{
+		ID:        1,
+		Login:     "captchauser",
+		Email:     "captcha@example.com",
+		Password:  hashedPassword,
+		Name:      new("Captcha User"),
+		CreatedAt: &now,
+		UpdatedAt: &now,
+	}
+
+	tests := []struct {
+		name           string
+		captcha        *stubCaptcha
+		nilVerifier    bool
+		requestBody    string
+		expectedStatus int
+		wantError      string
+		wantToken      string
+	}{
+		{
+			name:           "disabled_verifier_does_not_block_login",
+			captcha:        &stubCaptcha{enabled: false},
+			requestBody:    `{"login":"captchauser","password":"password123"}`,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			// The handler must tolerate a literal nil verifier (captcha not
+			// wired at all) and proceed exactly like a disabled one.
+			name:           "nil_verifier_does_not_block_login",
+			nilVerifier:    true,
+			requestBody:    `{"login":"captchauser","password":"password123"}`,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "enabled_missing_token_rejected_before_user_lookup",
+			captcha:        &stubCaptcha{enabled: true, err: captcha.ErrTokenRequired},
+			requestBody:    `{"login":"captchauser","password":"password123"}`,
+			expectedStatus: http.StatusUnprocessableEntity,
+			wantError:      "captcha token is required",
+		},
+		{
+			name:           "enabled_invalid_token_rejected",
+			captcha:        &stubCaptcha{enabled: true, err: captcha.ErrVerificationFailed},
+			requestBody:    `{"login":"captchauser","password":"password123","captcha":"bad"}`,
+			expectedStatus: http.StatusUnprocessableEntity,
+			wantError:      "captcha verification failed",
+			wantToken:      "bad",
+		},
+		{
+			name:           "enabled_valid_token_proceeds_to_password_check",
+			captcha:        &stubCaptcha{enabled: true},
+			requestBody:    `{"login":"captchauser","password":"password123","captcha":"good"}`,
+			expectedStatus: http.StatusOK,
+			wantToken:      "good",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			repo := inmemory.NewUserRepository()
+			require.NoError(t, repo.Save(context.Background(), testUser))
+
+			var verifier captchaVerifier
+			if !tt.nilVerifier {
+				verifier = tt.captcha
+			}
+
+			handler := NewHandler(
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+				api.NewResponder(), nil, verifier,
+			)
+
+			req := httptest.NewRequest(
+				http.MethodPost, "/auth/login", bytes.NewBufferString(tt.requestBody),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, tt.expectedStatus, w.Code, "body=%s", w.Body.String())
+
+			if tt.wantError != "" {
+				var response map[string]any
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+				assert.Equal(t, "error", response["status"])
+				errMsg, _ := response["error"].(string)
+				assert.Contains(t, errMsg, tt.wantError)
+			}
+
+			if tt.wantToken != "" {
+				assert.Equal(t, tt.wantToken, tt.captcha.gotTok,
+					"the captcha token from the request body must reach the verifier")
+			}
+		})
+	}
+}
+
 func TestHandler_MultipleUsers(t *testing.T) {
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(
-		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil,
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil,
 	)
 
 	// Create multiple users
@@ -377,7 +507,7 @@ func TestHandler_SpecialCharacters(t *testing.T) {
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(
-		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil,
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil,
 	)
 
 	// Create user with special characters
@@ -444,7 +574,7 @@ func TestHandler_TokenValidation(t *testing.T) {
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(
-		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil,
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil,
 	)
 
 	hashedPassword, _ := auth.HashPassword("testpass")
@@ -545,7 +675,7 @@ func TestHandler_Audit_SuccessfulLoginIsRecorded(t *testing.T) {
 			require.NoError(t, repo.Save(context.Background(), user))
 			recorder := &auditCapture{}
 			handler := NewHandler(
-				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder,
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder, nil,
 			)
 
 			req := httptest.NewRequest(
@@ -623,7 +753,7 @@ func TestHandler_Audit_FailedLoginIsNotRecordedAsSuccess(t *testing.T) {
 			tt.setupRepo(repo)
 			recorder := &auditCapture{}
 			handler := NewHandler(
-				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder,
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder, nil,
 			)
 
 			req := httptest.NewRequest(
@@ -641,4 +771,147 @@ func TestHandler_Audit_FailedLoginIsNotRecordedAsSuccess(t *testing.T) {
 				"a failed login must never be recorded as auth.login.success")
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Captcha bot-wall security tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API2:2023 Broken Authentication — the captcha gate must run before any
+//     credential or account lookup so an attacker cannot probe account
+//     existence from behind the wall (no oracle: a bad-captcha attempt on a
+//     non-existent account must look exactly like one on a real account).
+//   - API4:2023 Unrestricted Resource Consumption — rejecting unsolved
+//     captchas before the user store keeps automated traffic from burning DB
+//     lookups / password-hash work behind the wall.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// TestHandler_Captcha_GateRunsBeforeUserLookup covers OWASP API2:2023 and
+// API4:2023. With an enabled verifier that rejects the token, a login for a
+// user that does NOT exist must be stopped at the captcha wall (422 captcha
+// error) and must NOT fall through to the 401 "invalid credentials" path —
+// otherwise the differing responses would leak account existence and the DB
+// lookup would still run.
+func TestHandler_Captcha_GateRunsBeforeUserLookup(t *testing.T) {
+	// ARRANGE
+	repo := inmemory.NewUserRepository() // intentionally empty: user does not exist
+	handler := NewHandler(
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+		api.NewResponder(), nil, &stubCaptcha{enabled: true, err: captcha.ErrVerificationFailed},
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPost, "/auth/login",
+		bytes.NewBufferString(`{"login":"ghost-account","password":"whatever","captcha":"bad"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code,
+		"a rejected captcha must stop the request at the bot wall; body=%s", w.Body.String())
+	require.NotEqual(t, http.StatusUnauthorized, w.Code,
+		"the request must not reach the credential check (no account-existence oracle)")
+
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "error", response["status"])
+	errMsg, _ := response["error"].(string)
+	assert.Contains(t, errMsg, "captcha verification failed",
+		"the response must be the captcha error, not invalid-credentials")
+	assert.NotContains(t, errMsg, "invalid credentials",
+		"a non-existent account must not be distinguishable behind the captcha wall")
+}
+
+// TestHandler_Captcha_UpstreamOutageMapsTo503 pins the fail-closed outage
+// contract: when the verifier returns a 503-mapped wrapped error (provider
+// unreachable, FailOpen disabled) the handler must answer 503 so the login is
+// blocked rather than waved through.
+func TestHandler_Captcha_UpstreamOutageMapsTo503(t *testing.T) {
+	// ARRANGE
+	hashedPassword, _ := auth.HashPassword("password123")
+	now := time.Now()
+	user := &domain.User{
+		ID:        1,
+		Login:     "captchauser",
+		Email:     "captcha@example.com",
+		Password:  hashedPassword,
+		Name:      new("Captcha User"),
+		CreatedAt: &now,
+		UpdatedAt: &now,
+	}
+	repo := inmemory.NewUserRepository()
+	require.NoError(t, repo.Save(context.Background(), user))
+
+	outage := &stubCaptcha{
+		enabled: true,
+		err:     api.WrapHTTPError(errCaptchaUpstream, http.StatusServiceUnavailable),
+	}
+	handler := NewHandler(
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+		api.NewResponder(), nil, outage,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPost, "/auth/login",
+		bytes.NewBufferString(`{"login":"captchauser","password":"password123","captcha":"tok"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusServiceUnavailable, w.Code,
+		"a fail-closed captcha outage must block the login with 503; body=%s", w.Body.String())
+}
+
+// TestHandler_Captcha_ForwardsClientIPFromContext covers the clientIP(ctx)
+// positive path: when RequestContextMiddleware has populated the request
+// info, the captured IP must be handed to the verifier as the remote IP.
+func TestHandler_Captcha_ForwardsClientIPFromContext(t *testing.T) {
+	// ARRANGE
+	hashedPassword, _ := auth.HashPassword("password123")
+	now := time.Now()
+	user := &domain.User{
+		ID:        1,
+		Login:     "captchauser",
+		Email:     "captcha@example.com",
+		Password:  hashedPassword,
+		Name:      new("Captcha User"),
+		CreatedAt: &now,
+		UpdatedAt: &now,
+	}
+	repo := inmemory.NewUserRepository()
+	require.NoError(t, repo.Save(context.Background(), user))
+
+	spy := &stubCaptcha{enabled: true}
+	handler := NewHandler(
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+		api.NewResponder(), nil, spy,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPost, "/auth/login",
+		bytes.NewBufferString(`{"login":"captchauser","password":"password123","captcha":"tok"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(audit.ContextWithRequestInfo(
+		req.Context(), &audit.RequestInfo{IP: "203.0.113.9"},
+	))
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	assert.Equal(t, "203.0.113.9", spy.gotIP,
+		"the client IP from the request context must be forwarded to the captcha verifier")
 }

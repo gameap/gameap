@@ -31,5 +31,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		DefaultLanguage: h.config.UI.DefaultLanguage,
 	}
 
+	if h.config.Captcha.Provider != "" {
+		resp.Captcha = &CaptchaConfig{
+			Provider: h.config.Captcha.Provider,
+			SiteKey:  h.config.Captcha.SiteKey,
+		}
+	}
+
 	h.responder.Write(ctx, w, resp)
 }

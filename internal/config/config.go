@@ -152,6 +152,25 @@ type Config struct {
 		LicenseKey string `env:"PLUGIN_STORE_LICENSE_KEY" envDefault:""`
 	}
 
+	// Captcha protects the login endpoint against automated credential
+	// stuffing. Empty Provider disables it; SecretKey stays server-side and
+	// is never exposed through /api/config/public.
+	Captcha struct {
+		// Provider: "" (disabled), "recaptcha_v2", "recaptcha_v3" or "turnstile".
+		Provider  string `env:"CAPTCHA_PROVIDER" envDefault:""`
+		SiteKey   string `env:"CAPTCHA_SITE_KEY" envDefault:""`
+		SecretKey string `env:"CAPTCHA_SECRET_KEY" envDefault:""`
+		// MinScore is the reCAPTCHA v3 pass threshold (0.0–1.0); ignored by
+		// the checkbox/Turnstile providers that only return success.
+		MinScore float64 `env:"CAPTCHA_MIN_SCORE" envDefault:"0.5"`
+		// FailOpen lets a login through when the upstream siteverify call
+		// itself fails (network/5xx). Defaults to fail-closed.
+		FailOpen bool `env:"CAPTCHA_FAIL_OPEN" envDefault:"false"`
+		// VerifyURL overrides the provider's siteverify endpoint (egress
+		// proxies, tests). Empty uses the provider default.
+		VerifyURL string `env:"CAPTCHA_VERIFY_URL" envDefault:""`
+	}
+
 	PubSub struct {
 		Driver     string `env:"PUBSUB_DRIVER" envDefault:"memory"`
 		InstanceID string `env:"PUBSUB_INSTANCE_ID" envDefault:""`

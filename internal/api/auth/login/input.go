@@ -14,6 +14,10 @@ type loginInput struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Remember string `json:"remember"`
+	// Captcha carries the provider-issued solution token. Required only
+	// when a CAPTCHA provider is configured; the verifier enforces its
+	// presence so the error message can be provider-aware.
+	Captcha string `json:"captcha"`
 }
 
 func (l *loginInput) Validate() error {

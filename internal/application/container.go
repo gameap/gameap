@@ -53,6 +53,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories/postgres"
 	"github.com/gameap/gameap/internal/repositories/sqlite"
 	"github.com/gameap/gameap/internal/services"
+	"github.com/gameap/gameap/internal/services/captcha"
 	"github.com/gameap/gameap/internal/services/filemanager/archiver"
 	"github.com/gameap/gameap/internal/services/gameapimporter"
 	"github.com/gameap/gameap/internal/services/gameexporter"
@@ -148,6 +149,7 @@ type Container struct {
 	serverConfigPusher   *serverconfigpush.Pusher
 	globalAPIService     *services.GlobalAPIService
 	pluginStoreService   *pluginstore.Service
+	captchaVerifier      *captcha.Service
 	gameUpgrader         *services.GameUpgradeService
 	pelicanEggImporter   *pelicaneggimporter.Importer
 	gameAPImporter       *gameapimporter.Importer
@@ -1403,6 +1405,29 @@ func (c *Container) GlobalAPIService() *services.GlobalAPIService {
 
 func (c *Container) createGlobalAPIService() *services.GlobalAPIService {
 	return services.NewGlobalAPIService(c.Config())
+}
+
+// CaptchaVerifier returns the login captcha verifier. It is a no-op
+// (Enabled() == false) until CAPTCHA_PROVIDER and CAPTCHA_SECRET_KEY are set.
+func (c *Container) CaptchaVerifier() *captcha.Service {
+	if c.captchaVerifier == nil {
+		c.captchaVerifier = c.createCaptchaVerifier()
+	}
+
+	return c.captchaVerifier
+}
+
+func (c *Container) createCaptchaVerifier() *captcha.Service {
+	cfg := c.Config().Captcha
+
+	return captcha.NewService(captcha.Config{
+		Provider:  captcha.Provider(cfg.Provider),
+		SiteKey:   cfg.SiteKey,
+		SecretKey: cfg.SecretKey,
+		MinScore:  cfg.MinScore,
+		FailOpen:  cfg.FailOpen,
+		VerifyURL: cfg.VerifyURL,
+	})
 }
 
 func (c *Container) PluginStoreService() *pluginstore.Service {

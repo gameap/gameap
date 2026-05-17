@@ -2,6 +2,7 @@ package publicconfig
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -80,4 +81,47 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			assert.Equal(t, tt.expectedResult, responder.lastResult)
 		})
 	}
+}
+
+// TestHandler_ServeHTTP_Captcha pins that the public config advertises the
+// provider and site key when captcha is configured, never the secret, and
+// stays absent when no provider is set.
+func TestHandler_ServeHTTP_Captcha(t *testing.T) {
+	t.Run("captcha_absent_when_provider_unset", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Captcha.SecretKey = "should-not-leak"
+
+		responder := &mockResponder{}
+		NewHandler(cfg, responder).ServeHTTP(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodGet, "/api/config/public", nil),
+		)
+
+		resp, ok := responder.lastResult.(Response)
+		require.True(t, ok)
+		assert.Nil(t, resp.Captcha)
+	})
+
+	t.Run("captcha_exposes_provider_and_site_key_only", func(t *testing.T) {
+		cfg := &config.Config{}
+		cfg.Captcha.Provider = "turnstile"
+		cfg.Captcha.SiteKey = "site-key-123"
+		cfg.Captcha.SecretKey = "secret-key-should-not-leak"
+
+		responder := &mockResponder{}
+		NewHandler(cfg, responder).ServeHTTP(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodGet, "/api/config/public", nil),
+		)
+
+		resp, ok := responder.lastResult.(Response)
+		require.True(t, ok)
+		require.NotNil(t, resp.Captcha)
+		assert.Equal(t, "turnstile", resp.Captcha.Provider)
+		assert.Equal(t, "site-key-123", resp.Captcha.SiteKey)
+
+		body, err := json.Marshal(resp)
+		require.NoError(t, err)
+		assert.NotContains(t, string(body), "secret-key-should-not-leak")
+	})
 }

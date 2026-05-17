@@ -30,6 +30,12 @@
                   </div>
                 </div>
               </div>
+              <CaptchaWidget
+                  v-if="captcha.provider"
+                  ref="captchaRef"
+                  :provider="captcha.provider"
+                  :site-key="captcha.site_key"
+              />
             </form>
           </div>
 
@@ -48,12 +54,14 @@
 </template>
 
 <script setup>
-import {ref} from "vue"
+import {onMounted, ref} from "vue"
 import { GIcon } from "@gameap/ui"
 import {trans} from "../i18n/i18n"
+import axios from "../config/axios"
 import {useAuthStore} from "../store/auth"
 import {errorNotification} from "../parts/dialogs";
 import TwoFactorVerifyForm from "./forms/TwoFactorVerifyForm.vue";
+import CaptchaWidget from "./forms/CaptchaWidget.vue";
 
 const authStore = useAuthStore()
 
@@ -61,6 +69,21 @@ const email = ref(null)
 const password = ref(null)
 const remember = ref(false)
 const twoFactorRequired = ref(false)
+const captcha = ref({provider: null, site_key: null})
+const captchaRef = ref(null)
+
+onMounted(async () => {
+  try {
+    const {data} = await axios.get('/api/config/public')
+    if (data && data.captcha) {
+      captcha.value = data.captcha
+    }
+  } catch (e) {
+    // A missing/unavailable public config must not block the login form;
+    // captcha simply stays disabled client-side.
+    console.error('Failed to load public config:', e)
+  }
+})
 
 const showError = (error) => {
   if (error.response) {
@@ -74,11 +97,23 @@ const showError = (error) => {
   }
 }
 
-const login = () => {
+const login = async () => {
+  let captchaToken = ""
+
+  if (captcha.value.provider) {
+    captchaToken = await captchaRef.value.getToken()
+    if (!captchaToken) {
+      errorNotification(trans('auth.captcha_required'))
+
+      return
+    }
+  }
+
   authStore.login({
     login: email.value,
     password: password.value,
     remember: remember.value ? "on" : null,
+    captcha: captchaToken,
   }).then((result) => {
     if (result && result.twoFactorRequired) {
       twoFactorRequired.value = true
@@ -87,7 +122,12 @@ const login = () => {
     }
 
     location.reload()
-  }).catch(showError)
+  }).catch((error) => {
+    if (captchaRef.value) {
+      captchaRef.value.reset()
+    }
+    showError(error)
+  })
 }
 
 const onVerify = (code) => {

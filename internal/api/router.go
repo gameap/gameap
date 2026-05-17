@@ -167,6 +167,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/base"
 	"github.com/gameap/gameap/internal/services"
+	"github.com/gameap/gameap/internal/services/captcha"
 	"github.com/gameap/gameap/internal/services/filemanager/archiver"
 	"github.com/gameap/gameap/internal/services/gameapimporter"
 	"github.com/gameap/gameap/internal/services/gameexporter"
@@ -219,6 +220,7 @@ type container interface {
 	Cache() cache.Cache
 	CertificatesService() *certificates.Service
 	GlobalAPIService() *services.GlobalAPIService
+	CaptchaVerifier() *captcha.Service
 	DaemonStatus() *daemon.StatusService
 	DaemonFiles() *daemon.FileService
 	UploadSessionService() *uploadservice.Service
@@ -419,6 +421,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			).Middleware(
 				login.NewHandler(
 					c.AuthService(), c.UserService(), c.Cache(), c.Responder(), c.AuditLogger(),
+					c.CaptchaVerifier(),
 				),
 			),
 			AllowGuestAccess: true,

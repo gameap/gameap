@@ -25,6 +25,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories/base"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/internal/services"
+	"github.com/gameap/gameap/internal/services/captcha"
 	"github.com/gameap/gameap/internal/services/filemanager/archiver"
 	"github.com/gameap/gameap/internal/services/gameapimporter"
 	"github.com/gameap/gameap/internal/services/gameexporter"
@@ -120,10 +121,13 @@ func (c *InmemoryContainer) FileManager() files.FileManager               { retu
 func (c *InmemoryContainer) Cache() cache.Cache                           { return c.cacheService }
 func (c *InmemoryContainer) CertificatesService() *certificates.Service   { return c.certificatesService }
 func (c *InmemoryContainer) GlobalAPIService() *services.GlobalAPIService { return c.globalAPIService }
-func (c *InmemoryContainer) DaemonStatus() *daemon.StatusService          { return c.daemonStatusService }
-func (c *InmemoryContainer) DaemonFiles() *daemon.FileService             { return c.daemonFilesService }
-func (c *InmemoryContainer) UploadSessionService() *upload.Service        { return c.uploadSessionService }
-func (c *InmemoryContainer) FileManagerArchiver() *archiver.Archiver      { return nil }
+func (c *InmemoryContainer) CaptchaVerifier() *captcha.Service {
+	return captcha.NewService(captcha.Config{})
+}
+func (c *InmemoryContainer) DaemonStatus() *daemon.StatusService     { return c.daemonStatusService }
+func (c *InmemoryContainer) DaemonFiles() *daemon.FileService        { return c.daemonFilesService }
+func (c *InmemoryContainer) UploadSessionService() *upload.Service   { return c.uploadSessionService }
+func (c *InmemoryContainer) FileManagerArchiver() *archiver.Archiver { return nil }
 func (c *InmemoryContainer) FileManagerArchiveGuard() *archiver.InMemoryConcurrencyGuard {
 	return archiver.NewInMemoryConcurrencyGuard(2)
 }

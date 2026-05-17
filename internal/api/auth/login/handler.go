@@ -37,6 +37,7 @@ type Handler struct {
 	authService auth.Service
 	cache       cache.Cache
 	audit       audit.Logger
+	captcha     captchaVerifier
 }
 
 func NewHandler(
@@ -45,6 +46,7 @@ func NewHandler(
 	tokenCache cache.Cache,
 	responder base.Responder,
 	auditLogger audit.Logger,
+	captcha captchaVerifier,
 ) *Handler {
 	if auditLogger == nil {
 		auditLogger = audit.NopLogger{}
@@ -56,6 +58,7 @@ func NewHandler(
 		authService: authService,
 		cache:       tokenCache,
 		audit:       auditLogger,
+		captcha:     captcha,
 	}
 }
 
@@ -79,6 +82,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.responder.WriteError(ctx, rw, err)
 
 		return
+	}
+
+	// Verify the captcha before touching the user store: a bot must not be
+	// able to probe account existence or burn DB lookups behind the wall.
+	if h.captcha != nil && h.captcha.Enabled() {
+		if err = h.captcha.Verify(ctx, input.Captcha, clientIP(ctx)); err != nil {
+			h.responder.WriteError(ctx, rw, err)
+
+			return
+		}
 	}
 
 	// Find user by email or login
@@ -200,4 +213,16 @@ func (h *Handler) issueTwoFactorChallenge(
 	audit.TwoFactorChallengeIssued(ctx, h.audit, user.ID, user.Login)
 
 	h.responder.Write(ctx, rw, newTwoFactorChallengeResponse(challengeToken, ChallengeTokenDuration))
+}
+
+// clientIP returns the best-effort client IP captured by the global
+// RequestContextMiddleware (it honours the trusted reverse-proxy header).
+// Empty when the request did not pass through that middleware (unit tests);
+// the captcha providers treat the remoteip field as optional.
+func clientIP(ctx context.Context) string {
+	if info := audit.RequestInfoFromContext(ctx); info != nil {
+		return info.IP
+	}
+
+	return ""
 }

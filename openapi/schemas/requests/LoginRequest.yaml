@@ -18,5 +18,13 @@ properties:
     type: string
     description: Remember me flag ("on" or "true" for 30-day token)
     example: "on"
+  captcha:
+    type: string
+    description: >-
+      CAPTCHA solution token from the configured provider (Google reCAPTCHA
+      v2/v3 or Cloudflare Turnstile). Required only when a provider is
+      configured server-side — discover it via GET /api/config/public. A
+      missing or invalid token is rejected with 422.
+    example: "0.AaBbCc..."
 required:
   - password

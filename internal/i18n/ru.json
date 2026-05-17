@@ -44,7 +44,9 @@
     "send_reset_link": "Отправить ссылку для сброса пароля",
     "failed": "Данные для входа неправильны.",
     "throttle": "Слишком много попыток. Пожалуйста попробуйте через :seconds секунд.",
-    "registration_not_allowed": "Регистрация закрыта."
+    "registration_not_allowed": "Регистрация закрыта.",
+    "captcha_required": "Пожалуйста, пройдите проверку CAPTCHA.",
+    "captcha_failed": "Проверка CAPTCHA не пройдена. Попробуйте ещё раз."
   },
   "client_certificates": {
     "title_create": "Создать сертификат",
