@@ -187,6 +187,42 @@ func (r *NodeRepository) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
+// UpdateGDaemonAPIToken atomically rotates the daemon API token and invalidates
+// the affected cache entries.
+func (r *NodeRepository) UpdateGDaemonAPIToken(
+	ctx context.Context, nodeID uint, hashedToken string, updatedAt time.Time,
+) error {
+	// Capture the previous token hash before the rotation (the inner repo still
+	// holds the pre-rotation row). Find caches auth lookups under
+	// apitoken:<hash>; without invalidating the old entry the superseded token
+	// keeps authenticating from cache until its TTL.
+	var oldToken string
+	prev, findErr := r.inner.Find(ctx, &filters.FindNode{IDs: []uint{nodeID}}, nil, nil)
+	if findErr == nil && len(prev) > 0 && prev[0].GdaemonAPIToken != nil {
+		oldToken = *prev[0].GdaemonAPIToken
+	}
+
+	if err := r.inner.UpdateGDaemonAPIToken(ctx, nodeID, hashedToken, updatedAt); err != nil {
+		return errors.WithMessage(err, "failed to update node gdaemon api token")
+	}
+
+	if oldToken != "" && oldToken != hashedToken {
+		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apitoken", oldToken)); err != nil {
+			return errors.WithMessage(err, "failed to invalidate node cache by previous API token after update")
+		}
+	}
+
+	if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apitoken", hashedToken)); err != nil {
+		return errors.WithMessage(err, "failed to invalidate node cache by API token after update")
+	}
+
+	if err := r.wrapper.InvalidatePattern(ctx, "node:find*"); err != nil {
+		return errors.WithMessage(err, "failed to invalidate node find pattern cache after update")
+	}
+
+	return nil
+}
+
 func (r *NodeRepository) invalidateNodeCache(ctx context.Context, findErr error, nodes []domain.Node) error {
 	if findErr != nil {
 		// Unable to find node for cache invalidation, but this shouldn't fail the delete

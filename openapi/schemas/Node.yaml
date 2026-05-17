@@ -63,7 +63,11 @@ properties:
     example: 31717
   gdaemon_api_key:
     type: string
-    description: GDaemon API key
+    writeOnly: true
+    description: >-
+      GDaemon API key. Write-only: accepted as plaintext on create/update and
+      returned once to the daemon at enrollment, but stored as a SHA-256 hash
+      and never returned in responses.
   gdaemon_login:
     type:
       - string
@@ -73,7 +77,11 @@ properties:
     type:
       - string
       - "null"
-    description: GDaemon password
+    writeOnly: true
+    description: >-
+      GDaemon SSH password (legacy connection mode). Write-only: stored
+      encrypted at rest (AES-256-GCM) when ENCRYPTION_KEY is configured and
+      never returned in responses.
   gdaemon_server_cert:
     type: string
     description: GDaemon server certificate

@@ -138,7 +138,7 @@
 
     </n-tab-pane>
 
-    <n-tab-pane name="statistics" v-if="serverStore.abilities['game-server-common'] && serverOnline">
+    <n-tab-pane name="statistics" v-if="serverStore.abilities['game-server-common'] && serverStore.canViewMetrics && serverOnline">
       <template #tab>
         <GIcon name="metrics" class="mr-1" />
         {{ trans('servers.statistics') }}
@@ -455,7 +455,7 @@ function tabNameToHash(tabName) {
 
 function getAvailableTabNames() {
   const tabs = ['control']
-  if (serverStore.abilities['game-server-common'] && serverOnline.value) tabs.push('statistics')
+  if (serverStore.abilities['game-server-common'] && serverStore.canViewMetrics && serverOnline.value) tabs.push('statistics')
   if (rconTabPossible.value) tabs.push('rcon')
   if (serverStore.canManageFiles) tabs.push('files')
   if (serverStore.canManageTasks) tabs.push('schedules')

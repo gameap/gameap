@@ -15,6 +15,7 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/secret"
 	"github.com/pkg/errors"
 	"github.com/rs/xid"
 )
@@ -30,6 +31,7 @@ var (
 type Handler struct {
 	repo        repositories.NodeRepository
 	fileManager files.FileManager
+	cipher      *secret.Cipher
 	responder   base.Responder
 	audit       audit.Logger
 }
@@ -37,6 +39,7 @@ type Handler struct {
 func NewHandler(
 	repo repositories.NodeRepository,
 	fileManager files.FileManager,
+	cipher *secret.Cipher,
 	responder base.Responder,
 	auditLogger audit.Logger,
 ) *Handler {
@@ -47,6 +50,7 @@ func NewHandler(
 	return &Handler{
 		repo:        repo,
 		fileManager: fileManager,
+		cipher:      cipher,
 		responder:   responder,
 		audit:       auditLogger,
 	}
@@ -142,6 +146,20 @@ func (h *Handler) updateNode(ctx context.Context, node *domain.Node, input *upda
 	}
 
 	input.ApplyToNode(node)
+
+	// Encrypt the SSH password at rest whenever the field is supplied in this
+	// request. A request that omits gdaemon_password leaves the stored value
+	// untouched; one that includes it is re-encrypted even if byte-identical,
+	// so the ciphertext rotates (GCM uses a fresh nonce per call). Node PUTs
+	// are rare admin operations, so this write churn is acceptable.
+	if input.GdaemonPassword != nil && node.GdaemonPassword != nil {
+		encrypted, err := h.cipher.Encrypt(*node.GdaemonPassword)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to encrypt gdaemon password")
+		}
+
+		node.GdaemonPassword = &encrypted
+	}
 
 	now := time.Now()
 	node.UpdatedAt = &now

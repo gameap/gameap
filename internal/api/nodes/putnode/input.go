@@ -7,6 +7,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/flexible"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gameap/gameap/pkg/validation"
 )
 
@@ -286,7 +287,13 @@ func (in *updateNodeInput) applyGdaemonFields(node *domain.Node) {
 		node.GdaemonPort = in.GdaemonPort.Int()
 	}
 	if in.GdaemonAPIKey != nil {
-		node.GdaemonAPIKey = *in.GdaemonAPIKey
+		// The API contract is plaintext-in, hash-at-rest (the field is
+		// write-only and never returned, so no caller resubmits a digest).
+		// Always hash — using SHA256IfNeeded here would store a submitted
+		// 64-char lowercase-hex value verbatim and the daemon presenting it
+		// would then never match the hashed comparison. Mirrors createnode
+		// and enrollment, which also hash unconditionally.
+		node.GdaemonAPIKey = pkgstrings.SHA256(*in.GdaemonAPIKey)
 	}
 	if in.GdaemonLogin != nil {
 		node.GdaemonLogin = in.GdaemonLogin

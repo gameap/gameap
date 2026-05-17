@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
@@ -175,7 +175,7 @@ func (h *Handler) processItems(
 	items []deleteItem,
 ) error {
 	for _, item := range items {
-		if err := validatePath(item.Path); err != nil {
+		if err := filemanagerpath.ValidatePath(item.Path); err != nil {
 			return api.WrapHTTPError(err, http.StatusBadRequest)
 		}
 
@@ -186,19 +186,6 @@ func (h *Handler) processItems(
 		if err != nil {
 			return errors.WithMessage(err, "failed to delete file or directory")
 		}
-	}
-
-	return nil
-}
-
-func validatePath(path string) error {
-	if strings.Contains(path, "..") {
-		return errors.New("path contains invalid directory traversal")
-	}
-
-	cleanPath := filepath.Clean(path)
-	if strings.HasPrefix(cleanPath, "..") {
-		return errors.New("path attempts to escape base directory")
 	}
 
 	return nil

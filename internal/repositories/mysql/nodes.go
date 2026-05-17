@@ -234,6 +234,27 @@ func (r *NodeRepository) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
+func (r *NodeRepository) UpdateGDaemonAPIToken(
+	ctx context.Context, nodeID uint, hashedToken string, updatedAt time.Time,
+) error {
+	query, args, err := sq.Update(base.NodesTable).
+		Set("gdaemon_api_token", hashedToken).
+		Set("updated_at", updatedAt).
+		Where(sq.Eq{"id": nodeID}).
+		PlaceholderFormat(sq.Question).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build query")
+	}
+
+	_, err = r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to execute query")
+	}
+
+	return nil
+}
+
 func (r *NodeRepository) scan(row base.Scanner) (*domain.Node, error) {
 	var node domain.Node
 

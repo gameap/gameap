@@ -69,6 +69,7 @@ import (
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/secret"
 	"github.com/gameap/gameap/pkg/twofactor"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -158,6 +159,8 @@ type Container struct {
 
 	// Enrollment
 	enrollmentService *enrollment.Service
+
+	secretCipher *secret.Cipher
 
 	// Daemon Services
 	daemonStatus         *daemon.StatusService
@@ -333,6 +336,29 @@ func (c *Container) appendLateShutdownFunc(fn func() error) {
 
 func (c *Container) Config() *config.Config {
 	return c.config
+}
+
+// SecretCipher returns the process-wide cipher used to encrypt reversible
+// at-rest secrets (e.g. gdaemon_password). When ENCRYPTION_KEY is unset the
+// cipher is disabled (plaintext passthrough) and a one-time warning is logged.
+func (c *Container) SecretCipher() *secret.Cipher {
+	if c.secretCipher != nil {
+		return c.secretCipher
+	}
+
+	cipher, err := secret.NewCipher(c.config.EncryptionKey)
+	if err != nil {
+		slog.Error("failed to build secret cipher, falling back to disabled", slog.String("error", err.Error()))
+		cipher = secret.Disabled()
+	}
+
+	if !cipher.Enabled() {
+		slog.Warn("ENCRYPTION_KEY is not set: gdaemon_password is stored in plaintext")
+	}
+
+	c.secretCipher = cipher
+
+	return c.secretCipher
 }
 
 func (c *Container) DB() *sql.DB {
@@ -1463,6 +1489,7 @@ func (c *Container) DaemonStatusLegacy() *daemon.StatusBINNService {
 		c.daemonStatusLegacy = daemon.NewStatusBINNService(
 			c.ClientCertificateRepository(),
 			c.FileManager(),
+			daemon.WithSecretCipher(c.SecretCipher()),
 		)
 	}
 
@@ -1544,6 +1571,7 @@ func (c *Container) DaemonFilesLegacy() *daemon.FileBINNService {
 		c.daemonFilesLeg = daemon.NewFileBINNService(
 			c.ClientCertificateRepository(),
 			c.FileManager(),
+			daemon.WithSecretCipher(c.SecretCipher()),
 		)
 	}
 
@@ -1589,6 +1617,7 @@ func (c *Container) DaemonCommandsLegacy() *daemon.CommandBINNService {
 		c.daemonCommandsLeg = daemon.NewCommandBINNService(
 			c.ClientCertificateRepository(),
 			c.FileManager(),
+			daemon.WithSecretCipher(c.SecretCipher()),
 		)
 	}
 

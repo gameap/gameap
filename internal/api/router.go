@@ -181,6 +181,7 @@ import (
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/secret"
 	"github.com/gameap/gameap/pkg/twofactor"
 	webstatic "github.com/gameap/gameap/web/static"
 	"github.com/gorilla/handlers"
@@ -189,6 +190,7 @@ import (
 
 type container interface {
 	Config() *config.Config
+	SecretCipher() *secret.Cipher
 	DB() *sql.DB
 	TransactionManager() base.TransactionManager
 	Responder() *api.Responder
@@ -1424,6 +1426,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: putnode.NewHandler(
 				c.NodeRepository(),
 				c.FileManager(),
+				c.SecretCipher(),
 				c.Responder(),
 				c.AuditLogger(),
 			),
@@ -1436,6 +1439,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: putnode.NewHandler(
 				c.NodeRepository(),
 				c.FileManager(),
+				c.SecretCipher(),
 				c.Responder(),
 				c.AuditLogger(),
 			),

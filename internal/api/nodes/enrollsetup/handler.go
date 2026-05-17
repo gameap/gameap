@@ -8,6 +8,7 @@ import (
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/enrollment"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/shellescape"
 	"github.com/pkg/errors"
 )
 
@@ -204,7 +205,7 @@ func (h *Handler) buildInstallCmd(
 
 	if config != "" {
 		sb.WriteString(" --config=")
-		sb.WriteString(shellEscape(config))
+		sb.WriteString(shellescape.Quote(config))
 	}
 
 	if github {
@@ -213,12 +214,8 @@ func (h *Handler) buildInstallCmd(
 
 	if branch != "" {
 		sb.WriteString(" --branch=")
-		sb.WriteString(shellEscape(branch))
+		sb.WriteString(shellescape.Quote(branch))
 	}
 
 	return sb.String()
-}
-
-func shellEscape(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }

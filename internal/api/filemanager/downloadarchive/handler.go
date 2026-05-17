@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -24,12 +25,10 @@ import (
 )
 
 var (
-	errUserNotAuthenticated     = errors.New("user not authenticated")
-	errDiskRequired             = errors.New("disk parameter is required")
-	errPathRequired             = errors.New("path parameter is required")
-	errPathContainsTraversal    = errors.New("path contains invalid directory traversal")
-	errPathEscapesBaseDirectory = errors.New("path attempts to escape base directory")
-	errInvalidCompress          = errors.New("compress must be an integer between 0 and 9")
+	errUserNotAuthenticated = errors.New("user not authenticated")
+	errDiskRequired         = errors.New("disk parameter is required")
+	errPathRequired         = errors.New("path parameter is required")
+	errInvalidCompress      = errors.New("compress must be an integer between 0 and 9")
 )
 
 type Archiver interface {
@@ -154,7 +153,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = validatePath(path); err != nil {
+	if err = filemanagerpath.ValidatePath(path); err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			err,
 			http.StatusBadRequest,
@@ -246,19 +245,6 @@ func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error
 	}
 
 	return &nodes[0], nil
-}
-
-func validatePath(path string) error {
-	if strings.Contains(path, "..") {
-		return errPathContainsTraversal
-	}
-
-	cleanPath := filepath.Clean(path)
-	if strings.HasPrefix(cleanPath, "..") {
-		return errPathEscapesBaseDirectory
-	}
-
-	return nil
 }
 
 func readCompressLevel(r *http.Request) (int, error) {

@@ -1,3 +1,8 @@
+// OWASP API Top 10:2023 — API2:2023 Broken Authentication.
+// Enrollment issues a long-lived daemon API key. The plaintext is returned
+// to the enrolling daemon once via the Enroll result; the node record must
+// store only its SHA-256 digest so a database read cannot recover a usable
+// credential. These tests assert that hash-at-rest invariant.
 package enrollment
 
 import (
@@ -9,6 +14,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,6 +109,9 @@ func TestService_Enroll_default_port(t *testing.T) {
 	assert.NotZero(t, result.NodeID)
 }
 
+// TestService_Enroll_creates_node_with_correct_fields — OWASP API Top
+// 10:2023 API2:2023 Broken Authentication. Asserts the persisted node stores
+// the SHA-256 digest of the issued API key, never the plaintext.
 func TestService_Enroll_creates_node_with_correct_fields(t *testing.T) {
 	cacheInstance := cache.NewInMemory()
 	fileManager := files.NewInMemoryFileManager()
@@ -117,12 +126,13 @@ func TestService_Enroll_creates_node_with_correct_fields(t *testing.T) {
 	err := cacheInstance.Set(ctx, SetupKeyCacheKey, "test-setup-key-32-chars-long1234")
 	require.NoError(t, err)
 
-	_, err = svc.Enroll(ctx, "test-setup-key-32-chars-long1234", &EnrollInput{
+	result, err := svc.Enroll(ctx, "test-setup-key-32-chars-long1234", &EnrollInput{
 		Host: "gameap.example.com",
 		Port: 9000,
 		OS:   "windows",
 	})
 	require.NoError(t, err)
+	require.NotNil(t, result)
 
 	nodes, err := nodesRepo.FindAll(ctx, nil, nil)
 	require.NoError(t, err)
@@ -139,7 +149,10 @@ func TestService_Enroll_creates_node_with_correct_fields(t *testing.T) {
 	require.NotNil(t, node.SteamcmdPath)
 	assert.Equal(t, defaultSteamCMDPath, *node.SteamcmdPath)
 	assert.Equal(t, domain.NodePreferInstallMethodAuto, node.PreferInstallMethod)
-	assert.Len(t, node.GdaemonAPIKey, apiKeyLength)
+	assert.Equal(t, pkgstrings.SHA256(result.APIKey), node.GdaemonAPIKey,
+		"stored API key must be the SHA-256 digest of the plaintext returned to the daemon")
+	assert.NotEqual(t, result.APIKey, node.GdaemonAPIKey,
+		"plaintext API key must never be persisted at rest")
 	assert.NotNil(t, node.CreatedAt)
 	assert.NotNil(t, node.UpdatedAt)
 }

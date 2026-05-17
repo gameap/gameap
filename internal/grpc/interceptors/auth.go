@@ -10,6 +10,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -174,7 +175,9 @@ func (ai *AuthInterceptor) extractAndVerifyAPIKey(ctx context.Context) (uint64, 
 		return 0, status.Error(codes.PermissionDenied, "node is disabled")
 	}
 
-	if !secureCompare(apiKeys[0], node.GdaemonAPIKey) {
+	// gdaemon_api_key is stored as a SHA-256 hash; hash the presented plaintext
+	// before the constant-time comparison so a DB leak yields no usable key.
+	if !secureCompare(pkgstrings.SHA256(apiKeys[0]), node.GdaemonAPIKey) {
 		return 0, status.Error(codes.Unauthenticated, "invalid API key")
 	}
 

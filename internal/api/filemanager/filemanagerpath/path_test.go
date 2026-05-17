@@ -1,3 +1,8 @@
+// Security tests for the centralized file-manager path validation.
+//
+// OWASP API Security Top 10:2023 — API1:2023 Broken Object Level Authorization
+// (path traversal lets a user reach files outside their server sandbox, i.e.
+// objects they are not authorized for). See security review finding #2.
 package filemanagerpath_test
 
 import (
@@ -8,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestValidatePath — OWASP API1:2023 Broken Object Level Authorization.
 func TestValidatePath(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -23,7 +29,7 @@ func TestValidatePath(t *testing.T) {
 			path: "configs",
 		},
 		{
-			name: "valid_root",
+			name: "valid_root_dot",
 			path: ".",
 		},
 		{
@@ -31,8 +37,20 @@ func TestValidatePath(t *testing.T) {
 			path: "",
 		},
 		{
+			name: "valid_root_slash",
+			path: "/",
+		},
+		{
+			name: "valid_root_relative_leading_slash",
+			path: "/configs/server.cfg",
+		},
+		{
 			name: "valid_dotfile_in_filename",
 			path: "configs/.hidden",
+		},
+		{
+			name: "valid_double_dots_inside_segment",
+			path: "ok..ok/version2..1",
 		},
 		{
 			name:      "invalid_directory_traversal",
@@ -49,14 +67,37 @@ func TestValidatePath(t *testing.T) {
 			path:      "..",
 			wantError: "path contains invalid directory traversal",
 		},
+		{
+			name:      "invalid_leading_slash_traversal",
+			path:      "/../etc/passwd",
+			wantError: "path contains invalid directory traversal",
+		},
+		{
+			name:      "invalid_trailing_traversal",
+			path:      "configs/..",
+			wantError: "path contains invalid directory traversal",
+		},
+		{
+			name:      "invalid_backslash_windows_traversal",
+			path:      "configs\\..\\..\\windows",
+			wantError: "path contains a backslash",
+		},
+		{
+			name:      "invalid_plain_backslash",
+			path:      "dir\\file.txt",
+			wantError: "path contains a backslash",
+		},
+		{
+			name:      "invalid_null_byte",
+			path:      "configs/server\x00.cfg",
+			wantError: "path contains a null byte",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// ACT
 			err := filemanagerpath.ValidatePath(tt.path)
 
-			// ASSERT
 			if tt.wantError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantError)
@@ -68,6 +109,7 @@ func TestValidatePath(t *testing.T) {
 	}
 }
 
+// TestValidateFilename — OWASP API1:2023 Broken Object Level Authorization.
 func TestValidateFilename(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -120,10 +162,8 @@ func TestValidateFilename(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// ACT
 			err := filemanagerpath.ValidateFilename(tt.filename)
 
-			// ASSERT
 			if tt.wantError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantError)

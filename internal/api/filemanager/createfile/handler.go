@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
@@ -152,11 +152,11 @@ func (h *Handler) createFile(
 	server *domain.Server,
 	req *createFileRequest,
 ) (createFileResponse, error) {
-	if err := validatePath(req.Path); err != nil {
+	if err := filemanagerpath.ValidatePath(req.Path); err != nil {
 		return createFileResponse{}, api.WrapHTTPError(err, http.StatusBadRequest)
 	}
 
-	if err := validatePath(req.Name); err != nil {
+	if err := filemanagerpath.ValidateFilename(req.Name); err != nil {
 		return createFileResponse{}, api.WrapHTTPError(err, http.StatusBadRequest)
 	}
 
@@ -174,17 +174,4 @@ func (h *Handler) createFile(
 	}
 
 	return newCreateFileResponse(fileInfo, relativePath), nil
-}
-
-func validatePath(path string) error {
-	if strings.Contains(path, "..") {
-		return errors.New("path contains invalid directory traversal")
-	}
-
-	cleanPath := filepath.Clean(path)
-	if strings.HasPrefix(cleanPath, "..") {
-		return errors.New("path attempts to escape base directory")
-	}
-
-	return nil
 }

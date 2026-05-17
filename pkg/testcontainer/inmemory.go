@@ -39,6 +39,7 @@ import (
 	pkgapi "github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/secret"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gameap/gameap/pkg/twofactor"
 	"github.com/samber/lo"
@@ -77,6 +78,7 @@ type InmemoryContainer struct {
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
+func (c *InmemoryContainer) SecretCipher() *secret.Cipher                      { return secret.Disabled() }
 func (c *InmemoryContainer) DB() *sql.DB                                       { return nil }
 func (c *InmemoryContainer) TransactionManager() base.TransactionManager       { return nil }
 func (c *InmemoryContainer) Responder() *pkgapi.Responder                      { return c.responder }

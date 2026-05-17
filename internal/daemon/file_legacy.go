@@ -49,9 +49,15 @@ type FileBINNService struct {
 func NewFileBINNService(
 	certRepo repositories.ClientCertificateRepository,
 	fileManager files.FileManager,
+	opts ...LegacyOption,
 ) *FileBINNService {
+	cm := newConfigMaker(certRepo, fileManager)
+	for _, opt := range opts {
+		opt(cm)
+	}
+
 	return &FileBINNService{
-		configMaker: newConfigMaker(certRepo, fileManager),
+		configMaker: cm,
 		pools:       make(map[uint]*Pool),
 	}
 }

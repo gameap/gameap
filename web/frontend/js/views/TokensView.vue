@@ -152,53 +152,50 @@ const onGenerateToken = () => {
       generateTokenModel.value.name,
       generateTokenModel.value.abilities,
   ).then((result) => {
-    const copied = ref(false)
-
-    notification({
-      content: () => {
-        return [
-          h('div', {class: 'my-2'},
-              trans('tokens.token_created_notification'),
-          ),
-          h(NInputGroup, {
-            class: "mt-2 mb-4",
-          }, [
-            h(NInput, {
-              value: result.token,
-              readonly: true,
-              size: 'small',
-              style: 'width: 100%',
-            }),
-            isClipboardSupported() ? h(NButton, {
-              type: "primary",
-              onClick: async () => {
-                const ok = await copyToClipboard(result.token)
-                if (ok) {
-                  copied.value = true
-                } else {
-                  console.error('Failed to copy')
-                }
-              },
-            }, [
-                copied.value
-                    ? h(GIcon, {name: "check" })
-                    : h(GIcon, {name: "copy" }),
-            ]) : null
-          ]),
-        ]
-      },
-      style: {
-        width: '600px',
-      },
-      maskClosable: false,
-      type: "success",
-    }, () => {
-
-    })
-
-    fetchTokens()
     generateTokenModalEnabled.value = false
     fetchTokens()
+
+    const copied = ref(false)
+
+    window.$dialog.success({
+      title: trans('main.success'),
+      style: {width: '600px'},
+      maskClosable: false,
+      closable: false,
+      positiveText: trans('main.close'),
+      content: () => h('div', [
+        h('div', {
+          class: 'my-2',
+          'data-testid': 'token-created-message',
+        }, trans('tokens.token_created_notification')),
+        h(NInputGroup, {class: 'mt-2 mb-4'}, [
+          h(NInput, {
+            value: result.token,
+            readonly: true,
+            size: 'small',
+            style: 'width: 100%',
+            'data-testid': 'token-created-value',
+          }),
+          isClipboardSupported() ? h(NButton, {
+            type: 'primary',
+            title: trans('main.copy'),
+            'data-testid': 'token-created-copy',
+            onClick: async () => {
+              const ok = await copyToClipboard(result.token)
+              if (ok) {
+                copied.value = true
+              } else {
+                console.error('Failed to copy')
+              }
+            },
+          }, [
+            copied.value
+                ? h(GIcon, {name: 'check'})
+                : h(GIcon, {name: 'copy'}),
+          ]) : null,
+        ]),
+      ]),
+    })
   }).catch((error) => {
     errorNotification(error)
   })

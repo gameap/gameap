@@ -28,9 +28,15 @@ type CommandBINNService struct {
 func NewCommandBINNService(
 	certRepo repositories.ClientCertificateRepository,
 	fileManager files.FileManager,
+	opts ...LegacyOption,
 ) *CommandBINNService {
+	cm := newConfigMaker(certRepo, fileManager)
+	for _, opt := range opts {
+		opt(cm)
+	}
+
 	return &CommandBINNService{
-		configMaker: newConfigMaker(certRepo, fileManager),
+		configMaker: cm,
 		pools:       make(map[uint]*Pool),
 	}
 }

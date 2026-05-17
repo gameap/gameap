@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -76,6 +77,83 @@ func TestSubscription_Deliver_AfterCloseChannel_DoesNotPanic(t *testing.T) {
 	assert.NotPanics(t, func() {
 		sub.deliver(&proto.MetricsResponse{Timestamp: timestamppb.Now()})
 	})
+}
+
+func TestSubscription_Close_idempotent(t *testing.T) {
+	// ARRANGE
+	// A bare hub has no registered state for this nodeID, so unsubscribe
+	// takes its state==nil branch and closes the subscription channel. This
+	// is the real production path for a sub whose node was never registered.
+	h := &hub{}
+	sub := newSubscription(h, 7, 4)
+
+	// ACT
+	sub.Close()
+
+	// ASSERT — first Close must close the samples channel exactly once.
+	select {
+	case got, open := <-sub.Samples():
+		assert.False(t, open, "samples channel must be closed after first Close")
+		assert.Nil(t, got, "closed channel must yield the zero value")
+	case <-time.After(time.Second):
+		t.Fatal("timed out: samples channel was not closed by Close")
+	}
+
+	// ACT + ASSERT — a second Close is short-circuited by the unsubscribed
+	// guard: it must not re-run unsubscribe / re-close the channel (which
+	// would panic), and channel state must stay consistent.
+	assert.NotPanics(t, sub.Close, "second Close must be a safe no-op")
+
+	_, open := <-sub.Samples()
+	assert.False(t, open, "samples channel must remain closed after the second Close")
+
+	assert.NotPanics(t, func() {
+		sub.Close()
+		sub.Close()
+	}, "further Close calls must remain no-ops")
+}
+
+func TestSubscription_ConcurrentCloseAndDeliver_NoPanic(t *testing.T) {
+	// ARRANGE
+	const goroutines = 40
+
+	h := &hub{}
+	sub := newSubscription(h, 7, 8)
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines * 3)
+
+	// ACT — race deliver(), closeChannel() and Close() concurrently. All
+	// three are serialized by closeMu and must never produce a
+	// "send on closed channel" panic.
+	for range goroutines {
+		go func() {
+			defer wg.Done()
+
+			assert.NotPanics(t, func() {
+				sub.deliver(&proto.MetricsResponse{Timestamp: timestamppb.Now()})
+			}, "deliver must not panic when racing close")
+		}()
+
+		go func() {
+			defer wg.Done()
+
+			assert.NotPanics(t, sub.closeChannel, "closeChannel must be safe to race")
+		}()
+
+		go func() {
+			defer wg.Done()
+
+			assert.NotPanics(t, sub.Close, "Close must be safe to race")
+		}()
+	}
+
+	// ASSERT — the test completing without panic (and clean under -race)
+	// is the assertion; drain whatever remains so no goroutine leaks.
+	wg.Wait()
+
+	for range sub.Samples() { //nolint:revive
+	}
 }
 
 func TestSubscription_CloseChannel_FirstCallClosesUnderlyingChannel(t *testing.T) {

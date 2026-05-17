@@ -4,14 +4,14 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"mime"
 	"net/http"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagerhttp"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
@@ -23,11 +23,9 @@ import (
 )
 
 var (
-	errUserNotAuthenticated     = errors.New("user not authenticated")
-	errDiskRequired             = errors.New("disk parameter is required")
-	errPathRequired             = errors.New("path parameter is required")
-	errPathContainsTraversal    = errors.New("path contains invalid directory traversal")
-	errPathEscapesBaseDirectory = errors.New("path attempts to escape base directory")
+	errUserNotAuthenticated = errors.New("user not authenticated")
+	errDiskRequired         = errors.New("disk parameter is required")
+	errPathRequired         = errors.New("path parameter is required")
 )
 
 type fileService interface {
@@ -133,7 +131,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = validatePath(path); err != nil {
+	if err = filemanagerpath.ValidatePath(path); err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			err,
 			http.StatusBadRequest,
@@ -176,15 +174,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}()
 
 	filename := filepath.Base(path)
-	contentType := getContentType(filename)
 
 	rc := http.NewResponseController(rw)
 	if deadlineErr := rc.SetWriteDeadline(time.Time{}); deadlineErr != nil {
 		slog.WarnContext(ctx, "failed to disable write deadline", slog.String("error", deadlineErr.Error()))
 	}
 
-	rw.Header().Set("Content-Type", contentType)
-	rw.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	// The download endpoint always serves an opaque attachment (empty MIME ->
+	// attachment + application/octet-stream + nosniff + sandbox CSP), so a
+	// stored HTML/SVG file cannot execute in the panel origin.
+	filemanagerhttp.SafeContentHeaders(rw.Header(), filename, "")
 
 	if fileInfo.Size > 0 {
 		rw.Header().Set("Content-Length", strconv.FormatUint(fileInfo.Size, 10))
@@ -215,27 +214,4 @@ func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error
 	}
 
 	return &nodes[0], nil
-}
-
-func validatePath(path string) error {
-	if strings.Contains(path, "..") {
-		return errPathContainsTraversal
-	}
-
-	cleanPath := filepath.Clean(path)
-	if strings.HasPrefix(cleanPath, "..") {
-		return errPathEscapesBaseDirectory
-	}
-
-	return nil
-}
-
-func getContentType(filename string) string {
-	ext := filepath.Ext(filename)
-	contentType := mime.TypeByExtension(ext)
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-
-	return contentType
 }

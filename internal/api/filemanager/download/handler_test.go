@@ -187,8 +187,13 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
 				t.Helper()
 
-				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
-				assert.Equal(t, "attachment; filename=\"server.properties\"", w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"),
+					"download is always an opaque attachment regardless of file type")
+				assert.Equal(t,
+					"attachment; filename=server.properties; filename*=UTF-8''server.properties",
+					w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 				assert.Contains(t, w.Body.String(), "server-port=25565")
 			},
 		},
@@ -252,8 +257,13 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
 				t.Helper()
 
-				assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
-				assert.Equal(t, "attachment; filename=\"settings.json\"", w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"),
+					"a .json file must NOT be served as application/json; download is opaque")
+				assert.Equal(t,
+					"attachment; filename=settings.json; filename*=UTF-8''settings.json",
+					w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 			},
 		},
 		{
@@ -317,7 +327,11 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				t.Helper()
 
 				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
-				assert.Equal(t, "attachment; filename=\"world.dat\"", w.Header().Get("Content-Disposition"))
+				assert.Equal(t,
+					"attachment; filename=world.dat; filename*=UTF-8''world.dat",
+					w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 			},
 		},
 		{
@@ -921,112 +935,6 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 			if tt.validateResponse != nil {
 				tt.validateResponse(t, w)
-			}
-		})
-	}
-}
-
-func TestValidatePath(t *testing.T) {
-	tests := []struct {
-		name    string
-		path    string
-		wantErr bool
-	}{
-		{
-			name:    "valid_relative_path",
-			path:    "logs/latest.log",
-			wantErr: false,
-		},
-		{
-			name:    "valid_single_file",
-			path:    "server.properties",
-			wantErr: false,
-		},
-		{
-			name:    "invalid_directory_traversal_with_dots",
-			path:    "../../../etc/passwd",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_path_with_double_dots",
-			path:    "logs/../../etc",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_just_double_dots",
-			path:    "..",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_double_dots_at_start",
-			path:    "../logs",
-			wantErr: true,
-		},
-		{
-			name:    "valid_path_with_dots_in_filename",
-			path:    "config/server.properties",
-			wantErr: false,
-		},
-		{
-			name:    "valid_nested_path",
-			path:    "servers/cs/logs/latest.log",
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validatePath(tt.path)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestGetContentType(t *testing.T) {
-	tests := []struct {
-		name             string
-		filename         string
-		wantContent      string
-		acceptedContents []string
-	}{
-		{
-			name:        "text_file",
-			filename:    "server.properties",
-			wantContent: "application/octet-stream",
-		},
-		{
-			name:        "json_file",
-			filename:    "config.json",
-			wantContent: "application/json",
-		},
-		{
-			name:             "unknown_extension",
-			filename:         "file.xyz",
-			acceptedContents: []string{"chemical/x-xyz", "application/octet-stream"},
-		},
-		{
-			name:        "no_extension",
-			filename:    "Makefile",
-			wantContent: "application/octet-stream",
-		},
-		{
-			name:        "zip_file",
-			filename:    "backup.zip",
-			wantContent: "application/zip",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			contentType := getContentType(tt.filename)
-			if len(tt.acceptedContents) > 0 {
-				assert.Contains(t, tt.acceptedContents, contentType)
-			} else {
-				assert.Equal(t, tt.wantContent, contentType)
 			}
 		})
 	}

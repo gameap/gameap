@@ -255,7 +255,7 @@ func (r *Registry) SendTask(ctx context.Context, nodeID uint64, task *proto.Gate
 	r.mu.RUnlock()
 
 	if isLocal {
-		if err := session.Stream.Send(task); err != nil {
+		if err := session.Send(task); err != nil {
 			return errors.Wrap(err, "send task to local session")
 		}
 
@@ -329,7 +329,7 @@ func (r *Registry) handleTaskDispatch(_ context.Context, msg *pubsub.Message) er
 		return nil
 	}
 
-	if err := session.Stream.Send(&gatewayMsg); err != nil {
+	if err := session.Send(&gatewayMsg); err != nil {
 		r.logger.Warn("failed to send task to session",
 			"node_id", nodeID,
 			"task_id", payload.TaskID,
@@ -360,7 +360,7 @@ func (r *Registry) SendCommand(ctx context.Context, nodeID uint64, cmd *proto.Co
 	r.mu.RUnlock()
 
 	if isLocal {
-		return session.Stream.Send(msg)
+		return session.Send(msg)
 	}
 
 	return r.dispatchCommandViaPubSub(ctx, nodeID, cmd)
@@ -392,7 +392,7 @@ func (r *Registry) BroadcastToAll(_ context.Context, msg *proto.GatewayMessage) 
 	r.mu.RUnlock()
 
 	for _, session := range sessions {
-		if err := session.Stream.Send(msg); err != nil {
+		if err := session.Send(msg); err != nil {
 			r.logger.Warn("failed to broadcast message",
 				"node_id", session.NodeID,
 				"error", err,
@@ -451,7 +451,7 @@ func (r *Registry) sendOrDispatchAttach(
 	r.mu.RUnlock()
 
 	if isLocal {
-		return session.Stream.Send(msg)
+		return session.Send(msg)
 	}
 
 	return r.dispatchAttachViaPubSub(ctx, nodeID, msg)
@@ -503,7 +503,7 @@ func (r *Registry) handleAttachDispatch(_ context.Context, msg *pubsub.Message) 
 		return nil
 	}
 
-	if err := session.Stream.Send(&gatewayMsg); err != nil {
+	if err := session.Send(&gatewayMsg); err != nil {
 		r.logger.Warn("failed to send attach message to session",
 			"node_id", payload.NodeID,
 			"error", err,
@@ -535,7 +535,7 @@ func (r *Registry) SendMetricsRequest(
 	r.mu.RUnlock()
 
 	if isLocal {
-		if err := session.Stream.Send(msg); err != nil {
+		if err := session.Send(msg); err != nil {
 			return errors.Wrap(err, "send metrics request to local session")
 		}
 
@@ -597,7 +597,7 @@ func (r *Registry) handleMetricsRequest(_ context.Context, msg *pubsub.Message) 
 		r.metricsWaiters.RegisterRemoteWaiter(payload.RequestID, payload.NodeID, payload.InstanceID)
 	}
 
-	if err := session.Stream.Send(&gatewayMsg); err != nil {
+	if err := session.Send(&gatewayMsg); err != nil {
 		if r.metricsWaiters != nil {
 			r.metricsWaiters.CancelWaiter(payload.RequestID)
 		}

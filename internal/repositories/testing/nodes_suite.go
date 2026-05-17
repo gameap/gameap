@@ -8,6 +8,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -193,6 +194,148 @@ func (s *NodeRepositorySuite) TestNodeRepositorySave() {
 		require.NotNil(t, node.UpdatedAt)
 		assert.True(t, node.CreatedAt.After(beforeSave) || node.CreatedAt.Equal(beforeSave))
 		assert.True(t, node.CreatedAt.Before(afterSave) || node.CreatedAt.Equal(afterSave))
+	})
+}
+
+// TestNodeRepositoryUpdateGDaemonAPIToken — OWASP API Top 10:2023 API2:2023
+// Broken Authentication. The daemon API token is a credential at rest;
+// rotating it must persist only the new (already hashed) token and the
+// updated timestamp, must not resurrect a missing node, and — for the cached
+// implementation — must not serve a stale token after rotation.
+func (s *NodeRepositorySuite) TestNodeRepositoryUpdateGDaemonAPIToken() {
+	ctx := context.Background()
+
+	s.T().Run("updates_only_token_and_timestamp", func(t *testing.T) {
+		// ARRANGE
+		// The token at rest is always a SHA-256 hex digest (64 chars) in
+		// production; using 64-char values keeps the test correct on the
+		// Postgres CHAR(64) column, which right-pads shorter strings.
+		node := &domain.Node{
+			Enabled:             true,
+			Name:                "Token Rotate Node",
+			OS:                  domain.NodeOSLinux,
+			Location:            "US-East",
+			Provider:            new("AWS"),
+			IPs:                 domain.IPList{"192.168.1.1", "10.0.0.1"},
+			RAM:                 new("16GB"),
+			CPU:                 new("8 cores"),
+			WorkPath:            "/var/gameap",
+			SteamcmdPath:        new("/usr/games/steamcmd"),
+			GdaemonHost:         "localhost",
+			GdaemonPort:         31717,
+			GdaemonAPIKey:       pkgstrings.SHA256("original-api-key"),
+			GdaemonAPIToken:     new(pkgstrings.SHA256("original-token")),
+			GdaemonServerCert:   "cert-data",
+			ClientCertificateID: 7,
+			PreferInstallMethod: domain.NodePreferInstallMethodAuto,
+		}
+
+		require.NoError(t, s.repo.Save(ctx, node))
+
+		before, err := s.repo.Find(ctx, &filters.FindNode{IDs: []uint{node.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, before, 1)
+		savedUpdatedAt := before[0].UpdatedAt
+		require.NotNil(t, savedUpdatedAt)
+
+		newToken := pkgstrings.SHA256("new-rotated-token")
+		rotateAt := savedUpdatedAt.Add(time.Hour).UTC()
+
+		// ACT
+		err = s.repo.UpdateGDaemonAPIToken(ctx, node.ID, newToken, rotateAt)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		after, err := s.repo.Find(ctx, &filters.FindNode{IDs: []uint{node.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, after, 1)
+
+		got := after[0]
+		require.NotNil(t, got.GdaemonAPIToken)
+		assert.Equal(t, newToken, *got.GdaemonAPIToken, "rotated token must be persisted")
+		require.NotNil(t, got.UpdatedAt)
+		assert.True(t,
+			got.UpdatedAt.After(*savedUpdatedAt),
+			"updated_at must advance after token rotation")
+
+		assert.Equal(t, before[0].Name, got.Name, "name must be untouched")
+		assert.Equal(t, before[0].GdaemonAPIKey, got.GdaemonAPIKey, "api key must be untouched")
+		assert.Equal(t, before[0].GdaemonHost, got.GdaemonHost, "gdaemon host must be untouched")
+		assert.Equal(t, before[0].WorkPath, got.WorkPath, "work path must be untouched")
+		assert.Equal(t,
+			before[0].ClientCertificateID, got.ClientCertificateID,
+			"client certificate id must be untouched")
+		require.Len(t, got.IPs, len(before[0].IPs))
+		assert.ElementsMatch(t, []string(before[0].IPs), []string(got.IPs), "IPs must be untouched")
+	})
+
+	s.T().Run("nonexistent_node_is_noop", func(t *testing.T) {
+		// ARRANGE
+		const unknownID = uint(999999)
+
+		missingBefore, err := s.repo.Find(ctx, &filters.FindNode{IDs: []uint{unknownID}}, nil, nil)
+		require.NoError(t, err)
+		require.Empty(t, missingBefore)
+
+		// ACT
+		err = s.repo.UpdateGDaemonAPIToken(ctx, unknownID, pkgstrings.SHA256("irrelevant"), time.Now().UTC())
+
+		// ASSERT
+		require.NoError(t, err, "rotating a missing node must be a no-op, not an error")
+
+		missingAfter, err := s.repo.Find(ctx, &filters.FindNode{IDs: []uint{unknownID}}, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, missingAfter, "no node must be created for an unknown id")
+
+		all, err := s.repo.FindAll(ctx, nil, nil)
+		require.NoError(t, err)
+		for _, n := range all {
+			assert.NotEqual(t, unknownID, n.ID, "unknown id must not appear in the repository")
+		}
+	})
+
+	s.T().Run("cached_variant_invalidates_cache", func(t *testing.T) {
+		// ARRANGE
+		staleToken := pkgstrings.SHA256("stale-token")
+		node := &domain.Node{
+			Enabled:             true,
+			Name:                "Cache Invalidate Node",
+			OS:                  domain.NodeOSLinux,
+			Location:            "EU-West",
+			IPs:                 domain.IPList{"10.20.30.40"},
+			WorkPath:            "/opt/gameap",
+			GdaemonHost:         "cache.example.com",
+			GdaemonPort:         31717,
+			GdaemonAPIKey:       pkgstrings.SHA256("cache-api-key"),
+			GdaemonAPIToken:     new(staleToken),
+			GdaemonServerCert:   "cache-cert",
+			ClientCertificateID: 3,
+			PreferInstallMethod: domain.NodePreferInstallMethodAuto,
+		}
+
+		require.NoError(t, s.repo.Save(ctx, node))
+
+		warm, err := s.repo.Find(ctx, &filters.FindNode{IDs: []uint{node.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, warm, 1)
+		require.NotNil(t, warm[0].GdaemonAPIToken)
+		require.Equal(t, staleToken, *warm[0].GdaemonAPIToken)
+
+		freshToken := pkgstrings.SHA256("fresh-token-after-rotation")
+
+		// ACT
+		err = s.repo.UpdateGDaemonAPIToken(ctx, node.ID, freshToken, time.Now().Add(time.Hour).UTC())
+
+		// ASSERT
+		require.NoError(t, err)
+
+		after, err := s.repo.Find(ctx, &filters.FindNode{IDs: []uint{node.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, after, 1)
+		require.NotNil(t, after[0].GdaemonAPIToken)
+		assert.Equal(t, freshToken, *after[0].GdaemonAPIToken,
+			"Find after rotation must return the new token, not a stale cached one")
 	})
 }
 

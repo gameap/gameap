@@ -10,6 +10,10 @@ const STAMP = Date.now();
 // as the other smoke specs.
 const SIGN_IN = /sign.?in|login|вход|войти|auth\.sign_in/i;
 const TOKENS_ITEM = /tokens|токены|tokens\.tokens/i;
+// The one-time "copy it now, you won't see it again" warning rendered in the
+// success dialog after a token is created.
+const TOKEN_ONCE =
+  /make sure to copy|won't be able to see it again|обязательно скопируйте|больше его не сможете увидеть|tokens\.token_created_notification/i;
 
 // admin:server:create + admin:gdaemon-task:read are only offered to admins;
 // server:list gates GET /api/servers; server:start is a valid non-admin
@@ -98,8 +102,11 @@ for (const { role, adminAbilitiesVisible } of ROLE_CASES) {
       }
     }
 
-    // 6. Create a token WITH server:list — capture the secret from the
-    //    POST /api/tokens response (deterministic; no DOM scraping).
+    // 6. Create a token WITH server:list. The POST /api/tokens response is the
+    //    source of truth for the secret; the success dialog is then asserted
+    //    to actually display that same secret (regression guard — the dialog
+    //    body was previously rendered empty, leaking the token only to the
+    //    network tab).
     await page
       .getByTestId('token-form-name')
       .locator('input')
@@ -115,6 +122,15 @@ for (const { role, adminAbilitiesVisible } of ROLE_CASES) {
       `create token (with server:list) should be 2xx, got ${withResp.status()}`,
     ).toBeTruthy();
     const secretWith = ((await withResp.json()) as { token: string }).token;
+
+    const withDialog = page.getByRole('dialog').last();
+    await expect(withDialog.getByTestId('token-created-message')).toHaveText(
+      TOKEN_ONCE,
+    );
+    await expect(
+      withDialog.getByTestId('token-created-value').locator('input'),
+    ).toHaveValue(secretWith);
+    await expect(withDialog.getByTestId('token-created-copy')).toBeVisible();
     await dismissTopDialog(page);
 
     // 7. Create a token WITHOUT server:list (server:start instead).
@@ -138,6 +154,17 @@ for (const { role, adminAbilitiesVisible } of ROLE_CASES) {
     ).toBeTruthy();
     const secretWithout = ((await withoutResp.json()) as { token: string })
       .token;
+
+    const withoutDialog = page.getByRole('dialog').last();
+    await expect(
+      withoutDialog.getByTestId('token-created-message'),
+    ).toHaveText(TOKEN_ONCE);
+    await expect(
+      withoutDialog.getByTestId('token-created-value').locator('input'),
+    ).toHaveValue(secretWithout);
+    await expect(
+      withoutDialog.getByTestId('token-created-copy'),
+    ).toBeVisible();
     await dismissTopDialog(page);
 
     // 8. The server:list token can list servers; the other is forbidden.
