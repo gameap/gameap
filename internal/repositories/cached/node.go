@@ -187,6 +187,26 @@ func (r *NodeRepository) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
+// UpdateGDaemonAPIToken atomically rotates the daemon API token and invalidates
+// the affected cache entries.
+func (r *NodeRepository) UpdateGDaemonAPIToken(
+	ctx context.Context, nodeID uint, hashedToken string, updatedAt time.Time,
+) error {
+	if err := r.inner.UpdateGDaemonAPIToken(ctx, nodeID, hashedToken, updatedAt); err != nil {
+		return errors.WithMessage(err, "failed to update node gdaemon api token")
+	}
+
+	if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apitoken", hashedToken)); err != nil {
+		return errors.WithMessage(err, "failed to invalidate node cache by API token after update")
+	}
+
+	if err := r.wrapper.InvalidatePattern(ctx, "node:find*"); err != nil {
+		return errors.WithMessage(err, "failed to invalidate node find pattern cache after update")
+	}
+
+	return nil
+}
+
 func (r *NodeRepository) invalidateNodeCache(ctx context.Context, findErr error, nodes []domain.Node) error {
 	if findErr != nil {
 		// Unable to find node for cache invalidation, but this shouldn't fail the delete

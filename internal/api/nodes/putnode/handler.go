@@ -13,6 +13,7 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
+	"github.com/gameap/gameap/pkg/secret"
 	"github.com/pkg/errors"
 	"github.com/rs/xid"
 )
@@ -28,17 +29,20 @@ var (
 type Handler struct {
 	repo        repositories.NodeRepository
 	fileManager files.FileManager
+	cipher      *secret.Cipher
 	responder   base.Responder
 }
 
 func NewHandler(
 	repo repositories.NodeRepository,
 	fileManager files.FileManager,
+	cipher *secret.Cipher,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
 		repo:        repo,
 		fileManager: fileManager,
+		cipher:      cipher,
 		responder:   responder,
 	}
 }
@@ -130,6 +134,18 @@ func (h *Handler) updateNode(ctx context.Context, node *domain.Node, input *upda
 	}
 
 	input.ApplyToNode(node)
+
+	// Encrypt the SSH password at rest only when it was changed in this
+	// request; an unchanged value stays as already stored (cipher- or, on a
+	// legacy row, plaintext) and is left untouched.
+	if input.GdaemonPassword != nil && node.GdaemonPassword != nil {
+		encrypted, err := h.cipher.Encrypt(*node.GdaemonPassword)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to encrypt gdaemon password")
+		}
+
+		node.GdaemonPassword = &encrypted
+	}
 
 	now := time.Now()
 	node.UpdatedAt = &now

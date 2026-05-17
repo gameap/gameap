@@ -8,6 +8,7 @@ import (
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/pkg/secret"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 )
@@ -15,6 +16,7 @@ import (
 type configMaker struct {
 	certRepo    repositories.ClientCertificateRepository
 	fileManager files.FileManager
+	cipher      *secret.Cipher
 }
 
 func newConfigMaker(
@@ -24,6 +26,19 @@ func newConfigMaker(
 	return &configMaker{
 		certRepo:    certRepo,
 		fileManager: fileManager,
+		cipher:      secret.Disabled(),
+	}
+}
+
+// LegacyOption configures the legacy (BINN) daemon services.
+type LegacyOption func(*configMaker)
+
+// WithSecretCipher injects the cipher used to decrypt gdaemon_password at rest.
+func WithSecretCipher(c *secret.Cipher) LegacyOption {
+	return func(m *configMaker) {
+		if c != nil {
+			m.cipher = c
+		}
 	}
 }
 
@@ -66,11 +81,16 @@ func (s *configMaker) MakeWithMode(ctx context.Context, node *domain.Node, mode 
 		return config{}, errors.WithMessage(err, "failed to read private key")
 	}
 
+	password, err := s.cipher.Decrypt(lo.FromPtr(node.GdaemonPassword))
+	if err != nil {
+		return config{}, errors.WithMessage(err, "failed to decrypt gdaemon password")
+	}
+
 	return config{
 		Host:              node.GdaemonHost,
 		Port:              node.GdaemonPort,
 		Username:          lo.FromPtr(node.GdaemonLogin),
-		Password:          lo.FromPtr(node.GdaemonPassword),
+		Password:          password,
 		ServerCertificate: serverCert,
 		ClientCertificate: clientCert,
 		PrivateKey:        privateKey,

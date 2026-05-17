@@ -13,7 +13,10 @@ type subscription struct {
 	samplesCh chan *proto.MetricsResponse
 
 	closeMu sync.Mutex
-	closed  bool
+	// closed reports that samplesCh has been closed; unsubscribed guards Close
+	// from running the unsubscribe path more than once.
+	closed       bool
+	unsubscribed bool
 }
 
 func newSubscription(h *hub, nodeID uint64, bufferSize int) *subscription {
@@ -30,12 +33,12 @@ func (s *subscription) Samples() <-chan *proto.MetricsResponse {
 
 func (s *subscription) Close() {
 	s.closeMu.Lock()
-	if s.closed {
+	if s.unsubscribed {
 		s.closeMu.Unlock()
 
 		return
 	}
-	s.closed = true
+	s.unsubscribed = true
 	s.closeMu.Unlock()
 
 	s.hub.unsubscribe(s)
@@ -45,11 +48,12 @@ func (s *subscription) Close() {
 // the producer (pubsub fan-out) non-blocking; consumers are expected
 // to drain promptly.
 func (s *subscription) deliver(entry *proto.MetricsResponse) {
+	// Hold closeMu across the non-blocking send so it cannot race
+	// closeChannel into a send-on-closed-channel panic.
 	s.closeMu.Lock()
-	closed := s.closed
-	s.closeMu.Unlock()
+	defer s.closeMu.Unlock()
 
-	if closed {
+	if s.closed {
 		return
 	}
 
@@ -63,9 +67,10 @@ func (s *subscription) closeChannel() {
 	s.closeMu.Lock()
 	defer s.closeMu.Unlock()
 
-	if !s.closed {
-		s.closed = true
+	if s.closed {
+		return
 	}
+	s.closed = true
 
 	close(s.samplesCh)
 }

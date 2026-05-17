@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -276,7 +277,10 @@ func (f *fakeNodeRepo) Find(
 }
 
 func (f *fakeNodeRepo) Save(_ context.Context, _ *domain.Node) error { return nil }
-func (f *fakeNodeRepo) Delete(_ context.Context, _ uint) error       { return nil }
+func (f *fakeNodeRepo) UpdateGDaemonAPIToken(_ context.Context, _ uint, _ string, _ time.Time) error {
+	return nil
+}
+func (f *fakeNodeRepo) Delete(_ context.Context, _ uint) error { return nil }
 
 func (f *fakeNodeRepo) findCalls() []filters.FindNode {
 	f.mu.Lock()

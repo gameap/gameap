@@ -157,6 +157,23 @@ func (r *NodeRepository) Delete(_ context.Context, id uint) error {
 	return nil
 }
 
+func (r *NodeRepository) UpdateGDaemonAPIToken(
+	_ context.Context, nodeID uint, hashedToken string, updatedAt time.Time,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	node, exists := r.nodes[nodeID]
+	if !exists {
+		return nil
+	}
+
+	node.GdaemonAPIToken = new(hashedToken)
+	node.UpdatedAt = new(updatedAt)
+
+	return nil
+}
+
 func (r *NodeRepository) addToIndexes(node *domain.Node) {
 	// ID index
 	if r.idIndex[node.ID] == nil {

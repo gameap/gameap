@@ -1,3 +1,9 @@
+// OWASP API Top 10:2023 — API1:2023 Broken Object Level Authorization.
+// The rename oldName/newName fields are attacker-controlled; without strict
+// filename validation a caller could traverse out of the server data
+// directory (path/filename traversal) and move objects belonging to other
+// tenants. These tests assert both name fields are validated with
+// filemanagerpath.ValidateFilename (rejects "", "..", path separators).
 package rename
 
 import (
@@ -86,6 +92,10 @@ func (m *mockFileService) Move(
 	return nil
 }
 
+// TestHandler_ServeHTTP — OWASP API Top 10:2023 API1:2023 Broken Object Level
+// Authorization. The oldName/newName cases (empty/"..", separators) prove the
+// handler rejects names that could escape the per-server directory; a name
+// that previously passed because it contained a "/" subpath is now rejected.
 func TestHandler_ServeHTTP(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -241,7 +251,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:     "rename_with_subdirectory",
+			// Renaming a file inside a subdirectory is no longer accepted:
+			// oldName/newName must be plain file names so an attacker cannot
+			// supply a "/"-bearing path that escapes the server directory.
+			name:     "subdirectory_in_name_rejected",
 			serverID: "1",
 			requestBody: renameRequest{
 				Disk:    "server",
@@ -292,23 +305,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.NoError(t, nodeRepo.Save(context.Background(), &node))
 			},
 			setupFileService: func() *mockFileService {
-				return &mockFileService{
-					moveFunc: func(_ context.Context, _ *domain.Node, source, destination string) error {
-						assert.Equal(t, "/srv/gameap/servers/test1/some-dir/ca.crt", source)
-						assert.Equal(t, "/srv/gameap/servers/test1/some-dir/ca2.crt", destination)
-
-						return nil
-					},
-				}
+				return &mockFileService{}
 			},
-			expectedStatus: http.StatusOK,
-			validateResponse: func(t *testing.T, body []byte) {
-				t.Helper()
-
-				var response renameResponse
-				require.NoError(t, json.Unmarshal(body, &response))
-				assert.Equal(t, "success", response.Result.Status)
-			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "filename contains path separators",
 		},
 		{
 			name:     "unsupported_disk",
@@ -783,7 +783,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				return &mockFileService{}
 			},
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "path contains invalid directory traversal",
+			wantError:      "filename contains invalid directory traversal",
 		},
 		{
 			name:     "invalid_path_with_directory_traversal_in_newName",
@@ -840,7 +840,238 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				return &mockFileService{}
 			},
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "path contains invalid directory traversal",
+			wantError:      "filename contains invalid directory traversal",
+		},
+		{
+			name:     "newName_with_path_separator_rejected",
+			serverID: "1",
+			requestBody: renameRequest{
+				Disk:    "server",
+				OldName: "valid.txt",
+				NewName: "a/b",
+				Type:    "file",
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "cs",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27015,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "filename contains path separators",
+		},
+		{
+			name:     "newName_equal_to_double_dot_rejected",
+			serverID: "1",
+			requestBody: renameRequest{
+				Disk:    "server",
+				OldName: "valid.txt",
+				NewName: "..",
+				Type:    "file",
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "cs",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27015,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "filename contains invalid directory traversal",
+		},
+		{
+			name:     "oldName_with_backslash_rejected",
+			serverID: "1",
+			requestBody: renameRequest{
+				Disk:    "server",
+				OldName: "a\\b",
+				NewName: "renamed.txt",
+				Type:    "file",
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "cs",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27015,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "filename contains path separators",
+		},
+		{
+			// Empty oldName/newName is rejected by validateRequest before the
+			// filename check, but the rejection (a name field cannot be empty)
+			// is still part of the name-validation contract under test.
+			name:     "empty_newName_rejected",
+			serverID: "1",
+			requestBody: renameRequest{
+				Disk:    "server",
+				OldName: "valid.txt",
+				NewName: "",
+				Type:    "file",
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "cs",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27015,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "newName is required",
 		},
 		{
 			name:     "node_not_found",
@@ -1177,86 +1408,6 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 			if tt.validateResponse != nil {
 				tt.validateResponse(t, w.Body.Bytes())
-			}
-		})
-	}
-}
-
-func TestValidatePath(t *testing.T) {
-	tests := []struct {
-		name    string
-		path    string
-		wantErr bool
-	}{
-		{
-			name:    "valid_relative_path",
-			path:    "logs/latest.log",
-			wantErr: false,
-		},
-		{
-			name:    "valid_single_directory",
-			path:    "logs",
-			wantErr: false,
-		},
-		{
-			name:    "valid_root",
-			path:    ".",
-			wantErr: false,
-		},
-		{
-			name:    "invalid_directory_traversal_with_dots",
-			path:    "../../../etc/passwd",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_path_with_double_dots",
-			path:    "logs/../../etc",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_just_double_dots",
-			path:    "..",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_double_dots_at_start",
-			path:    "../logs",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_double_dots_in_middle",
-			path:    "logs/../../../etc",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_hidden_traversal",
-			path:    "logs/./../../etc",
-			wantErr: true,
-		},
-		{
-			name:    "valid_path_with_dots_in_filename",
-			path:    "config/server.properties",
-			wantErr: false,
-		},
-		{
-			name:    "valid_empty_path",
-			path:    "",
-			wantErr: false,
-		},
-		{
-			name:    "valid_nested_path",
-			path:    "servers/cs/logs/latest.log",
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validatePath(tt.path)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
 			}
 		})
 	}

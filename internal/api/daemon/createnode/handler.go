@@ -115,7 +115,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	node, signedCert, err := h.createNode(ctx, input)
+	node, apiKey, signedCert, err := h.createNode(ctx, input)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to create node"))
 
@@ -133,7 +133,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := buildCreateResponse(node.ID, node.GdaemonAPIKey, rootCert, signedCert)
+	response := buildCreateResponse(node.ID, apiKey, rootCert, signedCert)
 
 	rw.Header().Set("Content-Type", "text/plain")
 	_, _ = rw.Write([]byte(response))
@@ -165,27 +165,31 @@ func (h *Handler) verifyCreateToken(ctx context.Context, token string) error {
 	return nil
 }
 
-func (h *Handler) createNode(ctx context.Context, input *nodeInput) (*domain.Node, string, error) {
+func (h *Handler) createNode(ctx context.Context, input *nodeInput) (*domain.Node, string, string, error) {
 	csr, err := h.readCSR(input.GdaemonServerCert)
 	if err != nil {
-		return nil, "", errors.WithMessage(err, "failed to read CSR")
+		return nil, "", "", errors.WithMessage(err, "failed to read CSR")
 	}
 
 	signedCert, err := h.certificatesSvc.Sign(ctx, csr, nil)
 	if err != nil {
-		return nil, "", errors.WithMessage(err, "failed to sign certificate")
+		return nil, "", "", errors.WithMessage(err, "failed to sign certificate")
 	}
 
 	apiKey, err := strings.CryptoRandomString(apiKeyLength)
 	if err != nil {
-		return nil, "", errors.WithMessage(err, "failed to generate api key")
+		return nil, "", "", errors.WithMessage(err, "failed to generate api key")
 	}
 
 	node := input.ToDomain(apiKey, certificates.RootCACert)
 
+	// Persist only the SHA-256 hash; the plaintext is returned to the daemon
+	// once in the response and must never be retrievable from the database.
+	node.GdaemonAPIKey = strings.SHA256(apiKey)
+
 	node.ClientCertificateID, err = h.getClientCertificateID(ctx)
 	if err != nil {
-		return nil, "", errors.WithMessage(err, "failed to get client certificate ID")
+		return nil, "", "", errors.WithMessage(err, "failed to get client certificate ID")
 	}
 
 	now := time.Now()
@@ -193,10 +197,10 @@ func (h *Handler) createNode(ctx context.Context, input *nodeInput) (*domain.Nod
 	node.UpdatedAt = &now
 
 	if err := h.nodesRepo.Save(ctx, node); err != nil {
-		return nil, "", errors.WithMessage(err, "failed to save node")
+		return nil, "", "", errors.WithMessage(err, "failed to save node")
 	}
 
-	return node, signedCert, nil
+	return node, apiKey, signedCert, nil
 }
 
 func (h *Handler) getClientCertificateID(ctx context.Context) (uint, error) {

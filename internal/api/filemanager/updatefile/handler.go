@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
@@ -31,8 +32,6 @@ var (
 	errUserNotAuthenticated          = errors.New("user not authenticated")
 	errNoFileUploaded                = errors.New("no file uploaded")
 	errInvalidFileSize               = errors.New("invalid file size")
-	errPathContainsTraversal         = errors.New("path contains invalid directory traversal")
-	errPathEscapesBaseDirectory      = errors.New("path attempts to escape base directory")
 	errFilenameEmpty                 = errors.New("filename is empty")
 	errFilenameContainsTraversal     = errors.New("filename contains invalid directory traversal")
 	errFilenameContainsPathSeparator = errors.New("filename contains path separators")
@@ -164,7 +163,7 @@ func (h *Handler) parseFormData(r *http.Request) (*multipart.FileHeader, string,
 		path = "."
 	}
 
-	if err := validatePath(path); err != nil {
+	if err := filemanagerpath.ValidatePath(path); err != nil {
 		return nil, "", err
 	}
 
@@ -253,19 +252,6 @@ func (h *Handler) updateFile(
 	}
 
 	return newUpdateFileResponse(fileInfo, relativePath), nil
-}
-
-func validatePath(path string) error {
-	if strings.Contains(path, "..") {
-		return errPathContainsTraversal
-	}
-
-	cleanPath := filepath.Clean(path)
-	if strings.HasPrefix(cleanPath, "..") {
-		return errPathEscapesBaseDirectory
-	}
-
-	return nil
 }
 
 func validateFilename(filename string) error {

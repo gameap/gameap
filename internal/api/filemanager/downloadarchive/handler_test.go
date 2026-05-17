@@ -652,35 +652,6 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	}
 }
 
-func TestValidatePath(t *testing.T) {
-	tests := []struct {
-		name      string
-		path      string
-		wantError string
-	}{
-		{name: "valid_relative", path: "data/sub", wantError: ""},
-		{name: "valid_single", path: "logs", wantError: ""},
-		{name: "invalid_traversal", path: "../etc", wantError: "path contains invalid directory traversal"},
-		{name: "invalid_double_dots_inside", path: "a/../b", wantError: "path contains invalid directory traversal"},
-		{name: "empty_path_returns_nil", path: "", wantError: ""},
-		{name: "leading_dot_slash_allowed", path: "./data", wantError: ""},
-		{name: "root_slash_allowed", path: "/data", wantError: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validatePath(tt.path)
-			if tt.wantError == "" {
-				assert.NoError(t, err)
-
-				return
-			}
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantError)
-		})
-	}
-}
-
 func TestArchiveFilename(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -848,6 +819,10 @@ func (e *errNodeRepo) Find(
 }
 
 func (e *errNodeRepo) Save(_ context.Context, _ *domain.Node) error {
+	return errNodeRepoSave
+}
+
+func (e *errNodeRepo) UpdateGDaemonAPIToken(_ context.Context, _ uint, _ string, _ time.Time) error {
 	return errNodeRepoSave
 }
 

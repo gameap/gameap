@@ -1026,51 +1026,6 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	}
 }
 
-func TestValidatePath(t *testing.T) {
-	tests := []struct {
-		name    string
-		path    string
-		wantErr bool
-	}{
-		{
-			name:    "valid_relative_path",
-			path:    "configs/server.cfg",
-			wantErr: false,
-		},
-		{
-			name:    "valid_single_directory",
-			path:    "configs",
-			wantErr: false,
-		},
-		{
-			name:    "valid_root",
-			path:    ".",
-			wantErr: false,
-		},
-		{
-			name:    "invalid_directory_traversal",
-			path:    "../../../etc/passwd",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_path_with_double_dots",
-			path:    "configs/../../etc",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validatePath(tt.path)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestValidateFilename(t *testing.T) {
 	tests := []struct {
 		name     string

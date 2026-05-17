@@ -29,9 +29,15 @@ type StatusBINNService struct {
 func NewStatusBINNService(
 	certRepo repositories.ClientCertificateRepository,
 	fileManager files.FileManager,
+	opts ...LegacyOption,
 ) *StatusBINNService {
+	cm := newConfigMaker(certRepo, fileManager)
+	for _, opt := range opts {
+		opt(cm)
+	}
+
 	return &StatusBINNService{
-		configMaker: newConfigMaker(certRepo, fileManager),
+		configMaker: cm,
 		pools:       make(map[uint]*Pool),
 	}
 }

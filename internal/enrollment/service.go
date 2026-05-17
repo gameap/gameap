@@ -104,7 +104,7 @@ func (s *Service) Enroll(ctx context.Context, setupKey string, input *EnrollInpu
 		SteamcmdPath:        new(defaultSteamCMDPath),
 		GdaemonHost:         input.Host,
 		GdaemonPort:         port,
-		GdaemonAPIKey:       apiKey,
+		GdaemonAPIKey:       strings.SHA256(apiKey),
 		GdaemonServerCert:   certificates.RootCACert,
 		ClientCertificateID: clientCertID,
 		PreferInstallMethod: domain.NodePreferInstallMethodAuto,

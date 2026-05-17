@@ -1,3 +1,8 @@
+// OWASP API Top 10:2023 — API2:2023 Broken Authentication.
+// The daemon API key is a long-lived credential. The handler returns the
+// plaintext key to the daemon exactly once and must persist only its
+// SHA-256 digest, so a database read alone can never recover a usable
+// credential. These tests assert that hash-at-rest invariant.
 package createnode
 
 import (
@@ -18,6 +23,7 @@ import (
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -229,6 +235,9 @@ func TestHandler_ServeHTTP_InvalidPort(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "error")
 }
 
+// TestHandler_ServeHTTP_DefaultValues — OWASP API Top 10:2023 API2:2023
+// Broken Authentication. Asserts the plaintext API key is returned in the
+// response body once while only its SHA-256 digest is persisted.
 func TestHandler_ServeHTTP_DefaultValues(t *testing.T) {
 	cacheInstance := cache.NewInMemory()
 	nodesRepo := inmemory.NewNodeRepository()
@@ -274,8 +283,22 @@ func TestHandler_ServeHTTP_DefaultValues(t *testing.T) {
 	assert.Equal(t, "10.0.0.1", node.GdaemonHost)
 	assert.Equal(t, defaultPort, node.GdaemonPort)
 	assert.True(t, node.Enabled)
-	assert.NotEmpty(t, node.GdaemonAPIKey)
 	assert.Equal(t, certificates.RootCACert, node.GdaemonServerCert)
+
+	// The first response line is "Success <id> <plaintext_api_key>"; the
+	// daemon receives the usable key here and only here.
+	firstLine := strings.SplitN(w.Body.String(), "\n", 2)[0]
+	parts := strings.Fields(firstLine)
+	require.Len(t, parts, 3, "first line must be: Success <id> <api_key>")
+	plaintextAPIKey := parts[2]
+	require.Len(t, plaintextAPIKey, apiKeyLength,
+		"plaintext API key in the response must have the generated length")
+
+	assert.NotEmpty(t, node.GdaemonAPIKey)
+	assert.Equal(t, pkgstrings.SHA256(plaintextAPIKey), node.GdaemonAPIKey,
+		"stored API key must be the SHA-256 digest of the plaintext returned to the daemon")
+	assert.NotEqual(t, plaintextAPIKey, node.GdaemonAPIKey,
+		"plaintext API key must never be persisted at rest")
 }
 
 func TestHandler_ServeHTTP_WithAllFields(t *testing.T) {

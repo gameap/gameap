@@ -15,6 +15,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/shellescape"
 	"github.com/pkg/errors"
 )
 
@@ -150,7 +151,7 @@ func (h *Handler) sendConsoleCommand(ctx context.Context, server *domain.Server,
 
 	if node.ScriptSendCommand != nil && *node.ScriptSendCommand != "" {
 		cmd := server.ReplaceServerShortcodes(node, *node.ScriptSendCommand, map[string]string{
-			"command": command,
+			"command": shellescape.Quote(command),
 		})
 
 		_, err := h.daemonCommands.ExecuteCommand(ctx, node, cmd)

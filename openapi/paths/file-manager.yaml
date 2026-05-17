@@ -299,12 +299,34 @@
           type: string
     responses:
       '200':
-        description: File content
+        description: >-
+          File content. Always served as an opaque download
+          (Content-Disposition: attachment, application/octet-stream) so a
+          stored HTML/SVG file cannot execute in the panel origin.
+        headers:
+          Content-Disposition:
+            schema:
+              type: string
+            description: attachment with RFC 6266 filename / filename*
+          X-Content-Type-Options:
+            schema:
+              type: string
+            description: Always "nosniff"
+          Content-Security-Policy:
+            schema:
+              type: string
+            description: Always "sandbox"
         content:
           application/octet-stream:
             schema:
               type: string
               format: binary
+      '400':
+        description: Invalid path (absolute, NUL byte, backslash or directory traversal)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
         content:
@@ -660,12 +682,35 @@
           type: string
     responses:
       '200':
-        description: File stream
+        description: >-
+          File stream. Inline rendering is restricted to a safe allowlist
+          (images except SVG, text/plain, application/pdf); every other type is
+          forced to attachment + application/octet-stream so stored
+          HTML/SVG/JS cannot execute in the panel origin.
+        headers:
+          Content-Disposition:
+            schema:
+              type: string
+            description: inline for allowlisted types, otherwise attachment
+          X-Content-Type-Options:
+            schema:
+              type: string
+            description: Always "nosniff"
+          Content-Security-Policy:
+            schema:
+              type: string
+            description: Always "sandbox"
         content:
           application/octet-stream:
             schema:
               type: string
               format: binary
+      '400':
+        description: Invalid path (absolute, NUL byte, backslash or directory traversal)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
         content:

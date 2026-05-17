@@ -7,6 +7,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/flexible"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gameap/gameap/pkg/validation"
 )
 
@@ -286,7 +287,7 @@ func (in *updateNodeInput) applyGdaemonFields(node *domain.Node) {
 		node.GdaemonPort = in.GdaemonPort.Int()
 	}
 	if in.GdaemonAPIKey != nil {
-		node.GdaemonAPIKey = *in.GdaemonAPIKey
+		node.GdaemonAPIKey = pkgstrings.SHA256IfNeeded(*in.GdaemonAPIKey)
 	}
 	if in.GdaemonLogin != nil {
 		node.GdaemonLogin = in.GdaemonLogin

@@ -13,6 +13,14 @@ Represents a game server instance with its configuration, network settings, reso
 ### Node (`node.go`)
 Represents a dedicated server (physical or virtual machine) that hosts game servers. Contains connection settings for GameAP Daemon and server management scripts.
 
+> **Security — `ScriptSendCommand` quoting.** The user-supplied `{command}`
+> placeholder is now shell-escaped (wrapped in single quotes via
+> `pkg/shellescape`) before substitution to prevent command injection on the
+> node. Configure the template **without** quoting `{command}` yourself:
+> use `tmux send-keys -t {uuid_short} {command} ENTER`, not
+> `... "{command}" ENTER`. A template that wraps `{command}` in its own quotes
+> will now send the literal quote characters to the game console.
+
 ## Game Management
 
 ### Game (`game.go`)

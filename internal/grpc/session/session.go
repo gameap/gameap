@@ -24,6 +24,11 @@ type Session struct {
 
 	cancel context.CancelFunc
 
+	// sendMu serializes Stream.Send: a gRPC ServerStream is not safe for
+	// concurrent Send, and pubsub handlers, broadcasts and request senders
+	// all push to the same stream.
+	sendMu sync.Mutex
+
 	mu          sync.RWMutex
 	lastPing    time.Time
 	pendingReqs map[string]chan *proto.DaemonMessage
@@ -45,6 +50,9 @@ func NewSession(
 }
 
 func (s *Session) Send(msg *proto.GatewayMessage) error {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+
 	return s.Stream.Send(msg)
 }
 

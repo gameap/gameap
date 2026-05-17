@@ -19,6 +19,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,6 +110,10 @@ func (f *fakeNodeRepo) FindAll(
 }
 
 func (f *fakeNodeRepo) Save(_ context.Context, _ *domain.Node) error {
+	return nil
+}
+
+func (f *fakeNodeRepo) UpdateGDaemonAPIToken(_ context.Context, _ uint, _ string, _ time.Time) error {
 	return nil
 }
 
@@ -263,13 +268,54 @@ func TestAuthInterceptor_UnaryServerInterceptor(t *testing.T) {
 			wantFindIDs:   []uint{1},
 		},
 		{
+			// Store the hash of the real key; a different presented plaintext
+			// hashes to a different digest and must be rejected.
 			name: "apikey_mismatch_returns_unauthenticated",
 			setupRepo: func() *fakeNodeRepo {
 				return &fakeNodeRepo{
-					nodes: []domain.Node{{ID: 1, Enabled: true, GdaemonAPIKey: "correct"}},
+					nodes: []domain.Node{
+						{ID: 1, Enabled: true, GdaemonAPIKey: pkgstrings.SHA256("correct")},
+					},
 				}
 			},
 			ctx:           ctxWithMD("x-api-key", "abc", "x-node-id", "1"),
+			info:          info,
+			requireMTLS:   false,
+			wantCode:      codes.Unauthenticated,
+			wantError:     "invalid API key",
+			wantRepoCalls: 1,
+			wantFindIDs:   []uint{1},
+		},
+		{
+			// Hashed-at-rest happy path: presenting the plaintext whose SHA-256
+			// equals the stored digest authenticates and reaches the handler.
+			name: "apikey_matches_stored_hash_passes",
+			setupRepo: func() *fakeNodeRepo {
+				return &fakeNodeRepo{
+					nodes: []domain.Node{
+						{ID: 1, Enabled: true, GdaemonAPIKey: pkgstrings.SHA256("plain-key")},
+					},
+				}
+			},
+			ctx:           ctxWithMD("x-api-key", "plain-key", "x-node-id", "1"),
+			info:          info,
+			requireMTLS:   false,
+			wantCode:      codes.OK,
+			wantResp:      "ok",
+			wantRepoCalls: 1,
+			wantFindIDs:   []uint{1},
+		},
+		{
+			// Defense-in-depth: a legacy plaintext value left in the column is
+			// not a usable credential — the presented value is hashed before
+			// comparison, so presenting that same plaintext is rejected.
+			name: "legacy_plaintext_key_at_rest_is_rejected",
+			setupRepo: func() *fakeNodeRepo {
+				return &fakeNodeRepo{
+					nodes: []domain.Node{{ID: 1, Enabled: true, GdaemonAPIKey: "plain-key"}},
+				}
+			},
+			ctx:           ctxWithMD("x-api-key", "plain-key", "x-node-id", "1"),
 			info:          info,
 			requireMTLS:   false,
 			wantCode:      codes.Unauthenticated,
@@ -324,11 +370,15 @@ func TestAuthInterceptor_UnaryServerInterceptor(t *testing.T) {
 	}
 }
 
-// OWASP API Top 10:2023 — API2:2023 Broken Authentication.
+// TestAuthInterceptor_UnaryServerInterceptor_SetsNodeIDInContext —
+// OWASP API Top 10:2023 API2:2023 Broken Authentication. The interceptor
+// hashes the presented x-api-key and constant-time compares it against the
+// at-rest digest (security review findings #4/#6); the fixture therefore
+// stores SHA-256(plaintext) while the metadata carries the plaintext.
 func TestAuthInterceptor_UnaryServerInterceptor_SetsNodeIDInContext(t *testing.T) {
 	// ARRANGE
 	repo := &fakeNodeRepo{
-		nodes: []domain.Node{{ID: 7, Enabled: true, GdaemonAPIKey: "secret"}},
+		nodes: []domain.Node{{ID: 7, Enabled: true, GdaemonAPIKey: pkgstrings.SHA256("secret")}},
 	}
 	interceptor := NewAuthInterceptor(repo, false, discardLogger())
 

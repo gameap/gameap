@@ -4,16 +4,14 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"mime"
 	"net/http"
 	"path/filepath"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
-	"unicode"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagerhttp"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
@@ -25,11 +23,9 @@ import (
 )
 
 var (
-	errUserNotAuthenticated     = errors.New("user not authenticated")
-	errDiskRequired             = errors.New("disk parameter is required")
-	errPathRequired             = errors.New("path parameter is required")
-	errPathContainsTraversal    = errors.New("path contains invalid directory traversal")
-	errPathEscapesBaseDirectory = errors.New("path attempts to escape base directory")
+	errUserNotAuthenticated = errors.New("user not authenticated")
+	errDiskRequired         = errors.New("disk parameter is required")
+	errPathRequired         = errors.New("path parameter is required")
 )
 
 type fileService interface {
@@ -135,7 +131,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = validatePath(path); err != nil {
+	if err = filemanagerpath.ValidatePath(path); err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			err,
 			http.StatusBadRequest,
@@ -178,20 +174,13 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}()
 
 	filename := filepath.Base(path)
-	asciiFilename := convertToASCII(filename)
-
-	contentType := fileInfo.Mime
-	if contentType == "" {
-		contentType = getContentTypeFromExtension(filename)
-	}
 
 	rc := http.NewResponseController(rw)
 	if deadlineErr := rc.SetWriteDeadline(time.Time{}); deadlineErr != nil {
 		slog.WarnContext(ctx, "failed to disable write deadline", slog.String("error", deadlineErr.Error()))
 	}
 
-	rw.Header().Set("Content-Type", contentType)
-	rw.Header().Set("Content-Disposition", "inline; filename=\""+asciiFilename+"\"")
+	filemanagerhttp.SafeContentHeaders(rw.Header(), filename, fileInfo.Mime)
 	rw.Header().Set("Accept-Ranges", "bytes")
 
 	if fileInfo.Size > 0 {
@@ -223,83 +212,4 @@ func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error
 	}
 
 	return &nodes[0], nil
-}
-
-func validatePath(path string) error {
-	if strings.Contains(path, "..") {
-		return errPathContainsTraversal
-	}
-
-	cleanPath := filepath.Clean(path)
-	if strings.HasPrefix(cleanPath, "..") {
-		return errPathEscapesBaseDirectory
-	}
-
-	return nil
-}
-
-func getContentTypeFromExtension(filename string) string {
-	ext := filepath.Ext(filename)
-
-	// WebM is primarily a video container format
-	if ext == ".webm" {
-		return "video/webm"
-	}
-
-	contentType := mime.TypeByExtension(ext)
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-
-	return contentType
-}
-
-var asciiPattern = regexp.MustCompile(`^[\x20-\x7e]*$`)
-
-func convertToASCII(filename string) string {
-	if asciiPattern.MatchString(filename) {
-		return filename
-	}
-
-	var result strings.Builder
-	for _, r := range filename {
-		if r <= unicode.MaxASCII && unicode.IsPrint(r) {
-			result.WriteRune(r)
-		} else {
-			switch r {
-			case 'á', 'à', 'â', 'ä', 'ã', 'å':
-				result.WriteRune('a')
-			case 'Á', 'À', 'Â', 'Ä', 'Ã', 'Å':
-				result.WriteRune('A')
-			case 'é', 'è', 'ê', 'ë':
-				result.WriteRune('e')
-			case 'É', 'È', 'Ê', 'Ë':
-				result.WriteRune('E')
-			case 'í', 'ì', 'î', 'ï':
-				result.WriteRune('i')
-			case 'Í', 'Ì', 'Î', 'Ï':
-				result.WriteRune('I')
-			case 'ó', 'ò', 'ô', 'ö', 'õ':
-				result.WriteRune('o')
-			case 'Ó', 'Ò', 'Ô', 'Ö', 'Õ':
-				result.WriteRune('O')
-			case 'ú', 'ù', 'û', 'ü':
-				result.WriteRune('u')
-			case 'Ú', 'Ù', 'Û', 'Ü':
-				result.WriteRune('U')
-			case 'ñ':
-				result.WriteRune('n')
-			case 'Ñ':
-				result.WriteRune('N')
-			case 'ç':
-				result.WriteRune('c')
-			case 'Ç':
-				result.WriteRune('C')
-			default:
-				result.WriteRune('_')
-			}
-		}
-	}
-
-	return result.String()
 }

@@ -233,6 +233,12 @@ type NodeRepository interface {
 
 	Save(ctx context.Context, node *domain.Node) error
 
+	// UpdateGDaemonAPIToken atomically rotates only the daemon API token of a
+	// single node, without the full-row read-modify-write of Save (which races
+	// concurrent updates to unrelated columns). hashedToken must already be the
+	// stored (hashed) representation.
+	UpdateGDaemonAPIToken(ctx context.Context, nodeID uint, hashedToken string, updatedAt time.Time) error
+
 	Delete(ctx context.Context, id uint) error
 }
 

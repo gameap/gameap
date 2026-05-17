@@ -321,7 +321,10 @@ func (r *fakeNodeRepo) Find(
 }
 
 func (r *fakeNodeRepo) Save(_ context.Context, _ *domain.Node) error { return nil }
-func (r *fakeNodeRepo) Delete(_ context.Context, _ uint) error       { return nil }
+func (r *fakeNodeRepo) UpdateGDaemonAPIToken(_ context.Context, _ uint, _ string, _ time.Time) error {
+	return nil
+}
+func (r *fakeNodeRepo) Delete(_ context.Context, _ uint) error { return nil }
 
 type testRepos struct {
 	daemonTask    *fakeDaemonTaskRepo

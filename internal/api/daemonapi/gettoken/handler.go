@@ -56,7 +56,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nodes, err := h.nodeRepo.Find(ctx, filters.FindNodeByGDaemonAPIKey(apiKey), nil, &filters.Pagination{
+	// gdaemon_api_key is stored as a SHA-256 hash; look the node up by the hash
+	// of the presented plaintext so the database never holds a usable key.
+	hashedKey := pkgstrings.SHA256(apiKey)
+	nodes, err := h.nodeRepo.Find(ctx, filters.FindNodeByGDaemonAPIKey(hashedKey), nil, &filters.Pagination{
 		Limit: 1,
 	})
 	if err != nil {
@@ -102,12 +105,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// in the response below and must never be retrievable from the database.
 	// Mirrors the Personal Access Token model in
 	// internal/api/tokens/posttoken/handler.go and prevents a DB read from
-	// yielding a usable daemon credential.
-	node.GdaemonAPIToken = new(pkgstrings.SHA256(token))
+	// yielding a usable daemon credential. The dedicated atomic update avoids
+	// the Find->Save full-row race that let concurrent token rotations clobber
+	// each other / unrelated columns.
 	now := time.Now()
-	node.UpdatedAt = &now
 
-	err = h.nodeRepo.Save(ctx, node)
+	err = h.nodeRepo.UpdateGDaemonAPIToken(ctx, node.ID, pkgstrings.SHA256(token), now)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "failed to update node"),

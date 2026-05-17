@@ -1,3 +1,8 @@
+// OWASP API Top 10:2023 — API2:2023 Broken Authentication.
+// The daemon authenticates with a long-lived API key that is stored only as
+// a SHA-256 digest. These tests assert the handler matches on the digest, so
+// a legacy plaintext key sitting in the database cannot authenticate and the
+// issued token is itself persisted hashed (never the plaintext).
 package gettoken
 
 import (
@@ -24,6 +29,9 @@ func (f *fakeConnectionChecker) IsConnectedAnywhere(_ uint64) bool {
 	return f.connected
 }
 
+// TestHandler_ServeHTTP — OWASP API Top 10:2023 API2:2023 Broken
+// Authentication. Includes a case proving a legacy plaintext API key at rest
+// cannot authenticate because the handler matches on the SHA-256 digest.
 func TestHandler_ServeHTTP(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -49,7 +57,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 					WorkPath:            "/srv/gameap",
 					GdaemonHost:         "172.18.0.5",
 					GdaemonPort:         31717,
-					GdaemonAPIKey:       "test-api-key",
+					GdaemonAPIKey:       pkgstrings.SHA256("test-api-key"),
 					GdaemonServerCert:   "certs/root.crt",
 					ClientCertificateID: 1,
 					PreferInstallMethod: "auto",
@@ -95,6 +103,39 @@ func TestHandler_ServeHTTP(t *testing.T) {
 					WorkPath:            "/srv/gameap",
 					GdaemonHost:         "172.18.0.5",
 					GdaemonPort:         31717,
+					GdaemonAPIKey:       pkgstrings.SHA256("test-api-key"),
+					GdaemonServerCert:   "certs/root.crt",
+					ClientCertificateID: 1,
+					PreferInstallMethod: "auto",
+					CreatedAt:           &now,
+					UpdatedAt:           &now,
+				}
+
+				require.NoError(t, nodesRepo.Save(context.Background(), node))
+
+				return node
+			},
+			expectedStatus: http.StatusUnauthorized,
+			wantError:      "invalid api key",
+			expectToken:    false,
+		},
+		{
+			name:       "legacy_plaintext_key_at_rest_is_rejected",
+			authHeader: "Bearer test-api-key",
+			setupRepo: func(nodesRepo *inmemory.NodeRepository) *domain.Node {
+				now := time.Now()
+				node := &domain.Node{
+					ID:          1,
+					Enabled:     true,
+					Name:        "test-node",
+					OS:          "linux",
+					Location:    "Montenegro",
+					IPs:         []string{"172.18.0.5"},
+					WorkPath:    "/srv/gameap",
+					GdaemonHost: "172.18.0.5",
+					GdaemonPort: 31717,
+					// Stored as PLAINTEXT (legacy, pre hash-at-rest migration),
+					// not pkgstrings.SHA256("test-api-key").
 					GdaemonAPIKey:       "test-api-key",
 					GdaemonServerCert:   "certs/root.crt",
 					ClientCertificateID: 1,
@@ -126,7 +167,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 					WorkPath:            "/srv/gameap",
 					GdaemonHost:         "172.18.0.5",
 					GdaemonPort:         31717,
-					GdaemonAPIKey:       "test-api-key",
+					GdaemonAPIKey:       pkgstrings.SHA256("test-api-key"),
 					GdaemonServerCert:   "certs/root.crt",
 					ClientCertificateID: 1,
 					PreferInstallMethod: "auto",
@@ -220,7 +261,7 @@ func TestHandler_TokenGeneration(t *testing.T) {
 		WorkPath:            "/srv/gameap",
 		GdaemonHost:         "172.18.0.5",
 		GdaemonPort:         31717,
-		GdaemonAPIKey:       "test-api-key",
+		GdaemonAPIKey:       pkgstrings.SHA256("test-api-key"),
 		GdaemonServerCert:   "certs/root.crt",
 		ClientCertificateID: 1,
 		PreferInstallMethod: "auto",
@@ -289,7 +330,7 @@ func TestHandler_TokenResponseJSON(t *testing.T) {
 		WorkPath:            "/srv/gameap",
 		GdaemonHost:         "172.18.0.5",
 		GdaemonPort:         31717,
-		GdaemonAPIKey:       "test-api-key",
+		GdaemonAPIKey:       pkgstrings.SHA256("test-api-key"),
 		GdaemonServerCert:   "certs/root.crt",
 		ClientCertificateID: 1,
 		PreferInstallMethod: "auto",
@@ -334,7 +375,7 @@ func TestHandler_UpdatesNodeTimestamp(t *testing.T) {
 		WorkPath:            "/srv/gameap",
 		GdaemonHost:         "172.18.0.5",
 		GdaemonPort:         31717,
-		GdaemonAPIKey:       "test-api-key",
+		GdaemonAPIKey:       pkgstrings.SHA256("test-api-key"),
 		GdaemonServerCert:   "certs/root.crt",
 		ClientCertificateID: 1,
 		PreferInstallMethod: "auto",

@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -73,6 +75,42 @@ func TestSession_Send_proxiesToStream(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorIs(t, err, errTestStream, "stream error must be returned unchanged")
 	})
+}
+
+func TestSession_Send_concurrent(t *testing.T) {
+	// ARRANGE
+	const goroutines = 50
+
+	stream := newStubStream(context.Background())
+	s := NewSession(1, stream, "v", nil, nil)
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	// ACT
+	for i := range goroutines {
+		go func() {
+			defer wg.Done()
+
+			assert.NotPanics(t, func() {
+				err := s.Send(&proto.GatewayMessage{RequestId: strconv.Itoa(i)})
+				assert.NoError(t, err)
+			}, "concurrent Send must not panic")
+		}()
+	}
+
+	wg.Wait()
+
+	// ASSERT
+	sent := stream.Sent()
+	require.Len(t, sent, goroutines,
+		"every concurrent Send must be serialized through sendMu and recorded exactly once")
+
+	seen := make(map[string]struct{}, goroutines)
+	for _, m := range sent {
+		seen[m.RequestId] = struct{}{}
+	}
+	assert.Len(t, seen, goroutines, "each goroutine's message must be delivered without loss")
 }
 
 func TestSession_UpdateLastPing_advancesTime(t *testing.T) {

@@ -196,8 +196,15 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
 				t.Helper()
 
-				assert.Equal(t, "video/mp4", w.Header().Get("Content-Type"))
-				assert.Equal(t, "inline; filename=\"demo.mp4\"", w.Header().Get("Content-Disposition"))
+				// video/mp4 is NOT on the inline allowlist (only inert images,
+				// text/plain, application/pdf) so it is forced to an opaque
+				// attachment to prevent stored content executing in the panel.
+				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
+				assert.Equal(t,
+					"attachment; filename=demo.mp4; filename*=UTF-8''demo.mp4",
+					w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 				assert.Equal(t, "bytes", w.Header().Get("Accept-Ranges"))
 				assert.Equal(t, "1024000", w.Header().Get("Content-Length"))
 			},
@@ -271,8 +278,13 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
 				t.Helper()
 
-				assert.Equal(t, "audio/mpeg", w.Header().Get("Content-Type"))
-				assert.Equal(t, "inline; filename=\"music.mp3\"", w.Header().Get("Content-Disposition"))
+				// audio/mpeg is not on the inline allowlist -> opaque attachment.
+				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
+				assert.Equal(t,
+					"attachment; filename=music.mp3; filename*=UTF-8''music.mp3",
+					w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 				assert.Equal(t, "bytes", w.Header().Get("Accept-Ranges"))
 				assert.Equal(t, "512000", w.Header().Get("Content-Length"))
 			},
@@ -344,8 +356,15 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
 				t.Helper()
 
-				assert.Equal(t, "video/mp4", w.Header().Get("Content-Type"))
-				assert.Equal(t, "inline; filename=\"video.mp4\"", w.Header().Get("Content-Disposition"))
+				// video/mp4 -> opaque attachment; the non-ASCII filename byte
+				// is replaced by '_' in the ASCII fallback and percent-encoded
+				// in filename* so it cannot break the header.
+				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
+				assert.Equal(t,
+					"attachment; filename=vid_o.mp4; filename*=UTF-8''vid%C3%A9o.mp4",
+					w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 				assert.Equal(t, "bytes", w.Header().Get("Accept-Ranges"))
 			},
 		},
@@ -416,8 +435,15 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
 				t.Helper()
 
-				contentType := w.Header().Get("Content-Type")
-				assert.Contains(t, []string{"video/x-msvideo", "video/vnd.avi"}, contentType)
+				// Empty daemon mime is no longer guessed from the extension; it
+				// is served as an opaque attachment so a mislabeled HTML file
+				// cannot be sniffed and rendered in the panel origin.
+				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
+				assert.Equal(t,
+					"attachment; filename=video.avi; filename*=UTF-8''video.avi",
+					w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 				assert.Equal(t, "bytes", w.Header().Get("Accept-Ranges"))
 			},
 		},
@@ -805,7 +831,12 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
 				t.Helper()
 
-				assert.Equal(t, "video/mp4", w.Header().Get("Content-Type"))
+				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
+				assert.Equal(t,
+					"attachment; filename=video.mp4; filename*=UTF-8''video.mp4",
+					w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 				assert.Equal(t, "bytes", w.Header().Get("Accept-Ranges"))
 			},
 		},
@@ -1052,7 +1083,12 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
 				t.Helper()
 
-				assert.Equal(t, "video/mp4", w.Header().Get("Content-Type"))
+				assert.Equal(t, "application/octet-stream", w.Header().Get("Content-Type"))
+				assert.Equal(t,
+					"attachment; filename=video.mp4; filename*=UTF-8''video.mp4",
+					w.Header().Get("Content-Disposition"))
+				assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+				assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 				assert.Equal(t, "bytes", w.Header().Get("Accept-Ranges"))
 			},
 		},
@@ -1103,183 +1139,6 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 			if tt.validateResponse != nil {
 				tt.validateResponse(t, w)
-			}
-		})
-	}
-}
-
-func TestValidatePath(t *testing.T) {
-	tests := []struct {
-		name    string
-		path    string
-		wantErr bool
-	}{
-		{
-			name:    "valid_relative_path",
-			path:    "videos/demo.mp4",
-			wantErr: false,
-		},
-		{
-			name:    "valid_single_file",
-			path:    "video.mp4",
-			wantErr: false,
-		},
-		{
-			name:    "invalid_directory_traversal_with_dots",
-			path:    "../../../etc/passwd",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_path_with_double_dots",
-			path:    "videos/../../etc",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_just_double_dots",
-			path:    "..",
-			wantErr: true,
-		},
-		{
-			name:    "invalid_double_dots_at_start",
-			path:    "../videos",
-			wantErr: true,
-		},
-		{
-			name:    "valid_path_with_dots_in_filename",
-			path:    "config/video.1.0.mp4",
-			wantErr: false,
-		},
-		{
-			name:    "valid_nested_path",
-			path:    "media/videos/2024/demo.mp4",
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validatePath(tt.path)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestConvertToASCII(t *testing.T) {
-	tests := []struct {
-		name     string
-		filename string
-		want     string
-	}{
-		{
-			name:     "already_ascii",
-			filename: "video.mp4",
-			want:     "video.mp4",
-		},
-		{
-			name:     "french_accents",
-			filename: "vidéo.mp4",
-			want:     "video.mp4",
-		},
-		{
-			name:     "spanish_characters",
-			filename: "película.mp4",
-			want:     "pelicula.mp4",
-		},
-		{
-			name:     "german_umlauts",
-			filename: "über.mp4",
-			want:     "uber.mp4",
-		},
-		{
-			name:     "mixed_characters",
-			filename: "café-résumé.mp4",
-			want:     "cafe-resume.mp4",
-		},
-		{
-			name:     "cyrillic_to_underscore",
-			filename: "видео.mp4",
-			want:     "_____.mp4",
-		},
-		{
-			name:     "chinese_to_underscore",
-			filename: "视频.mp4",
-			want:     "__.mp4",
-		},
-		{
-			name:     "uppercase_accents",
-			filename: "CAFÉ.MP4",
-			want:     "CAFE.MP4",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := convertToASCII(tt.filename)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestGetContentTypeFromExtension(t *testing.T) {
-	tests := []struct {
-		name             string
-		filename         string
-		wantContent      string
-		acceptedContents []string
-	}{
-		{
-			name:        "mp4_video",
-			filename:    "video.mp4",
-			wantContent: "video/mp4",
-		},
-		{
-			name:        "mp3_audio",
-			filename:    "music.mp3",
-			wantContent: "audio/mpeg",
-		},
-		{
-			name:             "avi_video",
-			filename:         "video.avi",
-			acceptedContents: []string{"video/x-msvideo", "video/vnd.avi"},
-		},
-		{
-			name:        "mkv_video",
-			filename:    "video.mkv",
-			wantContent: "video/x-matroska",
-		},
-		{
-			name:        "webm_video",
-			filename:    "video.webm",
-			wantContent: "video/webm",
-		},
-		{
-			name:        "ogg_audio",
-			filename:    "audio.ogg",
-			wantContent: "audio/ogg",
-		},
-		{
-			name:             "unknown_extension",
-			filename:         "file.xyz",
-			acceptedContents: []string{"chemical/x-xyz", "application/octet-stream"},
-		},
-		{
-			name:        "no_extension",
-			filename:    "video",
-			wantContent: "application/octet-stream",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			contentType := getContentTypeFromExtension(tt.filename)
-			if len(tt.acceptedContents) > 0 {
-				assert.Contains(t, tt.acceptedContents, contentType)
-			} else {
-				assert.Equal(t, tt.wantContent, contentType)
 			}
 		})
 	}

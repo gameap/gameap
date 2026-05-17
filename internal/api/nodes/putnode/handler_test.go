@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/flexible"
+	"github.com/gameap/gameap/pkg/secret"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -120,8 +123,17 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, "/new/steamcmd", *node.SteamcmdPath)
 				assert.Equal(t, "192.168.1.1", node.GdaemonHost)
 				assert.Equal(t, 31717, node.GdaemonPort)
-				assert.Equal(t, "new-api-key", node.GdaemonAPIKey)
+				// Security finding #3a/#6: the gdaemon API key is persisted as a
+				// SHA-256 digest, never the supplied plaintext, so a DB read
+				// yields no usable daemon credential.
+				assert.NotEqual(t, "new-api-key", node.GdaemonAPIKey,
+					"plaintext API key must never be stored")
+				assert.Equal(t, pkgstrings.SHA256("new-api-key"), node.GdaemonAPIKey,
+					"stored API key must be SHA-256 of the supplied value")
 				assert.Equal(t, "admin", *node.GdaemonLogin)
+				// secret.Disabled() is a passthrough cipher, so with no
+				// ENCRYPTION_KEY the password is stored unchanged (backward
+				// compatible). The encrypting path is covered separately.
 				assert.Equal(t, "password", *node.GdaemonPassword)
 				assert.Equal(t, uint(2), node.ClientCertificateID)
 				assert.Equal(t, domain.NodePreferInstallMethodScript, node.PreferInstallMethod)
@@ -451,7 +463,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				tt.setupFileManager(fileManager)
 			}
 
-			handler := NewHandler(repo, fileManager, responder)
+			handler := NewHandler(repo, fileManager, secret.Disabled(), responder)
 
 			body, err := json.Marshal(tt.input)
 			require.NoError(t, err)
@@ -518,7 +530,7 @@ func TestHandler_UpdatedAtTimestamp(t *testing.T) {
 		UpdatedAt:           &oldTime,
 	})
 
-	handler := NewHandler(repo, fileManager, responder)
+	handler := NewHandler(repo, fileManager, secret.Disabled(), responder)
 
 	input := updateNodeInput{
 		Name: new("Updated Name"),
@@ -576,7 +588,7 @@ func TestHandler_CertificateFileCleanup(t *testing.T) {
 		UpdatedAt:           &now,
 	})
 
-	handler := NewHandler(repo, fileManager, responder)
+	handler := NewHandler(repo, fileManager, secret.Disabled(), responder)
 
 	input := updateNodeInput{
 		GdaemonServerCert: new(validCertPEM),
@@ -594,4 +606,86 @@ func TestHandler_CertificateFileCleanup(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, deletedFiles, "certs/oldcert.crt")
+}
+
+// TestHandler_SecretsAtRest — OWASP API Security Top 10:2023 API2:2023
+// Broken Authentication / API8:2023 Security Misconfiguration. With a
+// configured cipher the gdaemon SSH password must be persisted encrypted
+// (enc:-prefixed, recoverable) and the gdaemon API key must be persisted as
+// a SHA-256 digest. Security review findings #3a/#3b/#6.
+func TestHandler_SecretsAtRest(t *testing.T) {
+	// ARRANGE
+	repo := inmemory.NewNodeRepository()
+	fileManager := &files.MockFileManager{
+		WriteFunc:  func(_ context.Context, _ string, _ []byte) error { return nil },
+		DeleteFunc: func(_ context.Context, _ string) error { return nil },
+	}
+	responder := api.NewResponder()
+
+	cipher, err := secret.NewCipher("node-encryption-key")
+	require.NoError(t, err)
+
+	now := time.Now()
+	// The handler only re-encrypts the password when it was changed in this
+	// request, which requires the stored node to already have a password.
+	require.NoError(t, repo.Save(context.Background(), &domain.Node{
+		ID:                  1,
+		Enabled:             true,
+		Name:                "Secret Node",
+		OS:                  "linux",
+		Location:            "US",
+		IPs:                 []string{"10.0.0.1"},
+		WorkPath:            "/srv/gameap",
+		GdaemonHost:         "10.0.0.1",
+		GdaemonPort:         12345,
+		GdaemonAPIKey:       pkgstrings.SHA256("old-api-key"),
+		GdaemonPassword:     new("old-password"),
+		GdaemonServerCert:   "certs/old.crt",
+		ClientCertificateID: 1,
+		CreatedAt:           &now,
+		UpdatedAt:           &now,
+	}))
+
+	handler := NewHandler(repo, fileManager, cipher, responder)
+
+	const newPlainPassword = "Sup3r-S3cret-SSH!"
+	const newPlainAPIKey = "rotated-api-key"
+
+	body, err := json.Marshal(updateNodeInput{
+		GdaemonAPIKey:   new(newPlainAPIKey),
+		GdaemonPassword: new(newPlainPassword),
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/nodes/1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code)
+
+	nodes, err := repo.FindAll(context.Background(), nil, nil)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	stored := nodes[0]
+
+	require.NotNil(t, stored.GdaemonPassword)
+	assert.True(t, strings.HasPrefix(*stored.GdaemonPassword, secret.EncPrefix),
+		"password must be stored with the enc: prefix, got %q", *stored.GdaemonPassword)
+	assert.NotEqual(t, newPlainPassword, *stored.GdaemonPassword,
+		"plaintext SSH password must never be persisted")
+
+	decrypted, err := cipher.Decrypt(*stored.GdaemonPassword)
+	require.NoError(t, err)
+	assert.Equal(t, newPlainPassword, decrypted,
+		"the encrypted password must decrypt back to the supplied value")
+
+	assert.NotEqual(t, newPlainAPIKey, stored.GdaemonAPIKey,
+		"plaintext API key must never be persisted")
+	assert.Equal(t, pkgstrings.SHA256(newPlainAPIKey), stored.GdaemonAPIKey,
+		"API key must be persisted as its SHA-256 digest")
 }

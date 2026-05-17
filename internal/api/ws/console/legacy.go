@@ -10,6 +10,7 @@ import (
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/ws"
+	"github.com/gameap/gameap/pkg/shellescape"
 )
 
 const (
@@ -64,7 +65,7 @@ func (h *Handler) sendLegacyCommand(
 ) {
 	if node.ScriptSendCommand != nil && *node.ScriptSendCommand != "" {
 		cmd := server.ReplaceServerShortcodes(node, *node.ScriptSendCommand, map[string]string{
-			"command": command,
+			"command": shellescape.Quote(command),
 		})
 
 		_, err := h.daemonCommands.ExecuteCommand(ctx, node, cmd)

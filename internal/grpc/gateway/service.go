@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/subtle"
 	"io"
 	"log/slog"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/gameap/gameap/pkg/proto"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
@@ -303,7 +305,9 @@ func (s *Service) validateAuth(ctx context.Context, reg *proto.RegisterRequest) 
 		if !valid {
 			return status.Error(codes.Unauthenticated, "invalid API key")
 		}
-	} else if reg.GetApiKey() != node.GdaemonAPIKey {
+	} else if subtle.ConstantTimeCompare(
+		[]byte(pkgstrings.SHA256(reg.GetApiKey())), []byte(node.GdaemonAPIKey),
+	) != 1 {
 		return status.Error(codes.Unauthenticated, "invalid API key")
 	}
 
