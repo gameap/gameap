@@ -1,24 +1,52 @@
 name: E2E Server Install
 
 on:
-  # TEMPORARY (e2e validation): run the heavy pipeline on EVERY push to ANY
-  # branch. Revert to `push: branches: [main]` before final merge to main —
-  # heavy E2E should run only on main / nightly / manual dispatch.
-  push:
-    branches: ['**']
-  # TEMPORARY: validate heavy pipeline on the e2e branch before merge.
-  # Remove this pull_request trigger before final merge to main.
-  pull_request:
-    branches: [main]
   schedule:
+    # 03:00 UTC daily — nightly heavy E2E. Runs only when there are new commits
+    # in the last 24h (see the `check` gate job). 03:00 UTC matches security-fuzz.
     - cron: '0 3 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-server-install
+  cancel-in-progress: false
+
 jobs:
-  e2e-server-install:
+  check:
     runs-on: ubuntu-latest
-    # Quake 2 (every push) finishes well under 30 min; the ceiling is raised
-    # for the nightly steamcmd (app 90) install, which is large and slow.
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Decide whether to run
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Manual dispatch — always run."
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "$(git log --since='24 hours ago' --format=%H)" ]; then
+            echo "Commits in the last 24h — running nightly E2E."
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No commits in the last 24h — skipping nightly E2E."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e-server-install:
+    needs: check
+    if: needs.check.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    # The 60-min ceiling is raised for the large/slow steamcmd (app 90) install.
     timeout-minutes: 60
 
     services:
@@ -169,18 +197,13 @@ jobs:
         working-directory: web/frontend
         run: npx playwright install --with-deps chromium
 
-      - name: Run Playwright heavy tests (Quake 2, every push)
+      - name: Run Playwright heavy tests (Quake 2)
         working-directory: web/frontend
         run: npx playwright test --project=heavy
 
       # steamcmd is a 32-bit binary and needs i386 libraries that the bare
       # ubuntu:24.04 daemon container does not ship.
-      #
-      # TEMPORARY (e2e validation): the steamcmd install (CS 1.6 / app 90) runs
-      # on EVERY push. Before final merge to main, restore the nightly guard on
-      # the two steps below:
-      #   if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-      - name: Install steamcmd prerequisites in daemon (temporary, every push)
+      - name: Install steamcmd prerequisites in daemon
         run: |
           docker exec gameap-daemon bash -c "\
             dpkg --add-architecture i386 && \
@@ -190,7 +213,7 @@ jobs:
             curl -sqL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
               | tar -xz -C /srv/gameap/steamcmd"
 
-      - name: Run Playwright steamcmd heavy tests (temporary, every push)
+      - name: Run Playwright steamcmd heavy tests
         working-directory: web/frontend
         run: npx playwright test --project=heavy-steam
 
