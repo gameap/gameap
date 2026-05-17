@@ -135,9 +135,11 @@ func (h *Handler) updateNode(ctx context.Context, node *domain.Node, input *upda
 
 	input.ApplyToNode(node)
 
-	// Encrypt the SSH password at rest only when it was changed in this
-	// request; an unchanged value stays as already stored (cipher- or, on a
-	// legacy row, plaintext) and is left untouched.
+	// Encrypt the SSH password at rest whenever the field is supplied in this
+	// request. A request that omits gdaemon_password leaves the stored value
+	// untouched; one that includes it is re-encrypted even if byte-identical,
+	// so the ciphertext rotates (GCM uses a fresh nonce per call). Node PUTs
+	// are rare admin operations, so this write churn is acceptable.
 	if input.GdaemonPassword != nil && node.GdaemonPassword != nil {
 		encrypted, err := h.cipher.Encrypt(*node.GdaemonPassword)
 		if err != nil {

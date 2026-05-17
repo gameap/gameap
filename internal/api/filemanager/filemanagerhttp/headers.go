@@ -80,10 +80,16 @@ func contentDisposition(disposition, filename string) string {
 	})
 }
 
+// stripNonASCII keeps only printable ASCII (0x20–0x7e) except '"' and '\\',
+// replacing everything else — non-ASCII, C0 control bytes and DEL (notably CR,
+// LF, HT) — with '_'. This keeps raw control bytes out of the Content-
+// Disposition filename token regardless of how the downstream mime encoder
+// handles them; the exact bytes still travel safely in the percent-encoded
+// filename* parameter.
 func stripNonASCII(s string) string {
 	var b strings.Builder
 	for _, r := range s {
-		if r < 0x80 && r != '"' && r != '\\' {
+		if r >= 0x20 && r < 0x7f && r != '"' && r != '\\' {
 			b.WriteRune(r)
 		} else {
 			b.WriteByte('_')

@@ -67,10 +67,7 @@ properties:
     description: >-
       GDaemon API key. Write-only: accepted as plaintext on create/update and
       returned once to the daemon at enrollment, but stored as a SHA-256 hash
-      and never returned in responses. A submitted value that is already 64
-      lowercase hex characters is treated as a pre-computed SHA-256 digest and
-      stored verbatim (not re-hashed), so the plaintext key space excludes
-      64-character lowercase-hex strings.
+      and never returned in responses.
   gdaemon_login:
     type:
       - string

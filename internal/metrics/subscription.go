@@ -12,9 +12,11 @@ type subscription struct {
 
 	samplesCh chan *proto.MetricsResponse
 
-	closeMu sync.Mutex
+	// mu is an RWMutex so concurrent deliver fan-out (read side) is not
+	// serialized against itself — only against the exclusive channel close.
 	// closed reports that samplesCh has been closed; unsubscribed guards Close
 	// from running the unsubscribe path more than once.
+	mu           sync.RWMutex
 	closed       bool
 	unsubscribed bool
 }
@@ -32,14 +34,14 @@ func (s *subscription) Samples() <-chan *proto.MetricsResponse {
 }
 
 func (s *subscription) Close() {
-	s.closeMu.Lock()
+	s.mu.Lock()
 	if s.unsubscribed {
-		s.closeMu.Unlock()
+		s.mu.Unlock()
 
 		return
 	}
 	s.unsubscribed = true
-	s.closeMu.Unlock()
+	s.mu.Unlock()
 
 	s.hub.unsubscribe(s)
 }
@@ -48,10 +50,11 @@ func (s *subscription) Close() {
 // the producer (pubsub fan-out) non-blocking; consumers are expected
 // to drain promptly.
 func (s *subscription) deliver(entry *proto.MetricsResponse) {
-	// Hold closeMu across the non-blocking send so it cannot race
-	// closeChannel into a send-on-closed-channel panic.
-	s.closeMu.Lock()
-	defer s.closeMu.Unlock()
+	// Hold the read lock across the non-blocking send so it cannot race
+	// closeChannel (write lock) into a send-on-closed-channel panic, while
+	// still letting concurrent deliver calls run in parallel.
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	if s.closed {
 		return
@@ -64,8 +67,8 @@ func (s *subscription) deliver(entry *proto.MetricsResponse) {
 }
 
 func (s *subscription) closeChannel() {
-	s.closeMu.Lock()
-	defer s.closeMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if s.closed {
 		return

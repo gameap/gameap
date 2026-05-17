@@ -759,3 +759,69 @@ func TestHandler_ClearGdaemonPassword(t *testing.T) {
 	assert.NotEqual(t, "old-password", *stored.GdaemonPassword,
 		"the previously stored password must not survive an explicit clear")
 }
+
+// TestHandler_APIKeyHashedEvenWhen64HexInput — OWASP API Security Top
+// 10:2023 API2:2023 Broken Authentication. A submitted API key that happens
+// to be 64 lowercase hex characters must still be hashed (treated strictly as
+// plaintext per the write-only contract), not stored verbatim. Otherwise the
+// daemon presenting that value would be hashed on the auth path and never
+// match, silently breaking authentication.
+func TestHandler_APIKeyHashedEvenWhen64HexInput(t *testing.T) {
+	// ARRANGE
+	repo := inmemory.NewNodeRepository()
+	fileManager := &files.MockFileManager{
+		WriteFunc:  func(_ context.Context, _ string, _ []byte) error { return nil },
+		DeleteFunc: func(_ context.Context, _ string) error { return nil },
+	}
+	responder := api.NewResponder()
+
+	now := time.Now()
+	require.NoError(t, repo.Save(context.Background(), &domain.Node{
+		ID:                  1,
+		Enabled:             true,
+		Name:                "Hex Key Node",
+		OS:                  "linux",
+		Location:            "US",
+		IPs:                 []string{"10.0.0.1"},
+		WorkPath:            "/srv/gameap",
+		GdaemonHost:         "10.0.0.1",
+		GdaemonPort:         12345,
+		GdaemonAPIKey:       pkgstrings.SHA256("old-api-key"),
+		GdaemonServerCert:   "certs/old.crt",
+		ClientCertificateID: 1,
+		CreatedAt:           &now,
+		UpdatedAt:           &now,
+	}))
+
+	handler := NewHandler(repo, fileManager, secret.Disabled(), responder)
+
+	// A real 64-char lowercase-hex string the admin could paste as the key.
+	hexKey := pkgstrings.SHA256("some-plaintext-key-that-looks-hashed")
+	require.Len(t, hexKey, 64)
+
+	body, err := json.Marshal(updateNodeInput{
+		GdaemonAPIKey: new(hexKey),
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/nodes/1", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code)
+
+	nodes, err := repo.FindAll(context.Background(), nil, nil)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	stored := nodes[0]
+
+	assert.NotEqual(t, hexKey, stored.GdaemonAPIKey,
+		"a 64-hex plaintext key must not be stored verbatim")
+	assert.Equal(t, pkgstrings.SHA256(hexKey), stored.GdaemonAPIKey,
+		"the submitted value must be hashed as plaintext, even when it is 64-char hex")
+}
