@@ -1,0 +1,16 @@
+type: object
+description: |
+  One-time recovery codes. Shown exactly once (on enable or regenerate) and
+  stored only as hashes server-side. Each code authenticates a single login
+  when the authenticator device is unavailable.
+properties:
+  recovery_codes:
+    type: array
+    description: Plain-text one-time recovery codes. Persist them securely now.
+    items:
+      type: string
+    example:
+      - "abcde-fghjk"
+      - "mnpqr-stvwx"
+required:
+  - recovery_codes

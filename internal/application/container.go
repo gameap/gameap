@@ -69,6 +69,7 @@ import (
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/twofactor"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
@@ -138,6 +139,7 @@ type Container struct {
 
 	// Services
 	authService          auth.Service
+	twoFactorManager     *twofactor.Manager
 	userService          *services.UserService
 	serverControlService *servercontrol.Service
 	taskDispatcher       *taskdispatcher.Dispatcher
@@ -755,6 +757,35 @@ func (c *Container) createAuthService() auth.Service {
 	default:
 		panic("invalid auth service: " + c.config.AuthService)
 	}
+}
+
+// TwoFactorManager provides TOTP, secret-encryption and recovery-code
+// primitives. The at-rest encryption key is HKDF-derived from EncryptionKey
+// when set, otherwise from the (always-present) AuthSecret, so existing
+// installs need no new configuration.
+func (c *Container) TwoFactorManager() *twofactor.Manager {
+	if c.twoFactorManager == nil {
+		c.twoFactorManager = c.createTwoFactorManager()
+	}
+
+	return c.twoFactorManager
+}
+
+func (c *Container) createTwoFactorManager() *twofactor.Manager {
+	appKey := c.config.EncryptionKey
+	if appKey == "" {
+		appKey = c.config.AuthSecret
+	}
+	if appKey == "" {
+		panic("neither ENCRYPTION_KEY nor AUTH_SECRET is set; cannot initialise two-factor manager")
+	}
+
+	manager, err := twofactor.NewManager([]byte(appKey))
+	if err != nil {
+		panic(errors.WithMessage(err, "failed to create two-factor manager"))
+	}
+
+	return manager
 }
 
 func (c *Container) UserService() *services.UserService {

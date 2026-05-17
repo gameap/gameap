@@ -1,0 +1,17 @@
+type: object
+description: |
+  Second-factor verification at login. Exchanges the short-lived challenge
+  token issued by `POST /api/auth/login` (when the account has 2FA enabled)
+  for a normal access token.
+properties:
+  challenge_token:
+    type: string
+    description: Single-use challenge token returned by the login endpoint (prefix `g2fa_`).
+    example: "g2fa_aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9f"
+  code:
+    type: string
+    description: 6-digit TOTP code from the authenticator app, or one of the one-time recovery codes.
+    example: "123456"
+required:
+  - challenge_token
+  - code

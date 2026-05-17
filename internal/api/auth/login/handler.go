@@ -1,35 +1,48 @@
 package login
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/audit"
+	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	pkgstrings "github.com/gameap/gameap/pkg/strings"
+	"github.com/gameap/gameap/pkg/twofactor"
 	"github.com/pkg/errors"
 )
 
 const (
 	DefaultTokenDuration = 24 * time.Hour
 	RememberMeDuration   = 7 * 24 * time.Hour
+
+	// ChallengeTokenDuration is how long a 2FA challenge stays valid. Long
+	// enough to open an authenticator app, short enough to bound replay of a
+	// captured challenge token.
+	ChallengeTokenDuration = 5 * time.Minute
+
+	challengeSecretLength = 48
 )
 
 type Handler struct {
 	userRepo    repositories.UserRepository
 	responder   base.Responder
 	authService auth.Service
+	cache       cache.Cache
 	audit       audit.Logger
 }
 
 func NewHandler(
 	authService auth.Service,
 	userRepo repositories.UserRepository,
+	tokenCache cache.Cache,
 	responder base.Responder,
 	auditLogger audit.Logger,
 ) *Handler {
@@ -41,6 +54,7 @@ func NewHandler(
 		userRepo:    userRepo,
 		responder:   responder,
 		authService: authService,
+		cache:       tokenCache,
 		audit:       auditLogger,
 	}
 }
@@ -109,6 +123,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user.TwoFactorEnabled {
+		h.issueTwoFactorChallenge(ctx, rw, &user, input.RememberMe())
+
+		return
+	}
+
 	duration := DefaultTokenDuration
 	if input.RememberMe() {
 		duration = RememberMeDuration
@@ -126,4 +146,58 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	response := newLoginResponseFromUser(&user, token, DefaultTokenDuration)
 	h.responder.Write(ctx, rw, response)
+}
+
+// issueTwoFactorChallenge is reached only after the password check passed for
+// an account with 2FA enabled. It mints a single-use challenge token, stores
+// the post-password state in the cache keyed by the token's hash, and returns
+// the token instead of a session. No access token is issued here — the caller
+// must complete /api/auth/2fa/verify. The challenge token uses a prefix the
+// auth middleware does not recognise, so it cannot be replayed as a session.
+func (h *Handler) issueTwoFactorChallenge(
+	ctx context.Context, rw http.ResponseWriter, user *domain.User, remember bool,
+) {
+	secret, err := pkgstrings.CryptoRandomString(challengeSecretLength)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
+			errors.WithMessage(err, "failed to generate challenge token"),
+			http.StatusInternalServerError,
+		))
+
+		return
+	}
+
+	challengeToken := twofactor.ChallengeTokenPrefix + secret
+
+	encoded, err := twofactor.MarshalChallengePayload(twofactor.ChallengePayload{
+		UserID:    user.ID,
+		Login:     user.Login,
+		Email:     user.Email,
+		Remember:  remember,
+		ExpiresAt: time.Now().Add(ChallengeTokenDuration).Unix(),
+	})
+	if err != nil {
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to encode challenge payload"))
+
+		return
+	}
+
+	err = h.cache.Set(
+		ctx,
+		twofactor.ChallengeCacheKey(challengeToken),
+		encoded,
+		cache.WithExpiration(ChallengeTokenDuration),
+	)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
+			errors.WithMessage(err, "failed to store challenge"),
+			http.StatusInternalServerError,
+		))
+
+		return
+	}
+
+	audit.TwoFactorChallengeIssued(ctx, h.audit, user.ID, user.Login)
+
+	h.responder.Write(ctx, rw, newTwoFactorChallengeResponse(challengeToken, ChallengeTokenDuration))
 }

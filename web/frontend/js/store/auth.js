@@ -8,6 +8,10 @@ export const useAuthStore = defineStore('auth', {
         // This is a counter to keep track of how many API processes are running
         apiProcesses: 0,
         authToken: null,
+        // Single-use ticket issued by /api/auth/login when the account has 2FA
+        // enabled. Kept in memory only (never localStorage): it is not a
+        // session, just a short-lived token to redeem at /api/auth/2fa/verify.
+        twoFactorChallengeToken: null,
     }),
     getters: {
         loading: (state) => state.apiProcesses > 0,
@@ -19,6 +23,9 @@ export const useAuthStore = defineStore('auth', {
         },
         user: (state) => {
             return state.profile
+        },
+        is2FAEnabled: (state) => {
+            return !!(state.profile && state.profile.two_factor_enabled)
         },
         canServerAbility: (state) => (serverId, ability) => {
             if (state.isAdmin) {
@@ -76,6 +83,17 @@ export const useAuthStore = defineStore('auth', {
 
             return response.data.token
         },
+        // applyAuthResponse stores the issued session token (state +
+        // localStorage + axios default header) and the returned user. Shared
+        // by the password login and the 2FA verification step.
+        applyAuthResponse(data) {
+            const { token, user } = data
+
+            this.authToken = token
+            localStorage.setItem('auth_token', token)
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+            this.profile = user
+        },
         async login(credentials) {
             this.apiProcesses++
             try {
@@ -85,22 +103,75 @@ export const useAuthStore = defineStore('auth', {
                     {withCredentials: true},
                 )
 
-                // Extract token from response
-                const { token, user } = response.data
+                if (response.data.two_factor_required) {
+                    this.twoFactorChallengeToken = response.data.challenge_token
 
-                // Store token in state
-                this.authToken = token
+                    return { twoFactorRequired: true }
+                }
 
-                // Save token to localStorage
-                localStorage.setItem('auth_token', token)
+                this.applyAuthResponse(response.data)
 
-                // Set token as default Authorization header for all axios requests
-                axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-
-                // Update user data
-                this.profile = user
+                return { twoFactorRequired: false }
             } catch (error) {
                 throw error
+            } finally {
+                this.apiProcesses--
+            }
+        },
+        async verifyTwoFactor(code) {
+            this.apiProcesses++
+            try {
+                const response = await axios.post(
+                    '/api/auth/2fa/verify',
+                    {
+                        challenge_token: this.twoFactorChallengeToken,
+                        code,
+                    },
+                    {withCredentials: true},
+                )
+
+                this.applyAuthResponse(response.data)
+                this.twoFactorChallengeToken = null
+            } catch (error) {
+                throw error
+            } finally {
+                this.apiProcesses--
+            }
+        },
+        async setupTwoFactor() {
+            this.apiProcesses++
+            try {
+                const response = await axios.post('/api/profile/2fa/setup')
+
+                return response.data
+            } finally {
+                this.apiProcesses--
+            }
+        },
+        async confirmTwoFactor(code) {
+            this.apiProcesses++
+            try {
+                const response = await axios.post('/api/profile/2fa/confirm', { code })
+
+                return response.data
+            } finally {
+                this.apiProcesses--
+            }
+        },
+        async disableTwoFactor(password, code) {
+            this.apiProcesses++
+            try {
+                await axios.delete('/api/profile/2fa', { data: { password, code } })
+            } finally {
+                this.apiProcesses--
+            }
+        },
+        async regenerateRecoveryCodes(password) {
+            this.apiProcesses++
+            try {
+                const response = await axios.post('/api/profile/2fa/recovery-codes', { password })
+
+                return response.data
             } finally {
                 this.apiProcesses--
             }

@@ -1,0 +1,33 @@
+type: object
+description: Access token issued after a successful second-factor verification.
+properties:
+  token:
+    type: string
+    description: JWT/PASETO token
+    example: "eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9..."
+  expires_in:
+    type: integer
+    description: Token expiration in seconds
+    example: 86400
+  user:
+    type: object
+    properties:
+      login:
+        type: string
+        example: "admin"
+      email:
+        type: string
+        format: email
+        example: "admin@example.com"
+      name:
+        type:
+          - string
+          - "null"
+        example: "Administrator"
+    required:
+      - login
+      - email
+required:
+  - token
+  - expires_in
+  - user

@@ -39,6 +39,13 @@ const (
 	EventLoginBlocked       EventType = "auth.login.blocked"
 	EventAccessDenied       EventType = "access.denied"
 
+	EventTwoFactorChallenge          EventType = "auth.2fa.challenge"
+	EventTwoFactorVerifySuccess      EventType = "auth.2fa.verify.success"
+	EventTwoFactorVerifyFailure      EventType = "auth.2fa.verify.failure"
+	EventTwoFactorEnabled            EventType = "auth.2fa.enabled"
+	EventTwoFactorDisabled           EventType = "auth.2fa.disabled"
+	EventTwoFactorRecoveryRegenerate EventType = "auth.2fa.recovery.regenerate"
+
 	EventUserUpdate           EventType = "user.update"
 	EventUserRolesAssign      EventType = "user.roles.assign"
 	EventPATCreate            EventType = "token.pat.create"

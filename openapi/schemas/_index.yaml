@@ -105,10 +105,24 @@ CreateClientCertificateRequest:
   $ref: './requests/CreateClientCertificateRequest.yaml'
 ImportPelicanEggRequest:
   $ref: './requests/ImportPelicanEggRequest.yaml'
+TwoFactorVerifyRequest:
+  $ref: './requests/TwoFactorVerifyRequest.yaml'
+TwoFactorConfirmRequest:
+  $ref: './requests/TwoFactorConfirmRequest.yaml'
+TwoFactorDisableRequest:
+  $ref: './requests/TwoFactorDisableRequest.yaml'
+TwoFactorRecoveryCodesRequest:
+  $ref: './requests/TwoFactorRecoveryCodesRequest.yaml'
 
 # Response schemas
 LoginResponse:
   $ref: './responses/LoginResponse.yaml'
+TwoFactorVerifyResponse:
+  $ref: './responses/TwoFactorVerifyResponse.yaml'
+TwoFactorSetupResponse:
+  $ref: './responses/TwoFactorSetupResponse.yaml'
+TwoFactorRecoveryCodesResponse:
+  $ref: './responses/TwoFactorRecoveryCodesResponse.yaml'
 CreateServerResponse:
   $ref: './responses/CreateServerResponse.yaml'
 ServerStatusResponse:

@@ -26,8 +26,13 @@ properties:
     items:
       type: string
     example: ["admin"]
+  two_factor_enabled:
+    type: boolean
+    description: Whether two-factor authentication is active for this user.
+    example: false
 required:
   - id
   - login
   - email
   - roles
+  - two_factor_enabled

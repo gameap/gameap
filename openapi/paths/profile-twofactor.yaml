@@ -1,0 +1,156 @@
+/api/profile/2fa/setup:
+  post:
+    tags:
+      - Profile
+    summary: Begin two-factor enrollment
+    description: |
+      Generates a new TOTP secret for the current user and returns the
+      provisioning material. The secret is stored encrypted but 2FA stays
+      inactive until confirmed via `POST /api/profile/2fa/confirm`. Calling
+      this again before confirming replaces the pending secret.
+    operationId: setupTwoFactor
+    responses:
+      '200':
+        description: Pending enrollment material
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/responses/TwoFactorSetupResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: Two-factor authentication already enabled
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/profile/2fa/confirm:
+  post:
+    tags:
+      - Profile
+    summary: Activate two-factor authentication
+    description: |
+      Verifies a TOTP code against the pending secret and, on success,
+      activates 2FA for the account. Returns the one-time recovery codes —
+      shown only here, store them now.
+    operationId: confirmTwoFactor
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/requests/TwoFactorConfirmRequest.yaml'
+    responses:
+      '200':
+        description: Two-factor authentication activated
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/responses/TwoFactorRecoveryCodesResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: No pending enrollment or 2FA already enabled
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: Invalid code or validation error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/profile/2fa:
+  delete:
+    tags:
+      - Profile
+    summary: Disable two-factor authentication
+    description: |
+      Turns off 2FA for the current user. Requires the account password and a
+      valid TOTP or recovery code so a hijacked session alone cannot remove
+      the second factor. Clears the stored secret and recovery codes.
+    operationId: disableTwoFactor
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/requests/TwoFactorDisableRequest.yaml'
+    responses:
+      '200':
+        description: Two-factor authentication disabled
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/SuccessResponse.yaml'
+      '401':
+        description: Unauthorized, wrong password, or invalid code
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: Two-factor authentication is not enabled
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: Validation error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/profile/2fa/recovery-codes:
+  post:
+    tags:
+      - Profile
+    summary: Regenerate recovery codes
+    description: |
+      Issues a fresh set of one-time recovery codes and invalidates all
+      previously issued ones. Requires the account password. 2FA must already
+      be enabled.
+    operationId: regenerateTwoFactorRecoveryCodes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/requests/TwoFactorRecoveryCodesRequest.yaml'
+    responses:
+      '200':
+        description: New recovery codes
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/responses/TwoFactorRecoveryCodesResponse.yaml'
+      '401':
+        description: Unauthorized or wrong password
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: Two-factor authentication is not enabled
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: Validation error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'

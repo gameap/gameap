@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/audit"
+	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
@@ -124,6 +125,36 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			// OWASP API2:2023 Broken Authentication — a correct password for a
+			// 2FA-enabled account must NOT yield a session token; only a
+			// challenge to be completed at /api/auth/2fa/verify.
+			name: "login_with_2fa_enabled_returns_challenge_not_token",
+			setupRepo: func(repo *inmemory.UserRepository) {
+				u := *testUser
+				u.ID = 0
+				u.Login = "twofauser"
+				u.Email = "twofa@example.com"
+				u.TwoFactorEnabled = true
+				secret := "encrypted-secret"
+				u.TwoFactorSecret = &secret
+				_ = repo.Save(context.Background(), &u)
+			},
+			requestBody: `{
+				"login": "twofauser",
+				"password": "password123"
+			}`,
+			expectedStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, response map[string]any) {
+				t.Helper()
+
+				assert.NotContains(t, response, "token")
+				assert.Equal(t, true, response["two_factor_required"])
+				challengeToken, ok := response["challenge_token"].(string)
+				require.True(t, ok)
+				assert.True(t, strings.HasPrefix(challengeToken, "g2fa_"))
+			},
+		},
+		{
 			name: "invalid password",
 			setupRepo: func(repo *inmemory.UserRepository) {
 				_ = repo.Save(context.Background(), testUser)
@@ -202,7 +233,9 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				tt.setupRepo(repo)
 			}
 			responder := api.NewResponder()
-			handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder, nil)
+			handler := NewHandler(
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil,
+			)
 
 			body := []byte(tt.requestBody)
 
@@ -235,7 +268,9 @@ func TestHandler_MultipleUsers(t *testing.T) {
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder, nil)
+	handler := NewHandler(
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil,
+	)
 
 	// Create multiple users
 	hashedPassword1, _ := auth.HashPassword("pass1")
@@ -341,7 +376,9 @@ func TestHandler_SpecialCharacters(t *testing.T) {
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder, nil)
+	handler := NewHandler(
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil,
+	)
 
 	// Create user with special characters
 	specialPassword := "p@$$w0rd!#%&*()"
@@ -406,7 +443,9 @@ func TestHandler_TokenValidation(t *testing.T) {
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(auth.NewJWTService([]byte("test-secret-key")), repo, responder, nil)
+	handler := NewHandler(
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil,
+	)
 
 	hashedPassword, _ := auth.HashPassword("testpass")
 	now := time.Now()
@@ -506,7 +545,7 @@ func TestHandler_Audit_SuccessfulLoginIsRecorded(t *testing.T) {
 			require.NoError(t, repo.Save(context.Background(), user))
 			recorder := &auditCapture{}
 			handler := NewHandler(
-				auth.NewJWTService([]byte("test-secret-key")), repo, api.NewResponder(), recorder,
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder,
 			)
 
 			req := httptest.NewRequest(
@@ -584,7 +623,7 @@ func TestHandler_Audit_FailedLoginIsNotRecordedAsSuccess(t *testing.T) {
 			tt.setupRepo(repo)
 			recorder := &auditCapture{}
 			handler := NewHandler(
-				auth.NewJWTService([]byte("test-secret-key")), repo, api.NewResponder(), recorder,
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder,
 			)
 
 			req := httptest.NewRequest(

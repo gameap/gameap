@@ -40,6 +40,7 @@ import (
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
+	"github.com/gameap/gameap/pkg/twofactor"
 	"github.com/samber/lo"
 )
 
@@ -51,6 +52,7 @@ type InmemoryContainer struct {
 	serverRepo              repositories.ServerRepository
 	userRepo                repositories.UserRepository
 	authService             auth.Service
+	twoFactorManager        *twofactor.Manager
 	userService             *services.UserService
 	rbacRepo                repositories.RBACRepository
 	tokenRepo               repositories.PersonalAccessTokenRepository
@@ -83,6 +85,7 @@ func (c *InmemoryContainer) GameModRepository() repositories.GameModRepository {
 func (c *InmemoryContainer) ServerRepository() repositories.ServerRepository   { return c.serverRepo }
 func (c *InmemoryContainer) UserRepository() repositories.UserRepository       { return c.userRepo }
 func (c *InmemoryContainer) AuthService() auth.Service                         { return c.authService }
+func (c *InmemoryContainer) TwoFactorManager() *twofactor.Manager              { return c.twoFactorManager }
 func (c *InmemoryContainer) UserService() *services.UserService                { return c.userService }
 func (c *InmemoryContainer) ServerControlService() *servercontrol.Service {
 	return c.serverControlService
@@ -202,6 +205,11 @@ func buildInmemoryTestContainer() *InmemoryContainer {
 	serverSettingRepo := inmemory.NewServerSettingRepository()
 	tm := services.NewNilTransactionManager()
 
+	twoFactorManager, tfErr := twofactor.NewManager([]byte("test-encryption-key-testing"))
+	if tfErr != nil {
+		panic(tfErr)
+	}
+
 	c := &InmemoryContainer{
 		cfg: &config.Config{
 			AuthSecret:    "test-secret-key-for-testing",
@@ -213,6 +221,7 @@ func buildInmemoryTestContainer() *InmemoryContainer {
 		serverRepo:              serverRepo,
 		userRepo:                userRepo,
 		authService:             auth.NewJWTService([]byte("test-secret-key-for-testing")),
+		twoFactorManager:        twoFactorManager,
 		userService:             services.NewUserService(userRepo),
 		rbacRepo:                rbacRepo,
 		tokenRepo:               inmemory.NewPersonalAccessTokenRepository(),

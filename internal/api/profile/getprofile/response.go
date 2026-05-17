@@ -5,11 +5,12 @@ import (
 )
 
 type profileResponse struct {
-	ID    uint     `json:"id"`
-	Login string   `json:"login"`
-	Email string   `json:"email"`
-	Name  *string  `json:"name"`
-	Roles []string `json:"roles"`
+	ID               uint     `json:"id"`
+	Login            string   `json:"login"`
+	Email            string   `json:"email"`
+	Name             *string  `json:"name"`
+	Roles            []string `json:"roles"`
+	TwoFactorEnabled bool     `json:"two_factor_enabled"`
 }
 
 func newProfileResponseFromUser(u *domain.User, roles []domain.RestrictedRole) profileResponse {
@@ -19,10 +20,11 @@ func newProfileResponseFromUser(u *domain.User, roles []domain.RestrictedRole) p
 	}
 
 	return profileResponse{
-		ID:    u.ID,
-		Login: u.Login,
-		Name:  u.Name,
-		Email: u.Email,
-		Roles: roleNames,
+		ID:               u.ID,
+		Login:            u.Login,
+		Name:             u.Name,
+		Email:            u.Email,
+		Roles:            roleNames,
+		TwoFactorEnabled: u.TwoFactorEnabled,
 	}
 }

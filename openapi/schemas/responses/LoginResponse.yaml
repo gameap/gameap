@@ -1,33 +1,59 @@
-type: object
-description: Login response
-properties:
-  token:
-    type: string
-    description: JWT/PASETO token
-    example: "eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9..."
-  expires_in:
-    type: integer
-    description: Token expiration in seconds
-    example: 86400
-  user:
+description: |
+  Login response. On success returns an access token. When the account has
+  two-factor authentication enabled the password check alone does not grant a
+  token: a single-use challenge is returned instead, to be exchanged at
+  `POST /api/auth/2fa/verify`.
+oneOf:
+  - title: Authenticated
     type: object
     properties:
-      login:
+      token:
         type: string
-        example: "admin"
-      email:
-        type: string
-        format: email
-        example: "admin@example.com"
-      name:
-        type:
-          - string
-          - "null"
-        example: "Administrator"
+        description: JWT/PASETO token
+        example: "eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9..."
+      expires_in:
+        type: integer
+        description: Token expiration in seconds
+        example: 86400
+      user:
+        type: object
+        properties:
+          login:
+            type: string
+            example: "admin"
+          email:
+            type: string
+            format: email
+            example: "admin@example.com"
+          name:
+            type:
+              - string
+              - "null"
+            example: "Administrator"
+        required:
+          - login
+          - email
     required:
-      - login
-      - email
-required:
-  - token
-  - expires_in
-  - user
+      - token
+      - expires_in
+      - user
+  - title: TwoFactorRequired
+    type: object
+    properties:
+      two_factor_required:
+        type: boolean
+        enum:
+          - true
+        description: Always true; signals the 2FA verification step is required.
+      challenge_token:
+        type: string
+        description: Single-use, short-lived token (prefix `g2fa_`) to send to `POST /api/auth/2fa/verify`.
+        example: "g2fa_aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9f"
+      expires_in:
+        type: integer
+        description: Challenge token lifetime in seconds.
+        example: 300
+    required:
+      - two_factor_required
+      - challenge_token
+      - expires_in

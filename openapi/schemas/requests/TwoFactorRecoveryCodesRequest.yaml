@@ -1,0 +1,11 @@
+type: object
+description: |
+  Regenerates the one-time recovery codes. All previously issued codes are
+  invalidated. Requires the account password to confirm intent.
+properties:
+  password:
+    type: string
+    description: Current account password.
+    example: "secret123"
+required:
+  - password

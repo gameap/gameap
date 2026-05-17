@@ -268,3 +268,51 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+
+/api/auth/2fa/verify:
+  post:
+    tags:
+      - Auth
+    summary: Verify second factor at login
+    description: |
+      Completes a login that requires two-factor authentication. Send the
+      single-use `challenge_token` returned by `POST /api/auth/login` together
+      with a 6-digit TOTP code or a one-time recovery code.
+
+      The challenge token is invalidated on the first call. It is **not** a
+      bearer token: presenting it in the `Authorization` header is rejected
+      with `401`. Repeated wrong codes consume the challenge and are
+      rate-limited per client.
+    operationId: verifyTwoFactor
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/requests/TwoFactorVerifyRequest.yaml'
+    responses:
+      '200':
+        description: Verification successful, access token issued
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/responses/TwoFactorVerifyResponse.yaml'
+      '401':
+        description: Invalid or expired challenge token, or invalid code
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: Validation error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '429':
+        description: Too many verification attempts
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'

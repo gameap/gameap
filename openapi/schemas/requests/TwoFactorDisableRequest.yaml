@@ -1,0 +1,17 @@
+type: object
+description: |
+  Disables two-factor authentication for the current user. Requires both the
+  account password and a currently valid TOTP or recovery code, so a hijacked
+  session alone cannot remove the second factor.
+properties:
+  password:
+    type: string
+    description: Current account password.
+    example: "secret123"
+  code:
+    type: string
+    description: 6-digit TOTP code or a one-time recovery code.
+    example: "123456"
+required:
+  - password
+  - code

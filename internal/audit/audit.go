@@ -112,6 +112,47 @@ func LoginBlocked(ctx context.Context, l Logger, login, reason string) {
 	})
 }
 
+// TwoFactorChallengeIssued records that a password check passed but a second
+// factor is still required, so only a challenge token was returned. The actor
+// is recorded explicitly since no session exists yet.
+func TwoFactorChallengeIssued(ctx context.Context, l Logger, userID uint, login string) {
+	emit(ctx, l, Event{
+		Type:       EventTwoFactorChallenge,
+		Category:   CategoryAuthentication,
+		Outcome:    OutcomeSuccess,
+		ActorID:    userID,
+		ActorLogin: login,
+		AuthMethod: AuthMethodAnonymous,
+	})
+}
+
+// TwoFactorVerifySuccess records a completed second-factor verification.
+// method is "totp" or "recovery_code".
+func TwoFactorVerifySuccess(ctx context.Context, l Logger, userID uint, login, method string) {
+	emit(ctx, l, Event{
+		Type:       EventTwoFactorVerifySuccess,
+		Category:   CategoryAuthentication,
+		Outcome:    OutcomeSuccess,
+		ActorID:    userID,
+		ActorLogin: login,
+		AuthMethod: AuthMethodSession,
+		Extra:      []slog.Attr{slog.String("factor", method)},
+	})
+}
+
+// TwoFactorVerifyFailure records a wrong code or an invalid/expired challenge
+// presented to the verification endpoint.
+func TwoFactorVerifyFailure(ctx context.Context, l Logger, login, reason string) {
+	emit(ctx, l, Event{
+		Type:       EventTwoFactorVerifyFailure,
+		Category:   CategoryAuthentication,
+		Outcome:    OutcomeFailure,
+		AuthMethod: AuthMethodAnonymous,
+		Reason:     reason,
+		Extra:      []slog.Attr{slog.String("attempted_login", login)},
+	})
+}
+
 // AccessDenied records an authorization denial (admin gate or per-server
 // ability check). The actor is derived from context (auth already passed).
 func AccessDenied(

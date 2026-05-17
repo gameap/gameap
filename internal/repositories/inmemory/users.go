@@ -106,14 +106,18 @@ func (r *UserRepository) Save(_ context.Context, user *domain.User) error {
 	}
 
 	r.users[user.ID] = &domain.User{
-		ID:            user.ID,
-		Login:         user.Login,
-		Email:         user.Email,
-		Password:      user.Password,
-		RememberToken: user.RememberToken,
-		Name:          user.Name,
-		CreatedAt:     user.CreatedAt,
-		UpdatedAt:     user.UpdatedAt,
+		ID:                     user.ID,
+		Login:                  user.Login,
+		Email:                  user.Email,
+		Password:               user.Password,
+		RememberToken:          user.RememberToken,
+		Name:                   user.Name,
+		CreatedAt:              user.CreatedAt,
+		UpdatedAt:              user.UpdatedAt,
+		TwoFactorEnabled:       user.TwoFactorEnabled,
+		TwoFactorSecret:        user.TwoFactorSecret,
+		TwoFactorRecoveryCodes: user.TwoFactorRecoveryCodes,
+		TwoFactorLastUsedStep:  user.TwoFactorLastUsedStep,
 	}
 
 	return nil

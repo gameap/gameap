@@ -323,12 +323,22 @@ paths:
     $ref: './paths/auth.yaml#/~1api~1auth~1logout'
   /api/auth/short-lived-token:
     $ref: './paths/auth.yaml#/~1api~1auth~1short-lived-token'
+  /api/auth/2fa/verify:
+    $ref: './paths/auth.yaml#/~1api~1auth~12fa~1verify'
 
   # User & Profile
   /api/user:
     $ref: './paths/user.yaml#/~1api~1user'
   /api/profile:
     $ref: './paths/profile.yaml#/~1api~1profile'
+  /api/profile/2fa/setup:
+    $ref: './paths/profile-twofactor.yaml#/~1api~1profile~12fa~1setup'
+  /api/profile/2fa/confirm:
+    $ref: './paths/profile-twofactor.yaml#/~1api~1profile~12fa~1confirm'
+  /api/profile/2fa:
+    $ref: './paths/profile-twofactor.yaml#/~1api~1profile~12fa'
+  /api/profile/2fa/recovery-codes:
+    $ref: './paths/profile-twofactor.yaml#/~1api~1profile~12fa~1recovery-codes'
 
   # Tokens
   /api/tokens:

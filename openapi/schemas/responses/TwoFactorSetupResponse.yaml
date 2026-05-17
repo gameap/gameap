@@ -1,0 +1,17 @@
+type: object
+description: |
+  Pending TOTP enrollment material. The secret is stored encrypted server-side
+  but 2FA stays inactive until confirmed via `POST /api/profile/2fa/confirm`.
+  Render `otpauth_uri` as a QR code; `secret` is the manual-entry fallback.
+properties:
+  secret:
+    type: string
+    description: Base32-encoded TOTP shared secret (manual entry).
+    example: "JBSWY3DPEHPK3PXP"
+  otpauth_uri:
+    type: string
+    description: otpauth:// provisioning URI to encode into a QR code.
+    example: "otpauth://totp/GameAP:admin?secret=JBSWY3DPEHPK3PXP&issuer=GameAP&algorithm=SHA1&digits=6&period=30"
+required:
+  - secret
+  - otpauth_uri

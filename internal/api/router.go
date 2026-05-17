@@ -13,6 +13,7 @@ import (
 	"github.com/gameap/gameap/internal/api/auth/login"
 	"github.com/gameap/gameap/internal/api/auth/logout"
 	"github.com/gameap/gameap/internal/api/auth/shorttoken"
+	"github.com/gameap/gameap/internal/api/auth/twofactorverify"
 	"github.com/gameap/gameap/internal/api/clientcertificates/deleteclientcertificates"
 	"github.com/gameap/gameap/internal/api/clientcertificates/getclientcertificates"
 	"github.com/gameap/gameap/internal/api/clientcertificates/postclientcertificates"
@@ -97,6 +98,10 @@ import (
 	"github.com/gameap/gameap/internal/api/pluginstore/updateplugin"
 	"github.com/gameap/gameap/internal/api/profile/getprofile"
 	"github.com/gameap/gameap/internal/api/profile/putprofile"
+	twofactorconfirm "github.com/gameap/gameap/internal/api/profile/twofactor/confirm"
+	twofactordisable "github.com/gameap/gameap/internal/api/profile/twofactor/disable"
+	twofactorrecoverycodes "github.com/gameap/gameap/internal/api/profile/twofactor/recoverycodes"
+	twofactorsetup "github.com/gameap/gameap/internal/api/profile/twofactor/setup"
 	"github.com/gameap/gameap/internal/api/publicconfig"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/api/servers/deleteserver"
@@ -176,6 +181,7 @@ import (
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/twofactor"
 	webstatic "github.com/gameap/gameap/web/static"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -191,6 +197,7 @@ type container interface {
 	ServerRepository() repositories.ServerRepository
 	UserRepository() repositories.UserRepository
 	AuthService() auth.Service
+	TwoFactorManager() *twofactor.Manager
 	UserService() *services.UserService
 	ServerControlService() *servercontrol.Service
 	GameUpgradeService() *services.GameUpgradeService
@@ -408,7 +415,29 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				middlewares.WithLoginRateLimitAuditLogger(c.AuditLogger()),
 				middlewares.WithLoginRateLimitClientIPHeader(c.Config().Audit.ClientIPHeader),
 			).Middleware(
-				login.NewHandler(c.AuthService(), c.UserService(), c.Responder(), c.AuditLogger()),
+				login.NewHandler(
+					c.AuthService(), c.UserService(), c.Cache(), c.Responder(), c.AuditLogger(),
+				),
+			),
+			AllowGuestAccess: true,
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/auth/2fa/verify",
+			Handler: middlewares.NewLoginRateLimitMiddleware(
+				c.Cache(),
+				c.Responder(),
+				middlewares.WithLoginRateLimitAuditLogger(c.AuditLogger()),
+				middlewares.WithLoginRateLimitClientIPHeader(c.Config().Audit.ClientIPHeader),
+			).Middleware(
+				twofactorverify.NewHandler(
+					c.AuthService(),
+					c.UserService(),
+					c.TwoFactorManager(),
+					c.Cache(),
+					c.Responder(),
+					c.AuditLogger(),
+				),
 			),
 			AllowGuestAccess: true,
 		},
@@ -454,6 +483,45 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: putprofile.NewHandler(
 				c.UserService(),
 				c.Responder(),
+			),
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/profile/2fa/setup",
+			Handler: twofactorsetup.NewHandler(
+				c.UserService(),
+				c.TwoFactorManager(),
+				c.Responder(),
+			),
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/profile/2fa/confirm",
+			Handler: twofactorconfirm.NewHandler(
+				c.UserService(),
+				c.TwoFactorManager(),
+				c.Responder(),
+				c.AuditLogger(),
+			),
+		},
+		{
+			Method: http.MethodDelete,
+			Path:   "/api/profile/2fa",
+			Handler: twofactordisable.NewHandler(
+				c.UserService(),
+				c.TwoFactorManager(),
+				c.Responder(),
+				c.AuditLogger(),
+			),
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/profile/2fa/recovery-codes",
+			Handler: twofactorrecoverycodes.NewHandler(
+				c.UserService(),
+				c.TwoFactorManager(),
+				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 

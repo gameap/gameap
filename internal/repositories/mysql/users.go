@@ -123,6 +123,10 @@ func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 			user.Name,
 			user.CreatedAt,
 			user.UpdatedAt,
+			user.TwoFactorEnabled,
+			user.TwoFactorSecret,
+			user.TwoFactorRecoveryCodes,
+			user.TwoFactorLastUsedStep,
 		).
 		Suffix("ON DUPLICATE KEY UPDATE " +
 			"login=VALUES(login)," +
@@ -130,7 +134,11 @@ func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 			"password=VALUES(password)," +
 			"remember_token=VALUES(remember_token)," +
 			"name=VALUES(name)," +
-			"updated_at=VALUES(updated_at)").
+			"updated_at=VALUES(updated_at)," +
+			"two_factor_enabled=VALUES(two_factor_enabled)," +
+			"two_factor_secret=VALUES(two_factor_secret)," +
+			"two_factor_recovery_codes=VALUES(two_factor_recovery_codes)," +
+			"two_factor_last_used_step=VALUES(two_factor_last_used_step)").
 		PlaceholderFormat(sq.Question).
 		ToSql()
 	if err != nil {
@@ -186,6 +194,10 @@ func (r *UserRepository) scan(row base.Scanner) (*domain.User, error) {
 		&user.Name,
 		&user.CreatedAt,
 		&user.UpdatedAt,
+		&user.TwoFactorEnabled,
+		&user.TwoFactorSecret,
+		&user.TwoFactorRecoveryCodes,
+		&user.TwoFactorLastUsedStep,
 	)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to scan row")

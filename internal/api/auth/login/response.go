@@ -29,3 +29,20 @@ func newLoginResponseFromUser(user *domain.User, token string, expiresIn time.Du
 		},
 	}
 }
+
+// twoFactorChallengeResponse is returned instead of a token when the account
+// has 2FA enabled: the password was correct, but the caller must still prove
+// the second factor at /api/auth/2fa/verify using challengeToken.
+type twoFactorChallengeResponse struct {
+	TwoFactorRequired bool   `json:"two_factor_required"`
+	ChallengeToken    string `json:"challenge_token"`
+	ExpiresIn         int64  `json:"expires_in"`
+}
+
+func newTwoFactorChallengeResponse(challengeToken string, expiresIn time.Duration) twoFactorChallengeResponse {
+	return twoFactorChallengeResponse{
+		TwoFactorRequired: true,
+		ChallengeToken:    challengeToken,
+		ExpiresIn:         int64(expiresIn.Seconds()),
+	}
+}
