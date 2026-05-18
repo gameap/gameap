@@ -109,10 +109,15 @@ jobs:
           FUZZTIME: ${{ github.event.inputs.fuzztime || '10m' }}
         run: |
           set -o pipefail
+          # -timeout=0 disables go test's default 10m watchdog, which would
+          # otherwise kill the run with "context deadline exceeded" once
+          # FUZZTIME reaches ~10m (go test does not extend -timeout to fit
+          # -fuzztime). The job's timeout-minutes is the real ceiling.
           go test \
             -run '^$' \
             -fuzz='^${{ matrix.target }}$' \
             -fuzztime="$FUZZTIME" \
+            -timeout=0 \
             ./internal/api/ 2>&1 | tee fuzz-${{ matrix.target }}.log
 
       # On failure, Go writes the crashing input to testdata/fuzz/<Target>/<id>.

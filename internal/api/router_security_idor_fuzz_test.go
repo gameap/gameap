@@ -8,6 +8,7 @@
 //	go test -run NONE -fuzz=FuzzFileManagerPath_DoesNotBypassAuthorization -fuzztime=60s ./internal/api/
 //	go test -run NONE -fuzz=FuzzServerIDPathParam_DoesNotBypassAuthorization -fuzztime=60s ./internal/api/
 //
+// For -fuzztime >= 10m also pass -timeout=0 (go test does not extend -timeout to fit -fuzztime).
 // Without -fuzz, the seed corpus runs as a fast smoke test in `go test`.
 
 package api_test
