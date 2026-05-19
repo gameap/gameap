@@ -41,14 +41,6 @@ func actorFrom(ctx context.Context, e *Event) {
 		return
 	}
 
-	if d := auth.DaemonSessionFromContext(ctx); d != nil && d.Node != nil {
-		e.ActorID = d.Node.ID
-		e.ActorLogin = d.Node.Name
-		e.AuthMethod = AuthMethodDaemon
-
-		return
-	}
-
 	e.AuthMethod = AuthMethodAnonymous
 }
 

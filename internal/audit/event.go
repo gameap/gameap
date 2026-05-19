@@ -71,7 +71,6 @@ const (
 	AuthMethodSession    AuthMethod = "session"
 	AuthMethodPAT        AuthMethod = "pat"
 	AuthMethodShortLived AuthMethod = "shortlived"
-	AuthMethodDaemon     AuthMethod = "daemon"
 	AuthMethodAnonymous  AuthMethod = "anonymous"
 )
 

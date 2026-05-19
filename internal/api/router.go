@@ -17,17 +17,6 @@ import (
 	"github.com/gameap/gameap/internal/api/clientcertificates/deleteclientcertificates"
 	"github.com/gameap/gameap/internal/api/clientcertificates/getclientcertificates"
 	"github.com/gameap/gameap/internal/api/clientcertificates/postclientcertificates"
-	"github.com/gameap/gameap/internal/api/daemon/createnode"
-	"github.com/gameap/gameap/internal/api/daemon/daemonsetup"
-	"github.com/gameap/gameap/internal/api/daemonapi/getinitdata"
-	daemonapiinit "github.com/gameap/gameap/internal/api/daemonapi/gettoken"
-	daemonapigetserverid "github.com/gameap/gameap/internal/api/daemonapi/servers/getserverid"
-	daemonapigetservers "github.com/gameap/gameap/internal/api/daemonapi/servers/getservers"
-	daemonapipatchservers "github.com/gameap/gameap/internal/api/daemonapi/servers/patchservers"
-	daemonapiputserver "github.com/gameap/gameap/internal/api/daemonapi/servers/putserver"
-	daemonapiappendoutput "github.com/gameap/gameap/internal/api/daemonapi/tasks/appendoutput"
-	daemonapitasks "github.com/gameap/gameap/internal/api/daemonapi/tasks/gettask"
-	daemonapiupdatetask "github.com/gameap/gameap/internal/api/daemonapi/tasks/updatetask"
 	"github.com/gameap/gameap/internal/api/daemontasks/canceldaemontask"
 	"github.com/gameap/gameap/internal/api/daemontasks/getdaemontask"
 	"github.com/gameap/gameap/internal/api/daemontasks/getdaemontasks"
@@ -237,7 +226,6 @@ type container interface {
 	ServerTaskDispatcher() *servertaskdispatcher.Dispatcher
 	ServerConfigPusher() *serverconfigpush.Pusher
 	EnrollmentService() *enrollment.Service
-	EnrollmentServiceOrNil() *enrollment.Service
 	GRPCPort() uint16
 	GRPCExternalHost() string
 	GRPCExternalPort() uint16
@@ -264,10 +252,7 @@ func CreateRouter(c container) *http.ServeMux {
 	serverMux.Handle("/api/",
 		handlers.HTTPMethodOverrideHandler(apiRoutes(c, router)),
 	)
-	setupRoutes := gdaemonSetupRoutes(c, router)
-	serverMux.Handle("/gdaemon/", setupRoutes)
-	serverMux.Handle("/nodes/", setupRoutes)
-	serverMux.Handle("/gdaemon_api/", gdaemonAPIRoutes(c, router))
+	serverMux.Handle("/nodes/", nodeEnrollRoutes(c, router))
 
 	if h := c.ACMEService().HTTP01Handler(); h != nil {
 		serverMux.Handle(http01.ChallengePathPrefix, h)
@@ -1329,10 +1314,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Method: http.MethodGet,
 			Path:   "/api/dedicated_servers/setup",
 			Handler: nodesetup.NewHandler(
-				c.Cache(),
 				c.Responder(),
 				"",
-				c.EnrollmentServiceOrNil(),
+				c.EnrollmentService(),
 				c.GRPCPort(),
 				c.GRPCExternalHost(),
 				c.GRPCExternalPort(),
@@ -1344,10 +1328,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			// alias for /api/dedicated_servers/setup
 			Path: "/api/nodes/setup",
 			Handler: nodesetup.NewHandler(
-				c.Cache(),
 				c.Responder(),
 				"",
-				c.EnrollmentServiceOrNil(),
+				c.EnrollmentService(),
 				c.GRPCPort(),
 				c.GRPCExternalHost(),
 				c.GRPCExternalPort(),
@@ -1893,7 +1876,6 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.SessionRegistry(),
 				c.CommandHandler(),
 				c.DaemonCommands(),
-				c.DaemonFiles(),
 				c.ConsoleLogService(),
 				c.Responder(),
 			),
@@ -1910,8 +1892,6 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				wsOriginPatterns(c.Config()),
 				c.SessionRegistry(),
 				c.AttachHandler(),
-				c.DaemonCommands(),
-				c.DaemonFiles(),
 				c.Responder(),
 			),
 			AllowShortLivedToken: true,
@@ -2060,7 +2040,7 @@ func registerPluginRoutes(
 	router.Handle("/api/plugins/{plugin_id}", handler)
 }
 
-func gdaemonSetupRoutes(c container, router *mux.Router) *mux.Router {
+func nodeEnrollRoutes(c container, router *mux.Router) *mux.Router {
 	recoveryMiddleware := middlewares.NewRecoveryMiddleware(
 		c.Responder(),
 	)
@@ -2073,30 +2053,9 @@ func gdaemonSetupRoutes(c container, router *mux.Router) *mux.Router {
 	}{
 		{
 			Method: http.MethodGet,
-			Path:   "/gdaemon/setup/{token}",
-			Handler: daemonsetup.NewHandler(
-				c.Cache(),
-				c.Responder(),
-				"",
-			),
-		},
-		{
-			Method: http.MethodPost,
-			Path:   "/gdaemon/create/{token}",
-			Handler: createnode.NewHandler(
-				c.Cache(),
-				c.NodeRepository(),
-				c.ClientCertificateRepository(),
-				c.CertificatesService(),
-				c.Responder(),
-				c.AuditLogger(),
-			),
-		},
-		{
-			Method: http.MethodGet,
 			Path:   "/nodes/setup/{key}",
 			Handler: enrollsetup.NewHandler(
-				c.EnrollmentServiceOrNil(),
+				c.EnrollmentService(),
 				c.Responder(),
 				"",
 				c.GRPCExternalHost(),
@@ -2113,160 +2072,6 @@ func gdaemonSetupRoutes(c container, router *mux.Router) *mux.Router {
 			handler = mw(handler)
 		}
 
-		// Recovery middleware wraps everything to catch panics
-		handler = recoveryMiddleware.Middleware(handler)
-
-		if handler != nil {
-			router.Handle(r.Path, handler).Methods(r.Method)
-		}
-	}
-
-	return router
-}
-
-//nolint:funlen
-func gdaemonAPIRoutes(c container, router *mux.Router) *mux.Router {
-	daemonAuthMiddleware := middlewares.NewDaemonAuthMiddleware(
-		c.NodeRepository(),
-		c.Responder(),
-		c.AuditLogger(),
-	)
-
-	// The wrap loop below applies middleware entries in order, so the LAST
-	// entry becomes the outermost handler and runs first at request time.
-	// daemonAuthMiddleware must stay last in every slice so it populates the
-	// daemon session in context before daemonGRPCGuardMiddleware reads it.
-	daemonGRPCGuardMiddleware := middlewares.NewDaemonGRPCGuardMiddleware(
-		c.SessionRegistry(),
-		c.Responder(),
-	)
-
-	recoveryMiddleware := middlewares.NewRecoveryMiddleware(
-		c.Responder(),
-	)
-
-	routes := []struct {
-		Method      string
-		Path        string
-		Handler     http.Handler
-		Middlewares []mux.MiddlewareFunc
-	}{
-		{
-			Method:  http.MethodGet,
-			Path:    "/gdaemon_api/get_token",
-			Handler: daemonapiinit.NewHandler(c.NodeRepository(), c.SessionRegistry(), c.Responder(), c.AuditLogger()),
-		},
-		{
-			Method:  http.MethodGet,
-			Path:    "/gdaemon_api/dedicated_servers/get_init_data/{node}",
-			Handler: getinitdata.NewHandler(c.Responder()),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodGet,
-			Path:   "/gdaemon_api/servers",
-			Handler: daemonapigetservers.NewHandler(
-				c.ServerRepository(),
-				c.GameRepository(),
-				c.GameModRepository(),
-				c.ServerSettingRepository(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodGet,
-			Path:   "/gdaemon_api/servers/{server}",
-			Handler: daemonapigetserverid.NewHandler(
-				c.ServerRepository(),
-				c.GameRepository(),
-				c.GameModRepository(),
-				c.ServerSettingRepository(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodPut,
-			Path:   "/gdaemon_api/servers/{server}",
-			Handler: daemonapiputserver.NewHandler(
-				c.ServerRepository(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodPatch,
-			Path:   "/gdaemon_api/servers",
-			Handler: daemonapipatchservers.NewHandler(
-				c.ServerRepository(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodGet,
-			Path:   "/gdaemon_api/tasks",
-			Handler: daemonapitasks.NewHandler(
-				c.DaemonTaskRepository(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodPut,
-			Path:   "/gdaemon_api/tasks/{gdaemon_task}",
-			Handler: daemonapiupdatetask.NewHandler(
-				c.DaemonTaskRepository(),
-				c.PubSub(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-		{
-			Method: http.MethodPut,
-			Path:   "/gdaemon_api/tasks/{gdaemon_task}/output",
-			Handler: daemonapiappendoutput.NewHandler(
-				c.DaemonTaskRepository(),
-				c.PubSub(),
-				c.Responder(),
-			),
-			Middlewares: []mux.MiddlewareFunc{
-				daemonGRPCGuardMiddleware.Middleware,
-				daemonAuthMiddleware.Middleware,
-			},
-		},
-	}
-
-	for _, r := range routes {
-		handler := r.Handler
-
-		for _, mw := range r.Middlewares {
-			handler = mw(handler)
-		}
-
-		// Recovery middleware wraps everything to catch panics
 		handler = recoveryMiddleware.Middleware(handler)
 
 		if handler != nil {

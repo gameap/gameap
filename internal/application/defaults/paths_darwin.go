@@ -3,6 +3,5 @@
 package defaults
 
 const (
-	LegacyPath    = ""
-	LegacyEnvPath = ""
+	StoragePath = ""
 )

@@ -5,14 +5,10 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
-	"time"
 
 	"github.com/coder/websocket"
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
-	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/grpc/handlers"
@@ -24,35 +20,13 @@ import (
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/gameap/gameap/pkg/proto"
-	"github.com/gameap/gameap/pkg/shellescape"
 	"github.com/pkg/errors"
 )
 
 const (
-	typeAttachInput   = "attach.input"
-	typeAttachOutput  = "attach.output"
-	typeAttachDetach  = "attach.detach"
-	typeAttachStarted = "attach.started"
-
-	legacyPollInterval = 500 * time.Millisecond
+	typeAttachInput  = "attach.input"
+	typeAttachDetach = "attach.detach"
 )
-
-type daemonCommands interface {
-	ExecuteCommand(
-		ctx context.Context,
-		node *domain.Node,
-		command string,
-		opts ...daemon.CommandServiceOption,
-	) (*daemon.CommandResult, error)
-}
-
-type fileService interface {
-	Download(ctx context.Context, node *domain.Node, filePath string) ([]byte, error)
-	Upload(
-		ctx context.Context, node *domain.Node, filePath string,
-		content []byte, perms os.FileMode, owner daemon.OwnerOptions,
-	) error
-}
 
 type Handler struct {
 	serverFinder   *serversbase.ServerFinder
@@ -62,8 +36,6 @@ type Handler struct {
 	originPatterns []string
 	registry       *session.Registry
 	attachHandler  *handlers.AttachHandler
-	daemonCommands daemonCommands
-	fileService    fileService
 	responder      base.Responder
 	logger         *slog.Logger
 }
@@ -76,8 +48,6 @@ func NewHandler(
 	originPatterns []string,
 	registry *session.Registry,
 	attachHandler *handlers.AttachHandler,
-	daemonCommands daemonCommands,
-	fileService fileService,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
@@ -88,8 +58,6 @@ func NewHandler(
 		originPatterns: originPatterns,
 		registry:       registry,
 		attachHandler:  attachHandler,
-		daemonCommands: daemonCommands,
-		fileService:    fileService,
 		responder:      responder,
 		logger:         slog.Default(),
 	}
@@ -144,6 +112,15 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	nodeID := uint64(server.DSID)
 
+	if !h.registry.IsConnectedAnywhere(nodeID) {
+		h.responder.WriteError(ctx, rw, api.NewError(
+			http.StatusServiceUnavailable,
+			"daemon is not connected via grpc",
+		))
+
+		return
+	}
+
 	conn, err := ws.Accept(rw, r, &websocket.AcceptOptions{
 		OriginPatterns: h.originPatterns,
 	})
@@ -155,12 +132,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	canSend := h.canSendCommands(ctx, sess.User, server)
 
-	if h.registry.IsConnectedAnywhere(nodeID) {
-		sessionID := idgen.New()
-		h.runAttachSession(ctx, conn, server, node, sessionID, sess.User, canSend)
-	} else {
-		h.runLegacyMode(ctx, conn, server, node, sess.User, canSend)
-	}
+	sessionID := idgen.New()
+	h.runAttachSession(ctx, conn, server, node, sessionID, sess.User, canSend)
 }
 
 func (h *Handler) runAttachSession(
@@ -293,211 +266,4 @@ func (h *Handler) canSendCommands(ctx context.Context, user *domain.User, server
 
 type attachInputPayload struct {
 	Data []byte `json:"data"`
-}
-
-type attachStartedPayload struct {
-	SessionID string `json:"session_id"`
-	ServerID  uint64 `json:"server_id"`
-}
-
-type attachOutputPayload struct {
-	Data []byte `json:"data"`
-}
-
-// Legacy mode for daemons not connected via gRPC.
-
-func (h *Handler) runLegacyMode(
-	ctx context.Context,
-	conn *websocket.Conn,
-	server *domain.Server,
-	node *domain.Node,
-	user *domain.User,
-	canSend bool,
-) {
-	client := ws.NewClient(ctx, conn, h.hub, nil, h.logger)
-
-	msgHandler := h.newLegacyMessageHandler(ctx, client, server, node, user, canSend)
-	client.SetMessageHandler(msgHandler)
-
-	client.SendMessage(ws.NewOutboundMessage(typeAttachStarted, attachStartedPayload{
-		SessionID: idgen.New(),
-		ServerID:  uint64(server.ID),
-	}))
-
-	lastContent := h.sendLegacyHistory(ctx, client, server, node)
-
-	poller := &legacyAttachPoller{
-		client:      client,
-		fileService: h.fileService,
-		node:        node,
-		serverDir:   server.Dir,
-		logger:      h.logger,
-		lastContent: lastContent,
-	}
-	go poller.run(ctx)
-
-	client.Run()
-}
-
-func (h *Handler) newLegacyMessageHandler(
-	ctx context.Context,
-	client *ws.Client,
-	server *domain.Server,
-	node *domain.Node,
-	user *domain.User,
-	canSend bool,
-) ws.MessageHandler {
-	return func(_ context.Context, msg *ws.InboundMessage) {
-		switch msg.Type {
-		case typeAttachInput:
-			if !canSend {
-				client.SendMessage(ws.NewErrorMessage("permission denied: cannot send input"))
-
-				return
-			}
-
-			if err := h.abilityChecker.CheckOrError(
-				ctx, user.ID, server.ID,
-				[]domain.AbilityName{domain.AbilityNameGameServerConsoleSend},
-			); err != nil {
-				client.SendMessage(ws.NewErrorMessage("permission denied: cannot send input"))
-
-				return
-			}
-
-			var payload attachInputPayload
-			if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-				return
-			}
-
-			h.sendLegacyInput(ctx, client, server, node, string(payload.Data))
-
-		case typeAttachDetach:
-			client.Close()
-		}
-	}
-}
-
-func (h *Handler) sendLegacyInput(
-	ctx context.Context, client *ws.Client, server *domain.Server, node *domain.Node, input string,
-) {
-	if node.ScriptSendCommand != nil && *node.ScriptSendCommand != "" {
-		cmd := server.ReplaceServerShortcodes(node, *node.ScriptSendCommand, map[string]string{
-			"command": shellescape.Quote(input),
-		})
-
-		if _, err := h.daemonCommands.ExecuteCommand(ctx, node, cmd); err != nil {
-			h.logger.Warn("failed to execute send command script",
-				"server_id", server.ID, "error", err)
-			client.SendMessage(ws.NewErrorMessage("failed to send input"))
-		}
-
-		return
-	}
-
-	inputPath := filepath.Join(server.Dir, "input.txt")
-
-	err := h.fileService.Upload(
-		ctx, node, inputPath, []byte(input), 0o644, daemon.OwnerFromServer(server),
-	)
-	if err != nil {
-		h.logger.Warn("failed to upload input", "server_id", server.ID, "error", err)
-		client.SendMessage(ws.NewErrorMessage("failed to send input"))
-	}
-}
-
-func (h *Handler) sendLegacyHistory(
-	ctx context.Context, client *ws.Client, server *domain.Server, node *domain.Node,
-) string {
-	if node.ScriptGetConsole != nil && *node.ScriptGetConsole != "" {
-		cmd := server.ReplaceServerShortcodes(node, *node.ScriptGetConsole, nil)
-
-		result, err := h.daemonCommands.ExecuteCommand(ctx, node, cmd)
-		if err == nil && result.Output != "" {
-			client.SendMessage(ws.NewOutboundMessage(typeAttachOutput, attachOutputPayload{
-				Data: []byte(result.Output),
-			}))
-
-			return result.Output
-		}
-	}
-
-	outputPath := filepath.Join(server.Dir, "output.txt")
-
-	content, err := h.fileService.Download(ctx, node, outputPath)
-	if err != nil {
-		return ""
-	}
-
-	const maxBytes = 65536
-	if len(content) > maxBytes {
-		content = content[len(content)-maxBytes:]
-	}
-
-	if len(content) > 0 {
-		client.SendMessage(ws.NewOutboundMessage(typeAttachOutput, attachOutputPayload{
-			Data: content,
-		}))
-	}
-
-	return string(content)
-}
-
-type legacyAttachPoller struct {
-	client      *ws.Client
-	fileService fileService
-	node        *domain.Node
-	serverDir   string
-	logger      *slog.Logger
-	lastContent string
-}
-
-func (p *legacyAttachPoller) run(ctx context.Context) {
-	ticker := time.NewTicker(legacyPollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-p.client.Done():
-			return
-		case <-ticker.C:
-			p.poll(ctx)
-		}
-	}
-}
-
-func (p *legacyAttachPoller) poll(ctx context.Context) {
-	outputPath := filepath.Join(p.serverDir, "output.txt")
-
-	content, err := p.fileService.Download(ctx, p.node, outputPath)
-	if err != nil {
-		p.logger.Debug("legacy attach poll: download failed",
-			"path", outputPath,
-			"error", err,
-		)
-
-		return
-	}
-
-	currentContent := string(content)
-	if currentContent == p.lastContent {
-		return
-	}
-
-	var diff string
-	if len(currentContent) > len(p.lastContent) && currentContent[:len(p.lastContent)] == p.lastContent {
-		diff = currentContent[len(p.lastContent):]
-	} else {
-		diff = currentContent
-	}
-
-	p.lastContent = currentContent
-
-	if diff != "" {
-		p.client.SendMessage(ws.NewOutboundMessage(typeAttachOutput, attachOutputPayload{
-			Data: []byte(diff),
-		}))
-	}
 }

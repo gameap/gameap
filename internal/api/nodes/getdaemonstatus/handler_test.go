@@ -258,7 +258,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				}, nil
 			},
 			setupConnectionTypeFunc: func(_ uint64) string {
-				return daemon.ConnectionTypeLegacy
+				return daemon.ConnectionTypeGRPC
 			},
 			expectedStatus: http.StatusOK,
 			expectResponse: true,
@@ -268,7 +268,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, uint(2), resp.ID)
 				assert.Equal(t, "Test Node 2", resp.Name)
 				assert.True(t, resp.HasAPIKey)
-				assert.Equal(t, "legacy", resp.ConnectionType)
+				assert.Equal(t, "grpc", resp.ConnectionType)
 				assert.Equal(t, "2.5.0", resp.Version.Version)
 				assert.Equal(t, "2023-12-01", resp.Version.CompileDate)
 				assert.Equal(t, "0s", resp.BaseInfo.Uptime)
@@ -320,49 +320,6 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				t.Helper()
 
 				assert.Equal(t, "grpc", resp.ConnectionType)
-			},
-		},
-		{
-			name:   "connection_type_legacy_when_no_session_but_legacy_available",
-			nodeID: "4",
-			setupAuth: func() context.Context {
-				session := &auth.Session{
-					Login: "admin",
-					Email: "admin@example.com",
-					User:  &testUser,
-				}
-
-				return auth.ContextWithSession(context.Background(), session)
-			},
-			setupRepo: func(nodeRepo *inmemory.NodeRepository) {
-				now := time.Now()
-				node := &domain.Node{
-					ID:            4,
-					Enabled:       true,
-					Name:          "Legacy Node",
-					OS:            "linux",
-					Location:      "EU",
-					GdaemonHost:   "10.0.0.4",
-					GdaemonPort:   31717,
-					GdaemonAPIKey: "key-4",
-					CreatedAt:     &now,
-					UpdatedAt:     &now,
-				}
-
-				require.NoError(t, nodeRepo.Save(context.Background(), node))
-			},
-			setupStatusFunc: func(_ context.Context, _ *domain.Node) (*daemon.NodeStatus, error) {
-				return &daemon.NodeStatus{Version: "2.9.0", BuildDate: "2023-11-01"}, nil
-			},
-			setupConnectionTypeFunc: func(_ uint64) string {
-				return daemon.ConnectionTypeLegacy
-			},
-			expectedStatus: http.StatusOK,
-			expectResponse: true,
-			validateResponse: func(t *testing.T, resp daemonStatusResponse) {
-				t.Helper()
-
-				assert.Equal(t, "legacy", resp.ConnectionType)
 			},
 		},
 		{
@@ -510,39 +467,6 @@ func TestNewDaemonStatusResponse(t *testing.T) {
 					WorkingTasksCount:  "3",
 					WaitingTasksCount:  "7",
 					OnlineServersCount: "15",
-				},
-			},
-		},
-		{
-			name: "zero_values_legacy",
-			node: &domain.Node{
-				ID:            2,
-				Name:          "Node 2",
-				GdaemonAPIKey: "key-2",
-			},
-			status: &daemon.NodeStatus{
-				Uptime:        0,
-				Version:       "",
-				BuildDate:     "",
-				WorkingTasks:  0,
-				WaitingTasks:  0,
-				OnlineServers: 0,
-			},
-			connectionType: daemon.ConnectionTypeLegacy,
-			want: daemonStatusResponse{
-				ID:             2,
-				Name:           "Node 2",
-				HasAPIKey:      true,
-				ConnectionType: "legacy",
-				Version: versionInfo{
-					Version:     "",
-					CompileDate: "",
-				},
-				BaseInfo: baseInfo{
-					Uptime:             "0s",
-					WorkingTasksCount:  "0",
-					WaitingTasksCount:  "0",
-					OnlineServersCount: "0",
 				},
 			},
 		},

@@ -25,7 +25,7 @@ import (
 // to the daemon session registered in the registry.
 func TestRunAttachSession_grpcMode_sendsAttachRequestToRegistry(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 
 	// ACT
 	conn := env.dial(t)
@@ -61,7 +61,7 @@ func TestRunAttachSession_grpcMode_sendsAttachRequestToRegistry(t *testing.T) {
 // AttachInput gateway message containing the same payload bytes.
 func TestRunAttachSession_grpcMode_forwardsInputToRegistry(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	conn := env.dial(t)
 
 	// Wait until the attach request is on the wire so the session id is known.
@@ -98,7 +98,7 @@ func TestRunAttachSession_grpcMode_forwardsInputToRegistry(t *testing.T) {
 // connected WebSocket client through the bridge → hub → client pipeline.
 func TestRunAttachSession_grpcMode_relaysOutputToWS(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	conn := env.dial(t)
 
 	// Find the session id from the attach request the handler just sent.
@@ -140,7 +140,7 @@ func TestRunAttachSession_grpcMode_relaysOutputToWS(t *testing.T) {
 // closes the WebSocket connection.
 func TestRunAttachSession_grpcMode_clientDetachClosesConnection(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	conn := env.dial(t)
 
 	require.Eventually(t, func() bool {
@@ -183,7 +183,7 @@ func TestRunAttachSession_grpcMode_clientDetachClosesConnection(t *testing.T) {
 // detach gateway message on its way out.
 func TestRunAttachSession_grpcMode_clientCloseTriggersDetach(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	conn := env.dial(t)
 
 	require.Eventually(t, func() bool {
@@ -217,7 +217,7 @@ func TestRunAttachSession_grpcMode_clientCloseTriggersDetach(t *testing.T) {
 // receives an error frame.
 func TestRunAttachSession_grpcMode_inputDeniedWhenCanSendFalse(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	// Drop admin so the per-entity allow set is consulted, then grant only
 	// view (so the connection is accepted) and not send.
 	env.rbac.isAdmin = false
@@ -265,14 +265,13 @@ func TestRunAttachSession_grpcMode_inputDeniedWhenCanSendFalse(t *testing.T) {
 // upgrade happens.
 func TestServeHTTP_unauthenticated_returns401(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/servers/33/attach", nil)
 	req = mux.SetURLVars(req, map[string]string{"server": "33"})
 
 	h := NewHandler(
-		nil, nil, env.rbac, env.hub, nil, env.registry, env.attachH,
-		env.dCmds, env.files, env.responder,
+		nil, nil, env.rbac, env.hub, nil, env.registry, env.attachH, env.responder,
 	)
 
 	// ACT
@@ -288,15 +287,14 @@ func TestServeHTTP_unauthenticated_returns401(t *testing.T) {
 // TestServeHTTP_invalidServerID_returns400 verifies path parameter parsing.
 func TestServeHTTP_invalidServerID_returns400(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/servers/abc/attach", nil)
 	req = mux.SetURLVars(req, map[string]string{"server": "abc"})
 	req = req.WithContext(auth.ContextWithSession(req.Context(), &auth.Session{User: env.user}))
 
 	h := NewHandler(
-		nil, nil, env.rbac, env.hub, nil, env.registry, env.attachH,
-		env.dCmds, env.files, env.responder,
+		nil, nil, env.rbac, env.hub, nil, env.registry, env.attachH, env.responder,
 	)
 
 	// ACT
@@ -313,7 +311,7 @@ func TestServeHTTP_invalidServerID_returns400(t *testing.T) {
 // ServerFinder.
 func TestServeHTTP_unknownServer_returns404(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/servers/9999/attach", nil)
 	req = mux.SetURLVars(req, map[string]string{"server": "9999"})
@@ -322,8 +320,7 @@ func TestServeHTTP_unknownServer_returns404(t *testing.T) {
 	// Build a fresh handler with the same env's repos.
 	serverRepoEmpty := emptyServerRepoForServerLookup(t)
 	h := NewHandler(
-		serverRepoEmpty, nil, env.rbac, env.hub, nil, env.registry, env.attachH,
-		env.dCmds, env.files, env.responder,
+		serverRepoEmpty, nil, env.rbac, env.hub, nil, env.registry, env.attachH, env.responder,
 	)
 
 	// ACT
@@ -340,7 +337,7 @@ func TestServeHTTP_unknownServer_returns404(t *testing.T) {
 // granted GameServerConsoleView for the server.
 func TestServeHTTP_consoleViewDenied_returns403(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	env.rbac.isAdmin = false
 	// Initialise the allow set without granting view → CanForEntity returns false.
 	env.rbac.allowAbility(domain.AbilityNameGameServerConsoleSend)
@@ -356,8 +353,7 @@ func TestServeHTTP_consoleViewDenied_returns403(t *testing.T) {
 	// a user-server mapping.
 	serverRepo := serverRepoWith(t, env.server, env.user.ID)
 	h := NewHandler(
-		serverRepo, nil, env.rbac, env.hub, nil, env.registry, env.attachH,
-		env.dCmds, env.files, env.responder,
+		serverRepo, nil, env.rbac, env.hub, nil, env.registry, env.attachH, env.responder,
 	)
 
 	// ACT
@@ -373,7 +369,7 @@ func TestServeHTTP_consoleViewDenied_returns403(t *testing.T) {
 // non-existent DSID surfaces a NotFound from the node lookup.
 func TestServeHTTP_unknownNode_returns404(t *testing.T) {
 	// ARRANGE
-	env := newAttachEnv(t, true)
+	env := newAttachEnv(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/servers/33/attach", nil)
 	req = mux.SetURLVars(req, map[string]string{"server": "33"})
@@ -384,8 +380,7 @@ func TestServeHTTP_unknownNode_returns404(t *testing.T) {
 	emptyNodeRepo := emptyNodeRepoForLookup(t)
 
 	h := NewHandler(
-		serverRepo, emptyNodeRepo, env.rbac, env.hub, nil, env.registry, env.attachH,
-		env.dCmds, env.files, env.responder,
+		serverRepo, emptyNodeRepo, env.rbac, env.hub, nil, env.registry, env.attachH, env.responder,
 	)
 
 	// ACT

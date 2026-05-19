@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
@@ -153,104 +151,6 @@ func (r *fakeResponder) errorList() []error {
 	return slices.Clone(r.errors)
 }
 
-// fakeDaemonCommands records ExecuteCommand calls and returns the configured
-// result/error.
-type fakeDaemonCommands struct {
-	mu     sync.Mutex
-	calls  []daemonCommandCall
-	result *daemon.CommandResult
-	err    error
-}
-
-type daemonCommandCall struct {
-	NodeID  uint
-	Command string
-}
-
-func (f *fakeDaemonCommands) ExecuteCommand(
-	_ context.Context, node *domain.Node, command string, _ ...daemon.CommandServiceOption,
-) (*daemon.CommandResult, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls = append(f.calls, daemonCommandCall{NodeID: node.ID, Command: command})
-	if f.err != nil {
-		return nil, f.err
-	}
-	if f.result == nil {
-		return &daemon.CommandResult{}, nil
-	}
-
-	return f.result, nil
-}
-
-func (f *fakeDaemonCommands) executedCommands() []daemonCommandCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return slices.Clone(f.calls)
-}
-
-// fakeFileService records Download/Upload calls and returns scripted bytes.
-type fakeFileService struct {
-	mu            sync.Mutex
-	downloadResp  []byte
-	downloadErr   error
-	uploadErr     error
-	downloads     []fileCall
-	uploads       []fileCall
-	downloadHook  func(call int) ([]byte, error)
-	downloadCalls int
-}
-
-type fileCall struct {
-	NodeID uint
-	Path   string
-	Data   []byte
-	Perms  os.FileMode
-}
-
-func (f *fakeFileService) Download(_ context.Context, node *domain.Node, filePath string) ([]byte, error) {
-	f.mu.Lock()
-	f.downloads = append(f.downloads, fileCall{NodeID: node.ID, Path: filePath})
-	idx := f.downloadCalls
-	f.downloadCalls++
-	hook := f.downloadHook
-	defaultResp := f.downloadResp
-	defaultErr := f.downloadErr
-	f.mu.Unlock()
-
-	if hook != nil {
-		return hook(idx)
-	}
-
-	return defaultResp, defaultErr
-}
-
-func (f *fakeFileService) Upload(
-	_ context.Context, node *domain.Node, filePath string,
-	content []byte, perms os.FileMode, _ daemon.OwnerOptions,
-) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.uploads = append(f.uploads, fileCall{NodeID: node.ID, Path: filePath, Data: content, Perms: perms})
-
-	return f.uploadErr
-}
-
-func (f *fakeFileService) downloadList() []fileCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return slices.Clone(f.downloads)
-}
-
-func (f *fakeFileService) uploadList() []fileCall {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return slices.Clone(f.uploads)
-}
-
 // stubStream is a minimal session.Stream that records sent gateway messages
 // and lets the test resolve Recv on demand. Mirrors the helpers_test.go in
 // internal/grpc/session.
@@ -310,8 +210,6 @@ type attachEnv struct {
 	registry   *session.Registry
 	attachH    *handlers.AttachHandler
 	stream     *stubStream
-	dCmds      *fakeDaemonCommands
-	files      *fakeFileService
 	httpSrv    *httptest.Server
 	wsURL      string
 	clientConn *websocket.Conn
@@ -319,9 +217,8 @@ type attachEnv struct {
 }
 
 // newAttachEnv builds the fixture and registers a real local session for the
-// node so IsConnectedAnywhere returns true. The grpcMode flag controls whether
-// a session is registered; legacy tests pass false.
-func newAttachEnv(t *testing.T, grpcMode bool) *attachEnv {
+// node so IsConnectedAnywhere returns true.
+func newAttachEnv(t *testing.T) *attachEnv {
 	t.Helper()
 
 	const (
@@ -366,21 +263,16 @@ func newAttachEnv(t *testing.T, grpcMode bool) *attachEnv {
 	attachH := handlers.NewAttachHandler(ps, silentLogger())
 
 	stream := newStubStream(t.Context())
-	if grpcMode {
-		sess := session.NewSession(uint64(nodeID), stream, "1.0.0", nil, func() {})
-		require.NoError(t, registry.Register(t.Context(), sess))
-	}
+	sess := session.NewSession(uint64(nodeID), stream, "1.0.0", nil, func() {})
+	require.NoError(t, registry.Register(t.Context(), sess))
 
 	hub := ws.NewHub(silentLogger())
 	bridge := ws.NewBridge(hub, ps, silentLogger())
 	require.NoError(t, bridge.Start(t.Context()))
-	dCmds := &fakeDaemonCommands{}
-	files := &fakeFileService{}
 	responder := &fakeResponder{}
 
 	h := NewHandler(
-		serverRepo, nodeRepo, rbac, hub, nil, registry, attachH,
-		dCmds, files, responder,
+		serverRepo, nodeRepo, rbac, hub, nil, registry, attachH, responder,
 	)
 	// Replace logger with silent one so background goroutines don't spam test output.
 	h.logger = silentLogger()
@@ -402,8 +294,6 @@ func newAttachEnv(t *testing.T, grpcMode bool) *attachEnv {
 		registry:  registry,
 		attachH:   attachH,
 		stream:    stream,
-		dCmds:     dCmds,
-		files:     files,
 		httpSrv:   httpSrv,
 		nodeRepo:  nodeRepo,
 		wsURL: "ws" + strings.TrimPrefix(httpSrv.URL, "http") +
@@ -451,22 +341,6 @@ func authInjector(user *domain.User, next http.Handler) http.HandlerFunc {
 func (e *attachEnv) publishPubsub(t *testing.T, channel string, msg *pubsub.Message) {
 	t.Helper()
 	require.NoError(t, e.pubsub.Publish(t.Context(), channel, msg))
-}
-
-// setNodeScriptSendCommand mutates the node and re-saves it so the handler's
-// node lookup returns the updated script_send_command.
-func (e *attachEnv) setNodeScriptSendCommand(t *testing.T, cmd string) {
-	t.Helper()
-	e.node.ScriptSendCommand = &cmd
-	require.NoError(t, e.nodeRepo.Save(t.Context(), e.node))
-}
-
-// setNodeScriptGetConsole mutates the node and re-saves it so the handler's
-// node lookup returns the updated script_get_console.
-func (e *attachEnv) setNodeScriptGetConsole(t *testing.T, cmd string) {
-	t.Helper()
-	e.node.ScriptGetConsole = &cmd
-	require.NoError(t, e.nodeRepo.Save(t.Context(), e.node))
 }
 
 // ----- frame helpers -----

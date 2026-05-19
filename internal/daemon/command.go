@@ -18,7 +18,6 @@ type CommandService struct {
 	gateway    CommandGateway
 	registry   ConnectionChecker
 	dispatcher CommandDispatcher
-	legacy     *CommandBINNService
 	logger     *slog.Logger
 }
 
@@ -26,7 +25,6 @@ func NewCommandService(
 	gateway CommandGateway,
 	registry ConnectionChecker,
 	dispatcher CommandDispatcher,
-	legacy *CommandBINNService,
 	logger *slog.Logger,
 ) *CommandService {
 	if logger == nil {
@@ -37,7 +35,6 @@ func NewCommandService(
 		gateway:    gateway,
 		registry:   registry,
 		dispatcher: dispatcher,
-		legacy:     legacy,
 		logger:     logger,
 	}
 }
@@ -57,10 +54,6 @@ func (s *CommandService) ExecuteCommand(
 
 	if s.registry.IsConnectedAnywhere(nodeID) {
 		return s.executeViaDispatcher(ctx, nodeID, command, o)
-	}
-
-	if s.legacy != nil {
-		return s.legacy.ExecuteCommand(ctx, node, command, opts...)
 	}
 
 	return nil, ErrDaemonNotConnected

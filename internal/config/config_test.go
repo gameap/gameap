@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gameap/gameap/internal/application/defaults"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -211,28 +210,6 @@ func TestNormalizeConfigValues(t *testing.T) {
 			assert.Equal(t, test.expectedCacheDriver, cfg.Cache.Driver)
 		})
 	}
-}
-
-func TestSetDefaultConfigValues(t *testing.T) {
-	t.Run("empty_legacy_paths_set_to_defaults", func(t *testing.T) {
-		cfg := &Config{}
-
-		setDefaultConfigValues(cfg)
-
-		assert.Equal(t, defaults.LegacyPath, cfg.Legacy.Path)
-		assert.Equal(t, defaults.LegacyEnvPath, cfg.Legacy.EnvPath)
-	})
-
-	t.Run("non_empty_legacy_paths_preserved", func(t *testing.T) {
-		cfg := &Config{}
-		cfg.Legacy.Path = "/custom/path"
-		cfg.Legacy.EnvPath = "/custom/env/path"
-
-		setDefaultConfigValues(cfg)
-
-		assert.Equal(t, "/custom/path", cfg.Legacy.Path)
-		assert.Equal(t, "/custom/env/path", cfg.Legacy.EnvPath)
-	})
 }
 
 func TestConfig_TLSEnabled(t *testing.T) {

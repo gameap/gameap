@@ -6,10 +6,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 )
 
-type (
-	SessionKey       struct{}
-	DaemonSessionKey struct{}
-)
+type SessionKey struct{}
 
 type Session struct {
 	ID string // session ID
@@ -42,18 +39,4 @@ func SessionFromContext(ctx context.Context) *Session {
 
 func ContextWithSession(ctx context.Context, session *Session) context.Context {
 	return context.WithValue(ctx, SessionKey{}, session)
-}
-
-type DaemonSession struct {
-	Node *domain.Node
-}
-
-func DaemonSessionFromContext(ctx context.Context) *DaemonSession {
-	session, _ := ctx.Value(DaemonSessionKey{}).(*DaemonSession)
-
-	return session
-}
-
-func ContextWithDaemonSession(ctx context.Context, session *DaemonSession) context.Context {
-	return context.WithValue(ctx, DaemonSessionKey{}, session)
 }

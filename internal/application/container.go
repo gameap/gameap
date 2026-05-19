@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 	acmestorage "github.com/gameap/gameap/internal/acme/storage"
 	internalapi "github.com/gameap/gameap/internal/api"
 	"github.com/gameap/gameap/internal/api/middlewares"
+	"github.com/gameap/gameap/internal/application/defaults"
 	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/certificates"
@@ -166,16 +166,13 @@ type Container struct {
 
 	// Daemon Services
 	daemonStatus         *daemon.StatusService
-	daemonStatusLegacy   *daemon.StatusBINNService
 	daemonFiles          *daemon.FileService
-	daemonFilesLeg       *daemon.FileBINNService
 	fileDispatcher       daemon.FileDispatcher
 	commandDispatcher    daemon.CommandDispatcher
 	statusDispatcher     daemon.StatusDispatcher
 	consoleLogDispatcher daemon.ConsoleLogDispatcher
 	httpProxyDispatcher  daemon.HTTPProxyDispatcher
 	daemonCommands       *daemon.CommandService
-	daemonCommandsLeg    *daemon.CommandBINNService
 	daemonConsoleLog     *daemon.ConsoleLogService
 	daemonHTTPProxy      *daemon.HTTPProxyService
 
@@ -697,9 +694,7 @@ func (c *Container) createServerControlService() *servercontrol.Service {
 		))
 	}
 
-	if c.config.GRPC.Enabled {
-		opts = append(opts, servercontrol.WithTaskDispatcher(c.TaskDispatcher()))
-	}
+	opts = append(opts, servercontrol.WithTaskDispatcher(c.TaskDispatcher()))
 
 	return servercontrol.NewService(
 		c.DaemonTaskRepository(),
@@ -1300,7 +1295,7 @@ func (c *Container) createFileManager() files.FileManager {
 	case filesDriverLocal:
 		basePath := c.config.Files.Local.BasePath
 		if basePath == "" {
-			basePath = path.Join(c.config.Legacy.Path, "storage", "app")
+			basePath = defaults.StoragePath
 		}
 
 		if basePath == "" {
@@ -1373,14 +1368,6 @@ func (c *Container) EnrollmentService() *enrollment.Service {
 	}
 
 	return c.enrollmentService
-}
-
-func (c *Container) EnrollmentServiceOrNil() *enrollment.Service {
-	if !c.config.GRPC.Enabled {
-		return nil
-	}
-
-	return c.EnrollmentService()
 }
 
 func (c *Container) GRPCPort() uint16 {
@@ -1501,24 +1488,11 @@ func (c *Container) DaemonStatus() *daemon.StatusService {
 			c.GatewayService(),
 			c.SessionRegistry(),
 			c.StatusDispatcher(),
-			c.DaemonStatusLegacy(),
 			slog.Default(),
 		)
 	}
 
 	return c.daemonStatus
-}
-
-func (c *Container) DaemonStatusLegacy() *daemon.StatusBINNService {
-	if c.daemonStatusLegacy == nil {
-		c.daemonStatusLegacy = daemon.NewStatusBINNService(
-			c.ClientCertificateRepository(),
-			c.FileManager(),
-			daemon.WithSecretCipher(c.SecretCipher()),
-		)
-	}
-
-	return c.daemonStatusLegacy
 }
 
 func (c *Container) DaemonFiles() *daemon.FileService {
@@ -1529,7 +1503,6 @@ func (c *Container) DaemonFiles() *daemon.FileService {
 			c.FileDispatcher(),
 			c.StreamFileManager(),
 			c.TransferRegistry(),
-			c.DaemonFilesLegacy(),
 			slog.Default(),
 		)
 	}
@@ -1591,18 +1564,6 @@ func (c *Container) FileManagerArchiveGuard() *archiver.InMemoryConcurrencyGuard
 	return c.fileManagerArchiveGuard
 }
 
-func (c *Container) DaemonFilesLegacy() *daemon.FileBINNService {
-	if c.daemonFilesLeg == nil {
-		c.daemonFilesLeg = daemon.NewFileBINNService(
-			c.ClientCertificateRepository(),
-			c.FileManager(),
-			daemon.WithSecretCipher(c.SecretCipher()),
-		)
-	}
-
-	return c.daemonFilesLeg
-}
-
 func (c *Container) FileDispatcher() daemon.FileDispatcher {
 	if c.fileDispatcher == nil {
 		instanceID := c.config.PubSub.InstanceID
@@ -1629,24 +1590,11 @@ func (c *Container) DaemonCommands() *daemon.CommandService {
 			c.GatewayService(),
 			c.SessionRegistry(),
 			c.CommandDispatcher(),
-			c.DaemonCommandsLegacy(),
 			slog.Default(),
 		)
 	}
 
 	return c.daemonCommands
-}
-
-func (c *Container) DaemonCommandsLegacy() *daemon.CommandBINNService {
-	if c.daemonCommandsLeg == nil {
-		c.daemonCommandsLeg = daemon.NewCommandBINNService(
-			c.ClientCertificateRepository(),
-			c.FileManager(),
-			daemon.WithSecretCipher(c.SecretCipher()),
-		)
-	}
-
-	return c.daemonCommandsLeg
 }
 
 func (c *Container) CommandDispatcher() daemon.CommandDispatcher {
@@ -2028,10 +1976,6 @@ func (c *Container) TransferRegistry() *transfers.Registry {
 }
 
 func (c *Container) grpcTLSConfig() (*tls.Config, error) {
-	if !c.config.GRPC.Enabled {
-		return nil, nil
-	}
-
 	if !c.config.GRPC.TLSEnabled {
 		slog.Warn("gRPC server is running without TLS. It is recommended to enable TLS for security")
 

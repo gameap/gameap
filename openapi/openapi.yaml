@@ -23,12 +23,6 @@ info:
     Authorization: Bearer 42|abc123...xyz
     ```
 
-    ### Daemon Token
-    For `/gdaemon_api/*` endpoints. Assigned to each node for daemon-to-API communication.
-    ```
-    X-Auth-Token: daemon-api-token-here
-    ```
-
     ## Response Format
 
     ### Success Response
@@ -292,12 +286,6 @@ components:
       type: http
       scheme: bearer
       description: Personal Access Token in format {id}|{token}
-
-    daemonToken:
-      type: apiKey
-      in: header
-      name: X-Auth-Token
-      description: Daemon authentication token for /gdaemon_api/* endpoints
 
   schemas:
     $ref: './schemas/_index.yaml'
@@ -564,32 +552,6 @@ paths:
   /api/admin/letsencrypt/status:
     $ref: './paths/admin-letsencrypt.yaml#/~1api~1admin~1letsencrypt~1status'
 
-  # Daemon Setup
-  /gdaemon/setup/{token}:
-    $ref: './paths/gdaemon-setup.yaml#/~1gdaemon~1setup~1{token}'
-  /gdaemon/create/{token}:
-    $ref: './paths/gdaemon-setup.yaml#/~1gdaemon~1create~1{token}'
+  # Daemon Enrollment
   /nodes/setup/{key}:
     $ref: './paths/nodes-enrollment-script.yaml#/~1nodes~1setup~1{key}'
-
-  # Daemon API
-  /gdaemon_api/get_token:
-    $ref: './paths/gdaemon-api-init.yaml#/~1gdaemon_api~1get_token'
-  /gdaemon_api/dedicated_servers/get_init_data/{node}:
-    $ref: './paths/gdaemon-api-init.yaml#/~1gdaemon_api~1dedicated_servers~1get_init_data~1{node}'
-  /gdaemon_api/servers:
-    $ref: './paths/gdaemon-api-servers.yaml#/~1gdaemon_api~1servers'
-  /gdaemon_api/servers/{server}:
-    $ref: './paths/gdaemon-api-servers.yaml#/~1gdaemon_api~1servers~1{server}'
-  /gdaemon_api/tasks:
-    $ref: './paths/gdaemon-api-tasks.yaml#/~1gdaemon_api~1tasks'
-  /gdaemon_api/tasks/{gdaemon_task}:
-    $ref: './paths/gdaemon-api-tasks.yaml#/~1gdaemon_api~1tasks~1{gdaemon_task}'
-  /gdaemon_api/tasks/{gdaemon_task}/output:
-    $ref: './paths/gdaemon-api-tasks.yaml#/~1gdaemon_api~1tasks~1{gdaemon_task}~1output'
-  /gdaemon_api/servers_tasks:
-    $ref: './paths/gdaemon-api-servers-tasks.yaml#/~1gdaemon_api~1servers_tasks'
-  /gdaemon_api/servers_tasks/{server_task}:
-    $ref: './paths/gdaemon-api-servers-tasks.yaml#/~1gdaemon_api~1servers_tasks~1{server_task}'
-  /gdaemon_api/servers_tasks/{server_task}/fail:
-    $ref: './paths/gdaemon-api-servers-tasks.yaml#/~1gdaemon_api~1servers_tasks~1{server_task}~1fail'

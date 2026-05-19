@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"os"
 
 	"github.com/coder/websocket"
 	"github.com/gameap/gameap/internal/api/base"
@@ -23,7 +22,6 @@ import (
 )
 
 const (
-	typeConsoleOutput  = "console.output"
 	typeConsoleHistory = "console.history"
 	typeConsoleCommand = "console.command"
 )
@@ -35,14 +33,6 @@ type daemonCommands interface {
 		command string,
 		opts ...daemon.CommandServiceOption,
 	) (*daemon.CommandResult, error)
-}
-
-type fileService interface {
-	Download(ctx context.Context, node *domain.Node, filePath string) ([]byte, error)
-	Upload(
-		ctx context.Context, node *domain.Node, filePath string,
-		content []byte, perms os.FileMode, owner daemon.OwnerOptions,
-	) error
 }
 
 type consoleLogService interface {
@@ -58,7 +48,6 @@ type Handler struct {
 	registry          *session.Registry
 	commandHandler    *handlers.CommandHandler
 	daemonCommands    daemonCommands
-	fileService       fileService
 	consoleLogService consoleLogService
 	responder         base.Responder
 	logger            *slog.Logger
@@ -73,7 +62,6 @@ func NewHandler(
 	registry *session.Registry,
 	commandHandler *handlers.CommandHandler,
 	daemonCommands daemonCommands,
-	fileService fileService,
 	cls consoleLogService,
 	responder base.Responder,
 ) *Handler {
@@ -86,7 +74,6 @@ func NewHandler(
 		registry:          registry,
 		commandHandler:    commandHandler,
 		daemonCommands:    daemonCommands,
-		fileService:       fileService,
 		consoleLogService: cls,
 		responder:         responder,
 		logger:            slog.Default(),
@@ -140,6 +127,15 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.registry.IsConnected(uint64(server.DSID)) {
+		h.responder.WriteError(ctx, rw, api.NewError(
+			http.StatusServiceUnavailable,
+			"daemon is not connected via grpc",
+		))
+
+		return
+	}
+
 	conn, err := ws.Accept(rw, r, &websocket.AcceptOptions{
 		OriginPatterns: h.originPatterns,
 	})
@@ -153,11 +149,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	canSend := h.canSendCommands(ctx, s.User, server)
 
-	if h.registry.IsConnected(uint64(server.DSID)) {
-		h.runGRPCMode(ctx, conn, server, node, consoleTopic, s.User, canSend)
-	} else {
-		h.runLegacyMode(ctx, conn, server, node, consoleTopic, s.User, canSend)
-	}
+	h.runGRPCMode(ctx, conn, server, node, consoleTopic, s.User, canSend)
 }
 
 func (h *Handler) runGRPCMode(
@@ -177,28 +169,6 @@ func (h *Handler) runGRPCMode(
 	h.hub.Register(client, consoleTopic)
 
 	h.sendConsoleHistory(ctx, client, server, node)
-
-	client.Run()
-}
-
-func (h *Handler) runLegacyMode(
-	ctx context.Context,
-	conn *websocket.Conn,
-	server *domain.Server,
-	node *domain.Node,
-	consoleTopic string,
-	user *domain.User,
-	canSend bool,
-) {
-	client := ws.NewClient(ctx, conn, h.hub, nil, h.logger)
-	msgHandler := h.newLegacyMessageHandler(ctx, client, server, node, user, canSend)
-	client.SetMessageHandler(msgHandler)
-	h.hub.Register(client, consoleTopic)
-
-	h.sendConsoleHistory(ctx, client, server, node)
-
-	poller := newLegacyPoller(client, h.fileService, node, server.Dir, h.logger)
-	go poller.run(ctx)
 
 	client.Run()
 }
@@ -241,29 +211,7 @@ func (h *Handler) getConsoleLog(ctx context.Context, server *domain.Server, node
 		return result.Output, nil
 	}
 
-	if h.registry.IsConnected(uint64(node.ID)) {
-		return "", nil
-	}
-
-	return h.downloadOutputFile(ctx, node, server.Dir)
-}
-
-func (h *Handler) downloadOutputFile(ctx context.Context, node *domain.Node, serverDir string) (string, error) {
-	outputPath := serverDir + "/output.txt"
-
-	content, err := h.fileService.Download(ctx, node, outputPath)
-	if err != nil {
-		return "", errors.WithMessage(err, "failed to download console log")
-	}
-
-	result := string(content)
-
-	const maxSymbols = 65536
-	if len(result) > maxSymbols {
-		result = result[len(result)-maxSymbols:]
-	}
-
-	return result, nil
+	return "", nil
 }
 
 func (h *Handler) findNode(ctx context.Context, nodeID uint) (*domain.Node, error) {
@@ -296,10 +244,6 @@ func (h *Handler) canSendCommands(ctx context.Context, user *domain.User, server
 
 type consoleHistoryPayload struct {
 	Output string `json:"output"`
-}
-
-type consoleOutputPayload struct {
-	Chunk string `json:"chunk"`
 }
 
 type consoleCommandPayload struct {

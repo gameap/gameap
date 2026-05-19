@@ -14,7 +14,6 @@ type StatusService struct {
 	gateway    StatusGateway
 	registry   ConnectionChecker
 	dispatcher StatusDispatcher
-	legacy     *StatusBINNService
 	logger     *slog.Logger
 }
 
@@ -22,7 +21,6 @@ func NewStatusService(
 	gateway StatusGateway,
 	registry ConnectionChecker,
 	dispatcher StatusDispatcher,
-	legacy *StatusBINNService,
 	logger *slog.Logger,
 ) *StatusService {
 	if logger == nil {
@@ -33,7 +31,6 @@ func NewStatusService(
 		gateway:    gateway,
 		registry:   registry,
 		dispatcher: dispatcher,
-		legacy:     legacy,
 		logger:     logger,
 	}
 }
@@ -49,38 +46,24 @@ func (s *StatusService) Status(ctx context.Context, node *domain.Node) (*NodeSta
 		return s.statusViaDispatcher(ctx, nodeID)
 	}
 
-	if s.legacy != nil {
-		return s.legacy.Status(ctx, node)
-	}
-
 	return nil, ErrDaemonNotConnected
 }
 
 // ConnectionType reports which communication channel the API will use to talk
 // to the daemon for the given node:
 //   - "grpc"   the daemon has a registered gRPC bidi session (local or any cluster instance);
-//   - "legacy" no gRPC session is available, but the legacy binn fallback is wired up;
-//   - "none"   the daemon is not reachable through any channel.
-//
-// The legacy answer does not guarantee that the daemon will actually respond
-// over binn — it only means the API is willing to attempt that path on the
-// next request.
+//   - "none"   the daemon is not reachable.
 func (s *StatusService) ConnectionType(nodeID uint64) string {
 	if s.registry.IsConnected(nodeID) || s.registry.IsConnectedAnywhere(nodeID) {
 		return ConnectionTypeGRPC
-	}
-
-	if s.legacy != nil {
-		return ConnectionTypeLegacy
 	}
 
 	return ConnectionTypeNone
 }
 
 const (
-	ConnectionTypeGRPC   = "grpc"
-	ConnectionTypeLegacy = "legacy"
-	ConnectionTypeNone   = "none"
+	ConnectionTypeGRPC = "grpc"
+	ConnectionTypeNone = "none"
 )
 
 func (s *StatusService) Version(ctx context.Context, node *domain.Node) (*NodeVersion, error) {
@@ -102,10 +85,6 @@ func (s *StatusService) Version(ctx context.Context, node *domain.Node) (*NodeVe
 		}
 
 		return protoStatusResponseToVersion(resp), nil
-	}
-
-	if s.legacy != nil {
-		return s.legacy.Version(ctx, node)
 	}
 
 	return nil, ErrDaemonNotConnected

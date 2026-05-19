@@ -3,6 +3,5 @@
 package defaults
 
 const (
-	LegacyPath    = "/var/www/gameap"
-	LegacyEnvPath = LegacyPath + "/.env"
+	StoragePath = "/var/www/gameap/storage/app"
 )

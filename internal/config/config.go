@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/gameap/gameap/internal/application/defaults"
 	"github.com/gameap/gameap/internal/certificates"
 	"github.com/pkg/errors"
 )
@@ -125,11 +124,6 @@ type Config struct {
 		ClientIPHeader string `env:"AUDIT_CLIENT_IP_HEADER" envDefault:""`
 	}
 
-	Legacy struct {
-		Path    string `env:"LEGACY_PATH" envDefault:""`
-		EnvPath string `env:"LEGACY_ENV_PATH" envDefault:""`
-	}
-
 	GlobalAPI struct {
 		URL string `env:"GLOBAL_API_URL" envDefault:"https://api.gameap.com"`
 	}
@@ -197,7 +191,6 @@ type Config struct {
 	}
 
 	GRPC struct {
-		Enabled              bool   `env:"GRPC_ENABLED" envDefault:"false"`
 		TLSEnabled           bool   `env:"GRPC_TLS_ENABLED" envDefault:"true"`
 		Port                 uint16 `env:"GRPC_PORT" envDefault:"31718"`
 		MaxRecvMsgSize       int    `env:"GRPC_MAX_RECV_MSG_SIZE" envDefault:"10485760"`
@@ -238,14 +231,6 @@ func LoadConfig() (*Config, error) {
 const LetsEncryptProductionDirectoryURL = "https://acme-v02.api.letsencrypt.org/directory"
 
 func setDefaultConfigValues(cfg *Config) {
-	if cfg.Legacy.Path == "" {
-		cfg.Legacy.Path = defaults.LegacyPath
-	}
-
-	if cfg.Legacy.EnvPath == "" {
-		cfg.Legacy.EnvPath = defaults.LegacyEnvPath
-	}
-
 	if cfg.ACME.DirectoryURL == "" {
 		cfg.ACME.DirectoryURL = LetsEncryptProductionDirectoryURL
 	}

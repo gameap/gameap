@@ -149,22 +149,6 @@ func (f *fakeConnectionChecker) setConnected(nodeID uint64, value bool) {
 	f.connected[nodeID] = value
 }
 
-func (f *fakeConnectionChecker) setConnectedAnywhere(nodeID uint64, value bool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.connectedAnywhere[nodeID] = value
-}
-
-//nolint:unparam // capability arg is generic by design; tests currently only use capabilityFileTransfer
-func (f *fakeConnectionChecker) setCapability(nodeID uint64, capability string, value bool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.capabilities[nodeID] == nil {
-		f.capabilities[nodeID] = make(map[string]bool)
-	}
-	f.capabilities[nodeID][capability] = value
-}
-
 func (f *fakeConnectionChecker) IsConnected(nodeID uint64) bool {
 	f.mu.RLock()
 	defer f.mu.RUnlock()

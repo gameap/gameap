@@ -11,11 +11,3 @@ type setupResponse struct {
 	WindowsCmd  string `json:"windows_cmd,omitempty"`
 	SetupLink   string `json:"setup_link,omitempty"`
 }
-
-func newLegacySetupResponse(token string, baseURL string) setupResponse {
-	return setupResponse{
-		Link:  baseURL + "/gdaemon/setup/" + token,
-		Token: token,
-		Host:  baseURL,
-	}
-}

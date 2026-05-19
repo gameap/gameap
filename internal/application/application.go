@@ -20,8 +20,7 @@ import (
 )
 
 type RunParams struct {
-	EnvFile       string
-	LegacyEnvFile string
+	EnvFile string
 }
 
 //nolint:funlen
@@ -32,11 +31,6 @@ func Run(runParams RunParams) {
 		os.Exit(1)
 
 		return
-	}
-
-	if err := loadLegacyEnv(runParams.LegacyEnvFile); err != nil {
-		// Log the error but continue execution
-		slog.Error("Failed to load legacy env file", slog.String("error", err.Error()))
 	}
 
 	cfg, err := config.LoadConfig()
@@ -141,26 +135,9 @@ func Run(runParams RunParams) {
 
 	startUploadJanitor(ctx, container)
 
-	if cfg.GRPC.Enabled {
-		runWithGRPC(ctx, cfg, container)
-	} else {
-		slog.WarnContext(ctx, "Running in legacy HTTP-only mode. "+
-			"To enable gRPC bidirectional streaming, set the following environment variables: "+
-			"GRPC_ENABLED=true, GRPC_PORT (default: 31718), GRPC_TLS_ENABLED (default: true). "+
-			"See documentation for details: https://docs.gameap.com/grpc_setup.html",
-		)
-		runHTTPOnly(ctx, cfg, container)
-	}
+	runWithGRPC(ctx, cfg, container)
 
 	<-shutdownDone
-}
-
-func runHTTPOnly(ctx context.Context, cfg *config.Config, container *Container) {
-	startHTTPListener(ctx, cfg, container)
-
-	if cfg.TLSEnabled() {
-		startHTTPSServer(ctx, cfg, container)
-	}
 }
 
 // startHTTPListener binds the plain-HTTP listener and starts serving on it

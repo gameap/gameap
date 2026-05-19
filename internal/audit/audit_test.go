@@ -71,12 +71,6 @@ func patSessionCtx(id uint, login string, tokenID uint) context.Context {
 	})
 }
 
-func daemonSessionCtx(id uint, name string) context.Context {
-	return auth.ContextWithDaemonSession(context.Background(), &auth.DaemonSession{
-		Node: &domain.Node{ID: id, Name: name},
-	})
-}
-
 func shortLivedSessionCtx(id uint, login string) context.Context {
 	return auth.ContextWithSession(context.Background(), &auth.Session{
 		User:       &domain.User{ID: id, Login: login},
@@ -117,13 +111,6 @@ func TestActorDerivation(t *testing.T) {
 			wantAuthMethod: audit.AuthMethodPAT,
 			wantActorID:    7,
 			wantActorLogin: "alice",
-		},
-		{
-			name:           "daemon_session_yields_daemon_actor",
-			ctx:            daemonSessionCtx(3, "node-x"),
-			wantAuthMethod: audit.AuthMethodDaemon,
-			wantActorID:    3,
-			wantActorLogin: "node-x",
 		},
 		{
 			name:           "no_session_yields_anonymous",

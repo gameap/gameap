@@ -2,12 +2,10 @@ package console
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/domain"
@@ -120,7 +118,6 @@ func newServeHTTPHandler(
 		registry,
 		nil, // commandHandler
 		nil, // daemonCommands
-		nil, // fileService
 		nil, // consoleLogService
 		responder,
 	)
@@ -240,9 +237,9 @@ func TestHandler_ServeHTTP_unknownNode_returns404(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_validRequest_doesNotWriteError(t *testing.T) {
-	// ARRANGE — admin RBAC, valid server, valid node. ws.Accept will fail on
-	// httptest.NewRecorder so the handler returns silently — the contract is
-	// that no error response is written for an authorized request.
+	// ARRANGE — admin RBAC, valid server, valid node, but no gRPC session
+	// registered for the node. After legacy removal the handler must refuse
+	// with 503 before attempting the WebSocket upgrade.
 	h, serverRepo, nodeRepo, responder := newServeHTTPHandler(t, allowAllRBAC{})
 
 	require.NoError(t, nodeRepo.Save(context.Background(), &domain.Node{
@@ -259,8 +256,10 @@ func TestHandler_ServeHTTP_validRequest_doesNotWriteError(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	// ASSERT
-	assert.Equal(t, 0, responder.errorCalls(),
-		"a valid authorized request must not write any error response")
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code,
+		"node without gRPC session must yield 503")
+	require.Equal(t, 1, responder.errorCalls())
+	assert.Contains(t, responder.lastError().Error(), "daemon is not connected via grpc")
 }
 
 // ---------- findNode ----------
@@ -319,87 +318,6 @@ func TestHandler_findNode(t *testing.T) {
 	}
 }
 
-// ---------- sendConsoleHistory ----------
-
-func TestHandler_sendConsoleHistory_skipsWhenLogServiceErrorsAndNoFallback(t *testing.T) {
-	// ARRANGE — getConsoleLog returns an error, sendConsoleHistory must log
-	// and return without sending anything to the WS.
-	d := dialConsoleClient(t)
-
-	mem := memory.New()
-	t.Cleanup(func() { _ = mem.Close() })
-	registry := session.NewRegistry(mem, "test-instance", silentLogger())
-
-	fs := &fakeFileService{downloadErr: errors.New("io error")}
-
-	h := &Handler{
-		registry:    registry,
-		fileService: fs,
-		logger:      silentLogger(),
-	}
-
-	// ACT
-	h.sendConsoleHistory(context.Background(), d.srvClient, newTestServer(), newTestNode(nil))
-
-	// ASSERT — no frame sent.
-	expectNoConsoleFrame(t, d.cliConn, 100*time.Millisecond)
-}
-
-func TestHandler_sendConsoleHistory_skipsEmptyOutput(t *testing.T) {
-	// ARRANGE — getConsoleLog succeeds but returns an empty string.
-	d := dialConsoleClient(t)
-
-	mem := memory.New()
-	t.Cleanup(func() { _ = mem.Close() })
-	registry := session.NewRegistry(mem, "test-instance", silentLogger())
-
-	fs := &fakeFileService{downloadResult: nil}
-
-	h := &Handler{
-		registry:    registry,
-		fileService: fs,
-		logger:      silentLogger(),
-	}
-
-	// ACT
-	h.sendConsoleHistory(context.Background(), d.srvClient, newTestServer(), newTestNode(nil))
-
-	// ASSERT
-	expectNoConsoleFrame(t, d.cliConn, 100*time.Millisecond)
-}
-
-func TestHandler_sendConsoleHistory_emitsHistoryFrameWithOutput(t *testing.T) {
-	// ARRANGE — file download returns content; sendConsoleHistory must wrap
-	// it in a typeConsoleHistory frame.
-	d := dialConsoleClient(t)
-
-	mem := memory.New()
-	t.Cleanup(func() { _ = mem.Close() })
-	registry := session.NewRegistry(mem, "test-instance", silentLogger())
-
-	fs := &fakeFileService{downloadResult: []byte("backlog of console output")}
-
-	h := &Handler{
-		registry:    registry,
-		fileService: fs,
-		logger:      silentLogger(),
-	}
-
-	// ACT
-	h.sendConsoleHistory(context.Background(), d.srvClient, newTestServer(), newTestNode(nil))
-
-	// ASSERT
-	frame, ok := readConsoleFrame(t, d.cliConn, time.Second)
-	require.True(t, ok)
-	assert.Equal(t, typeConsoleHistory, frame.Type)
-
-	var payload struct {
-		Output string `json:"output"`
-	}
-	require.NoError(t, json.Unmarshal(frame.Payload, &payload))
-	assert.Equal(t, "backlog of console output", payload.Output)
-}
-
 // ---------- NewHandler ----------
 
 func TestNewHandler_assemblesAllDependencies(t *testing.T) {
@@ -414,7 +332,6 @@ func TestNewHandler_assemblesAllDependencies(t *testing.T) {
 	responder := &fakeResponder{}
 
 	dc := &fakeDaemonCommands{}
-	fs := &fakeFileService{}
 	cls := &fakeConsoleLogService{}
 
 	// ACT
@@ -427,7 +344,6 @@ func TestNewHandler_assemblesAllDependencies(t *testing.T) {
 		registry,
 		nil,
 		dc,
-		fs,
 		cls,
 		responder,
 	)
@@ -441,7 +357,6 @@ func TestNewHandler_assemblesAllDependencies(t *testing.T) {
 	assert.Equal(t, []string{"https://example.org"}, h.originPatterns)
 	assert.Same(t, registry, h.registry)
 	assert.Equal(t, dc, h.daemonCommands)
-	assert.Equal(t, fs, h.fileService)
 	assert.Equal(t, cls, h.consoleLogService)
 	assert.Same(t, responder, h.responder)
 	assert.NotNil(t, h.logger, "logger must default to slog.Default")
