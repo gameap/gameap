@@ -94,6 +94,65 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, uint32(100), cfg.Files.Archive.MaxFiles)
 		assert.Equal(t, uint32(5), cfg.Files.Archive.ConcurrentPerServer)
 	})
+
+	t.Run("security_defaults", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.True(t, cfg.Security.Enabled,
+			"SECURITY_HEADERS_ENABLED must default to true so a fresh deploy is secure by default")
+		assert.True(t, cfg.Security.HSTS.Enabled,
+			"SECURITY_HSTS_ENABLED must default to true")
+		assert.Equal(t, 31536000, cfg.Security.HSTS.MaxAge,
+			"SECURITY_HSTS_MAX_AGE must default to one year (31536000s)")
+		assert.False(t, cfg.Security.HSTS.IncludeSubDomains,
+			"includeSubDomains must be opt-in to avoid breaking sub-hosts on shared apex")
+		assert.False(t, cfg.Security.HSTS.Preload,
+			"preload must be opt-in: it pins the domain in browser preload lists")
+		assert.True(t, cfg.Security.ContentTypeOptions,
+			"X-Content-Type-Options: nosniff must be on by default")
+		assert.Equal(t, "SAMEORIGIN", cfg.Security.FrameOptions,
+			"SECURITY_FRAME_OPTIONS default must be SAMEORIGIN (clickjacking protection)")
+		assert.Equal(t, "strict-origin-when-cross-origin", cfg.Security.ReferrerPolicy,
+			"SECURITY_REFERRER_POLICY default must match the modern browser default")
+		assert.True(t, cfg.Security.CSP.Enabled,
+			"SECURITY_CSP_ENABLED must default to true")
+		assert.False(t, cfg.Security.CSP.ReportOnly,
+			"SECURITY_CSP_REPORT_ONLY must default to false so CSP is enforced, not just observed")
+		assert.Empty(t, cfg.Security.CSP.Policy,
+			"SECURITY_CSP_POLICY default must be empty so the generated policy is used")
+		assert.Empty(t, cfg.Security.CSP.ReportURI)
+		assert.Empty(t, cfg.Security.CSP.ExtraScriptSrc)
+		assert.Empty(t, cfg.Security.CSP.ExtraStyleSrc)
+		assert.Empty(t, cfg.Security.CSP.ExtraConnectSrc)
+		assert.Empty(t, cfg.Security.CSP.ExtraImgSrc)
+		assert.Empty(t, cfg.Security.CSP.ExtraFrameSrc)
+		assert.Empty(t, cfg.Security.CSP.ExtraFontSrc)
+	})
+
+	t.Run("security_env_overrides", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+		t.Setenv("SECURITY_HEADERS_ENABLED", "false")
+		t.Setenv("SECURITY_HSTS_MAX_AGE", "120")
+		t.Setenv("SECURITY_CSP_EXTRA_SCRIPT_SRC", "https://a.example,https://b.example")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.False(t, cfg.Security.Enabled,
+			"SECURITY_HEADERS_ENABLED=false must propagate to disable the middleware")
+		assert.Equal(t, 120, cfg.Security.HSTS.MaxAge,
+			"SECURITY_HSTS_MAX_AGE must parse as an integer count of seconds")
+
+		require.Len(t, cfg.Security.CSP.ExtraScriptSrc, 2,
+			"comma-separated SECURITY_CSP_EXTRA_SCRIPT_SRC must split into exactly two entries")
+		assert.Equal(t, "https://a.example", cfg.Security.CSP.ExtraScriptSrc[0])
+		assert.Equal(t, "https://b.example", cfg.Security.CSP.ExtraScriptSrc[1])
+	})
 }
 
 func TestNormalizeConfigValues(t *testing.T) {

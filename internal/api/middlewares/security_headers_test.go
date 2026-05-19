@@ -14,16 +14,19 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/gameap/gameap/internal/api/middlewares"
 	"github.com/gameap/gameap/internal/config"
 	"github.com/gameap/gameap/internal/services/captcha"
 	webstatic "github.com/gameap/gameap/web/static"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -449,6 +452,227 @@ func TestSecurityHeaders_RealEmbeddedFS(t *testing.T) {
 	csp := rr.Header().Get("Content-Security-Policy")
 	require.NotEmpty(t, csp)
 	assert.Contains(t, csp, "'sha256-", "real index.html must produce at least one inline-script hash")
+}
+
+// TestSecurityHeaders_CSPInlineScriptDiscovery — OWASP API8:2023 — locks the
+// rules for which <script> blocks contribute a CSP hash. A regression here
+// would either (a) strip a legitimate hash and break the SPA bootstrap under
+// a stricter browser, or (b) over-include a hash and dilute the inline-hash
+// guarantee.
+func TestSecurityHeaders_CSPInlineScriptDiscovery(t *testing.T) {
+	// The streamsaver document is constant across cases so the hash count
+	// math stays predictable: every case carries +1 from this file.
+	mitmFile := &fstest.MapFile{
+		Data: []byte("<!doctype html><html><body><script>" + mitmHTMLInline + "</script></body></html>"),
+	}
+
+	cases := []struct {
+		name            string
+		indexHTML       string
+		wantPresent     []string
+		wantAbsent      []string
+		wantHashesCount int // total 'sha256- occurrences in the CSP (includes mitm)
+	}{
+		{
+			name:            "empty_src_treated_as_inline",
+			indexHTML:       `<!doctype html><html><head><script src="">alert(1)</script></head><body></body></html>`,
+			wantPresent:     []string{expectedHash(t, "alert(1)"), expectedHash(t, mitmHTMLInline)},
+			wantHashesCount: 2,
+		},
+		{
+			name:            "non_empty_src_skipped",
+			indexHTML:       `<!doctype html><html><head><script src="/foo.js">alert(1)</script></head><body></body></html>`,
+			wantPresent:     []string{expectedHash(t, mitmHTMLInline)},
+			wantAbsent:      []string{expectedHash(t, "alert(1)")},
+			wantHashesCount: 1,
+		},
+		{
+			name: "multiple_inline_scripts_all_hashed",
+			indexHTML: `<!doctype html><html><head>` +
+				`<script>alert(1)</script>` +
+				`<script>alert(2)</script>` +
+				`</head><body></body></html>`,
+			wantPresent: []string{
+				expectedHash(t, "alert(1)"),
+				expectedHash(t, "alert(2)"),
+				expectedHash(t, mitmHTMLInline),
+			},
+			wantHashesCount: 3,
+		},
+		{
+			name:            "script_with_other_attrs_still_inline",
+			indexHTML:       `<!doctype html><html><head><script type="module">alert(1)</script></head><body></body></html>`,
+			wantPresent:     []string{expectedHash(t, "alert(1)"), expectedHash(t, mitmHTMLInline)},
+			wantHashesCount: 2,
+		},
+		{
+			name:            "empty_script_body_still_hashed",
+			indexHTML:       `<!doctype html><html><head><script></script></head><body></body></html>`,
+			wantPresent:     []string{expectedHash(t, ""), expectedHash(t, mitmHTMLInline)},
+			wantHashesCount: 2,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// ARRANGE
+			cfg := baseSecureConfig()
+			staticFS := fstest.MapFS{
+				"index.html":            &fstest.MapFile{Data: []byte(tc.indexHTML)},
+				"streamsaver/mitm.html": mitmFile,
+			}
+
+			// ACT
+			resp := runMiddleware(t, cfg, staticFS, nil, nil)
+
+			// ASSERT
+			csp := resp.Get("Content-Security-Policy")
+			require.NotEmpty(t, csp)
+
+			for _, tok := range tc.wantPresent {
+				assert.Contains(t, csp, tok, "expected inline hash missing: %s", tok)
+			}
+
+			for _, tok := range tc.wantAbsent {
+				assert.NotContains(t, csp, tok, "unexpected inline hash present: %s", tok)
+			}
+
+			got := strings.Count(csp, "'sha256-")
+			assert.Equal(t, tc.wantHashesCount, got,
+				"inline-hash count mismatch (CSP=%q)", csp)
+		})
+	}
+}
+
+// TestSecurityHeaders_HSTSMaxAgeZero — OWASP API8:2023 — RFC 6797 §6.1.1
+// allows max-age=0 as a deliberate reset signal that clears any previously
+// cached HSTS state. The middleware must emit it verbatim so an operator can
+// undo a misconfigured HSTS rollout without re-deploying the binary.
+func TestSecurityHeaders_HSTSMaxAgeZero(t *testing.T) {
+	// ARRANGE
+	cfg := baseSecureConfig()
+	cfg.Security.HSTS.MaxAge = 0
+	cfg.TLS.ForceHTTPS = true
+
+	// ACT
+	resp := runMiddleware(t, cfg, newTestFS(t), nil, nil)
+
+	// ASSERT
+	assert.Equal(t, "max-age=0", resp.Get("Strict-Transport-Security"),
+		"max-age=0 must be emitted literally to act as an HSTS reset directive")
+}
+
+// TestSecurityHeaders_CSPReportOnlyWithReportURI — OWASP API8:2023 — when
+// staging a policy admins typically set ReportOnly + ReportURI together so
+// the browser surfaces violations without blocking. Each is covered in
+// isolation elsewhere; this guards the combined path so the header name
+// swap and the report-uri append don't regress against each other.
+func TestSecurityHeaders_CSPReportOnlyWithReportURI(t *testing.T) {
+	// ARRANGE
+	cfg := baseSecureConfig()
+	cfg.Security.CSP.ReportOnly = true
+	cfg.Security.CSP.ReportURI = "https://r.example/csp"
+
+	// ACT
+	resp := runMiddleware(t, cfg, newTestFS(t), nil, nil)
+
+	// ASSERT
+	assert.Empty(t, resp.Get("Content-Security-Policy"),
+		"enforcing header must be empty in report-only mode")
+
+	reportOnly := resp.Get("Content-Security-Policy-Report-Only")
+	require.NotEmpty(t, reportOnly,
+		"report-only header must carry the policy in report-only mode")
+	assert.Contains(t, reportOnly, "report-uri https://r.example/csp",
+		"report-uri must be appended to the report-only policy")
+}
+
+// TestSecurityHeaders_InlineScriptHashTokenizerError — OWASP API8:2023 —
+// when the html tokenizer fails with a non-EOF error mid-stream (e.g. the
+// embedded FS surfaces a transient read error) the constructor must abort
+// instead of silently shipping a CSP missing the inline-script hash the
+// served HTML relies on.
+func TestSecurityHeaders_InlineScriptHashTokenizerError(t *testing.T) {
+	// ARRANGE
+	cfg := baseSecureConfig()
+	staticFS := errFS{files: map[string][]byte{
+		// Unclosed <script>: the tokenizer keeps reading raw text inside
+		// the script and hits the synthetic Read error before EOF.
+		"index.html":            []byte("<!doctype html><html><body><script>"),
+		"streamsaver/mitm.html": []byte("<!doctype html><html><body></body></html>"),
+	}}
+
+	// ACT
+	_, err := middlewares.NewSecurityHeadersMiddleware(cfg, staticFS)
+
+	// ASSERT
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tokenize",
+		"error must surface the tokenize stage so logs point at HTML parsing")
+	assert.Contains(t, err.Error(), "index.html",
+		"error must identify the offending file so logs point at the failing path")
+}
+
+// errSyntheticRead is the sentinel returned by errFile.Read after exhausting
+// the in-memory data; it lets the html tokenizer surface a non-EOF
+// ErrorToken so the production code's "tokenize" wrap path is reachable.
+var errSyntheticRead = errors.New("synthetic read failure")
+
+// errFile is a minimal fs.File whose Read returns errSyntheticRead after the
+// in-memory data is exhausted, instead of io.EOF.
+type errFile struct {
+	name string
+	data []byte
+	pos  int
+}
+
+func (f *errFile) Stat() (fs.FileInfo, error) {
+	return errFileInfo{name: f.name, size: int64(len(f.data))}, nil
+}
+
+func (f *errFile) Read(p []byte) (int, error) {
+	if f.pos >= len(f.data) {
+		return 0, errSyntheticRead
+	}
+
+	n := copy(p, f.data[f.pos:])
+	f.pos += n
+
+	return n, nil
+}
+
+func (f *errFile) Close() error {
+	return nil
+}
+
+// errFileInfo is the fs.FileInfo paired with errFile; only Name and Size are
+// load-bearing for the html tokenizer, the rest match a regular file.
+type errFileInfo struct {
+	name string
+	size int64
+}
+
+func (i errFileInfo) Name() string       { return i.name }
+func (i errFileInfo) Size() int64        { return i.size }
+func (i errFileInfo) Mode() fs.FileMode  { return 0o644 }
+func (i errFileInfo) ModTime() time.Time { return time.Time{} }
+func (i errFileInfo) IsDir() bool        { return false }
+func (i errFileInfo) Sys() any           { return nil }
+
+// errFS is an fs.FS that opens errFile values backed by an in-memory map so
+// tests can exercise the non-EOF tokenize-error branch in
+// extractInlineScriptHashes.
+type errFS struct {
+	files map[string][]byte
+}
+
+func (e errFS) Open(name string) (fs.File, error) {
+	data, ok := e.files[name]
+	if !ok {
+		return nil, fs.ErrNotExist
+	}
+
+	return &errFile{name: name, data: data}, nil
 }
 
 // splitDirectives parses a CSP header value into a directive -> body map so
