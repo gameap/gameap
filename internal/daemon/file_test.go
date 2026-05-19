@@ -694,9 +694,9 @@ func TestFileService_DownloadStream(t *testing.T) {
 
 		const payload = "stream-content-here"
 
-		var readCount int32
+		var readCount atomic.Int32
 		s.gateway.requestFileRead = func(_ context.Context, _ uint64, _ string, offset int64, _ int64) (*proto.FileReadResponse, error) {
-			n := atomic.AddInt32(&readCount, 1)
+			n := readCount.Add(1)
 			if n == 1 {
 				assert.Equal(t, int64(0), offset, "first chunked read must use offset=0")
 
