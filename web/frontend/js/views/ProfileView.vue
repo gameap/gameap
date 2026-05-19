@@ -40,15 +40,11 @@
     <div class="flex items-center justify-between flex-wrap gap-3">
       <div class="flex items-center gap-2">
         <strong>{{ trans('two_factor.status') }}:</strong>
-        <n-tag
-            :type="is2FAEnabled ? 'success' : 'default'"
-            size="small"
-            round
-            :bordered="false"
+        <GStatusBadge
+            :status="is2FAEnabled ? 'success' : 'canceled'"
+            :text="is2FAEnabled ? trans('two_factor.enabled') : trans('two_factor.disabled')"
             data-testid="twofactor-status"
-        >
-          {{ is2FAEnabled ? trans('two_factor.enabled') : trans('two_factor.disabled') }}
-        </n-tag>
+        />
       </div>
       <div class="flex gap-2">
         <GButton
@@ -148,9 +144,9 @@
 </template>
 
 <script setup>
-import { GBreadcrumbs, GIcon, GModal, GCard, GTable } from "@gameap/ui"
+import { GBreadcrumbs, GIcon, GModal, GCard, GTable, GStatusBadge } from "@gameap/ui"
 import {computed, ref} from "vue"
-import { NTag, NForm, NFormItem, NInput } from "naive-ui"
+import { NForm, NFormItem, NInput } from "naive-ui"
 import {trans, getCurrentLanguage, changeLanguage} from "@/i18n/i18n"
 import UpdateProfileForm from "./forms/UpdateProfileForm.vue";
 import TwoFactorSetupForm from "./forms/TwoFactorSetupForm.vue";
