@@ -384,6 +384,42 @@ the user lookup.
 - `CAPTCHA_FAIL_OPEN` - Allow login when the provider's verify call itself fails (network/5xx). Default `false` (fail-closed: a verification outage blocks login with `503`)
 - `CAPTCHA_VERIFY_URL` - Override the provider's `siteverify` endpoint (egress proxies, testing). Empty uses the provider default
 
+### HTTP Security Headers Configuration
+
+Global response headers emitted on every HTTP/HTTPS response — HSTS,
+`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and a
+Content-Security-Policy. Secure defaults are on out-of-the-box; every directive
+is env-overridable so deployments with plugins or unusual reverse-proxy setups
+can extend the policy without patching the binary.
+
+The generated CSP automatically allow-lists exactly the origins required by
+the configured CAPTCHA provider (Google reCAPTCHA scripts/iframes for
+`recaptcha_v2`/`recaptcha_v3`; `challenges.cloudflare.com` for `turnstile`); with
+CAPTCHA disabled no third-party origins appear in the policy.
+
+HSTS is only emitted on TLS requests (`r.TLS != nil`, `X-Forwarded-Proto: https`
+from a trusted reverse proxy, or `TLS_FORCE_HTTPS=true`) so plain-HTTP dev
+sessions are never poisoned.
+
+- `SECURITY_HEADERS_ENABLED` - Master switch for all security headers (default: `true`)
+- `SECURITY_HSTS_ENABLED` - Toggle `Strict-Transport-Security` emission (default: `true`)
+- `SECURITY_HSTS_MAX_AGE` - HSTS max-age in seconds (default: `31536000`, i.e. 1 year)
+- `SECURITY_HSTS_INCLUDE_SUBDOMAINS` - Append `includeSubDomains` (default: `false` — turn on only after every subdomain is HTTPS)
+- `SECURITY_HSTS_PRELOAD` - Append `preload` (default: `false` — only enable when intending to submit to the HSTS preload list)
+- `SECURITY_CONTENT_TYPE_OPTIONS` - Emit `X-Content-Type-Options: nosniff` (default: `true`)
+- `SECURITY_FRAME_OPTIONS` - `X-Frame-Options` value, empty to omit (default: `SAMEORIGIN`)
+- `SECURITY_REFERRER_POLICY` - `Referrer-Policy` value, empty to omit (default: `strict-origin-when-cross-origin`)
+- `SECURITY_CSP_ENABLED` - Emit a Content-Security-Policy header (default: `true`)
+- `SECURITY_CSP_REPORT_ONLY` - Use `Content-Security-Policy-Report-Only` instead of enforcing — for staged rollout (default: `false`)
+- `SECURITY_CSP_POLICY` - Verbatim CSP override; when set, the generated policy and the additive `SECURITY_CSP_EXTRA_*` lists are ignored (default: empty)
+- `SECURITY_CSP_REPORT_URI` - Endpoint appended as `report-uri` to receive CSP violation reports (default: empty)
+- `SECURITY_CSP_EXTRA_SCRIPT_SRC` - Comma-separated extra origins appended to `script-src` (e.g. a plugin's CDN)
+- `SECURITY_CSP_EXTRA_STYLE_SRC` - Comma-separated extra origins appended to `style-src`
+- `SECURITY_CSP_EXTRA_CONNECT_SRC` - Comma-separated extra origins appended to `connect-src`
+- `SECURITY_CSP_EXTRA_IMG_SRC` - Comma-separated extra origins appended to `img-src`
+- `SECURITY_CSP_EXTRA_FRAME_SRC` - Comma-separated extra origins appended to `frame-src`
+- `SECURITY_CSP_EXTRA_FONT_SRC` - Comma-separated extra origins appended to `font-src`
+
 ### Example Configuration
 
 ```bash
@@ -466,4 +502,11 @@ LOGGER_LEVEL=info
 # CAPTCHA_SECRET_KEY=your-server-side-secret-key
 # CAPTCHA_MIN_SCORE=0.5               # reCAPTCHA v3 only
 # CAPTCHA_FAIL_OPEN=false             # true = allow login if the provider is unreachable
+
+# HTTP security headers — secure defaults are on; uncomment to tune
+# SECURITY_HSTS_INCLUDE_SUBDOMAINS=true    # only after every subdomain is HTTPS
+# SECURITY_HSTS_PRELOAD=true               # only if submitting to hstspreload.org
+# SECURITY_CSP_REPORT_ONLY=true            # stage CSP without enforcing first
+# SECURITY_CSP_REPORT_URI=https://csp.example.com/report
+# SECURITY_CSP_EXTRA_SCRIPT_SRC=https://cdn.plugin.example
 ```

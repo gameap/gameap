@@ -72,6 +72,7 @@ import (
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/secret"
 	"github.com/gameap/gameap/pkg/twofactor"
+	webstatic "github.com/gameap/gameap/web/static"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
@@ -190,11 +191,12 @@ type Container struct {
 	pluginLoader     *internalplugin.Loader
 
 	// HTTP
-	router      *http.ServeMux
-	httpServer  *http.Server
-	httpsServer *http.Server
-	responder   *api.Responder
-	auditLogger audit.Logger
+	router                    *http.ServeMux
+	httpServer                *http.Server
+	httpsServer               *http.Server
+	responder                 *api.Responder
+	auditLogger               audit.Logger
+	securityHeadersMiddleware *middlewares.SecurityHeadersMiddleware
 
 	// ACME
 	acmeService *acme.Service
@@ -532,6 +534,10 @@ func (c *Container) createHTTPServer() *http.Server {
 		handler = middlewares.HTTPSRedirectMiddleware(c.config.HTTPSPort)(handler)
 	}
 
+	// Wrapped outside HTTPSRedirect so the 301 carries HSTS too. Stays inside
+	// audit because audit must remain the outermost middleware.
+	handler = c.SecurityHeadersMiddleware().Middleware(handler)
+
 	// Outermost: assign/propagate the correlation ID and capture per-request
 	// metadata so every audit event of the request is joinable.
 	handler = audit.NewRequestContextMiddleware(c.config.Audit.ClientIPHeader).Middleware(handler)
@@ -556,6 +562,7 @@ func (c *Container) HTTPSServer() *http.Server {
 func (c *Container) createHTTPSServer() *http.Server {
 	var handler http.Handler = c.Router()
 
+	handler = c.SecurityHeadersMiddleware().Middleware(handler)
 	handler = audit.NewRequestContextMiddleware(c.config.Audit.ClientIPHeader).Middleware(handler)
 
 	return &http.Server{
@@ -565,6 +572,26 @@ func (c *Container) createHTTPSServer() *http.Server {
 		ReadTimeout:  httpServerReadTimeout,
 		IdleTimeout:  httpServerIdleTimeout,
 	}
+}
+
+func (c *Container) SecurityHeadersMiddleware() *middlewares.SecurityHeadersMiddleware {
+	if c.securityHeadersMiddleware != nil {
+		return c.securityHeadersMiddleware
+	}
+
+	static, err := webstatic.GetFS()
+	if err != nil {
+		panic("security headers: failed to get static files: " + err.Error())
+	}
+
+	m, err := middlewares.NewSecurityHeadersMiddleware(c.config, static)
+	if err != nil {
+		panic("security headers: " + err.Error())
+	}
+
+	c.securityHeadersMiddleware = m
+
+	return c.securityHeadersMiddleware
 }
 
 func (c *Container) ACMEService() *acme.Service {

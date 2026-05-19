@@ -165,6 +165,49 @@ type Config struct {
 		VerifyURL string `env:"CAPTCHA_VERIFY_URL" envDefault:""`
 	}
 
+	// Security configures the global HTTP response security headers emitted by
+	// SecurityHeadersMiddleware (HSTS, X-Content-Type-Options, X-Frame-Options,
+	// Referrer-Policy and Content-Security-Policy). Secure defaults; every
+	// directive is env-overridable so self-hosted deployments can adapt the
+	// Content-Security-Policy for plugins or reverse-proxy setups without
+	// patching the binary.
+	Security struct {
+		Enabled bool `env:"SECURITY_HEADERS_ENABLED" envDefault:"true"`
+
+		HSTS struct {
+			// Enabled is the HSTS toggle. HSTS is only emitted on HTTPS
+			// requests (r.TLS != nil, X-Forwarded-Proto: https, or
+			// TLS.ForceHTTPS) regardless of this flag.
+			Enabled           bool `env:"SECURITY_HSTS_ENABLED" envDefault:"true"`
+			MaxAge            int  `env:"SECURITY_HSTS_MAX_AGE" envDefault:"31536000"`
+			IncludeSubDomains bool `env:"SECURITY_HSTS_INCLUDE_SUBDOMAINS" envDefault:"false"`
+			Preload           bool `env:"SECURITY_HSTS_PRELOAD" envDefault:"false"`
+		}
+
+		ContentTypeOptions bool   `env:"SECURITY_CONTENT_TYPE_OPTIONS" envDefault:"true"`
+		FrameOptions       string `env:"SECURITY_FRAME_OPTIONS" envDefault:"SAMEORIGIN"`
+		ReferrerPolicy     string `env:"SECURITY_REFERRER_POLICY" envDefault:"strict-origin-when-cross-origin"`
+
+		CSP struct {
+			Enabled    bool `env:"SECURITY_CSP_ENABLED" envDefault:"true"`
+			ReportOnly bool `env:"SECURITY_CSP_REPORT_ONLY" envDefault:"false"`
+			// Policy, when non-empty, replaces the generated CSP verbatim
+			// (captcha-aware logic and extra-src lists are then ignored).
+			Policy    string `env:"SECURITY_CSP_POLICY" envDefault:""`
+			ReportURI string `env:"SECURITY_CSP_REPORT_URI" envDefault:""`
+
+			// Additive allow-lists appended to the generated directives so
+			// plugins / reverse proxies can extend the policy without
+			// replacing it wholesale.
+			ExtraScriptSrc  []string `env:"SECURITY_CSP_EXTRA_SCRIPT_SRC" envSeparator:"," envDefault:""`
+			ExtraStyleSrc   []string `env:"SECURITY_CSP_EXTRA_STYLE_SRC" envSeparator:"," envDefault:""`
+			ExtraConnectSrc []string `env:"SECURITY_CSP_EXTRA_CONNECT_SRC" envSeparator:"," envDefault:""`
+			ExtraImgSrc     []string `env:"SECURITY_CSP_EXTRA_IMG_SRC" envSeparator:"," envDefault:""`
+			ExtraFrameSrc   []string `env:"SECURITY_CSP_EXTRA_FRAME_SRC" envSeparator:"," envDefault:""`
+			ExtraFontSrc    []string `env:"SECURITY_CSP_EXTRA_FONT_SRC" envSeparator:"," envDefault:""`
+		}
+	}
+
 	PubSub struct {
 		Driver     string `env:"PUBSUB_DRIVER" envDefault:"memory"`
 		InstanceID string `env:"PUBSUB_INSTANCE_ID" envDefault:""`
