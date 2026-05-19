@@ -2,12 +2,15 @@ package console
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/grpc/session"
 	"github.com/gameap/gameap/internal/pubsub/memory"
@@ -398,4 +401,247 @@ func (e errorRBAC) RevokeOrForbidUserAbilitiesForEntity(
 	_ context.Context, _ uint, _ uint, _ domain.EntityType, _ []domain.AbilityName,
 ) error {
 	return nil
+}
+
+// ---------- sendConsoleHistory ----------
+
+// newConsoleLogTestHandler builds a minimal *Handler that wires only the
+// fields sendConsoleHistory / getConsoleLog read. The handler is otherwise
+// unable to serve HTTP; tests must call the private methods directly.
+func newConsoleLogTestHandler(logSvc consoleLogService, dc daemonCommands) *Handler {
+	return &Handler{
+		consoleLogService: logSvc,
+		daemonCommands:    dc,
+		logger:            silentLogger(),
+	}
+}
+
+func TestHandler_sendConsoleHistory(t *testing.T) {
+	tests := []struct {
+		name string
+
+		logSvc *fakeConsoleLogService
+		dc     *fakeDaemonCommands
+		node   *domain.Node
+
+		wantFrame      bool
+		wantOutput     string
+		wantDCCalls    int32
+		wantLogSvcHits int32
+	}{
+		{
+			name:           "emits_history_frame_with_output_when_log_service_returns_data",
+			logSvc:         &fakeConsoleLogService{result: "server output line\n"},
+			dc:             &fakeDaemonCommands{},
+			node:           newTestNode(nil),
+			wantFrame:      true,
+			wantOutput:     "server output line\n",
+			wantDCCalls:    0,
+			wantLogSvcHits: 1,
+		},
+		{
+			name:           "skips_when_output_empty",
+			logSvc:         &fakeConsoleLogService{result: ""},
+			dc:             &fakeDaemonCommands{},
+			node:           newTestNode(nil),
+			wantFrame:      false,
+			wantDCCalls:    0,
+			wantLogSvcHits: 1,
+		},
+		{
+			name:           "falls_back_to_script_when_log_service_errors_and_ScriptGetConsole_set",
+			logSvc:         &fakeConsoleLogService{err: errors.New("boom")},
+			dc:             &fakeDaemonCommands{result: &daemon.CommandResult{Output: "from script"}},
+			node:           newTestNode(new("get_console.sh {id}")),
+			wantFrame:      true,
+			wantOutput:     "from script",
+			wantDCCalls:    1,
+			wantLogSvcHits: 1,
+		},
+		{
+			name:           "does_not_emit_when_log_service_errors_and_script_empty",
+			logSvc:         &fakeConsoleLogService{err: errors.New("boom")},
+			dc:             &fakeDaemonCommands{},
+			node:           newTestNode(nil),
+			wantFrame:      false,
+			wantDCCalls:    0,
+			wantLogSvcHits: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			d := dialConsoleClient(t)
+			h := newConsoleLogTestHandler(tt.logSvc, tt.dc)
+			server := newTestServer()
+
+			// ACT
+			h.sendConsoleHistory(context.Background(), d.srvClient, server, tt.node)
+
+			// ASSERT
+			assert.Equal(t, tt.wantLogSvcHits, tt.logSvc.calls.Load(),
+				"console log service should be hit exactly the expected number of times")
+			assert.Equal(t, tt.wantDCCalls, tt.dc.calls.Load(),
+				"daemon-commands fallback should be hit only when scripted")
+
+			if tt.wantFrame {
+				frame, ok := readConsoleFrame(t, d.cliConn, time.Second)
+				require.True(t, ok, "client must receive a history frame")
+				assert.Equal(t, typeConsoleHistory, frame.Type,
+					"frame type must mark this as a console history payload")
+
+				var payload consoleHistoryPayload
+				require.NoError(t, json.Unmarshal(frame.Payload, &payload))
+				assert.Equal(t, tt.wantOutput, payload.Output,
+					"history payload must echo the resolved output unchanged")
+			} else {
+				expectNoConsoleFrame(t, d.cliConn, 100*time.Millisecond)
+			}
+		})
+	}
+}
+
+// ---------- getConsoleLog ----------
+
+func TestHandler_getConsoleLog(t *testing.T) {
+	tests := []struct {
+		name string
+
+		logSvc *fakeConsoleLogService
+		dc     *fakeDaemonCommands
+		node   *domain.Node
+
+		wantResult     string
+		wantError      string
+		wantDCCalls    int32
+		wantLogSvcHits int32
+	}{
+		{
+			name:           "returns_log_service_output_when_available",
+			logSvc:         &fakeConsoleLogService{result: "hello"},
+			dc:             &fakeDaemonCommands{},
+			node:           newTestNode(nil),
+			wantResult:     "hello",
+			wantDCCalls:    0,
+			wantLogSvcHits: 1,
+		},
+		{
+			name:           "falls_back_to_script_when_log_service_errors",
+			logSvc:         &fakeConsoleLogService{err: errors.New("svc down")},
+			dc:             &fakeDaemonCommands{result: &daemon.CommandResult{Output: "script output"}},
+			node:           newTestNode(new("script.sh")),
+			wantResult:     "script output",
+			wantDCCalls:    1,
+			wantLogSvcHits: 1,
+		},
+		{
+			name:           "returns_empty_when_no_log_service_and_no_script",
+			logSvc:         nil,
+			dc:             &fakeDaemonCommands{},
+			node:           newTestNode(nil),
+			wantResult:     "",
+			wantDCCalls:    0,
+			wantLogSvcHits: 0,
+		},
+		{
+			name:           "wraps_command_error",
+			logSvc:         &fakeConsoleLogService{err: errors.New("svc down")},
+			dc:             &fakeDaemonCommands{err: errors.New("cmd failed")},
+			node:           newTestNode(new("script.sh")),
+			wantError:      "failed to execute get console script",
+			wantDCCalls:    1,
+			wantLogSvcHits: 1,
+		},
+		{
+			name:           "replaces_server_shortcodes_in_script",
+			logSvc:         nil,
+			dc:             &fakeDaemonCommands{result: &daemon.CommandResult{Output: "ok"}},
+			node:           newTestNode(new("echo {host}:{port}")),
+			wantResult:     "ok",
+			wantDCCalls:    1,
+			wantLogSvcHits: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			var logSvcArg consoleLogService
+			if tt.logSvc != nil {
+				logSvcArg = tt.logSvc
+			}
+			h := newConsoleLogTestHandler(logSvcArg, tt.dc)
+			server := newTestServer()
+
+			// ACT
+			got, err := h.getConsoleLog(context.Background(), server, tt.node)
+
+			// ASSERT
+			if tt.wantError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantError,
+					"command error must be wrapped with the documented message")
+				assert.Contains(t, err.Error(), "cmd failed",
+					"the original cause must remain accessible via the message chain")
+				assert.Empty(t, got, "result must be empty when an error is returned")
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantResult, got,
+					"result must match the expected log/script output")
+			}
+
+			assert.Equal(t, tt.wantDCCalls, tt.dc.calls.Load(),
+				"daemon-commands fallback call count must match expectation")
+			if tt.logSvc != nil {
+				assert.Equal(t, tt.wantLogSvcHits, tt.logSvc.calls.Load(),
+					"console log service call count must match expectation")
+			}
+
+			if tt.name == "replaces_server_shortcodes_in_script" {
+				assert.Equal(t, "echo 127.0.0.1:27015", tt.dc.lastCmd,
+					"shortcodes must be replaced with the server's host and port before dispatch")
+			}
+		})
+	}
+}
+
+// ---------- canSendCommands ----------
+
+func TestHandler_canSendCommands(t *testing.T) {
+	tests := []struct {
+		name string
+		rbac base.RBAC
+		want bool
+	}{
+		{
+			name: "returns_true_when_RBAC_grants_send",
+			rbac: allowAllRBAC{},
+			want: true,
+		},
+		{
+			name: "returns_false_when_RBAC_denies_send",
+			rbac: denyAllRBAC{},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			h := &Handler{
+				abilityChecker: newAbilityCheckerWithRBAC(tt.rbac),
+				logger:         silentLogger(),
+			}
+			user := &domain.User{ID: 1}
+			server := newTestServer()
+
+			// ACT
+			got := h.canSendCommands(context.Background(), user, server)
+
+			// ASSERT
+			assert.Equal(t, tt.want, got,
+				"canSendCommands must echo the RBAC decision for the send ability")
+		})
+	}
 }
