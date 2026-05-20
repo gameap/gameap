@@ -14,9 +14,10 @@ properties:
     example: "user@example.com"
   password:
     type: string
-    description: New password (leave empty to keep current)
-    minLength: 6
-    example: "newsecret123"
+    description: New password (leave empty to keep current; OWASP ASVS 4.0.3 §2.1.1 / §2.1.2 — 12 to 128 characters when set)
+    minLength: 12
+    maxLength: 128
+    example: "newsecretpass1234"
   name:
     type:
       - string

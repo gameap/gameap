@@ -96,13 +96,22 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if vErr := auth.VerifyPassword(user.Password, input.Password); vErr != nil {
+	needsRehash, vErr := auth.VerifyPassword(user.Password, input.Password)
+	if vErr != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.New("invalid credentials"),
 			http.StatusUnauthorized,
 		))
 
 		return
+	}
+
+	// Piggyback the pre-§2.1.2 → SHA-256+bcrypt hash upgrade on the Save that
+	// already happens below for the recovery-code rotation. Best-effort.
+	if needsRehash {
+		if upgradedHash, hashErr := auth.HashPassword(input.Password); hashErr == nil {
+			user.Password = upgradedHash
+		}
 	}
 
 	plainCodes, encodedCodes, err := h.twoFactor.GenerateRecoveryCodes()

@@ -92,7 +92,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = auth.VerifyPassword(user.Password, *input.CurrentPassword)
+		// The new password (set below) will overwrite the stored hash either
+		// way, so the rehash signal from VerifyPassword is intentionally
+		// discarded — the upgrade happens implicitly via the new HashPassword.
+		_, err = auth.VerifyPassword(user.Password, *input.CurrentPassword)
 		if err != nil {
 			h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 				errors.New("current password is incorrect"),

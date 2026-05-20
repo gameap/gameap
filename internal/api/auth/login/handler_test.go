@@ -21,6 +21,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/gameap/gameap/internal/filters"
 )
 
 // auditCapture is a concurrency-safe audit.Logger that records every event
@@ -914,4 +917,59 @@ func TestHandler_Captcha_ForwardsClientIPFromContext(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	assert.Equal(t, "203.0.113.9", spy.gotIP,
 		"the client IP from the request context must be forwarded to the captcha verifier")
+}
+
+// Pre-§2.1.2 accounts hold raw bcrypt(password) hashes. The login handler must
+// keep authenticating them AND transparently upgrade the stored hash to the
+// new SHA-256+bcrypt scheme so the legacy form is phased out over time
+// (OWASP ASVS 4.0.3 §2.1.2 / §2.1.3).
+func TestHandler_ServeHTTP_LegacyHashUpgradesOnLogin(t *testing.T) {
+	const (
+		legacyLogin    = "legacyuser"
+		legacyEmail    = "legacy@example.com"
+		legacyPassword = "legacy-pw-12"
+	)
+
+	ctx := context.Background()
+
+	rawHash, err := bcrypt.GenerateFromPassword([]byte(legacyPassword), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	repo := inmemory.NewUserRepository()
+	require.NoError(t, repo.Save(ctx, &domain.User{
+		Login:    legacyLogin,
+		Email:    legacyEmail,
+		Password: string(rawHash),
+	}))
+
+	responder := api.NewResponder()
+	handler := NewHandler(
+		auth.NewJWTService([]byte("test-secret-key")),
+		repo,
+		cache.NewInMemory(),
+		responder,
+		nil,
+		nil,
+	)
+
+	body := []byte(`{"login":"` + legacyLogin + `","password":"` + legacyPassword + `"}`)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	users, err := repo.Find(ctx, &filters.FindUser{Logins: []string{legacyLogin}}, nil, &filters.Pagination{Limit: 1})
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+
+	assert.NotEqual(t, string(rawHash), users[0].Password,
+		"the stored hash must have been replaced on successful legacy-scheme login")
+
+	needsRehash, err := auth.VerifyPassword(users[0].Password, legacyPassword)
+	assert.NoError(t, err, "the upgraded hash must verify against the original password")
+	assert.False(t, needsRehash,
+		"the upgraded hash must use the current SHA-256+bcrypt scheme and not request another upgrade")
 }

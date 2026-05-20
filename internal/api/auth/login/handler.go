@@ -125,8 +125,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	user := users[0]
 
-	// Verify password
-	err = auth.VerifyPassword(user.Password, input.Password)
+	needsRehash, err := auth.VerifyPassword(user.Password, input.Password)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.New("invalid credentials"),
@@ -134,6 +133,17 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		))
 
 		return
+	}
+
+	// Transparently upgrade pre-§2.1.2 password hashes (raw bcrypt) to the
+	// current SHA-256+bcrypt scheme on successful login. Best-effort: hashing
+	// or save failures must not block authentication — the user is retried
+	// on the next login.
+	if needsRehash {
+		if upgradedHash, hashErr := auth.HashPassword(input.Password); hashErr == nil {
+			user.Password = upgradedHash
+			_ = h.userRepo.Save(ctx, &user)
+		}
 	}
 
 	if user.TwoFactorEnabled {

@@ -13,10 +13,8 @@ import (
 )
 
 const (
-	maxEmailLength    = 255
-	maxNameLength     = 255
-	minPasswordLength = 8
-	maxPasswordLength = 64
+	maxEmailLength = 255
+	maxNameLength  = 255
 )
 
 var (
@@ -26,12 +24,6 @@ var (
 	)
 	ErrNameTooLong = api.NewValidationError(
 		fmt.Sprintf("name must not exceed %d characters", maxNameLength),
-	)
-	ErrPasswordTooShort = api.NewValidationError(
-		fmt.Sprintf("password must be at least %d characters long", minPasswordLength),
-	)
-	ErrPasswordTooLong = api.NewValidationError(
-		fmt.Sprintf("password must not exceed %d characters", maxPasswordLength),
 	)
 	ErrInvalidEmail = api.NewValidationError("email is not valid")
 	ErrEmailEmpty   = api.NewValidationError("email cannot be empty")
@@ -79,14 +71,11 @@ func (input *updateUserInput) Validate() error {
 		input.Name = &nameValue
 	}
 
+	// Password is optional on admin update: an empty value means "no change".
+	// When supplied, it must satisfy the ASVS §2.1.1 / §2.1.2 policy.
 	if input.Password != nil && *input.Password != "" {
-		passwordValue := *input.Password
-		if len(passwordValue) < minPasswordLength {
-			return ErrPasswordTooShort
-		}
-
-		if len(passwordValue) > maxPasswordLength {
-			return ErrPasswordTooLong
+		if err := auth.ValidatePassword(*input.Password); err != nil {
+			return err
 		}
 	}
 

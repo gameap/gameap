@@ -223,8 +223,8 @@ func TestSeedUsers(t *testing.T) {
 		assert.Equal(t, "Admin", *got.Name)
 
 		assert.NotEqual(t, "supersecret123", got.Password, "password must be hashed, not stored as plaintext")
-		assert.NoError(t, auth.VerifyPassword(got.Password, "supersecret123"),
-			"hash must match the configured password")
+		_, vErr := auth.VerifyPassword(got.Password, "supersecret123")
+		assert.NoError(t, vErr, "hash must match the configured password")
 	})
 
 	t.Run("respects_admin_login_and_email_env_overrides", func(t *testing.T) {
@@ -272,8 +272,8 @@ func TestSeedUsers(t *testing.T) {
 		require.Len(t, users, 1)
 
 		assert.NotEmpty(t, users[0].Password, "a random password hash must still be persisted")
-		assert.Error(t, auth.VerifyPassword(users[0].Password, ""),
-			"empty password must not authenticate against the random hash")
+		_, vErr := auth.VerifyPassword(users[0].Password, "")
+		assert.Error(t, vErr, "empty password must not authenticate against the random hash")
 	})
 
 	t.Run("assigns_admin_role_to_seeded_user", func(t *testing.T) {
@@ -392,8 +392,8 @@ func TestSeed(t *testing.T) {
 		users, err := c.UserRepository().FindAll(ctx, nil, nil)
 		require.NoError(t, err)
 		require.Len(t, users, 1)
-		assert.NoError(t, auth.VerifyPassword(users[0].Password, "endtoend123"),
-			"end-to-end admin password must round-trip")
+		_, vErr := auth.VerifyPassword(users[0].Password, "endtoend123")
+		assert.NoError(t, vErr, "end-to-end admin password must round-trip")
 
 		games, err := c.GameRepository().FindAll(ctx, nil, nil)
 		require.NoError(t, err)

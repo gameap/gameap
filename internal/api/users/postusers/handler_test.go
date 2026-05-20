@@ -40,7 +40,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "newuser",
 				Email:    "newuser@example.com",
-				Password: "testpass123",
+				Password: "testpass1234",
 				Name:     new("New User"),
 				Roles:    []string{"user"},
 				Servers:  []flexible.Uint{},
@@ -68,7 +68,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "testuser",
 				Email:    "testuser@example.com",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -90,7 +90,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "testuser",
 				Email:    "test@example.com",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -104,7 +104,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "",
 				Email:    "test@example.com",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -127,7 +127,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "testuser",
 				Email:    "",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -150,7 +150,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "testuser",
 				Email:    "invalid-email",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -211,7 +211,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 			setupRepo:      func(_ *inmemory.UserRepository, _ *inmemory.RBACRepository) {},
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "password must be at least 8 characters",
+			wantError:      "password must be at least 12 characters",
 			expectUser:     false,
 		},
 		{
@@ -219,7 +219,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "existinguser",
 				Email:    "new@example.com",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -251,7 +251,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "newuser",
 				Email:    "existing@example.com",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -283,7 +283,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    string(make([]byte, 256)),
 				Email:    "test@example.com",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -306,7 +306,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "testuser",
 				Email:    string(make([]byte, 256)),
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -329,7 +329,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "testuser",
 				Email:    "test@example.com",
-				Password: "password123",
+				Password: "password1234",
 				Name:     new(string(make([]byte, 256))),
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
@@ -368,7 +368,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 			setupRepo:      func(_ *inmemory.UserRepository, _ *inmemory.RBACRepository) {},
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "password must not exceed 64 characters",
+			wantError:      "password must not exceed 128 characters",
 			expectUser:     false,
 		},
 		{
@@ -376,7 +376,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "   ",
 				Email:    "test@example.com",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -399,7 +399,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "testuser",
 				Email:    "   ",
-				Password: "password123",
+				Password: "password1234",
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
 			},
@@ -422,7 +422,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody: createUserInput{
 				Login:    "testuser",
 				Email:    "test@example.com",
-				Password: "password123",
+				Password: "password1234",
 				Name:     new("   "),
 				Roles:    []string{},
 				Servers:  []flexible.Uint{},
@@ -522,7 +522,7 @@ func TestHandler_CreateUserWithRoles(t *testing.T) {
 	requestBody := createUserInput{
 		Login:    "newuser",
 		Email:    "newuser@example.com",
-		Password: "password123",
+		Password: "password1234",
 		Name:     new("New User"),
 		Roles:    []string{"user"},
 		Servers:  []flexible.Uint{},

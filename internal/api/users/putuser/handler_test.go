@@ -331,7 +331,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 			setupRepo:      func(_ *inmemory.UserRepository, _ *inmemory.RBACRepository) {},
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "password must be at least 8 characters",
+			wantError:      "password must be at least 12 characters",
 			expectUser:     false,
 		},
 		{

@@ -13,18 +13,15 @@ import (
 )
 
 const (
-	maxLoginLength    = 255
-	maxEmailLength    = 255
-	maxNameLength     = 255
-	minPasswordLength = 8
-	maxPasswordLength = 64
+	maxLoginLength = 255
+	maxEmailLength = 255
+	maxNameLength  = 255
 )
 
 var (
-	ErrLoginRequired    = api.NewValidationError("login is required")
-	ErrEmailRequired    = api.NewValidationError("email is required")
-	ErrPasswordRequired = api.NewValidationError("password is required")
-	ErrLoginTooLong     = api.NewValidationError(
+	ErrLoginRequired = api.NewValidationError("login is required")
+	ErrEmailRequired = api.NewValidationError("email is required")
+	ErrLoginTooLong  = api.NewValidationError(
 		fmt.Sprintf("login must not exceed %d characters", maxLoginLength),
 	)
 	ErrEmailTooLong = api.NewValidationError(
@@ -32,12 +29,6 @@ var (
 	)
 	ErrNameTooLong = api.NewValidationError(
 		fmt.Sprintf("name must not exceed %d characters", maxNameLength),
-	)
-	ErrPasswordTooShort = api.NewValidationError(
-		fmt.Sprintf("password must be at least %d characters long", minPasswordLength),
-	)
-	ErrPasswordTooLong = api.NewValidationError(
-		fmt.Sprintf("password must not exceed %d characters", maxPasswordLength),
 	)
 	ErrInvalidEmail = api.NewValidationError("email is not valid")
 	ErrLoginEmpty   = api.NewValidationError("login cannot be empty")
@@ -89,16 +80,8 @@ func (input *createUserInput) Validate() error {
 
 	input.Email = emailValue
 
-	if input.Password == "" {
-		return ErrPasswordRequired
-	}
-
-	if len(input.Password) < minPasswordLength {
-		return ErrPasswordTooShort
-	}
-
-	if len(input.Password) > maxPasswordLength {
-		return ErrPasswordTooLong
+	if err := auth.ValidatePassword(input.Password); err != nil {
+		return err
 	}
 
 	if input.Name != nil {
@@ -118,7 +101,9 @@ func (input *createUserInput) Validate() error {
 }
 
 func (input *createUserInput) ToDomain() (*domain.User, error) {
-	hashedPassword, err := auth.HashPassword(strings.TrimSpace(input.Password))
+	// Hash the exact bytes that were validated — do not trim. ASVS §2.1.3
+	// forbids modifying the password between validation and storage.
+	hashedPassword, err := auth.HashPassword(input.Password)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to hash password")
 	}

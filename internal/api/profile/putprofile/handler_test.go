@@ -92,8 +92,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				users, err := repo.FindAll(context.Background(), nil, nil)
 				require.NoError(t, err)
 				require.Len(t, users, 1)
-				// Verify new password works
-				err = auth.VerifyPassword(users[0].Password, "newpassword123")
+				_, err = auth.VerifyPassword(users[0].Password, "newpassword123")
 				assert.NoError(t, err)
 			},
 		},
@@ -130,7 +129,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.Len(t, users, 1)
 				require.NotNil(t, users[0].Name)
 				assert.Equal(t, "New TokenName", *users[0].Name)
-				err = auth.VerifyPassword(users[0].Password, "newpassword123")
+				_, err = auth.VerifyPassword(users[0].Password, "newpassword123")
 				assert.NoError(t, err)
 			},
 		},
@@ -249,7 +248,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 			requestBody:    `{"password": "short", "current_password": "oldpassword"}`,
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "password must be at least 8 characters long",
+			wantError:      "password must be at least 12 characters long",
 			expectSuccess:  false,
 		},
 		{
@@ -433,15 +432,15 @@ func TestUpdateProfileInput_Validate(t *testing.T) {
 				Password:        new("short"),
 				CurrentPassword: new("currentpassword"),
 			},
-			wantError: "password must be at least 8 characters long",
+			wantError: "password must be at least 12 characters long",
 		},
 		{
 			name: "password too long",
 			input: updateProfileInput{
-				Password:        new(strings.Repeat("a", 65)),
+				Password:        new(strings.Repeat("a", 129)),
 				CurrentPassword: new("currentpassword"),
 			},
-			wantError: "password must not exceed 64 characters",
+			wantError: "password must not exceed 128 characters",
 		},
 		{
 			name: "empty password",
@@ -449,7 +448,7 @@ func TestUpdateProfileInput_Validate(t *testing.T) {
 				Password:        new(""),
 				CurrentPassword: new("currentpassword"),
 			},
-			wantError: "password cannot be empty",
+			wantError: "password is required",
 		},
 		{
 			name: "empty current password",

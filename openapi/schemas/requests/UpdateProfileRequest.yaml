@@ -13,6 +13,6 @@ properties:
     description: Current password (required if changing password)
   password:
     type: string
-    description: New password (min 8 characters; sending it requires current_password)
-    minLength: 8
-    maxLength: 64
+    description: New password (OWASP ASVS 4.0.3 §2.1.1 / §2.1.2 — 12 to 128 characters; sending it requires current_password)
+    minLength: 12
+    maxLength: 128
