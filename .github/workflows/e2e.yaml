@@ -62,6 +62,14 @@ jobs:
             sleep 2
           done
 
+      - name: Install frontend deps
+        working-directory: web/frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: web/frontend
+        run: npm run build
+
       - name: Build Go API
         run: go build -o /tmp/gameap ./cmd/gameap
 
@@ -82,10 +90,6 @@ jobs:
           echo "API failed to start"
           cat /tmp/gameap.log
           exit 1
-
-      - name: Install frontend deps
-        working-directory: web/frontend
-        run: npm ci
 
       - name: Install Playwright browsers
         working-directory: web/frontend
