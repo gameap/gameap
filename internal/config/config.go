@@ -56,6 +56,18 @@ type Config struct {
 	// issuing handler regardless of a larger configured value.
 	ShortLivedTokenTTL time.Duration `env:"AUTH_SHORT_LIVED_TOKEN_TTL" envDefault:"10s"`
 
+	// Auth groups password-policy and related authentication knobs. The
+	// older top-level AuthSecret / AuthService / ShortLivedTokenTTL fields
+	// predate this nested section and are kept at the top level for
+	// operator-env-file backwards compatibility.
+	Auth struct {
+		// AllowWeakPasswords disables the common-password blocklist check
+		// in auth.ValidatePassword (OWASP ASVS 4.0.3 §2.1.7). When true,
+		// the application logs a startup slog.Warn. Length checks
+		// (§2.1.1 / §2.1.2) still apply regardless.
+		AllowWeakPasswords bool `env:"AUTH_ALLOW_WEAK_PASSWORDS" envDefault:"false"`
+	}
+
 	RBAC struct {
 		CacheTTL string `env:"RBAC_CACHE_TTL" envDefault:"30s"`
 	}

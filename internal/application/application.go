@@ -15,6 +15,7 @@ import (
 	"github.com/gameap/gameap/internal/config"
 	"github.com/gameap/gameap/internal/pubsub/integration"
 	"github.com/gameap/gameap/migrations"
+	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/netutil"
 	"github.com/pkg/errors"
 )
@@ -66,6 +67,14 @@ func Run(runParams RunParams) {
 
 	container := NewContainer(cfg)
 	container.SetContext(ctx, cancel)
+
+	// Install the process-wide password policy state used by
+	// auth.ValidatePassword (ASVS §2.1.7 common-password blocklist + the
+	// AUTH_ALLOW_WEAK_PASSWORDS operator override). The Container accessor
+	// emits the warn/info/error logs; we wire the resulting blocklist into
+	// the pkg/auth singleton so every handler input.Validate() sees it.
+	auth.SetAllowWeakPasswords(cfg.Auth.AllowWeakPasswords)
+	auth.SetPasswordBlocklist(container.PasswordBlocklist())
 
 	shutdownDone := make(chan struct{})
 	go func() {

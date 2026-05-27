@@ -13,6 +13,11 @@ properties:
     description: Current password (required if changing password)
   password:
     type: string
-    description: New password (OWASP ASVS 4.0.3 §2.1.1 / §2.1.2 — 12 to 128 characters; sending it requires current_password)
+    description: |
+      New password. OWASP ASVS 4.0.3 §2.1.1 / §2.1.2 — 12 to 128 characters
+      and not in the embedded common-password blocklist (ASVS §2.1.7).
+      Sending it requires current_password. The blocklist check is skipped
+      when the server is started with `AUTH_ALLOW_WEAK_PASSWORDS=true`.
     minLength: 12
     maxLength: 128
+    example: "YourSecure-Pass-2026"

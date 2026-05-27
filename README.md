@@ -285,6 +285,7 @@ state, useful for monitoring dashboards and the `gameapctl` polling logic:
 - `ENCRYPTION_KEY` - Encryption key for sensitive data
 - `AUTH_SECRET` - Secret key for PASETO/JWT token generation (if not set, uses `ENCRYPTION_KEY`)
 - `AUTH_SERVICE` - Authentication service type (default: `paseto`)
+- `AUTH_ALLOW_WEAK_PASSWORDS` - When `true`, disables the embedded common-password blocklist check used at registration / password change (OWASP ASVS §2.1.7). Default: `false`. Enabling this logs a startup warning; length checks (min 12 / max 128) still apply.
 
 ### RBAC Configuration
 

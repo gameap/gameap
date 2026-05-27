@@ -163,7 +163,7 @@ panels lack:
 | T-3 | Legacy daemon outbound TLS allows TLS 1.0 + `InsecureSkipVerify=true` | 9.1.2, 9.2.1 | **High** |
 | T-4 | ~~No MFA (TOTP / WebAuthn / OOB) for users or admins~~ **Resolved 2026-05-18** — TOTP 2FA + bcrypt recovery codes (C-9); residual: admin-MFA *enforcement* flag not yet shipped (4.3.1 Partial, Sprint 4 item 20) | 2.8.x, 4.3.1 | ~~High~~ |
 | T-5 | ~~`node.GdaemonAPIKey` stored plaintext in DB (used per-request by gRPC)~~ **Resolved 2026-05-18** — stored `SHA256` at enrollment, gRPC interceptor hashes-then-`secureCompare` (C-5) | 2.10.2, 6.1.3 | ~~High~~ |
-| T-6 | No password policy (min length, breached check, max enforced) | 2.1.1, 2.1.7 | Medium |
+| T-6 | ~~No password policy (min length, breached check, max enforced)~~ **Resolved 2026-05-27** — min 12 / max 128 + no-truncation pre-hash (2026-05-20) shipped (`pkg/auth/policy.go`, `pkg/auth/password.go`); common-password blocklist (SecLists top-1M, offline; `pkg/auth/blocklist.go`, embedded asset `pkg/auth/data/passwords/common-passwords.txt.gz`) shipped 2026-05-27 with operator override `AUTH_ALLOW_WEAK_PASSWORDS` | ~~2.1.1~~, ~~2.1.7~~ | ~~Medium~~ → Done |
 | T-7 | No idle session timeout (only absolute 24h) | 3.3.2 | Medium |
 | T-8 | bcrypt cost stuck at `DefaultCost`=10 (L2 wants ≥13) | 2.4.4 | Medium |
 | T-9 | No file-upload MIME / magic-byte verification | 12.4.1, 12.4.2 | Medium |
@@ -717,13 +717,13 @@ counts reconciled with the rows above on 2026-05-18 — no status change).
 
 | # | Requirement | Status | Evidence / Notes |
 | --- | --- | --- | --- |
-| 2.1.1 | Passwords ≥ 12 chars | ❌ Not met | `internal/api/auth/login/input.go:19-29` only checks non-empty. **T-6**. |
-| 2.1.2 | No truncation; allow ≥ 64 chars | 🟡 Partial | bcrypt's 72-byte limit not surfaced — `pkg/auth/password_test.go:65-72` asserts 100-byte rejection, but no user-facing clamp/error. |
-| 2.1.3 | Allow Unicode and spaces | 🟡 Partial | No explicit denial; not validated either. |
+| 2.1.1 | Passwords ≥ 12 chars | ✅ Met | `pkg/auth/policy.go` (`MinPasswordLength = 12`) enforced by `auth.ValidatePassword` from every password-set entry point (`internal/api/users/postusers/input.go`, `internal/api/users/putuser/input.go`, `internal/api/profile/putprofile/input.go`). Login itself is non-empty-only — ASVS does not require length on login. Tests: `pkg/auth/policy_test.go`, handler tests in the three packages above. |
+| 2.1.2 | No truncation; allow ≥ 64 chars (deny > 128) | ✅ Met | `pkg/auth/password.go` pre-hashes the password with SHA-256 + base64 before bcrypt, neutralising bcrypt's 72-byte input limit. `MaxPasswordLength = 128` (`pkg/auth/policy.go`) matches the §2.1.2 upper bound and is round-tripped by `pkg/auth/password_test.go TestHashPassword_RoundTrip_128Chars`. Legacy raw-bcrypt hashes still verify via `VerifyPassword` (signals `needsRehash`); login (`internal/api/auth/login/handler.go`) and the 2FA disable / recovery-codes handlers transparently upgrade them on next successful credential check. Migration verified by `TestHandler_ServeHTTP_LegacyHashUpgradesOnLogin` (`internal/api/auth/login/handler_test.go`). |
+| 2.1.3 | Allow Unicode and spaces (no truncation) | ✅ Met | `postusers.ToDomain` no longer trims the password before hashing — the exact validated bytes feed `auth.HashPassword`. The SHA-256 pre-hash keeps the digest input identical for any UTF-8 sequence (`pkg/auth/password_test.go TestHashPassword/unicode_password`). |
 | 2.1.4 | Passwords may include any printable char | 🟡 Partial | Same. |
 | 2.1.5 | Users can change their password | ✅ Met | `internal/api/users/putuser/handler.go` (admin-edit + self-edit paths). |
 | 2.1.6 | Re-auth required when changing password | ❌ Not met | No current-password challenge in PUT-user. |
-| 2.1.7 | Reject breached / common passwords | ❌ Not met | No HIBP / dictionary check. **T-6**. |
+| 2.1.7 | Reject breached / common passwords | ✅ Met | Embedded common-password blocklist (SecLists top-1M filtered to ≥12 chars, ~46 K entries / ~324 KB gzipped) loaded once at boot via `auth.LoadEmbeddedBlocklist` and consulted by `auth.ValidatePassword` (`pkg/auth/blocklist.go`, `pkg/auth/policy.go`). Asset committed in-repo; rebuild procedure documented in `pkg/auth/data/passwords/README.md`. Operator override `AUTH_ALLOW_WEAK_PASSWORDS=true` emits a startup `slog.Warn` and skips the dictionary lookup (length checks still apply). Offline-only by design — HIBP k-anonymity rejected to keep zero-egress deployments viable. Login does NOT run the check, preserving access for pre-existing weak-password accounts. Tests: `pkg/auth/blocklist_test.go`, `pkg/auth/policy_test.go`, `internal/api/router_security_password_policy_test.go`. |
 | 2.1.8 | Password-strength meter / feedback | ❌ Not met | No frontend hook. |
 | 2.1.9 | No composition rules ("must contain X") | ✅ Met | None imposed. |
 | 2.1.10 | No periodic rotation | ✅ Met | No forced expiry. |
@@ -1144,7 +1144,7 @@ Priority is `impact × ease`; one-line each — see §3 for context.
 
 7. ~~**C-3 / T-2**: `internal/audit/` package + correlation-ID middleware + wire into auth/AC/sensitive-op paths (5 d).~~ ✅ **Done 2026-05-16** (remote forwarding split out to Sprint 3 item 15).
 8. **C-8 / T-9**: magic-byte/MIME validation on file upload (2 d).
-9. **T-6**: password policy (min length, max length surfaced, breached check via HIBP k-anonymity API) (3 d).
+9. ~~**T-6**: password policy (min length, max length surfaced, breached check via HIBP k-anonymity API) (3 d).~~ ✅ **Done 2026-05-27** — min 12 / max 128 with SHA-256 pre-hash + transparent legacy-hash rehash on login (2026-05-20, `pkg/auth/policy.go`, `pkg/auth/password.go`, `internal/api/auth/login/handler.go`) and SecLists top-1M common-password blocklist with `AUTH_ALLOW_WEAK_PASSWORDS` operator override (2026-05-27, `pkg/auth/blocklist.go`, embedded asset under `pkg/auth/data/passwords/` — committed in-repo, rebuild via the bash pipeline documented in `pkg/auth/data/passwords/README.md`); HIBP k-anonymity API not used — offline embedded list chosen for deployability and zero-egress operation.
 10. **T-7**: idle session timeout (sliding TTL in revocation cache) (3 d).
 11. **T-8**: raise bcrypt cost to 13 + config knob `AUTH_BCRYPT_COST` (1 d, runtime migration via "rehash on next login").
 
@@ -1164,12 +1164,14 @@ Priority is `impact × ease`; one-line each — see §3 for context.
 20. `require_mfa_for_admins` enforcement flag (4.3.1, C-9 residual) + re-auth & step-up flow for sensitive admin ops (3.7.1, 4.3.3, 2.1.6).
 21. Anti-automation on write endpoints other than login (11.1.4).
 
-As of 2026-05-18 the project is at **~62%** with the MFA capability
-(C-9), C-5 and C-7 already delivered ahead of their original sprints.
-Completing the remaining Sprint 1–2 items (security headers C-2/T-1,
-daemon TLS C-1, upload validation C-8, password policy, idle timeout)
-should reach **~80%**. Full L2 is then gated on the `require_mfa_for_admins`
-enforcement flag and the process / governance items in Sprint 4.
+As of 2026-05-27 the project is at **~65%** with the MFA capability
+(C-9), C-5, C-7 and the full password policy T-6 (length, no-truncation,
+and the common-password blocklist) already delivered ahead of their
+original sprints. Completing the remaining Sprint 1–2 items (security
+headers C-2/T-1, daemon TLS C-1, upload validation C-8, idle timeout)
+should reach **~80%**. Full L2 is then gated on the
+`require_mfa_for_admins` enforcement flag and the process / governance
+items in Sprint 4.
 
 ---
 

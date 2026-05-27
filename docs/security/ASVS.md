@@ -18,7 +18,7 @@ as a known gap with a remediation plan.
 | Target verification level | L1 (Opportunistic) |
 | Application type | Self-hosted REST/JSON API + gRPC daemon control plane |
 | Primary trust boundaries | (a) public Internet → API HTTP server, (b) game daemon → API gRPC/HTTP, (c) operator → admin endpoints |
-| Last reviewed | 2026-05-18 (re-audit: MFA/TOTP, captcha, audit logging, safe file serving landed since 2026-04-28) |
+| Last reviewed | 2026-05-27 (re-audit: MFA/TOTP, captcha, audit logging, safe file serving, password policy §2.1.1/§2.1.2/§2.1.3 landed since 2026-04-28; common-password blocklist §2.1.7 added 2026-05-27) |
 | Owners | gameap-api maintainers |
 
 L1 is chosen as the starting baseline. Items above L1 are noted as
@@ -93,10 +93,10 @@ N/A unless the API issues them directly.
 
 | # | Requirement (paraphrased) | Status | Evidence / Notes |
 | --- | --- | --- | --- |
-| 2.1.1 | Passwords are at least 12 characters | ❌ Not met | `internal/api/auth/login/input.go` validates non-empty only. Roadmap. |
-| 2.1.2 | No truncation; allow ≥ 64 chars | 🟡 Partial | bcrypt limits to 72 bytes (`pkg/auth/password.go`); no explicit clamp/error. |
-| 2.1.3 | Allow Unicode and spaces | 🟡 Partial | No explicit denial; password used verbatim. |
-| 2.1.7 | Reject breached / common passwords | ❌ Not met | Roadmap. |
+| 2.1.1 | Passwords are at least 12 characters | ✅ Met | `pkg/auth/policy.go` exports `MinPasswordLength = 12` and `auth.ValidatePassword` is enforced by every password-set entry point: `internal/api/users/postusers/input.go`, `internal/api/users/putuser/input.go`, `internal/api/profile/putprofile/input.go`. Login itself stays non-empty-only — ASVS does not mandate a length check on the login form. Verified by `pkg/auth/policy_test.go` and handler tests in the three packages above. |
+| 2.1.2 | No truncation; allow ≥ 64 chars | ✅ Met | `pkg/auth/password.go` pre-hashes the password with SHA-256 + base64 before bcrypt, so the 72-byte bcrypt input limit no longer caps user input. `MaxPasswordLength = 128` (`pkg/auth/policy.go`) matches the ASVS upper bound. Round-tripped at 128 chars by `pkg/auth/password_test.go TestHashPassword_RoundTrip_128Chars`. Legacy raw-bcrypt hashes are still accepted by `VerifyPassword` and upgraded transparently on the next successful credential check (`internal/api/auth/login/handler.go`, `internal/api/profile/twofactor/{disable,recoverycodes}/handler.go`). Verified by `TestHandler_ServeHTTP_LegacyHashUpgradesOnLogin` (`internal/api/auth/login/handler_test.go`). |
+| 2.1.3 | Allow Unicode and spaces (no truncation) | ✅ Met | `postusers.ToDomain` no longer trims the password before hashing — the exact validated bytes go through `auth.HashPassword`. The SHA-256 pre-hash keeps the digest input identical for any UTF-8 sequence (`pkg/auth/password_test.go TestHashPassword/unicode_password`). |
+| 2.1.7 | Reject breached / common passwords | ✅ Met | Embedded common-password blocklist (SecLists top-1M filtered to ≥12 chars, lowercased, deduped, sorted, gzipped — ~46 K entries / ~324 KB on disk, ~3 MB RAM) consulted by `auth.ValidatePassword` (`pkg/auth/policy.go`, `pkg/auth/blocklist.go`). Asset committed in-repo; rebuild procedure documented in `pkg/auth/data/passwords/README.md`. Operator override `AUTH_ALLOW_WEAK_PASSWORDS=true` emits a startup `slog.Warn` and skips the check (length checks still apply). Login (`internal/api/auth/login/handler.go`) deliberately does NOT run the blocklist so pre-existing accounts with weak passwords keep working. Offline-only design — HIBP k-anonymity rejected to keep zero-egress deployments viable. Tests: `pkg/auth/blocklist_test.go`, `pkg/auth/policy_test.go`, `internal/api/router_security_password_policy_test.go`. |
 | 2.1.9 | No composition rules ("must contain X") | ✅ Met | None imposed. |
 | 2.2.1 | Anti-automation on credential test endpoints | ✅ Met | Two layers: `LoginRateLimitMiddleware` (`internal/api/middlewares/login_ratelimit.go`) caps failed `/api/auth/login` attempts at 20/IP and 5/username per 15 min (429); and a captcha (`internal/services/captcha/service.go` — reCAPTCHA v2/v3 / Turnstile) verified *before* the user store is touched (`internal/api/auth/login/handler.go:87-95`). Verified by `TestRouterSecurity_API2_LoginBruteForceProtection`, `TestLoginRateLimitMiddleware_*` (9 unit tests), `internal/services/captcha/service_test.go`. |
 | 2.2.2 | Lockout / similar after failures | ✅ Met | Same rate-limit middleware (sliding-window TTL self-recovers); the 2FA-verify endpoint additionally enforces a per-challenge 5-attempt budget (`internal/api/auth/twofactorverify/handler.go:26`). |
@@ -369,6 +369,8 @@ issued by the API).
 | Structured security audit logging (auth, AC denials, sensitive ops) | 7.2.1, 7.2.2, 4.1.5 (partial) | 2026-05-16 |
 | Safe file-serving headers (`nosniff`, CSP `sandbox`, inert-MIME allowlist) | 12.5.1 | 2026-05-18 |
 | Captcha-gated login (reCAPTCHA / Turnstile) | 2.2.1 | 2026-05-18 |
+| Password policy (min 12, max 128, no truncation, transparent rehash of legacy bcrypt hashes) | 2.1.1, 2.1.2, 2.1.3 | 2026-05-20 |
+| Common-password blocklist (SecLists top-1M; offline; operator override via `AUTH_ALLOW_WEAK_PASSWORDS`) | 2.1.7 | 2026-05-27 |
 
 ### Still open
 
@@ -380,7 +382,6 @@ issued by the API).
 | — | Idle session timeout | 3.3.2 | Roadmap |
 | — | File upload magic-byte validation | 12.4.1 | Roadmap |
 | — | Cookie hardening when cookies are issued | 3.4.x | Roadmap |
-| — | Password policy (min length, breached-password check) | 2.1.x | Roadmap |
 | — | Anti-automation on write-heavy flows other than login | 11.1.4 (extended) | Roadmap |
 | — | Re-authentication for sensitive admin actions | 3.7.1 | Roadmap |
 | — | Threat-model document for new features | 1.1.2, 1.8.1 | Roadmap |

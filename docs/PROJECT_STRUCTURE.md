@@ -434,6 +434,7 @@ Key configuration:
 | `CACHE_DRIVER` | memory, redis |
 | `FILES_DRIVER` | local, s3 |
 | `AUTH_SERVICE` | paseto (default) |
+| `AUTH_ALLOW_WEAK_PASSWORDS` | Disable common-password blocklist; default `false` (logs warning when enabled) |
 | `ENCRYPTION_KEY` | Required for production |
 
 ---

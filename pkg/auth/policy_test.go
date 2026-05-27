@@ -1,8 +1,10 @@
 // Unit tests for the password-policy validator. Covers OWASP ASVS 4.0.3
-// §2.1.1 (min length 12) and §2.1.2 (deny passwords longer than 128).
+// §2.1.1 (min length 12), §2.1.2 (deny passwords longer than 128) and
+// §2.1.7 (reject common / breached passwords).
 package auth
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -14,6 +16,7 @@ func TestValidatePassword(t *testing.T) {
 	tests := []struct {
 		name      string
 		password  string
+		setup     func(t *testing.T)
 		wantError string
 	}{
 		{
@@ -54,10 +57,56 @@ func TestValidatePassword(t *testing.T) {
 			password:  "пароль"[:11],
 			wantError: "password must be at least 12 characters long",
 		},
+		{
+			name:      "blocked_common_password",
+			password:  "blockedforpolicytest",
+			setup:     installBlocklistContaining(t, "blockedforpolicytest"),
+			wantError: "password is too common",
+		},
+		{
+			name:      "blocked_case_insensitive_uppercase_input",
+			password:  "BLOCKEDFORPOLICYTEST",
+			setup:     installBlocklistContaining(t, "blockedforpolicytest"),
+			wantError: "password is too common",
+		},
+		{
+			name:      "blocked_case_insensitive_mixed_input",
+			password:  "BlockedForPolicyTest",
+			setup:     installBlocklistContaining(t, "blockedforpolicytest"),
+			wantError: "password is too common",
+		},
+		{
+			name:     "not_blocked_when_allowweak_enabled",
+			password: "blockedforpolicytest",
+			setup: func(t *testing.T) {
+				t.Helper()
+				installBlocklistContaining(t, "blockedforpolicytest")(t)
+				SetAllowWeakPasswords(true)
+			},
+		},
+		{
+			name:      "length_check_runs_before_blocklist",
+			password:  "blocked",
+			setup:     installBlocklistContaining(t, "blocked"),
+			wantError: "password must be at least 12 characters long",
+		},
+		{
+			name:     "empty_blocklist_is_noop",
+			password: "thispasswordshouldbeacceptable",
+		},
+		{
+			name:     "not_blocked_when_not_in_dictionary",
+			password: "uniquelongpassphrase",
+			setup:    installBlocklistContaining(t, "blockedforpolicytest"),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+
 			err := ValidatePassword(tt.password)
 
 			if tt.wantError != "" {
@@ -72,7 +121,31 @@ func TestValidatePassword(t *testing.T) {
 	}
 }
 
+func TestValidatePassword_BlockedSentinel(t *testing.T) {
+	installBlocklistContaining(t, "blockedforpolicytest")(t)
+
+	err := ValidatePassword("blockedforpolicytest")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrPasswordBlocked), "callers must be able to detect ErrPasswordBlocked via errors.Is")
+}
+
 func TestValidatePassword_PolicyConstants(t *testing.T) {
 	assert.Equal(t, 12, MinPasswordLength, "ASVS §2.1.1 requires at least 12 characters")
 	assert.Equal(t, 128, MaxPasswordLength, "ASVS §2.1.2 requires denying passwords longer than 128")
+}
+
+func installBlocklistContaining(t *testing.T, entries ...string) func(*testing.T) {
+	t.Helper()
+
+	return func(t *testing.T) {
+		t.Helper()
+
+		set := make(map[string]struct{}, len(entries))
+		for _, e := range entries {
+			set[e] = struct{}{}
+		}
+
+		SetPasswordBlocklist(&MapBlocklist{entries: set})
+		t.Cleanup(ResetPasswordPolicy)
+	}
 }

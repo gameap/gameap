@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	trmsql "github.com/avito-tech/go-transaction-manager/drivers/sql/v2"
@@ -164,6 +165,9 @@ type Container struct {
 	enrollmentService *enrollment.Service
 
 	secretCipher *secret.Cipher
+
+	passwordBlocklist     auth.Blocklist
+	passwordBlocklistOnce sync.Once
 
 	// Daemon Services
 	daemonStatus         *daemon.StatusService
@@ -360,6 +364,49 @@ func (c *Container) SecretCipher() *secret.Cipher {
 	c.secretCipher = cipher
 
 	return c.secretCipher
+}
+
+// PasswordBlocklist returns the process-wide common-password blocklist
+// consulted by auth.ValidatePassword to satisfy OWASP ASVS 4.0.3 §2.1.7.
+//
+// When AUTH_ALLOW_WEAK_PASSWORDS=true the loader is skipped entirely (no
+// memory cost) and a startup slog.Warn is emitted. On a load failure the
+// accessor falls back to auth.NoopBlocklist with a prominent slog.Error so
+// a corrupt embedded asset does not block bootstrap of the admin user.
+func (c *Container) PasswordBlocklist() auth.Blocklist {
+	c.passwordBlocklistOnce.Do(func() {
+		if c.config.Auth.AllowWeakPasswords {
+			slog.Warn("AUTH_ALLOW_WEAK_PASSWORDS is enabled: common-password " +
+				"blocklist is DISABLED; users may set weak passwords " +
+				"(ASVS 2.1.7 not enforced)")
+
+			c.passwordBlocklist = auth.NoopBlocklist{}
+
+			return
+		}
+
+		bl, err := auth.LoadEmbeddedBlocklist()
+		if err != nil {
+			slog.Error(
+				"password blocklist failed to load — common-password protection DISABLED for this process",
+				slog.String("error", err.Error()),
+			)
+
+			c.passwordBlocklist = auth.NoopBlocklist{}
+
+			return
+		}
+
+		slog.Info(
+			"Password blocklist loaded",
+			slog.Int("entries", bl.Len()),
+			slog.String("source", "embedded"),
+		)
+
+		c.passwordBlocklist = bl
+	})
+
+	return c.passwordBlocklist
 }
 
 func (c *Container) DB() *sql.DB {
