@@ -54,8 +54,8 @@ jobs:
       rustfs:
         image: rustfs/rustfs:latest
         env:
-          RUSTFS_ACCESS_KEY: rustfsadmin
-          RUSTFS_SECRET_KEY: rustfsadmin
+          RUSTFS_ACCESS_KEY: e2e-rustfs-secret
+          RUSTFS_SECRET_KEY: e2e-rustfs-secret
           RUSTFS_VOLUMES: /data
           RUSTFS_ADDRESS: 0.0.0.0:9000
           RUSTFS_CONSOLE_ENABLE: "false"
@@ -101,8 +101,8 @@ jobs:
 
       - name: Setup S3 bucket
         env:
-          AWS_ACCESS_KEY_ID: rustfsadmin
-          AWS_SECRET_ACCESS_KEY: rustfsadmin
+          AWS_ACCESS_KEY_ID: e2e-rustfs-secret
+          AWS_SECRET_ACCESS_KEY: e2e-rustfs-secret
           AWS_DEFAULT_REGION: us-east-1
         run: |
           aws --endpoint-url http://127.0.0.1:9000 s3 mb s3://test-bucket
@@ -112,7 +112,7 @@ jobs:
           TEST_MYSQL_DSN: 'root:testpassword@tcp(127.0.0.1:3306)/gameap?parseTime=true'
           TEST_POSTGRES_DSN: 'host=127.0.0.1 port=5432 user=postgres password=testpassword dbname=gameap sslmode=disable'
           TEST_REDIS_ADDR: '127.0.0.1:6379'
-          TEST_S3_DSN: 's3://rustfsadmin:rustfsadmin@127.0.0.1:9000/test-bucket?ssl=false'
+          TEST_S3_DSN: 's3://e2e-rustfs-secret:e2e-rustfs-secret@127.0.0.1:9000/test-bucket?ssl=false'
         run: |
           go test -race -v \
             $(go list ./... | \
