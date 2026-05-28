@@ -200,7 +200,7 @@ func setupDispatcher(t *testing.T) *dispatcherTestSetup {
 	t.Cleanup(func() { _ = ps.Close() })
 
 	logger := slog.Default()
-	instanceID := "test-instance"
+	instanceID := testInstanceID
 
 	dispatcher := NewFileDispatcher(ps, gateway, registry, storage, instanceID, logger)
 
