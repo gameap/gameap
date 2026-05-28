@@ -32,14 +32,11 @@ const (
 
 // activeCost is the cost HashPassword uses for new hashes. atomic.Int32 lets
 // SetDefaultBcryptCost be called once at boot and then read concurrently from
-// every login / password-change handler without locking. The default matches
-// the package constant so callers that never touch the config (tests,
-// seeders) keep the historical behaviour.
+// every login / password-change handler without locking. Its zero value means
+// "not yet configured": ActiveBcryptCost then reports DefaultBcryptCost, so
+// callers that never touch the config (tests, seeders) keep the historical
+// behaviour without a package init.
 var activeCost atomic.Int32
-
-func init() {
-	activeCost.Store(int32(DefaultBcryptCost))
-}
 
 // SetDefaultBcryptCost installs the operator-chosen cost factor for every
 // subsequent HashPassword call. It returns an error and leaves the active
@@ -61,9 +58,14 @@ func SetDefaultBcryptCost(cost int) error {
 
 // ActiveBcryptCost returns the cost factor HashPassword currently uses.
 // Callers (login handler) compare this to a hash's stored cost via
-// HashCost to decide whether to rehash on the way through.
+// HashCost to decide whether to rehash on the way through. A zero value —
+// SetDefaultBcryptCost not yet called — reads as DefaultBcryptCost.
 func ActiveBcryptCost() int {
-	return int(activeCost.Load())
+	if cost := activeCost.Load(); cost != 0 {
+		return int(cost)
+	}
+
+	return DefaultBcryptCost
 }
 
 // HashCost returns the bcrypt cost embedded in a stored hash. It is a thin

@@ -281,7 +281,7 @@ type Config struct {
 		// emits "Cache-Control: no-store, no-cache, must-revalidate, private" +
 		// "Pragma: no-cache" for any request whose path starts with one of these
 		// values. A downstream handler that explicitly sets Cache-Control wins.
-		SensitivePathPrefixes []string `env:"SECURITY_SENSITIVE_PATH_PREFIXES" envSeparator:"," envDefault:"/api/auth/,/api/profile/,/api/users/,/api/tokens/"`
+		SensitivePathPrefixes []string `env:"SECURITY_SENSITIVE_PATH_PREFIXES" envSeparator:"," envDefault:"/api/auth/,/api/profile/,/api/users/,/api/tokens/"` //nolint:lll // long env default in struct tag cannot be wrapped
 	}
 
 	// Plugin scopes capabilities exposed to WASM plugins via the host

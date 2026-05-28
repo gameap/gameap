@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	sdkhttp "github.com/gameap/gameap/pkg/plugin/sdk/http"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,6 +44,8 @@ func strictTestConfig() HTTPConfig {
 	}
 }
 
+var errFakeResolverNoEntry = errors.New("fake resolver has no entry")
+
 // fakeResolver lets a test pretend a hostname resolves to a specific IP.
 type fakeResolver struct {
 	mapping map[string][]netip.Addr
@@ -54,7 +57,7 @@ func (f *fakeResolver) LookupNetIP(_ context.Context, _, host string) ([]netip.A
 
 	ips, ok := f.mapping[host]
 	if !ok {
-		return nil, fmt.Errorf("fake resolver: no entry for %q", host)
+		return nil, errors.Wrapf(errFakeResolverNoEntry, "host %q", host)
 	}
 
 	return ips, nil

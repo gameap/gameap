@@ -131,17 +131,11 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenString, source := m.extractToken(r)
 		if tokenString == "" {
-			if optional {
-				next.ServeHTTP(w, r)
-
-				return
+			if !optional {
+				audit.TokenRejected(r.Context(), m.audit, "missing_token")
 			}
 
-			audit.TokenRejected(r.Context(), m.audit, "missing_token")
-			m.responder.WriteError(r.Context(), w, api.WrapHTTPError(
-				errMissingAuthToken,
-				http.StatusUnauthorized,
-			))
+			m.finishRejected(w, r, next, optional, errMissingAuthToken)
 
 			return
 		}
@@ -155,17 +149,7 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 		// where it was placed.
 		if !sourceAllowsTokenType(source, detectedType) {
 			audit.TokenRejected(r.Context(), m.audit, "token_source_"+source.String()+"_not_allowed")
-
-			if optional {
-				next.ServeHTTP(w, r)
-
-				return
-			}
-
-			m.responder.WriteError(r.Context(), w, api.WrapHTTPError(
-				errMissingAuthToken,
-				http.StatusUnauthorized,
-			))
+			m.finishRejected(w, r, next, optional, errMissingAuthToken)
 
 			return
 		}
@@ -194,13 +178,10 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 				audit.TokenRejected(r.Context(), m.audit, reason)
 			}
 
-			if optional {
-				var wrappedHTTPErr *api.WrappedError
-				if errors.As(err, &wrappedHTTPErr) && wrappedHTTPErr.HTTPStatus() == http.StatusUnauthorized {
-					next.ServeHTTP(w, r)
+			if optional && isOptionalUnauthorized(err) {
+				next.ServeHTTP(w, r)
 
-					return
-				}
+				return
 			}
 
 			m.responder.WriteError(r.Context(), w, err)
@@ -219,17 +200,7 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 		}
 		if revoked {
 			audit.TokenRejected(r.Context(), m.audit, "token_revoked")
-
-			if optional {
-				next.ServeHTTP(w, r)
-
-				return
-			}
-
-			m.responder.WriteError(r.Context(), w, api.WrapHTTPError(
-				errTokenRevoked,
-				http.StatusUnauthorized,
-			))
+			m.finishRejected(w, r, next, optional, errTokenRevoked)
 
 			return
 		}
@@ -238,6 +209,33 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// finishRejected terminates a failed authentication. In optional-auth mode the
+// request proceeds unauthenticated (the downstream handler decides what an
+// anonymous caller may do); in strict mode the sentinel is written as a 401.
+// Callers emit their own audit event first, because the reason — and whether it
+// should fire for an anonymous optional request at all — differs per site.
+func (m *AuthMiddleware) finishRejected(
+	w http.ResponseWriter, r *http.Request, next http.Handler, optional bool, sentinel error,
+) {
+	if optional {
+		next.ServeHTTP(w, r)
+
+		return
+	}
+
+	m.responder.WriteError(r.Context(), w, api.WrapHTTPError(sentinel, http.StatusUnauthorized))
+}
+
+// isOptionalUnauthorized reports whether an optional-auth request may continue
+// anonymously despite a credential-processing error. Only a 401 means "no or
+// bad credentials"; a 500-class error (e.g. a repository failure) must still
+// surface even in optional mode.
+func isOptionalUnauthorized(err error) bool {
+	var wrappedHTTPErr *api.WrappedError
+
+	return errors.As(err, &wrappedHTTPErr) && wrappedHTTPErr.HTTPStatus() == http.StatusUnauthorized
 }
 
 // patRevocationIdentifier returns the stable denylist key for a PAT. Kept

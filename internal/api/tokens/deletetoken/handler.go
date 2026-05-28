@@ -124,7 +124,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// is keyed by ID (not raw secret) because the secret is no longer
 	// recoverable post-delete; the auth middleware mirrors this key shape
 	// for the post-validation IsRevoked probe.
-	if revErr := h.revocation.Revoke(ctx, auth.TokenIdentifier(PATRevocationIdentifier(id)), patRevocationTTL); revErr != nil {
+	revID := auth.TokenIdentifier(PATRevocationIdentifier(id))
+	if revErr := h.revocation.Revoke(ctx, revID, patRevocationTTL); revErr != nil {
 		// Non-fatal: the DB delete already strips API access. Surface the
 		// error for operator visibility so they can investigate cache
 		// outages.

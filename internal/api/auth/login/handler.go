@@ -143,27 +143,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Transparently upgrade password hashes on successful login. Two
-	// triggers (best-effort: failures must not block authentication):
-	//   1. Pre-§2.1.2 raw-bcrypt scheme — needsRehash from VerifyPassword.
-	//   2. The stored hash uses a cost below the operator's configured
-	//      AUTH_BCRYPT_COST. We only ever raise the cost (`storedCost <
-	//      active`); a downgrade is ignored so a misconfigured operator
-	//      who lowers the config cannot weaken existing rows.
-	rehash := needsRehash
-	if !rehash {
-		if storedCost, costErr := auth.HashCost(user.Password); costErr == nil {
-			if storedCost < auth.ActiveBcryptCost() {
-				rehash = true
-			}
-		}
-	}
-	if rehash {
-		if upgradedHash, hashErr := auth.HashPassword(input.Password); hashErr == nil {
-			user.Password = upgradedHash
-			_ = h.userRepo.Save(ctx, &user)
-		}
-	}
+	h.rehashPasswordIfNeeded(ctx, &user, input.Password, needsRehash)
 
 	if user.TwoFactorEnabled {
 		h.issueTwoFactorChallenge(ctx, rw, &user, input.RememberMe())
@@ -188,6 +168,36 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	response := newLoginResponseFromUser(&user, token, DefaultTokenDuration)
 	h.responder.Write(ctx, rw, response)
+}
+
+// rehashPasswordIfNeeded transparently upgrades a stored password hash on
+// successful login. Best-effort: failures must not block authentication, so
+// errors are swallowed. Two triggers:
+//  1. Pre-§2.1.2 raw-bcrypt scheme — needsRehash from VerifyPassword.
+//  2. The stored hash uses a cost below the operator's configured
+//     AUTH_BCRYPT_COST. We only ever raise the cost (`storedCost < active`);
+//     a downgrade is ignored so a misconfigured operator who lowers the
+//     config cannot weaken existing rows.
+func (h *Handler) rehashPasswordIfNeeded(
+	ctx context.Context, user *domain.User, password string, needsRehash bool,
+) {
+	rehash := needsRehash
+	if !rehash {
+		if storedCost, costErr := auth.HashCost(user.Password); costErr == nil {
+			if storedCost < auth.ActiveBcryptCost() {
+				rehash = true
+			}
+		}
+	}
+
+	if !rehash {
+		return
+	}
+
+	if upgradedHash, hashErr := auth.HashPassword(password); hashErr == nil {
+		user.Password = upgradedHash
+		_ = h.userRepo.Save(ctx, user)
+	}
 }
 
 // issueTwoFactorChallenge is reached only after the password check passed for
