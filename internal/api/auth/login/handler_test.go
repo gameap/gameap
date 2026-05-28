@@ -973,3 +973,128 @@ func TestHandler_ServeHTTP_LegacyHashUpgradesOnLogin(t *testing.T) {
 	assert.False(t, needsRehash,
 		"the upgraded hash must use the current SHA-256+bcrypt scheme and not request another upgrade")
 }
+
+// TestHandler_ServeHTTP_RehashesOnBcryptCostUpgrade pins ASVS §2.4.4: a
+// stored hash with a cost below the operator-configured AUTH_BCRYPT_COST
+// must be transparently upgraded on the next successful login. The handler
+// must NOT downgrade (target < stored) and must preserve auth on first
+// login (no 2nd request needed).
+func TestHandler_ServeHTTP_RehashesOnBcryptCostUpgrade(t *testing.T) {
+	const (
+		userLogin    = "costupgrade"
+		userEmail    = "costupgrade@example.test"
+		userPassword = "valid-pw-cost-test"
+		oldCost      = auth.MinBcryptCost     // 10
+		newCost      = auth.MinBcryptCost + 2 // 12 — fast in tests, still > old
+	)
+
+	t.Cleanup(func() { _ = auth.SetDefaultBcryptCost(auth.DefaultBcryptCost) })
+
+	ctx := context.Background()
+
+	// Step 1: hash with the OLD cost, persist user.
+	require.NoError(t, auth.SetDefaultBcryptCost(oldCost))
+	oldHash, err := auth.HashPassword(userPassword)
+	require.NoError(t, err)
+
+	storedCost, err := auth.HashCost(oldHash)
+	require.NoError(t, err)
+	require.Equal(t, oldCost, storedCost, "precondition: starting hash must be at oldCost")
+
+	repo := inmemory.NewUserRepository()
+	require.NoError(t, repo.Save(ctx, &domain.User{
+		Login:    userLogin,
+		Email:    userEmail,
+		Password: oldHash,
+	}))
+
+	// Step 2: install the NEW target cost, exercise login.
+	require.NoError(t, auth.SetDefaultBcryptCost(newCost))
+
+	responder := api.NewResponder()
+	handler := NewHandler(
+		auth.NewJWTService([]byte("test-secret-key")),
+		repo,
+		cache.NewInMemory(),
+		responder,
+		nil,
+		nil,
+	)
+
+	body := []byte(`{"login":"` + userLogin + `","password":"` + userPassword + `"}`)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	// Step 3: the stored hash must now use the NEW cost.
+	users, err := repo.Find(ctx, &filters.FindUser{Logins: []string{userLogin}}, nil, &filters.Pagination{Limit: 1})
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+
+	upgradedCost, err := auth.HashCost(users[0].Password)
+	require.NoError(t, err)
+	assert.Equal(t, newCost, upgradedCost,
+		"login at higher AUTH_BCRYPT_COST must transparently rehash the user's password")
+}
+
+// TestHandler_ServeHTTP_DoesNotDowngradeBcryptCost pins ASVS §2.4.4: when
+// the operator-configured AUTH_BCRYPT_COST is LOWER than the stored hash's
+// cost, the handler must NOT re-hash — a misconfigured downgrade can never
+// weaken existing credentials. Authentication still succeeds.
+func TestHandler_ServeHTTP_DoesNotDowngradeBcryptCost(t *testing.T) {
+	const (
+		userLogin    = "nocostdowngrade"
+		userEmail    = "nodowngrade@example.test"
+		userPassword = "valid-pw-no-downgrade"
+		strongCost   = auth.MinBcryptCost + 2 // 12
+		weakCost     = auth.MinBcryptCost     // 10 — operator misconfiguration
+	)
+
+	t.Cleanup(func() { _ = auth.SetDefaultBcryptCost(auth.DefaultBcryptCost) })
+
+	ctx := context.Background()
+
+	require.NoError(t, auth.SetDefaultBcryptCost(strongCost))
+	strongHash, err := auth.HashPassword(userPassword)
+	require.NoError(t, err)
+
+	repo := inmemory.NewUserRepository()
+	require.NoError(t, repo.Save(ctx, &domain.User{
+		Login:    userLogin,
+		Email:    userEmail,
+		Password: strongHash,
+	}))
+
+	// Operator drops to a weaker cost.
+	require.NoError(t, auth.SetDefaultBcryptCost(weakCost))
+
+	responder := api.NewResponder()
+	handler := NewHandler(
+		auth.NewJWTService([]byte("test-secret-key")),
+		repo,
+		cache.NewInMemory(),
+		responder,
+		nil,
+		nil,
+	)
+
+	body := []byte(`{"login":"` + userLogin + `","password":"` + userPassword + `"}`)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	users, err := repo.Find(ctx, &filters.FindUser{Logins: []string{userLogin}}, nil, &filters.Pagination{Limit: 1})
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+
+	assert.Equal(t, strongHash, users[0].Password,
+		"hash must remain at the original strong cost when configured cost is lower")
+}

@@ -170,7 +170,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				savedTokens = append(savedTokens, &tokenCopy)
 			}
 
-			handler := deletetoken.NewHandler(tokensRepo, responder, nil)
+			handler := deletetoken.NewHandler(tokensRepo, auth.NoopRevocation{}, responder, nil)
 
 			req := httptest.NewRequest(http.MethodDelete, "/api/tokens/"+tt.tokenID, nil)
 			if tt.tokenID != "" {
@@ -254,7 +254,7 @@ func TestHandler_Audit_SuccessfulRevokeIsRecorded(t *testing.T) {
 	require.NoError(t, tokensRepo.Save(context.Background(), tok))
 
 	recorder := &auditCapture{}
-	handler := deletetoken.NewHandler(tokensRepo, api.NewResponder(), recorder)
+	handler := deletetoken.NewHandler(tokensRepo, auth.NoopRevocation{}, api.NewResponder(), recorder)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/tokens/1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})
@@ -304,7 +304,7 @@ func TestHandler_Audit_ForbiddenRevokeIsNotRecorded(t *testing.T) {
 	require.NoError(t, tokensRepo.Save(context.Background(), othersToken))
 
 	recorder := &auditCapture{}
-	handler := deletetoken.NewHandler(tokensRepo, api.NewResponder(), recorder)
+	handler := deletetoken.NewHandler(tokensRepo, auth.NoopRevocation{}, api.NewResponder(), recorder)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/tokens/1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "1"})

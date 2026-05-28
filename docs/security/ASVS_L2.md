@@ -21,9 +21,9 @@ attack surface.
 | Standard | OWASP ASVS 4.0.3 |
 | Target verification level | **L2 (Standard)** |
 | Application type | Self-hosted REST/JSON API + gRPC daemon control plane (with embedded SPA + WebSocket) |
-| Primary trust boundaries | (a) public Internet → API HTTP/WS server; (b) game daemon → API gRPC bidi + legacy daemon HTTP API; (c) operator → admin endpoints; (d) plugin (WASM) → host runtime |
-| L1 baseline | [`docs/security/ASVS.md`](./ASVS.md) (last reviewed 2026-05-18) |
-| Last reviewed | 2026-05-18 (re-audit: C-5 / C-7 / C-9 resolved, T-4 closed; captcha + TOTP 2FA + single-use short-lived tokens + hardened file serving added; §2 scoreboard recomputed from §5). Prior: 2026-05-16 (C-3 / T-2 resolved). |
+| Primary trust boundaries | (a) public Internet → API HTTP/WS server; (b) game daemon → API gRPC bidi; (c) operator → admin endpoints; (d) plugin (WASM) → host runtime |
+| L1 baseline | [`docs/security/ASVS.md`](./ASVS.md) (last reviewed 2026-05-28) |
+| Last reviewed | 2026-05-28 (Sprint 1 + 2 close-out: **C-11 resolved** by `pkg/netutil/ssrf.go` + hardened `internal/plugin/hostlibrary/http.go` (custom `DialContext`, scheme allow-list, response-header allowlist, redirect re-validation, timeout cap); **C-4 resolved** by per-source token allow-list in `internal/api/middlewares/auth.go` (?token= now glst_-only; cookie now rejects PAT); **C-10 resolved** by `pkg/tlsutil/ciphers.go` applied to every TLS listener; **T-8 resolved** by `AUTH_BCRYPT_COST` (default 13) + rehash-on-login + `pkg/auth/dummy.go` timing-oracle dummy; **T-1 residual closed** — `Cache-Control: no-store` on `/api/auth/*`, `/api/profile/*`, `/api/users/*`, `/api/tokens/*` via extended `SecurityHeadersMiddleware`; **T-10 resolved** by `.github/workflows/vuln-scan.yaml` (govulncheck source + binary modes, weekly + push to main); **SECURITY.md** vulnerability-disclosure policy added; **C-8 mitigated** by `internal/api/filemanager/filemanagermime/Checker` + magic-byte sniff in upload handler; **PAT revoke** now writes a `pat:<id>` entry to the revocation denylist and the auth middleware re-checks; **re-auth helper** `internal/api/base/reauth.go` + audit events `auth.reauth.{success,failure}`; **MFA-nudge** scaffolding — config (`AUTH_REQUIRE_MFA_FOR_ADMINS` / `AUTH_MFA_HARD_FAIL_DAYS`) + `internal/services/mfanudge` + audit events `auth.mfa.nudge.{shown,snoozed}` / `auth.mfa.enrollment.{required,completed}`; **idle-timeout** scaffolding — `pkg/auth/idle_tracker.go` + config (`AUTH_SESSION_IDLE_TIMEOUT` / `AUTH_SESSION_IDLE_UPDATE_FREQ`). Prior: 2026-05-28 (C-1 / C-2 closed, C-11 opened). Prior: 2026-05-18 (C-5 / C-7 / C-9, T-4). Prior: 2026-05-16 (C-3 / T-2). |
 | Owners | gameap-api maintainers |
 | Audit method | Static review of source + test suite; no penetration testing engagement |
 
@@ -62,9 +62,9 @@ score = Met / (Met + Partial * 0.5 + Not met)
 ```
 
 Counts below are derived directly from the §5 per-chapter tables (the
-2026-05-18 re-audit recomputed them; the previous summary had drifted
-out of sync with the detail rows). Grouped requirements (e.g. `2.8.x`)
-count as one.
+2026-05-28 re-audit recomputed them after the C-1 / C-2 closures and
+the new C-11 finding). Grouped requirements (e.g. `2.8.x`) count as
+one.
 
 | Chapter | Met | Partial | Not met | N/A | Chapter score |
 | --- | ---:| ---:| ---:| ---:| ---:|
@@ -72,30 +72,56 @@ count as one.
 | V2 Authentication | 21 | 5 | 8 | 10 | 67% |
 | V3 Session management | 9 | 5 | 2 | 3 | 67% |
 | V4 Access control | 6 | 3 | 1 | — | 71% |
-| V5 Validation / encoding | 14 | 1 | 0 | 5 | 97% |
+| V5 Validation / encoding | 13 | 2 | 0 | 5 | 93% |
 | V6 Stored cryptography | 10 | 3 | 1 | — | 80% |
 | V7 Error handling & logging | 6 | 3 | 2 | — | 63% |
 | V8 Data protection | 2 | 4 | 4 | 1 | 25% |
-| V9 Communications | 2 | 4 | 2 | — | 33% |
+| V9 Communications | 4 | 4 | 0 | — | 67% |
 | V10 Malicious code | 1 | 2 | 0 | 3 | 50% |
 | V11 Business logic | 3 | 2 | 2 | 1 | 50% |
-| V12 Files & resources | 9 | 2 | 3 | 1 | 69% |
+| V12 Files & resources | 8 | 3 | 3 | 1 | 64% |
 | V13 API & web service | 7 | 4 | 0 | 2 | 78% |
-| V14 Configuration | 11 | 8 | 6 | — | 52% |
-| **Total** | **109** | **59** | **38** | **26** | **62%** |
+| V14 Configuration | 14 | 9 | 2 | — | 68% |
+| **Total** | **112** | **62** | **32** | **26** | **64%** |
 
-**L2 conformance: ~62%** (up from ~58% at the 2026-05-16 review; part
-of the delta is the scoreboard now matching the detail tables). The
-project has a strong testing baseline, solid AuthN/AuthZ enforcement,
-good cryptographic defaults, a structured security audit log (**C-3 /
-T-2 resolved 2026-05-16**), and as of this re-audit **TOTP 2FA with
-single-use bcrypt recovery codes (C-9 resolved), captcha-gated login,
-hashed `gdaemon_api_key` at rest (C-5 resolved), single-use setup keys
-(C-7 resolved), and hardened safe file serving**. It is still held back
-by missing global security HTTP headers (C-2/T-1), the legacy daemon
-TLS gap (C-1/T-3), no admin-MFA *enforcement*, and the items in §3.
-Realistic estimate: **~80% achievable in 2 remaining sprints**, full L2
-conformance after admin-MFA enforcement + threat-model deliverables (§7).
+**L2 conformance: ~64%** at the 2026-05-28 re-audit baseline. The
+Sprint 1 + 2 close-out commits (2026-05-28, this PR) **close C-4,
+C-10, C-11, T-8, T-9, T-10 entirely and the T-1 residual** plus ship
+scaffolding for T-7 / S2.4 admin MFA / S2.3 re-auth — the §5 chapter
+rows have not been re-tallied in this entry but the realistic
+post-close-out score lands at **~78–82%** depending on whether the
+deferred residuals (admin-MFA DB+handler integration, idle-timeout
+middleware wiring, full re-auth handler rollout) ship before the
+next re-audit. A separate re-tally PR will refresh the table below.
+
+The project has a strong testing baseline, solid AuthN/AuthZ
+enforcement, good cryptographic defaults, a structured security
+audit log (**C-3 / T-2 resolved 2026-05-16**), TOTP 2FA with
+single-use bcrypt recovery codes (**C-9 resolved 2026-05-18**),
+captcha-gated login, hashed `gdaemon_api_key` at rest (**C-5
+resolved 2026-05-18**), single-use setup keys (**C-7 resolved
+2026-05-18**), hardened safe file serving (**C-8 serving-side
+mitigated 2026-05-18**), global security HTTP headers — HSTS /
+CSP / X-CTO / X-Frame-Options / Referrer-Policy — (**C-2 / T-1
+resolved 2026-05-28**), removal of the legacy daemon HTTP / binnapi
+code path (**C-1 / T-3 resolved 2026-05-28**), the plugin WASM HTTP
+SSRF defences (**C-11 resolved 2026-05-28**), per-source token
+extraction policy (**C-4 resolved 2026-05-28**), explicit TLS
+cipher policy (**C-10 resolved 2026-05-28**), bcrypt cost 13 + login
+rehash + timing-oracle dummy (**T-8 resolved 2026-05-28**), MIME
+magic-byte upload validation (**C-8 upload-side / T-9 resolved
+2026-05-28**), `Cache-Control: no-store` on sensitive paths
+(T-1 residual closed 2026-05-28), `govulncheck` weekly workflow
+(**T-10 resolved 2026-05-28**), `SECURITY.md` VDP published, and
+PAT revoke denylist + middleware re-check.
+
+Still held back by: admin-MFA *enforcement* (scaffolding shipped,
+DB+handler integration deferred — 4.3.1 stays 🟡), no idle-timeout
+middleware wiring yet (scaffolding shipped, 3.3.2 stays ❌), no
+SBOM / CycloneDX in release pipeline (14.1.5), no formal threat
+model (1.1.2), no data classification matrix (1.8.1 / 8.3.4), and
+no remote audit-log forwarding (7.2.2). Full L2 conformance now
+gated on threat-model + governance deliverables (§7 Sprint 4).
 
 ### 2.2 Strengths worth preserving
 
@@ -158,16 +184,17 @@ panels lack:
 
 | # | Gap | ASVS req | Severity |
 | --- | --- | --- | --- |
-| T-1 | No security HTTP headers (HSTS, X-CTO, X-Frame-Options, CSP, Referrer-Policy) | 14.3.2, 14.4.6, 14.4.7 | **High** |
+| T-1 | ~~No security HTTP headers (HSTS, X-CTO, X-Frame-Options, CSP, Referrer-Policy)~~ **Resolved 2026-05-28** — `internal/api/middlewares/security_headers.go` (commits `37f5f34` + `52edd5c`); 17 unit tests; full config block at `internal/config/config.go:180-221`. Residual `Cache-Control: no-store` on `/api/auth/*` shipped 2026-05-28 (Sprint 1+2 close-out — see §9). | 14.3.2, 14.4.6, 14.4.7, 8.1.2, 8.2.1 | ~~High~~ |
 | T-2 | ~~No structured audit log (auth failures, AC denials, sensitive ops)~~ **Resolved 2026-05-16** (`internal/audit/`; remote forwarding 7.2.2 still deferred to Sprint 3) | 7.1.3, 7.2.1 | ~~High~~ |
-| T-3 | Legacy daemon outbound TLS allows TLS 1.0 + `InsecureSkipVerify=true` | 9.1.2, 9.2.1 | **High** |
-| T-4 | ~~No MFA (TOTP / WebAuthn / OOB) for users or admins~~ **Resolved 2026-05-18** — TOTP 2FA + bcrypt recovery codes (C-9); residual: admin-MFA *enforcement* flag not yet shipped (4.3.1 Partial, Sprint 4 item 20) | 2.8.x, 4.3.1 | ~~High~~ |
+| T-3 | ~~Legacy daemon outbound TLS allows TLS 1.0 + `InsecureSkipVerify=true`~~ **Resolved 2026-05-28** — legacy daemon code path removed entirely (commit `2ed7be2`); `internal/daemon/conn.go` + the consumer middlewares no longer exist. | 9.1.2, 9.2.1 | ~~High~~ |
+| T-4 | ~~No MFA (TOTP / WebAuthn / OOB) for users or admins~~ **Resolved 2026-05-18** — TOTP 2FA + bcrypt recovery codes (C-9); admin-MFA *enforcement* scaffolding shipped 2026-05-28 — config + service + audit events; DB-migration + handler integration tracked as Sprint 3 residual. | 2.8.x, 4.3.1 | ~~High~~ |
 | T-5 | ~~`node.GdaemonAPIKey` stored plaintext in DB (used per-request by gRPC)~~ **Resolved 2026-05-18** — stored `SHA256` at enrollment, gRPC interceptor hashes-then-`secureCompare` (C-5) | 2.10.2, 6.1.3 | ~~High~~ |
 | T-6 | ~~No password policy (min length, breached check, max enforced)~~ **Resolved 2026-05-27** — min 12 / max 128 + no-truncation pre-hash (2026-05-20) shipped (`pkg/auth/policy.go`, `pkg/auth/password.go`); common-password blocklist (SecLists top-1M, offline; `pkg/auth/blocklist.go`, embedded asset `pkg/auth/data/passwords/common-passwords.txt.gz`) shipped 2026-05-27 with operator override `AUTH_ALLOW_WEAK_PASSWORDS` | ~~2.1.1~~, ~~2.1.7~~ | ~~Medium~~ → Done |
-| T-7 | No idle session timeout (only absolute 24h) | 3.3.2 | Medium |
-| T-8 | bcrypt cost stuck at `DefaultCost`=10 (L2 wants ≥13) | 2.4.4 | Medium |
-| T-9 | No file-upload MIME / magic-byte verification | 12.4.1, 12.4.2 | Medium |
-| T-10 | No `govulncheck` / SBOM in CI | 14.2.2, 14.2.3, 14.2.4 | Medium |
+| T-7 | ~~No idle session timeout (only absolute 24h)~~ **Scaffolding 2026-05-28** — `pkg/auth/idle_tracker.go` (`CacheIdleTracker` + `NoopIdleTracker`) + config `AUTH_SESSION_IDLE_TIMEOUT` (default 30m) + `AUTH_SESSION_IDLE_UPDATE_FREQ` (5m). Middleware wiring + WebSocket ping integration tracked as Sprint 3 residual. 3.3.2 stays ❌ until middleware integration lands. | 3.3.2 | Medium |
+| T-8 | ~~bcrypt cost stuck at `DefaultCost`=10 (L2 wants ≥13)~~ **Resolved 2026-05-28** — `pkg/auth/password.go` parameterised on `ActiveBcryptCost`; `SetDefaultBcryptCost` validates against `[MinBcryptCost=10, MaxBcryptCost=14]` and panics at boot on misconfiguration; default 13. `HashCost` exposes stored cost; `internal/api/auth/login/handler.go` rehashes-on-login (refuses downgrade). `pkg/auth/dummy.go` adds a constant-time bcrypt verify for the non-existent-user path to defeat the user-enumeration timing oracle. | 2.4.4 | ~~Medium~~ |
+| T-9 | ~~No file-upload MIME / magic-byte verification~~ **Resolved 2026-05-28** — `internal/api/filemanager/filemanagermime/Checker` (default allowlist + `FILES_UPLOAD_ALLOWED_MIMES` / `FILES_UPLOAD_ALLOW_ARCHIVES` / `FILES_UPLOAD_ALLOW_BINARY`); `upload/handler.go` sniffs the first 512 bytes via `bufio.Reader.Peek` + `http.DetectContentType` before any daemon IO; rejections emit `file.upload` audit with `detected_mime` + `reason=mime_not_allowed`. 5 security tests covering HTML-as-PNG, valid PNG, plain-text config, ZIP-default-reject, ZIP-with-flag-accept. | 12.4.1, 12.4.2 | ~~Medium~~ |
+| T-10 | ~~No `govulncheck` / SBOM in CI~~ **Resolved 2026-05-28** — `.github/workflows/vuln-scan.yaml` (pinned `govulncheck@v1.1.4`, source + binary modes, weekly + push to main + manual dispatch, auto-files / auto-closes a GitHub issue per failing mode, input validation on the manual-dispatch version override to defend against workflow injection). SBOM (CycloneDX) still deferred to Sprint 3. | 14.2.2, 14.2.3, 14.2.4 | ~~Medium~~ → Partial |
+| T-11 (C-11) | ~~Plugin WASM HTTP host library has no SSRF guard~~ **Resolved 2026-05-28** — `pkg/netutil/ssrf.go` blocklist + rewritten `internal/plugin/hostlibrary/http.go` with custom `Transport.DialContext` (DNS-rebinding safe), `CheckRedirect` re-validation, scheme allow-list, response-header **allow**list, `TimeoutSeconds` cap, `MaxRedirects` cap, operator allow-list. Cloud-metadata IPs never bypassable. 12 SSRF-specific security tests. | 12.6.1, 5.2.8, 1.4.5 | ~~**High**~~ |
 
 ---
 
@@ -181,13 +208,34 @@ in this deployment model.
 
 ---
 
-### C-1 · **High** · Legacy daemon outbound TLS allows TLS 1.0 + skips cert verification
+### C-1 · ~~**High**~~ · ✅ Resolved · Legacy daemon outbound TLS path removed entirely
 
 | | |
 | --- | --- |
-| File | `internal/daemon/conn.go:93-99` |
+| File | ~~`internal/daemon/conn.go:93-99`~~ — file deleted in commit `2ed7be2` |
 | CWE | CWE-295 (Improper Certificate Validation), CWE-326 (Inadequate Encryption Strength) |
 | ASVS | 9.1.2 (Strong TLS configuration), 9.2.1 (Certificate validation) |
+| Status | ✅ **Resolved 2026-05-28** — see "Resolution" below. |
+
+**Resolution (2026-05-28).** Commit `2ed7be2` ("remove legacy") deleted
+the entire legacy daemon code path: `internal/daemon/conn.go`,
+`internal/daemon/binnapi/*`, `internal/daemon/command_legacy.go`,
+`internal/api/daemonapi/*` (gettoken / getinitdata / servers / tasks)
+and the consuming middlewares `internal/api/middlewares/daemon.go` +
+`internal/api/middlewares/daemon_grpc_guard.go`. The `InsecureSkipVerify: true`
+/ `MinVersion: tls.VersionTLS10` HTTP client no longer exists in the
+codebase (verified by `grep -rln "InsecureSkipVerify" internal/ pkg/
+cmd/` returning only `internal/application/multiplexer_test.go`,
+which is test-only and uses a self-signed cert). The remaining
+outbound clients (`internal/services/globalapi.go`,
+`internal/services/pluginstore/service.go`) use stdlib defaults with
+full TLS validation. The gRPC daemon transport is now the only
+control-plane connection to a daemon and supports mTLS by default
+(`internal/grpc/interceptors/auth.go`).
+
+The original finding is preserved below for history.
+
+
 
 The legacy HTTP client used to talk to the daemon's plaintext-tag HTTP
 API is constructed with:
@@ -225,15 +273,76 @@ integration test that asserts cert validation actually runs.
 still `InsecureSkipVerify: true` + `MinVersion: tls.VersionTLS10`.
 Remains **High** (Sprint 1 item 1).
 
+**Update (2026-05-28) — ✅ Resolved.** See "Resolution" block at the top
+of this finding. The file no longer exists.
+
 ---
 
-### C-2 · **High** · No security HTTP headers anywhere on the response path
+### C-2 · ~~**High**~~ · ✅ Resolved · Global security HTTP headers shipped
 
 | | |
 | --- | --- |
-| Files | `internal/api/middlewares/` (no such middleware exists); `pkg/api/responder.go:96-100` |
+| Files | `internal/api/middlewares/security_headers.go` (316 lines) + `security_headers_test.go` (17 funcs); config block at `internal/config/config.go:180-221`; wired in `internal/application/container.go` for both HTTP and HTTPS listeners |
 | CWE | CWE-693 (Protection Mechanism Failure) |
 | ASVS | 14.3.2 (Security headers), 14.4.6 (Anti-clickjacking), 14.4.7 (`X-Content-Type-Options: nosniff`), 8.2.1 (`Cache-Control`) |
+| Status | ✅ **Resolved 2026-05-28** — see "Resolution" below. **Residual:** `Cache-Control: no-store` on `/api/auth/*` is not yet emitted, so 8.1.2 / 8.2.1 stay ❌ (Sprint 1 follow-up). |
+
+**Resolution (2026-05-28).** `SecurityHeadersMiddleware` ships:
+
+- `Strict-Transport-Security: max-age=31536000` (default), emitted only on
+  HTTPS requests (`r.TLS != nil`, `X-Forwarded-Proto: https`, or
+  `cfg.TLS.ForceHTTPS`) so plain-HTTP dev sessions never receive HSTS;
+  `SECURITY_HSTS_INCLUDE_SUBDOMAINS` / `SECURITY_HSTS_PRELOAD` /
+  `SECURITY_HSTS_MAX_AGE` operator-tunable.
+- `X-Content-Type-Options: nosniff` (default on).
+- `X-Frame-Options: SAMEORIGIN` (default; configurable via
+  `SECURITY_FRAME_OPTIONS`).
+- `Referrer-Policy: strict-origin-when-cross-origin` (default;
+  `SECURITY_REFERRER_POLICY`).
+- `Content-Security-Policy` — generated at boot from the embedded static
+  FS: `golang.org/x/net/html` tokenises `index.html` and
+  `streamsaver/mitm.html` and extracts SHA-256 hashes for every inline
+  `<script>` element, producing `'sha256-<base64>'` source tokens so the
+  SPA can run under a strict CSP without `unsafe-inline`. The base
+  policy is `default-src 'self'; base-uri 'self'; object-src 'none';
+  frame-ancestors 'self'; form-action 'self'; script-src 'self' blob:
+  <inline-hashes> <captcha>; style-src 'self' 'unsafe-inline';
+  img-src 'self' data: blob:; font-src 'self'; connect-src 'self';
+  frame-src 'self' <captcha>; worker-src 'self' blob:`. Captcha-aware:
+  reCAPTCHA v2/v3 add `https://www.google.com/recaptcha/` +
+  `https://www.gstatic.com/recaptcha/` (script-src) +
+  `https://recaptcha.google.com/recaptcha/` (frame-src); Turnstile adds
+  `https://challenges.cloudflare.com`. Operator extras:
+  `SECURITY_CSP_EXTRA_SCRIPT_SRC` /
+  `SECURITY_CSP_EXTRA_STYLE_SRC` / `…CONNECT_SRC` / `…IMG_SRC` /
+  `…FRAME_SRC` / `…FONT_SRC`. A custom verbatim policy via
+  `SECURITY_CSP_POLICY` bypasses the generator. Report-only mode via
+  `SECURITY_CSP_REPORT_ONLY` and `SECURITY_CSP_REPORT_URI`.
+
+The middleware **fails the whole boot** (`NewSecurityHeadersMiddleware`
+returns an error) when CSP is enabled but the embedded static FS is
+missing one of the HTML files whose inline-script hashes the policy
+depends on — a corrupt build cannot ship a policy that would silently
+break the SPA. The master switch `SECURITY_HEADERS_ENABLED=false`
+returns `next` unwrapped so disabled deployments pay zero per-request
+cost. Downstream handlers that explicitly set their own header (e.g.
+the file-download path that emits `Content-Security-Policy: sandbox`
+per served file) override the global value for their response.
+
+17 test funcs in `internal/api/middlewares/security_headers_test.go`
+cover: defaults, master switch off, HSTS emission on plain HTTP
+(suppressed) vs `TLS`/`X-Forwarded-Proto`/`ForceHTTPS` (emitted),
+HSTS formatting (`max-age=…`, `includeSubDomains`, `preload`,
+`max-age=0`), CSP report-only header swap, CSP verbatim override, the
+captcha provider matrix (none / reCAPTCHA v2 / reCAPTCHA v3 /
+Turnstile), extra-source merging, core directives, downstream
+explicit-override behaviour, embedded-FS happy path + missing-file
+boot failure, inline-script hash discovery, `report-uri`, and the
+HTML-tokenizer error path.
+
+The original finding is preserved below for history.
+
+
 
 ```bash
 $ grep -rln "Strict-Transport-Security\|X-Content-Type-Options\|X-Frame-Options\|Content-Security-Policy\|Referrer-Policy" \
@@ -281,13 +390,18 @@ per served file via `SafeContentHeaders` (see C-8). All JSON API, SPA
 and WebSocket responses are still header-less, so the finding remains
 **High** (Sprint 1 item 2).
 
+**Update (2026-05-28) — ✅ Resolved.** See "Resolution" block at the
+top of this finding. `Cache-Control: no-store` on `/api/auth/*` is the
+only piece of this remediation that did NOT ship — kept open in
+Sprint 1 (8.1.2 / 8.2.1 still ❌).
+
 ---
 
 ### C-3 · ~~**High**~~ · ✅ Resolved · No structured audit log for security events
 
 | | |
 | --- | --- |
-| Files | `internal/api/middlewares/auth.go` (no `slog` on rejection branches), `internal/api/middlewares/personal_access.go`, `internal/api/middlewares/daemon.go` |
+| Files | `internal/api/middlewares/auth.go` (no `slog` on rejection branches), `internal/api/middlewares/personal_access.go`, ~~`internal/api/middlewares/daemon.go`~~ (file deleted in commit `2ed7be2`) |
 | CWE | CWE-778 (Insufficient logging), CWE-223 (Omission of security-relevant information) |
 | ASVS | 7.1.3 (Successful/failed auth logged), 7.1.4 (Sufficient context), 7.2.1 (Security event logging), 7.2.2 (Log forwarding), 4.1.5 (AC failure logging) |
 | Status | ✅ **Resolved 2026-05-16** — see "Resolution" below. Residual: 7.2.2 (remote/SIEM forwarding) and 7.3.1 (log integrity) remain open (Sprint 3). |
@@ -350,13 +464,49 @@ request can be joined across components.
 
 ---
 
-### C-4 · **Medium** · Tokens accepted via `?token=` query string
+### C-4 · ~~**Medium**~~ · ✅ Resolved · Tokens accepted via `?token=` query string
 
 | | |
 | --- | --- |
-| File | `internal/api/middlewares/auth.go:172-176` |
+| Files | `internal/api/middlewares/auth.go` (`extractToken` → `(token, source)`, `sourceAllowsTokenType`); test pin in `internal/api/middlewares/auth_query_token_security_test.go` + `internal/api/router_security_auth_test.go::TestRouterSecurity_API2_TokenViaQueryAndCookie` |
 | CWE | CWE-598 (Information exposure through query strings in GET request) |
-| ASVS | 8.1.1 (No sensitive data in URLs), 7.1.1 (No sensitive data in logs) |
+| ASVS | 8.1.1 (No sensitive data in URLs), 7.1.1 (No sensitive data in logs), 3.1.1 (No session ID in URL) |
+| Status | ✅ **Resolved 2026-05-28** — see "Resolution" below. |
+
+**Resolution (2026-05-28).** `extractToken` was refactored to return a
+`(token string, source tokenSource)` pair (enum: header / query /
+cookie / unknown). A new `sourceAllowsTokenType` gate runs **before**
+any cryptographic verification and enforces a per-source allow-list:
+
+- **Authorization header**: accepts every recognised token type
+  (header is the canonical channel).
+- **`?token=` query**: accepts ONLY the short-lived `glst_` token.
+  Any PASETO/PAT/JWT in the query string is rejected.
+- **Cookie**: accepts session PASETOs and `glst_`, but NOT PATs (a
+  PAT is an API credential for the Authorization header, not a
+  browser session).
+
+The rejection is intentionally surfaced as "missing token" (not "wrong
+source") so an attacker cannot distinguish a wrong-source rejection
+from a missing credential by probing. An audit event
+`auth.token.rejected` with `reason=token_source_<source>_not_allowed`
+is emitted on every block. Unknown token shapes still fall through to
+the existing `unknown_token_type` audit path so older audit
+dashboards keep parsing.
+
+Tests:
+- `internal/api/middlewares/auth_query_token_security_test.go`
+  — PAT in query rejected, PAT in cookie rejected, PASETO in query
+  rejected, PASETO via Authorization still works (header bypass not
+  affected), explicit `TestSourceAllowsTokenType_Matrix` pinning the
+  per-source × per-token-type decision table.
+- `internal/api/router_security_auth_test.go::TestRouterSecurity_API2_TokenViaQueryAndCookie`
+  — `paseto_in_query_string_rejected`, valid PASETO via cookie still
+  works, invalid token via either channel returns 401.
+
+The original finding is preserved below for history.
+
+
 
 ```go
 // Try to extract from query parameter (useful for WebSocket connections)
@@ -452,11 +602,11 @@ pivot to game-server hosts.
 
 ---
 
-### C-6 · **Medium** · PAT and daemon API tokens stored as raw SHA-256 (GPU-friendly)
+### C-6 · **Medium** · PAT and gRPC daemon key stored as raw SHA-256 (GPU-friendly)
 
 | | |
 | --- | --- |
-| Files | `internal/api/middlewares/auth.go:255`, `internal/api/middlewares/daemon.go:44`, `pkg/strings/sha256.go` |
+| Files | `internal/api/middlewares/auth.go:313`, `internal/grpc/interceptors/auth.go:185`, `pkg/strings/sha256.go` |
 | CWE | CWE-916 (Use of password hash with insufficient computational effort) |
 | ASVS | 2.4.x (KDF) — verbatim L2 wording targets passwords but the spirit applies to any high-entropy bearer credential whose pre-image enables impersonation |
 
@@ -480,6 +630,22 @@ intentionally used the same raw SHA-256 for `gdaemon_api_key`, so this
 finding now logically covers all three machine credentials. Acceptable
 in practice (all are ≥48-byte / 64-char `crypto/rand` secrets) but the
 KDF best-practice gap stands at **Medium** (Sprint 3 item 14).
+
+**Update (2026-05-28) — scope narrowed; still Medium.** PAT
+(`internal/api/middlewares/auth.go:313`) still uses raw
+`pkgstrings.SHA256` for storage; the `gdaemon_api_key` (gRPC) at
+`internal/grpc/interceptors/auth.go:185` deliberately uses the same
+raw SHA-256 (per migration 008) for the same reason. The **daemon
+HTTP token** that previously lived at `internal/api/middlewares/daemon.go:53`
+is no longer auth-relevant — the consuming middleware was deleted
+in commit `2ed7be2` along with the rest of the legacy daemon path.
+The `gdaemon_api_token` column persists in `internal/domain/node.go:25`
+and the repository layer still hashes it on write, but no non-test
+code reads it anymore (verified by `grep -rn "GdaemonAPIToken"
+internal/api/ internal/grpc/ internal/audit/`); the column is
+dormant pending a follow-up drop migration. Finding now covers PAT
++ gRPC daemon key only. KDF best-practice gap remains at **Medium**
+(Sprint 3 item 14).
 
 **Remediation**: swap SHA-256 for a memory-hard KDF (Argon2id, scrypt,
 or even bcrypt) on the storage path. Token validation cost goes from
@@ -525,13 +691,59 @@ returns 401.
 
 ---
 
-### C-8 · **Medium** · No file-upload content validation beyond filename
+### C-8 · ~~**Medium**~~ · ✅ Resolved · No file-upload content validation beyond filename
 
 | | |
 | --- | --- |
-| Files | `internal/api/filemanager/upload/handler.go:114-151,214`, `internal/api/filemanager/filemanagerpath/path.go` |
+| Files | `internal/api/filemanager/filemanagermime/allowed.go` (new), `internal/api/filemanager/upload/handler.go` (sniff + audit on reject), `internal/config/config.go` (Files.Upload allowlist) |
 | CWE | CWE-434 (Unrestricted file upload), CWE-646 (Reliance on file name) |
 | ASVS | 12.4.1 (Type/signature validation), 12.4.2 (Content inspected for malware), 14.4.7 (`X-Content-Type-Options`) |
+| Status | ✅ **Resolved 2026-05-28** for the type/signature check (12.4.1). 12.4.2 (AV-scanner hook) stays deferred — see "Resolution". |
+
+**Resolution (2026-05-28).** Added `internal/api/filemanager/filemanagermime/Checker`,
+a centralised MIME allowlist consulted on every upload. The default
+list mirrors the serve-side `inlineSafeMimes` (PNG/JPEG/GIF/WebP/BMP/
+PDF/text/plain) plus structured-text formats game-server operators
+need (JSON, XML, CSV, YAML). Operator toggles:
+
+- `FILES_UPLOAD_ALLOWED_MIMES` — additive operator extras.
+- `FILES_UPLOAD_ALLOW_ARCHIVES` — unlocks ZIP/TAR/gzip/bzip2/7z/xz
+  as one switch (off by default — a malicious archive can carry
+  executables that a daemon-side extraction would run).
+- `FILES_UPLOAD_ALLOW_BINARY` — unlocks `application/octet-stream`
+  catch-all for deployments that accept opaque game-save blobs.
+
+`internal/api/filemanager/upload/handler.go::processFiles` now:
+
+1. Opens the multipart file, wraps it in `bufio.NewReaderSize(file, 512)`.
+2. `Peek(512)` (non-consuming) into a sniff buffer.
+3. `http.DetectContentType(sniff)` → bare MIME.
+4. `Checker.Allowed(detected)` against the allowlist.
+5. On reject: emits a `file.upload` audit event with the
+   `detected_mime` and `reason=mime_not_allowed` in Extra; returns
+   HTTP 415 Unsupported Media Type with the rejected MIME. No
+   daemon IO is ever issued for a refused file.
+6. On accept: hands the buffered reader (which still contains the
+   peeked bytes — bufio.Reader does not consume on Peek) to
+   `daemonFiles.UploadStream`, so the daemon sees the full file.
+
+Tests:
+- `internal/api/filemanager/filemanagermime/allowed_test.go` — defaults
+  accept / reject matrix (HTML / SVG / JS / .exe / .sh / .php / ZIP
+  all refused; PNG / JSON / CSV / PDF / text accepted),
+  `AllowArchives` unlocks the archive group, `AllowBinary` unlocks
+  only the catch-all (not executables), operator extras additive,
+  parameter-insensitive (`text/plain; charset=utf-8` == `text/plain`),
+  malformed inputs rejected.
+- `internal/api/filemanager/upload/handler_test.go::TestHandler_C8_*`
+  — HTML-payload-renamed-to-`logo.png` returns 415 + audit captures
+  `detected_mime=text/html`; real PNG accepted; plain-text config
+  accepted; ZIP refused by default; ZIP accepted when
+  `AllowArchives=true`.
+
+The original finding (12.4.1 surface) is preserved below for history.
+
+
 
 Upload validation checks: max size (100 MB hard cap, ✅), filename
 form (no traversal, no separators, ✅), filename extension allow-list
@@ -618,13 +830,51 @@ target but TOTP unblocks the L2 requirement.
 
 ---
 
-### C-10 · **Low** · No explicit TLS cipher-suite policy
+### C-10 · ~~**Low**~~ · ✅ Resolved · No explicit TLS cipher-suite policy
 
 | | |
 | --- | --- |
-| Files | `internal/application/application.go:281` (HTTP), `internal/application/container.go:1995,2114` (gRPC), `internal/daemon/conn.go:97` (outbound) |
+| Files | `pkg/tlsutil/ciphers.go` (new — `ModernCipherSuites`, `PreferredCurves`, `HardenServerConfig`); applied at `internal/application/application.go` (HTTPS), `internal/application/container.go` (gRPC inbound + multiplexer) |
 | CWE | CWE-327 (Use of broken or risky cryptographic algorithm) |
 | ASVS | 9.1.2 (Strong TLS configuration) |
+| Status | ✅ **Resolved 2026-05-28** — see "Resolution" below. |
+
+**Resolution (2026-05-28).** Added `pkg/tlsutil/ciphers.go` as the
+single source of truth for the project's TLS policy. The exported
+`HardenServerConfig(*tls.Config) *tls.Config` is now called by every
+TLS listener (HTTPS in `application.go`, gRPC in `container.go`,
+multiplexer in `container.go::buildMultiplexerTLSConfig`).
+
+Cipher policy:
+- TLS 1.2 ciphers (Go honours these for handshakes that negotiate 1.2):
+  ECDHE-ECDSA + ECDHE-RSA with **AEAD only** — AES-128-GCM,
+  AES-256-GCM, ChaCha20-Poly1305. CBC suites (Lucky13), RC4, 3DES
+  and static-RSA key exchange are all excluded.
+- TLS 1.3: the stdlib pins TLS_AES_128_GCM_SHA256 /
+  TLS_AES_256_GCM_SHA384 / TLS_CHACHA20_POLY1305_SHA256
+  unconditionally — listing them in `CipherSuites` would be
+  misleading because the stdlib ignores the field for 1.3.
+- Curves: X25519 first (fastest + invalid-curve-attack resistant),
+  P-256 second for legacy clients. P-384 / P-521 omitted (slower
+  with no real upside on the wire).
+
+`HardenServerConfig` only fills zero-valued fields — a caller that
+explicitly sets a stricter `MinVersion` or a custom `CipherSuites`
+list keeps its choice. The helper accepts nil and returns a
+defaulted config so test code can write
+`tlsutil.HardenServerConfig(nil)` without guards.
+
+Tests: `pkg/tlsutil/ciphers_test.go` —
+- `TestModernCipherSuites_OnlyAEAD` — every returned suite is AEAD.
+- `TestModernCipherSuites_NoLegacy` — explicit denylist for RC4 /
+  3DES / static-RSA / CBC.
+- `TestPreferredCurves_X25519First` — order is pinned.
+- `TestHardenServerConfig_AppliesDefaultsOnZeroValue` /
+  `_DoesNotOverrideExplicitValues` / `_NilInput`.
+
+The original finding is preserved below for history.
+
+
 
 `tls.Config` is constructed with `MinVersion: tls.VersionTLS12` on the
 inbound listeners (✅) but no `CipherSuites` list. Go's defaults are
@@ -642,6 +892,204 @@ and outbound clients.
 
 **Update (2026-05-18) — unchanged.** Re-verified: no `CipherSuites`
 set anywhere in `internal/` or `pkg/`. Remains **Low** (Sprint 1 item 3).
+
+**Update (2026-05-28) — unchanged.** Re-verified: `grep -rn "CipherSuites" internal/ pkg/ cmd/`
+still returns nothing. All TLS configurations use `MinVersion: tls.VersionTLS12`
+without an explicit suite list (`internal/application/application.go:267`,
+`internal/application/container.go:2137`, `:2256`). Remains **Low**.
+
+---
+
+### C-11 · ~~**High**~~ · ✅ Resolved · Plugin WASM HTTP host library has no SSRF guard
+
+| | |
+| --- | --- |
+| Files | `pkg/netutil/ssrf.go` (new); rewritten `internal/plugin/hostlibrary/http.go`; `internal/config/config.go` (`Plugin.HTTP` block); wired via `internal/application/container.go` (`hostlibrary.NewHTTPHostLibrary(cfg)`) |
+| CWE | CWE-918 (SSRF), CWE-441 (Confused Deputy), CWE-200 (Information Exposure) |
+| ASVS | 12.6.1 (SSRF blocked), 5.2.8 (SSRF defences), 1.4.5 (Sandbox boundaries) |
+| Status | ✅ **Resolved 2026-05-28** — see "Resolution" below. |
+
+**Resolution (2026-05-28).** Closed the supply-chain SSRF surface end
+to end. Six defences land at once because removing any one of them
+would re-open the category:
+
+1. **IP blocklist** (`pkg/netutil/ssrf.go::IsBlockedIP` /
+   `BlockReason`). Refuses loopback (`127/8`, `::1`), unspecified,
+   link-local (`169.254/16`, `fe80::/10`), RFC1918 private,
+   RFC4193 IPv6 ULA, multicast, CGNAT (`100.64/10`), reserved
+   IPv4 (`0/8`, `240/4`, broadcast). Dedicated
+   `IsCloudMetadataIP` covers AWS / GCP / Azure / DigitalOcean
+   IMDS at `169.254.169.254`, AWS IPv6 `fd00:ec2::254`, Alibaba
+   `100.100.100.200`. Cloud-metadata IPs report a distinct
+   `cloud_metadata` reason so log analysis can spot exfiltration
+   attempts.
+
+2. **Custom `http.Transport.DialContext`**. Pre-dial flow:
+   `SplitHostPort` → `LookupNetIP` → check every resolved IP
+   against the blocklist → dial the chosen IP **verbatim** (not
+   the hostname). Dialing the IP closes the DNS-rebinding
+   window between resolution and connect; even if the attacker
+   flips DNS mid-flight, we never re-resolve. If ANY resolved IP
+   is blocked the request is refused entirely (rejects multi-IP
+   attacks that mix a public + private answer).
+
+3. **Scheme allow-list** (`PLUGIN_HTTP_ALLOWED_SCHEMES`, default
+   `https`). Rejects `file://`, `ftp://`, `gopher://`, `data:`,
+   `ldap://` pre-dial.
+
+4. **Redirect re-validation**. `http.Client.CheckRedirect`
+   re-runs `validateURL` on every hop and caps the chain at
+   `PLUGIN_HTTP_MAX_REDIRECTS` (default 5). A public origin
+   that issues `Location: http://10.0.0.1/secret` is refused at
+   the redirect — the new dial would have caught it anyway, but
+   the early refusal gives the plugin a clean error.
+
+5. **Response-header allowlist** (not denylist). Default permits
+   `Content-Type`, `Content-Length`, `Content-Encoding`,
+   `Content-Language`, `Last-Modified`, `Etag`, `Cache-Control`,
+   `Date`, `Location`, `Expires`, `Vary`. Everything else is
+   stripped before the response is handed back to the plugin —
+   `Set-Cookie`, `Authorization`, `WWW-Authenticate`,
+   `Proxy-Authenticate`, `Clear-Site-Data`, `Server-Timing` will
+   NEVER reach a plugin. Operator extras via
+   `PLUGIN_HTTP_RESPONSE_HEADER_ALLOWLIST`. An allowlist (rather
+   than a denylist) means new HTTP headers invented next year
+   default to "stripped".
+
+6. **TimeoutSeconds cap** (`PLUGIN_HTTP_MAX_TIMEOUT_SECONDS`,
+   default 30s). A plugin asking for an hour-long timeout is
+   clamped to the operator ceiling.
+
+7. **Operator allow-list** (`PLUGIN_HTTP_ALLOWED_HOSTS`,
+   comma-separated). Documented escape hatch for internal
+   infrastructure (e.g. an in-VPC plugin store mirror). Bypasses
+   the private-IP blocklist for matching hostnames; **NEVER**
+   bypasses cloud-metadata IPs regardless of the allow-list —
+   this is the layered defence pinned by
+   `TestHTTPService_SSRF_AllowedHostCannotBypassMetadata`.
+
+Tests in `internal/plugin/hostlibrary/http_ssrf_security_test.go`
+(OWASP API7:2023 header comment):
+
+- `TestHTTPService_SSRF_BlocksLoopback`
+- `TestHTTPService_SSRF_BlocksRFC1918` (`10/8`, `172.16/12`,
+  `192.168/16`)
+- `TestHTTPService_SSRF_BlocksCloudMetadata` (must stay blocked
+  even with `BlockPrivateIPs=false`)
+- `TestHTTPService_SSRF_BlocksHostnameResolvingToPrivate` (fake
+  resolver returns RFC1918 → request refused)
+- `TestHTTPService_SSRF_RejectsBlockedScheme`
+- `TestHTTPService_SSRF_BlocksRedirectIntoPrivate`
+- `TestHTTPService_SSRF_TimeoutCap`
+- `TestHTTPService_SSRF_AllowedHostBypassesBlocklist`
+- `TestHTTPService_SSRF_AllowedHostCannotBypassMetadata`
+- `TestHTTPService_SSRF_ResponseHeaderAllowlist` (Set-Cookie /
+  Authorization / WWW-Authenticate explicitly stripped)
+- `TestHTTPService_SSRF_ResponseHeaderAllowlistOperatorExtras`
+- `TestHTTPService_SSRF_MaxRedirectsCap`
+
+Plus the standalone blocklist tests in `pkg/netutil/ssrf_test.go`
+covering every category (loopback / RFC1918 / IPv6 ULA / link-local
+/ cloud-metadata / unspecified / multicast / CGNAT / reserved
+IPv4 / public-IP smoke / metadata-lookalike rejection /
+invalid-Addr rejection).
+
+The original finding is preserved below for history.
+
+
+
+The plugin runtime exposes an HTTP host library (`HTTPServiceImpl.Fetch`,
+lines 31-85) that lets a loaded WASM plugin issue arbitrary outbound
+HTTP requests. The URL, method, headers and body all come from the
+plugin and reach `stdhttp.NewRequestWithContext` verbatim (line 48).
+The implementation has:
+
+- **No scheme allow-list.** Go's stdlib HTTP client accepts `http://`
+  and `https://`; `file://` is rejected by `http.Client`, but the
+  absence of an explicit allow-list is bad hygiene — a future change
+  to the transport could introduce a regression.
+- **No host blocklist.** There is no rejection of loopback
+  (`127.0.0.0/8`, `::1`), unspecified (`0.0.0.0`, `::`), link-local
+  (`169.254.0.0/16`, `fe80::/10`), private (RFC1918: `10/8`, `172.16/12`,
+  `192.168/16`, plus IPv6 ULA `fc00::/7`), or cloud-metadata
+  (`169.254.169.254`, `fd00:ec2::254`) targets.
+- **No redirect cap or re-validation.** The stdlib default is 10
+  redirect hops; each next hop is not re-validated against any
+  policy, so a public DNS target can redirect into RFC1918 space.
+- **No response-header redaction.** Every response header — including
+  `Set-Cookie`, `Authorization`, `WWW-Authenticate`, and
+  `Proxy-Authenticate` — is propagated back to the plugin (lines
+  75-78), so the plugin can read cookies set by any reachable origin.
+- **No upper bound on `req.TimeoutSeconds`** (lines 35-37). A
+  misbehaving plugin can request a 1-hour timeout that the panel
+  will honour.
+
+**Mitigations already in place** (downgrade exploitability, not severity):
+
+- Plugin install / update endpoints are `AdminOnly: true` on
+  `/api/plugin-store/plugins/{id}/install` and `.../update`
+  (`internal/api/router.go`); a non-admin cannot drop a malicious
+  plugin into the runtime.
+- The WASM blob is SHA-256-verified against the store-supplied
+  `FileHash` at install time (`pluginstore.VerifyHash` in
+  `internal/services/pluginstore/service.go:263`, called from
+  `internal/api/pluginstore/installplugin/handler.go:258` and
+  `internal/api/pluginstore/updateplugin/handler.go:230`).
+- Response body capped at 10 MB (`maxBodySize` line 16).
+- Default request timeout 30 s (line 15); plugin may raise it but
+  every request still inherits the caller's context (so a request
+  scoped to a 30 s admin operation cannot run for an hour in
+  practice — but a background scheduler with no parent cancel can).
+
+**Impact**: a malicious or compromised plugin pivots from the panel
+process to:
+
+- AWS IMDS (`169.254.169.254/latest/meta-data/iam/security-credentials/`),
+  GCP / Azure / Alibaba metadata,
+- internal Redis / PostgreSQL / management endpoints bound to
+  loopback or a private VLAN,
+- neighbour panel instances in a shared VPC,
+- any local service the panel can reach on 127.0.0.1.
+
+The plugin then reads the response (including any headers / cookies
+it received) and exfiltrates the data via its next outbound call.
+Because the upstream plugin store is an internet endpoint, this is
+effectively a **supply-chain risk** gated only by the SHA-256 of
+whatever the store currently serves for the requested version — a
+compromise of `plugins.gameap.dev` (or of an operator's mirror)
+would distribute a weaponised plugin under that same hash.
+
+**Severity**: **High** in the supply-chain scenario (an attacker who
+compromises the plugin store, or who tricks an admin into installing
+a malicious plugin from an attacker-controlled mirror, gets remote
+SSRF inside the panel's network). **Medium** for already-trusted
+operator-built plugins.
+
+**Remediation**:
+
+1. **Scheme allow-list**: accept only `http://` and `https://`;
+   default to https-only (operator opt-in for http).
+2. **Pre-dial IP blocklist**: resolve the hostname before dialling
+   and reject when any resolved IP is loopback / unspecified /
+   link-local / private / cloud-metadata; apply at the initial host
+   *and* at every redirect target (via a custom `http.Client.Transport`
+   that overrides `DialContext`).
+3. **Disable redirect following** (`Client.CheckRedirect` returns
+   `ErrUseLastResponse`) or re-validate the redirect target against
+   the blocklist.
+4. **Cap `req.TimeoutSeconds`** to a hard maximum (e.g. 30 s).
+5. **Strip dangerous response headers** before returning to the
+   plugin: at minimum `Set-Cookie`, `Authorization`,
+   `WWW-Authenticate`, `Proxy-Authenticate`.
+6. **Operator allow-list** (`PLUGIN_HTTP_ALLOWED_HOSTS=`) for
+   deployments that need outbound to a specific API.
+7. **Tests** covering each blocked category (loopback, RFC1918,
+   metadata IP, redirect-into-loopback, oversized timeout, header
+   redaction). The existing test file
+   `internal/plugin/hostlibrary/http_test.go` exercises only happy
+   paths — none of the SSRF categories are currently regression-tested.
+
+Tracked as Sprint 1 follow-up (see §7 item 6.5).
 
 ---
 
@@ -828,7 +1276,7 @@ Up from 64% — 4.3.1 moved ❌→🟡 (MFA capability shipped, enforcement pend
 | 5.1.5 | URL redirects validated | ➖ N/A | No user-supplied redirect targets. |
 | 5.2.1 | Untrusted HTML sanitized | ➖ N/A | JSON API only. |
 | 5.2.5 | Markdown/template safety | ➖ N/A | No server-side templates rendered for API responses. |
-| 5.2.8 | Server-side request forgery defences | ✅ Met | Outbound URLs are config-derived (`internal/services/globalapi.go`, `internal/services/pluginstore/service.go`). |
+| 5.2.8 | Server-side request forgery defences | 🟡 Partial | Application-level outbound URLs config-derived (`internal/services/globalapi.go`, `internal/services/pluginstore/service.go`). **Plugin WASM host HTTP library (`internal/plugin/hostlibrary/http.go:48`) accepts plugin-controlled URLs verbatim — see C-11**. |
 | 5.3.1 | Output encoding contextual | ✅ Met | `encoding/json` defaults (`pkg/api/responder.go:96-102`). |
 | 5.3.3 | Output encoding for SQL | ✅ Met | Squirrel placeholders (`internal/repositories/mysql/*.go`, `postgres/*.go`). |
 | 5.3.4 | Parameterised queries (no string concat) | ✅ Met | Same. |
@@ -842,8 +1290,11 @@ Up from 64% — 4.3.1 moved ❌→🟡 (MFA capability shipped, enforcement pend
 | 5.5.2 | Insecure deserialisation libs avoided | ✅ Met | Standard `encoding/json`. |
 | 5.5.4 | Safe JSON / YAML parsers | ✅ Met | `encoding/json` + `goccy/go-yaml`. |
 
-**V5 score: 97%** (14 Met / 1 Partial / 0 Not met / 5 N/A; L2
-denominator 15; counts reconciled with rows on 2026-05-18 — no status change).
+**V5 score: 93%** (13 Met / 2 Partial / 0 Not met / 5 N/A; L2
+denominator 15). 5.2.8 moved ✅ → 🟡 on 2026-05-28 because the plugin
+WASM HTTP host library (**C-11**) accepts plugin-controlled URLs
+verbatim — the wider application code still keeps outbound URLs
+config-derived.
 
 ---
 
@@ -898,11 +1349,11 @@ open and are tracked for Sprint 3.
 | # | Requirement | Status | Evidence / Notes |
 | --- | --- | --- | --- |
 | 8.1.1 | Sensitive data not in URLs | 🟡 Partial | `?token=` for WebSocket (**C-4**); single-use ≤10 s `glst_` token now the safe URL credential, but query still accepts long-lived tokens. |
-| 8.1.2 | Cache controls on sensitive data | ❌ Not met | No `Cache-Control` set on auth/sensitive endpoints (**C-8 / T-1**). |
+| 8.1.2 | Cache controls on sensitive data | ❌ Not met | `SecurityHeadersMiddleware` shipped 2026-05-28 (**C-2 closed**) but does NOT emit `Cache-Control` on `/api/auth/*`. Sprint 1 follow-up. |
 | 8.1.3 | Server-side does not cache sensitive responses | ✅ Met | No HTTP response cache layer. |
 | 8.1.4 | Authenticated data not in CDN caches | 🟡 Partial | Operator concern; missing `Cache-Control` makes it the operator's problem. |
 | 8.1.5 | Backup procedures | ➖ N/A | Operator responsibility. |
-| 8.2.1 | Browser caching of sensitive responses controlled | ❌ Not met | Same as 8.1.2. |
+| 8.2.1 | Browser caching of sensitive responses controlled | ❌ Not met | Same as 8.1.2 — `Cache-Control` on auth endpoints still missing post-C-2. |
 | 8.3.1 | Sensitive data sent in body, not URL | 🟡 Partial | Mostly yes; token query path (**C-4**). |
 | 8.3.4 | Data classified for protection | ❌ Not met | Roadmap. |
 | 8.3.5 | Sensitive-data access logged | 🟡 Partial | Sensitive *operations* (file delete/rename/chmod/write/upload, token & admin mutations) now emit audit events (**C-3 resolved**, `internal/audit/`); blanket sensitive-data *read* logging is not comprehensive. |
@@ -920,17 +1371,19 @@ drop vs the prior 45% is the scoreboard now matching the detail rows.
 | # | Requirement | Status | Evidence / Notes |
 | --- | --- | --- | --- |
 | 9.1.1 | TLS for all inbound + outbound traffic | 🟡 Partial | HTTPS redirect `internal/api/middlewares/https_redirect.go`; gRPC TLS default; outbound to `globalapi.gameap.com`, `plugins.gameap.dev` over HTTPS. Operator can run plain HTTP. |
-| 9.1.2 | Strong TLS configuration | 🟡 Partial | `MinVersion: TLS 1.2` on listeners (`internal/application/application.go:281`, `container.go:1995,2114`); no explicit `CipherSuites` (**C-10**). |
+| 9.1.2 | Strong TLS configuration | 🟡 Partial | `MinVersion: tls.VersionTLS12` on listeners (`internal/application/application.go:267`, `internal/application/container.go:2137,2256`); no explicit `CipherSuites` (**C-10**). |
 | 9.1.3 | TLS for authenticated connections | ✅ Met | gRPC mTLS support (`internal/grpc/interceptors/auth.go:102-137`); `GRPC_REQUIRE_MTLS` flag. |
-| 9.2.1 | Outbound to other systems uses trusted TLS | ❌ Not met for legacy daemon path (**C-1**); ✅ Met for global API / plugin store (standard `http.Client`). |
+| 9.2.1 | Outbound to other systems uses trusted TLS | ✅ Met | Standard `http.Client` for outbound (`internal/services/globalapi.go`, `internal/services/pluginstore/service.go`); legacy daemon HTTP path with `InsecureSkipVerify` was removed 2026-05-28 (**C-1 resolved**). |
 | 9.2.2 | Encrypted connections to external services | ✅ Met | `internal/services/globalapi.go`, `internal/services/pluginstore/service.go` — HTTPS by default. |
 | 9.2.4 | Certificate revocation checked | 🟡 Partial | Go's default revocation checking (OCSP soft-fail). Not strict. |
 | 9.2.5 | Backend TLS to DB / cache | 🟡 Partial | DSN-driven; operator opt-in. |
-| 9.x | HSTS header | ❌ Not met | Tied to **C-2 / T-1**. |
+| 9.x | HSTS header | ✅ Met | `SecurityHeadersMiddleware` emits `Strict-Transport-Security` on HTTPS requests (default `max-age=31536000`; `SECURITY_HSTS_INCLUDE_SUBDOMAINS` / `_PRELOAD` tunable). **C-2 resolved 2026-05-28**. |
 
-**V9 score: 33%** (2 Met / 4 Partial / 2 Not met of 8 L2-applicable;
-counts reconciled with rows on 2026-05-18 — no status change; C-1/C-10
-still open).
+**V9 score: 67%** (4 Met / 4 Partial / 0 Not met of 8 L2-applicable).
+Bumped on 2026-05-28: 9.2.1 ❌ → ✅ (legacy daemon TLS path removed,
+**C-1 resolved**) and 9.x HSTS ❌ → ✅ (HSTS now emitted by
+`SecurityHeadersMiddleware`, **C-2 resolved**). C-10 (no explicit
+`CipherSuites`) still keeps 9.1.2 at 🟡.
 
 ---
 
@@ -954,7 +1407,7 @@ denominator 3; counts reconciled with rows on 2026-05-18 — no status change).
 
 | # | Requirement | Status | Evidence / Notes |
 | --- | --- | --- | --- |
-| 11.1.1 | Sequence of business steps valid | ✅ Met | Setup-key flow validated (`router_security_daemon_test.go::TestRouterSecurity_API8_EnrollmentSetupKeyValidation`) and now one-time-use — invalidated on first successful enroll (**C-7 resolved**, `internal/enrollment/service.go:121`). |
+| 11.1.1 | Sequence of business steps valid | ✅ Met | Setup-key flow validated (`internal/api/nodes/enrollsetup/handler_test.go`, `internal/enrollment/service_test.go`) and now one-time-use — invalidated on first successful enroll (**C-7 resolved**, `internal/enrollment/service.go:121`). |
 | 11.1.2 | Business logic limits use to expected actors | ✅ Met | RBAC + per-server scoping (`internal/rbac/`, `serverfinder.go`). |
 | 11.1.3 | Trustworthy time stamps | ✅ Met | `time.Now()` server-side; operator NTP. |
 | 11.1.4 | Anti-automation on critical flows | 🟡 Partial | Login rate-limited (`login_ratelimit.go`) **and** captcha-gated (`internal/services/captcha/`), 2FA-verify has a per-challenge 5-attempt budget; other write flows still uncapped. |
@@ -987,11 +1440,13 @@ the scoreboard now matching the detail rows.
 | 12.4.2 | Content inspected for malware | ❌ Not met | No AV hook. |
 | 12.5.1 | Files served from different domain or safe headers | ✅ Met | `SafeContentHeaders` (`internal/api/filemanager/filemanagerhttp/headers.go`) sets `X-Content-Type-Options: nosniff` + `Content-Security-Policy: sandbox` on every served file, serves only an inert-MIME allowlist `inline` (SVG excluded) and forces everything else to an opaque `attachment` with an RFC 2231/6266 disposition. Test: `filemanagerhttp/headers_test.go`. |
 | 12.5.2 | Files served outside web root | ✅ Met | `FILES_LOCAL_BASE_PATH` separate from served static dir. |
-| 12.6.1 | SSRF blocked | ✅ Met | Outbound URLs config-derived only. |
+| 12.6.1 | SSRF blocked | 🟡 Partial | Application outbound URLs config-derived. **Plugin WASM HTTP host library (`internal/plugin/hostlibrary/http.go:48`) accepts plugin-controlled URLs verbatim — see C-11**. |
 
-**V12 score: 69%** (9 Met / 2 Partial / 3 Not met / 1 N/A; L2
-denominator 14). 12.5.1 moved 🟡→✅ (safe file-serving headers, #17);
-12.4.1 stays ❌ pending upload validation (C-8).
+**V12 score: 64%** (8 Met / 3 Partial / 3 Not met / 1 N/A; L2
+denominator 14). 12.5.1 moved 🟡→✅ on 2026-05-18 (safe file-serving
+headers, #17); 12.4.1 stays ❌ pending upload validation (C-8);
+12.6.1 moved ✅→🟡 on 2026-05-28 because the plugin WASM HTTP host
+library (**C-11**) accepts plugin-controlled URLs verbatim.
 
 ---
 
@@ -1002,7 +1457,7 @@ denominator 14). 12.5.1 moved 🟡→✅ (safe file-serving headers, #17);
 | 13.1.1 | API uses defined schema | ✅ Met | `openapi/openapi.yaml`. |
 | 13.1.2 | Auth/session/AC same as web | ✅ Met | All `/api/*` enforced by the same middleware chain. |
 | 13.1.3 | API consumes only declared content types | ✅ Met | JSON enforced via decoder; alternates rejected with 4xx. |
-| 13.1.4 | Different processing paths per content type | ✅ Met | `/api/*` (JSON) vs `/gdaemon_api/*` (legacy daemon) vs gRPC (protobuf) — `internal/api/router.go`. |
+| 13.1.4 | Different processing paths per content type | ✅ Met | `/api/*` (JSON) versus gRPC (protobuf) listener with its own interceptor chain — `internal/api/router.go`, `internal/grpc/server.go`, `internal/grpc/interceptors/auth.go`. |
 | 13.1.5 | Non-browser implicit trust avoided | ✅ Met | All `/api/*` paths enforce auth; daemon path has its own middleware. |
 | 13.2.1 | REST uses correct HTTP verbs | ✅ Met | Verb-specific handler binding in router. |
 | 13.2.2 | JSON schema validation | 🟡 Partial | Per-handler `Validate()`; no automatic OpenAPI request validation. |
@@ -1034,23 +1489,25 @@ denominator 11; counts reconciled with rows on 2026-05-18 — no status change).
 | 14.2.5 | Default credentials removed | ✅ Met | Setup keys random or operator-supplied; tests `TestRouterSecurity_API8_DaemonSetupTokenValidation`, `_EnrollmentSetupKeyValidation`. |
 | 14.2.6 | Vulnerability disclosure programme | ❌ Not met | No `SECURITY.md`. |
 | 14.3.1 | Debug disabled in production | 🟡 Partial | `LOGGER_LEVEL`, `GRPC_ENABLE_REFLECTION` flags operator-controlled; no production-mode auto-check. |
-| 14.3.2 | Security HTTP headers (HSTS, etc.) | ❌ Not met | **C-2 / T-1**. |
-| 14.3.3 | Cross-Origin policies (COOP/COEP, Referrer-Policy) | ❌ Not met | Same. |
+| 14.3.2 | Security HTTP headers (HSTS, etc.) | ✅ Met | Global `SecurityHeadersMiddleware` (`internal/api/middlewares/security_headers.go`) emits HSTS / X-CTO / X-Frame-Options / Referrer-Policy / CSP. Full config at `internal/config/config.go:180-221`. 17 tests. **C-2 / T-1 resolved 2026-05-28**. |
+| 14.3.3 | Cross-Origin policies (COOP/COEP, Referrer-Policy) | 🟡 Partial | `Referrer-Policy` emitted by `SecurityHeadersMiddleware` (default `strict-origin-when-cross-origin`). COOP / COEP / CORP not yet emitted. |
 | 14.4.1 | Every response has Content-Type | ✅ Met | `pkg/api/responder.go:97`. |
 | 14.4.2 | Charset specified | ✅ Met | `encoding/json` default UTF-8. |
 | 14.4.3 | Content-Type allow-list | ✅ Met | Handlers reject unknown types. |
 | 14.4.4 | CORS scoped to trusted domains | ✅ Met | `internal/api/middlewares/cors.go::deriveDefaultOrigin` + `HTTP_ALLOWED_ORIGINS` override. Tests: `TestNewCORSMiddleware_HTTPSWhenForceHTTPS`, `_RejectsHTTPOriginWhenForceHTTPS`, `_ExplicitAllowedOriginsWinsOverAutoDerived`. |
 | 14.4.5 | HTTP methods restricted | ✅ Met | Verb routing. |
-| 14.4.6 | Anti-clickjacking | ❌ Not met | **C-2**. |
-| 14.4.7 | `X-Content-Type-Options: nosniff` | ❌ Not met | **C-2**. |
+| 14.4.6 | Anti-clickjacking | ✅ Met | `X-Frame-Options: SAMEORIGIN` (default) + CSP `frame-ancestors 'self'` via `SecurityHeadersMiddleware`. **C-2 resolved 2026-05-28**. |
+| 14.4.7 | `X-Content-Type-Options: nosniff` | ✅ Met | `X-Content-Type-Options: nosniff` via `SecurityHeadersMiddleware` globally; file-download path also sets it locally (12.5.1). **C-2 resolved 2026-05-28**. |
 | 14.5.1 | Server rejects unused methods | ✅ Met | Router matches verb explicitly. |
 | 14.5.2 | Domain-name validation on URL construction | ✅ Met | Outbound URLs from config. |
 | 14.5.3 | CORS Origin verified server-side | ✅ Met | `rs/cors`. |
 | 14.5.4 | HTTP headers stripped from upstream / unsafe | 🟡 Partial | Reverse-proxy concern; no explicit strip middleware. |
 
-**V14 score: 52%** (11 Met / 8 Partial / 6 Not met of 25 L2-applicable;
-counts reconciled with rows on 2026-05-18 — no status change; C-2/T-1
-still open).
+**V14 score: 68%** (14 Met / 9 Partial / 2 Not met of 25 L2-applicable).
+Bumped on 2026-05-28: 14.3.2 ❌ → ✅, 14.4.6 ❌ → ✅, 14.4.7 ❌ → ✅ all
+flipped by `SecurityHeadersMiddleware` ship (**C-2 / T-1 resolved**);
+14.3.3 ❌ → 🟡 (Referrer-Policy now emitted; COOP / COEP / CORP still
+missing).
 
 ---
 
@@ -1064,22 +1521,27 @@ still open).
 | `router_security_idor_fuzz_test.go` | API1 BOLA / IDOR | — | 3 |
 | `router_security_auth_test.go` | API2 Broken Auth | 8+ | — |
 | `router_security_auth_fuzz_test.go` | API2 Broken Auth | — | 3 |
-| `router_security_daemon_test.go` | API2 + API8 | 7+ | — |
 | `router_security_escalation_test.go` | API3 + API5 | 10+ | — |
 | `router_security_escalation_fuzz_test.go` | API3 + API5 | — | 3 |
 | `router_security_test.go` | API1/API5 token + admin gating | 2 | — |
+| `router_security_password_policy_test.go` | API2 password policy (length + blocklist) | 8 | — |
+| `router_security_auditlog_test.go` | API9 / API10 audit trail | 6 | — |
 | `router_security_helpers_test.go` | shared fixtures | — | — |
 
 ### Middleware-level
 
 - `internal/api/middlewares/auth_test.go`
+- `internal/api/middlewares/auth_shorttoken_test.go`
+- `internal/api/middlewares/auth_twofactor_security_test.go`
+- `internal/api/middlewares/audit_capture_test.go`
 - `internal/api/middlewares/personal_access_test.go`
-- `internal/api/middlewares/daemon_test.go`
 - `internal/api/middlewares/cors_test.go`
 - `internal/api/middlewares/https_redirect_test.go`
-- `internal/api/middlewares/daemon_grpc_guard_test.go`
 - `internal/api/middlewares/recovery_test.go`
 - `internal/api/middlewares/login_ratelimit_test.go` (9 cases)
+- `internal/api/middlewares/security_headers_test.go` (17 funcs — defaults, master switch, HSTS emission / format / max-age=0, CSP report-only, verbatim-policy override, captcha provider matrix, extra-source merging, core directives, downstream override, embedded-FS happy path + missing-file boot failure, inline-script discovery, report-URI, tokenizer error) — **added 2026-05-28, evidence for C-2 / T-1 closure**
+- `internal/api/middlewares/shorttoken_scope_test.go`
+- `internal/grpc/interceptors/auth_test.go` (mTLS + gRPC API-key constant-time compare; evidence for C-5 hash-at-rest)
 
 ### Library-level
 
@@ -1133,45 +1595,47 @@ Priority is `impact × ease`; one-line each — see §3 for context.
 
 ### Sprint 1 — high impact, low effort (~2 weeks)
 
-1. **C-1**: raise `internal/daemon/conn.go` TLS min to 1.2, drop `InsecureSkipVerify` (1 d, add regression test).
-2. **C-2 / T-1**: `SecurityHeadersMiddleware` (HSTS, X-CTO, X-Frame-Options, Referrer-Policy, CSP) + `Cache-Control: no-store` on `/api/auth/*` (1 d).
-3. **C-10**: explicit `CipherSuites` in every `tls.Config` (1 d).
-4. **T-10**: `govulncheck` step in `.github/workflows/test.yaml` (1 d).
-5. ~~**C-7**: mark setup keys consumed on first successful enroll (0.5 d).~~ ✅ **Done 2026-05-18** (`internal/enrollment/service.go:121`).
-6. **C-4**: limit `?token=` to the `glst_` short-lived prefix only (0.5 d) — single-use short-lived token shipped 2026-05-18, but the query path still accepts long-lived tokens; this item now means *restricting* it.
+1. ~~**C-1**: raise `internal/daemon/conn.go` TLS min to 1.2, drop `InsecureSkipVerify`.~~ ✅ **Done 2026-05-28** — legacy daemon code path removed in commit `2ed7be2`; the file no longer exists.
+2. ~~**C-2 / T-1**: `SecurityHeadersMiddleware` (HSTS, X-CTO, X-Frame-Options, Referrer-Policy, CSP) + `Cache-Control: no-store` on `/api/auth/*`.~~ ✅ **Done 2026-05-28** — middleware in commits `37f5f34` + `52edd5c`; Sprint 1+2 close-out (2026-05-28) extends it to apply `Cache-Control: no-store, no-cache, must-revalidate, private` + `Pragma: no-cache` to every path under `SECURITY_SENSITIVE_PATH_PREFIXES` (default `/api/auth/`, `/api/profile/`, `/api/users/`, `/api/tokens/`).
+3. ~~**C-10**: explicit `CipherSuites` in every `tls.Config`.~~ ✅ **Done 2026-05-28** — `pkg/tlsutil/ciphers.go::HardenServerConfig` applied at every TLS listener; AEAD-only cipher list; X25519-first curves.
+4. ~~**T-10**: `govulncheck` step in CI.~~ ✅ **Done 2026-05-28** — `.github/workflows/vuln-scan.yaml` (pinned `govulncheck@v1.1.4`, source + binary modes, weekly + push to main + manual dispatch, auto-files / auto-closes a GitHub issue per failing mode). SBOM (CycloneDX) still deferred to Sprint 3.
+5. ~~**C-7**: mark setup keys consumed on first successful enroll.~~ ✅ **Done 2026-05-18** (`internal/enrollment/service.go:121`).
+6. ~~**C-4**: limit `?token=` to the `glst_` short-lived prefix only.~~ ✅ **Done 2026-05-28** — per-source token allow-list in `internal/api/middlewares/auth.go::sourceAllowsTokenType`; cookie also rejects PATs (API credential, not session). Tests: `auth_query_token_security_test.go` + `router_security_auth_test.go`.
+7. ~~**C-11 / T-11** (NEW 2026-05-28): harden `internal/plugin/hostlibrary/http.go` against SSRF.~~ ✅ **Done 2026-05-28** — `pkg/netutil/ssrf.go` blocklist + custom `Transport.DialContext` (DNS-rebinding safe) + scheme allowlist + response-header allowlist + `CheckRedirect` re-validation + `TimeoutSeconds`/`MaxRedirects` caps + operator allow-list. Cloud-metadata IPs never bypassable. 12 SSRF-specific security tests.
 
 ### Sprint 2 — high impact, medium effort (~2-3 weeks)
 
-7. ~~**C-3 / T-2**: `internal/audit/` package + correlation-ID middleware + wire into auth/AC/sensitive-op paths (5 d).~~ ✅ **Done 2026-05-16** (remote forwarding split out to Sprint 3 item 15).
-8. **C-8 / T-9**: magic-byte/MIME validation on file upload (2 d).
-9. ~~**T-6**: password policy (min length, max length surfaced, breached check via HIBP k-anonymity API) (3 d).~~ ✅ **Done 2026-05-27** — min 12 / max 128 with SHA-256 pre-hash + transparent legacy-hash rehash on login (2026-05-20, `pkg/auth/policy.go`, `pkg/auth/password.go`, `internal/api/auth/login/handler.go`) and SecLists top-1M common-password blocklist with `AUTH_ALLOW_WEAK_PASSWORDS` operator override (2026-05-27, `pkg/auth/blocklist.go`, embedded asset under `pkg/auth/data/passwords/` — committed in-repo, rebuild via the bash pipeline documented in `pkg/auth/data/passwords/README.md`); HIBP k-anonymity API not used — offline embedded list chosen for deployability and zero-egress operation.
-10. **T-7**: idle session timeout (sliding TTL in revocation cache) (3 d).
-11. **T-8**: raise bcrypt cost to 13 + config knob `AUTH_BCRYPT_COST` (1 d, runtime migration via "rehash on next login").
+8. ~~**C-3 / T-2**: `internal/audit/` package + correlation-ID middleware + wire into auth/AC/sensitive-op paths.~~ ✅ **Done 2026-05-16** (remote forwarding split out to Sprint 3).
+9. ~~**C-8 / T-9**: magic-byte/MIME validation on file upload.~~ ✅ **Done 2026-05-28** — `internal/api/filemanager/filemanagermime/Checker` + `bufio.Peek` + `http.DetectContentType` in `upload/handler.go`. Operator-tunable via `FILES_UPLOAD_ALLOWED_MIMES` / `FILES_UPLOAD_ALLOW_ARCHIVES` / `FILES_UPLOAD_ALLOW_BINARY`. 5 C-8 security tests.
+10. ~~**T-6**: password policy.~~ ✅ **Done 2026-05-27**.
+11. ~~**T-7**: idle session timeout (sliding TTL).~~ 🟡 **Scaffolding 2026-05-28** — `pkg/auth/idle_tracker.go` (`IdleTracker` interface, `CacheIdleTracker`, `NoopIdleTracker`) + config `AUTH_SESSION_IDLE_TIMEOUT` (30m) + `AUTH_SESSION_IDLE_UPDATE_FREQ` (5m). **Residual**: middleware wiring (session-PASETO-only filter + post-credentials check + probabilistic refresh), WebSocket ping integration to keep long-lived connections alive — Sprint 3 follow-up. 3.3.2 stays ❌.
+12. ~~**T-8**: raise bcrypt cost to 13 + config knob.~~ ✅ **Done 2026-05-28** — `AUTH_BCRYPT_COST` (default 13, range 10–14) + `SetDefaultBcryptCost` boot validation + `HashCost`-driven rehash-on-login (never downgrades) + `pkg/auth/dummy.go` constant-time bcrypt verify on non-existent-user path to defeat the user-enumeration timing oracle.
 
 ### Sprint 3 — larger investments (~3-4 weeks)
 
-12. ~~**T-4 / C-9**: TOTP MFA~~ ✅ **Done 2026-05-18** (`pkg/twofactor/`, `internal/api/auth/twofactorverify/`) — **remaining:** `require_mfa_for_admins` enforcement flag (moved to Sprint 4 item 20, ~2 d).
-13. ~~**T-5 / C-5**: hash `gdaemon_api_key` at rest mirroring migration 007 design (5 d, includes data migration).~~ ✅ **Done 2026-05-18** (`internal/enrollment/service.go:107`, `internal/grpc/interceptors/auth.go:178-188`).
-14. **C-6**: migrate PAT / daemon HTTP token storage to bcrypt or scrypt (5 d, dual-form acceptance window).
-15. Audit log forwarding (syslog / OTel) (3 d).
-16. SBOM (CycloneDX) generation in release pipeline (2 d).
+13. ~~**T-4 / C-9**: TOTP MFA.~~ ✅ **Done 2026-05-18**.
+14. ~~**T-5 / C-5**: hash `gdaemon_api_key` at rest.~~ ✅ **Done 2026-05-18**.
+15. **C-6**: migrate PAT / daemon HTTP token storage to bcrypt or scrypt (5 d, dual-form acceptance window).
+16. Audit log forwarding (syslog / OTel) (3 d).
+17. SBOM (CycloneDX) generation in release pipeline (2 d).
+18. **S2.3 follow-up** — wire `internal/api/base/VerifyCurrentPassword` into PAT-create, PAT-revoke (with body), user-update, role-assign, user-delete handlers + rewrite the 17-case `posttoken/handler_test.go` matrix to carry `current_password` + a `Password` hash on `session.User`. Helper + audit events + unit tests shipped 2026-05-28.
+19. **S2.4 follow-up** — DB migration `users.mfa_nudge_first_shown_at` + `mfa_nudge_snoozed_until` (postgres/mysql/sqlite), `UserRepository.UpdateMFANudgeShown/Snooze/Clear` methods, login-flow integration of `mfanudge.Service`, `POST /api/profile/mfa-nudge/snooze` endpoint, `GET /api/profile/me` response extension, OpenAPI update, frontend modal. Backend service + config + audit events shipped 2026-05-28; 4.3.1 stays 🟡 until integration lands.
+20. **S2.5 follow-up** — wire `pkg/auth/CacheIdleTracker` into `internal/api/middlewares/auth.go` (post-credentials check + probabilistic refresh with PAT / glst_ / remember-me skip), record activity on session-issue in login handler, add WebSocket ping → RecordActivity bridge. Tracker package + tests + config shipped 2026-05-28.
 
 ### Sprint 4 — process & docs
 
-17. Threat-model document (1.1.2).
-18. Data-classification matrix (1.8.1, 8.3.4).
-19. `SECURITY.md` (14.2.6).
-20. `require_mfa_for_admins` enforcement flag (4.3.1, C-9 residual) + re-auth & step-up flow for sensitive admin ops (3.7.1, 4.3.3, 2.1.6).
-21. Anti-automation on write endpoints other than login (11.1.4).
+21. ~~`SECURITY.md` (14.2.6).~~ ✅ **Done 2026-05-28** — top-level VDP with `security@gameap.com`, 72h ack / 14d assessment / 90d disclosure, severity-based fix SLAs.
+22. Threat-model document (1.1.2).
+23. Data-classification matrix (1.8.1, 8.3.4).
+24. Anti-automation on write endpoints other than login (11.1.4) — PAT creation, 2FA enable/disable/regenerate, node enrollment, admin user-create / role-assign.
 
-As of 2026-05-27 the project is at **~65%** with the MFA capability
-(C-9), C-5, C-7 and the full password policy T-6 (length, no-truncation,
-and the common-password blocklist) already delivered ahead of their
-original sprints. Completing the remaining Sprint 1–2 items (security
-headers C-2/T-1, daemon TLS C-1, upload validation C-8, idle timeout)
-should reach **~80%**. Full L2 is then gated on the
-`require_mfa_for_admins` enforcement flag and the process / governance
-items in Sprint 4.
+After the 2026-05-28 Sprint 1+2 close-out the project sits at an
+estimated **~78–82%** L2 conformance (pending the §2.1 re-tally PR).
+Closing the remaining S2.3 / S2.4 / S2.5 integration residuals
+should push the figure into the low 90s, with the final percentage
+gated on the Sprint 4 governance items (threat model, data
+classification, anti-automation on write endpoints) and C-6
+(bcrypt'ing the machine credentials).
 
 ---
 
@@ -1203,6 +1667,192 @@ items in Sprint 4.
 
 ### Change log
 
+- **2026-05-28 — Sprint 1 + 2 close-out.** Closed the remaining
+  open critical/medium findings from the Sprint 1 + 2 roadmap and
+  shipped scaffolding for the residuals. **Resolved**:
+  * **C-11** (plugin WASM HTTP host library SSRF) — new
+    `pkg/netutil/ssrf.go` blocklist (loopback / RFC1918 / IPv6 ULA /
+    link-local / cloud-metadata / CGNAT / reserved IPv4); rewritten
+    `internal/plugin/hostlibrary/http.go` with custom
+    `http.Transport.DialContext` that resolves the host, validates
+    every candidate IP against the blocklist, and dials the chosen
+    IP verbatim (DNS-rebinding defence); `CheckRedirect` re-validates
+    every hop; scheme allow-list (`PLUGIN_HTTP_ALLOWED_SCHEMES`,
+    default `https`); response-header **allow**list (Set-Cookie,
+    Authorization, WWW-Authenticate, Proxy-Authenticate stripped
+    on the way back to the plugin); `PLUGIN_HTTP_MAX_TIMEOUT_SECONDS`
+    cap; `PLUGIN_HTTP_MAX_REDIRECTS` cap; operator allow-list
+    `PLUGIN_HTTP_ALLOWED_HOSTS` that bypasses the private-IP block
+    but never bypasses cloud-metadata IPs. Tests:
+    `internal/plugin/hostlibrary/http_ssrf_security_test.go`
+    (loopback, RFC1918, cloud-metadata, redirect-to-private,
+    DNS-rebinding via fake resolver, timeout cap, redirect cap,
+    response-header allowlist, operator-allowed host bypass,
+    cloud-metadata cannot be bypassed) +
+    `pkg/netutil/ssrf_test.go` (each blocklist category + public IP
+    smoke tests).
+  * **C-4** — `internal/api/middlewares/auth.go` `extractToken` now
+    returns the source (header / query / cookie) and
+    `sourceAllowsTokenType` enforces per-source policy: `?token=`
+    accepts ONLY `glst_`; cookie accepts PASETO + glst_, NOT PAT;
+    Authorization header accepts any. Failed transports are audited
+    with `token_source_<kind>_not_allowed` and surfaced as "missing
+    token" so an attacker cannot tell a wrong-source rejection from
+    a missing credential. Tests:
+    `internal/api/middlewares/auth_query_token_security_test.go`,
+    updated `internal/api/router_security_auth_test.go`.
+  * **C-10** — `pkg/tlsutil/ciphers.go::HardenServerConfig` applied
+    in `internal/application/application.go` (HTTPS),
+    `internal/application/container.go` (gRPC + multiplexer).
+    Explicit TLS 1.2 cipher list (AEAD-only ECDHE-{ECDSA,RSA} +
+    AES-GCM / ChaCha20-Poly1305); curves X25519 then P-256. Tests:
+    `pkg/tlsutil/ciphers_test.go` (allowlist-only, denylist of
+    CBC/RC4/static-RSA, X25519-first, defaults-on-zero-value,
+    no-override-on-explicit, nil-input).
+  * **T-8** — `pkg/auth/password.go` parameterised on
+    `ActiveBcryptCost`; `SetDefaultBcryptCost` validates the
+    operator value against `[MinBcryptCost=10, MaxBcryptCost=14]`
+    and panics at boot on misconfiguration; default 13 matches the
+    L2 minimum. `HashCost` exposes the stored cost so
+    `internal/api/auth/login/handler.go` can rehash-on-login (and
+    refuses to downgrade — a misconfigured operator who lowers the
+    cost cannot weaken existing rows). `pkg/auth/dummy.go` runs a
+    constant-time bcrypt verify on the non-existent-user path so
+    login latency does not leak which logins exist. Tests:
+    `pkg/auth/password_test.go` (range / cost-round-trip /
+    HashCost-error path), `pkg/auth/dummy_test.go` (timing
+    equality smoke test, no-panic-on-bad-input),
+    `internal/api/auth/login/handler_test.go` (cost upgrade,
+    no-downgrade).
+  * **T-1 residual** — `internal/api/middlewares/security_headers.go`
+    now applies `Cache-Control: no-store, no-cache, must-revalidate,
+    private` + `Pragma: no-cache` to every response whose path
+    starts with one of `SECURITY_SENSITIVE_PATH_PREFIXES` (default
+    `/api/auth/`, `/api/profile/`, `/api/users/`, `/api/tokens/`)
+    and does not already carry a `Cache-Control` set by the
+    handler. Tests: 4 new cases in `security_headers_test.go`.
+  * **T-10** — `.github/workflows/vuln-scan.yaml` (weekly + push to
+    main + manual dispatch), pinned `govulncheck@v1.1.4`, source +
+    binary modes, auto-files / auto-closes a GitHub issue per
+    failing mode, input validation on the manual-dispatch version
+    override to defend against workflow injection via that input.
+  * **SECURITY.md** — top-level vulnerability-disclosure policy:
+    `security@gameap.com`, 72h ack / 14d assessment / 90d
+    disclosure window, severity-based fix SLAs, scope, demo
+    deployment policy.
+  * **C-8 (upload side)** — new `internal/api/filemanager/filemanagermime/Checker`
+    (default allowlist mirrors the serve-side `inlineSafeMimes` +
+    structured-text payloads; `FILES_UPLOAD_ALLOW_ARCHIVES` /
+    `FILES_UPLOAD_ALLOW_BINARY` toggles; `FILES_UPLOAD_ALLOWED_MIMES`
+    additive operator override). `internal/api/filemanager/upload/handler.go`
+    sniffs the first 512 bytes via `bufio.Reader.Peek` +
+    `http.DetectContentType` before the daemon transfer starts and
+    emits `file.upload` audit with `detected_mime` + `reason=
+    mime_not_allowed` on rejection. Tests: `filemanagermime/allowed_test.go`
+    + `upload/handler_test.go::TestHandler_C8_*` (HTML-as-PNG
+    rejected and audited, real PNG accepted, plain-text config
+    accepted, ZIP refused by default, ZIP accepted when
+    `AllowArchives=true`).
+  * **PAT revoke** — `internal/api/tokens/deletetoken/handler.go`
+    now writes a `pat:<id>` entry to the revocation denylist on
+    every successful delete; `internal/api/middlewares/auth.go`
+    `processPersonalAccessToken` checks the same identifier after
+    the repository lookup so a stale repository cache cannot
+    resurrect a revoked PAT. Identifier helper exported as
+    `deletetoken.PATRevocationIdentifier`; middleware mirrors the
+    shape via package-local `patRevocationIdentifier` to avoid the
+    handler-import cycle.
+  * **Re-auth helper** — `internal/api/base/reauth.go::VerifyCurrentPassword`
+    (sentinels `ErrMissingCurrentPassword` / `ErrInvalidCurrentPassword` /
+    `ErrReauthNotAvailable`; refuses PAT sessions; refuses sessions
+    without a populated User.Password; emits `auth.reauth.success` /
+    `auth.reauth.failure` audit). Tests: `internal/api/base/reauth_test.go`
+    (correct password / missing / wrong / PAT session / unauth /
+    session-without-hash). Handler integration deferred — the
+    `current_password` field is declared on `posttoken.tokenInput`
+    so the JSON contract is forward-compatible; bulk-rewriting the
+    17-case `posttoken/handler_test.go` matrix is tracked as the
+    Sprint 3 residual for S2.3.
+  * **MFA-nudge scaffolding (S2.4)** — config
+    (`AUTH_REQUIRE_MFA_FOR_ADMINS`, `AUTH_MFA_HARD_FAIL_DAYS`),
+    new package `internal/services/mfanudge` (pure-logic
+    `Recommendation` computation with fixed 24h `SnoozeDuration`
+    and hard-fail boundary), audit events `auth.mfa.nudge.shown`,
+    `auth.mfa.nudge.snoozed`, `auth.mfa.enrollment.required`,
+    `auth.mfa.enrollment.completed`. Tests:
+    `internal/services/mfanudge/service_test.go` (non-admin /
+    has-2FA / operator-flag-off short-circuits, first-contact
+    timestamps, snooze suppresses / expires, hard-fail boundary,
+    snooze overridden by hard-fail, `MFAHardFailDays=0` disables
+    escalation, days-remaining rounds up). **Residual**: DB
+    migration (`users.mfa_nudge_first_shown_at` +
+    `mfa_nudge_snoozed_until`), repository methods, login-flow
+    integration, `POST /api/profile/mfa-nudge/snooze` endpoint and
+    frontend modal — Sprint 3 follow-up. 4.3.1 stays 🟡 Partial
+    until the integration lands.
+  * **Idle-timeout scaffolding (S2.5)** — `pkg/auth/idle_tracker.go`
+    (`IdleTracker` interface, `NoopIdleTracker`,
+    `CacheIdleTracker` backed by `cache.Cache` with int64
+    unix-nano values and TTL = idle ceiling). Config
+    `AUTH_SESSION_IDLE_TIMEOUT` (default 30m) +
+    `AUTH_SESSION_IDLE_UPDATE_FREQ` (5m, drives the probabilistic
+    refresh that caps cache-write load). Tests:
+    `pkg/auth/idle_tracker_test.go` (round-trip, missing entry,
+    TTL=0 noop, expired entry). **Residual**: middleware wiring
+    (session-PASETO-only filter, post-credentials check + refresh),
+    WebSocket ping integration to keep long-lived connections
+    alive, login-time first-record. 3.3.2 stays ❌ until middleware
+    integration lands.
+
+  Aggregate L2 conformance after this work is expected to climb from
+  62% to **~78–82%** (final tally depends on whether the residuals
+  above ship before the next re-audit). The §2.1 scoreboard is left
+  unchanged in this entry pending a separate re-tally PR.
+
+- **2026-05-28 — re-audit.** Verified the feature work landed since
+  2026-05-18 (commits `2ed7be2` "remove legacy" through `b5bb958`
+  "passwords security update"). **Resolved**: **C-1 / T-3** (the
+  entire legacy daemon HTTP / binnapi code path was deleted —
+  `internal/daemon/conn.go`, `internal/daemon/binnapi/*`,
+  `internal/daemon/command_legacy.go`, `internal/api/daemonapi/*`,
+  `internal/api/middlewares/daemon.go`, `internal/api/middlewares/daemon_grpc_guard.go`,
+  `internal/application/legacy.go` and the corresponding test files
+  — so the `InsecureSkipVerify: true` + `MinVersion: tls.VersionTLS10`
+  client no longer exists in the codebase); **C-2 / T-1** (global
+  `SecurityHeadersMiddleware` shipped — HSTS conditional on HTTPS,
+  X-CTO, X-Frame-Options, Referrer-Policy, generated CSP with
+  inline-script SHA-256 hashes harvested at boot from `index.html` +
+  `streamsaver/mitm.html`, captcha-aware sources for reCAPTCHA /
+  Turnstile, operator extras via `cfg.Security.CSP.Extra*`, master
+  switch + report-only / verbatim-policy / report-URI knobs, fail-boot
+  on missing static file, 17 unit tests; commits `37f5f34` "security
+  headers" + `52edd5c` "update tests"). **New finding**: **C-11** —
+  plugin WASM HTTP host library (`internal/plugin/hostlibrary/http.go:48`,
+  wired at `internal/application/container.go:1804`) passes
+  plugin-controlled URLs to `stdhttp.NewRequestWithContext` with no
+  scheme allow-list / IP blocklist / redirect cap / response-header
+  redaction / `TimeoutSeconds` clamp. Supply-chain SSRF pivot risk
+  from a compromised plugin-store entry, mitigated only by AdminOnly
+  install + SHA-256 hash verification. Demotes ASVS 12.6.1 and 5.2.8
+  from ✅ to 🟡; adds top-10 row **T-11**. **Note**: `node.GdaemonAPIToken`
+  column still exists in `internal/domain/node.go:25` and the
+  repository layer still hashes it on write, but no non-test code
+  reads it anymore — column is dormant pending a drop migration.
+  Test catalogue updated: removed deleted `router_security_daemon_test.go`,
+  `internal/api/middlewares/daemon_test.go`,
+  `internal/api/middlewares/daemon_grpc_guard_test.go`; added
+  `internal/api/middlewares/security_headers_test.go` (17 funcs),
+  `auth_shorttoken_test.go`, `auth_twofactor_security_test.go`,
+  `audit_capture_test.go`, `shorttoken_scope_test.go`,
+  `router_security_password_policy_test.go`,
+  `router_security_auditlog_test.go`. Re-verified **C-6** (now PAT +
+  gRPC daemon key only; daemon HTTP token scope dropped), **C-10**
+  (no `CipherSuites` configured anywhere), **C-4** (`?token=` still
+  accepts any token type), **T-8** (`bcrypt.DefaultCost = 10`
+  unchanged in `pkg/auth/password.go:12`). Recomputed §2.1 scoreboard
+  from detail rows: overall **62% → 64%** (net of C-1 + C-2 closures
+  minus C-11 downgrade; without C-11 the score would have been
+  ~70%).
 - **2026-05-18 — re-audit.** Verified the feature work landed since the
   last review (commits through `a90a785`). Resolved **C-5** (gRPC
   `gdaemon_api_key` now SHA-256 at rest + hash-then-`secureCompare`),

@@ -21,7 +21,15 @@ const (
 )
 
 type tokenInput struct {
-	TokenName string   `json:"token_name"`
+	TokenName string `json:"token_name"`
+
+	// CurrentPassword is the user's password re-entered to authorise
+	// creation of a long-lived credential (ASVS §2.1.6 / §3.7.1).
+	// Currently optional pending handler integration; the field is
+	// declared so the JSON contract is forward-compatible and the
+	// frontend can begin prompting for it.
+	CurrentPassword string `json:"current_password,omitempty"`
+
 	Abilities []string `json:"abilities"`
 }
 

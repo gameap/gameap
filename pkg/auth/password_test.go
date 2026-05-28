@@ -222,3 +222,57 @@ func TestVerifyPassword_CaseSensitive(t *testing.T) {
 func TestDefaultBcryptCost(t *testing.T) {
 	assert.Equal(t, bcrypt.DefaultCost, DefaultBcryptCost)
 }
+
+// TestSetDefaultBcryptCost_AcceptsValidRange — OWASP ASVS §2.4.4 — the
+// active cost must move when the operator-configured value is in the
+// allowed range. The post-test restore keeps subsequent tests using the
+// historical default.
+func TestSetDefaultBcryptCost_AcceptsValidRange(t *testing.T) {
+	t.Cleanup(func() { _ = SetDefaultBcryptCost(DefaultBcryptCost) })
+
+	for _, cost := range []int{MinBcryptCost, 12, MaxBcryptCost} {
+		require.NoError(t, SetDefaultBcryptCost(cost))
+		assert.Equal(t, cost, ActiveBcryptCost())
+	}
+}
+
+// TestSetDefaultBcryptCost_RejectsOutOfRange — OWASP ASVS §2.4.4 — a
+// misconfigured AUTH_BCRYPT_COST must be refused so a deployment cannot
+// ship a weaker default than the project floor (or a cost so high it
+// becomes a DoS).
+func TestSetDefaultBcryptCost_RejectsOutOfRange(t *testing.T) {
+	t.Cleanup(func() { _ = SetDefaultBcryptCost(DefaultBcryptCost) })
+
+	for _, cost := range []int{0, MinBcryptCost - 1, MaxBcryptCost + 1, 100} {
+		err := SetDefaultBcryptCost(cost)
+		assert.Errorf(t, err, "cost=%d must be rejected", cost)
+	}
+
+	// Active cost is unchanged after a failed Set.
+	assert.Equal(t, DefaultBcryptCost, ActiveBcryptCost())
+}
+
+// TestHashPassword_RespectsActiveCost — OWASP ASVS §2.4.4 — a hash produced
+// after SetDefaultBcryptCost(N) carries cost=N. This is the round-trip the
+// login rehash flow depends on.
+func TestHashPassword_RespectsActiveCost(t *testing.T) {
+	t.Cleanup(func() { _ = SetDefaultBcryptCost(DefaultBcryptCost) })
+
+	require.NoError(t, SetDefaultBcryptCost(MinBcryptCost+1))
+
+	hash, err := HashPassword("password-with-active-cost")
+	require.NoError(t, err)
+
+	got, err := HashCost(hash)
+	require.NoError(t, err)
+	assert.Equal(t, MinBcryptCost+1, got)
+}
+
+// TestHashCost_ReturnsErrorForGarbage — OWASP ASVS §2.4.4 — HashCost over a
+// non-bcrypt string surfaces an error rather than silently returning zero,
+// so the login handler can fall back to a safe "rehash anyway" decision
+// for unexpected stored values.
+func TestHashCost_ReturnsErrorForGarbage(t *testing.T) {
+	_, err := HashCost("not-a-bcrypt-hash")
+	assert.Error(t, err)
+}

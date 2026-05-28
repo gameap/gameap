@@ -39,6 +39,20 @@ const (
 	EventLoginBlocked       EventType = "auth.login.blocked"
 	EventAccessDenied       EventType = "access.denied"
 
+	EventReauthSuccess EventType = "auth.reauth.success"
+	EventReauthFailure EventType = "auth.reauth.failure"
+
+	// MFA-nudge lifecycle events. The "shown" / "snoozed" pair records
+	// each step of the soft-enforcement flow for admins without 2FA so
+	// an operator can audit how long their admins have been ignoring
+	// the recommendation. "enrollment_required" fires when the hard
+	// failure threshold is crossed and the login flow refuses to issue
+	// a session.
+	EventMFANudgeShown          EventType = "auth.mfa.nudge.shown"
+	EventMFANudgeSnoozed        EventType = "auth.mfa.nudge.snoozed"
+	EventMFAEnrollmentRequired  EventType = "auth.mfa.enrollment.required"
+	EventMFAEnrollmentCompleted EventType = "auth.mfa.enrollment.completed"
+
 	EventTwoFactorChallenge          EventType = "auth.2fa.challenge"
 	EventTwoFactorVerifySuccess      EventType = "auth.2fa.verify.success"
 	EventTwoFactorVerifyFailure      EventType = "auth.2fa.verify.failure"

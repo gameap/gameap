@@ -212,17 +212,23 @@ func TestRouterSecurity_API2_TokenSchemes(t *testing.T) {
 	}
 }
 
-// TestRouterSecurity_API2_TokenViaQueryAndCookie verifies that the documented
-// fallback transports (query string, cookie) work as designed and that an
-// invalid token transported via these channels still results in 401.
+// TestRouterSecurity_API2_TokenViaQueryAndCookie verifies the per-source
+// token transport policy after ASVS_L2 C-4:
+//   - ?token= rejects every token type EXCEPT the short-lived glst_ token
+//     (covered by the shorttoken handler tests); URLs leak into proxy logs.
+//   - cookies accept session PASETOs but reject PATs (PAT is API-only).
+//   - invalid tokens via either channel return 401.
 func TestRouterSecurity_API2_TokenViaQueryAndCookie(t *testing.T) {
 	env := setupSecurityTest(t)
 	valid := issuePASETOToken(t, env, env.fixtures.RegularUser)
 
-	t.Run("valid_token_via_query_string_works", func(t *testing.T) {
+	// C-4: long-lived PASETO via ?token= must be rejected so a logged URL
+	// cannot replay the session. Authorization header is the canonical
+	// channel for this credential.
+	t.Run("paseto_in_query_string_rejected", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/user?token="+valid, nil)
 		w := doRequestRaw(t, env, req)
-		assert.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		assert.Equal(t, http.StatusUnauthorized, w.Code, "body=%s", w.Body.String())
 	})
 
 	t.Run("invalid_token_via_query_string_returns_401", func(t *testing.T) {

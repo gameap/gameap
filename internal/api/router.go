@@ -27,6 +27,7 @@ import (
 	filemanagerdelete "github.com/gameap/gameap/internal/api/filemanager/delete"
 	filemanagerdownload "github.com/gameap/gameap/internal/api/filemanager/download"
 	filemanagerdownloadarchive "github.com/gameap/gameap/internal/api/filemanager/downloadarchive"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagermime"
 	"github.com/gameap/gameap/internal/api/filemanager/initialize"
 	filemanagerpaste "github.com/gameap/gameap/internal/api/filemanager/paste"
 	filemanagerrename "github.com/gameap/gameap/internal/api/filemanager/rename"
@@ -237,6 +238,7 @@ type container interface {
 	PubSub() pubsub.PubSub
 	ACMEService() *acme.Service
 	AuditLogger() audit.Logger
+	FileUploadMIMEChecker() *filemanagermime.Checker
 }
 
 func CreateRouter(c container) *http.ServeMux {
@@ -539,6 +541,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/tokens/{id}",
 			Handler: deletetoken.NewHandler(
 				c.PersonalAccessTokenRepository(),
+				auth.NewCacheRevocation(c.Cache()),
 				c.Responder(),
 				c.AuditLogger(),
 			),
@@ -836,6 +839,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.NodeRepository(),
 				c.RBAC(),
 				c.DaemonFiles(),
+				c.FileUploadMIMEChecker(),
 				c.Responder(),
 				c.AuditLogger(),
 			),

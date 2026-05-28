@@ -27,12 +27,24 @@ import (
 type SecurityHeadersMiddleware struct {
 	cfg *config.Config
 
-	hstsValue      string
-	frameOptions   string
-	referrerPolicy string
-	cspHeader      string
-	cspValue       string
+	hstsValue         string
+	frameOptions      string
+	referrerPolicy    string
+	cspHeader         string
+	cspValue          string
+	sensitivePrefixes []string
 }
+
+const (
+	// sensitiveCacheControl is the value applied to responses whose request
+	// path begins with one of cfg.Security.SensitivePathPrefixes. "no-store"
+	// alone is the modern directive; "no-cache, must-revalidate, private"
+	// covers HTTP/1.1 intermediates that handle no-store inconsistently;
+	// the legacy "Pragma: no-cache" is added so HTTP/1.0 proxies (still
+	// present in some enterprise networks) cooperate.
+	sensitiveCacheControl = "no-store, no-cache, must-revalidate, private"
+	sensitivePragma       = "no-cache"
+)
 
 const (
 	// indexHTMLPath is the served SPA entrypoint with two static IIFE scripts
@@ -76,6 +88,7 @@ func NewSecurityHeadersMiddleware(cfg *config.Config, staticFS fs.FS) (*Security
 	)
 	m.frameOptions = cfg.Security.FrameOptions
 	m.referrerPolicy = cfg.Security.ReferrerPolicy
+	m.sensitivePrefixes = normalizeSensitivePrefixes(cfg.Security.SensitivePathPrefixes)
 
 	if cfg.Security.CSP.Enabled {
 		cspValue, err := buildPolicy(cfg, staticFS)
@@ -124,8 +137,48 @@ func (m *SecurityHeadersMiddleware) Middleware(next http.Handler) http.Handler {
 			h.Set("Strict-Transport-Security", m.hstsValue)
 		}
 
+		if m.shouldNoStore(r.URL.Path) {
+			// Only set if the response does not already carry an explicit
+			// Cache-Control — a downstream handler that emits its own value
+			// wins. We do not overwrite "no-store" with "no-store" either;
+			// the guard is cheap and keeps the response header section
+			// idempotent across stacked middleware.
+			if h.Get("Cache-Control") == "" {
+				h.Set("Cache-Control", sensitiveCacheControl)
+			}
+			if h.Get("Pragma") == "" {
+				h.Set("Pragma", sensitivePragma)
+			}
+		}
+
 		next.ServeHTTP(w, r)
 	})
+}
+
+// shouldNoStore reports whether the request path begins with one of the
+// configured sensitive prefixes and therefore must not be cached.
+func (m *SecurityHeadersMiddleware) shouldNoStore(path string) bool {
+	for _, prefix := range m.sensitivePrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// normalizeSensitivePrefixes trims and drops empty entries from the configured
+// list. An empty envDefault on a comma-separated slice surfaces as []string{""}
+// for caarlos0/env, which would otherwise match every path.
+func normalizeSensitivePrefixes(raw []string) []string {
+	out := make([]string, 0, len(raw))
+	for _, p := range raw {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+
+	return out
 }
 
 // isHTTPSRequest reports whether the request reached the panel over TLS.

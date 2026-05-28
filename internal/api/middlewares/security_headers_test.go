@@ -66,6 +66,12 @@ func baseSecureConfig() *config.Config {
 	cfg.Security.FrameOptions = "SAMEORIGIN"
 	cfg.Security.ReferrerPolicy = "strict-origin-when-cross-origin"
 	cfg.Security.CSP.Enabled = true
+	cfg.Security.SensitivePathPrefixes = []string{
+		"/api/auth/",
+		"/api/profile/",
+		"/api/users/",
+		"/api/tokens/",
+	}
 
 	return cfg
 }
@@ -673,6 +679,113 @@ func (e errFS) Open(name string) (fs.File, error) {
 	}
 
 	return &errFile{name: name, data: data}, nil
+}
+
+// runMiddlewareForPath is like runMiddleware but rewrites the request URL so
+// the Cache-Control logic can be exercised for specific prefixes.
+func runMiddlewareForPath(
+	t *testing.T,
+	cfg *config.Config,
+	staticFS fstest.MapFS,
+	path string,
+	downstream http.HandlerFunc,
+) http.Header {
+	t.Helper()
+
+	return runMiddleware(t, cfg, staticFS, func(r *http.Request) {
+		r.URL.Path = path
+	}, downstream)
+}
+
+// TestSecurityHeaders_CacheControl_OnSensitivePaths — OWASP API8:2023 —
+// asserts that responses from /api/auth/*, /api/profile/*, /api/users/* and
+// /api/tokens/* are stamped with Cache-Control: no-store and Pragma: no-cache
+// so an intermediate cache (CDN, browser back/forward, shared corporate
+// proxy) cannot serve another user's credentials or PII back to a different
+// session. ASVS 8.1.2 / 8.2.1.
+func TestSecurityHeaders_CacheControl_OnSensitivePaths(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+	}{
+		{"auth_login", "/api/auth/login"},
+		{"auth_logout", "/api/auth/logout"},
+		{"profile_me", "/api/profile/me"},
+		{"users_list", "/api/users/"},
+		{"users_specific", "/api/users/42"},
+		{"tokens_create", "/api/tokens/"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := baseSecureConfig()
+			resp := runMiddlewareForPath(t, cfg, newTestFS(t), tc.path, nil)
+
+			assert.Equal(t,
+				"no-store, no-cache, must-revalidate, private",
+				resp.Get("Cache-Control"),
+				"sensitive path %s must emit no-store Cache-Control", tc.path)
+			assert.Equal(t, "no-cache", resp.Get("Pragma"))
+		})
+	}
+}
+
+// TestSecurityHeaders_CacheControl_NotOnPublicPaths — OWASP API8:2023 —
+// confirms the no-store stamp is restricted to the configured prefixes so
+// non-sensitive endpoints (server lists, games catalogue, public assets)
+// remain cacheable.
+func TestSecurityHeaders_CacheControl_NotOnPublicPaths(t *testing.T) {
+	cases := []string{
+		"/api/games",
+		"/api/servers/1",
+		"/api/nodes",
+		"/healthz",
+		"/",
+	}
+
+	for _, path := range cases {
+		t.Run(strings.ReplaceAll(strings.TrimPrefix(path, "/"), "/", "_"), func(t *testing.T) {
+			cfg := baseSecureConfig()
+			resp := runMiddlewareForPath(t, cfg, newTestFS(t), path, nil)
+
+			assert.Empty(t, resp.Get("Cache-Control"),
+				"public path %s must not receive Cache-Control: no-store", path)
+			assert.Empty(t, resp.Get("Pragma"))
+		})
+	}
+}
+
+// TestSecurityHeaders_CacheControl_RespectsHandlerOverride — OWASP API8:2023
+// — a downstream handler that intentionally emits its own Cache-Control
+// (e.g. a long-lived public asset served through a sensitive prefix, or a
+// file download that wants no-store with an extra directive) must not be
+// silently overwritten by the middleware default.
+func TestSecurityHeaders_CacheControl_RespectsHandlerOverride(t *testing.T) {
+	cfg := baseSecureConfig()
+
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Cache-Control", "private, max-age=60")
+		w.WriteHeader(http.StatusOK)
+	}
+
+	resp := runMiddlewareForPath(t, cfg, newTestFS(t), "/api/auth/something", handler)
+
+	assert.Equal(t, "private, max-age=60", resp.Get("Cache-Control"),
+		"middleware must not overwrite an explicit downstream Cache-Control")
+}
+
+// TestSecurityHeaders_CacheControl_EmptyPrefixListIsInert — OWASP API8:2023 —
+// guards against an envDefault parsing quirk where an empty list could
+// collapse to []string{""} and match every path. The middleware must do
+// nothing when no prefixes are configured.
+func TestSecurityHeaders_CacheControl_EmptyPrefixListIsInert(t *testing.T) {
+	cfg := baseSecureConfig()
+	cfg.Security.SensitivePathPrefixes = []string{"", "  "}
+
+	resp := runMiddlewareForPath(t, cfg, newTestFS(t), "/api/auth/login", nil)
+
+	assert.Empty(t, resp.Get("Cache-Control"),
+		"empty/whitespace prefixes must NOT match any path")
 }
 
 // splitDirectives parses a CSP header value into a directive -> body map so

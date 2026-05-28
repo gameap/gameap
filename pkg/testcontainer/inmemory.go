@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/acme"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagermime"
 	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/certificates"
@@ -171,6 +172,17 @@ func (c *InmemoryContainer) AuditLogger() audit.Logger {
 // in audit-assertion tests).
 func (c *InmemoryContainer) SetAuditLogger(l audit.Logger) {
 	c.auditLogger = l
+}
+
+// FileUploadMIMEChecker returns a permissive MIME checker for tests so
+// existing upload integrations (which use opaque random bodies) keep
+// passing. Tests that exercise the C-8 rejection path construct their
+// own Checker explicitly.
+func (c *InmemoryContainer) FileUploadMIMEChecker() *filemanagermime.Checker {
+	return filemanagermime.NewChecker(filemanagermime.Config{
+		AllowArchives: true,
+		AllowBinary:   true,
+	})
 }
 func (c *InmemoryContainer) EnrollmentService() *enrollment.Service {
 	keyManager := enrollment.NewSetupKeyManager(c.cacheService, "")

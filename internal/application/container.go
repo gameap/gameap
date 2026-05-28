@@ -21,6 +21,7 @@ import (
 	acmelocker "github.com/gameap/gameap/internal/acme/locker"
 	acmestorage "github.com/gameap/gameap/internal/acme/storage"
 	internalapi "github.com/gameap/gameap/internal/api"
+	"github.com/gameap/gameap/internal/api/filemanager/filemanagermime"
 	"github.com/gameap/gameap/internal/api/middlewares"
 	"github.com/gameap/gameap/internal/application/defaults"
 	"github.com/gameap/gameap/internal/audit"
@@ -72,6 +73,7 @@ import (
 	"github.com/gameap/gameap/pkg/auth"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/secret"
+	"github.com/gameap/gameap/pkg/tlsutil"
 	"github.com/gameap/gameap/pkg/twofactor"
 	webstatic "github.com/gameap/gameap/web/static"
 	"github.com/pkg/errors"
@@ -201,6 +203,7 @@ type Container struct {
 	responder                 *api.Responder
 	auditLogger               audit.Logger
 	securityHeadersMiddleware *middlewares.SecurityHeadersMiddleware
+	fileUploadMIMEChecker     *filemanagermime.Checker
 
 	// ACME
 	acmeService *acme.Service
@@ -697,6 +700,21 @@ func (c *Container) Responder() *api.Responder {
 
 func (c *Container) createResponder() *api.Responder {
 	return api.NewResponder()
+}
+
+// FileUploadMIMEChecker returns the configured MIME allowlist checker used
+// by the file-upload handler. Built once at first access; the configuration
+// is sourced from Files.Upload.{AllowedMIMEs,AllowArchives,AllowBinary}.
+func (c *Container) FileUploadMIMEChecker() *filemanagermime.Checker {
+	if c.fileUploadMIMEChecker == nil {
+		c.fileUploadMIMEChecker = filemanagermime.NewChecker(filemanagermime.Config{
+			AllowedMIMEs:  c.config.Files.Upload.AllowedMIMEs,
+			AllowArchives: c.config.Files.Upload.AllowArchives,
+			AllowBinary:   c.config.Files.Upload.AllowBinary,
+		})
+	}
+
+	return c.fileUploadMIMEChecker
 }
 
 // AuditLogger returns the structured security audit logger. When audit
@@ -1801,7 +1819,14 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 				&lazyServerController{container: c},
 			),
 			hostlibrary.NewCacheHostLibrary(c.Cache(), "plugin:"),
-			hostlibrary.NewHTTPHostLibrary(),
+			hostlibrary.NewHTTPHostLibrary(hostlibrary.HTTPConfig{
+				BlockPrivateIPs:         c.config.Plugin.HTTP.BlockPrivateIPs,
+				AllowedSchemes:          c.config.Plugin.HTTP.AllowedSchemes,
+				AllowedHosts:            c.config.Plugin.HTTP.AllowedHosts,
+				MaxTimeoutSeconds:       c.config.Plugin.HTTP.MaxTimeoutSeconds,
+				MaxRedirects:            c.config.Plugin.HTTP.MaxRedirects,
+				ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
+			}),
 			hostlibrary.NewLogHostLibrary(slog.Default()),
 			hostlibrary.NewNodeFSHostLibrary(c.DaemonFiles(), c.NodeRepository()),
 			hostlibrary.NewNodeCmdHostLibrary(c.DaemonCommands(), c.NodeRepository()),
@@ -2132,9 +2157,8 @@ func (c *Container) buildGRPCTLSConfig() (*tls.Config, error) {
 		)
 	}
 
-	tlsCfg := &tls.Config{
+	tlsCfg := tlsutil.HardenServerConfig(&tls.Config{
 		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
 		GetConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
 			remoteAddr := "unknown"
 			if chi.Conn != nil && chi.Conn.RemoteAddr() != nil {
@@ -2171,7 +2195,7 @@ func (c *Container) buildGRPCTLSConfig() (*tls.Config, error) {
 
 			return nil
 		},
-	}
+	})
 
 	if c.config.GRPC.RequireMTLS {
 		rootCAPEM, err := certSvc.Root(ctx)
@@ -2251,10 +2275,9 @@ func (c *Container) buildMultiplexerTLSConfig() (*tls.Config, error) {
 		return nil, errors.Wrap(err, "load TLS certificate")
 	}
 
-	return &tls.Config{
+	return tlsutil.HardenServerConfig(&tls.Config{
 		Certificates: []tls.Certificate{*cert},
-		MinVersion:   tls.VersionTLS12,
-	}, nil
+	}), nil
 }
 
 func (c *Container) getMultiplexerAddress() string {

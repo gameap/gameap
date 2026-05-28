@@ -115,6 +115,14 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(users) == 0 {
+		// Timing-oracle defence (ASVS §2.2.x): equalise wall-clock latency
+		// between the "user exists / wrong password" path (one bcrypt
+		// verify) and the "user does not exist" path. Without this, an
+		// attacker can enumerate accounts by measuring login response time.
+		// VerifyDummyPassword runs the same bcrypt compare against a
+		// throwaway hash at the configured cost.
+		auth.VerifyDummyPassword(input.Password)
+
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.New("invalid credentials"),
 			http.StatusUnauthorized,
@@ -135,11 +143,22 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Transparently upgrade pre-§2.1.2 password hashes (raw bcrypt) to the
-	// current SHA-256+bcrypt scheme on successful login. Best-effort: hashing
-	// or save failures must not block authentication — the user is retried
-	// on the next login.
-	if needsRehash {
+	// Transparently upgrade password hashes on successful login. Two
+	// triggers (best-effort: failures must not block authentication):
+	//   1. Pre-§2.1.2 raw-bcrypt scheme — needsRehash from VerifyPassword.
+	//   2. The stored hash uses a cost below the operator's configured
+	//      AUTH_BCRYPT_COST. We only ever raise the cost (`storedCost <
+	//      active`); a downgrade is ignored so a misconfigured operator
+	//      who lowers the config cannot weaken existing rows.
+	rehash := needsRehash
+	if !rehash {
+		if storedCost, costErr := auth.HashCost(user.Password); costErr == nil {
+			if storedCost < auth.ActiveBcryptCost() {
+				rehash = true
+			}
+		}
+	}
+	if rehash {
 		if upgradedHash, hashErr := auth.HashPassword(input.Password); hashErr == nil {
 			user.Password = upgradedHash
 			_ = h.userRepo.Save(ctx, &user)

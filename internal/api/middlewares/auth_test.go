@@ -67,12 +67,19 @@ func TestAuthMiddleware_Middleware(t *testing.T) {
 			wantError:  "missing authentication token",
 		},
 		{
-			name:       "valid token in query parameter",
+			// C-4: a valid long-lived JWT/PASETO in ?token= must be rejected.
+			// URLs leak into proxy logs / browser history / Referer; only the
+			// single-use glst_ short-lived token may travel in the query
+			// string (see TestAuthMiddleware_QueryTokenRestrictedToShortLived).
+			name:       "valid token in query parameter is rejected (C-4)",
 			queryParam: validToken,
-			wantStatus: http.StatusOK,
-			wantUser:   true,
+			wantStatus: http.StatusUnauthorized,
+			wantUser:   false,
+			wantError:  "missing authentication token",
 		},
 		{
+			// PASETO/JWT in a cookie continues to work — cookies are scoped
+			// per-origin and not logged like URLs are.
 			name: "valid token in cookie",
 			cookie: &http.Cookie{
 				Name:  "token",

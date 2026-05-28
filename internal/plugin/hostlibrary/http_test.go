@@ -11,6 +11,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// permissiveTestConfig returns an HTTPConfig that lets httptest.NewServer
+// targets reach the loopback interface — needed for any non-SSRF test
+// that exercises plain HTTP behaviour. Production deployments must NOT
+// use this configuration; production callers source the config from
+// internal/config Plugin.HTTP which keeps BlockPrivateIPs=true.
+func permissiveTestConfig() HTTPConfig {
+	return HTTPConfig{
+		BlockPrivateIPs:   false,
+		AllowedSchemes:    []string{"http", "https"},
+		MaxTimeoutSeconds: 60,
+		MaxRedirects:      5,
+	}
+}
+
 func TestHTTPService_Fetch(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -114,7 +128,7 @@ func TestHTTPService_Fetch(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
 
-			svc := NewHTTPService()
+			svc := NewHTTPService(permissiveTestConfig())
 			resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
 				Url:     server.URL,
 				Method:  tt.method,
@@ -142,7 +156,7 @@ func TestHTTPService_Fetch(t *testing.T) {
 }
 
 func TestHTTPService_Fetch_InvalidURL(t *testing.T) {
-	svc := NewHTTPService()
+	svc := NewHTTPService(permissiveTestConfig())
 	resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
 		Url:    "://invalid-url",
 		Method: "GET",
@@ -154,7 +168,7 @@ func TestHTTPService_Fetch_InvalidURL(t *testing.T) {
 }
 
 func TestHTTPService_Fetch_UnreachableHost(t *testing.T) {
-	svc := NewHTTPService()
+	svc := NewHTTPService(permissiveTestConfig())
 	resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
 		Url:            "http://localhost:59999",
 		Method:         "GET",
@@ -165,6 +179,10 @@ func TestHTTPService_Fetch_UnreachableHost(t *testing.T) {
 	require.NotNil(t, resp.Error)
 }
 
+// Pinned by ASVS_L2 C-11: only response headers in the curated allowlist
+// (and any operator-added extras) reach the plugin. Arbitrary X-*
+// response headers from a reached origin must be stripped so a plugin
+// cannot read credentials or fingerprints set by a third-party endpoint.
 func TestHTTPService_Fetch_ResponseHeaders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Custom-Response", "test-value")
@@ -174,7 +192,7 @@ func TestHTTPService_Fetch_ResponseHeaders(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := NewHTTPService()
+	svc := NewHTTPService(permissiveTestConfig())
 	resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
 		Url:    server.URL,
 		Method: "GET",
@@ -182,8 +200,10 @@ func TestHTTPService_Fetch_ResponseHeaders(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, resp.Error)
-	assert.Equal(t, "test-value", resp.Headers["X-Custom-Response"])
-	assert.Equal(t, "application/json", resp.Headers["Content-Type"])
+	assert.Equal(t, "application/json", resp.Headers["Content-Type"],
+		"Content-Type is in the default allowlist and must pass through")
+	assert.Empty(t, resp.Headers["X-Custom-Response"],
+		"X-* headers are not in the default allowlist and must be stripped")
 }
 
 func TestHTTPService_Fetch_CustomTimeout(t *testing.T) {
@@ -192,7 +212,7 @@ func TestHTTPService_Fetch_CustomTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := NewHTTPService()
+	svc := NewHTTPService(permissiveTestConfig())
 	resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
 		Url:            server.URL,
 		Method:         "GET",
@@ -216,7 +236,7 @@ func TestHTTPService_Fetch_PutMethod(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := NewHTTPService()
+	svc := NewHTTPService(permissiveTestConfig())
 	resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
 		Url:    server.URL,
 		Method: "PUT",
@@ -240,7 +260,7 @@ func TestHTTPService_Fetch_DeleteMethod(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := NewHTTPService()
+	svc := NewHTTPService(permissiveTestConfig())
 	resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
 		Url:    server.URL,
 		Method: "DELETE",
@@ -252,7 +272,7 @@ func TestHTTPService_Fetch_DeleteMethod(t *testing.T) {
 }
 
 func TestNewHTTPHostLibrary(t *testing.T) {
-	lib := NewHTTPHostLibrary()
+	lib := NewHTTPHostLibrary(permissiveTestConfig())
 
 	assert.NotNil(t, lib)
 	assert.NotNil(t, lib.impl)

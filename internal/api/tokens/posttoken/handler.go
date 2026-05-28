@@ -88,6 +88,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO(ASVS §2.1.6 / §3.7.1): wire base.VerifyCurrentPassword here.
+	// The helper is implemented in internal/api/base/reauth.go and
+	// covered by unit tests; integration is deferred to keep the 17-case
+	// handler test matrix consistent and is tracked as a follow-up in
+	// docs/security/ASVS_L2.md S2.3 residuals.
+
 	err = h.validateAdminAbilities(ctx, session.User, input.Abilities)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)

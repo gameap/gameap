@@ -1,0 +1,195 @@
+name: Vulnerability Scan
+
+# govulncheck runs against the source tree and the built binary.
+# - Scheduled weekly so newly published Go-team advisories surface within ~7 days.
+# - Not wired into the PR path: a fresh stdlib CVE would otherwise block every
+#   open PR until the Go release that includes the fix lands and we bump the
+#   pinned Go version. The weekly cadence + manual dispatch covers that case
+#   without making the merge queue depend on Google's advisory feed.
+# - Runs on push to main so a vuln introduced by a dependency bump is caught
+#   immediately after merge (we still control rollback).
+
+on:
+  schedule:
+    # 06:00 UTC every Monday.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      govulncheck-version:
+        description: 'govulncheck version override (e.g. v1.1.4). Default uses the pin in the workflow.'
+        required: false
+        default: ''
+        type: string
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: vuln-scan
+  cancel-in-progress: false
+
+env:
+  GOVULNCHECK_VERSION: v1.1.4
+
+jobs:
+  scan:
+    name: govulncheck (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: source
+            description: 'Scan source code for known vulnerable symbol usage.'
+          - mode: binary
+            description: 'Scan the built binary for vulnerabilities in transitively-pulled crypto / cgo bindings that the source scan may miss.'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.26.x
+
+      - name: Restore Go module cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: gocache-vuln-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            gocache-vuln-${{ runner.os }}-
+
+      - name: Install govulncheck
+        env:
+          OVERRIDE: ${{ github.event.inputs.govulncheck-version }}
+        run: |
+          version="${OVERRIDE:-$GOVULNCHECK_VERSION}"
+          # Defence-in-depth: even though workflow_dispatch is restricted to users
+          # with write access, validate the version string matches a semver-ish
+          # pattern before passing it to `go install`. Refuses anything that
+          # could carry shell metacharacters or path traversal.
+          if ! printf '%s' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-+][A-Za-z0-9._-]+)?$'; then
+            echo "Refusing to install govulncheck@${version}: version must match vMAJOR.MINOR.PATCH[-PRERELEASE]" >&2
+            exit 1
+          fi
+          echo "Installing govulncheck@${version}"
+          go install "golang.org/x/vuln/cmd/govulncheck@${version}"
+
+      - name: Run govulncheck (source mode)
+        if: matrix.mode == 'source'
+        run: |
+          set -o pipefail
+          govulncheck -show verbose ./... 2>&1 | tee govulncheck-source.log
+
+      - name: Build binary for binary-mode scan
+        if: matrix.mode == 'binary'
+        run: |
+          mkdir -p bin
+          CGO_ENABLED=0 go build -trimpath -o bin/gameap-api ./cmd/gameap-api
+
+      - name: Run govulncheck (binary mode)
+        if: matrix.mode == 'binary'
+        run: |
+          set -o pipefail
+          govulncheck -mode=binary -show verbose bin/gameap-api 2>&1 | tee govulncheck-binary.log
+
+      - name: Upload scan log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: govulncheck-${{ matrix.mode }}
+          path: govulncheck-${{ matrix.mode }}.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      # File a single open GitHub issue per failing mode (deduped by title), so a
+      # persistent vuln does not spam the tracker week after week. Closes
+      # automatically once the next run passes (a follow-up step below).
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          MODE: ${{ matrix.mode }}
+          GOVULNCHECK_VERSION_PIN: ${{ env.GOVULNCHECK_VERSION }}
+        with:
+          script: |
+            const mode = process.env.MODE;
+            const pinnedVersion = process.env.GOVULNCHECK_VERSION_PIN || 'latest';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = `Vulnerability scan: govulncheck (${mode}) reported findings`;
+
+            const existing = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:open is:issue in:title "${title}"`,
+            });
+            if (existing.data.total_count > 0) {
+              core.info(`Open issue already exists; skipping creation: ${existing.data.items[0].html_url}`);
+              return;
+            }
+
+            const body = [
+              `The weekly vulnerability scan in **${mode} mode** reported one or more findings.`,
+              ``,
+              `**Run:** ${runUrl}`,
+              ``,
+              `**Reproduce locally:**`,
+              ``,
+              '```',
+              `go install golang.org/x/vuln/cmd/govulncheck@${pinnedVersion}`,
+              mode === 'source'
+                ? `govulncheck -show verbose ./...`
+                : `CGO_ENABLED=0 go build -trimpath -o bin/gameap-api ./cmd/gameap-api && govulncheck -mode=binary -show verbose bin/gameap-api`,
+              '```',
+              ``,
+              `Download the artifact \`govulncheck-${mode}\` from the run for the full log.`,
+              ``,
+              `Triage rules:`,
+              `- If the finding is a stdlib CVE, the fix is to bump Go to a release that includes the patch.`,
+              `- If the finding is in a dependency, bump the dependency or, when no fixed version exists, document the mitigation in \`docs/security/ASVS_L2.md\`.`,
+              `- The issue auto-closes when the next scan passes.`,
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['security', 'vulnerability'],
+            });
+
+      - name: Close prior issue on success
+        if: success()
+        uses: actions/github-script@v7
+        env:
+          MODE: ${{ matrix.mode }}
+        with:
+          script: |
+            const mode = process.env.MODE;
+            const title = `Vulnerability scan: govulncheck (${mode}) reported findings`;
+
+            const existing = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:open is:issue in:title "${title}"`,
+            });
+            for (const issue of existing.data.items) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Auto-closing: the latest scheduled vuln-scan run passed (${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+              });
+              core.info(`Closed ${issue.html_url}`);
+            }

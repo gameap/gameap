@@ -66,6 +66,45 @@ type Config struct {
 		// the application logs a startup slog.Warn. Length checks
 		// (§2.1.1 / §2.1.2) still apply regardless.
 		AllowWeakPasswords bool `env:"AUTH_ALLOW_WEAK_PASSWORDS" envDefault:"false"`
+
+		// BcryptCost is the work factor every new password hash uses (ASVS
+		// 4.0.3 §2.4.4). The default 13 matches the L2 minimum; the valid
+		// range is [10, 14]. The login handler transparently rehashes any
+		// stored hash whose cost is below this value on successful login,
+		// migrating the user base in-place. The cost is only ever
+		// raised — a configured value below the existing hash's cost is
+		// ignored so an accidental operator downgrade cannot weaken stored
+		// credentials.
+		BcryptCost int `env:"AUTH_BCRYPT_COST" envDefault:"13"`
+
+		// RequireMFAForAdmins activates the soft MFA nudge for accounts
+		// with the admin ability (ASVS §4.3.1). When true, an admin
+		// without 2FA receives a "please enable" recommendation on every
+		// login + page refresh; after MFAHardFailDays since the first
+		// nudge the login flow refuses to issue a session until 2FA is
+		// enrolled. Default false — turning it on is a deliberate
+		// hardening choice each operator makes for their deployment.
+		RequireMFAForAdmins bool `env:"AUTH_REQUIRE_MFA_FOR_ADMINS" envDefault:"false"`
+
+		// MFAHardFailDays is the grace period (calendar days) between
+		// the first MFA nudge an admin sees and the hard-fail point
+		// where login refuses to issue a session until 2FA is enrolled.
+		// Set to 0 to disable hard-fail entirely (nudge persists as
+		// pure persuasion — ASVS 4.3.1 then stays Partial). Default 30.
+		MFAHardFailDays int `env:"AUTH_MFA_HARD_FAIL_DAYS" envDefault:"30"`
+
+		// SessionIdleTimeout is the sliding window after which an
+		// inactive session token is rejected (ASVS §3.3.2). Applies
+		// only to session PASETOs — PATs (API credentials) and
+		// short-lived glst_ tokens bypass the check. Set to 0 to
+		// disable the idle check entirely. Default 30m.
+		SessionIdleTimeout time.Duration `env:"AUTH_SESSION_IDLE_TIMEOUT" envDefault:"30m"`
+
+		// SessionIdleUpdateFreq is the probabilistic refresh interval:
+		// the middleware only updates the activity timestamp when the
+		// previous one is older than this value. Reduces cache write
+		// load by roughly idleTimeout/updateFreq×. Default 5m.
+		SessionIdleUpdateFreq time.Duration `env:"AUTH_SESSION_IDLE_UPDATE_FREQ" envDefault:"5m"`
 	}
 
 	RBAC struct {
@@ -113,6 +152,24 @@ type Config struct {
 			MaxChunks       uint          `env:"FILES_UPLOAD_MAX_CHUNKS" envDefault:"100000"`
 			DispatchTimeout time.Duration `env:"FILES_UPLOAD_DISPATCH_TIMEOUT" envDefault:"2m"`
 			JanitorInterval time.Duration `env:"FILES_UPLOAD_JANITOR_INTERVAL" envDefault:"12h"`
+
+			// AllowedMIMEs additively extends the default upload MIME
+			// allowlist (image/png, image/jpeg, text/plain, etc.). Used
+			// by game-specific deployments that legitimately need
+			// non-default upload types (e.g. video/mp4 for replay
+			// archives). The defaults are always honoured — this is a
+			// supplement, not a replacement.
+			AllowedMIMEs []string `env:"FILES_UPLOAD_ALLOWED_MIMES" envSeparator:"," envDefault:""`
+
+			// AllowArchives unlocks the archive group (zip, tar, gzip,
+			// bzip2, 7z, xz). Off by default — a malicious archive can
+			// carry executables that a daemon-side extraction would run.
+			AllowArchives bool `env:"FILES_UPLOAD_ALLOW_ARCHIVES" envDefault:"false"`
+
+			// AllowBinary lets generic application/octet-stream through
+			// the MIME check. Off by default; turn on for deployments
+			// that accept opaque game-save blobs.
+			AllowBinary bool `env:"FILES_UPLOAD_ALLOW_BINARY" envDefault:"false"`
 		}
 
 		Archive struct {
@@ -217,6 +274,66 @@ type Config struct {
 			ExtraImgSrc     []string `env:"SECURITY_CSP_EXTRA_IMG_SRC" envSeparator:"," envDefault:""`
 			ExtraFrameSrc   []string `env:"SECURITY_CSP_EXTRA_FRAME_SRC" envSeparator:"," envDefault:""`
 			ExtraFontSrc    []string `env:"SECURITY_CSP_EXTRA_FONT_SRC" envSeparator:"," envDefault:""`
+		}
+
+		// SensitivePathPrefixes lists URL prefixes whose responses must never be
+		// stored in browser or intermediate caches. SecurityHeadersMiddleware
+		// emits "Cache-Control: no-store, no-cache, must-revalidate, private" +
+		// "Pragma: no-cache" for any request whose path starts with one of these
+		// values. A downstream handler that explicitly sets Cache-Control wins.
+		SensitivePathPrefixes []string `env:"SECURITY_SENSITIVE_PATH_PREFIXES" envSeparator:"," envDefault:"/api/auth/,/api/profile/,/api/users/,/api/tokens/"`
+	}
+
+	// Plugin scopes capabilities exposed to WASM plugins via the host
+	// libraries (HTTP fetch, file IO, etc.). Defaults are intentionally
+	// strict — a malicious or compromised plugin must not be able to pivot
+	// from the panel process into private networks, cloud metadata
+	// endpoints, or services that trust the panel's source IP.
+	Plugin struct {
+		// HTTP gates the plugin HTTP-fetch host library
+		// (internal/plugin/hostlibrary/http.go). A "*" value in
+		// AllowedHosts disables host filtering; an empty list keeps the
+		// SSRF blocklist as the only gate.
+		HTTP struct {
+			// BlockPrivateIPs refuses any outbound HTTP whose post-DNS
+			// IP is loopback / RFC1918 / link-local / CGNAT / cloud
+			// metadata. Cloud-metadata IPs are blocked even when the
+			// switch is off; an operator cannot allow IMDS via this flag.
+			BlockPrivateIPs bool `env:"PLUGIN_HTTP_BLOCK_PRIVATE_IPS" envDefault:"true"`
+
+			// AllowedSchemes is the URL-scheme allow-list. Defaults to
+			// HTTPS only (operators that need plaintext can add "http").
+			// Any scheme not in this list is rejected pre-dial.
+			AllowedSchemes []string `env:"PLUGIN_HTTP_ALLOWED_SCHEMES" envSeparator:"," envDefault:"https"`
+
+			// AllowedHosts is an operator-managed bypass list for the
+			// private-IP blocklist (e.g. "internal-api.example.com").
+			// Cloud-metadata IPs are NEVER bypassed regardless of this
+			// list. Empty means "no bypass" — every IP must pass the
+			// blocklist on its own merits.
+			AllowedHosts []string `env:"PLUGIN_HTTP_ALLOWED_HOSTS" envSeparator:"," envDefault:""`
+
+			// MaxTimeoutSeconds caps the per-request timeout a plugin
+			// may request via HTTPFetchRequest.TimeoutSeconds. A plugin
+			// asking for a longer timeout has its value clamped to this
+			// ceiling. The default 30s matches the global default.
+			MaxTimeoutSeconds int `env:"PLUGIN_HTTP_MAX_TIMEOUT_SECONDS" envDefault:"30"`
+
+			// MaxRedirects caps the number of HTTP redirects a single
+			// request may follow. Every redirect target is re-validated
+			// against the blocklist so a public origin cannot redirect
+			// into RFC1918.
+			MaxRedirects int `env:"PLUGIN_HTTP_MAX_REDIRECTS" envDefault:"5"`
+
+			// ResponseHeaderAllowlist additively extends the default
+			// allowlist of response headers passed back to the plugin
+			// (the default carries Content-Type / Length / Encoding /
+			// Last-Modified / ETag / Cache-Control / Date / Location /
+			// Expires). Set-Cookie, Authorization, WWW-Authenticate,
+			// Proxy-Authenticate, Clear-Site-Data etc. are never
+			// passed through — a plugin must not learn credentials set
+			// by a reachable origin.
+			ResponseHeaderAllowlist []string `env:"PLUGIN_HTTP_RESPONSE_HEADER_ALLOWLIST" envSeparator:"," envDefault:""`
 		}
 	}
 

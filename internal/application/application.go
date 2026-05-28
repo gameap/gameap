@@ -17,6 +17,7 @@ import (
 	"github.com/gameap/gameap/migrations"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/netutil"
+	"github.com/gameap/gameap/pkg/tlsutil"
 	"github.com/pkg/errors"
 )
 
@@ -75,6 +76,19 @@ func Run(runParams RunParams) {
 	// the pkg/auth singleton so every handler input.Validate() sees it.
 	auth.SetAllowWeakPasswords(cfg.Auth.AllowWeakPasswords)
 	auth.SetPasswordBlocklist(container.PasswordBlocklist())
+
+	// Install the operator-chosen bcrypt cost (ASVS §2.4.4). A configured
+	// value outside [auth.MinBcryptCost, auth.MaxBcryptCost] is rejected at
+	// boot rather than silently falling back, so a misconfiguration cannot
+	// ship a weaker default than the project floor.
+	if err := auth.SetDefaultBcryptCost(cfg.Auth.BcryptCost); err != nil {
+		slog.Error("invalid AUTH_BCRYPT_COST", slog.Int("cost", cfg.Auth.BcryptCost), slog.String("error", err.Error()))
+		os.Exit(1)
+
+		return
+	}
+	slog.Info("password hashing configured",
+		slog.Int("bcrypt_cost", auth.ActiveBcryptCost()))
 
 	shutdownDone := make(chan struct{})
 	go func() {
@@ -262,10 +276,9 @@ func startHTTPSServer(ctx context.Context, cfg *config.Config, container *Contai
 	}
 
 	httpsServer := container.HTTPSServer()
-	httpsServer.TLSConfig = &tls.Config{
+	httpsServer.TLSConfig = tlsutil.HardenServerConfig(&tls.Config{
 		GetCertificate: getCert,
-		MinVersion:     tls.VersionTLS12,
-	}
+	})
 
 	go func() {
 		slog.InfoContext(ctx, "Starting HTTPS server",

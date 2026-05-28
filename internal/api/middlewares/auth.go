@@ -47,6 +47,39 @@ const (
 	tokenTypeShortLived
 )
 
+// tokenSource records where extractToken found the credential. Different
+// sources have different security postures (see policyForSource):
+//
+//   - Authorization header — primary, accepts any token type.
+//   - Query parameter — exposed in proxy logs, browser history, Referer;
+//     only the single-use, ≤10 s glst_ token is allowed.
+//   - Cookie — accepted from browsers for session continuity; only session
+//     PASETOs and glst_ tokens are allowed (a PAT is an API credential and
+//     must travel in the Authorization header).
+type tokenSource int
+
+const (
+	tokenSourceUnknown tokenSource = iota
+	tokenSourceHeader
+	tokenSourceQuery
+	tokenSourceCookie
+)
+
+// String returns a stable audit-log identifier for the source. Kept short
+// because it is embedded in `reason` fields.
+func (s tokenSource) String() string {
+	switch s {
+	case tokenSourceHeader:
+		return "header"
+	case tokenSourceQuery:
+		return "query"
+	case tokenSourceCookie:
+		return "cookie"
+	default:
+		return "unknown"
+	}
+}
+
 type AuthMiddleware struct {
 	authService authService
 	userRepo    repositories.UserRepository
@@ -96,7 +129,7 @@ func (m *AuthMiddleware) OptionalMiddleware(next http.Handler) http.Handler {
 
 func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tokenString := m.extractToken(r)
+		tokenString, source := m.extractToken(r)
 		if tokenString == "" {
 			if optional {
 				next.ServeHTTP(w, r)
@@ -112,10 +145,35 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 
 			return
 		}
+
+		detectedType := m.detectTokenType(tokenString)
+
+		// Enforce per-source allowed token types BEFORE running any
+		// cryptographic verification. We intentionally surface this as
+		// "missing token" instead of a distinguishable 401 so an attacker
+		// cannot probe whether a valid token was rejected purely because of
+		// where it was placed.
+		if !sourceAllowsTokenType(source, detectedType) {
+			audit.TokenRejected(r.Context(), m.audit, "token_source_"+source.String()+"_not_allowed")
+
+			if optional {
+				next.ServeHTTP(w, r)
+
+				return
+			}
+
+			m.responder.WriteError(r.Context(), w, api.WrapHTTPError(
+				errMissingAuthToken,
+				http.StatusUnauthorized,
+			))
+
+			return
+		}
+
 		var err error
 		var session *auth.Session
 
-		switch m.detectTokenType(tokenString) {
+		switch detectedType {
 		case tokenTypeUserAuth:
 			session, err = m.processUserAuthToken(r.Context(), tokenString)
 		case tokenTypePersonalAccess:
@@ -182,6 +240,14 @@ func (m *AuthMiddleware) middleware(next http.Handler, optional bool) http.Handl
 	})
 }
 
+// patRevocationIdentifier returns the stable denylist key for a PAT. Kept
+// in sync with deletetoken.PATRevocationIdentifier — that handler exports
+// the same logic for the revoke path. We don't import the handler package
+// here to avoid a circular dependency.
+func patRevocationIdentifier(id uint) string {
+	return "pat:" + strconv.FormatUint(uint64(id), 10)
+}
+
 // authRejectReason maps a credential-processing error to a stable, non-
 // sensitive audit reason token. It returns ok=false for internal errors
 // (e.g. repository failures) so those are not mislabelled as auth failures.
@@ -212,30 +278,65 @@ func authRejectReason(err error) (string, bool) {
 	}
 }
 
-func (m *AuthMiddleware) extractToken(r *http.Request) string {
+func (m *AuthMiddleware) extractToken(r *http.Request) (string, tokenSource) {
 	// Try to extract from Authorization header
 	authHeader := r.Header.Get("Authorization")
 	if authHeader != "" {
 		// Check for Bearer token
 		parts := strings.Split(authHeader, " ")
 		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
-			return parts[1]
+			return parts[1], tokenSourceHeader
 		}
 	}
 
-	// Try to extract from query parameter (useful for WebSocket connections)
+	// Query parameter — restricted to short-lived (glst_) tokens by
+	// sourceAllowsTokenType. We still extract any value here so the
+	// per-source policy check can emit a precise audit event; rejecting
+	// silently in extractToken would hide a misuse from the operator.
 	token := r.URL.Query().Get("token")
 	if token != "" {
-		return token
+		return token, tokenSourceQuery
 	}
 
-	// Try to extract from cookie (useful for web applications)
+	// Cookie — restricted to session PASETO and glst_ by
+	// sourceAllowsTokenType. Same rationale as the query path.
 	cookie, err := r.Cookie("token")
 	if err == nil && cookie.Value != "" {
-		return cookie.Value
+		return cookie.Value, tokenSourceCookie
 	}
 
-	return ""
+	return "", tokenSourceUnknown
+}
+
+// sourceAllowsTokenType implements the per-source allow-list:
+//
+//   - Authorization header accepts every recognised token type (the primary
+//     supported channel).
+//   - Query parameter accepts ONLY short-lived (glst_) tokens because URLs
+//     end up in proxy access logs, browser history, and Referer headers — a
+//     long-lived PASETO or PAT in a URL is a real-world credential leak.
+//   - Cookie accepts session PASETOs and glst_, but NOT a PAT — PATs are
+//     machine credentials for the API, not browser sessions.
+//
+// Unknown token shapes pass this gate so the regular switch in the middleware
+// can emit its existing "unknown_token_type" audit reason and 401; gating
+// them here would change a stable audit token and lose differentiation
+// between "wrong source" and "wrong shape" rejections.
+func sourceAllowsTokenType(source tokenSource, kind tokenType) bool {
+	if kind == tokenTypeUnknown {
+		return true
+	}
+
+	switch source {
+	case tokenSourceHeader:
+		return true
+	case tokenSourceQuery:
+		return kind == tokenTypeShortLived
+	case tokenSourceCookie:
+		return kind == tokenTypeUserAuth || kind == tokenTypeShortLived
+	default:
+		return false
+	}
 }
 
 // detectTokenType detects the type of the provided token.
@@ -302,6 +403,23 @@ func (m *AuthMiddleware) processPersonalAccessToken(ctx context.Context, token s
 	}
 
 	if len(dbTokens) == 0 {
+		return nil, api.WrapHTTPError(
+			errPATNotFound,
+			http.StatusUnauthorized,
+		)
+	}
+
+	// Defence-in-depth against stale repository caches: the PAT revocation
+	// handler (internal/api/tokens/deletetoken) records "pat:<id>" on the
+	// denylist on every revoke. A successful Find here that lands on a
+	// revoked entry means the cache layer was lagging; the denylist
+	// catches it and we reject without ever issuing a session.
+	revoked, revErr := m.revocation.IsRevoked(ctx, auth.TokenIdentifier(patRevocationIdentifier(uint(id))))
+	if revErr != nil {
+		return nil, errors.WithMessage(revErr, "failed to check pat revocation")
+	}
+
+	if revoked {
 		return nil, api.WrapHTTPError(
 			errPATNotFound,
 			http.StatusUnauthorized,
