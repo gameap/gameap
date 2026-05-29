@@ -25,12 +25,17 @@ type RunParams struct {
 	EnvFile string
 }
 
+// osExit is a seam over os.Exit so the bootstrap failure paths can be exercised
+// in tests without terminating the test process. Mirrors the detectInterfaceSANs
+// seam in tls_helpers.go.
+var osExit = os.Exit
+
 //nolint:funlen
 func Run(runParams RunParams) {
 	if err := loadEnvFile(runParams.EnvFile); err != nil {
 		slog.Error("Failed to load env file", slog.String("error", err.Error()))
 
-		os.Exit(1)
+		osExit(1)
 
 		return
 	}
@@ -39,7 +44,7 @@ func Run(runParams RunParams) {
 	if err != nil {
 		slog.Error("Failed to load config", slog.String("error", err.Error()))
 
-		os.Exit(1)
+		osExit(1)
 
 		return
 	}
@@ -83,7 +88,7 @@ func Run(runParams RunParams) {
 	// ship a weaker default than the project floor.
 	if err := auth.SetDefaultBcryptCost(cfg.Auth.BcryptCost); err != nil {
 		slog.Error("invalid AUTH_BCRYPT_COST", slog.Int("cost", cfg.Auth.BcryptCost), slog.String("error", err.Error()))
-		os.Exit(1)
+		osExit(1)
 
 		return
 	}
@@ -115,7 +120,7 @@ func Run(runParams RunParams) {
 			slog.String("error", err.Error()),
 		)
 
-		os.Exit(1)
+		osExit(1)
 
 		return
 	}
@@ -128,7 +133,7 @@ func Run(runParams RunParams) {
 			slog.String("error", err.Error()),
 		)
 
-		os.Exit(1)
+		osExit(1)
 
 		return
 	}
@@ -144,14 +149,14 @@ func Run(runParams RunParams) {
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))
 
-		os.Exit(1)
+		osExit(1)
 	}
 
 	err = container.PluginDispatcher().RefreshSubscriptions(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to refresh plugin subscriptions", slog.String("error", err.Error()))
 
-		os.Exit(1)
+		osExit(1)
 	}
 
 	startPubSub(ctx, container)
@@ -181,7 +186,7 @@ func startHTTPListener(ctx context.Context, cfg *config.Config, container *Conta
 			slog.String("error", err.Error()),
 		)
 
-		os.Exit(1)
+		osExit(1)
 	}
 
 	go func() {
@@ -196,7 +201,7 @@ func startHTTPListener(ctx context.Context, cfg *config.Config, container *Conta
 func runWithGRPC(ctx context.Context, cfg *config.Config, container *Container) {
 	if err := container.SessionRegistry().Start(ctx); err != nil {
 		slog.ErrorContext(ctx, "Failed to start session registry", slog.String("error", err.Error()))
-		os.Exit(1)
+		osExit(1)
 	}
 
 	if err := container.FileDispatcher().Start(ctx); err != nil {
@@ -230,7 +235,7 @@ func runWithGRPC(ctx context.Context, cfg *config.Config, container *Container) 
 	grpcServer, err := container.GRPCServer()
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to create gRPC server", slog.String("error", err.Error()))
-		os.Exit(1)
+		osExit(1)
 	}
 
 	grpcAddr := net.JoinHostPort(cfg.HTTPBindIP, strconv.Itoa(int(cfg.GRPC.Port)))
@@ -238,7 +243,7 @@ func runWithGRPC(ctx context.Context, cfg *config.Config, container *Container) 
 	lis, err := new(net.ListenConfig).Listen(ctx, "tcp", grpcAddr)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to listen for gRPC", slog.String("error", err.Error()))
-		os.Exit(1)
+		osExit(1)
 	}
 
 	go func() {
@@ -270,7 +275,7 @@ func startHTTPSServer(ctx context.Context, cfg *config.Config, container *Contai
 			slog.String("error", err.Error()),
 		)
 
-		os.Exit(1)
+		osExit(1)
 
 		return
 	}
