@@ -74,3 +74,37 @@ func TestJWTService_GenerateTokenForUser_HasNoScope(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, scope)
 }
+
+// TestPASETOService_GenerateMFAEnrollmentToken_StillAuthenticates pins that the
+// enrollment token is a real, validatable session credential — only the scope
+// claim confines it. The auth middleware reads the subject as "user:login:<login>"
+// to resolve the user, so that mapping must hold for the scoped token too.
+func TestPASETOService_GenerateMFAEnrollmentToken_StillAuthenticates(t *testing.T) {
+	svc, err := NewPASETOService([]byte(testPASETOKey))
+	require.NoError(t, err)
+
+	token, err := svc.GenerateMFAEnrollmentToken(&domain.User{Login: "admin"}, time.Hour)
+	require.NoError(t, err)
+
+	claims, err := svc.ValidateToken(token)
+	require.NoError(t, err)
+
+	subject, err := claims.GetSubject()
+	require.NoError(t, err)
+	assert.Equal(t, "user:login:admin", subject,
+		"the enrollment token must resolve to the same subject the auth middleware parses")
+}
+
+// TestPASETOService_GenerateMFAEnrollmentToken_ExpiredIsRejected pins that an
+// expired enrollment token is refused by ValidateToken exactly like any other
+// session token — the scope claim does not exempt it from expiry checks.
+func TestPASETOService_GenerateMFAEnrollmentToken_ExpiredIsRejected(t *testing.T) {
+	svc, err := NewPASETOService([]byte(testPASETOKey))
+	require.NoError(t, err)
+
+	token, err := svc.GenerateMFAEnrollmentToken(&domain.User{Login: "admin"}, -time.Hour)
+	require.NoError(t, err)
+
+	_, err = svc.ValidateToken(token)
+	require.Error(t, err, "an expired enrollment token must be rejected by ValidateToken")
+}

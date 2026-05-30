@@ -717,6 +717,92 @@ func TestIsAdminMiddleware_Audit_DenialEmitsEvent(t *testing.T) {
 	}
 }
 
+// TestAuthMiddleware_MFAEnrollmentScopeFlag covers OWASP API2:2023. The auth
+// middleware must surface the token's scope onto the session: a token minted
+// with ScopeMFAEnrollment establishes a session with MFAEnrollmentOnly=true
+// (so the downstream scope guard can confine it), while an ordinary session
+// token leaves the flag false.
+func TestAuthMiddleware_MFAEnrollmentScopeFlag(t *testing.T) {
+	jwtService := auth.NewJWTService([]byte(testJWTSecret))
+
+	tests := []struct {
+		name               string
+		token              func(*domain.User) string
+		wantEnrollmentOnly bool
+	}{
+		{
+			name: "enrollment_token_marks_session_enrollment_only",
+			token: func(u *domain.User) string {
+				token, err := jwtService.GenerateMFAEnrollmentToken(u, time.Hour)
+				require.NoError(t, err)
+
+				return token
+			},
+			wantEnrollmentOnly: true,
+		},
+		{
+			name: "ordinary_token_leaves_session_unrestricted",
+			token: func(u *domain.User) string {
+				token, err := jwtService.GenerateTokenForUser(u, time.Hour)
+				require.NoError(t, err)
+
+				return token
+			},
+			wantEnrollmentOnly: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			userRepo := inmemory.NewUserRepository()
+			tokenRepo := inmemory.NewPersonalAccessTokenRepository()
+			hashedPassword, _ := auth.HashPassword("password123")
+			now := time.Now()
+			user := &domain.User{
+				ID:        1,
+				Login:     "adminuser",
+				Email:     "admin@example.com",
+				Password:  hashedPassword,
+				Name:      new("Admin User"),
+				CreatedAt: &now,
+				UpdatedAt: &now,
+			}
+			require.NoError(t, userRepo.Save(context.Background(), user))
+
+			authMiddleware := NewAuthMiddleware(
+				auth.NewJWTService([]byte(testJWTSecret)),
+				userRepo,
+				tokenRepo,
+				auth.NoopRevocation{},
+				nil,
+				api.NewResponder(),
+				nil,
+			)
+
+			var session *auth.Session
+			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				session = auth.SessionFromContext(r.Context())
+				w.WriteHeader(http.StatusOK)
+			})
+			protectedHandler := authMiddleware.Middleware(testHandler)
+
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			req.Header.Set("Authorization", "Bearer "+tt.token(user))
+			w := httptest.NewRecorder()
+
+			// ACT
+			protectedHandler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusOK, w.Code, "the token must authenticate; body=%s", w.Body.String())
+			require.NotNil(t, session, "an authenticated request must place a session in context")
+			assert.Equal(t, tt.wantEnrollmentOnly, session.MFAEnrollmentOnly,
+				"the session's enrollment-only flag must reflect the token's scope claim")
+		})
+	}
+}
+
 // TestIsAdminMiddleware_Audit_AdminIsNotDenied covers OWASP API5:2023. A user
 // who actually holds the admin ability must pass the gate and must NOT leave
 // an access.denied event (no false-positive denials in the audit trail).

@@ -50,6 +50,8 @@ func (a *auditCapture) snapshot() []audit.Event {
 
 var errCaptchaUpstream = errors.New("upstream")
 
+var errRBACUnavailable = errors.New("rbac backend unavailable")
+
 func findEvent(events []audit.Event, t audit.EventType) (audit.Event, bool) {
 	for _, e := range events {
 		if e.Type == t {
@@ -1273,5 +1275,122 @@ func TestHandler_MFANudge(t *testing.T) {
 		var resp map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.NotContains(t, resp, "mfa_nudge")
+	})
+
+	t.Run("snoozed_admin_nudge_hidden", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		admin := newAdmin()
+		shown := clock().Add(-2 * 24 * time.Hour) // two days inside the 30-day window
+		snoozed := clock().Add(12 * time.Hour)    // snooze still active
+		admin.SetMFAFirstShownAt(&shown)
+		admin.SetMFASnoozedUntil(&snoozed)
+		require.NoError(t, repo.Save(context.Background(), admin))
+
+		handler := NewHandler(
+			auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+			api.NewResponder(), nil, nil,
+			mfanudge.New(mfaNudgeConfig(true), clock), stubAdminChecker{isAdmin: true}, 15*time.Minute,
+		)
+
+		w := doLogin(t, handler)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+		assert.NotEmpty(t, resp["token"], "a snoozed admin still gets a full session token")
+		nudgeView, ok := resp["mfa_nudge"].(map[string]any)
+		require.True(t, ok, "the nudge block is still present while snoozed")
+		assert.Equal(t, true, nudgeView["required"])
+		assert.Equal(t, false, nudgeView["show_now"], "an active snooze must suppress the modal")
+
+		users, err := repo.Find(
+			context.Background(), &filters.FindUser{Logins: []string{"adminuser"}}, nil, &filters.Pagination{Limit: 1},
+		)
+		require.NoError(t, err)
+		require.Len(t, users, 1)
+		require.NotNil(t, users[0].MFAFirstShownAt())
+		assert.True(t, shown.Equal(*users[0].MFAFirstShownAt()),
+			"an already-stored first-shown timestamp must not be overwritten on a repeat login")
+	})
+
+	t.Run("returning_admin_first_shown_not_overwritten", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		admin := newAdmin()
+		shown := clock().Add(-5 * 24 * time.Hour) // five days into the window, no snooze
+		admin.SetMFAFirstShownAt(&shown)
+		require.NoError(t, repo.Save(context.Background(), admin))
+
+		handler := NewHandler(
+			auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+			api.NewResponder(), nil, nil,
+			mfanudge.New(mfaNudgeConfig(true), clock), stubAdminChecker{isAdmin: true}, 15*time.Minute,
+		)
+
+		w := doLogin(t, handler)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+		nudgeView, ok := resp["mfa_nudge"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, true, nudgeView["show_now"], "no active snooze means the modal shows")
+
+		users, err := repo.Find(
+			context.Background(), &filters.FindUser{Logins: []string{"adminuser"}}, nil, &filters.Pagination{Limit: 1},
+		)
+		require.NoError(t, err)
+		require.Len(t, users, 1)
+		require.NotNil(t, users[0].MFAFirstShownAt())
+		assert.True(t, shown.Equal(*users[0].MFAFirstShownAt()),
+			"a returning admin's first-shown timestamp must be preserved (PersistFirstShown is false)")
+	})
+
+	t.Run("rbac_error_is_open", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		require.NoError(t, repo.Save(context.Background(), newAdmin()))
+
+		handler := NewHandler(
+			auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+			api.NewResponder(), nil, nil,
+			mfanudge.New(mfaNudgeConfig(true), clock), stubAdminChecker{err: errRBACUnavailable}, 15*time.Minute,
+		)
+
+		w := doLogin(t, handler)
+		require.Equal(t, http.StatusOK, w.Code,
+			"an RBAC failure must be fail-open: the login still succeeds; body=%s", w.Body.String())
+
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.NotEmpty(t, resp["token"], "a full session token must still be issued when the nudge check errors")
+		assert.NotContains(t, resp, "mfa_nudge", "an RBAC error suppresses the nudge rather than blocking login")
+		assert.NotContains(t, resp, "mfa_enrollment_required")
+	})
+
+	t.Run("two_factor_enabled_admin_has_no_nudge", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		admin := newAdmin()
+		admin.TwoFactorEnabled = true
+		secret := "encrypted-secret"
+		admin.TwoFactorSecret = &secret
+		require.NoError(t, repo.Save(context.Background(), admin))
+
+		handler := NewHandler(
+			auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+			api.NewResponder(), nil, nil,
+			mfanudge.New(mfaNudgeConfig(true), clock), stubAdminChecker{isAdmin: true}, 15*time.Minute,
+		)
+
+		w := doLogin(t, handler)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+		assert.Equal(t, true, resp["two_factor_required"],
+			"an admin with 2FA enabled gets a challenge, not the nudge flow")
+		assert.NotContains(t, resp, "token", "the 2FA challenge response carries no session token")
+		assert.NotContains(t, resp, "mfa_nudge", "a 2FA-enabled account never receives the MFA nudge")
 	})
 }

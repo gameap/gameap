@@ -454,3 +454,82 @@ func TestHandler_MFANudgeInProfile(t *testing.T) {
 		assert.Nil(t, resp.MFANudge)
 	})
 }
+
+// TestHandler_MFANudgeInProfile_States covers OWASP API2:2023. It pins the
+// remaining nudge states surfaced by the side-effect-free profile read: the
+// operator switch being off, the user already having 2FA, an active snooze
+// suppressing the modal, and — critically — that the GET never persists the
+// first-shown timestamp (the login flow owns that write).
+func TestHandler_MFANudgeInProfile_States(t *testing.T) {
+	clock := func() time.Time { return time.Date(2026, 1, 10, 12, 0, 0, 0, time.UTC) }
+
+	// serveUser runs the profile read for the given user under cfg and returns
+	// the decoded response. The same user pointer is observable afterwards so a
+	// caller can assert the handler did not mutate it.
+	serveUser := func(t *testing.T, cfg config.Config, user *domain.User, admin adminChecker) profileResponse {
+		t.Helper()
+
+		ctx := auth.ContextWithSession(context.Background(), &auth.Session{User: user, Login: user.Login})
+		handler := NewHandler(inmemory.NewRBACRepository(), mfanudge.New(cfg, clock), admin, api.NewResponder())
+		req := httptest.NewRequest(http.MethodGet, "/api/profile", nil).WithContext(ctx)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		var resp profileResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+		return resp
+	}
+
+	enabledCfg := func() config.Config {
+		var cfg config.Config
+		cfg.Auth.RequireMFAForAdmins = true
+		cfg.Auth.MFAHardFailDays = 30
+
+		return cfg
+	}
+
+	t.Run("feature_disabled_no_nudge", func(t *testing.T) {
+		var cfg config.Config // RequireMFAForAdmins defaults to false
+		cfg.Auth.MFAHardFailDays = 30
+
+		resp := serveUser(t, cfg, &domain.User{ID: 7, Login: "admin"}, stubAdminChecker{isAdmin: true})
+
+		assert.Nil(t, resp.MFANudge, "the operator switch being off must suppress the nudge entirely")
+	})
+
+	t.Run("two_factor_enabled_no_nudge", func(t *testing.T) {
+		user := &domain.User{ID: 7, Login: "admin", TwoFactorEnabled: true}
+
+		resp := serveUser(t, enabledCfg(), user, stubAdminChecker{isAdmin: true})
+
+		assert.Nil(t, resp.MFANudge, "a user who already has 2FA must not be nudged")
+	})
+
+	t.Run("snoozed_nudge_hidden", func(t *testing.T) {
+		user := &domain.User{ID: 7, Login: "admin"}
+		shown := clock().Add(-3 * 24 * time.Hour)
+		snoozed := clock().Add(10 * time.Hour) // snooze still active
+		user.SetMFAFirstShownAt(&shown)
+		user.SetMFASnoozedUntil(&snoozed)
+
+		resp := serveUser(t, enabledCfg(), user, stubAdminChecker{isAdmin: true})
+
+		require.NotNil(t, resp.MFANudge, "the nudge block is present while snoozed")
+		assert.True(t, resp.MFANudge.Required)
+		assert.False(t, resp.MFANudge.ShowNow, "an active snooze must suppress the modal on the profile read")
+	})
+
+	t.Run("profile_get_does_not_persist", func(t *testing.T) {
+		user := &domain.User{ID: 7, Login: "admin"} // no first-shown in metadata
+		require.Nil(t, user.MFAFirstShownAt(), "precondition: the admin has no recorded first-shown timestamp")
+
+		resp := serveUser(t, enabledCfg(), user, stubAdminChecker{isAdmin: true})
+
+		require.NotNil(t, resp.MFANudge, "an admin without 2FA still receives the nudge on first contact")
+		assert.True(t, resp.MFANudge.ShowNow)
+		assert.Nil(t, user.MFAFirstShownAt(),
+			"the profile GET must be side-effect-free: it must not record the first-shown timestamp")
+	})
+}

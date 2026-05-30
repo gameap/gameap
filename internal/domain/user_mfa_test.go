@@ -89,6 +89,18 @@ func TestUser_MFASnoozedUntil_RoundTrip(t *testing.T) {
 	assert.True(t, until.Equal(*got))
 }
 
+func TestUser_SetMFAFirstShownAt_PreservesUnrelatedMetadata(t *testing.T) {
+	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	user := domain.User{Metadata: domain.Metadata{"theme": "dark"}}
+
+	user.SetMFAFirstShownAt(&now)
+
+	assert.Equal(t, "dark", user.Metadata["theme"],
+		"writing an MFA key must not clobber an unrelated pre-existing metadata entry")
+	require.NotNil(t, user.MFAFirstShownAt())
+	assert.True(t, now.Equal(*user.MFAFirstShownAt()))
+}
+
 func TestUser_MFAAccessors_AreIndependent(t *testing.T) {
 	shown := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	snoozed := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)

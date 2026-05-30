@@ -20,16 +20,23 @@ import (
 	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type stubAdminChecker struct{ isAdmin bool }
-
-func (s stubAdminChecker) Can(_ context.Context, _ uint, _ []domain.AbilityName) (bool, error) {
-	return s.isAdmin, nil
+type stubAdminChecker struct {
+	isAdmin bool
+	err     error
 }
 
+func (s stubAdminChecker) Can(_ context.Context, _ uint, _ []domain.AbilityName) (bool, error) {
+	return s.isAdmin, s.err
+}
+
+var errRBACUnavailable = errors.New("rbac backend unavailable")
+
+//nolint:unparam // require is kept for symmetry with the login package helper and to document intent
 func nudgeConfig(require bool, hardFailDays int) config.Config {
 	var cfg config.Config
 	cfg.Auth.RequireMFAForAdmins = require
@@ -88,5 +95,77 @@ func TestHandler_Snooze(t *testing.T) {
 		handler.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("non_admin_gets_null_nudge", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		user := &domain.User{Login: "regular", Email: "r@example.com", Password: "x"}
+		require.NoError(t, repo.Save(ctx, user))
+
+		handler := NewHandler(
+			repo, mfanudge.New(nudgeConfig(true, 30), clock), stubAdminChecker{isAdmin: false}, api.NewResponder(),
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/profile/2fa/snooze", nil)
+		req = req.WithContext(auth.ContextWithSession(ctx, &auth.Session{User: user, Login: user.Login}))
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		var resp struct {
+			MFANudge *mfanudge.View `json:"mfa_nudge"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Nil(t, resp.MFANudge, "a non-admin has no nudge, so the recomputed block is null")
+	})
+
+	t.Run("two_factor_enabled_gets_null_nudge", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		secret := "encrypted-secret"
+		user := &domain.User{
+			Login: "admin", Email: "a@example.com", Password: "x",
+			TwoFactorEnabled: true, TwoFactorSecret: &secret,
+		}
+		require.NoError(t, repo.Save(ctx, user))
+
+		handler := NewHandler(
+			repo, mfanudge.New(nudgeConfig(true, 30), clock), stubAdminChecker{isAdmin: true}, api.NewResponder(),
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/profile/2fa/snooze", nil)
+		req = req.WithContext(auth.ContextWithSession(ctx, &auth.Session{User: user, Login: user.Login}))
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		var resp struct {
+			MFANudge *mfanudge.View `json:"mfa_nudge"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Nil(t, resp.MFANudge, "a user who already has 2FA gets a null nudge after snoozing")
+	})
+
+	t.Run("rbac_error_returns_500", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		user := &domain.User{Login: "admin", Email: "a@example.com", Password: "x"}
+		require.NoError(t, repo.Save(ctx, user))
+
+		handler := NewHandler(
+			repo, mfanudge.New(nudgeConfig(true, 30), clock),
+			stubAdminChecker{err: errRBACUnavailable}, api.NewResponder(),
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/profile/2fa/snooze", nil)
+		req = req.WithContext(auth.ContextWithSession(ctx, &auth.Session{User: user, Login: user.Login}))
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code,
+			"unlike login, the snooze endpoint is not fail-open: an RBAC error must surface as 500")
 	})
 }
