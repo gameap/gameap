@@ -21,6 +21,13 @@ type Session struct {
 	// short-lived token. The scope guard uses it to reject such tokens on
 	// endpoints that did not explicitly opt in (see ShortLivedScopeMiddleware).
 	ShortLived bool
+
+	// MFAEnrollmentOnly is true when the session was established from a token
+	// carrying ScopeMFAEnrollment — an admin who crossed the MFA hard-fail
+	// threshold and must enrol 2FA. MFAEnrollmentScopeMiddleware rejects such
+	// a session on every endpoint that did not opt in, so the bearer can only
+	// reach the 2FA-enrollment flow until enrolment completes.
+	MFAEnrollmentOnly bool
 }
 
 func (s *Session) IsAuthenticated() bool {

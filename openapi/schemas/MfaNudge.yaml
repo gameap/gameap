@@ -1,0 +1,38 @@
+type: object
+description: |
+  Admin-MFA nudge recommendation. Present only for an administrator without
+  2FA when the operator has enabled `AUTH_REQUIRE_MFA_FOR_ADMINS`. The frontend
+  uses it to decide whether to show the "enable two-factor authentication"
+  modal and, once the grace window elapses, to enforce enrollment.
+properties:
+  required:
+    type: boolean
+    description: Whether an MFA nudge applies to this user at all.
+    example: true
+  show_now:
+    type: boolean
+    description: Whether the modal should be shown now (false during a snooze window).
+    example: true
+  hard_fail:
+    type: boolean
+    description: |
+      Whether the grace window has elapsed. When true the login flow issues a
+      token scoped to the 2FA-enrollment endpoints and the modal becomes
+      mandatory (cannot be snoozed).
+    example: false
+  days_remaining:
+    type: integer
+    description: Whole days until hard-fail engages. 0 once the threshold is crossed.
+    example: 23
+  hard_fail_at:
+    type: string
+    format: date-time
+    description: |
+      Moment hard-fail engages. Omitted when hard-fail is disabled
+      (`AUTH_MFA_HARD_FAIL_DAYS=0`).
+    example: "2026-02-01T12:00:00Z"
+required:
+  - required
+  - show_now
+  - hard_fail
+  - days_remaining

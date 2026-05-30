@@ -30,6 +30,16 @@
     "disable_success": "Two-factor authentication disabled",
     "recovery_regenerated": "Recovery codes regenerated"
   },
+  "mfa_enforcement": {
+    "title": "Enable two-factor authentication",
+    "desc": "Your account has administrator access. Protect it with two-factor authentication.",
+    "days_remaining": "You have :days day(s) left before it becomes mandatory.",
+    "remind_later": "Remind me later",
+    "enable_now": "Enable now",
+    "hard_fail_title": "Two-factor authentication required",
+    "hard_fail_warning": "Enabling two-factor authentication is now mandatory.",
+    "hard_fail_desc": "Access to the panel is restricted until you enable two-factor authentication. After enabling it you will be asked to sign in again."
+  },
   "auth": {
     "sign_in": "Login",
     "sign_up": "Register",

@@ -3,6 +3,7 @@ package login
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
@@ -32,12 +34,15 @@ const (
 )
 
 type Handler struct {
-	userRepo    repositories.UserRepository
-	responder   base.Responder
-	authService auth.Service
-	cache       cache.Cache
-	audit       audit.Logger
-	captcha     captchaVerifier
+	userRepo           repositories.UserRepository
+	responder          base.Responder
+	authService        auth.Service
+	cache              cache.Cache
+	audit              audit.Logger
+	captcha            captchaVerifier
+	nudge              *mfanudge.Service
+	rbac               adminChecker
+	enrollmentTokenTTL time.Duration
 }
 
 func NewHandler(
@@ -47,18 +52,24 @@ func NewHandler(
 	responder base.Responder,
 	auditLogger audit.Logger,
 	captcha captchaVerifier,
+	nudge *mfanudge.Service,
+	rbac adminChecker,
+	enrollmentTokenTTL time.Duration,
 ) *Handler {
 	if auditLogger == nil {
 		auditLogger = audit.NopLogger{}
 	}
 
 	return &Handler{
-		userRepo:    userRepo,
-		responder:   responder,
-		authService: authService,
-		cache:       tokenCache,
-		audit:       auditLogger,
-		captcha:     captcha,
+		userRepo:           userRepo,
+		responder:          responder,
+		authService:        authService,
+		cache:              tokenCache,
+		audit:              auditLogger,
+		captcha:            captcha,
+		nudge:              nudge,
+		rbac:               rbac,
+		enrollmentTokenTTL: enrollmentTokenTTL,
 	}
 }
 
@@ -151,13 +162,32 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.completeLogin(ctx, rw, &user, input.RememberMe())
+}
+
+// completeLogin finishes a successful password authentication for an account
+// without 2FA: it applies the admin-MFA nudge and issues either a full session
+// token or, once the hard-fail threshold is crossed, an enrollment-scoped one.
+func (h *Handler) completeLogin(
+	ctx context.Context, rw http.ResponseWriter, user *domain.User, remember bool,
+) {
 	duration := DefaultTokenDuration
-	if input.RememberMe() {
+	if remember {
 		duration = RememberMeDuration
 	}
 
-	// Generate JWT token
-	token, err := h.authService.GenerateTokenForUser(&user, duration)
+	nudge := h.evaluateMFANudge(ctx, user)
+
+	// Hard fail: the grace window has elapsed for an admin without 2FA. Issue
+	// an enrollment-scoped token instead of a full session, so the only thing
+	// the bearer can do is enrol a second factor (or log out).
+	if nudge != nil && nudge.HardFail {
+		h.issueMFAEnrollmentSession(ctx, rw, user, nudge)
+
+		return
+	}
+
+	token, err := h.authService.GenerateTokenForUser(user, duration)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to generate token"))
 
@@ -166,7 +196,62 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	audit.LoginSuccess(ctx, h.audit, user.ID, user.Login)
 
-	response := newLoginResponseFromUser(&user, token, DefaultTokenDuration)
+	response := newLoginResponseFromUser(user, token, DefaultTokenDuration)
+	response.MFANudge = nudge
+	h.responder.Write(ctx, rw, response)
+}
+
+// evaluateMFANudge computes the admin-MFA recommendation for a freshly
+// authenticated user without 2FA and persists the first-shown timestamp on
+// first contact. It returns nil when no nudge applies (feature off, non-admin)
+// — a best-effort step: an RBAC or persistence error never blocks the login.
+func (h *Handler) evaluateMFANudge(ctx context.Context, user *domain.User) *mfanudge.View {
+	if h.nudge == nil || h.rbac == nil {
+		return nil
+	}
+
+	isAdmin, err := h.rbac.Can(ctx, user.ID, []domain.AbilityName{domain.AbilityNameAdminRolesPermissions})
+	if err != nil {
+		slog.WarnContext(ctx, "failed to check admin status for MFA nudge", "error", err)
+
+		return nil
+	}
+
+	rec := h.nudge.Compute(mfanudge.Snapshot{
+		IsAdmin:          isAdmin,
+		TwoFactorEnabled: user.TwoFactorEnabled,
+		FirstShownAt:     user.MFAFirstShownAt(),
+		SnoozedUntil:     user.MFASnoozedUntil(),
+	})
+
+	if rec.PersistFirstShown {
+		user.SetMFAFirstShownAt(&rec.FirstShownAt)
+		if saveErr := h.userRepo.Save(ctx, user); saveErr != nil {
+			slog.WarnContext(ctx, "failed to persist MFA first-shown timestamp", "error", saveErr)
+		}
+	}
+
+	return mfanudge.NewView(rec)
+}
+
+// issueMFAEnrollmentSession mints a token scoped to the 2FA-enrollment
+// endpoints (ScopeMFAEnrollment) and returns it with mfa_enrollment_required
+// set, so the frontend knows the admin must enrol before regaining access.
+func (h *Handler) issueMFAEnrollmentSession(
+	ctx context.Context, rw http.ResponseWriter, user *domain.User, nudge *mfanudge.View,
+) {
+	token, err := h.authService.GenerateMFAEnrollmentToken(user, h.enrollmentTokenTTL)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to generate enrollment token"))
+
+		return
+	}
+
+	audit.LoginSuccess(ctx, h.audit, user.ID, user.Login)
+
+	response := newLoginResponseFromUser(user, token, h.enrollmentTokenTTL)
+	response.MFAEnrollmentRequired = true
+	response.MFANudge = nudge
 	h.responder.Write(ctx, rw, response)
 }
 

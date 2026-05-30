@@ -59,6 +59,7 @@ import (
 	"github.com/gameap/gameap/internal/services/filemanager/archiver"
 	"github.com/gameap/gameap/internal/services/gameapimporter"
 	"github.com/gameap/gameap/internal/services/gameexporter"
+	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
@@ -158,6 +159,7 @@ type Container struct {
 	pelicanEggImporter   *pelicaneggimporter.Importer
 	gameAPImporter       *gameapimporter.Importer
 	gameExporter         *gameexporter.Exporter
+	mfaNudgeService      *mfanudge.Service
 	rbac                 *rbac.RBAC
 	cache                cache.Cache
 	fileManager          files.FileManager
@@ -913,6 +915,14 @@ func (c *Container) UserService() *services.UserService {
 
 func (c *Container) createUserService() *services.UserService {
 	return services.NewUserService(c.UserRepository())
+}
+
+func (c *Container) MFANudgeService() *mfanudge.Service {
+	if c.mfaNudgeService == nil {
+		c.mfaNudgeService = mfanudge.New(*c.config, nil)
+	}
+
+	return c.mfaNudgeService
 }
 
 func (c *Container) RBACRepository() repositories.RBACRepository {

@@ -30,6 +30,8 @@ properties:
     type: boolean
     description: Whether two-factor authentication is active for this user.
     example: false
+  mfa_nudge:
+    $ref: './MfaNudge.yaml'
 required:
   - id
   - login

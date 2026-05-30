@@ -33,6 +33,16 @@ oneOf:
         required:
           - login
           - email
+      mfa_enrollment_required:
+        type: boolean
+        description: |
+          Present and true when the issued token is scoped to the
+          2FA-enrollment endpoints only: an admin who crossed the MFA
+          hard-fail threshold must enrol a second factor before the token
+          grants full access.
+        example: true
+      mfa_nudge:
+        $ref: '../MfaNudge.yaml'
     required:
       - token
       - expires_in

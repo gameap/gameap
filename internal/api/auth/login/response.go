@@ -4,12 +4,22 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/services/mfanudge"
 )
 
 type loginResponse struct {
 	Token     string   `json:"token"`
 	ExpiresIn int64    `json:"expires_in"` // Token expiration in seconds
 	User      userInfo `json:"user"`
+
+	// MFAEnrollmentRequired is true when the issued token is scoped to the
+	// 2FA-enrollment endpoints only: an admin who crossed the MFA hard-fail
+	// threshold must enrol before the token regains full access.
+	MFAEnrollmentRequired bool `json:"mfa_enrollment_required,omitempty"`
+
+	// MFANudge carries the admin-MFA recommendation when one applies, so the
+	// frontend can show the "please enable 2FA" modal. Omitted otherwise.
+	MFANudge *mfanudge.View `json:"mfa_nudge,omitempty"`
 }
 
 type userInfo struct {

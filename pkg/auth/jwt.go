@@ -16,6 +16,8 @@ var (
 
 type JWTClaims struct {
 	jwt.RegisteredClaims
+
+	Scope string `json:"scope,omitempty"`
 }
 
 // jwtClaimsAdapter wraps *JWTClaims to satisfy the local auth.Claims interface,
@@ -42,6 +44,10 @@ func (a jwtClaimsAdapter) GetExpirationTime() (*time.Time, error) {
 	return &t, nil
 }
 
+func (a jwtClaimsAdapter) GetScope() (string, error) {
+	return a.inner.Scope, nil
+}
+
 type JWTService struct {
 	secretKey []byte
 }
@@ -53,6 +59,14 @@ func NewJWTService(secretKey []byte) *JWTService {
 }
 
 func (j *JWTService) GenerateTokenForUser(user *domain.User, tokenDuration time.Duration) (string, error) {
+	return j.generateToken(user, tokenDuration, "")
+}
+
+func (j *JWTService) GenerateMFAEnrollmentToken(user *domain.User, tokenDuration time.Duration) (string, error) {
+	return j.generateToken(user, tokenDuration, ScopeMFAEnrollment)
+}
+
+func (j *JWTService) generateToken(user *domain.User, tokenDuration time.Duration, scope string) (string, error) {
 	claims := JWTClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        xid.New().String(),
@@ -61,6 +75,7 @@ func (j *JWTService) GenerateTokenForUser(user *domain.User, tokenDuration time.
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "gameap-api",
 		},
+		Scope: scope,
 	}
 
 	token := jwt.NewWithClaims(signingMethod, claims)

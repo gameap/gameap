@@ -52,6 +52,14 @@ func NewPASETOService(secretKey []byte) (*PASETOService, error) {
 }
 
 func (p *PASETOService) GenerateTokenForUser(user *domain.User, tokenDuration time.Duration) (string, error) {
+	return p.generateToken(user, tokenDuration, ""), nil
+}
+
+func (p *PASETOService) GenerateMFAEnrollmentToken(user *domain.User, tokenDuration time.Duration) (string, error) {
+	return p.generateToken(user, tokenDuration, ScopeMFAEnrollment), nil
+}
+
+func (p *PASETOService) generateToken(user *domain.User, tokenDuration time.Duration, scope string) string {
 	token := paseto.NewToken()
 
 	token.SetJti(xid.New().String())
@@ -61,7 +69,11 @@ func (p *PASETOService) GenerateTokenForUser(user *domain.User, tokenDuration ti
 	token.SetIssuer("gameap-api")
 	token.SetSubject(createSubjectFromLogin(user.Login))
 
-	return token.V4Encrypt(p.key, nil), nil
+	if scope != "" {
+		token.SetString("scope", scope)
+	}
+
+	return token.V4Encrypt(p.key, nil)
 }
 
 func (p *PASETOService) ValidateToken(tokenString string) (Claims, error) {
@@ -90,4 +102,15 @@ func (c pasetoClaims) GetExpirationTime() (*time.Time, error) {
 	}
 
 	return &exp, nil
+}
+
+func (c pasetoClaims) GetScope() (string, error) {
+	// GetString errors when the "scope" claim is absent (or not a string);
+	// for us that simply means an ordinary, unscoped session.
+	scope, err := c.token.GetString("scope")
+	if err != nil {
+		return "", nil //nolint:nilerr // an absent/!string "scope" claim is an unscoped session, not a failure
+	}
+
+	return scope, nil
 }

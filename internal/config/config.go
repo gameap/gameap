@@ -105,6 +105,14 @@ type Config struct {
 		// previous one is older than this value. Reduces cache write
 		// load by roughly idleTimeout/updateFreq×. Default 5m.
 		SessionIdleUpdateFreq time.Duration `env:"AUTH_SESSION_IDLE_UPDATE_FREQ" envDefault:"5m"`
+
+		// MFAEnrollmentTokenTTL is the lifetime of the restricted session
+		// token issued at login once an admin without 2FA crosses the
+		// MFA hard-fail threshold (see RequireMFAForAdmins). The token is
+		// scoped to the 2FA-enrollment endpoints only; it must live long
+		// enough to scan the QR code, enter a TOTP code and store the
+		// recovery codes. Default 15m.
+		MFAEnrollmentTokenTTL time.Duration `env:"AUTH_MFA_ENROLLMENT_TOKEN_TTL" envDefault:"15m"`
 	}
 
 	RBAC struct {

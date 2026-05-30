@@ -12,6 +12,9 @@ export const useAuthStore = defineStore('auth', {
         // enabled. Kept in memory only (never localStorage): it is not a
         // session, just a short-lived token to redeem at /api/auth/2fa/verify.
         twoFactorChallengeToken: null,
+        // Admin-MFA nudge recommendation returned by login + /api/profile.
+        // Drives the "enable 2FA" enforcement modal. Null when no nudge applies.
+        mfaNudge: null,
     }),
     getters: {
         loading: (state) => state.apiProcesses > 0,
@@ -45,6 +48,7 @@ export const useAuthStore = defineStore('auth', {
             try {
                 const response = await axios.get('/api/profile')
                 this.profile = response.data
+                this.mfaNudge = response.data.mfa_nudge || null
             } catch (error) {
                 throw error
             } finally {
@@ -110,8 +114,12 @@ export const useAuthStore = defineStore('auth', {
                 }
 
                 this.applyAuthResponse(response.data)
+                this.mfaNudge = response.data.mfa_nudge || null
 
-                return { twoFactorRequired: false }
+                return {
+                    twoFactorRequired: false,
+                    mfaEnrollmentRequired: !!response.data.mfa_enrollment_required,
+                }
             } catch (error) {
                 throw error
             } finally {
@@ -131,6 +139,7 @@ export const useAuthStore = defineStore('auth', {
                 )
 
                 this.applyAuthResponse(response.data)
+                this.mfaNudge = response.data.mfa_nudge || null
                 this.twoFactorChallengeToken = null
             } catch (error) {
                 throw error
@@ -176,6 +185,14 @@ export const useAuthStore = defineStore('auth', {
                 this.apiProcesses--
             }
         },
+        // Dismisses the admin-MFA nudge for the snooze window (24h) and stores
+        // the recomputed recommendation so the enforcement modal hides.
+        async snoozeMfaNudge() {
+            const response = await axios.post('/api/profile/2fa/snooze')
+            this.mfaNudge = response.data.mfa_nudge || null
+
+            return this.mfaNudge
+        },
         async logout() {
             // Clear token from state
             this.authToken = null
@@ -188,6 +205,7 @@ export const useAuthStore = defineStore('auth', {
 
             // Clear user data
             this.profile = null
+            this.mfaNudge = null
         },
         async initializeAuth() {
             // Load token from localStorage

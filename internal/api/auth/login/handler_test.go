@@ -13,9 +13,11 @@ import (
 
 	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
+	"github.com/gameap/gameap/internal/config"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/internal/services/captcha"
+	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/pkg/errors"
@@ -241,7 +243,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			}
 			responder := api.NewResponder()
 			handler := NewHandler(
-				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil,
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil, nil, nil, 0,
 			)
 
 			body := []byte(tt.requestBody)
@@ -366,7 +368,7 @@ func TestHandler_Captcha(t *testing.T) {
 
 			handler := NewHandler(
 				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
-				api.NewResponder(), nil, verifier,
+				api.NewResponder(), nil, verifier, nil, nil, 0,
 			)
 
 			req := httptest.NewRequest(
@@ -402,7 +404,7 @@ func TestHandler_MultipleUsers(t *testing.T) {
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(
-		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil,
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil, nil, nil, 0,
 	)
 
 	// Create multiple users
@@ -510,7 +512,7 @@ func TestHandler_SpecialCharacters(t *testing.T) {
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(
-		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil,
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil, nil, nil, 0,
 	)
 
 	// Create user with special characters
@@ -577,7 +579,7 @@ func TestHandler_TokenValidation(t *testing.T) {
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(
-		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil,
+		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), responder, nil, nil, nil, nil, 0,
 	)
 
 	hashedPassword, _ := auth.HashPassword("testpass")
@@ -678,7 +680,7 @@ func TestHandler_Audit_SuccessfulLoginIsRecorded(t *testing.T) {
 			require.NoError(t, repo.Save(context.Background(), user))
 			recorder := &auditCapture{}
 			handler := NewHandler(
-				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder, nil,
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder, nil, nil, nil, 0,
 			)
 
 			req := httptest.NewRequest(
@@ -756,7 +758,7 @@ func TestHandler_Audit_FailedLoginIsNotRecordedAsSuccess(t *testing.T) {
 			tt.setupRepo(repo)
 			recorder := &auditCapture{}
 			handler := NewHandler(
-				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder, nil,
+				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder, nil, nil, nil, 0,
 			)
 
 			req := httptest.NewRequest(
@@ -802,7 +804,7 @@ func TestHandler_Captcha_GateRunsBeforeUserLookup(t *testing.T) {
 	repo := inmemory.NewUserRepository() // intentionally empty: user does not exist
 	handler := NewHandler(
 		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
-		api.NewResponder(), nil, &stubCaptcha{enabled: true, err: captcha.ErrVerificationFailed},
+		api.NewResponder(), nil, &stubCaptcha{enabled: true, err: captcha.ErrVerificationFailed}, nil, nil, 0,
 	)
 
 	req := httptest.NewRequest(
@@ -857,7 +859,7 @@ func TestHandler_Captcha_UpstreamOutageMapsTo503(t *testing.T) {
 	}
 	handler := NewHandler(
 		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
-		api.NewResponder(), nil, outage,
+		api.NewResponder(), nil, outage, nil, nil, 0,
 	)
 
 	req := httptest.NewRequest(
@@ -897,7 +899,7 @@ func TestHandler_Captcha_ForwardsClientIPFromContext(t *testing.T) {
 	spy := &stubCaptcha{enabled: true}
 	handler := NewHandler(
 		auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
-		api.NewResponder(), nil, spy,
+		api.NewResponder(), nil, spy, nil, nil, 0,
 	)
 
 	req := httptest.NewRequest(
@@ -950,6 +952,9 @@ func TestHandler_ServeHTTP_LegacyHashUpgradesOnLogin(t *testing.T) {
 		responder,
 		nil,
 		nil,
+		nil,
+		nil,
+		0,
 	)
 
 	body := []byte(`{"login":"` + legacyLogin + `","password":"` + legacyPassword + `"}`)
@@ -1019,6 +1024,9 @@ func TestHandler_ServeHTTP_RehashesOnBcryptCostUpgrade(t *testing.T) {
 		responder,
 		nil,
 		nil,
+		nil,
+		nil,
+		0,
 	)
 
 	body := []byte(`{"login":"` + userLogin + `","password":"` + userPassword + `"}`)
@@ -1080,6 +1088,9 @@ func TestHandler_ServeHTTP_DoesNotDowngradeBcryptCost(t *testing.T) {
 		responder,
 		nil,
 		nil,
+		nil,
+		nil,
+		0,
 	)
 
 	body := []byte(`{"login":"` + userLogin + `","password":"` + userPassword + `"}`)
@@ -1097,4 +1108,170 @@ func TestHandler_ServeHTTP_DoesNotDowngradeBcryptCost(t *testing.T) {
 
 	assert.Equal(t, strongHash, users[0].Password,
 		"hash must remain at the original strong cost when configured cost is lower")
+}
+
+// ---------------------------------------------------------------------------
+// Admin MFA-nudge tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API2:2023 Broken Authentication — when AUTH_REQUIRE_MFA_FOR_ADMINS is on,
+//     an admin without 2FA is nudged to enrol and, once the grace window has
+//     elapsed, is issued a token scoped to the enrollment endpoints instead of
+//     a full session (ASVS §4.3.1).
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+// stubAdminChecker reports a fixed admin verdict for the MFA-nudge tests.
+type stubAdminChecker struct {
+	isAdmin bool
+	err     error
+}
+
+func (s stubAdminChecker) Can(_ context.Context, _ uint, _ []domain.AbilityName) (bool, error) {
+	return s.isAdmin, s.err
+}
+
+func mfaNudgeConfig(require bool) config.Config {
+	var cfg config.Config
+	cfg.Auth.RequireMFAForAdmins = require
+	cfg.Auth.MFAHardFailDays = 30
+
+	return cfg
+}
+
+func doLogin(t *testing.T, handler *Handler) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login",
+		bytes.NewBufferString(`{"login":"adminuser","password":"password123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	return w
+}
+
+func TestHandler_MFANudge(t *testing.T) {
+	hashedPassword, _ := auth.HashPassword("password123")
+
+	newAdmin := func() *domain.User {
+		now := time.Now()
+
+		return &domain.User{
+			Login:     "adminuser",
+			Email:     "admin@example.com",
+			Password:  hashedPassword,
+			CreatedAt: &now,
+			UpdatedAt: &now,
+		}
+	}
+
+	clock := func() time.Time { return time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC) }
+
+	t.Run("admin_without_2fa_gets_soft_nudge_and_full_token", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		require.NoError(t, repo.Save(context.Background(), newAdmin()))
+
+		handler := NewHandler(
+			auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+			api.NewResponder(), nil, nil,
+			mfanudge.New(mfaNudgeConfig(true), clock), stubAdminChecker{isAdmin: true}, 15*time.Minute,
+		)
+
+		w := doLogin(t, handler)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+		assert.NotEmpty(t, resp["token"], "a soft nudge still issues a full session token")
+		assert.NotContains(t, resp, "mfa_enrollment_required")
+
+		nudgeView, ok := resp["mfa_nudge"].(map[string]any)
+		require.True(t, ok, "an admin without 2FA must receive the nudge block")
+		assert.Equal(t, true, nudgeView["required"])
+		assert.Equal(t, true, nudgeView["show_now"])
+		assert.Equal(t, false, nudgeView["hard_fail"])
+
+		users, err := repo.Find(
+			context.Background(), &filters.FindUser{Logins: []string{"adminuser"}}, nil, &filters.Pagination{Limit: 1},
+		)
+		require.NoError(t, err)
+		require.Len(t, users, 1)
+		assert.NotNil(t, users[0].MFAFirstShownAt(), "the first-shown timestamp must be persisted on first contact")
+	})
+
+	t.Run("admin_past_grace_window_gets_enrollment_token", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		admin := newAdmin()
+		shown := time.Date(2025, 12, 1, 12, 0, 0, 0, time.UTC) // 31 days before the clock
+		admin.SetMFAFirstShownAt(&shown)
+		require.NoError(t, repo.Save(context.Background(), admin))
+
+		handler := NewHandler(
+			auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+			api.NewResponder(), nil, nil,
+			mfanudge.New(mfaNudgeConfig(true), clock), stubAdminChecker{isAdmin: true}, 15*time.Minute,
+		)
+
+		w := doLogin(t, handler)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+		assert.Equal(t, true, resp["mfa_enrollment_required"],
+			"an admin past the grace window must get an enrollment-scoped session")
+
+		token, _ := resp["token"].(string)
+		require.NotEmpty(t, token)
+
+		claims, err := auth.NewJWTService([]byte("test-secret-key")).ValidateToken(token)
+		require.NoError(t, err)
+		scope, _ := claims.GetScope()
+		assert.Equal(t, auth.ScopeMFAEnrollment, scope, "the issued token must carry the enrollment scope")
+
+		nudgeView, ok := resp["mfa_nudge"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, true, nudgeView["hard_fail"])
+	})
+
+	t.Run("non_admin_gets_no_nudge", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		require.NoError(t, repo.Save(context.Background(), newAdmin()))
+
+		handler := NewHandler(
+			auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+			api.NewResponder(), nil, nil,
+			mfanudge.New(mfaNudgeConfig(true), clock), stubAdminChecker{isAdmin: false}, 15*time.Minute,
+		)
+
+		w := doLogin(t, handler)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.NotEmpty(t, resp["token"])
+		assert.NotContains(t, resp, "mfa_nudge")
+		assert.NotContains(t, resp, "mfa_enrollment_required")
+	})
+
+	t.Run("feature_disabled_gets_no_nudge", func(t *testing.T) {
+		repo := inmemory.NewUserRepository()
+		require.NoError(t, repo.Save(context.Background(), newAdmin()))
+
+		handler := NewHandler(
+			auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(),
+			api.NewResponder(), nil, nil,
+			mfanudge.New(mfaNudgeConfig(false), clock), stubAdminChecker{isAdmin: true}, 15*time.Minute,
+		)
+
+		w := doLogin(t, handler)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.NotContains(t, resp, "mfa_nudge")
+	})
 }

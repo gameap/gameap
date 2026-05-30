@@ -16,4 +16,6 @@ type User struct {
 	TwoFactorSecret        *string `db:"two_factor_secret"`         // AES-GCM ciphertext, base64
 	TwoFactorRecoveryCodes *string `db:"two_factor_recovery_codes"` // JSON array of hashed one-time codes
 	TwoFactorLastUsedStep  *int64  `db:"two_factor_last_used_step"` // last consumed TOTP time-step (replay guard)
+
+	Metadata Metadata `db:"metadata"` // JSON bag; holds the MFA-nudge state, see user_mfa.go
 }

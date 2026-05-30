@@ -30,6 +30,7 @@ import (
 	"github.com/gameap/gameap/internal/services/filemanager/archiver"
 	"github.com/gameap/gameap/internal/services/gameapimporter"
 	"github.com/gameap/gameap/internal/services/gameexporter"
+	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
@@ -57,6 +58,7 @@ type InmemoryContainer struct {
 	authService             auth.Service
 	twoFactorManager        *twofactor.Manager
 	userService             *services.UserService
+	mfaNudgeService         *mfanudge.Service
 	rbacRepo                repositories.RBACRepository
 	tokenRepo               repositories.PersonalAccessTokenRepository
 	daemonTaskRepo          repositories.DaemonTaskRepository
@@ -91,6 +93,13 @@ func (c *InmemoryContainer) UserRepository() repositories.UserRepository       {
 func (c *InmemoryContainer) AuthService() auth.Service                         { return c.authService }
 func (c *InmemoryContainer) TwoFactorManager() *twofactor.Manager              { return c.twoFactorManager }
 func (c *InmemoryContainer) UserService() *services.UserService                { return c.userService }
+func (c *InmemoryContainer) MFANudgeService() *mfanudge.Service {
+	if c.mfaNudgeService == nil {
+		c.mfaNudgeService = mfanudge.New(*c.cfg, nil)
+	}
+
+	return c.mfaNudgeService
+}
 func (c *InmemoryContainer) ServerControlService() *servercontrol.Service {
 	return c.serverControlService
 }

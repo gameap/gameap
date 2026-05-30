@@ -118,6 +118,7 @@ func (r *UserRepository) Save(_ context.Context, user *domain.User) error {
 		TwoFactorSecret:        user.TwoFactorSecret,
 		TwoFactorRecoveryCodes: user.TwoFactorRecoveryCodes,
 		TwoFactorLastUsedStep:  user.TwoFactorLastUsedStep,
+		Metadata:               user.Metadata,
 	}
 
 	return nil

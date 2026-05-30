@@ -92,6 +92,7 @@ import (
 	twofactordisable "github.com/gameap/gameap/internal/api/profile/twofactor/disable"
 	twofactorrecoverycodes "github.com/gameap/gameap/internal/api/profile/twofactor/recoverycodes"
 	twofactorsetup "github.com/gameap/gameap/internal/api/profile/twofactor/setup"
+	twofactorsnooze "github.com/gameap/gameap/internal/api/profile/twofactor/snooze"
 	"github.com/gameap/gameap/internal/api/publicconfig"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/api/servers/deleteserver"
@@ -161,6 +162,7 @@ import (
 	"github.com/gameap/gameap/internal/services/filemanager/archiver"
 	"github.com/gameap/gameap/internal/services/gameapimporter"
 	"github.com/gameap/gameap/internal/services/gameexporter"
+	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
@@ -192,6 +194,7 @@ type container interface {
 	AuthService() auth.Service
 	TwoFactorManager() *twofactor.Manager
 	UserService() *services.UserService
+	MFANudgeService() *mfanudge.Service
 	ServerControlService() *servercontrol.Service
 	GameUpgradeService() *services.GameUpgradeService
 	PelicanEggImporter() *pelicaneggimporter.Importer
@@ -375,13 +378,14 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 	)
 
 	routes := []struct {
-		Method               string
-		Path                 string
-		Handler              http.Handler
-		AllowGuestAccess     bool
-		AdminOnly            bool
-		AllowShortLivedToken bool
-		CheckPATAbilities    []domain.PATAbility
+		Method                  string
+		Path                    string
+		Handler                 http.Handler
+		AllowGuestAccess        bool
+		AdminOnly               bool
+		AllowShortLivedToken    bool
+		AllowMFAEnrollmentToken bool
+		CheckPATAbilities       []domain.PATAbility
 	}{
 		{
 			Method:           http.MethodGet,
@@ -390,10 +394,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			AllowGuestAccess: true,
 		},
 		{
-			Method:           http.MethodGet,
-			Path:             "/api/config/public",
-			Handler:          publicconfig.NewHandler(c.Config(), c.Responder()),
-			AllowGuestAccess: true,
+			Method:                  http.MethodGet,
+			Path:                    "/api/config/public",
+			Handler:                 publicconfig.NewHandler(c.Config(), c.Responder()),
+			AllowGuestAccess:        true,
+			AllowMFAEnrollmentToken: true,
 		},
 
 		// Auth
@@ -409,6 +414,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				login.NewHandler(
 					c.AuthService(), c.UserService(), c.Cache(), c.Responder(), c.AuditLogger(),
 					c.CaptchaVerifier(),
+					c.MFANudgeService(), c.RBAC(), c.Config().Auth.MFAEnrollmentTokenTTL,
 				),
 			),
 			AllowGuestAccess: true,
@@ -441,6 +447,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				auth.NewCacheRevocation(c.Cache()),
 				c.Responder(),
 			),
+			AllowMFAEnrollmentToken: true,
 		},
 		{
 			Method: http.MethodPost,
@@ -466,8 +473,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/profile",
 			Handler: getprofile.NewHandler(
 				c.RBACRepository(),
+				c.MFANudgeService(),
+				c.RBAC(),
 				c.Responder(),
 			),
+			AllowMFAEnrollmentToken: true,
 		},
 		{
 			Method: http.MethodPut,
@@ -485,6 +495,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.TwoFactorManager(),
 				c.Responder(),
 			),
+			AllowMFAEnrollmentToken: true,
 		},
 		{
 			Method: http.MethodPost,
@@ -495,6 +506,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+			AllowMFAEnrollmentToken: true,
 		},
 		{
 			Method: http.MethodDelete,
@@ -514,6 +526,16 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.TwoFactorManager(),
 				c.Responder(),
 				c.AuditLogger(),
+			),
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/profile/2fa/snooze",
+			Handler: twofactorsnooze.NewHandler(
+				c.UserService(),
+				c.MFANudgeService(),
+				c.RBAC(),
+				c.Responder(),
 			),
 		},
 
@@ -1975,6 +1997,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		c.AuditLogger(),
 	)
 
+	mfaEnrollmentScopeMiddleware := middlewares.NewMFAEnrollmentScopeMiddleware(
+		c.Responder(),
+		c.AuditLogger(),
+	)
+
 	for _, r := range routes {
 		handler := r.Handler
 
@@ -1991,6 +2018,10 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		// Runs right after auth (which sets the session): a short-lived
 		// token is only honoured on routes that opted in.
 		handler = shortLivedScopeMiddleware.Middleware(handler, r.AllowShortLivedToken)
+
+		// Same placement: an MFA-enrollment session is confined to the 2FA
+		// setup endpoints (and a few essentials) that opted in.
+		handler = mfaEnrollmentScopeMiddleware.Middleware(handler, r.AllowMFAEnrollmentToken)
 
 		if !r.AllowGuestAccess {
 			handler = authMiddleware.Middleware(handler)

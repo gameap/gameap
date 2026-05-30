@@ -482,3 +482,51 @@ func (s *UserRepositorySuite) TestUserRepositoryIntegration() {
 		assert.Contains(t, logins, "multi3")
 	})
 }
+
+func (s *UserRepositorySuite) TestUserRepositoryMetadata() {
+	ctx := context.Background()
+
+	s.T().Run("round_trips_generic_and_mfa_metadata", func(t *testing.T) {
+		shown := time.Date(2026, 5, 30, 10, 0, 0, 0, time.UTC)
+		snoozed := time.Date(2026, 5, 31, 10, 0, 0, 0, time.UTC)
+
+		user := &domain.User{
+			Login:    "metauser",
+			Email:    "metauser@example.com",
+			Password: "hashedpassword",
+			Metadata: domain.Metadata{"custom_key": "custom_value"},
+		}
+		user.SetMFAFirstShownAt(&shown)
+		user.SetMFASnoozedUntil(&snoozed)
+
+		require.NoError(t, s.repo.Save(ctx, user))
+
+		results, err := s.repo.Find(ctx, &filters.FindUser{IDs: []uint{user.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+
+		got := results[0]
+		require.NotNil(t, got.Metadata)
+		assert.Equal(t, "custom_value", got.Metadata["custom_key"])
+
+		require.NotNil(t, got.MFAFirstShownAt())
+		require.NotNil(t, got.MFASnoozedUntil())
+		assert.True(t, shown.Equal(*got.MFAFirstShownAt()))
+		assert.True(t, snoozed.Equal(*got.MFASnoozedUntil()))
+	})
+
+	s.T().Run("nil_metadata_stays_nil", func(t *testing.T) {
+		user := &domain.User{
+			Login:    "nometa",
+			Email:    "nometa@example.com",
+			Password: "hashedpassword",
+		}
+
+		require.NoError(t, s.repo.Save(ctx, user))
+
+		results, err := s.repo.Find(ctx, &filters.FindUser{IDs: []uint{user.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Nil(t, results[0].MFAFirstShownAt())
+	})
+}

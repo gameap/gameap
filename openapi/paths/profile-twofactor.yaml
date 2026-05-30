@@ -154,3 +154,32 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+
+/api/profile/2fa/snooze:
+  post:
+    tags:
+      - Profile
+    summary: Snooze the admin-MFA nudge
+    description: |
+      Dismisses the "enable two-factor authentication" nudge for the fixed
+      snooze window (24h). Meaningful only while the MFA grace window is still
+      open; once hard-fail engages the enrollment scope guard blocks this
+      endpoint. Returns the recomputed recommendation so the frontend can hide
+      the modal.
+    operationId: snoozeTwoFactorNudge
+    responses:
+      '200':
+        description: Nudge snoozed
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mfa_nudge:
+                  $ref: '../schemas/MfaNudge.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'

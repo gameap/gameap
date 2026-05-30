@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/config"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/stretchr/testify/assert"
@@ -145,7 +147,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rbac := inmemory.NewRBACRepository()
 			responder := api.NewResponder()
-			handler := NewHandler(rbac, responder)
+			handler := NewHandler(rbac, nil, nil, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(rbac)
@@ -183,7 +185,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 func TestHandler_ProfileResponseFields(t *testing.T) {
 	rbac := inmemory.NewRBACRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(rbac, responder)
+	handler := NewHandler(rbac, nil, nil, responder)
 
 	now := time.Now()
 	userName := "John Doe"
@@ -239,7 +241,7 @@ func TestHandler_ProfileResponseFields(t *testing.T) {
 func TestHandler_ProfileResponseWithNilFields(t *testing.T) {
 	rbac := inmemory.NewRBACRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(rbac, responder)
+	handler := NewHandler(rbac, nil, nil, responder)
 
 	user := &domain.User{
 		ID:        1,
@@ -278,7 +280,7 @@ func TestHandler_ProfileResponseWithNilFields(t *testing.T) {
 func TestHandler_ProfileWithMultipleRoles(t *testing.T) {
 	rbac := inmemory.NewRBACRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(rbac, responder)
+	handler := NewHandler(rbac, nil, nil, responder)
 
 	now := time.Now()
 	userName := "Multi Role User"
@@ -349,7 +351,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	rbac := inmemory.NewRBACRepository()
 	responder := api.NewResponder()
 
-	handler := NewHandler(rbac, responder)
+	handler := NewHandler(rbac, nil, nil, responder)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, rbac, handler.rbac)
@@ -375,7 +377,7 @@ func TestNewProfileResponseFromUser(t *testing.T) {
 		},
 	}
 
-	response := newProfileResponseFromUser(user, roles)
+	response := newProfileResponseFromUser(user, roles, nil)
 
 	assert.Equal(t, uint(1), response.ID)
 	assert.Equal(t, "testuser", response.Login)
@@ -395,11 +397,60 @@ func TestNewProfileResponseFromUserWithNilFields(t *testing.T) {
 		UpdatedAt: nil,
 	}
 
-	response := newProfileResponseFromUser(user, nil)
+	response := newProfileResponseFromUser(user, nil, nil)
 
 	assert.Equal(t, uint(1), response.ID)
 	assert.Equal(t, "testuser", response.Login)
 	assert.Equal(t, "test@example.com", response.Email)
 	assert.Nil(t, response.Name)
 	assert.Empty(t, response.Roles)
+}
+
+type stubAdminChecker struct{ isAdmin bool }
+
+func (s stubAdminChecker) Can(_ context.Context, _ uint, _ []domain.AbilityName) (bool, error) {
+	return s.isAdmin, nil
+}
+
+// TestHandler_MFANudgeInProfile covers OWASP API2:2023: an admin without 2FA
+// receives the MFA nudge block in their profile when the operator has enabled
+// AUTH_REQUIRE_MFA_FOR_ADMINS, so the frontend can surface the enforcement
+// modal on every page load. A non-admin gets no nudge.
+func TestHandler_MFANudgeInProfile(t *testing.T) {
+	var cfg config.Config
+	cfg.Auth.RequireMFAForAdmins = true
+	cfg.Auth.MFAHardFailDays = 30
+	clock := func() time.Time { return time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC) }
+
+	user := &domain.User{ID: 7, Login: "admin", Email: "admin@example.com"}
+	ctx := auth.ContextWithSession(context.Background(), &auth.Session{User: user, Login: user.Login})
+
+	serve := func(t *testing.T, admin adminChecker) profileResponse {
+		t.Helper()
+
+		handler := NewHandler(
+			inmemory.NewRBACRepository(), mfanudge.New(cfg, clock), admin, api.NewResponder(),
+		)
+		req := httptest.NewRequest(http.MethodGet, "/api/profile", nil).WithContext(ctx)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		var resp profileResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+		return resp
+	}
+
+	t.Run("admin_without_2fa_receives_nudge", func(t *testing.T) {
+		resp := serve(t, stubAdminChecker{isAdmin: true})
+		require.NotNil(t, resp.MFANudge)
+		assert.True(t, resp.MFANudge.Required)
+		assert.True(t, resp.MFANudge.ShowNow)
+	})
+
+	t.Run("non_admin_has_no_nudge", func(t *testing.T) {
+		resp := serve(t, stubAdminChecker{isAdmin: false})
+		assert.Nil(t, resp.MFANudge)
+	})
 }

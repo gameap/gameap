@@ -595,11 +595,17 @@ func (m *AuthMiddleware) processUserAuthToken(ctx context.Context, token string)
 
 	user := &users[0]
 
+	// A token minted with ScopeMFAEnrollment authenticates the user but is
+	// confined to the 2FA-enrollment endpoints by MFAEnrollmentScopeMiddleware.
+	// GetScope errors only for an unscoped token, which is the common case.
+	scope, _ := claims.GetScope()
+
 	return &auth.Session{
-		ID:    xid.New().String(),
-		Login: user.Login,
-		Email: user.Email,
-		User:  user,
+		ID:                xid.New().String(),
+		Login:             user.Login,
+		Email:             user.Email,
+		User:              user,
+		MFAEnrollmentOnly: scope == auth.ScopeMFAEnrollment,
 	}, nil
 }
 

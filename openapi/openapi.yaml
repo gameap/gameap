@@ -327,6 +327,8 @@ paths:
     $ref: './paths/profile-twofactor.yaml#/~1api~1profile~12fa'
   /api/profile/2fa/recovery-codes:
     $ref: './paths/profile-twofactor.yaml#/~1api~1profile~12fa~1recovery-codes'
+  /api/profile/2fa/snooze:
+    $ref: './paths/profile-twofactor.yaml#/~1api~1profile~12fa~1snooze'
 
   # Tokens
   /api/tokens:
