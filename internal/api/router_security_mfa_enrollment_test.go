@@ -25,12 +25,15 @@
 package api_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/api"
 	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/pkg/testcontainer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -146,4 +149,44 @@ func TestRouterSecurity_NormalToken_NotBlockedByEnrollmentGuard(t *testing.T) {
 		assert.NotContains(t, w.Body.String(), "restricted to two-factor enrollment",
 			"any 403 here must come from another gate, never the enrollment scope guard")
 	}
+}
+
+// TestRouterSecurity_MFANudge_ProfileEmitsNudgeWhenEnabled covers OWASP API2:2023.
+// End-to-end through the real router AND real RBAC (not a stubbed admin check):
+// with AUTH_REQUIRE_MFA_FOR_ADMINS enabled, GET /api/profile must return the
+// mfa_nudge block for an admin without 2FA — that block is exactly what the
+// frontend enforcement modal binds to. A non-admin must never receive it.
+//
+// The flag is set BEFORE CreateRouter on purpose: the profile handler captures
+// the nudge service (config-by-value) at wiring time, mirroring production,
+// which reads the env var at startup before building the router.
+func TestRouterSecurity_MFANudge_ProfileEmitsNudgeWhenEnabled(t *testing.T) {
+	// ARRANGE
+	c, err := testcontainer.LoadInmemoryContainer()
+	require.NoError(t, err)
+	c.Config().Auth.RequireMFAForAdmins = true
+
+	fixtures, err := testcontainer.SetupFixtures(context.Background(), c)
+	require.NoError(t, err)
+
+	env := &securityTestEnv{
+		container: c,
+		fixtures:  fixtures,
+		router:    api.CreateRouter(c),
+		ctx:       context.Background(),
+	}
+
+	// ACT + ASSERT — admin without 2FA receives the nudge.
+	adminResp := doRequest(t, env, http.MethodGet, "/api/profile", issuePASETOToken(t, env, env.fixtures.AdminUser))
+	require.Equal(t, http.StatusOK, adminResp.Code, "body=%s", adminResp.Body.String())
+	assert.Contains(t, adminResp.Body.String(), `"mfa_nudge"`,
+		"an admin without 2FA must receive mfa_nudge when AUTH_REQUIRE_MFA_FOR_ADMINS is enabled")
+	assert.Contains(t, adminResp.Body.String(), `"required":true`)
+	assert.Contains(t, adminResp.Body.String(), `"show_now":true`)
+
+	// Control — a non-admin must not receive the nudge.
+	userResp := doRequest(t, env, http.MethodGet, "/api/profile", issuePASETOToken(t, env, env.fixtures.RegularUser))
+	require.Equal(t, http.StatusOK, userResp.Code, "body=%s", userResp.Body.String())
+	assert.NotContains(t, userResp.Body.String(), "mfa_nudge",
+		"a non-admin must not receive the MFA nudge")
 }

@@ -77,14 +77,14 @@ type Config struct {
 		// credentials.
 		BcryptCost int `env:"AUTH_BCRYPT_COST" envDefault:"13"`
 
-		// RequireMFAForAdmins activates the soft MFA nudge for accounts
-		// with the admin ability (ASVS §4.3.1). When true, an admin
+		// RequireMFAForAdmins activates the MFA nudge + enforcement for
+		// accounts with the admin ability (ASVS §4.3.1). When true, an admin
 		// without 2FA receives a "please enable" recommendation on every
-		// login + page refresh; after MFAHardFailDays since the first
-		// nudge the login flow refuses to issue a session until 2FA is
-		// enrolled. Default false — turning it on is a deliberate
-		// hardening choice each operator makes for their deployment.
-		RequireMFAForAdmins bool `env:"AUTH_REQUIRE_MFA_FOR_ADMINS" envDefault:"false"`
+		// login + page refresh; after MFAHardFailDays since the first nudge
+		// the login flow refuses to issue a full session until 2FA is
+		// enrolled. Default TRUE — admin MFA is enforced out of the box; set
+		// AUTH_REQUIRE_MFA_FOR_ADMINS=false to disable the behaviour entirely.
+		RequireMFAForAdmins bool `env:"AUTH_REQUIRE_MFA_FOR_ADMINS" envDefault:"true"`
 
 		// MFAHardFailDays is the grace period (calendar days) between
 		// the first MFA nudge an admin sees and the hard-fail point
