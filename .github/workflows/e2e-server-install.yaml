@@ -67,6 +67,9 @@ jobs:
       DATABASE_DRIVER: postgres
       DATABASE_URL: 'postgres://postgres:testpassword@127.0.0.1:5432/gameap?sslmode=disable'
       AUTH_SECRET: e2e-test-secret-do-not-use-in-prod-32b
+      # Admin MFA enforcement is on by default; disable it for E2E so the admin
+      # account (which has no 2FA) is not blocked by the enrollment nudge/hard-fail.
+      AUTH_REQUIRE_MFA_FOR_ADMINS: 'false'
       HTTP_HOST: 0.0.0.0
       HTTP_PORT: '8025'
       FILES_LOCAL_BASE_PATH: /tmp/gameap-files
