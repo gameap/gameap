@@ -1,6 +1,6 @@
 <template>
   <n-card
-      class="server-stats-strip cursor-pointer transition-shadow hover:shadow-lg"
+      class="server-stats-strip cursor-pointer"
       size="small"
       :bordered="true"
       :segmented="{ content: true }"

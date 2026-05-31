@@ -18,34 +18,11 @@
         {{ trans('servers.control') }}
       </template>
 
-      <div v-if="canShowStats" class="mt-2">
-        <ServerStatisticsStrip :server-id="serverId" @open="statsModalShow = true" />
-      </div>
-
-      <div class="md:flex md:flex-wrap mt-2" v-show="serverQueryOnline">
-        <div class="md:w-full">
-          <n-card
-              class="mb-3"
-          >
-            <Loading v-if="loading"></Loading>
-            <ServerStatus v-if="!loading" ref="serverStatusRef" :server-id="serverId"></ServerStatus>
-          </n-card>
-        </div>
-      </div>
-
-      <div class="md:flex mt-2">
-        <div class="md:w-1/2 md:pr-8">
-          <n-card
-              :title="trans('servers.commands')"
-              class="mb-3"
-              header-class="g-card-header"
-              :segmented="{
-                          content: true,
-                          footer: 'soft'
-                        }"
-          >
-            <Loading v-if="loading"></Loading>
-            <div v-if="!loading" id="serverControl">
+      <div class="mt-2">
+        <n-card size="small" class="mb-3">
+          <Loading v-if="loading"></Loading>
+          <div v-else class="flex flex-wrap items-center gap-y-2">
+            <div id="serverControl" class="flex flex-wrap items-center">
               <ServerControlButton
                   command="start"
                   v-if="serverStore.canStart && !serverOnline"
@@ -96,32 +73,28 @@
                   :text="trans('servers.reinstall')"
               ></ServerControlButton>
             </div>
-          </n-card>
-        </div>
 
-        <div class="md:w-1/2">
+            <div class="ml-auto">
+              <GStatusBadge
+                  :status="serverOnline ? 'success' : 'error'"
+                  :text="serverOnline ? trans('servers.active') : trans('servers.inactive')"
+              />
+            </div>
+          </div>
+        </n-card>
+      </div>
+
+      <div v-if="canShowStats" class="mt-2">
+        <ServerStatisticsStrip :server-id="serverId" @open="statsModalShow = true" />
+      </div>
+
+      <div class="md:flex md:flex-wrap mt-2" v-show="serverQueryOnline">
+        <div class="md:w-full">
           <n-card
-              :title="trans('servers.process_status')"
               class="mb-3"
-              header-class="g-card-header"
-              :segmented="{
-                          content: true,
-                          footer: 'soft'
-                        }"
           >
             <Loading v-if="loading"></Loading>
-            <ul v-if="!loading" class="flex flex-col pl-0 mb-0">
-              <li v-if="serverOnline" class="relative block py-3 px-6 -mb-px">
-                {{ trans('servers.status') }}: <span class="badge-green">{{ trans('servers.active') }}</span>
-              </li>
-              <li v-else class="relative block py-3 px-6 -mb-px">
-                {{ trans('servers.status') }}: <span class="badge-red">{{ trans('servers.inactive') }}</span>
-              </li>
-
-              <li class="relative block py-3 px-6 -mb-px">
-                {{ trans('servers.last_check') }}: {{ (new Date(server.last_process_check)).toLocaleString() }}
-              </li>
-            </ul>
+            <ServerStatus v-if="!loading" ref="serverStatusRef" :server-id="serverId"></ServerStatus>
           </n-card>
         </div>
       </div>
