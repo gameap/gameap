@@ -90,9 +90,7 @@
 
       <div class="md:flex md:flex-wrap mt-2" v-show="serverQueryOnline">
         <div class="md:w-full">
-          <n-card
-              class="mb-3"
-          >
+          <n-card size="small" class="mb-3">
             <Loading v-if="loading"></Loading>
             <ServerStatus v-if="!loading" ref="serverStatusRef" :server-id="serverId"></ServerStatus>
           </n-card>
