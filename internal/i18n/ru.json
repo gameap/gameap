@@ -724,7 +724,8 @@
     "statistics_network_transmit": "Сеть: исходящий трафик",
     "statistics_disk_usage": "Использование диска",
     "statistics_load_average": "Средняя нагрузка",
-    "statistics_all": "все"
+    "statistics_all": "все",
+    "statistics_open": "Открыть метрики"
   },
   "servers_tasks": {
     "tasks_title": "Задания",

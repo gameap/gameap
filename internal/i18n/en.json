@@ -722,7 +722,8 @@
     "statistics_network_transmit": "Network Transmit",
     "statistics_disk_usage": "Disk usage",
     "statistics_load_average": "Load average",
-    "statistics_all": "all"
+    "statistics_all": "all",
+    "statistics_open": "Open metrics"
   },
   "servers_tasks": {
     "tasks_title": "Tasks",

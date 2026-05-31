@@ -18,6 +18,10 @@
         {{ trans('servers.control') }}
       </template>
 
+      <div v-if="canShowStats" class="mt-2">
+        <ServerStatisticsStrip :server-id="serverId" @open="statsModalShow = true" />
+      </div>
+
       <div class="md:flex md:flex-wrap mt-2" v-show="serverQueryOnline">
         <div class="md:w-full">
           <n-card
@@ -136,15 +140,6 @@
         </div>
       </div>
 
-    </n-tab-pane>
-
-    <n-tab-pane name="statistics" v-if="serverStore.abilities['game-server-common'] && serverStore.canViewMetrics && serverOnline">
-      <template #tab>
-        <GIcon name="metrics" class="mr-1" />
-        {{ trans('servers.statistics') }}
-      </template>
-
-      <ServerStatistics :server-id="serverId" />
     </n-tab-pane>
 
     <n-tab-pane name="rcon" v-if="rconTabPossible">
@@ -273,6 +268,13 @@
     </template>
 
   </n-tabs>
+
+  <ServerStatisticsModal
+      v-model:show="statsModalShow"
+      :server-id="serverId"
+      :server-name="server?.name"
+      :online="serverOnline"
+  />
 </template>
 
 <script setup>
@@ -280,6 +282,7 @@ import {computed, h, defineAsyncComponent, onMounted, ref, watch} from "vue";
 import {useRoute, useRouter} from "vue-router";
 import {storeToRefs} from "pinia";
 import ServerControlButton from "./servertabs/ServerControlButton.vue";
+import ServerStatisticsStrip from "./servertabs/ServerStatisticsStrip.vue";
 
 const ServerStatus = defineAsyncComponent(() =>
     import('./servertabs/ServerStatus.vue' /* webpackChunkName: "components/server" */)
@@ -297,8 +300,8 @@ const ServerSettings = defineAsyncComponent(() =>
     import('./servertabs/ServerSettings.vue' /* webpackChunkName: "components/server" */)
 )
 
-const ServerStatistics = defineAsyncComponent(() =>
-    import('./servertabs/ServerStatistics.vue' /* webpackChunkName: "components/server" */)
+const ServerStatisticsModal = defineAsyncComponent(() =>
+    import('./servertabs/ServerStatisticsModal.vue' /* webpackChunkName: "components/server" */)
 )
 
 const RconPlayers = defineAsyncComponent(() =>
@@ -333,6 +336,7 @@ const pluginsStore = usePluginsStore()
 providePluginContext()
 
 const activeTab = ref('control')
+const statsModalShow = ref(false)
 const initialHash = route.hash
 const initialTabName = (() => {
   if (!initialHash || initialHash === '#' || initialHash === '#control') return 'control'
@@ -392,6 +396,10 @@ const privileges = computed(() => {
 
 const serverOnline = computed(() => {
   return Boolean(server.value?.online)
+})
+
+const canShowStats = computed(() => {
+  return serverStore.abilities['game-server-common'] && serverStore.canViewMetrics && serverOnline.value
 })
 
 const serverQueryOnline = computed(() => {
@@ -455,7 +463,6 @@ function tabNameToHash(tabName) {
 
 function getAvailableTabNames() {
   const tabs = ['control']
-  if (serverStore.abilities['game-server-common'] && serverStore.canViewMetrics && serverOnline.value) tabs.push('statistics')
   if (rconTabPossible.value) tabs.push('rcon')
   if (serverStore.canManageFiles) tabs.push('files')
   if (serverStore.canManageTasks) tabs.push('schedules')
@@ -481,6 +488,14 @@ function onTabChange(tabName) {
 
 function setInitialTabFromHash() {
   const tabName = hashToTabName(route.hash)
+  if (tabName === 'statistics') {
+    activeTab.value = 'control'
+    if (canShowStats.value) {
+      statsModalShow.value = true
+      if (route.hash) router.replace({ ...route, hash: '' })
+    }
+    return
+  }
   if (isValidTabName(tabName)) {
     activeTab.value = tabName
     pendingPluginTab.value = ''
@@ -493,6 +508,14 @@ function setInitialTabFromHash() {
 
 watch(() => route.hash, (newHash) => {
   const tabName = hashToTabName(newHash)
+  if (tabName === 'statistics') {
+    activeTab.value = 'control'
+    if (canShowStats.value) {
+      statsModalShow.value = true
+      router.replace({ ...route, hash: '' })
+    }
+    return
+  }
   if (isValidTabName(tabName) && activeTab.value !== tabName) {
     activeTab.value = tabName
     pendingPluginTab.value = ''
