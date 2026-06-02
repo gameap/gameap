@@ -55,6 +55,7 @@
 
 <script setup>
 import {onMounted, ref} from "vue"
+import {useRouter} from "vue-router"
 import { GIcon } from "@gameap/ui"
 import {trans} from "../i18n/i18n"
 import axios from "../config/axios"
@@ -64,6 +65,7 @@ import TwoFactorVerifyForm from "./forms/TwoFactorVerifyForm.vue";
 import CaptchaWidget from "./forms/CaptchaWidget.vue";
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 const email = ref(null)
 const password = ref(null)
@@ -97,6 +99,27 @@ const showError = (error) => {
   }
 }
 
+// Finishes a successful auth flow with an in-app navigation instead of a full
+// page reload. Navigating first lets the route settle to the dashboard within
+// the same microtask checkpoint as the auth-state change, so the authenticated
+// layout never paints over the still-mounted login form. Plugins are loaded
+// afterwards (the reload used to trigger this in app.js). Errors here must not
+// surface as login failures, so each step swallows its own error.
+const completeLogin = async () => {
+  try {
+    await router.push({ name: 'home' })
+  } catch (error) {
+    console.error('Post-login navigation failed:', error)
+  }
+
+  try {
+    const { loadPlugins } = await import('../plugins/loader')
+    await loadPlugins(router)
+  } catch (error) {
+    console.error('Failed to load plugins after login:', error)
+  }
+}
+
 const login = async () => {
   let captchaToken = ""
 
@@ -121,7 +144,7 @@ const login = async () => {
       return
     }
 
-    location.reload()
+    return completeLogin()
   }).catch((error) => {
     if (captchaRef.value) {
       captchaRef.value.reset()
@@ -132,7 +155,7 @@ const login = async () => {
 
 const onVerify = (code) => {
   authStore.verifyTwoFactor(code).then(() => {
-    location.reload()
+    completeLogin()
   }).catch(showError)
 }
 </script>
