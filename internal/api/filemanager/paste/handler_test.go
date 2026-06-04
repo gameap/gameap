@@ -187,6 +187,81 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			name:     "successful_copy_windows_backslash_path",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "new",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"ioquake3\\SDL264.dll"},
+				},
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "cs",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27015,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						assert.Equal(t, "/srv/gameap/servers/test1/ioquake3/SDL264.dll", source)
+						assert.Equal(t, "/srv/gameap/servers/test1/new/SDL264.dll", destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response pasteResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+				assert.Equal(t, "Copied successfully!", response.Result.Message)
+			},
+		},
+		{
 			name:     "successful_cut_single_file",
 			serverID: "1",
 			requestBody: pasteRequest{

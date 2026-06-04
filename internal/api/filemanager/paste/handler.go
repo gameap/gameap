@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
@@ -174,34 +176,35 @@ func (h *Handler) processItems(
 	serverDir string,
 	req *pasteRequest,
 ) error {
-	if err := filemanagerpath.ValidatePath(req.Path); err != nil {
+	destPath := strings.ReplaceAll(req.Path, "\\", "/")
+	if err := filemanagerpath.ValidatePath(destPath); err != nil {
 		return api.WrapHTTPError(err, http.StatusBadRequest)
 	}
 
-	destinationBase := filepath.Join(node.WorkPath, serverDir, req.Path)
+	destinationBase := filepath.Join(node.WorkPath, serverDir, destPath)
 
-	for _, filePath := range req.Clipboard.Files {
+	for _, rawFilePath := range req.Clipboard.Files {
+		filePath := strings.ReplaceAll(rawFilePath, "\\", "/")
 		if err := filemanagerpath.ValidatePath(filePath); err != nil {
 			return api.WrapHTTPError(err, http.StatusBadRequest)
 		}
 
 		sourcePath := filepath.Join(node.WorkPath, serverDir, filePath)
-		fileName := filepath.Base(filePath)
-		destinationPath := filepath.Join(destinationBase, fileName)
+		destinationPath := filepath.Join(destinationBase, path.Base(filePath))
 
 		if err := h.pasteItem(ctx, node, sourcePath, destinationPath, req.Clipboard.Type); err != nil {
 			return errors.WithMessagef(err, "failed to paste file: %s", filePath)
 		}
 	}
 
-	for _, dirPath := range req.Clipboard.Directories {
+	for _, rawDirPath := range req.Clipboard.Directories {
+		dirPath := strings.ReplaceAll(rawDirPath, "\\", "/")
 		if err := filemanagerpath.ValidatePath(dirPath); err != nil {
 			return api.WrapHTTPError(err, http.StatusBadRequest)
 		}
 
 		sourcePath := filepath.Join(node.WorkPath, serverDir, dirPath)
-		dirName := filepath.Base(dirPath)
-		destinationPath := filepath.Join(destinationBase, dirName)
+		destinationPath := filepath.Join(destinationBase, path.Base(dirPath))
 
 		if err := h.pasteItem(ctx, node, sourcePath, destinationPath, req.Clipboard.Type); err != nil {
 			return errors.WithMessagef(err, "failed to paste directory: %s", dirPath)

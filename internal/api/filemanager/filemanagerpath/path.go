@@ -10,7 +10,6 @@ import (
 var (
 	ErrPathContainsTraversal         = errors.New("path contains invalid directory traversal")
 	ErrPathContainsNullByte          = errors.New("path contains a null byte")
-	ErrPathContainsBackslash         = errors.New("path contains a backslash")
 	ErrPathEscapesBaseDirectory      = errors.New("path attempts to escape base directory")
 	ErrFilenameEmpty                 = errors.New("filename is empty")
 	ErrFilenameContainsTraversal     = errors.New("filename contains invalid directory traversal")
@@ -21,15 +20,18 @@ var (
 //
 // File-manager paths are addressed relative to the server data directory; a
 // leading "/" denotes that root, not a filesystem-absolute path (the API
-// joins the value under node.WorkPath/server.Dir). The check therefore:
-//   - rejects NUL bytes and backslashes (the latter is a path separator on a
-//     Windows daemon and would otherwise bypass POSIX-only normalization);
-//   - rejects any ".." path component (before normalization), which is the
-//     only real escape vector once the value is joined under the base;
+// joins the value under node.WorkPath/server.Dir). A Windows daemon or a
+// Windows API host produces "\"-separated paths, so separators are normalized
+// before the components are inspected. The check therefore:
+//   - rejects NUL bytes;
+//   - normalizes "\" to "/" so a Windows-style path is treated as one path and
+//     every ".." component is visible to the traversal check (a backslash is a
+//     legitimate separator, not an error);
+//   - rejects any ".." path component, the only real escape vector once the
+//     value is joined under the base;
 //   - treats a sole "/" or "" as the server root.
 //
-// A literal substring like "ok..ok" is allowed (it is not a ".." component),
-// fixing the previous false-positive rejection.
+// A literal substring like "ok..ok" is allowed (it is not a ".." component).
 func ValidatePath(p string) error {
 	if p == "" {
 		return nil
@@ -39,11 +41,7 @@ func ValidatePath(p string) error {
 		return ErrPathContainsNullByte
 	}
 
-	if strings.ContainsRune(p, '\\') {
-		return ErrPathContainsBackslash
-	}
-
-	rel := strings.TrimPrefix(p, "/")
+	rel := strings.TrimPrefix(strings.ReplaceAll(p, "\\", "/"), "/")
 	if rel == "" {
 		return nil
 	}

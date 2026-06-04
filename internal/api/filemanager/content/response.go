@@ -45,8 +45,8 @@ func newContentResponse(fileInfoList []*daemon.FileInfo, directory string) conte
 	files := make([]fileItemResponse, 0)
 
 	for _, fileInfo := range fileInfoList {
-		fullPath := filepath.Join(directory, fileInfo.Name)
-		dirname := directory
+		fullPath := filepath.ToSlash(filepath.Join(directory, fileInfo.Name))
+		dirname := filepath.ToSlash(directory)
 		if dirname == "." {
 			dirname = ""
 		}
