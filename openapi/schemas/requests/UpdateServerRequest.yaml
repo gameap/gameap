@@ -95,6 +95,7 @@ properties:
   ram_limit:
     oneOf:
       - type: integer
+        format: int64
       - type: string
     description: RAM limit in bytes
     minimum: 0

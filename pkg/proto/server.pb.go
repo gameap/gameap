@@ -93,7 +93,7 @@ type Server struct {
 	Dir              string                 `protobuf:"bytes,17,opt,name=dir,proto3" json:"dir,omitempty"`
 	SuUser           *string                `protobuf:"bytes,18,opt,name=su_user,json=suUser,proto3,oneof" json:"su_user,omitempty"`
 	CpuLimit         *int32                 `protobuf:"varint,19,opt,name=cpu_limit,json=cpuLimit,proto3,oneof" json:"cpu_limit,omitempty"`
-	RamLimit         *int32                 `protobuf:"varint,20,opt,name=ram_limit,json=ramLimit,proto3,oneof" json:"ram_limit,omitempty"`
+	RamLimit         *int64                 `protobuf:"varint,20,opt,name=ram_limit,json=ramLimit,proto3,oneof" json:"ram_limit,omitempty"`
 	NetLimit         *int32                 `protobuf:"varint,21,opt,name=net_limit,json=netLimit,proto3,oneof" json:"net_limit,omitempty"`
 	StartCommand     *string                `protobuf:"bytes,22,opt,name=start_command,json=startCommand,proto3,oneof" json:"start_command,omitempty"`
 	StopCommand      *string                `protobuf:"bytes,23,opt,name=stop_command,json=stopCommand,proto3,oneof" json:"stop_command,omitempty"`
@@ -273,7 +273,7 @@ func (x *Server) GetCpuLimit() int32 {
 	return 0
 }
 
-func (x *Server) GetRamLimit() int32 {
+func (x *Server) GetRamLimit() int64 {
 	if x != nil && x.RamLimit != nil {
 		return *x.RamLimit
 	}
@@ -393,7 +393,7 @@ const file_pkg_proto_server_proto_rawDesc = "" +
 	"\x03dir\x18\x11 \x01(\tR\x03dir\x12\x1c\n" +
 	"\asu_user\x18\x12 \x01(\tH\x04R\x06suUser\x88\x01\x01\x12 \n" +
 	"\tcpu_limit\x18\x13 \x01(\x05H\x05R\bcpuLimit\x88\x01\x01\x12 \n" +
-	"\tram_limit\x18\x14 \x01(\x05H\x06R\bramLimit\x88\x01\x01\x12 \n" +
+	"\tram_limit\x18\x14 \x01(\x03H\x06R\bramLimit\x88\x01\x01\x12 \n" +
 	"\tnet_limit\x18\x15 \x01(\x05H\aR\bnetLimit\x88\x01\x01\x12(\n" +
 	"\rstart_command\x18\x16 \x01(\tH\bR\fstartCommand\x88\x01\x01\x12&\n" +
 	"\fstop_command\x18\x17 \x01(\tH\tR\vstopCommand\x88\x01\x01\x121\n" +

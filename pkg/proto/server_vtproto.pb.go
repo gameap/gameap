@@ -988,7 +988,7 @@ func (m *Server) UnmarshalVT(dAtA []byte) error {
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field RamLimit", wireType)
 			}
-			var v int32
+			var v int64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -998,7 +998,7 @@ func (m *Server) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				v |= int32(b&0x7F) << shift
+				v |= int64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

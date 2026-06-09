@@ -33,7 +33,7 @@ message Server {
   string dir = 17;
   optional string su_user = 18;
   optional int32 cpu_limit = 19;
-  optional int32 ram_limit = 20;
+  optional int64 ram_limit = 20;
   optional int32 net_limit = 21;
   optional string start_command = 22;
   optional string stop_command = 23;

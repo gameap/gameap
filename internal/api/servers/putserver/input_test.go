@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -300,6 +301,15 @@ func TestUpdateServerInput_Validate(t *testing.T) {
 			}(),
 		},
 		{
+			name: "ram_limit_above_uint32_passes",
+			input: func() updateServerInput {
+				in := validInput()
+				in.RAMLimit = ptrFI(8589934592)
+
+				return in
+			}(),
+		},
+		{
 			name: "dir_nil_is_allowed",
 			input: func() updateServerInput {
 				in := validInput()
@@ -390,4 +400,36 @@ func TestUpdateServerInput_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateServerInput_Apply(t *testing.T) {
+	t.Run("ram_limit_above_uint32_and_cpu_limit_applied", func(t *testing.T) {
+		// ARRANGE
+		in := validInput()
+		in.RAMLimit = ptrFI(4294967296)
+		in.CPULimit = ptrFI(2000)
+		server := &domain.Server{}
+
+		// ACT
+		require.NoError(t, in.Apply(server))
+
+		// ASSERT
+		require.NotNil(t, server.RAMLimit, "ram_limit pointer must be set when input provides it")
+		assert.Equal(t, 4294967296, *server.RAMLimit, "ram_limit above uint32 must map through without clamping")
+		require.NotNil(t, server.CPULimit, "cpu_limit pointer must be set when input provides it")
+		assert.Equal(t, 2000, *server.CPULimit, "cpu_limit must map through unchanged")
+	})
+
+	t.Run("nil_optional_limits_leave_server_pointers_nil", func(t *testing.T) {
+		// ARRANGE
+		in := validInput()
+		server := &domain.Server{}
+
+		// ACT
+		require.NoError(t, in.Apply(server))
+
+		// ASSERT
+		assert.Nil(t, server.RAMLimit, "absent ram_limit must not allocate a pointer")
+		assert.Nil(t, server.CPULimit, "absent cpu_limit must not allocate a pointer")
+	})
 }

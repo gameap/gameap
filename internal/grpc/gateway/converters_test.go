@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -217,7 +218,7 @@ func TestDomainServerToProto_fullServer(t *testing.T) {
 	require.NotNil(t, got.CpuLimit)
 	assert.Equal(t, int32(80), *got.CpuLimit)
 	require.NotNil(t, got.RamLimit)
-	assert.Equal(t, int32(4096), *got.RamLimit)
+	assert.Equal(t, int64(4096), *got.RamLimit)
 	require.NotNil(t, got.NetLimit)
 	assert.Equal(t, int32(1000), *got.NetLimit)
 	require.NotNil(t, got.StartCommand)
@@ -247,6 +248,79 @@ func TestDomainServerToProto_fullServer(t *testing.T) {
 	wrapped := wrapperspb.String("")
 	require.NoError(t, regionAny.UnmarshalTo(wrapped))
 	assert.Equal(t, "eu", wrapped.GetValue())
+}
+
+func TestDomainServerToProto_ramLimitAboveInt32IsNotClamped(t *testing.T) {
+	// ram_limit is stored in bytes; the proto field is int64, so values above the
+	// int32/uint32 boundaries must pass through unchanged (the original 500 bug).
+	tests := []struct {
+		name     string
+		ramLimit int
+		want     int64
+	}{
+		{name: "at_int32_max", ramLimit: math.MaxInt32, want: math.MaxInt32},
+		{name: "just_above_int32_max", ramLimit: math.MaxInt32 + 1, want: math.MaxInt32 + 1},
+		{name: "four_gib_uint32_boundary", ramLimit: 4 * 1024 * 1024 * 1024, want: 4 * 1024 * 1024 * 1024},
+		{name: "eight_gib_above_uint32", ramLimit: 8 * 1024 * 1024 * 1024, want: 8 * 1024 * 1024 * 1024},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			srv := &domain.Server{
+				ID:         1,
+				UUID:       uuid.MustParse("11111111-2222-3333-4444-555555555555"),
+				UUIDShort:  "11111111",
+				Name:       "big-ram",
+				GameID:     "csgo",
+				ServerIP:   "10.0.0.1",
+				ServerPort: 27015,
+				Dir:        "/srv/csgo",
+				RAMLimit:   new(tt.ramLimit),
+			}
+
+			// ACT
+			got := DomainServerToProto(srv)
+
+			// ASSERT
+			require.NotNil(t, got)
+			require.NotNil(t, got.RamLimit)
+			assert.Equal(t, tt.want, *got.RamLimit, "ram limit must pass through without int32 clamping")
+		})
+	}
+}
+
+func TestDomainServerToProto_cpuAndNetLimitsStillClampToInt32(t *testing.T) {
+	// ARRANGE
+	// cpu_limit and net_limit remain int32 on the wire, so values above int32 must
+	// still be clamped — only ram_limit was widened to int64.
+	aboveInt32 := math.MaxInt32 + 1
+
+	srv := &domain.Server{
+		ID:         1,
+		UUID:       uuid.MustParse("11111111-2222-3333-4444-555555555555"),
+		UUIDShort:  "11111111",
+		Name:       "clamp-limits",
+		GameID:     "csgo",
+		ServerIP:   "10.0.0.1",
+		ServerPort: 27015,
+		Dir:        "/srv/csgo",
+		CPULimit:   new(aboveInt32),
+		NetLimit:   new(aboveInt32),
+		RAMLimit:   new(aboveInt32),
+	}
+
+	// ACT
+	got := DomainServerToProto(srv)
+
+	// ASSERT
+	require.NotNil(t, got)
+	require.NotNil(t, got.CpuLimit)
+	assert.Equal(t, int32(math.MaxInt32), *got.CpuLimit, "cpu_limit must clamp to int32 max")
+	require.NotNil(t, got.NetLimit)
+	assert.Equal(t, int32(math.MaxInt32), *got.NetLimit, "net_limit must clamp to int32 max")
+	require.NotNil(t, got.RamLimit)
+	assert.Equal(t, int64(aboveInt32), *got.RamLimit, "ram_limit must NOT clamp — it is int64")
 }
 
 func TestDomainServerToProto_installedStatusMapping(t *testing.T) {

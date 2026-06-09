@@ -40,12 +40,13 @@ func DomainServerToProto(srv *domain.Server) *proto.Server {
 		rconPort = new(clampToInt32(*srv.RconPort))
 	}
 
-	var cpuLimit, ramLimit, netLimit *int32
+	var cpuLimit, netLimit *int32
+	var ramLimit *int64
 	if srv.CPULimit != nil {
 		cpuLimit = new(clampToInt32(*srv.CPULimit))
 	}
 	if srv.RAMLimit != nil {
-		ramLimit = new(clampToInt32(*srv.RAMLimit))
+		ramLimit = new(int64(*srv.RAMLimit))
 	}
 	if srv.NetLimit != nil {
 		netLimit = new(clampToInt32(*srv.NetLimit))

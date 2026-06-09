@@ -104,6 +104,7 @@ properties:
     type:
       - integer
       - "null"
+    format: int64
     description: RAM limit in bytes
     minimum: 0
     example: 4294967296

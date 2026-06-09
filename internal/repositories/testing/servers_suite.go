@@ -375,6 +375,60 @@ func (s *ServerRepositorySuite) TestServerRepositoryFind() {
 	})
 }
 
+func (s *ServerRepositorySuite) TestServerRepositoryRAMLimitAboveUint32() {
+	ctx := context.Background()
+
+	s.T().Run("save_and_read_back_large_ram_limit", func(t *testing.T) {
+		// ARRANGE
+		// 4 GiB = uint32 max + 1 (the byte value from the bug report that overflowed
+		// MySQL int unsigned); also above PostgreSQL INTEGER (~2 GiB).
+		ramLimit := 4 * 1024 * 1024 * 1024
+		server := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "ramlim",
+			Name:       "Big RAM Server",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "127.0.0.1",
+			ServerPort: 27015,
+			RAMLimit:   &ramLimit,
+		}
+
+		// ACT
+		require.NoError(t, s.repo.Save(ctx, server))
+
+		// ASSERT
+		results, err := s.repo.Find(ctx, &filters.FindServer{IDs: []uint{server.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		require.NotNil(t, results[0].RAMLimit, "ram_limit must survive the round-trip")
+		assert.Equal(t, ramLimit, *results[0].RAMLimit, "ram_limit above uint32 must persist without overflow")
+	})
+
+	s.T().Run("nil_ram_limit_stays_nil", func(t *testing.T) {
+		// ARRANGE
+		server := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "ramnil",
+			Name:       "No RAM Limit Server",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "127.0.0.1",
+			ServerPort: 27016,
+			RAMLimit:   nil,
+		}
+
+		// ACT
+		require.NoError(t, s.repo.Save(ctx, server))
+
+		// ASSERT
+		results, err := s.repo.Find(ctx, &filters.FindServer{IDs: []uint{server.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Nil(t, results[0].RAMLimit, "nil ram_limit must remain nil after the round-trip")
+	})
+}
+
 func (s *ServerRepositorySuite) TestServerRepositoryFindUserServers() {
 	ctx := context.Background()
 
