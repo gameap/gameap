@@ -47,6 +47,11 @@ export const useServerRconStore = defineStore('serverRcon', () => {
         try {
             const response = await axios.get('/api/servers/' + serverStore.serverId + '/rcon/features')
             rconSupportedFeatures.value = response.data
+        } catch (error) {
+            if (error.__CANCEL__) {
+                return
+            }
+            rconSupportedFeatures.value = { rcon: false, playersManage: false }
         } finally {
             apiProcesses.value--
         }

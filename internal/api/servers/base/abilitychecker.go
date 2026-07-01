@@ -123,6 +123,75 @@ func (c *AbilityChecker) CheckOrError(
 	return nil
 }
 
+// CheckAny checks if a user has at least one of the specified abilities for a server.
+// It returns true if the user is an admin or holds any of the abilities for the server.
+func (c *AbilityChecker) CheckAny(
+	ctx context.Context,
+	userID uint,
+	serverID uint,
+	abilities []domain.AbilityName,
+) (bool, error) {
+	isAdmin, err := c.rbac.Can(ctx, userID, []domain.AbilityName{domain.AbilityNameAdminRolesPermissions})
+	if err != nil {
+		return false, errors.WithMessage(err, "failed to check admin permissions")
+	}
+
+	if isAdmin {
+		return true, nil
+	}
+
+	for _, ability := range abilities {
+		hasAbility, err := c.rbac.CanForEntity(
+			ctx,
+			userID,
+			domain.EntityTypeServer,
+			serverID,
+			[]domain.AbilityName{ability},
+		)
+		if err != nil {
+			return false, errors.WithMessage(err, "failed to check ability")
+		}
+
+		if hasAbility {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// CheckAnyOrError checks if a user has at least one of the specified abilities for a server.
+// It returns an error if the user holds none of the abilities.
+func (c *AbilityChecker) CheckAnyOrError(
+	ctx context.Context,
+	userID uint,
+	serverID uint,
+	abilities []domain.AbilityName,
+) error {
+	hasAbility, err := c.CheckAny(ctx, userID, serverID, abilities)
+	if err != nil {
+		return err
+	}
+
+	if !hasAbility {
+		audit.AccessDenied(
+			ctx,
+			c.audit,
+			"server",
+			strconv.FormatUint(uint64(serverID), 10),
+			"missing_ability",
+			slog.String("required_abilities", joinAbilities(abilities)),
+		)
+
+		return api.WrapHTTPError(
+			errors.Errorf("user does not have required permissions"),
+			http.StatusForbidden,
+		)
+	}
+
+	return nil
+}
+
 func joinAbilities(abilities []domain.AbilityName) string {
 	parts := make([]string, len(abilities))
 	for i, a := range abilities {

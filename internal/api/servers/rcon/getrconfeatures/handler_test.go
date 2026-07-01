@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//nolint:unparam
 func allowUserAbilityForServer(
 	t *testing.T,
 	repo *inmemory.RBACRepository,
@@ -107,8 +106,6 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 				require.NoError(t, serverRepo.Save(context.Background(), server))
 				serverRepo.AddUserServer(1, 1)
-
-				allowUserAbilityForServer(t, rbacRepo, testUser1.ID, 1, domain.AbilityNameGameServerRconConsole)
 
 				allowUserAbilityForServer(t, rbacRepo, testUser1.ID, 1, domain.AbilityNameGameServerRconConsole)
 			},
@@ -266,6 +263,103 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectFeatures:        true,
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+		},
+		{
+			name:     "players_management_only_user_can_read_features",
+			serverID: "8",
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(serverRepo *inmemory.ServerRepository, gameRepo *inmemory.GameRepository, rbacRepo *inmemory.RBACRepository) {
+				now := time.Now()
+
+				game := &domain.Game{
+					Code:   "cs",
+					Name:   "Counter-Strike 1.6",
+					Engine: "goldsource",
+				}
+				require.NoError(t, gameRepo.Save(context.Background(), game))
+
+				server := &domain.Server{
+					ID:         8,
+					UID:        uuid.MustParse("88888888-8888-8888-8888-888888888888"),
+					UUIDShort:  "short8",
+					Enabled:    true,
+					Installed:  1,
+					Blocked:    false,
+					Name:       "Players Only Server",
+					GameID:     "cs",
+					DSID:       1,
+					GameModID:  1,
+					ServerIP:   "127.0.0.1",
+					ServerPort: 27022,
+					Dir:        "/home/gameap/servers/test8",
+					CreatedAt:  &now,
+					UpdatedAt:  &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 8)
+
+				allowUserAbilityForServer(t, rbacRepo, testUser1.ID, 8, domain.AbilityNameGameServerRconPlayers)
+			},
+			expectedStatus:        http.StatusOK,
+			expectFeatures:        true,
+			expectedRcon:          true,
+			expectedPlayersManage: true,
+		},
+		{
+			name:     "user_without_any_rcon_ability_is_forbidden",
+			serverID: "9",
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(serverRepo *inmemory.ServerRepository, gameRepo *inmemory.GameRepository, _ *inmemory.RBACRepository) {
+				now := time.Now()
+
+				game := &domain.Game{
+					Code:   "cs",
+					Name:   "Counter-Strike 1.6",
+					Engine: "goldsource",
+				}
+				require.NoError(t, gameRepo.Save(context.Background(), game))
+
+				server := &domain.Server{
+					ID:         9,
+					UID:        uuid.MustParse("99999999-9999-9999-9999-999999999999"),
+					UUIDShort:  "short9",
+					Enabled:    true,
+					Installed:  1,
+					Blocked:    false,
+					Name:       "No Rcon Ability Server",
+					GameID:     "cs",
+					DSID:       1,
+					GameModID:  1,
+					ServerIP:   "127.0.0.1",
+					ServerPort: 27023,
+					Dir:        "/home/gameap/servers/test9",
+					CreatedAt:  &now,
+					UpdatedAt:  &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 9)
+			},
+			expectedStatus: http.StatusForbidden,
+			wantError:      "user does not have required permissions",
+			expectFeatures: false,
 		},
 		{
 			name:     "server_not_found",

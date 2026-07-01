@@ -121,8 +121,8 @@
 
       <div class="flex flex-wrap mt-2">
         <div class="md:w-full">
-          <div :class="'md:grid ' + (rconSupportedFeatures.playersManage ? 'md:grid-cols-2' : 'md:grid-cols-1')">
-            <div v-if="rconSupportedFeatures.playersManage" class="pr-8">
+          <div :class="'md:grid ' + (showRconConsolePanel && showRconPlayersPanel ? 'md:grid-cols-2' : 'md:grid-cols-1')">
+            <div v-if="showRconPlayersPanel" :class="showRconConsolePanel ? 'pr-8' : ''">
               <n-card
                   :title="trans('rcon.players_manage')"
                   class="mb-3"
@@ -136,7 +136,7 @@
               </n-card>
             </div>
 
-            <div>
+            <div v-if="showRconConsolePanel">
               <n-card
                   :title="trans('rcon.console')"
                   class="mb-3"
@@ -377,10 +377,16 @@ const serverQueryOnline = computed(() => {
   return serverStatusRef.value?.status === 'online'
 })
 
+const showRconConsolePanel = computed(() => {
+  return serverRconStore.canUseRcon && rconSupportedFeatures.value.rcon
+})
+
+const showRconPlayersPanel = computed(() => {
+  return serverRconStore.canManageRconPlayers && rconSupportedFeatures.value.playersManage
+})
+
 const rconTabPossible = computed(() => {
-  return (rconSupportedFeatures.value.rcon || rconSupportedFeatures.value.playersManage) &&
-      serverRconStore.canUseRcon &&
-      serverOnline.value
+  return (showRconConsolePanel.value || showRconPlayersPanel.value) && serverOnline.value
 })
 
 const breadcrumbs = computed(() => {

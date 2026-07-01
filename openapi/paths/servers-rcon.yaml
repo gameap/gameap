@@ -69,6 +69,12 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User lacks both the RCON console and RCON players abilities for the server
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '404':
         description: Server not found
         content:

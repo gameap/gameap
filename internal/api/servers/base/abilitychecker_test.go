@@ -328,6 +328,160 @@ func TestAbilityChecker_CheckOrError(t *testing.T) {
 	}
 }
 
+func TestAbilityChecker_CheckAny(t *testing.T) {
+	tests := []struct {
+		name          string
+		userID        uint
+		serverID      uint
+		abilities     []domain.AbilityName
+		setup         func(t *testing.T, rbacService *rbac.RBAC, repo *inmemory.RBACRepository)
+		expected      bool
+		expectedError string
+	}{
+		{
+			name:      "admin_user_has_access",
+			userID:    1,
+			serverID:  10,
+			abilities: []domain.AbilityName{domain.AbilityNameGameServerRconConsole, domain.AbilityNameGameServerRconPlayers},
+			setup: func(t *testing.T, _ *rbac.RBAC, repo *inmemory.RBACRepository) {
+				t.Helper()
+				adminRole := createAdminRole(t, repo)
+				assignRoleToUser(t, repo, 1, adminRole)
+			},
+			expected: true,
+		},
+		{
+			name:      "non_admin_user_with_first_of_two",
+			userID:    2,
+			serverID:  20,
+			abilities: []domain.AbilityName{domain.AbilityNameGameServerRconConsole, domain.AbilityNameGameServerRconPlayers},
+			setup: func(t *testing.T, _ *rbac.RBAC, repo *inmemory.RBACRepository) {
+				t.Helper()
+				allowUserAbilityForServer(t, repo, 2, 20, domain.AbilityNameGameServerRconConsole)
+			},
+			expected: true,
+		},
+		{
+			name:      "non_admin_user_with_second_of_two",
+			userID:    3,
+			serverID:  30,
+			abilities: []domain.AbilityName{domain.AbilityNameGameServerRconConsole, domain.AbilityNameGameServerRconPlayers},
+			setup: func(t *testing.T, _ *rbac.RBAC, repo *inmemory.RBACRepository) {
+				t.Helper()
+				allowUserAbilityForServer(t, repo, 3, 30, domain.AbilityNameGameServerRconPlayers)
+			},
+			expected: true,
+		},
+		{
+			name:      "non_admin_user_with_none_of_two",
+			userID:    4,
+			serverID:  40,
+			abilities: []domain.AbilityName{domain.AbilityNameGameServerRconConsole, domain.AbilityNameGameServerRconPlayers},
+			setup: func(t *testing.T, _ *rbac.RBAC, _ *inmemory.RBACRepository) {
+				t.Helper()
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rbacService, repo := setupRBAC(t)
+			defer rbacService.Close()
+
+			if tt.setup != nil {
+				tt.setup(t, rbacService, repo)
+			}
+
+			checker := serversbase.NewAbilityChecker(rbacService)
+			result, err := checker.CheckAny(context.Background(), tt.userID, tt.serverID, tt.abilities)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestAbilityChecker_CheckAnyOrError(t *testing.T) {
+	tests := []struct {
+		name               string
+		userID             uint
+		serverID           uint
+		abilities          []domain.AbilityName
+		setup              func(t *testing.T, rbacService *rbac.RBAC, repo *inmemory.RBACRepository)
+		expectedError      string
+		expectedStatusCode int
+	}{
+		{
+			name:      "admin_user_is_allowed",
+			userID:    1,
+			serverID:  10,
+			abilities: []domain.AbilityName{domain.AbilityNameGameServerRconConsole, domain.AbilityNameGameServerRconPlayers},
+			setup: func(t *testing.T, _ *rbac.RBAC, repo *inmemory.RBACRepository) {
+				t.Helper()
+				adminRole := createAdminRole(t, repo)
+				assignRoleToUser(t, repo, 1, adminRole)
+			},
+		},
+		{
+			name:      "user_has_one_of_the_abilities",
+			userID:    2,
+			serverID:  20,
+			abilities: []domain.AbilityName{domain.AbilityNameGameServerRconConsole, domain.AbilityNameGameServerRconPlayers},
+			setup: func(t *testing.T, _ *rbac.RBAC, repo *inmemory.RBACRepository) {
+				t.Helper()
+				allowUserAbilityForServer(t, repo, 2, 20, domain.AbilityNameGameServerRconPlayers)
+			},
+		},
+		{
+			name:      "user_has_none_of_the_abilities",
+			userID:    3,
+			serverID:  30,
+			abilities: []domain.AbilityName{domain.AbilityNameGameServerRconConsole, domain.AbilityNameGameServerRconPlayers},
+			setup: func(t *testing.T, _ *rbac.RBAC, _ *inmemory.RBACRepository) {
+				t.Helper()
+			},
+			expectedError:      "user does not have required permissions",
+			expectedStatusCode: http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rbacService, repo := setupRBAC(t)
+			defer rbacService.Close()
+
+			if tt.setup != nil {
+				tt.setup(t, rbacService, repo)
+			}
+
+			checker := serversbase.NewAbilityChecker(rbacService)
+			err := checker.CheckAnyOrError(context.Background(), tt.userID, tt.serverID, tt.abilities)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+
+				if tt.expectedStatusCode != 0 {
+					type httpStatusError interface {
+						HTTPStatus() int
+					}
+					httpErr, ok := err.(httpStatusError)
+					require.True(t, ok, "error should have HTTPStatus method")
+					assert.Equal(t, tt.expectedStatusCode, httpErr.HTTPStatus())
+				}
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Security audit-trail tests.
 //
@@ -448,4 +602,48 @@ func TestAbilityChecker_Audit_AuthorisedAccessIsNotDenied(t *testing.T) {
 	require.NoError(t, err, "a user with the required ability must be allowed")
 	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventAccessDenied),
 		"an authorised access must not produce a false-positive access-denied event")
+}
+
+// TestAbilityChecker_Audit_CheckAnyDenialEmitsScopedEvent covers OWASP
+// API1:2023 / API5:2023 for the any-of check. When CheckAnyOrError denies a
+// user who holds none of the acceptable abilities it must emit exactly one
+// access.denied event scoped to the target server, with the missing_ability
+// reason and every acceptable ability listed in Extra.required_abilities.
+func TestAbilityChecker_Audit_CheckAnyDenialEmitsScopedEvent(t *testing.T) {
+	// ARRANGE
+	rbacService, _ := setupRBAC(t)
+	defer rbacService.Close()
+
+	recorder := &auditCapture{}
+	checker := serversbase.NewAbilityChecker(rbacService, serversbase.WithAuditLogger(recorder))
+
+	abilities := []domain.AbilityName{
+		domain.AbilityNameGameServerRconConsole,
+		domain.AbilityNameGameServerRconPlayers,
+	}
+
+	// ACT
+	err := checker.CheckAnyOrError(context.Background(), 3, 30, abilities)
+
+	// ASSERT
+	require.Error(t, err, "a user holding none of the acceptable abilities must be denied")
+	assert.Contains(t, err.Error(), "user does not have required permissions")
+
+	events := recorder.snapshot()
+	require.Equal(t, 1, countEvents(events, audit.EventAccessDenied),
+		"exactly one access-denied event must be emitted per denial")
+
+	ev, ok := findEvent(events, audit.EventAccessDenied)
+	require.True(t, ok, "a denial must leave an access.denied audit event")
+	assert.Equal(t, audit.OutcomeDenied, ev.Outcome)
+	assert.Equal(t, audit.CategoryAuthorization, ev.Category)
+	assert.Equal(t, "server", ev.ResourceType)
+	assert.Equal(t, "30", ev.ResourceID, "the denial must be scoped to the exact target server id")
+	assert.Equal(t, "missing_ability", ev.Reason)
+	gotAbilities, hasAbilities := extraString(ev, "required_abilities")
+	require.True(t, hasAbilities)
+	assert.Equal(t,
+		string(domain.AbilityNameGameServerRconConsole)+","+string(domain.AbilityNameGameServerRconPlayers),
+		gotAbilities,
+		"required_abilities must list every acceptable ability the any-of check demanded")
 }

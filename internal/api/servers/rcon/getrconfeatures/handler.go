@@ -66,8 +66,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = h.abilityChecker.CheckOrError(
-		ctx, session.User.ID, server.ID, []domain.AbilityName{domain.AbilityNameGameServerRconConsole},
+	if err = h.abilityChecker.CheckAnyOrError(
+		ctx, session.User.ID, server.ID, []domain.AbilityName{
+			domain.AbilityNameGameServerRconConsole,
+			domain.AbilityNameGameServerRconPlayers,
+		},
 	); err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
