@@ -158,8 +158,8 @@ func TestSubscription_ConcurrentCloseAndDeliver_NoPanic(t *testing.T) {
 
 func TestSubscription_CloseChannel_FirstCallClosesUnderlyingChannel(t *testing.T) {
 	// ARRANGE
-	// closeChannel is intentionally a single-call contract: a second call would panic by
-	// re-closing the channel. We only verify the documented first-call behaviour here.
+	// closeChannel is idempotent (guarded by the closed flag); this test pins the
+	// first-call behaviour: the channel closes while buffered entries stay drainable.
 	sub := newSubscription(nil, 7, 4)
 	first := &proto.MetricsResponse{Timestamp: timestamppb.Now()}
 	second := &proto.MetricsResponse{Timestamp: timestamppb.Now()}

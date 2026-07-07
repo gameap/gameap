@@ -486,3 +486,89 @@ func TestHub_GetHistory_ClampsWindowToMax(t *testing.T) {
 	require.NotNil(t, sent.req.GetHistory())
 	assert.Equal(t, uint32(maxHistoryWindow.Seconds()), sent.req.GetHistory().GetSeconds())
 }
+
+func TestHub_Stop_ClosesSubscriberChannels(t *testing.T) {
+	ps := memory.New()
+	t.Cleanup(func() { _ = ps.Close() })
+
+	registry := &fakeRegistry{instanceID: "a", connectedHere: true, connectedAny: true}
+	waiters := &fakeWaiters{}
+
+	h := newTestHub(t, ps, registry, waiters, Options{})
+
+	// Two subscribers on distinct nodes: Stop must release every node's state.
+	subA, _, err := h.Subscribe(context.Background(), 3, 0)
+	require.NoError(t, err)
+	subB, _, err := h.Subscribe(context.Background(), 4, 0)
+	require.NoError(t, err)
+
+	// ACT — do NOT call sub.Close() here; Stop owns the channel lifecycle so
+	// consumers ranging over Samples() unblock on graceful shutdown.
+	h.Stop()
+
+	// ASSERT — every subscriber's sample channel is closed.
+	for name, sub := range map[string]Subscription{"node-3": subA, "node-4": subB} {
+		require.Eventuallyf(t, func() bool {
+			select {
+			case _, open := <-sub.Samples():
+				return !open
+			default:
+				return false
+			}
+		}, time.Second, 10*time.Millisecond, "Stop must close the %s subscriber sample channel", name)
+	}
+}
+
+func TestHub_Stop_StopsPolling(t *testing.T) {
+	ps := memory.New()
+	t.Cleanup(func() { _ = ps.Close() })
+
+	registry := &fakeRegistry{instanceID: "a", connectedHere: true, connectedAny: true}
+	waiters := &fakeWaiters{}
+
+	h := newTestHub(t, ps, registry, waiters, Options{
+		PollInterval: 20 * time.Millisecond,
+	})
+
+	// A subscriber on a locally-connected node starts the per-node poll loop.
+	_, _, err := h.Subscribe(context.Background(), 6, 0)
+	require.NoError(t, err)
+
+	eventually(t, func() bool {
+		return waiters.pollWaiterCount() >= 1
+	})
+
+	// ACT
+	h.Stop()
+
+	// Let any poll already in flight at Stop finish registering its waiter.
+	time.Sleep(40 * time.Millisecond)
+	stable := waiters.pollWaiterCount()
+
+	// ASSERT — with the poll loop cancelled, no further poll waiters appear over
+	// several poll intervals.
+	require.Never(t, func() bool {
+		return waiters.pollWaiterCount() > stable
+	}, 120*time.Millisecond, 15*time.Millisecond,
+		"Stop must cancel the per-node poll loop so no new poll requests are issued")
+}
+
+func TestHub_Stop_IsIdempotent(t *testing.T) {
+	ps := memory.New()
+	t.Cleanup(func() { _ = ps.Close() })
+
+	registry := &fakeRegistry{instanceID: "a", connectedHere: true, connectedAny: true}
+	waiters := &fakeWaiters{}
+
+	h := newTestHub(t, ps, registry, waiters, Options{})
+
+	_, _, err := h.Subscribe(context.Background(), 8, 0)
+	require.NoError(t, err)
+
+	// ACT + ASSERT — repeated Stop calls (the explicit one plus newTestHub's
+	// cleanup) must not panic by re-closing an already-closed subscriber channel.
+	assert.NotPanics(t, func() {
+		h.Stop()
+		h.Stop()
+	}, "Stop must be safe to call more than once")
+}

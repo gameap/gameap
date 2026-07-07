@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -43,6 +44,35 @@ func TestNewSession_initialState(t *testing.T) {
 
 	require.NotNil(t, s.pendingReqs, "pendingReqs map must be initialised")
 	assert.Empty(t, s.pendingReqs, "pendingReqs map must start empty")
+}
+
+func TestSession_SetLogger(t *testing.T) {
+	t.Run("overrides_the_default_logger", func(t *testing.T) {
+		// ARRANGE
+		s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
+		custom := slog.New(slog.DiscardHandler)
+
+		// ACT
+		s.SetLogger(custom)
+
+		// ASSERT
+		assert.Same(t, custom, s.logger, "SetLogger must install the provided logger")
+	})
+
+	t.Run("nil_logger_is_ignored", func(t *testing.T) {
+		// ARRANGE: the nil-guard must protect the working logger so a stray
+		// SetLogger(nil) cannot leave the session with a nil logger that later
+		// panics inside dispatchLoop / Enqueue.
+		s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
+		original := s.logger
+		require.NotNil(t, original, "session must start with a non-nil default logger")
+
+		// ACT
+		s.SetLogger(nil)
+
+		// ASSERT
+		assert.Same(t, original, s.logger, "SetLogger(nil) must keep the existing logger")
+	})
 }
 
 func TestSession_Send_proxiesToStream(t *testing.T) {
@@ -185,6 +215,53 @@ func TestSession_Enqueue_stalledStream_doesNotBlockCaller(t *testing.T) {
 		t.Fatal("Enqueue blocked on a stalled stream — head-of-line blocking not fixed")
 	}
 	assert.Positive(t, fullErrs, "a saturated queue must surface ErrOutboundFull, not block")
+}
+
+// flakyStream returns an error for its first failUntil Send calls, then
+// delegates to the embedded stubStream. It exercises the dispatchLoop
+// swallow-and-continue path without mutating a shared field concurrently with
+// the worker (the counter is atomic; failUntil is fixed at construction).
+type flakyStream struct {
+	*stubStream
+
+	failUntil int
+	sendCalls atomic.Int32
+}
+
+func (f *flakyStream) Send(m *proto.GatewayMessage) error {
+	if int(f.sendCalls.Add(1)) <= f.failUntil {
+		return errTestStream
+	}
+
+	return f.stubStream.Send(m)
+}
+
+func TestSession_dispatchLoop_survivesSendError(t *testing.T) {
+	// ARRANGE: the first queued Send fails. dispatchLoop must log-and-continue
+	// rather than let the worker die, so a subsequent message still reaches the
+	// stream.
+	stream := &flakyStream{stubStream: newStubStream(context.Background()), failUntil: 1}
+	s := NewSession(1, stream, "v", nil, nil)
+	t.Cleanup(s.Close)
+
+	// ACT: the first Enqueue's Send errors and is swallowed; the second
+	// Enqueue's Send succeeds on the recovered stream.
+	require.NoError(t, s.Enqueue(&proto.GatewayMessage{RequestId: "q-err"}))
+	require.NoError(t, s.Enqueue(&proto.GatewayMessage{RequestId: "q-ok"}))
+
+	// ASSERT: exactly the recovered message is delivered — proving the worker
+	// kept draining the outbound queue after the swallowed error.
+	require.Eventually(t, func() bool {
+		return len(stream.Sent()) == 1
+	}, time.Second, 5*time.Millisecond,
+		"worker must keep draining the queue after a Send error")
+
+	sent := stream.Sent()
+	require.Len(t, sent, 1)
+	assert.Equal(t, "q-ok", sent[0].RequestId,
+		"only the message whose Send succeeded is recorded; the worker did not die on the error")
+
+	assert.NotPanics(t, s.Close, "Close must remain safe after a swallowed Send error")
 }
 
 func TestSession_UpdateLastPing_advancesTime(t *testing.T) {

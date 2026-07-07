@@ -12,17 +12,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// flakyCache fails Get/Set/Delete on demand to exercise the resilient
-// read/invalidation paths that a healthy cache never triggers.
+// flakyCache fails Get/Set/Delete/Clear on demand, or returns a preset value
+// from Get, to exercise the resilient read/invalidation paths that a healthy
+// cache never triggers.
 type flakyCache struct {
 	getErr    error
+	getValue  any
 	setErr    error
 	deleteErr error
+	clearErr  error
 }
 
 func (c *flakyCache) Get(_ context.Context, _ string) (any, error) {
 	if c.getErr != nil {
 		return nil, c.getErr
+	}
+	if c.getValue != nil {
+		return c.getValue, nil
 	}
 
 	return nil, cache.ErrNotFound
@@ -33,7 +39,7 @@ func (c *flakyCache) Set(_ context.Context, _ string, _ any, _ ...cache.Option) 
 }
 
 func (c *flakyCache) Delete(_ context.Context, _ string) error { return c.deleteErr }
-func (c *flakyCache) Clear(_ context.Context) error            { return nil }
+func (c *flakyCache) Clear(_ context.Context) error            { return c.clearErr }
 
 func newWrapper(c cache.Cache) *cached.Wrapper {
 	return cached.NewWrapper(c, cached.CacheConfig{TTL: time.Minute})
@@ -100,4 +106,55 @@ func TestInvalidateBestEffort_swallowsCacheError(t *testing.T) {
 	assert.NotPanics(t, func() {
 		w.InvalidateBestEffort(context.Background(), "k1", "k2")
 	}, "a failed invalidation after a committed write must not surface")
+}
+
+func TestInvalidatePatternBestEffort_swallowsCacheError(t *testing.T) {
+	// A non-Redis cache falls back to Clear() for pattern invalidation; forcing
+	// Clear to fail exercises the error path.
+	w := newWrapper(&flakyCache{clearErr: errors.New("redis down")})
+
+	assert.NotPanics(t, func() {
+		w.InvalidatePatternBestEffort(context.Background(), "user:id:*")
+	}, "a failed pattern invalidation after a committed write must not surface")
+}
+
+// cachedRecord stands in for a domain value that a Redis/SQL cache returns as a
+// JSON-decoded generic value rather than the original Go type.
+type cachedRecord struct {
+	Name string `json:"name"`
+	Age  int    `json:"age"`
+}
+
+func TestGetOrLoad_decodesMapValueFromCache(t *testing.T) {
+	// A Redis/SQL cache returns the stored value JSON-decoded into a generic
+	// map, not the original T. GetOrLoad must convert it back into T via a JSON
+	// round-trip and skip the loader entirely.
+	c := &flakyCache{getValue: map[string]any{"name": "neo", "age": float64(30)}}
+	w := newWrapper(c)
+
+	got, err := cached.GetOrLoad(context.Background(), w, "k", func() (cachedRecord, error) {
+		return cachedRecord{}, errors.New("loader must not run when the cached map decodes cleanly")
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, cachedRecord{Name: "neo", Age: 30}, got,
+		"a map cache value must be decoded into T without reloading")
+}
+
+func TestGetOrLoad_reloadsWhenCachedValueCannotDecode(t *testing.T) {
+	// A cached value that neither type-asserts nor JSON-decodes into T (here a
+	// bare string against a struct) must be treated as a miss and reloaded.
+	c := &flakyCache{getValue: "not-a-record-object"}
+	w := newWrapper(c)
+
+	loaded := 0
+	got, err := cached.GetOrLoad(context.Background(), w, "k", func() (cachedRecord, error) {
+		loaded++
+
+		return cachedRecord{Name: "loaded", Age: 7}, nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, loaded, "an undecodable cached value must fall back to the loader")
+	assert.Equal(t, cachedRecord{Name: "loaded", Age: 7}, got)
 }

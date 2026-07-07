@@ -146,6 +146,25 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			name:        "page_size_over_cap_is_clamped_to_max",
+			queryParams: "?page[size]=1000",
+			setupAuth: func() context.Context {
+				return sessionFor(&testUser1)
+			},
+			setupRepo: func(serverRepo *inmemory.ServerRepository, _ *inmemory.GameRepository, _ *inmemory.RBACRepository) {
+				saveServer(t, serverRepo, testUser1.ID, &domain.Server{
+					ID: 1, UID: uuid.New(), UUIDShort: "s1", Name: "S1", GameID: "cs", DSID: 1, ServerIP: "1.1.1.1", ServerPort: 27015,
+				})
+			},
+			expectedStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, resp *base.PaginatedResponse[serverResponse]) {
+				t.Helper()
+				assert.Equal(t, base.MaxPageSize, resp.PerPage,
+					"page[size] above the cap must be clamped to MaxPageSize, not rejected")
+				assert.Equal(t, 1, resp.CurrentPage)
+			},
+		},
+		{
 			name:        "successful_filter_by_ds_id",
 			queryParams: "?filter[ds_id]=2",
 			setupAuth: func() context.Context {

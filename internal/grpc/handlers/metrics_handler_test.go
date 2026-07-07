@@ -343,7 +343,7 @@ func TestMetricsHandler_pollWaiterExpires(t *testing.T) {
 	}, time.Second, 5*time.Millisecond, "unanswered poll waiter must be reaped by its TTL")
 }
 
-func TestMetricsHandler_responseStopsReaper(t *testing.T) {
+func TestMetricsHandler_CancelWaiter_removesWaiter(t *testing.T) {
 	handler := NewMetricsHandler(memory.New(), nil, slog.Default())
 	handler.SetWaiterTTL(20 * time.Millisecond)
 
@@ -354,4 +354,108 @@ func TestMetricsHandler_responseStopsReaper(t *testing.T) {
 	got := len(handler.waiters)
 	handler.waitersMu.Unlock()
 	assert.Equal(t, 0, got, "cancel must remove the waiter")
+}
+
+// waiterAbsent reports whether requestID is no longer tracked. White-box on the
+// waiters map is the only way to observe reaper timing.
+func waiterAbsent(handler *MetricsHandler, requestID string) func() bool {
+	return func() bool {
+		handler.waitersMu.Lock()
+		defer handler.waitersMu.Unlock()
+
+		_, ok := handler.waiters[requestID]
+
+		return !ok
+	}
+}
+
+func TestMetricsHandler_HandleMetricsResponse_stopsReaperTimer(t *testing.T) {
+	// ARRANGE
+	ps := memory.New()
+	t.Cleanup(func() { _ = ps.Close() })
+
+	handler := NewMetricsHandler(ps, nil, slog.Default())
+	handler.SetWaiterTTL(100 * time.Millisecond)
+	const requestID = "resp-stops-reaper"
+
+	// ACT: register (arming reaper #1 for ~t=100ms), then answer the request
+	// halfway through. HandleMetricsResponse must stop reaper #1. A fresh
+	// registration then arms reaper #2 (~t=150ms).
+	handler.RegisterPollWaiter(requestID, 1)
+	time.Sleep(50 * time.Millisecond)
+	require.NoError(t, handler.HandleMetricsResponse(
+		context.Background(), 1, requestID, &proto.MetricsResponse{}))
+	handler.RegisterPollWaiter(requestID, 1)
+
+	// ASSERT: across the next 80ms (covering reaper #1's original ~t=100ms
+	// deadline) the re-registered waiter must survive — proving reaper #1 was
+	// stopped by HandleMetricsResponse and cannot evict it prematurely.
+	require.Never(t, waiterAbsent(handler, requestID), 80*time.Millisecond, 10*time.Millisecond,
+		"HandleMetricsResponse must stop the reaper so it cannot expire a re-registered waiter")
+
+	// ...and reaper #2 must still reap the re-registered waiter on its own TTL.
+	require.Eventually(t, waiterAbsent(handler, requestID), time.Second, 10*time.Millisecond,
+		"the re-registered waiter must still be reaped by its own fresh timer")
+}
+
+func TestMetricsHandler_registerWaiter_reRegistrationResetsReaper(t *testing.T) {
+	// ARRANGE
+	handler := NewMetricsHandler(memory.New(), nil, slog.Default())
+	handler.SetWaiterTTL(100 * time.Millisecond)
+	const requestID = "rereg-1"
+
+	// ACT: register (reaper #1 armed for ~t=100ms), wait past half the TTL, then
+	// re-register the same id. registerWaiter must stop reaper #1 and arm a fresh
+	// reaper #2 (~t=150ms).
+	handler.RegisterPollWaiter(requestID, 1)
+	time.Sleep(50 * time.Millisecond)
+	handler.RegisterRemoteWaiter(requestID, 1, "instance-b")
+
+	// ASSERT: reaper #1 (original ~t=100ms deadline) must not fire and evict the
+	// re-registered waiter.
+	require.Never(t, waiterAbsent(handler, requestID), 80*time.Millisecond, 10*time.Millisecond,
+		"re-registration must stop the previous reaper so the waiter is not expired early")
+
+	require.Eventually(t, waiterAbsent(handler, requestID), time.Second, 10*time.Millisecond,
+		"the re-registered waiter must still be reaped by its own fresh timer")
+}
+
+func TestMetricsHandler_SetWaiterTTL_ignoresNonPositive(t *testing.T) {
+	tests := []struct {
+		name string
+		ttl  time.Duration
+	}{
+		{name: "zero_is_ignored", ttl: 0},
+		{name: "negative_is_ignored", ttl: -5 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			handler := NewMetricsHandler(memory.New(), nil, slog.Default())
+			handler.SetWaiterTTL(250 * time.Millisecond)
+
+			// ACT
+			handler.SetWaiterTTL(tt.ttl)
+
+			// ASSERT
+			assert.Equal(t, 250*time.Millisecond, handler.waiterTTL,
+				"a non-positive TTL must not overwrite the configured reaping timeout")
+		})
+	}
+}
+
+func TestMetricsHandler_expireWaiter_alreadyRemovedID_isNoop(t *testing.T) {
+	// ARRANGE
+	handler := NewMetricsHandler(memory.New(), nil, slog.Default())
+
+	// ACT + ASSERT: expiring an id that is not tracked (already removed or never
+	// registered) must not panic and must not create a phantom map entry.
+	assert.NotPanics(t, func() {
+		handler.expireWaiter("never-registered")
+	})
+
+	handler.waitersMu.Lock()
+	assert.Empty(t, handler.waiters, "expireWaiter must not create a map entry for an unknown id")
+	handler.waitersMu.Unlock()
 }

@@ -410,6 +410,24 @@ func (s *PluginStorageRepositorySuite) TestPluginStorageRepositoryDeleteByPlugin
 		require.Len(t, results, 1, "the entry must survive a rejected empty-filter delete")
 	})
 
+	s.T().Run("delete_by_nil_filter_is_rejected", func(t *testing.T) {
+		// ARRANGE — a lone entry on an isolated plugin id.
+		entry := &domain.PluginStorageEntry{PluginID: 615, Key: "keep_nil", Payload: []byte(`{}`)}
+		require.NoError(t, s.repo.Save(ctx, entry))
+
+		// ACT — a nil filter must be rejected, not treated as "match everything".
+		err := s.repo.DeleteByFilter(ctx, nil)
+
+		// ASSERT
+		require.Error(t, err, "a nil filter must be rejected, not delete everything")
+		assert.Contains(t, err.Error(), "non-empty filter is required",
+			"the rejection must name the missing-filter contract")
+
+		results, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{615}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1, "the entry must survive a rejected nil-filter delete")
+	})
+
 	s.T().Run("delete_preserves_other_plugins", func(t *testing.T) {
 		pluginID1 := uint64(500)
 		pluginID2 := uint64(501)

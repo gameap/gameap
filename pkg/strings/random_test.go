@@ -142,3 +142,30 @@ func TestCryptoRandomString_AlphanumericOnly(t *testing.T) {
 		assert.True(t, isAlpha || isNumeric, "Character '%c' should be alphanumeric", c)
 	}
 }
+
+// TestCharacterSet_IsCompleteAlphanumericWithoutDuplicates pins the alphabet
+// itself, independently of characterSet's own value. A past regression
+// duplicated 'd' and dropped u-z; the other tests compare against characterSet
+// and so cannot catch such a defect. Here the expectation is spelled out with
+// explicit rune ranges instead.
+func TestCharacterSet_IsCompleteAlphanumericWithoutDuplicates(t *testing.T) {
+	// ARRANGE / ACT — count every occurrence of each rune.
+	seen := make(map[rune]int, len(characterSet))
+	for _, c := range characterSet {
+		seen[c]++
+	}
+
+	// ASSERT — 26 lowercase + 26 uppercase + 10 digits, each exactly once.
+	assert.Len(t, characterSet, 62, "charset must be 26 + 26 + 10 = 62 characters")
+	assert.Len(t, seen, 62, "charset must contain no duplicate characters")
+
+	for c := 'a'; c <= 'z'; c++ {
+		assert.Equalf(t, 1, seen[c], "lowercase %q must appear exactly once", c)
+	}
+	for c := 'A'; c <= 'Z'; c++ {
+		assert.Equalf(t, 1, seen[c], "uppercase %q must appear exactly once", c)
+	}
+	for c := '0'; c <= '9'; c++ {
+		assert.Equalf(t, 1, seen[c], "digit %q must appear exactly once", c)
+	}
+}

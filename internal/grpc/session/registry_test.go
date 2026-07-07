@@ -308,6 +308,37 @@ func TestRegistry_UnregisterSession_ownSession_removesAndPublishes(t *testing.T)
 	}
 }
 
+func TestRegistry_UnregisterSession_neverRegistered_isNoop(t *testing.T) {
+	// ARRANGE: a session whose node was never registered exercises the
+	// UnregisterSession `!ok` branch — it must neither panic nor publish a
+	// spurious closed event, and must leave registry state untouched.
+	r, ps, ctx := setupRegistry(t, false)
+
+	published := make(chan struct{}, 1)
+	require.NoError(t, ps.Subscribe(ctx, channels.DaemonSessionClosed,
+		func(_ context.Context, _ *pubsub.Message) error {
+			published <- struct{}{}
+
+			return nil
+		}))
+
+	orphan, _ := newTestSession(12345, nil)
+
+	// ACT
+	err := r.UnregisterSession(ctx, orphan)
+
+	// ASSERT
+	require.NoError(t, err, "unregistering a never-registered session must be a no-op")
+	assert.Equal(t, 0, r.SessionCount(), "session count must stay zero")
+	assert.False(t, r.IsConnected(12345), "the orphan node must not become connected")
+
+	select {
+	case <-published:
+		t.Fatal("must not publish a closed event for a session that was never registered")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func TestRegistry_Unregister_unknownNode_isNoop(t *testing.T) {
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, false)
@@ -1137,6 +1168,43 @@ func TestRegistry_handleTaskDispatch_skipsForeignNode(t *testing.T) {
 		"local session for node 301 must not receive a task targeted at node 999")
 }
 
+func TestRegistry_handleTaskDispatch_enqueueError_dropsWithoutPanic(t *testing.T) {
+	// ARRANGE: register a session then close it so its outbound queue rejects
+	// new work (Enqueue → ErrSessionClosed). handleTaskDispatch must hit its
+	// enqueue-error branch, drop the task and neither panic nor tear down the
+	// pubsub subscription.
+	r, ps, ctx := setupRegistry(t, true)
+
+	s, stream := newTestSession(302, nil)
+	require.NoError(t, r.Register(ctx, s))
+	s.Close()
+
+	gw := &proto.GatewayMessage{
+		RequestId: "task-closed",
+		Payload:   &proto.GatewayMessage_Task{Task: &proto.DaemonTask{Id: 5}},
+	}
+	data, err := gw.MarshalVT()
+	require.NoError(t, err)
+
+	channel := channels.BuildDaemonTaskDispatchChannel(302)
+	msg, err := messages.NewMessage(channel, messages.TypeDaemonTask, messages.DaemonTaskDispatchPayload{
+		NodeID:    302,
+		RequestID: "task-closed",
+		TaskID:    5,
+		TaskData:  data,
+	})
+	require.NoError(t, err)
+
+	// ACT
+	require.NoError(t, ps.Publish(ctx, channel, msg))
+
+	// ASSERT
+	time.Sleep(50 * time.Millisecond)
+	assert.Empty(t, stream.Sent(), "a closed session must not deliver the dispatched task")
+	assert.Equal(t, 1, r.SessionCount(),
+		"the closed session stays registered until its own stream cleanup unregisters it")
+}
+
 func TestRegistry_handleAttachDispatch_routesToLocalSession(t *testing.T) {
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
@@ -1170,6 +1238,36 @@ func TestRegistry_handleAttachDispatch_routesToLocalSession(t *testing.T) {
 	got := sent[0].GetAttachRequest()
 	require.NotNil(t, got)
 	assert.Equal(t, "sess-x", got.SessionId)
+}
+
+func TestRegistry_handleAttachDispatch_enqueueError_dropsWithoutPanic(t *testing.T) {
+	// ARRANGE: closed session → Enqueue rejects, exercising handleAttachDispatch's
+	// enqueue-error branch. The message must be dropped without a panic.
+	r, ps, ctx := setupRegistry(t, true)
+
+	s, stream := newTestSession(311, nil)
+	require.NoError(t, r.Register(ctx, s))
+	s.Close()
+
+	gw := &proto.GatewayMessage{
+		Payload: &proto.GatewayMessage_AttachRequest{
+			AttachRequest: &proto.AttachRequest{SessionId: "sess-closed", ServerId: 9},
+		},
+	}
+	data, err := gw.MarshalVT()
+	require.NoError(t, err)
+
+	channel := channels.BuildDaemonAttachDispatchChannel(311)
+	msg, err := messages.NewMessage(channel, messages.TypeDaemonAttach,
+		messages.DaemonAttachDispatchPayload{NodeID: 311, Data: data})
+	require.NoError(t, err)
+
+	// ACT
+	require.NoError(t, ps.Publish(ctx, channel, msg))
+
+	// ASSERT
+	time.Sleep(50 * time.Millisecond)
+	assert.Empty(t, stream.Sent(), "a closed session must not deliver the dispatched attach message")
 }
 
 func TestRegistry_handleMetricsRequest_registersRemoteWaiterAndForwards(t *testing.T) {
@@ -1290,6 +1388,53 @@ func TestRegistry_handleMetricsRequest_unknownNode_isNoop(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	assert.Empty(t, waiters.Registered(),
 		"no waiter must be registered when no local session exists for the target node")
+}
+
+func TestRegistry_handleMetricsRequest_enqueueError_cancelsRemoteWaiter(t *testing.T) {
+	// ARRANGE: a remote metrics request registers a cross-instance waiter before
+	// forwarding to the local session. If that forward fails (here: the session
+	// is closed so Enqueue → ErrSessionClosed), the waiter would otherwise leak
+	// until its TTL — handleMetricsRequest must cancel it immediately.
+	r, ps, ctx := setupRegistry(t, true)
+
+	waiters := &fakeMetricsWaiterRegistrar{}
+	r.SetMetricsWaiterRegistrar(waiters)
+
+	s, stream := newTestSession(330, nil)
+	require.NoError(t, r.Register(ctx, s))
+	s.Close() // Enqueue now returns ErrSessionClosed
+
+	gw := &proto.GatewayMessage{RequestId: "mreq-closed"}
+	data, err := gw.MarshalVT()
+	require.NoError(t, err)
+
+	channel := channels.BuildDaemonMetricsRequestChannel(330)
+	msg, err := messages.NewMessage(channel, messages.TypeDaemonMetricsRequest,
+		messages.DaemonMetricsRequestPayload{
+			NodeID:     330,
+			RequestID:  "mreq-closed",
+			InstanceID: "instance-other",
+			Data:       data,
+		})
+	require.NoError(t, err)
+
+	// ACT
+	require.NoError(t, ps.Publish(ctx, channel, msg))
+
+	// ASSERT: the waiter is registered then cancelled because the forward failed.
+	waitFor(t, func() bool {
+		return len(waiters.Canceled()) >= 1
+	}, "waiter cancelled after enqueue failure")
+
+	assert.Equal(t, []string{"mreq-closed"}, waiters.Canceled(),
+		"the failed request's waiter must be cancelled so it does not leak")
+
+	registered := waiters.Registered()
+	require.Len(t, registered, 1)
+	assert.Equal(t, "mreq-closed", registered[0].requestID,
+		"the same request that was registered must be the one cancelled")
+
+	assert.Empty(t, stream.Sent(), "nothing may be delivered to the closed session")
 }
 
 // Sanity guard against accidental future changes to the Stream interface

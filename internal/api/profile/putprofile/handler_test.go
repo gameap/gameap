@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
@@ -62,6 +63,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.Len(t, users, 1)
 				require.NotNil(t, users[0].Name)
 				assert.Equal(t, "Updated TokenName", *users[0].Name)
+				assert.Nil(t, users[0].PasswordChangedAt(),
+					"a name-only update must not stamp password_changed_at")
 			},
 		},
 		{
@@ -96,6 +99,12 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.Len(t, users, 1)
 				_, err = auth.VerifyPassword(users[0].Password, "newpassword123")
 				assert.NoError(t, err)
+
+				changedAt := users[0].PasswordChangedAt()
+				require.NotNil(t, changedAt,
+					"a password change must stamp password_changed_at so pre-existing credentials are invalidated")
+				assert.WithinDuration(t, time.Now(), *changedAt, 5*time.Second,
+					"the stamp must record the moment of the change")
 			},
 		},
 		{
@@ -134,10 +143,29 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, "New TokenName", *users[0].Name)
 				_, err = auth.VerifyPassword(users[0].Password, "newpassword123")
 				assert.NoError(t, err)
+
+				changedAt := users[0].PasswordChangedAt()
+				require.NotNil(t, changedAt,
+					"a combined name+password update must still stamp password_changed_at")
+				assert.WithinDuration(t, time.Now(), *changedAt, 5*time.Second)
 			},
 		},
 		{
 			name:           "user not authenticated",
+			setupRepo:      func(_ *inmemory.UserRepository) {},
+			requestBody:    `{"name": "Updated TokenName"}`,
+			expectedStatus: http.StatusUnauthorized,
+			wantError:      "user not authenticated",
+			expectSuccess:  false,
+		},
+		{
+			// A session object is present in context but carries no authenticated
+			// user (User is nil), so IsAuthenticated() is false and the request
+			// must be rejected exactly like a missing session.
+			name: "session present but unauthenticated",
+			setupAuth: func() context.Context {
+				return auth.ContextWithSession(context.Background(), &auth.Session{Login: "ghost"})
+			},
 			setupRepo:      func(_ *inmemory.UserRepository) {},
 			requestBody:    `{"name": "Updated TokenName"}`,
 			expectedStatus: http.StatusUnauthorized,

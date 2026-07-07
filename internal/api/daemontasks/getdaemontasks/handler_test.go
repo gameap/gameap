@@ -280,6 +280,30 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			name:          "successful - page size over cap is clamped",
+			queryParams:   "?page[size]=1000",
+			authenticated: true,
+			setupRepo: func(repo *inmemory.DaemonTaskRepository) {
+				err := repo.Save(context.Background(), &domain.DaemonTask{
+					ID:                1,
+					DedicatedServerID: 1,
+					ServerID:          &serverID,
+					Task:              domain.DaemonTaskTypeServerStart,
+					Status:            domain.DaemonTaskStatusSuccess,
+				})
+				require.NoError(t, err)
+			},
+			expectedStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, resp *base.PaginatedResponse[daemonTaskResponse]) {
+				t.Helper()
+
+				assert.Equal(t, base.MaxPageSize, resp.PerPage,
+					"page[size] above the cap must be clamped to MaxPageSize, not rejected")
+				assert.Equal(t, 1, resp.CurrentPage)
+				assert.Len(t, resp.Data, 1)
+			},
+		},
+		{
 			name:          "successful - with sorting by id ascending",
 			queryParams:   "?sort=id",
 			authenticated: true,

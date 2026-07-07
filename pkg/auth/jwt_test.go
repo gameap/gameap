@@ -254,6 +254,49 @@ func TestJWTService_ValidateToken(t *testing.T) {
 		assert.WithinDuration(t, time.Now().Add(time.Hour), *exp, time.Minute,
 			"adapter must surface the JWT exp claim as a *time.Time")
 	})
+
+	t.Run("GetIssuedAt_via_adapter_returns_time", func(t *testing.T) {
+		// ARRANGE — generateToken stamps IssuedAt = now; the adapter must expose
+		// it as *time.Time for the password-change invalidation check.
+		token, err := service.GenerateTokenForUser(user, time.Hour)
+		require.NoError(t, err)
+
+		claims, err := service.ValidateToken(token)
+		require.NoError(t, err)
+		require.NotNil(t, claims)
+
+		// ACT
+		iat, err := claims.GetIssuedAt()
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, iat, "a JWT minted now must expose a non-nil iat")
+		assert.WithinDuration(t, time.Now(), *iat, time.Minute,
+			"adapter must surface the JWT iat claim as a *time.Time")
+	})
+
+	t.Run("GetIssuedAt_nil_when_iat_absent", func(t *testing.T) {
+		// ARRANGE — hand-mint a valid HS384 token with no iat claim at all. The
+		// adapter must translate a missing iat into (nil, nil), not an error.
+		noIatToken := jwt.NewWithClaims(jwt.SigningMethodHS384, jwt.MapClaims{
+			"sub": "user:login:no-iat",
+			"iss": "gameap-api",
+			"exp": time.Now().Add(time.Hour).Unix(),
+		})
+		tokenString, err := noIatToken.SignedString(secretKey)
+		require.NoError(t, err)
+
+		claims, err := service.ValidateToken(tokenString)
+		require.NoError(t, err)
+		require.NotNil(t, claims)
+
+		// ACT
+		iat, err := claims.GetIssuedAt()
+
+		// ASSERT
+		require.NoError(t, err, "a missing iat must not produce an error from the adapter")
+		assert.Nil(t, iat, "a missing iat must surface as a nil pointer through the adapter")
+	})
 }
 
 func TestJWTService_TokenClaims(t *testing.T) {

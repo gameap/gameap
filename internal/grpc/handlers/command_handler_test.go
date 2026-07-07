@@ -100,10 +100,25 @@ func TestCommandHandler_HandleCommandResult_deliversToWaiter(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("waiter did not receive command result")
 	}
+
+	// The channel is closed right after delivery, so a second receive yields the
+	// zero value with ok=false — this is how RequestCommand* learns the result
+	// stream is complete.
+	_, open := <-ch
+	assert.False(t, open, "channel must be closed after the result is delivered")
+
+	// Delivery also removes the pending registration (delete-under-lock), so a
+	// late UnregisterPendingCommand is a no-op and must not double-close the
+	// already-closed channel.
+	assert.NotPanics(t, func() {
+		handler.UnregisterPendingCommand(commandID)
+	}, "unregister after delivery must not double-close the channel")
 }
 
 func TestCommandHandler_HandleCommandResult_secondCallForSameID_isDroppedSilently(t *testing.T) {
-	// ARRANGE — register a waiter and immediately fill its 1-slot buffer.
+	// ARRANGE — register a waiter and deliver a first result. The first call
+	// buffers the result, closes the channel and removes the registration
+	// (delete-under-lock).
 	handler := NewCommandHandler(nil, slog.Default())
 	const commandID = "cmd-twice"
 	ch := handler.RegisterPendingCommand(commandID)
@@ -111,8 +126,10 @@ func TestCommandHandler_HandleCommandResult_secondCallForSameID_isDroppedSilentl
 	first := &proto.CommandResult{CommandId: commandID, ExitCode: 1, Output: []byte("first")}
 	require.NoError(t, handler.HandleCommandResult(context.Background(), 1, first))
 
-	// Second call: the buffer is full; the select-default branch drops the
-	// payload but must still leave the registration intact and not error.
+	// Second call: the registration was already removed by the first call, so
+	// there is no pending waiter to deliver to. The result is dropped silently
+	// without touching the (now closed) channel, and the buffered first result
+	// is preserved.
 	second := &proto.CommandResult{CommandId: commandID, ExitCode: 2, Output: []byte("second")}
 
 	// ACT
@@ -591,4 +608,47 @@ func TestCommandHandler_RegisterUnregister_concurrentAccess(_ *testing.T) {
 
 	// ASSERT — no panics under -race; final state is the only observable.
 	// (HandleCommandOutput on a cleaned id must not publish; verified in other tests.)
+}
+
+func TestCommandHandler_HandleResultAndUnregister_concurrentSameID_noDoubleClose(t *testing.T) {
+	// ARRANGE — HandleCommandResult and UnregisterPendingCommand both take
+	// exclusive ownership of the pending channel under the lock (delete-then-use),
+	// so racing them on the SAME command id must never close the channel twice
+	// (a "close of closed channel" panic). This is the race the delete-under-lock
+	// guard in HandleCommandResult protects against; it should fail under -race
+	// if the ownership handoff regresses.
+	handler := NewCommandHandler(nil, slog.Default())
+
+	const iterations = 200
+
+	// ACT
+	for i := range iterations {
+		commandID := fmt.Sprintf("race-cmd-%d", i)
+		handler.RegisterPendingCommand(commandID)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+
+			_ = handler.HandleCommandResult(context.Background(), 1, &proto.CommandResult{
+				CommandId: commandID,
+			})
+		}()
+		go func() {
+			defer wg.Done()
+
+			handler.UnregisterPendingCommand(commandID)
+		}()
+
+		wg.Wait()
+	}
+
+	// ASSERT — every id is removed by exactly one of the two racers; no pending
+	// registration may leak.
+	handler.mu.RLock()
+	assert.Empty(t, handler.pendingCommands,
+		"no pending command may remain after concurrent handle/unregister")
+	handler.mu.RUnlock()
 }

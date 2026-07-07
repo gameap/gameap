@@ -58,6 +58,11 @@ func TestReadPage(t *testing.T) {
 			query:     "page[size]=abc",
 			wantError: "invalid page[size] value",
 		},
+		{
+			name:      "malformed_page_number_errors",
+			query:     "page[number]=abc",
+			wantError: "invalid page[number] value",
+		},
 	}
 
 	for _, tt := range tests {

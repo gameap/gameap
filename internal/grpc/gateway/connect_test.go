@@ -248,6 +248,11 @@ func TestService_Connect_handleMessagesProcessesIncomingThenReturnsOnEOF(t *test
 	updates := deps.taskHandler.StatusUpdates()
 	require.Len(t, updates, 1)
 	assert.Equal(t, uint64(42), updates[0].TaskId)
+
+	assert.False(t, deps.registry.IsConnected(1),
+		"session must be unregistered once the receive loop returns on EOF")
+	assert.Equal(t, 0, deps.registry.SessionCount(),
+		"no daemon session may remain registered after the stream ends")
 }
 
 func TestService_Connect_recvErrorPropagatesNonEOF(t *testing.T) {
@@ -289,6 +294,10 @@ func TestService_Connect_eofAfterRegisterClosesGracefully(t *testing.T) {
 
 	// ASSERT
 	require.NoError(t, err, "EOF after register must be a clean shutdown")
+	assert.False(t, deps.registry.IsConnected(1),
+		"session must be unregistered once Connect returns on EOF")
+	assert.Equal(t, 0, deps.registry.SessionCount(),
+		"no daemon session may remain registered after graceful shutdown")
 }
 
 func TestService_Connect_reconcilesAbandonedTasksOnRegister(t *testing.T) {

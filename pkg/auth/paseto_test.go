@@ -253,6 +253,26 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 		assert.WithinDuration(t, time.Now().Add(time.Hour), *exp, time.Minute,
 			"expiration must reflect the requested token duration")
 	})
+
+	t.Run("GetIssuedAt_returns_expected_time", func(t *testing.T) {
+		// ARRANGE — generateToken calls token.SetIssuedAt(time.Now()); this claim
+		// feeds the password-change token-invalidation check.
+		token, err := service.GenerateTokenForUser(user, time.Hour)
+		require.NoError(t, err)
+
+		claims, err := service.ValidateToken(token)
+		require.NoError(t, err)
+		require.NotNil(t, claims)
+
+		// ACT
+		iat, err := claims.GetIssuedAt()
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, iat, "PASETO tokens always carry an iat set by generateToken")
+		assert.WithinDuration(t, time.Now(), *iat, time.Minute,
+			"iat must reflect the token mint time")
+	})
 }
 
 func TestPASETOService_TokenExpiration(t *testing.T) {

@@ -753,6 +753,13 @@ func TestHandler_TokenStorageVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	plainToken := response["token"].(string)
+
+	// The response token is "<id>|<secret>"; the secret is drawn by
+	// generateRandomToken via pkgstrings.CryptoRandomString and must be exactly
+	// tokenLength (48) characters.
+	assert.Len(t, strings.TrimPrefix(plainToken, "1|"), 48,
+		"the generated plaintext token secret must be 48 characters")
+
 	sha256Token := sha256.Sum256([]byte(strings.TrimPrefix(plainToken, "1|")))
 
 	tokens, err := tokenRepo.Find(ctx, &filters.FindPersonalAccessToken{

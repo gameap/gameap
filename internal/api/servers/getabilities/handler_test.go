@@ -179,6 +179,18 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:      "user not authenticated",
 		},
 		{
+			// A session is present in context but carries no authenticated user
+			// (User is nil), so IsAuthenticated() is false and the request must
+			// be rejected just like a missing session.
+			name: "session present but unauthenticated",
+			setupAuth: func() context.Context {
+				return auth.ContextWithSession(context.Background(), &auth.Session{})
+			},
+			setupRepo:      func(_ *inmemory.UserRepository, _ *inmemory.ServerRepository, _ *inmemory.RBACRepository) {},
+			expectedStatus: http.StatusUnauthorized,
+			wantError:      "user not authenticated",
+		},
+		{
 			name: "authenticated user not found in database",
 			setupAuth: func() context.Context {
 				session := &auth.Session{

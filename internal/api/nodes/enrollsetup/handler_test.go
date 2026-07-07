@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gameap/gameap/internal/cache"
@@ -269,6 +270,130 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 			if tt.validateResp != nil {
 				tt.validateResp(t, body)
+			}
+		})
+	}
+}
+
+// TestHandler_ServeHTTP_ShellInjectionSafety pins the command-injection
+// defence of the generated root-run setup script.
+//
+// OWASP API Security Top 10:2023:
+//   - API8:2023 Security Misconfiguration — every request-controlled value that
+//     lands in the script (the connect-URL host derived from the Host /
+//     X-Forwarded-Host header, and the config / branch query parameters) must
+//     be POSIX single-quote escaped, otherwise a crafted value could break out
+//     of its argument and execute arbitrary commands as root on the node. A
+//     single quote in the payload must be neutralised by the close-escape-reopen
+//     sequence, and every other metacharacter stays inert inside the quotes.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+func TestHandler_ServeHTTP_ShellInjectionSafety(t *testing.T) {
+	const key = "AbCdEfGh1234567890AbCdEfGh123456"
+
+	tests := []struct {
+		name            string
+		panelHost       string
+		requestHost     string
+		config          string
+		branch          string
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{
+			// A single quote in the header-derived host must be neutralised
+			// inside the single-quoted CONNECT_URL assignment.
+			name:        "single_quote_in_host_is_neutralised",
+			panelHost:   "",
+			requestHost: "evil'.example.com",
+			wantContains: []string{
+				`CONNECT_URL='grpc://evil'\''.example.com:31718/AbCdEfGh1234567890AbCdEfGh123456'`,
+			},
+		},
+		{
+			// Command substitution and a statement separator stay inert because
+			// the whole value is wrapped in single quotes.
+			name:      "substitution_and_semicolon_in_config_stay_quoted",
+			panelHost: "panel.example.com",
+			config:    "x=$(id);rm -rf /",
+			wantContains: []string{
+				`--config='x=$(id);rm -rf /'`,
+			},
+			wantNotContains: []string{
+				`--config=x=$(id)`, // never emitted unquoted
+			},
+		},
+		{
+			name:      "single_quote_in_config_is_neutralised",
+			panelHost: "panel.example.com",
+			config:    "a'b",
+			wantContains: []string{
+				`--config='a'\''b'`,
+			},
+		},
+		{
+			// Backticks are literal inside single quotes, so command
+			// substitution via backticks cannot fire.
+			name:      "backtick_in_branch_stays_quoted",
+			panelHost: "panel.example.com",
+			branch:    "`id`",
+			wantContains: []string{
+				"--branch='`id`'",
+			},
+			wantNotContains: []string{
+				"--branch=`id`",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			keyManager := setupKeyManager(t, key)
+			enrollSvc := enrollment.NewService(keyManager, nil, nil, nil)
+			handler := NewHandler(
+				enrollSvc,
+				api.NewResponder(),
+				tt.panelHost,
+				"", // grpcExtHost unset so the header-derived host is used
+				31718,
+				0,
+			)
+
+			q := url.Values{}
+			if tt.config != "" {
+				q.Set("config", tt.config)
+			}
+			if tt.branch != "" {
+				q.Set("branch", tt.branch)
+			}
+			target := "/nodes/setup/" + key
+			if enc := q.Encode(); enc != "" {
+				target += "?" + enc
+			}
+
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			if tt.requestHost != "" {
+				req.Host = tt.requestHost
+			}
+			req = mux.SetURLVars(req, map[string]string{"key": key})
+
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+			body := w.Body.String()
+
+			for _, want := range tt.wantContains {
+				assert.Contains(t, body, want,
+					"the request-controlled value must appear only in its POSIX-escaped form")
+			}
+			for _, notWant := range tt.wantNotContains {
+				assert.NotContains(t, body, notWant,
+					"the value must never appear unquoted (that would allow injection)")
 			}
 		})
 	}

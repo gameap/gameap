@@ -509,6 +509,66 @@ func TestHandler_UpdateUserFields(t *testing.T) {
 	assert.NotNil(t, userResp.UpdatedAt)
 	require.NotNil(t, userResp.Roles)
 	assert.Contains(t, userResp.Roles, "admin")
+
+	// An admin password change (input.Apply) must stamp password_changed_at on
+	// the persisted user so every credential issued before it is invalidated.
+	storedUsers, err := usersRepo.FindAll(context.Background(), nil, nil)
+	require.NoError(t, err)
+	require.Len(t, storedUsers, 1)
+	changedAt := storedUsers[0].PasswordChangedAt()
+	require.NotNil(t, changedAt, "updating the password must stamp password_changed_at")
+	assert.WithinDuration(t, time.Now(), *changedAt, 5*time.Second)
+}
+
+// TestHandler_UpdateUser_WithoutPasswordDoesNotStampChangedAt pins the
+// complementary contract: an admin update that does NOT change the password
+// (empty password field means "no change") must leave password_changed_at
+// untouched, so unrelated profile edits don't invalidate the user's sessions.
+func TestHandler_UpdateUser_WithoutPasswordDoesNotStampChangedAt(t *testing.T) {
+	// ARRANGE
+	usersRepo := inmemory.NewUserRepository()
+	userService := services.NewUserService(usersRepo)
+	rbacRepo := inmemory.NewRBACRepository()
+	serversRepo := inmemory.NewServerRepository()
+	handler := NewHandler(
+		userService,
+		serversRepo,
+		rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0),
+		services.NewNilTransactionManager(),
+		api.NewResponder(),
+		nil,
+	)
+
+	now := time.Now()
+	name := originalUserName
+	require.NoError(t, usersRepo.Save(context.Background(), &domain.User{
+		ID:        1,
+		Login:     "originaluser",
+		Email:     "original@example.com",
+		Password:  "$2a$10$test",
+		Name:      &name,
+		CreatedAt: &now,
+		UpdatedAt: &now,
+	}))
+
+	// ACT — update email/name only; empty password means "no change".
+	w := doPutUser(t, handler, updateUserInput{
+		Email:    "updated@example.com",
+		Name:     new("Updated User"),
+		Password: new(""),
+		Roles:    []string{},
+		Servers:  []flexible.Uint{},
+	})
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "update must succeed; body=%s", w.Body.String())
+
+	storedUsers, err := usersRepo.FindAll(context.Background(), nil, nil)
+	require.NoError(t, err)
+	require.Len(t, storedUsers, 1)
+	assert.Equal(t, "updated@example.com", storedUsers[0].Email, "the non-password fields must still be updated")
+	assert.Nil(t, storedUsers[0].PasswordChangedAt(),
+		"an update that does not change the password must not stamp password_changed_at")
 }
 
 func TestNewUserResponseFromUser(t *testing.T) {
