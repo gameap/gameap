@@ -46,7 +46,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	session := auth.SessionFromContext(ctx)
-	if session == nil {
+	if !session.IsAuthenticated() {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.New("user not authenticated"),
 			http.StatusUnauthorized,

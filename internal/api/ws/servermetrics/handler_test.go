@@ -530,6 +530,8 @@ func (f *fakeHub) GetHistory(
 	return nil, nil
 }
 
+func (f *fakeHub) Stop() {}
+
 type fakeSub struct {
 	ch     chan *proto.MetricsResponse
 	closed atomic.Bool

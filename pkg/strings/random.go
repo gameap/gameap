@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	characterSet = "abcdedfghijklmnopqrstABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	characterSet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 
 func CryptoRandomString(length int) (string, error) {

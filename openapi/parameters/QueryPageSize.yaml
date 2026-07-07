@@ -1,9 +1,12 @@
 name: page[size]
 in: query
 required: false
-description: Number of items per page
+description: >-
+  Number of items per page. Values above the maximum are clamped to it
+  (the request is not rejected).
 schema:
   type: integer
   minimum: 1
+  maximum: 100
   default: 30
 example: 30

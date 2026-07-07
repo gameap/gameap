@@ -2,7 +2,6 @@ package posttoken
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -169,16 +168,13 @@ func (h *Handler) validateAdminAbilities(ctx context.Context, user *domain.User,
 }
 
 func generateRandomToken() (string, error) {
-	bytes := make([]byte, tokenLength)
-	_, err := rand.Read(bytes)
+	// CryptoRandomString draws each character with crypto/rand.Int over the
+	// alphabet, so it is free of the modulo bias of reducing raw random bytes
+	// mod len(alphabet) (which over-represents the first 256%len characters).
+	token, err := pkgstrings.CryptoRandomString(tokenLength)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to generate random token")
+		return "", errors.WithMessage(err, "failed to generate random token")
 	}
 
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	for i, b := range bytes {
-		bytes[i] = letters[b%byte(len(letters))]
-	}
-
-	return string(bytes), nil
+	return token, nil
 }

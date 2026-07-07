@@ -243,6 +243,71 @@ func TestRegistry_Unregister_removesAndPublishesDisconnectedEvent(t *testing.T) 
 	assert.Equal(t, testInstanceID, payload.InstanceID)
 }
 
+func TestRegistry_UnregisterSession_staleSession_doesNotEvictReconnectedSession(t *testing.T) {
+	// ARRANGE: a daemon connects (s1), then reconnects (s2) under the same
+	// node ID. Register replaces s1 with s2. The old stream's deferred cleanup
+	// then runs UnregisterSession(s1); it must NOT evict the live s2.
+	r, ps, ctx := setupRegistry(t, false)
+
+	s1, _ := newTestSession(7, nil)
+	require.NoError(t, r.Register(ctx, s1))
+
+	s2, _ := newTestSession(7, nil)
+	require.NoError(t, r.Register(ctx, s2))
+
+	closedPublished := make(chan struct{}, 1)
+	require.NoError(t, ps.Subscribe(ctx, channels.DaemonSessionClosed,
+		func(_ context.Context, _ *pubsub.Message) error {
+			closedPublished <- struct{}{}
+
+			return nil
+		}))
+
+	// ACT: stale cleanup for the superseded session.
+	require.NoError(t, r.UnregisterSession(ctx, s1))
+
+	// ASSERT: the live session survives and no closed event is published.
+	got, ok := r.GetSession(7)
+	require.True(t, ok, "reconnected session must remain registered")
+	assert.Same(t, s2, got, "registry must still hold the new session, not the stale one")
+	assert.Equal(t, 1, r.SessionCount())
+
+	select {
+	case <-closedPublished:
+		t.Fatal("stale UnregisterSession must not publish a session closed event")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestRegistry_UnregisterSession_ownSession_removesAndPublishes(t *testing.T) {
+	// ARRANGE
+	r, ps, ctx := setupRegistry(t, false)
+	s, _ := newTestSession(8, nil)
+	require.NoError(t, r.Register(ctx, s))
+
+	done := make(chan struct{})
+	require.NoError(t, ps.Subscribe(ctx, channels.DaemonSessionClosed,
+		func(_ context.Context, _ *pubsub.Message) error {
+			close(done)
+
+			return nil
+		}))
+
+	// ACT
+	require.NoError(t, r.UnregisterSession(ctx, s))
+
+	// ASSERT
+	_, ok := r.GetSession(8)
+	assert.False(t, ok, "own session must be removed")
+	assert.Equal(t, 0, r.SessionCount())
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for session closed event")
+	}
+}
+
 func TestRegistry_Unregister_unknownNode_isNoop(t *testing.T) {
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, false)

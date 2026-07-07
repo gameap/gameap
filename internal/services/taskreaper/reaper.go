@@ -89,10 +89,24 @@ func (r *Reaper) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := r.Sweep(ctx); err != nil {
-				r.logger.Warn("task reaper sweep failed", "error", err)
-			}
+			r.safeSweep(ctx)
 		}
+	}
+}
+
+// safeSweep runs one Sweep with panic recovery so a panic in reconciliation
+// (e.g. a nil dependency) is logged and the reaper loop keeps running, rather
+// than killing the goroutine forever and silently leaving tasks stuck in
+// "working".
+func (r *Reaper) safeSweep(ctx context.Context) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			r.logger.Error("task reaper sweep panicked", "panic", rec)
+		}
+	}()
+
+	if err := r.Sweep(ctx); err != nil {
+		r.logger.Warn("task reaper sweep failed", "error", err)
 	}
 }
 

@@ -35,6 +35,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -69,6 +70,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -102,6 +104,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -147,6 +150,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "nonexistent",
 					Email: "nonexistent@example.com",
+					User:  &domain.User{ID: 99, Login: "nonexistent", Email: "nonexistent@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -163,6 +167,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -186,6 +191,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -209,6 +215,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -232,6 +239,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -257,6 +265,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -282,6 +291,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)
@@ -307,6 +317,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				session := &auth.Session{
 					Login: "testuser",
 					Email: "test@example.com",
+					User:  &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"},
 				}
 
 				return auth.ContextWithSession(context.Background(), session)

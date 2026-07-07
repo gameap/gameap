@@ -163,9 +163,11 @@ func TestJWTService_ValidateToken(t *testing.T) {
 		tokenString, err := token.SignedString(secretKey)
 		require.NoError(t, err)
 
+		// The service issues HS384 and pins that exact method, so an HS256
+		// token — even signed with the right secret — must be rejected.
 		claims, err := service.ValidateToken(tokenString)
-		require.NoError(t, err)
-		require.NotNil(t, claims)
+		require.Error(t, err)
+		require.Nil(t, claims)
 	})
 
 	t.Run("token_with_none_algorithm", func(t *testing.T) {

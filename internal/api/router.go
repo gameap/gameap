@@ -1988,6 +1988,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		c.AuditLogger(),
 	)
 
+	tokenAdminGuardMiddleware := middlewares.NewTokenAdminGuardMiddleware(
+		c.Responder(),
+		c.AuditLogger(),
+	)
+
 	recoveryMiddleware := middlewares.NewRecoveryMiddleware(
 		c.Responder(),
 	)
@@ -2013,6 +2018,15 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 
 		if r.AdminOnly {
 			handler = isAdminMiddleware.Middleware(handler)
+
+			// Fail closed: an admin route that does not explicitly check PAT
+			// abilities must not be reachable by a personal access token, whose
+			// declared scope would otherwise be bypassed (only the owner's RBAC
+			// role would be checked). Routes that opt into PAT access declare
+			// CheckPATAbilities and are handled by patMiddleware above.
+			if len(r.CheckPATAbilities) == 0 {
+				handler = tokenAdminGuardMiddleware.Middleware(handler)
+			}
 		}
 
 		// Runs right after auth (which sets the session): a short-lived

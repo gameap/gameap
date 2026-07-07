@@ -50,17 +50,11 @@ func (r *GameModRepository) FindAll(
 
 	key := r.keyBuilder.BuildKey("all", order, pagination)
 
-	_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+	data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.GameMod, error) {
 		return r.inner.FindAll(ctx, order, pagination)
 	})
-
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get or set cache for FindAll game mods")
-	}
-
-	data, err := cache.GetTyped[[]domain.GameMod](ctx, r.cache, key)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get typed cached data for FindAll game mods")
+		return nil, errors.WithMessage(err, "failed to load FindAll game mods")
 	}
 
 	return data, nil
@@ -89,17 +83,11 @@ func (r *GameModRepository) Find(
 	if len(filter.GameCodes) > 0 {
 		key := r.keyBuilder.BuildKey("gamecodes", filter.GameCodes, filter, order, pagination)
 
-		_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+		data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.GameMod, error) {
 			return r.inner.Find(ctx, filter, order, pagination)
 		})
-
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get or set cache for Find game mods by game codes")
-		}
-
-		data, err := cache.GetTyped[[]domain.GameMod](ctx, r.cache, key)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get typed cached data for Find game mods by game codes")
+			return nil, errors.WithMessage(err, "failed to load Find game mods by game codes")
 		}
 
 		return data, nil
@@ -115,9 +103,9 @@ func (r *GameModRepository) Save(ctx context.Context, gameMod *domain.GameMod) e
 		return err
 	}
 
-	if err := r.invalidateAllGameModCache(ctx); err != nil {
-		return errors.WithMessage(err, "failed to invalidate game mod cache after save")
-	}
+	// Write committed; invalidation is best-effort so a cache hiccup does not
+	// report the applied write as failed. Stale entries expire with TTL.
+	r.invalidateAllGameModCache(ctx)
 
 	return nil
 }
@@ -129,13 +117,11 @@ func (r *GameModRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	if err := r.invalidateAllGameModCache(ctx); err != nil {
-		return errors.WithMessage(err, "failed to invalidate game mod cache after delete")
-	}
+	r.invalidateAllGameModCache(ctx)
 
 	return nil
 }
 
-func (r *GameModRepository) invalidateAllGameModCache(ctx context.Context) error {
-	return r.wrapper.InvalidatePattern(ctx, "gamemods:*")
+func (r *GameModRepository) invalidateAllGameModCache(ctx context.Context) {
+	r.wrapper.InvalidatePatternBestEffort(ctx, "gamemods:*")
 }

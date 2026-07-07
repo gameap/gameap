@@ -111,45 +111,13 @@ func (r *RBAC) CanForEntity(
 		return false, errors.WithMessage(err, "get permissions for user")
 	}
 
-	counter := 0
-
 	for _, abilityName := range abilities {
-		for _, permissions := range permissionsByAbilityName[abilityName] {
-			if permissions.Forbidden {
-				return false, nil
-			}
-
-			ability := permissions.Ability
-
-			if ability == nil {
-				continue
-			}
-
-			// Check if ability is global (no entity restrictions)
-			if ability.EntityType == nil && ability.EntityID == nil {
-				counter++
-
-				break
-			}
-
-			// Check if ability is for the specific entity type (e.g., all servers)
-			if ability.EntityType != nil && *ability.EntityType == entityType && ability.EntityID == nil {
-				counter++
-
-				break
-			}
-
-			// Check if ability is for the specific entity
-			if ability.EntityType != nil && *ability.EntityType == entityType &&
-				ability.EntityID != nil && *ability.EntityID == entityID {
-				counter++
-
-				break
-			}
+		if !grantsAbilityForEntity(permissionsByAbilityName[abilityName], entityType, entityID) {
+			return false, nil
 		}
 	}
 
-	return counter == len(abilities), nil
+	return true, nil
 }
 
 func (r *RBAC) CanAnyForEntity(
@@ -165,33 +133,61 @@ func (r *RBAC) CanAnyForEntity(
 	}
 
 	for _, abilityName := range abilities {
-		for _, permissions := range permissionsByAbilityName[abilityName] {
-			ability := permissions.Ability
-
-			if ability == nil {
-				continue
-			}
-
-			if ability.EntityID == nil {
-				// Check if ability is global
-				if ability.EntityID == nil && ability.EntityType == nil {
-					return !permissions.Forbidden, nil
-				}
-
-				// Check if ability is for the specific entity type (e.g., all servers)
-				if ability.EntityID == nil && ability.EntityType != nil && *ability.EntityType == entityType {
-					return !permissions.Forbidden, nil
-				}
-			} else { //nolint:gocritic
-				if *ability.EntityType == entityType &&
-					ability.EntityID != nil && *ability.EntityID == entityID {
-					return !permissions.Forbidden, nil
-				}
-			}
+		if grantsAbilityForEntity(permissionsByAbilityName[abilityName], entityType, entityID) {
+			return true, nil
 		}
 	}
 
 	return false, nil
+}
+
+// abilityScopeMatchesEntity reports whether an ability grant/denial applies to
+// (entityType, entityID): a global grant (no scope), an entity-type grant
+// (matching type, no id), or a specific-entity grant (matching type and id).
+func abilityScopeMatchesEntity(ability *domain.Ability, entityType domain.EntityType, entityID uint) bool {
+	if ability == nil {
+		return false
+	}
+
+	if ability.EntityType == nil && ability.EntityID == nil {
+		return true
+	}
+
+	if ability.EntityType == nil || *ability.EntityType != entityType {
+		return false
+	}
+
+	if ability.EntityID == nil {
+		return true
+	}
+
+	return *ability.EntityID == entityID
+}
+
+// grantsAbilityForEntity decides whether a single ability is granted for
+// (entityType, entityID) given all of the user's permission rows for that
+// ability name. It scans every scope-matching row so a matching forbid always
+// wins over a matching allow, independent of row order: an entity-scoped
+// forbid denies only that entity (not siblings), and an unrelated-entity
+// forbid does not deny the queried entity at all.
+func grantsAbilityForEntity(
+	permissions []domain.Permission, entityType domain.EntityType, entityID uint,
+) bool {
+	granted := false
+
+	for _, permission := range permissions {
+		if !abilityScopeMatchesEntity(permission.Ability, entityType, entityID) {
+			continue
+		}
+
+		if permission.Forbidden {
+			return false
+		}
+
+		granted = true
+	}
+
+	return granted
 }
 
 func (r *RBAC) GetRoles(ctx context.Context, userID uint) ([]string, error) {

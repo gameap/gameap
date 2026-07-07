@@ -209,6 +209,8 @@ func (f *fakeHub) GetHistory(
 	return nil, nil
 }
 
+func (f *fakeHub) Stop() {}
+
 // fakeSub is a metrics.Subscription backed by a buffered channel. Close
 // closes the channel exactly once and is safe for concurrent use.
 type fakeSub struct {

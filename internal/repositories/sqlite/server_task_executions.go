@@ -80,13 +80,18 @@ func (r *ServerTaskExecutionRepository) Create(
 
 	executionUUID := idgen.XIDToUUID(exec.ExecutionID).String()
 
-	query := "INSERT OR IGNORE INTO " + base.ServerTaskExecutionsTable + " (" +
+	// ON CONFLICT(execution_id) DO NOTHING rather than INSERT OR IGNORE: a
+	// duplicate execution_id is the idempotent no-op, but every other error
+	// (FK, NOT NULL, bad value) surfaces instead of being silently ignored.
+	// Matches the Postgres ON CONFLICT (execution_id) DO NOTHING behaviour.
+	query := "INSERT INTO " + base.ServerTaskExecutionsTable + " (" +
 		"`execution_id`, `server_task_id`, `server_id`, `node_id`, `command`," +
 		"`task_version`, `status`, `exit_code`, `error_message`," +
 		"`started_at`, `finished_at`, `duration_ms`," +
 		"`output_inline`, `output_storage_path`," +
 		"`created_at`, `updated_at`" +
-		") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" +
+		" ON CONFLICT(execution_id) DO NOTHING"
 
 	res, err := r.db.ExecContext(ctx, query,
 		executionUUID, exec.ServerTaskID, exec.ServerID, exec.NodeID, exec.Command,

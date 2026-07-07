@@ -116,7 +116,7 @@ func (h *Hub) Broadcast(topic string, msg []byte) {
 	h.mu.RLock()
 	clients := h.topics[topic]
 
-	h.logger.Info("hub broadcasting",
+	h.logger.Debug("hub broadcasting",
 		"topic", topic,
 		"subscriber_count", len(clients),
 	)

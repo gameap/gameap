@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"log/slog"
 	"time"
 
 	"github.com/gameap/gameap/internal/cache"
@@ -71,36 +72,24 @@ func (r *PersonalAccessTokenRepository) Find(
 	if len(filter.IDs) == 1 {
 		key := r.keyBuilder.BuildKey("id", filter.IDs[0])
 
-		_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+		data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.PersonalAccessToken, error) {
 			return r.inner.Find(ctx, filter, order, pagination)
 		})
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get or set cache for Find PAT by ID")
-		}
-
-		data, err := cache.GetTyped[[]domain.PersonalAccessToken](ctx, r.cache, key)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get typed cached data for Find PAT by ID")
+			return nil, errors.WithMessage(err, "failed to load Find PAT by ID")
 		}
 
 		return data, nil
 	}
 
 	if len(filter.Tokens) == 1 {
-		tokenHash := hashToken(filter.Tokens[0])
-		key := r.keyBuilder.BuildKey("token", tokenHash)
+		key := r.keyBuilder.BuildKey("token", hashToken(filter.Tokens[0]))
 
-		_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+		data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.PersonalAccessToken, error) {
 			return r.inner.Find(ctx, filter, order, pagination)
 		})
-
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get or set cache for Find PAT by token")
-		}
-
-		data, err := cache.GetTyped[[]domain.PersonalAccessToken](ctx, r.cache, key)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get typed cached data for Find PAT by token")
+			return nil, errors.WithMessage(err, "failed to load Find PAT by token")
 		}
 
 		return data, nil
@@ -122,21 +111,14 @@ func (r *PersonalAccessTokenRepository) Save(ctx context.Context, token *domain.
 		return errors.WithMessage(err, "failed to save PAT")
 	}
 
-	// Invalidate cache for this token
+	// Write committed; invalidation is best-effort so a cache hiccup does not
+	// report the applied write as failed. Stale entries expire with TTL.
 	if tokenValue != "" {
-		tokenHash := hashToken(tokenValue)
-		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("token", tokenHash)); err != nil {
-			return errors.WithMessage(err, "failed to invalidate PAT cache by token after save")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("token", hashToken(tokenValue)))
 	}
 
-	if err := r.wrapper.InvalidatePattern(ctx, "pat:id:*"); err != nil {
-		return errors.WithMessage(err, "failed to invalidate PAT find pattern cache after save")
-	}
-
-	if err := r.wrapper.InvalidatePattern(ctx, "pat:find:*"); err != nil {
-		return errors.WithMessage(err, "failed to invalidate PAT find pattern cache after save")
-	}
+	r.wrapper.InvalidatePatternBestEffort(ctx, "pat:id:*")
+	r.wrapper.InvalidatePatternBestEffort(ctx, "pat:find:*")
 
 	return nil
 }
@@ -152,23 +134,14 @@ func (r *PersonalAccessTokenRepository) Delete(ctx context.Context, id uint) err
 		return errors.WithMessage(err, "failed to delete PAT")
 	}
 
-	// Invalidate cache
+	// Write committed; invalidation is best-effort so a cache hiccup does not
+	// report the applied delete as failed. Stale entries expire with TTL.
 	if findErr == nil && len(tokens) > 0 && tokens[0].Token != "" {
-		tokenHash := hashToken(tokens[0].Token)
-		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("token", tokenHash)); err != nil {
-			return errors.WithMessage(err, "failed to invalidate PAT cache by token after delete")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("token", hashToken(tokens[0].Token)))
 	}
 
-	key := r.keyBuilder.BuildKey("id", id)
-
-	if err = r.wrapper.Invalidate(ctx, key); err != nil {
-		return errors.WithMessage(err, "failed to invalidate PAT cache by ID after delete")
-	}
-
-	if err = r.wrapper.InvalidatePattern(ctx, "pat:find:*"); err != nil {
-		return errors.WithMessage(err, "failed to invalidate PAT find pattern cache after delete")
-	}
+	r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", id))
+	r.wrapper.InvalidatePatternBestEffort(ctx, "pat:find:*")
 
 	return nil
 }
@@ -190,8 +163,10 @@ func (r *PersonalAccessTokenRepository) UpdateLastUsedAt(
 	cachedData, err := cache.GetTyped[[]domain.PersonalAccessToken](ctx, r.cache, key)
 	if err == nil && len(cachedData) == 1 {
 		cachedData[0].LastUsedAt = &lastUsedAt
+		// Best-effort cache refresh: the DB write already succeeded, so a cache
+		// write failure must not fail the request.
 		if setErr := r.cache.Set(ctx, key, cachedData, cache.WithExpiration(r.wrapper.config.TTL)); setErr != nil {
-			return errors.WithMessage(setErr, "failed to update cached PAT last used at")
+			slog.WarnContext(ctx, "failed to update cached PAT last used at", "error", setErr)
 		}
 	}
 

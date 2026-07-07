@@ -3,6 +3,7 @@ package putprofile
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/filters"
@@ -31,7 +32,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	session := auth.SessionFromContext(ctx)
-	if session == nil {
+	if !session.IsAuthenticated() {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.New("user not authenticated"),
 			http.StatusUnauthorized,
@@ -113,6 +114,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		user.Password = hashedPassword
+		user.SetPasswordChangedAt(new(time.Now()))
 	}
 
 	if input.Name != nil {

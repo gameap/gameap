@@ -231,6 +231,28 @@ func TestReaperSweep(t *testing.T) {
 	}
 }
 
+type panicTaskRepo struct{}
+
+func (panicTaskRepo) Find(
+	context.Context, *filters.FindDaemonTask, []filters.Sorting, *filters.Pagination,
+) ([]domain.DaemonTask, error) {
+	panic("reaper dependency exploded")
+}
+
+func TestReaper_safeSweep_recoversPanic(t *testing.T) {
+	reaper := NewReaper(
+		panicTaskRepo{},
+		&fakeRegistry{connected: make(map[uint64]struct{})},
+		&fakeReconciler{},
+		Options{},
+		slog.New(slog.DiscardHandler),
+	)
+
+	assert.NotPanics(t, func() {
+		reaper.safeSweep(context.Background())
+	}, "a panic in Sweep must be recovered so the reaper loop survives")
+}
+
 func TestReaperOptionsApplyDefaults(t *testing.T) {
 	o := Options{}
 	o.applyDefaults()

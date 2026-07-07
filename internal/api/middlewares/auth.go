@@ -460,6 +460,10 @@ func (m *AuthMiddleware) processPersonalAccessToken(ctx context.Context, token s
 
 	user := &users[0]
 
+	if err := rejectPATIfCreatedBeforePasswordChange(user, dbToken); err != nil {
+		return nil, err
+	}
+
 	return &auth.Session{
 		ID:    xid.New().String(),
 		Login: user.Login,
@@ -467,6 +471,46 @@ func (m *AuthMiddleware) processPersonalAccessToken(ctx context.Context, token s
 		User:  user,
 		Token: dbToken,
 	}, nil
+}
+
+// rejectIfIssuedBeforePasswordChange fails a session token whose iat precedes
+// the user's recorded password-change time. Absent iat or absent change time
+// means "no cutoff to enforce" and the token passes.
+func rejectIfIssuedBeforePasswordChange(user *domain.User, claims auth.Claims) error {
+	cutoff := user.PasswordChangedAt()
+	if cutoff == nil {
+		return nil
+	}
+
+	issuedAt, err := claims.GetIssuedAt()
+	if err != nil || issuedAt == nil {
+		// No usable iat: the token already passed signature validation, so a
+		// missing/unreadable timestamp must not itself reject it — skip the
+		// cutoff rather than failing authentication.
+		return nil //nolint:nilerr // intentional fail-open on the cutoff, not on auth
+	}
+
+	if issuedAt.Before(*cutoff) {
+		return api.WrapHTTPError(errInvalidOrExpiredToken, http.StatusUnauthorized)
+	}
+
+	return nil
+}
+
+// rejectPATIfCreatedBeforePasswordChange fails a personal access token created
+// before the user's last password change, so a change also invalidates
+// pre-existing PATs. A token or user without the relevant timestamp passes.
+func rejectPATIfCreatedBeforePasswordChange(user *domain.User, token *domain.PersonalAccessToken) error {
+	cutoff := user.PasswordChangedAt()
+	if cutoff == nil || token.CreatedAt == nil {
+		return nil
+	}
+
+	if token.CreatedAt.Before(*cutoff) {
+		return api.WrapHTTPError(errInvalidPAT, http.StatusUnauthorized)
+	}
+
+	return nil
 }
 
 // processShortLivedToken validates a single-use short-lived token. The cache
@@ -594,6 +638,14 @@ func (m *AuthMiddleware) processUserAuthToken(ctx context.Context, token string)
 	}
 
 	user := &users[0]
+
+	// Reject session tokens minted before the user's last password change so a
+	// password change (or admin reset) invalidates every previously-issued
+	// session. A token with no iat, or a user with no recorded change, is left
+	// untouched (backward compatible with tokens predating this check).
+	if err := rejectIfIssuedBeforePasswordChange(user, claims); err != nil {
+		return nil, err
+	}
 
 	// A token minted with ScopeMFAEnrollment authenticates the user but is
 	// confined to the 2FA-enrollment endpoints by MFAEnrollmentScopeMiddleware.

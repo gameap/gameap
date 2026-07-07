@@ -572,6 +572,143 @@ func TestRBAC_CanAnyForEntity(t *testing.T) {
 	}
 }
 
+func TestRBAC_grantsAbilityForEntity(t *testing.T) {
+	serverType := domain.EntityTypeServer
+
+	allowAllServers := domain.Permission{
+		Ability: &domain.Ability{Name: domain.AbilityNameView, EntityType: new(serverType)},
+	}
+	forbidServer5 := domain.Permission{
+		Forbidden: true,
+		Ability: &domain.Ability{
+			Name: domain.AbilityNameView, EntityType: new(serverType), EntityID: new(uint(5)),
+		},
+	}
+	allowServer5 := domain.Permission{
+		Ability: &domain.Ability{
+			Name: domain.AbilityNameView, EntityType: new(serverType), EntityID: new(uint(5)),
+		},
+	}
+	globalAllow := domain.Permission{Ability: &domain.Ability{Name: domain.AbilityNameView}}
+	globalForbid := domain.Permission{Forbidden: true, Ability: &domain.Ability{Name: domain.AbilityNameView}}
+
+	tests := []struct {
+		name        string
+		permissions []domain.Permission
+		entityID    uint
+		want        bool
+	}{
+		{
+			name:        "entity_type_allow_with_specific_forbid_denies_that_entity",
+			permissions: []domain.Permission{allowAllServers, forbidServer5},
+			entityID:    5,
+			want:        false,
+		},
+		{
+			name:        "forbid_wins_regardless_of_slice_order",
+			permissions: []domain.Permission{forbidServer5, allowAllServers},
+			entityID:    5,
+			want:        false,
+		},
+		{
+			name:        "specific_forbid_does_not_leak_to_sibling_entity",
+			permissions: []domain.Permission{allowAllServers, forbidServer5},
+			entityID:    7,
+			want:        true,
+		},
+		{
+			name:        "specific_forbid_does_not_leak_to_sibling_entity_reversed_order",
+			permissions: []domain.Permission{forbidServer5, allowAllServers},
+			entityID:    7,
+			want:        true,
+		},
+		{
+			name:        "entity_type_allow_grants_matching_entity",
+			permissions: []domain.Permission{allowAllServers},
+			entityID:    5,
+			want:        true,
+		},
+		{
+			name:        "lone_forbid_for_other_entity_does_not_grant",
+			permissions: []domain.Permission{forbidServer5},
+			entityID:    7,
+			want:        false,
+		},
+		{
+			name:        "specific_allow_grants_only_that_entity",
+			permissions: []domain.Permission{allowServer5},
+			entityID:    5,
+			want:        true,
+		},
+		{
+			name:        "specific_allow_does_not_grant_other_entity",
+			permissions: []domain.Permission{allowServer5},
+			entityID:    9,
+			want:        false,
+		},
+		{
+			name:        "global_allow_grants_any_entity",
+			permissions: []domain.Permission{globalAllow},
+			entityID:    5,
+			want:        true,
+		},
+		{
+			name:        "global_forbid_denies_any_entity",
+			permissions: []domain.Permission{globalAllow, globalForbid},
+			entityID:    5,
+			want:        false,
+		},
+		{
+			name:        "no_permissions_denies",
+			permissions: nil,
+			entityID:    5,
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := grantsAbilityForEntity(tt.permissions, serverType, tt.entityID)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRBAC_EntityForbidSemantics_endToEnd(t *testing.T) {
+	ctx := context.Background()
+
+	user := domain.User{ID: 40, Login: "scoped"}
+
+	abilities := []domain.Ability{
+		{ID: 400, Name: domain.AbilityNameView, EntityType: lo.ToPtr(domain.EntityTypeServer)},
+		{ID: 401, Name: domain.AbilityNameView, EntityType: lo.ToPtr(domain.EntityTypeServer), EntityID: new(uint(5))},
+	}
+	permissions := []domain.Permission{
+		{AbilityID: 400, EntityID: &user.ID, EntityType: lo.ToPtr(domain.EntityTypeUser)},
+		{AbilityID: 401, EntityID: &user.ID, EntityType: lo.ToPtr(domain.EntityTypeUser), Forbidden: true},
+	}
+
+	rbacService := prepareRBACService(t, nil, nil, abilities, permissions)
+
+	view := []domain.AbilityName{domain.AbilityNameView}
+
+	forbiddenEntity, err := rbacService.CanForEntity(ctx, user.ID, domain.EntityTypeServer, 5, view)
+	require.NoError(t, err)
+	assert.False(t, forbiddenEntity, "forbid on server 5 must deny that server")
+
+	siblingEntity, err := rbacService.CanForEntity(ctx, user.ID, domain.EntityTypeServer, 7, view)
+	require.NoError(t, err)
+	assert.True(t, siblingEntity, "forbid on server 5 must NOT leak to server 7 (M1 over-deny)")
+
+	anyForbidden, err := rbacService.CanAnyForEntity(ctx, user.ID, domain.EntityTypeServer, 5, view)
+	require.NoError(t, err)
+	assert.False(t, anyForbidden, "CanAnyForEntity must honour the forbid on server 5 (M2 fail-open)")
+
+	anySibling, err := rbacService.CanAnyForEntity(ctx, user.ID, domain.EntityTypeServer, 7, view)
+	require.NoError(t, err)
+	assert.True(t, anySibling, "CanAnyForEntity must allow server 7")
+}
+
 func TestRBAC_GetRoles(t *testing.T) {
 	ctx := context.Background()
 	rbacService := setupRBAC(t)

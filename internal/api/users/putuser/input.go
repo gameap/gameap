@@ -3,6 +3,7 @@ package putuser
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
@@ -96,6 +97,7 @@ func (input *updateUserInput) Apply(user *domain.User) error {
 		}
 
 		user.Password = hashedPassword
+		user.SetPasswordChangedAt(new(time.Now()))
 	}
 
 	return nil

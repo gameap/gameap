@@ -324,3 +324,34 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 		}
 	})
 }
+
+func TestMetricsHandler_pollWaiterExpires(t *testing.T) {
+	handler := NewMetricsHandler(memory.New(), nil, slog.Default())
+	handler.SetWaiterTTL(20 * time.Millisecond)
+
+	handler.RegisterPollWaiter("req-1", 42)
+
+	handler.waitersMu.Lock()
+	require.Len(t, handler.waiters, 1, "waiter must be registered")
+	handler.waitersMu.Unlock()
+
+	require.Eventually(t, func() bool {
+		handler.waitersMu.Lock()
+		defer handler.waitersMu.Unlock()
+
+		return len(handler.waiters) == 0
+	}, time.Second, 5*time.Millisecond, "unanswered poll waiter must be reaped by its TTL")
+}
+
+func TestMetricsHandler_responseStopsReaper(t *testing.T) {
+	handler := NewMetricsHandler(memory.New(), nil, slog.Default())
+	handler.SetWaiterTTL(20 * time.Millisecond)
+
+	handler.RegisterPollWaiter("req-1", 42)
+	handler.CancelWaiter("req-1")
+
+	handler.waitersMu.Lock()
+	got := len(handler.waiters)
+	handler.waitersMu.Unlock()
+	assert.Equal(t, 0, got, "cancel must remove the waiter")
+}

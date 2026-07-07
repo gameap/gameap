@@ -58,7 +58,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Contains(t, resp, "#!/bin/bash")
 				assert.Contains(t, resp, "set -euo pipefail")
 				assert.Contains(t, resp, "trap cleanup EXIT")
-				assert.Contains(t, resp, "CONNECT_URL=\"grpc://panel.example.com:31718/AbCdEfGh1234567890AbCdEfGh123456\"")
+				// Shell-escaped (single-quoted) so a header-derived host cannot inject commands.
+				assert.Contains(t, resp, "CONNECT_URL='grpc://panel.example.com:31718/AbCdEfGh1234567890AbCdEfGh123456'")
 				assert.Contains(t, resp, "$(id -u)")
 				assert.Contains(t, resp, "command -v gameapctl")
 				assert.Contains(t, resp, "gameapctl self-update")

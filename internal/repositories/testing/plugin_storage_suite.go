@@ -397,6 +397,19 @@ func (s *PluginStorageRepositorySuite) TestPluginStorageRepositoryDeleteByPlugin
 		assert.Empty(t, results)
 	})
 
+	s.T().Run("delete_by_empty_filter_is_rejected", func(t *testing.T) {
+		entry := &domain.PluginStorageEntry{PluginID: 600, Key: "keep", Payload: []byte(`{}`)}
+		require.NoError(t, s.repo.Save(ctx, entry))
+
+		// An empty filter must not wipe the table.
+		err := s.repo.DeleteByFilter(ctx, &filters.FindPluginStorage{})
+		require.Error(t, err, "an all-empty filter must be rejected, not delete everything")
+
+		results, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{600}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1, "the entry must survive a rejected empty-filter delete")
+	})
+
 	s.T().Run("delete_preserves_other_plugins", func(t *testing.T) {
 		pluginID1 := uint64(500)
 		pluginID2 := uint64(501)

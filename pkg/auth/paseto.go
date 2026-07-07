@@ -104,6 +104,15 @@ func (c pasetoClaims) GetExpirationTime() (*time.Time, error) {
 	return &exp, nil
 }
 
+func (c pasetoClaims) GetIssuedAt() (*time.Time, error) {
+	iat, err := c.token.GetIssuedAt()
+	if err != nil {
+		return nil, err //nolint:wrapcheck // surfacing library error verbatim
+	}
+
+	return &iat, nil
+}
+
 func (c pasetoClaims) GetScope() (string, error) {
 	// GetString errors when the "scope" claim is absent (or not a string);
 	// for us that simply means an ordinary, unscoped session.

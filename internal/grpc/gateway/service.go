@@ -202,6 +202,7 @@ func (s *Service) Connect(stream proto.DaemonGateway_ConnectServer) error {
 		reg.Capabilities,
 		cancel,
 	)
+	sess.SetLogger(s.logger)
 
 	if err := s.registry.Register(ctx, sess); err != nil {
 		cancel()
@@ -210,7 +211,8 @@ func (s *Service) Connect(stream proto.DaemonGateway_ConnectServer) error {
 	}
 
 	defer func() {
-		_ = s.registry.Unregister(context.Background(), reg.NodeId)
+		_ = s.registry.UnregisterSession(context.Background(), sess)
+		sess.Close()
 	}()
 
 	ack, err := s.buildRegisterAck(ctx, reg)

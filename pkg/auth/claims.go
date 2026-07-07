@@ -18,4 +18,8 @@ type Claims interface {
 	// carries no scope (an ordinary, unrestricted session). An error is
 	// returned only when the claims are structurally unreadable.
 	GetScope() (string, error)
+	// GetIssuedAt returns the token's `iat` claim, or nil when absent. It is
+	// compared against the user's password-changed timestamp so tokens minted
+	// before a password change are rejected.
+	GetIssuedAt() (*time.Time, error)
 }

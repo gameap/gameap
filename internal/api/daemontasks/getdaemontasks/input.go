@@ -2,7 +2,6 @@ package getdaemontasks
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/domain"
@@ -68,40 +67,14 @@ func readInput(r *http.Request) (*input, error) {
 	}
 	result.Sort = sortStr
 
-	// Parse pagination following JSON API spec: page[number] and page[size]
-	pageNumberStr, err := queryReader.ReadString("page[number]")
+	// Parse pagination following JSON API spec: page[number] and page[size],
+	// with page[size] clamped to base.MaxPageSize.
+	pageNumber, pageSize, err := base.ReadPage(queryReader)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to read page[number]")
+		return nil, err
 	}
-	if pageNumberStr != "" {
-		pageNumber, err := strconv.Atoi(pageNumberStr)
-		if err != nil {
-			return nil, errors.WithMessage(err, "invalid page[number] value")
-		}
-		if pageNumber < 1 {
-			return nil, errors.New("page[number] must be positive")
-		}
-		result.PageNumber = pageNumber
-	} else {
-		result.PageNumber = 1 // Default to page 1
-	}
-
-	pageSizeStr, err := queryReader.ReadString("page[size]")
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to read page[size]")
-	}
-	if pageSizeStr != "" {
-		pageSize, err := strconv.Atoi(pageSizeStr)
-		if err != nil {
-			return nil, errors.WithMessage(err, "invalid page[size] value")
-		}
-		if pageSize < 1 {
-			return nil, errors.New("page[size] must be positive")
-		}
-		result.PageSize = pageSize
-	} else {
-		result.PageSize = base.DefaultPageSize
-	}
+	result.PageNumber = pageNumber
+	result.PageSize = pageSize
 
 	return result, nil
 }

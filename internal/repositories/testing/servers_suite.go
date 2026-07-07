@@ -513,6 +513,20 @@ func (s *ServerRepositorySuite) TestServerRepositoryFindUserServers() {
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
+
+	s.T().Run("nil_filter_excludes_soft_deleted", func(t *testing.T) {
+		require.NoError(t, s.repo.SoftDelete(ctx, server1.ID))
+
+		results, err := s.repo.FindUserServers(ctx, user1ID, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1, "a nil filter must exclude the soft-deleted server")
+		assert.Equal(t, server2.ID, results[0].ID)
+
+		withDeleted := &filters.FindServer{WithDeleted: true}
+		all, err := s.repo.FindUserServers(ctx, user1ID, withDeleted, nil, nil)
+		require.NoError(t, err)
+		assert.Len(t, all, 2, "WithDeleted must still return the soft-deleted server")
+	})
 }
 
 func (s *ServerRepositorySuite) TestServerRepositorySaveBulk() {

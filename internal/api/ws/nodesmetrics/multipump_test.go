@@ -315,6 +315,8 @@ func (h *fakeHub) GetHistory(
 	return nil, nil
 }
 
+func (h *fakeHub) Stop() {}
+
 func (h *fakeHub) publish(nodeID uint64, resp *proto.MetricsResponse) {
 	h.mu.Lock()
 	sub, ok := h.subs[nodeID]

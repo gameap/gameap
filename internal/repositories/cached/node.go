@@ -47,17 +47,11 @@ func (r *NodeRepository) FindAll(
 ) ([]domain.Node, error) {
 	key := r.keyBuilder.BuildKey("findall", order, pagination)
 
-	_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+	data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.Node, error) {
 		return r.inner.FindAll(ctx, order, pagination)
 	})
-
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get or set cache for FindAll nodes")
-	}
-
-	data, err := cache.GetTyped[[]domain.Node](ctx, r.cache, key)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get typed cached data for FindAll nodes")
+		return nil, errors.WithMessage(err, "failed to load FindAll nodes")
 	}
 
 	return data, nil
@@ -74,17 +68,11 @@ func (r *NodeRepository) Find(
 	if filter != nil && filter.GDaemonAPIKey != nil {
 		key := r.keyBuilder.BuildKey("apikey", *filter.GDaemonAPIKey)
 
-		_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+		data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.Node, error) {
 			return r.inner.Find(ctx, filter, order, pagination)
 		})
-
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get or set cache for Find node by API key")
-		}
-
-		data, err := cache.GetTyped[[]domain.Node](ctx, r.cache, key)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get typed cached data for Find node by API key")
+			return nil, errors.WithMessage(err, "failed to load Find node by API key")
 		}
 
 		return data, nil
@@ -94,17 +82,11 @@ func (r *NodeRepository) Find(
 	if filter != nil && filter.GDaemonAPIToken != nil {
 		key := r.keyBuilder.BuildKey("apitoken", *filter.GDaemonAPIToken)
 
-		_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+		data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.Node, error) {
 			return r.inner.Find(ctx, filter, order, pagination)
 		})
-
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get or set cache for Find node by API token")
-		}
-
-		data, err := cache.GetTyped[[]domain.Node](ctx, r.cache, key)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get typed cached data for Find node by API token")
+			return nil, errors.WithMessage(err, "failed to load Find node by API token")
 		}
 
 		return data, nil
@@ -112,17 +94,11 @@ func (r *NodeRepository) Find(
 
 	key := r.keyBuilder.BuildKey("find", filter, order, pagination)
 
-	_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+	data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.Node, error) {
 		return r.inner.Find(ctx, filter, order, pagination)
 	})
-
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get or set cache for Find nodes")
-	}
-
-	data, err := cache.GetTyped[[]domain.Node](ctx, r.cache, key)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get typed cached data for Find nodes")
+		return nil, errors.WithMessage(err, "failed to load Find nodes")
 	}
 
 	return data, nil
@@ -144,23 +120,17 @@ func (r *NodeRepository) Save(ctx context.Context, node *domain.Node) error {
 		return errors.WithMessage(err, "failed to save node")
 	}
 
-	// Invalidate cache for this node's API key
+	// The write is committed; invalidation is best-effort (a cache hiccup must
+	// not report the applied write as failed). Stale entries expire with TTL.
 	if apiKey != "" {
-		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apikey", apiKey)); err != nil {
-			return errors.WithMessage(err, "failed to invalidate node cache by API key after save")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("apikey", apiKey))
 	}
 
-	// Invalidate cache for this node's API token
 	if apiToken != "" {
-		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apitoken", apiToken)); err != nil {
-			return errors.WithMessage(err, "failed to invalidate node cache by API token after save")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("apitoken", apiToken))
 	}
 
-	if err := r.wrapper.InvalidatePattern(ctx, "node:find*"); err != nil {
-		return errors.WithMessage(err, "failed to invalidate node find pattern cache after save")
-	}
+	r.wrapper.InvalidatePatternBestEffort(ctx, "node:find*")
 
 	return nil
 }
@@ -176,13 +146,8 @@ func (r *NodeRepository) Delete(ctx context.Context, id uint) error {
 		return errors.WithMessage(err, "failed to delete node")
 	}
 
-	if err := r.invalidateNodeCache(ctx, findErr, nodes); err != nil {
-		return err
-	}
-
-	if err := r.wrapper.InvalidatePattern(ctx, "node:find*"); err != nil {
-		return errors.WithMessage(err, "failed to invalidate node find pattern cache after delete")
-	}
+	r.invalidateNodeCache(ctx, findErr, nodes)
+	r.wrapper.InvalidatePatternBestEffort(ctx, "node:find*")
 
 	return nil
 }
@@ -207,45 +172,25 @@ func (r *NodeRepository) UpdateGDaemonAPIToken(
 	}
 
 	if oldToken != "" && oldToken != hashedToken {
-		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apitoken", oldToken)); err != nil {
-			return errors.WithMessage(err, "failed to invalidate node cache by previous API token after update")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("apitoken", oldToken))
 	}
 
-	if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apitoken", hashedToken)); err != nil {
-		return errors.WithMessage(err, "failed to invalidate node cache by API token after update")
-	}
-
-	if err := r.wrapper.InvalidatePattern(ctx, "node:find*"); err != nil {
-		return errors.WithMessage(err, "failed to invalidate node find pattern cache after update")
-	}
+	r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("apitoken", hashedToken))
+	r.wrapper.InvalidatePatternBestEffort(ctx, "node:find*")
 
 	return nil
 }
 
-func (r *NodeRepository) invalidateNodeCache(ctx context.Context, findErr error, nodes []domain.Node) error {
-	if findErr != nil {
-		// Unable to find node for cache invalidation, but this shouldn't fail the delete
-		return nil //nolint:nilerr
-	}
-
-	if len(nodes) == 0 {
-		return nil
+func (r *NodeRepository) invalidateNodeCache(ctx context.Context, findErr error, nodes []domain.Node) {
+	if findErr != nil || len(nodes) == 0 {
+		return
 	}
 
 	node := nodes[0]
 	if node.GdaemonAPIKey != "" {
-		err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apikey", node.GdaemonAPIKey))
-		if err != nil {
-			return errors.WithMessage(err, "failed to invalidate node cache by API key after delete")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("apikey", node.GdaemonAPIKey))
 	}
 	if node.GdaemonAPIToken != nil && *node.GdaemonAPIToken != "" {
-		err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("apitoken", *node.GdaemonAPIToken))
-		if err != nil {
-			return errors.WithMessage(err, "failed to invalidate node cache by API token after delete")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("apitoken", *node.GdaemonAPIToken))
 	}
-
-	return nil
 }

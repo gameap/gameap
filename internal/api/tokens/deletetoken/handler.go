@@ -101,9 +101,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	token := tokens[0]
 
 	if token.TokenableID != session.User.ID {
+		// Return 404 (not 403) for another user's token so the response cannot
+		// be used to enumerate which token IDs exist across all users.
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.New("access denied"),
-			http.StatusForbidden,
+			errors.New("token not found"),
+			http.StatusNotFound,
 		))
 
 		return

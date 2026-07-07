@@ -113,6 +113,80 @@ func TestSession_Send_concurrent(t *testing.T) {
 	assert.Len(t, seen, goroutines, "each goroutine's message must be delivered without loss")
 }
 
+func TestSession_Enqueue_deliversToStreamAsync(t *testing.T) {
+	// ARRANGE
+	stream := newStubStream(context.Background())
+	s := NewSession(1, stream, "v", nil, nil)
+	t.Cleanup(s.Close)
+
+	// ACT
+	require.NoError(t, s.Enqueue(&proto.GatewayMessage{RequestId: "q-1"}))
+
+	// ASSERT: the worker delivers it asynchronously.
+	require.Eventually(t, func() bool {
+		return len(stream.Sent()) == 1
+	}, time.Second, 5*time.Millisecond, "queued message must reach the stream")
+	assert.Equal(t, "q-1", stream.Sent()[0].RequestId)
+}
+
+func TestSession_Enqueue_afterClose_returnsClosed(t *testing.T) {
+	// ARRANGE
+	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
+	s.Close()
+
+	// ACT
+	err := s.Enqueue(&proto.GatewayMessage{})
+
+	// ASSERT
+	require.ErrorIs(t, err, ErrSessionClosed)
+}
+
+// blockingStream blocks every Send until release is closed, simulating a
+// backpressured / stalled daemon stream.
+type blockingStream struct {
+	*stubStream
+
+	release chan struct{}
+}
+
+func (b *blockingStream) Send(m *proto.GatewayMessage) error {
+	<-b.release
+
+	return b.stubStream.Send(m)
+}
+
+func TestSession_Enqueue_stalledStream_doesNotBlockCaller(t *testing.T) {
+	// ARRANGE: a stream whose Send blocks indefinitely. Enqueue must never
+	// block the caller (the shared pubsub goroutine) on it — this is the whole
+	// point of the outbound queue.
+	stream := &blockingStream{stubStream: newStubStream(context.Background()), release: make(chan struct{})}
+	s := NewSession(1, stream, "v", nil, nil)
+	t.Cleanup(func() {
+		close(stream.release)
+		s.Close()
+	})
+
+	// ACT: enqueue well past the worker's in-flight message + buffer capacity.
+	done := make(chan struct{})
+	var fullErrs int
+	go func() {
+		defer close(done)
+		for range outboundBufferSize + 8 {
+			if errors.Is(s.Enqueue(&proto.GatewayMessage{}), ErrOutboundFull) {
+				fullErrs++
+			}
+		}
+	}()
+
+	// ASSERT: all enqueues return promptly despite the permanently stalled Send.
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Enqueue blocked on a stalled stream — head-of-line blocking not fixed")
+	}
+	assert.Positive(t, fullErrs, "a saturated queue must surface ErrOutboundFull, not block")
+}
+
 func TestSession_UpdateLastPing_advancesTime(t *testing.T) {
 	// ARRANGE
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
@@ -272,4 +346,33 @@ func TestSession_Cancel_nilCancel_noPanic(t *testing.T) {
 
 	// ACT + ASSERT
 	assert.NotPanics(t, s.Cancel, "Cancel with nil cancel func must not panic")
+}
+
+func TestSession_Close_failsPendingRequests(t *testing.T) {
+	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
+	ch := s.RegisterPendingRequest("req-1")
+
+	// ACT: closing the session (daemon disconnected) must unblock the waiter.
+	s.Close()
+
+	select {
+	case msg, open := <-ch:
+		assert.False(t, open, "pending request channel must be closed on session Close")
+		assert.Nil(t, msg, "no response is delivered when the session dies")
+	case <-time.After(time.Second):
+		t.Fatal("Close must unblock in-flight request waiters, not leave them hanging")
+	}
+
+	assert.False(t, s.ResolvePendingRequest("req-1", &proto.DaemonMessage{}),
+		"the request must have been removed from the pending map")
+}
+
+func TestSession_Close_isIdempotent(t *testing.T) {
+	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
+	s.RegisterPendingRequest("req-1")
+
+	assert.NotPanics(t, func() {
+		s.Close()
+		s.Close()
+	}, "Close must be safe to call more than once")
 }

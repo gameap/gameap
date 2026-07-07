@@ -17,8 +17,12 @@ import (
 	"github.com/samber/lo"
 
 	sq "github.com/Masterminds/squirrel"
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 )
+
+// mysqlErrDupEntry is the MySQL error number for a duplicate unique/primary key.
+const mysqlErrDupEntry = 1062
 
 var wrappedServerTaskExecutionFields = lo.Map(
 	base.ServerTaskExecutionFields,
@@ -57,7 +61,11 @@ func (r *ServerTaskExecutionRepository) Create(
 
 	executionUUID := idgen.XIDToUUID(exec.ExecutionID).String()
 
-	query := "INSERT IGNORE INTO " + base.ServerTaskExecutionsTable + " (" +
+	// A plain INSERT (not INSERT IGNORE): a duplicate execution_id is the
+	// idempotent no-op path, but every other error (FK violation, truncation,
+	// bad value) must surface instead of being silently swallowed. This matches
+	// the Postgres ON CONFLICT (execution_id) DO NOTHING behaviour.
+	query := "INSERT INTO " + base.ServerTaskExecutionsTable + " (" +
 		"`execution_id`, `server_task_id`, `server_id`, `node_id`, `command`," +
 		"`task_version`, `status`, `exit_code`, `error_message`," +
 		"`started_at`, `finished_at`, `duration_ms`," +
@@ -73,12 +81,13 @@ func (r *ServerTaskExecutionRepository) Create(
 		exec.CreatedAt, exec.UpdatedAt,
 	)
 	if err != nil {
-		return errors.WithMessage(err, "failed to insert execution")
-	}
+		var mysqlErr *mysqldriver.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == mysqlErrDupEntry {
+			// Duplicate execution_id — idempotent create.
+			return nil
+		}
 
-	if affected, _ := res.RowsAffected(); affected == 0 {
-		// INSERT IGNORE skipped a duplicate — idempotent path.
-		return nil
+		return errors.WithMessage(err, "failed to insert execution")
 	}
 
 	lastID, err := res.LastInsertId()

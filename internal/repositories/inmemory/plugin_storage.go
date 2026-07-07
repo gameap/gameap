@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 )
@@ -146,8 +148,12 @@ func (r *PluginStorageRepository) DeleteByPlugin(_ context.Context, pluginID uin
 }
 
 func (r *PluginStorageRepository) DeleteByFilter(_ context.Context, filter *filters.FindPluginStorage) error {
-	if filter == nil {
-		return nil
+	// Reject a nil OR an all-empty filter to match the SQL repositories: an
+	// empty filter would otherwise delete every entry.
+	if filter == nil ||
+		(len(filter.IDs) == 0 && len(filter.PluginIDs) == 0 &&
+			len(filter.Keys) == 0 && len(filter.EntityPairs) == 0) {
+		return errors.New("a non-empty filter is required for DeleteByFilter")
 	}
 
 	r.mu.Lock()

@@ -206,8 +206,12 @@ func (r *PluginStorageRepository) DeleteByPlugin(ctx context.Context, pluginID u
 }
 
 func (r *PluginStorageRepository) DeleteByFilter(ctx context.Context, filter *filters.FindPluginStorage) error {
-	if filter == nil {
-		return errors.New("filter is required for DeleteByFilter")
+	// Reject a nil OR an all-empty filter: an empty filter renders a WHERE-less
+	// DELETE that would wipe the whole table.
+	if filter == nil ||
+		(len(filter.IDs) == 0 && len(filter.PluginIDs) == 0 &&
+			len(filter.Keys) == 0 && len(filter.EntityPairs) == 0) {
+		return errors.New("a non-empty filter is required for DeleteByFilter")
 	}
 
 	query, args, err := sq.Delete(base.PluginStorageTable).

@@ -114,10 +114,11 @@ func (c *PostgreSQL) Get(ctx context.Context, key string) (any, error) {
 		return nil, fmt.Errorf("failed to query row: %w", err)
 	}
 
-	// Check expiration
+	// Treat an expired row as absent. We deliberately do NOT delete it inline:
+	// that turns every read of an expired key into a write (amplified under a
+	// stampede of concurrent readers). The background CleanupExpired sweep
+	// reclaims the row.
 	if expiresAt.Valid && expiresAt.Time.Before(time.Now()) {
-		_ = c.Delete(ctx, key)
-
 		return nil, ErrNotFound
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -428,5 +429,15 @@ func truncateTail(s string, maxBytes int) string {
 		return s
 	}
 
-	return s[len(s)-maxBytes:]
+	tail := s[len(s)-maxBytes:]
+
+	// The byte cut may land inside a multi-byte rune. Drop the leading partial
+	// rune so the result is always valid UTF-8 — a Postgres text column rejects
+	// invalid byte sequences, which would otherwise abort the finish-update and
+	// leave the execution stuck in "running".
+	for len(tail) > 0 && !utf8.RuneStart(tail[0]) {
+		tail = tail[1:]
+	}
+
+	return tail
 }

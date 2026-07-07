@@ -71,99 +71,54 @@ func (r *UserRepository) Find(
 		return r.inner.Find(ctx, filter, order, pagination)
 	}
 
-	if len(filter.IDs) == 1 {
-		// Special case: if searching by single ID, cache it with dedicated key
-		key := r.keyBuilder.BuildKey("id", filter.IDs[0])
-
-		_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
-			return r.inner.Find(ctx, filter, order, pagination)
-		})
-
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get or set cache for Find user by ID")
-		}
-
-		result, err := cache.GetTyped[[]domain.User](ctx, r.cache, key)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get typed cached data for Find user by ID")
-		}
-
-		return result, nil
+	load := func() ([]domain.User, error) {
+		return r.inner.Find(ctx, filter, order, pagination)
 	}
 
-	if len(filter.Logins) == 1 {
-		// Special case: if searching by single Login, cache it with dedicated key
-		key := r.keyBuilder.BuildKey("login", filter.Logins[0])
+	switch {
+	case len(filter.IDs) == 1:
+		return r.cachedFind(ctx, r.keyBuilder.BuildKey("id", filter.IDs[0]), load)
+	case len(filter.Logins) == 1:
+		return r.cachedFind(ctx, r.keyBuilder.BuildKey("login", filter.Logins[0]), load)
+	case len(filter.Emails) == 1:
+		return r.cachedFind(ctx, r.keyBuilder.BuildKey("email", filter.Emails[0]), load)
+	default:
+		// Fallback: do not cache
+		return load()
+	}
+}
 
-		_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
-			return r.inner.Find(ctx, filter, order, pagination)
-		})
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get or set cache for Find user by Login")
-		}
-
-		result, err := cache.GetTyped[[]domain.User](ctx, r.cache, key)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get typed cached data for Find user by Login")
-		}
-
-		return result, nil
+func (r *UserRepository) cachedFind(
+	ctx context.Context, key string, load func() ([]domain.User, error),
+) ([]domain.User, error) {
+	data, err := GetOrLoad(ctx, r.wrapper, key, load)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to load cached user find")
 	}
 
-	if len(filter.Emails) == 1 {
-		// Special case: if searching by single Email, cache it with dedicated key
-		key := r.keyBuilder.BuildKey("email", filter.Emails[0])
-
-		_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
-			return r.inner.Find(ctx, filter, order, pagination)
-		})
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get or set cache for Find user by Email")
-		}
-
-		result, err := cache.GetTyped[[]domain.User](ctx, r.cache, key)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get typed cached data for Find user by Email")
-		}
-
-		return result, nil
-	}
-
-	// Fallback: do not cache
-	return r.inner.Find(ctx, filter, order, pagination)
+	return data, nil
 }
 
 // Save creates or updates a user and invalidates cache.
 func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
-	// Store user login and email before save (for cache invalidation)
 	err := r.inner.Save(ctx, user)
 	if err != nil {
 		return errors.WithMessage(err, "failed to save user")
 	}
 
+	// Write committed; invalidation is best-effort so a cache hiccup does not
+	// report the applied write as failed. Stale entries expire with TTL.
 	if user.ID != 0 {
-		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("id", user.ID)); err != nil {
-			return errors.WithMessage(err, "failed to invalidate user cache by ID after save")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", user.ID))
 	}
-
-	// Invalidate cache for this user's login
 	if user.Login != "" {
-		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("login", user.Login)); err != nil {
-			return errors.WithMessage(err, "failed to invalidate user cache by login after save")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("login", user.Login))
 	}
-
-	// Invalidate cache for this user's email
 	if user.Email != "" {
-		if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("email", user.Email)); err != nil {
-			return errors.WithMessage(err, "failed to invalidate user cache by email after save")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("email", user.Email))
 	}
 
-	if err := r.wrapper.InvalidatePattern(ctx, "user:find*"); err != nil {
-		return errors.WithMessage(err, "failed to invalidate user find pattern cache after save")
-	}
+	r.wrapper.InvalidatePatternBestEffort(ctx, "user:find*")
 
 	return nil
 }
@@ -179,51 +134,26 @@ func (r *UserRepository) Delete(ctx context.Context, id uint) error {
 		return errors.WithMessage(err, "failed to delete user")
 	}
 
-	key := r.keyBuilder.BuildKey("id", id)
-	if err := r.wrapper.Invalidate(ctx, key); err != nil {
-		return errors.WithMessage(err, "failed to invalidate user cache by ID after delete")
-	}
-
-	if err := r.invalidateUserCache(ctx, findErr, users); err != nil {
-		return err
-	}
-
-	if err := r.wrapper.InvalidatePattern(ctx, "user:find*"); err != nil {
-		return errors.WithMessage(err, "failed to invalidate user find pattern cache after delete")
-	}
+	r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", id))
+	r.invalidateUserCache(ctx, findErr, users)
+	r.wrapper.InvalidatePatternBestEffort(ctx, "user:find*")
 
 	return nil
 }
 
-func (r *UserRepository) invalidateUserCache(ctx context.Context, findErr error, users []domain.User) error {
-	if findErr != nil {
-		// Unable to find user for cache invalidation, but this shouldn't fail the delete
-		return nil //nolint:nilerr
-	}
-
-	if len(users) == 0 {
-		return nil
+func (r *UserRepository) invalidateUserCache(ctx context.Context, findErr error, users []domain.User) {
+	if findErr != nil || len(users) == 0 {
+		return
 	}
 
 	user := users[0]
 	if user.ID != 0 {
-		err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("id", user.ID))
-		if err != nil {
-			return errors.WithMessage(err, "failed to invalidate user cache by ID after delete")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", user.ID))
 	}
 	if user.Login != "" {
-		err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("login", user.Login))
-		if err != nil {
-			return errors.WithMessage(err, "failed to invalidate user cache by login after delete")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("login", user.Login))
 	}
 	if user.Email != "" {
-		err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("email", user.Email))
-		if err != nil {
-			return errors.WithMessage(err, "failed to invalidate user cache by email after delete")
-		}
+		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("email", user.Email))
 	}
-
-	return nil
 }

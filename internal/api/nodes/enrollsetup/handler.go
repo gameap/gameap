@@ -121,7 +121,7 @@ func (h *Handler) resolveGRPCHost(r *http.Request) string {
 const setupScriptTemplate = `#!/bin/bash
 set -euo pipefail
 
-CONNECT_URL="%s"
+CONNECT_URL=%s
 GAMEAPCTL_BIN=""
 
 _tmpfile=""
@@ -193,7 +193,11 @@ hash -r
 `
 
 func (h *Handler) buildSetupScript(connectURL, config string, github bool, branch string) string {
-	return fmt.Sprintf(setupScriptTemplate, connectURL, h.buildInstallCmd(config, github, branch))
+	// connectURL embeds a host derived from request headers (X-Forwarded-Host /
+	// Host) when GRPC_EXTERNAL_HOST is unset, so it must be shell-escaped before
+	// it lands in the root-run setup script — otherwise a crafted host could
+	// inject commands. config and branch are escaped the same way below.
+	return fmt.Sprintf(setupScriptTemplate, shellescape.Quote(connectURL), h.buildInstallCmd(config, github, branch))
 }
 
 func (h *Handler) buildInstallCmd(

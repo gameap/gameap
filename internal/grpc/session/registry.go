@@ -130,6 +130,9 @@ func (r *Registry) Register(ctx context.Context, session *Session) error {
 	return nil
 }
 
+// Unregister force-removes whatever session is currently registered for nodeID.
+// Use it for an explicit "drop this node" action; the per-stream cleanup path
+// must use UnregisterSession instead so a reconnecting daemon is not torn down.
 func (r *Registry) Unregister(ctx context.Context, nodeID uint64) error {
 	r.mu.Lock()
 	session, ok := r.localSessions[nodeID]
@@ -142,11 +145,35 @@ func (r *Registry) Unregister(ctx context.Context, nodeID uint64) error {
 		return nil
 	}
 
+	return r.publishSessionClosed(ctx, session)
+}
+
+// UnregisterSession removes nodeID only if the session currently registered for
+// it is sess. When a daemon reconnects, Register cancels the old stream and
+// installs the new session under the same nodeID; the old stream's deferred
+// cleanup then calls UnregisterSession with its own (now superseded) session.
+// Guarding the delete by session identity keeps that stale cleanup from evicting
+// the live new session and publishing a spurious DaemonSessionClosed.
+func (r *Registry) UnregisterSession(ctx context.Context, sess *Session) error {
+	r.mu.Lock()
+	current, ok := r.localSessions[sess.NodeID]
+	if !ok || current != sess {
+		r.mu.Unlock()
+
+		return nil
+	}
+	delete(r.localSessions, sess.NodeID)
+	r.mu.Unlock()
+
+	return r.publishSessionClosed(ctx, sess)
+}
+
+func (r *Registry) publishSessionClosed(ctx context.Context, session *Session) error {
 	msg, err := messages.NewMessage(
 		channels.DaemonSessionClosed,
 		messages.TypeDaemonClosed,
 		messages.DaemonSessionPayload{
-			NodeID:      nodeID,
+			NodeID:      session.NodeID,
 			InstanceID:  r.instanceID,
 			Version:     session.Version,
 			ConnectedAt: session.ConnectedAt,
@@ -158,12 +185,12 @@ func (r *Registry) Unregister(ctx context.Context, nodeID uint64) error {
 
 	if err := r.pubsub.Publish(ctx, channels.DaemonSessionClosed, msg); err != nil {
 		r.logger.Warn("failed to publish session closed event",
-			"node_id", nodeID,
+			"node_id", session.NodeID,
 			"error", err,
 		)
 	}
 
-	r.logger.Info("daemon session unregistered", "node_id", nodeID)
+	r.logger.Info("daemon session unregistered", "node_id", session.NodeID)
 
 	return nil
 }
@@ -329,14 +356,14 @@ func (r *Registry) handleTaskDispatch(_ context.Context, msg *pubsub.Message) er
 		return nil
 	}
 
-	if err := session.Send(&gatewayMsg); err != nil {
-		r.logger.Warn("failed to send task to session",
+	if err := session.Enqueue(&gatewayMsg); err != nil {
+		r.logger.Warn("failed to enqueue task to session",
 			"node_id", nodeID,
 			"task_id", payload.TaskID,
 			"error", err,
 		)
 
-		return errors.Wrap(err, "send task to session")
+		return errors.Wrap(err, "enqueue task to session")
 	}
 
 	r.logger.Debug("task dispatched via pub-sub",
@@ -503,13 +530,13 @@ func (r *Registry) handleAttachDispatch(_ context.Context, msg *pubsub.Message) 
 		return nil
 	}
 
-	if err := session.Send(&gatewayMsg); err != nil {
-		r.logger.Warn("failed to send attach message to session",
+	if err := session.Enqueue(&gatewayMsg); err != nil {
+		r.logger.Warn("failed to enqueue attach message to session",
 			"node_id", payload.NodeID,
 			"error", err,
 		)
 
-		return errors.Wrap(err, "send attach message to session")
+		return errors.Wrap(err, "enqueue attach message to session")
 	}
 
 	return nil
@@ -597,17 +624,17 @@ func (r *Registry) handleMetricsRequest(_ context.Context, msg *pubsub.Message) 
 		r.metricsWaiters.RegisterRemoteWaiter(payload.RequestID, payload.NodeID, payload.InstanceID)
 	}
 
-	if err := session.Send(&gatewayMsg); err != nil {
+	if err := session.Enqueue(&gatewayMsg); err != nil {
 		if r.metricsWaiters != nil {
 			r.metricsWaiters.CancelWaiter(payload.RequestID)
 		}
 
-		r.logger.Warn("failed to send metrics request to session",
+		r.logger.Warn("failed to enqueue metrics request to session",
 			"node_id", payload.NodeID,
 			"error", err,
 		)
 
-		return errors.Wrap(err, "send metrics request to session")
+		return errors.Wrap(err, "enqueue metrics request to session")
 	}
 
 	return nil

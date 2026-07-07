@@ -141,6 +141,75 @@ func (w *Wrapper) GetOrSet(
 	return result, nil
 }
 
+// GetOrLoad returns the value for key, loading and caching it on a miss.
+//
+// Unlike the GetOrSet-then-GetTyped pattern it degrades gracefully: any cache
+// backend failure (an unreadable cached value or a failed write) falls back to
+// the freshly loaded value rather than surfacing as an error. The cache is an
+// optimization, not a hard dependency of the read path — a transient cache
+// hiccup must not turn a healthy repository read into a failure.
+func GetOrLoad[T any](ctx context.Context, w *Wrapper, key string, loader func() (T, error)) (T, error) {
+	var zero T
+
+	if cachedValue, err := w.cache.Get(ctx, key); err == nil && cachedValue != nil {
+		if typed, ok := decodeCachedValue[T](cachedValue); ok {
+			return typed, nil
+		}
+	}
+
+	result, err := loader()
+	if err != nil {
+		return zero, err
+	}
+
+	if err := w.cache.Set(ctx, key, result, cache.WithExpiration(w.config.TTL)); err != nil {
+		slog.ErrorContext(ctx, "failed to set cache", "error", err, "key", key)
+	}
+
+	return result, nil
+}
+
+// decodeCachedValue converts a cache-decoded value into T. The in-memory cache
+// returns the stored value verbatim (fast path); Redis/SQL caches return a
+// JSON-decoded generic value, converted via a JSON round-trip like
+// cache.GetTyped. A conversion failure reports ok=false so the caller reloads.
+func decodeCachedValue[T any](v any) (T, bool) {
+	var out T
+
+	if typed, ok := v.(T); ok {
+		return typed, true
+	}
+
+	data, err := json.Marshal(v)
+	if err != nil {
+		return out, false
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return out, false
+	}
+
+	return out, true
+}
+
+// InvalidateBestEffort removes cache entries for the given keys, logging but not
+// returning any error. Use it after a committed mutation: the write already
+// succeeded, so a cache-invalidation hiccup must not be reported to the caller
+// as a failed operation (which would trigger a retry of an applied write). The
+// stale entry expires with its TTL as a backstop.
+func (w *Wrapper) InvalidateBestEffort(ctx context.Context, keys ...string) {
+	if err := w.Invalidate(ctx, keys...); err != nil {
+		slog.WarnContext(ctx, "failed to invalidate cache after mutation", "error", err, "keys", keys)
+	}
+}
+
+// InvalidatePatternBestEffort is the pattern-based counterpart of
+// InvalidateBestEffort.
+func (w *Wrapper) InvalidatePatternBestEffort(ctx context.Context, pattern string) {
+	if err := w.InvalidatePattern(ctx, pattern); err != nil {
+		slog.WarnContext(ctx, "failed to invalidate cache pattern after mutation", "error", err, "pattern", pattern)
+	}
+}
+
 // InvalidatePattern removes all cache entries matching a pattern.
 func (w *Wrapper) InvalidatePattern(ctx context.Context, pattern string) error {
 	if redisCache, ok := w.cache.(*cache.Redis); ok {

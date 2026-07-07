@@ -43,17 +43,11 @@ func NewRBACRepository(
 func (r *RBACRepository) GetRoles(ctx context.Context) ([]domain.Role, error) {
 	key := r.keyBuilder.BuildKey("roles", "all")
 
-	_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+	data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.Role, error) {
 		return r.inner.GetRoles(ctx)
 	})
-
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get or set cache for GetRoles")
-	}
-
-	data, err := cache.GetTyped[[]domain.Role](ctx, r.cache, key)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get typed cached data for GetRoles")
+		return nil, errors.WithMessage(err, "failed to load GetRoles")
 	}
 
 	return data, nil
@@ -66,9 +60,7 @@ func (r *RBACRepository) SaveRole(ctx context.Context, role *domain.Role) error 
 		return errors.WithMessage(err, "failed to save role")
 	}
 
-	if err := r.invalidateRoleCache(ctx); err != nil {
-		return errors.WithMessage(err, "failed to invalidate role cache after save")
-	}
+	r.invalidateRoleCache(ctx)
 
 	return nil
 }
@@ -79,17 +71,11 @@ func (r *RBACRepository) GetPermissions(
 ) ([]domain.Permission, error) {
 	key := r.keyBuilder.BuildKey("permissions", fmt.Sprintf("%s_%d", entityType, entityID))
 
-	_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+	data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.Permission, error) {
 		return r.inner.GetPermissions(ctx, entityID, entityType)
 	})
-
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get or set cache for GetPermissions")
-	}
-
-	data, err := cache.GetTyped[[]domain.Permission](ctx, r.cache, key)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get typed cached data for GetPermissions")
+		return nil, errors.WithMessage(err, "failed to load GetPermissions")
 	}
 
 	return data, nil
@@ -101,17 +87,11 @@ func (r *RBACRepository) GetRolesForEntity(
 ) ([]domain.RestrictedRole, error) {
 	key := r.keyBuilder.BuildKey("roles", fmt.Sprintf("%s_%d", entityType, entityID))
 
-	_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+	data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.RestrictedRole, error) {
 		return r.inner.GetRolesForEntity(ctx, entityID, entityType)
 	})
-
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get or set cache for GetRolesForEntity")
-	}
-
-	data, err := cache.GetTyped[[]domain.RestrictedRole](ctx, r.cache, key)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get typed cached data for GetRolesForEntity")
+		return nil, errors.WithMessage(err, "failed to load GetRolesForEntity")
 	}
 
 	return data, nil
@@ -126,9 +106,7 @@ func (r *RBACRepository) AssignRolesForEntity(
 		return errors.WithMessage(err, "failed to assign roles for entity")
 	}
 
-	if err := r.invalidateEntityCache(ctx, entityID, entityType); err != nil {
-		return errors.WithMessage(err, "failed to invalidate entity cache after assign roles")
-	}
+	r.invalidateEntityCache(ctx, entityID, entityType)
 
 	return nil
 }
@@ -142,9 +120,7 @@ func (r *RBACRepository) ClearRolesForEntity(
 		return errors.WithMessage(err, "failed to clear roles for entity")
 	}
 
-	if err := r.invalidateEntityCache(ctx, entityID, entityType); err != nil {
-		return errors.WithMessage(err, "failed to invalidate entity cache after clear roles")
-	}
+	r.invalidateEntityCache(ctx, entityID, entityType)
 
 	return nil
 }
@@ -158,9 +134,7 @@ func (r *RBACRepository) Allow(
 		return errors.WithMessage(err, "failed to allow abilities")
 	}
 
-	if err := r.invalidatePermissionCache(ctx, entityID, entityType); err != nil {
-		return errors.WithMessage(err, "failed to invalidate permission cache after allow")
-	}
+	r.invalidatePermissionCache(ctx, entityID, entityType)
 
 	return nil
 }
@@ -174,9 +148,7 @@ func (r *RBACRepository) Forbid(
 		return errors.WithMessage(err, "failed to forbid abilities")
 	}
 
-	if err := r.invalidatePermissionCache(ctx, entityID, entityType); err != nil {
-		return errors.WithMessage(err, "failed to invalidate permission cache after forbid")
-	}
+	r.invalidatePermissionCache(ctx, entityID, entityType)
 
 	return nil
 }
@@ -190,46 +162,26 @@ func (r *RBACRepository) Revoke(
 		return errors.WithMessage(err, "failed to revoke abilities")
 	}
 
-	if err := r.invalidatePermissionCache(ctx, entityID, entityType); err != nil {
-		return errors.WithMessage(err, "failed to invalidate permission cache after revoke")
-	}
+	r.invalidatePermissionCache(ctx, entityID, entityType)
 
 	return nil
 }
 
-func (r *RBACRepository) invalidateRoleCache(ctx context.Context) error {
-	if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("roles", "all")); err != nil {
-		return err
-	}
-	if err := r.wrapper.InvalidatePattern(ctx, r.keyBuilder.BuildPattern("role")); err != nil {
-		return err
-	}
-	if err := r.wrapper.InvalidatePattern(ctx, r.keyBuilder.BuildPattern("roles")); err != nil {
-		return err
-	}
-
-	return nil
+func (r *RBACRepository) invalidateRoleCache(ctx context.Context) {
+	r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("roles", "all"))
+	r.wrapper.InvalidatePatternBestEffort(ctx, r.keyBuilder.BuildPattern("role"))
+	r.wrapper.InvalidatePatternBestEffort(ctx, r.keyBuilder.BuildPattern("roles"))
 }
 
-func (r *RBACRepository) invalidateEntityCache(ctx context.Context, entityID uint, entityType domain.EntityType) error {
+func (r *RBACRepository) invalidateEntityCache(ctx context.Context, entityID uint, entityType domain.EntityType) {
 	key := fmt.Sprintf("%s_%d", entityType, entityID)
-	if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("roles", key)); err != nil {
-		return err
-	}
-	if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("permissions", key)); err != nil {
-		return err
-	}
-
-	return nil
+	r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("roles", key))
+	r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("permissions", key))
 }
 
 func (r *RBACRepository) invalidatePermissionCache(
 	ctx context.Context, entityID uint, entityType domain.EntityType,
-) error {
+) {
 	key := fmt.Sprintf("%s_%d", entityType, entityID)
-	if err := r.wrapper.Invalidate(ctx, r.keyBuilder.BuildKey("permissions", key)); err != nil {
-		return err
-	}
-
-	return nil
+	r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("permissions", key))
 }

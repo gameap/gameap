@@ -173,7 +173,7 @@ func TestMySQL_Get_ErrorPaths(t *testing.T) {
 	}
 }
 
-func TestMySQL_Get_DeletesAndReturnsNotFoundWhenExpired(t *testing.T) {
+func TestMySQL_Get_ReturnsNotFoundWhenExpiredWithoutInlineDelete(t *testing.T) {
 	// ARRANGE
 	c, mock, cleanup := newMySQLWithMock(t)
 	defer cleanup()
@@ -184,9 +184,8 @@ func TestMySQL_Get_DeletesAndReturnsNotFoundWhenExpired(t *testing.T) {
 	mock.ExpectQuery("SELECT value, expires_at FROM kv_store").
 		WithArgs("cache:expired_key").
 		WillReturnRows(rows)
-	mock.ExpectExec("DELETE FROM kv_store").
-		WithArgs("cache:expired_key").
-		WillReturnResult(sqlmock.NewResult(0, 1))
+	// No DELETE is expected: Get must not write on the read path (CleanupExpired
+	// reclaims expired rows in the background).
 
 	// ACT
 	value, err := c.Get(context.Background(), "expired_key")

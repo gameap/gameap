@@ -124,11 +124,13 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantDeleted:   false,
 		},
 		{
-			name:          "access denied for other user's token",
+			// Returns 404 (not 403) so the response cannot be used to enumerate
+			// which token IDs exist across other users.
+			name:          "not found for other user's token",
 			tokenID:       "2",
 			setupTokens:   []*domain.PersonalAccessToken{testToken, otherUserToken},
 			authenticated: true,
-			wantStatus:    http.StatusForbidden,
+			wantStatus:    http.StatusNotFound,
 			wantDeleted:   false,
 		},
 		{
@@ -315,7 +317,9 @@ func TestHandler_Audit_ForbiddenRevokeIsNotRecorded(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	// ASSERT
-	require.Equal(t, http.StatusForbidden, rr.Code,
+	// 404 (not 403) so the endpoint does not double as a token-ID existence
+	// oracle for other users; the revocation is still refused.
+	require.Equal(t, http.StatusNotFound, rr.Code,
 		"a user must not revoke another user's token; body=%s", rr.Body.String())
 	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventPATRevoke),
 		"a refused revocation must not be recorded as a successful token.pat.revoke")

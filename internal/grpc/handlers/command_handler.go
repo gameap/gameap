@@ -66,10 +66,17 @@ func (h *CommandHandler) HandleCommandResult(ctx context.Context, nodeID uint64,
 		"error", result.Error,
 	)
 
-	h.mu.RLock()
+	// Delete-under-lock to take exclusive ownership of the channel before
+	// sending/closing, so a concurrent UnregisterPendingCommand (which also
+	// deletes-then-closes under the lock) can never close a channel this send
+	// is still using — that would panic. Mirrors session.ResolvePendingRequest.
+	h.mu.Lock()
 	ch, hasPending := h.pendingCommands[result.CommandId]
+	if hasPending {
+		delete(h.pendingCommands, result.CommandId)
+	}
 	serverID, hasServer := h.commandServers[result.CommandId]
-	h.mu.RUnlock()
+	h.mu.Unlock()
 
 	if hasPending {
 		select {
@@ -81,6 +88,7 @@ func (h *CommandHandler) HandleCommandResult(ctx context.Context, nodeID uint64,
 		}:
 		default:
 		}
+		close(ch)
 	}
 
 	if hasServer && h.publisher != nil {

@@ -623,7 +623,11 @@ func (r *ServerRepository) scan(row base.Scanner) (*domain.Server, error) {
 
 func (r *ServerRepository) filterToSq(filter *filters.FindServer) sq.Sqlizer {
 	if filter == nil {
-		return nil
+		// A nil filter still excludes soft-deleted rows: without this the
+		// deleted_at IS NULL guard below is skipped entirely and callers that
+		// pass nil (user server listings, summaries, ability computation) would
+		// see soft-deleted servers.
+		return sq.And{sq.Expr("deleted_at IS NULL")}
 	}
 
 	and := make(sq.And, 0, 9)

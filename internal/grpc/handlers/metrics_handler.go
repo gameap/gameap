@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/pubsub"
@@ -14,10 +15,17 @@ import (
 	"github.com/gameap/gameap/pkg/proto"
 )
 
+// defaultWaiterTTL bounds how long a metrics request waiter lives without a
+// response. A connected-but-silent daemon (dropped reply, reconnect gap) would
+// otherwise leave the waiter in the map forever while a fresh one is registered
+// every poll interval — an unbounded leak.
+const defaultWaiterTTL = 30 * time.Second
+
 type MetricsHandler struct {
 	publisher  pubsub.Publisher
 	serverRepo repositories.ServerRepository
 	logger     *slog.Logger
+	waiterTTL  time.Duration
 
 	waitersMu sync.Mutex
 	waiters   map[string]metricsWaiter
@@ -26,6 +34,7 @@ type MetricsHandler struct {
 type metricsWaiter struct {
 	nodeID           uint64
 	remoteInstanceID string
+	timer            *time.Timer
 }
 
 func NewMetricsHandler(
@@ -41,42 +50,78 @@ func NewMetricsHandler(
 		publisher:  publisher,
 		serverRepo: serverRepo,
 		logger:     logger,
+		waiterTTL:  defaultWaiterTTL,
 		waiters:    make(map[string]metricsWaiter),
 	}
 }
 
-func (h *MetricsHandler) RegisterPollWaiter(requestID string, nodeID uint64) {
-	h.waitersMu.Lock()
-	defer h.waitersMu.Unlock()
+// SetWaiterTTL overrides the waiter reaping timeout. Intended for tests that
+// need the reaper to fire quickly.
+func (h *MetricsHandler) SetWaiterTTL(ttl time.Duration) {
+	if ttl > 0 {
+		h.waiterTTL = ttl
+	}
+}
 
-	h.waiters[requestID] = metricsWaiter{nodeID: nodeID}
+func (h *MetricsHandler) RegisterPollWaiter(requestID string, nodeID uint64) {
+	h.registerWaiter(requestID, metricsWaiter{nodeID: nodeID})
 }
 
 func (h *MetricsHandler) RegisterRemoteWaiter(requestID string, nodeID uint64, requesterInstanceID string) {
+	h.registerWaiter(requestID, metricsWaiter{
+		nodeID:           nodeID,
+		remoteInstanceID: requesterInstanceID,
+	})
+}
+
+func (h *MetricsHandler) registerWaiter(requestID string, waiter metricsWaiter) {
 	h.waitersMu.Lock()
 	defer h.waitersMu.Unlock()
 
-	h.waiters[requestID] = metricsWaiter{
-		nodeID:           nodeID,
-		remoteInstanceID: requesterInstanceID,
+	if existing, ok := h.waiters[requestID]; ok && existing.timer != nil {
+		existing.timer.Stop()
 	}
+
+	waiter.timer = time.AfterFunc(h.waiterTTL, func() { h.expireWaiter(requestID) })
+	h.waiters[requestID] = waiter
+}
+
+func (h *MetricsHandler) expireWaiter(requestID string) {
+	h.waitersMu.Lock()
+	defer h.waitersMu.Unlock()
+
+	if _, ok := h.waiters[requestID]; ok {
+		delete(h.waiters, requestID)
+		h.logger.Debug("metrics waiter expired without response", "request_id", requestID)
+	}
+}
+
+// removeWaiterLocked deletes a waiter and stops its reaper timer. Caller holds
+// waitersMu.
+func (h *MetricsHandler) removeWaiterLocked(requestID string) (metricsWaiter, bool) {
+	waiter, ok := h.waiters[requestID]
+	if ok {
+		if waiter.timer != nil {
+			waiter.timer.Stop()
+		}
+		delete(h.waiters, requestID)
+	}
+
+	return waiter, ok
 }
 
 func (h *MetricsHandler) CancelWaiter(requestID string) {
 	h.waitersMu.Lock()
 	defer h.waitersMu.Unlock()
 
-	delete(h.waiters, requestID)
+	h.removeWaiterLocked(requestID)
 }
 
 func (h *MetricsHandler) HandleMetricsResponse(
 	ctx context.Context, nodeID uint64, requestID string, resp *proto.MetricsResponse,
 ) error {
 	h.waitersMu.Lock()
-	waiter, ok := h.waiters[requestID]
-	if ok {
-		delete(h.waiters, requestID)
-	}
+	waiter, ok := h.removeWaiterLocked(requestID)
 	h.waitersMu.Unlock()
 
 	if !ok {

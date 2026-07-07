@@ -81,9 +81,22 @@ func (r *DLQRepository) Pop(ctx context.Context) (*dlq.FailedMessage, error) {
 		return nil, errors.WithMessage(err, "failed to build delete query")
 	}
 
-	_, err = r.db.ExecContext(ctx, deleteQuery, deleteArgs...)
+	res, err := r.db.ExecContext(ctx, deleteQuery, deleteArgs...)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to execute delete query")
+	}
+
+	// The SELECT and DELETE are not one atomic statement, so two concurrent
+	// consumers (or panel instances) can read the same row. Only the consumer
+	// whose DELETE actually removes the row may deliver it; a zero-row delete
+	// means another consumer already claimed it, so we report empty rather than
+	// delivering the message twice.
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to read delete result")
+	}
+	if affected == 0 {
+		return nil, dlq.ErrEmpty
 	}
 
 	return msg, nil

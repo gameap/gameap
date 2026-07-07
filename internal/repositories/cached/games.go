@@ -45,17 +45,11 @@ func (r *GameRepository) FindAll(
 ) ([]domain.Game, error) {
 	key := r.keyBuilder.BuildKey("all", order, pagination)
 
-	_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+	data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.Game, error) {
 		return r.inner.FindAll(ctx, order, pagination)
 	})
-
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get or set cache for FindAll games")
-	}
-
-	data, err := cache.GetTyped[[]domain.Game](ctx, r.cache, key)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get typed cached data for FindAll games")
+		return nil, errors.WithMessage(err, "failed to load FindAll games")
 	}
 
 	return data, nil
@@ -86,17 +80,11 @@ func (r *GameRepository) Find(
 	if len(filter.Codes) > 0 {
 		key := r.keyBuilder.BuildKey("codes", filter.Codes)
 
-		_, err := r.wrapper.GetOrSet(ctx, key, func() (any, error) {
+		data, err := GetOrLoad(ctx, r.wrapper, key, func() ([]domain.Game, error) {
 			return r.inner.Find(ctx, filter, order, pagination)
 		})
-
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get or set cache for Find games by codes")
-		}
-
-		data, err := cache.GetTyped[[]domain.Game](ctx, r.cache, key)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to get typed cached data for Find games by codes")
+			return nil, errors.WithMessage(err, "failed to load Find games by codes")
 		}
 
 		return data, nil
@@ -113,9 +101,9 @@ func (r *GameRepository) Save(ctx context.Context, game *domain.Game) error {
 		return err
 	}
 
-	if err := r.invalidateAllGameCache(ctx); err != nil {
-		return errors.WithMessage(err, "failed to invalidate game cache after save")
-	}
+	// Write committed; invalidation is best-effort so a cache hiccup does not
+	// report the applied write as failed. Stale entries expire with TTL.
+	r.invalidateAllGameCache(ctx)
 
 	return nil
 }
@@ -127,15 +115,13 @@ func (r *GameRepository) Delete(ctx context.Context, code string) error {
 		return err
 	}
 
-	if err := r.invalidateAllGameCache(ctx); err != nil {
-		return errors.WithMessage(err, "failed to invalidate game cache after delete")
-	}
+	r.invalidateAllGameCache(ctx)
 
 	return nil
 }
 
-func (r *GameRepository) invalidateAllGameCache(ctx context.Context) error {
-	return r.wrapper.InvalidatePattern(ctx, "games:*")
+func (r *GameRepository) invalidateAllGameCache(ctx context.Context) {
+	r.wrapper.InvalidatePatternBestEffort(ctx, "games:*")
 }
 
 // GameModRepository wraps GameModRepository with caching.

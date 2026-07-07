@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -1554,5 +1555,19 @@ func TestTruncateTail(t *testing.T) {
 
 		// ASSERT
 		assert.Equal(t, "def", got, "longer inputs must be truncated to the tail")
+	})
+
+	t.Run("result_is_valid_utf8_when_cut_lands_mid_rune", func(t *testing.T) {
+		// "🚀" is 4 bytes; a byte cut that starts inside it must not yield
+		// invalid UTF-8 (Postgres text columns reject invalid byte sequences).
+		input := "ab🚀cd"
+
+		for maxBytes := 1; maxBytes <= len(input); maxBytes++ {
+			got := truncateTail(input, maxBytes)
+			assert.True(t, utf8.ValidString(got),
+				"truncateTail(%q, %d) = %q must be valid UTF-8", input, maxBytes, got)
+			assert.True(t, strings.HasSuffix(input, got),
+				"result must remain a suffix of the input")
+		}
 	})
 }

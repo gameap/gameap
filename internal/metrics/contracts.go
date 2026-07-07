@@ -23,6 +23,11 @@ type Hub interface {
 	// directly from the daemon. Used as a cold-start replay source when
 	// the local ring does not cover the window.
 	GetHistory(ctx context.Context, nodeID uint64, window time.Duration) (*proto.MetricsResponse, error)
+
+	// Stop cancels the hub's background loops and releases per-node poll
+	// cancels, stop-timers and subscriber channels. Called during graceful
+	// shutdown so those resources do not outlive the serving phase.
+	Stop()
 }
 
 // Subscription is what WS handlers consume. Samples are delivered in

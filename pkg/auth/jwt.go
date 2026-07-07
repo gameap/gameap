@@ -48,6 +48,19 @@ func (a jwtClaimsAdapter) GetScope() (string, error) {
 	return a.inner.Scope, nil
 }
 
+func (a jwtClaimsAdapter) GetIssuedAt() (*time.Time, error) {
+	iat, err := a.inner.GetIssuedAt()
+	if err != nil {
+		return nil, err //nolint:wrapcheck // surfacing library error verbatim
+	}
+	if iat == nil {
+		return nil, nil
+	}
+	t := iat.Time
+
+	return &t, nil
+}
+
 type JWTService struct {
 	secretKey []byte
 }
@@ -90,7 +103,10 @@ func (j *JWTService) generateToken(user *domain.User, tokenDuration time.Duratio
 
 func (j *JWTService) ValidateToken(tokenString string) (Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		// Pin the exact signing method the issuer uses (HS384) rather than
+		// accepting any HMAC variant, so a token forged with a different alg
+		// (HS256/HS512/none) is rejected outright.
+		if token.Method != signingMethod {
 			return nil, errors.New("unexpected signing method")
 		}
 

@@ -2014,6 +2014,12 @@ func (c *Container) MetricsHub() metrics.Hub {
 			slog.Default(),
 			metrics.Options{},
 		)
+
+		c.appendShutdownFunc(func() error {
+			c.metricsHub.Stop()
+
+			return nil
+		})
 	}
 
 	return c.metricsHub
