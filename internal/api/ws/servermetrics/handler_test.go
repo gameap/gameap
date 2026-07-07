@@ -283,9 +283,6 @@ func TestHandler_ServeHTTP_SuccessfulUpgrade(t *testing.T) {
 	t.Cleanup(func() { _ = conn.Close(websocket.StatusNormalClosure, "") })
 
 	// ASSERT
-	require.True(t, hub.subscribed.Load(), "metrics hub must receive a Subscribe call after successful upgrade")
-	assert.Equal(t, uint64(dsID), hub.lastNodeID.Load(), "Pump must subscribe using the server's daemon id")
-
 	readCtx, readCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer readCancel()
 
@@ -298,6 +295,12 @@ func TestHandler_ServeHTTP_SuccessfulUpgrade(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(raw, &frame))
 	assert.Equal(t, "metrics.replay.done", frame.Type, "Pump must emit a replay-done frame after subscribe")
+
+	// The replay-done frame is emitted only after Subscribe returns, so
+	// receiving it guarantees the hub call happened; checking earlier races
+	// with the server goroutine that runs Pump after the upgrade.
+	require.True(t, hub.subscribed.Load(), "metrics hub must receive a Subscribe call after successful upgrade")
+	assert.Equal(t, uint64(dsID), hub.lastNodeID.Load(), "Pump must subscribe using the server's daemon id")
 
 	require.Equal(t, 0, responder.errorCalls(), "no error response must be written on the happy path")
 }
