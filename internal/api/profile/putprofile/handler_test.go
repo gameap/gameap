@@ -28,6 +28,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		expectedStatus int
 		wantError      string
 		expectSuccess  bool
+		expectToken    bool
 		validateUser   func(t *testing.T, repo *inmemory.UserRepository)
 	}{
 		{
@@ -91,6 +92,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody:    `{"password": "newpassword123", "current_password": "oldpassword"}`,
 			expectedStatus: http.StatusOK,
 			expectSuccess:  true,
+			expectToken:    true,
 			validateUser: func(t *testing.T, repo *inmemory.UserRepository) {
 				t.Helper()
 
@@ -133,6 +135,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			requestBody:    `{"name": "New TokenName", "password": "newpassword123", "current_password": "oldpassword"}`,
 			expectedStatus: http.StatusOK,
 			expectSuccess:  true,
+			expectToken:    true,
 			validateUser: func(t *testing.T, repo *inmemory.UserRepository) {
 				t.Helper()
 
@@ -378,7 +381,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			repo := inmemory.NewUserRepository()
 			userService := services.NewUserService(repo)
 			responder := api.NewResponder()
-			handler := NewHandler(userService, responder)
+			authService := auth.NewJWTService([]byte("test-secret-key-for-testing"))
+			handler := NewHandler(userService, authService, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(repo)
@@ -412,6 +416,32 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				var response updateProfileResponse
 				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 				assert.Equal(t, "Profile updated successfully", response.Message)
+
+				if tt.expectToken {
+					// A password change revokes every earlier token, including
+					// the caller's own session; the response must carry a
+					// fresh one that survives the password-changed cutoff.
+					require.NotEmpty(t, response.Token,
+						"a password change must re-issue a session token")
+
+					claims, err := authService.ValidateToken(response.Token)
+					require.NoError(t, err, "the re-issued token must be valid")
+
+					issuedAt, err := claims.GetIssuedAt()
+					require.NoError(t, err)
+					require.NotNil(t, issuedAt)
+
+					users, err := repo.FindAll(context.Background(), nil, nil)
+					require.NoError(t, err)
+					require.Len(t, users, 1)
+					changedAt := users[0].PasswordChangedAt()
+					require.NotNil(t, changedAt)
+					assert.False(t, issuedAt.Before(*changedAt),
+						"the re-issued token's iat must not precede the password-changed cutoff, or the auth middleware would reject it")
+				} else {
+					assert.Empty(t, response.Token,
+						"an update without a password change must not re-issue a token")
+				}
 			}
 
 			if tt.validateUser != nil {

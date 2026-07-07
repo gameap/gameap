@@ -58,7 +58,17 @@ export const useAuthStore = defineStore('auth', {
         async saveProfile(profile) {
             this.apiProcesses++
             try {
-                await axios.put('/api/profile', profile)
+                const response = await axios.put('/api/profile', profile)
+
+                // A password change revokes every previously-issued session
+                // token, including the current one; the response then carries
+                // a fresh token that must replace it for the session to
+                // survive.
+                if (response.data.token) {
+                    this.authToken = response.data.token
+                    localStorage.setItem('auth_token', response.data.token)
+                    axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`
+                }
             } catch (error) {
                 throw error
             } finally {

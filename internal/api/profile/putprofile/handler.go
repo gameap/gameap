@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
@@ -13,18 +14,25 @@ import (
 	"github.com/pkg/errors"
 )
 
+// sessionTokenDuration mirrors the login handler's default session lifetime;
+// the token re-issued after a password change is an ordinary session token.
+const sessionTokenDuration = 24 * time.Hour
+
 type Handler struct {
-	userRepo  repositories.UserRepository
-	responder base.Responder
+	userRepo    repositories.UserRepository
+	tokenIssuer tokenIssuer
+	responder   base.Responder
 }
 
 func NewHandler(
 	userRepo repositories.UserRepository,
+	tokenIssuer tokenIssuer,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		userRepo:  userRepo,
-		responder: responder,
+		userRepo:    userRepo,
+		tokenIssuer: tokenIssuer,
+		responder:   responder,
 	}
 }
 
@@ -82,39 +90,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	user := &users[0]
 
-	// Verify current password if password change is requested
 	if input.Password != nil {
-		if input.CurrentPassword == nil {
-			h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-				errors.New("current password is required for password change"),
-				http.StatusBadRequest,
-			))
+		if err := applyPasswordChange(input, user); err != nil {
+			h.responder.WriteError(ctx, rw, err)
 
 			return
 		}
-
-		// The new password (set below) will overwrite the stored hash either
-		// way, so the rehash signal from VerifyPassword is intentionally
-		// discarded — the upgrade happens implicitly via the new HashPassword.
-		_, err = auth.VerifyPassword(user.Password, *input.CurrentPassword)
-		if err != nil {
-			h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-				errors.New("current password is incorrect"),
-				http.StatusBadRequest,
-			))
-
-			return
-		}
-
-		hashedPassword, err := auth.HashPassword(*input.Password)
-		if err != nil {
-			h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to hash password"))
-
-			return
-		}
-
-		user.Password = hashedPassword
-		user.SetPasswordChangedAt(new(time.Now()))
 	}
 
 	if input.Name != nil {
@@ -128,5 +109,56 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.responder.Write(ctx, rw, newUpdateProfileResponse())
+	response := newUpdateProfileResponse()
+
+	// A password change invalidates every previously-issued session token,
+	// including the one authenticating this very request. Re-issue a fresh
+	// token so the caller's session survives while all others stay revoked.
+	// Both the password-changed cutoff and the token's iat are recorded at
+	// second precision, so a token minted here always passes the cutoff.
+	if input.Password != nil {
+		token, err := h.tokenIssuer.GenerateTokenForUser(user, sessionTokenDuration)
+		if err != nil {
+			h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to generate token"))
+
+			return
+		}
+
+		response.Token = token
+	}
+
+	h.responder.Write(ctx, rw, response)
+}
+
+// applyPasswordChange verifies the current password and replaces the stored
+// hash, stamping password_changed_at so pre-existing credentials are revoked.
+// The returned error is ready for the responder (HTTP-wrapped where needed).
+func applyPasswordChange(input *updateProfileInput, user *domain.User) error {
+	if input.CurrentPassword == nil {
+		return api.WrapHTTPError(
+			errors.New("current password is required for password change"),
+			http.StatusBadRequest,
+		)
+	}
+
+	// The new password (set below) will overwrite the stored hash either
+	// way, so the rehash signal from VerifyPassword is intentionally
+	// discarded — the upgrade happens implicitly via the new HashPassword.
+	_, err := auth.VerifyPassword(user.Password, *input.CurrentPassword)
+	if err != nil {
+		return api.WrapHTTPError(
+			errors.New("current password is incorrect"),
+			http.StatusBadRequest,
+		)
+	}
+
+	hashedPassword, err := auth.HashPassword(*input.Password)
+	if err != nil {
+		return errors.WithMessage(err, "failed to hash password")
+	}
+
+	user.Password = hashedPassword
+	user.SetPasswordChangedAt(new(time.Now()))
+
+	return nil
 }

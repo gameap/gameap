@@ -100,12 +100,22 @@ const showError = (error) => {
 }
 
 // Finishes a successful auth flow with an in-app navigation instead of a full
-// page reload. Navigating first lets the route settle to the dashboard within
-// the same microtask checkpoint as the auth-state change, so the authenticated
-// layout never paints over the still-mounted login form. Plugins are loaded
-// afterwards (the reload used to trigger this in app.js). Errors here must not
-// surface as login failures, so each step swallows its own error.
+// page reload. The login response carries only a minimal user object (no
+// roles), so the full profile is re-fetched first — the reload used to do
+// this via initializeAuth() — otherwise role-gated UI (admin sidebar, profile
+// page) renders against an incomplete profile. Navigating next lets the route
+// settle to the dashboard within the same microtask checkpoint as the
+// auth-state change, so the authenticated layout never paints over the
+// still-mounted login form. Plugins are loaded afterwards (the reload used to
+// trigger this in app.js). Errors here must not surface as login failures, so
+// each step swallows its own error.
 const completeLogin = async () => {
+  try {
+    await authStore.fetchProfile()
+  } catch (error) {
+    console.error('Post-login profile fetch failed:', error)
+  }
+
   try {
     await router.push({ name: 'home' })
   } catch (error) {

@@ -23,7 +23,7 @@
       </tr>
       <tr>
         <td><strong>{{ trans('users.roles') }}:</strong></td>
-        <td>{{ user.roles.join(', ')  }}</td>
+        <td>{{ user.roles?.join(', ')  }}</td>
       </tr>
       <tr>
         <td><strong>{{ trans('profile.language') }}:</strong></td>

@@ -484,6 +484,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/profile",
 			Handler: putprofile.NewHandler(
 				c.UserService(),
+				c.AuthService(),
 				c.Responder(),
 			),
 		},

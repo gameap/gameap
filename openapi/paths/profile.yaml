@@ -43,6 +43,16 @@
                 message:
                   type: string
                   example: "Profile updated successfully"
+                token:
+                  type: string
+                  description: >-
+                    Fresh session token, present only when the password was
+                    changed. Changing the password invalidates every
+                    previously-issued session token (including the one that
+                    made this request), so the client must replace its stored
+                    token with this one to stay authenticated. Other sessions
+                    stay revoked.
+                  example: "v4.local.eyJhbGciOi..."
               required:
                 - message
       '400':
