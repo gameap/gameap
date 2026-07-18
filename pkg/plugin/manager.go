@@ -18,8 +18,13 @@ import (
 	"github.com/tetratelabs/wazero/sys"
 )
 
-// initializeTimeout bounds guest code executed during plugin loading
-// (module start, GetInfo, Initialize, route/bundle discovery).
+// initializeTimeout bounds guest code executed during module start
+// (_initialize/_start) and API version verification. Host-side WASM
+// compilation is deliberately outside this budget: compiling a large module
+// on a slow machine can take longer than any reasonable guest budget, and it
+// is not something a plugin controls. Initialization calls after start
+// (GetInfo, Initialize, …) are each bounded by the wrapper's default call
+// timeout.
 const initializeTimeout = 60 * time.Second
 
 // HostLibrary represents a host function library that can be instantiated.
@@ -83,7 +88,12 @@ type Manager struct {
 	mu      sync.RWMutex
 	plugins map[string]*LoadedPlugin
 	config  ManagerConfig
-	closed  bool
+	// cache shares compiled code between runtimes for the manager's
+	// lifetime, so validating and then installing the same wasm (or
+	// reloading it) compiles it only once. In-memory; reclaimed at process
+	// exit, deliberately never closed while transient modules may be alive.
+	cache  wazero.CompilationCache
+	closed bool
 }
 
 // NewManager creates a new plugin manager.
@@ -91,6 +101,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 	return &Manager{
 		plugins: make(map[string]*LoadedPlugin),
 		config:  cfg,
+		cache:   wazero.NewCompilationCache(),
 	}
 }
 
@@ -167,12 +178,12 @@ func (m *Manager) load(
 	pluginID uint64,
 ) (*LoadedPlugin, error) {
 	// Detached from the caller so a dropped HTTP request does not close the
-	// module mid-initialization; bounded so a misbehaving plugin cannot
-	// stall startup or install flows.
-	initCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), initializeTimeout)
-	defer cancel()
+	// module mid-initialization. Guest execution stays bounded: module start
+	// inside initializeRuntime, and every initialization call below via the
+	// wrapper's default call timeout.
+	loadCtx := context.WithoutCancel(ctx)
 
-	r, module, err := m.initializeRuntime(initCtx, wasmBytes, pluginID)
+	r, module, err := m.initializeRuntime(loadCtx, wasmBytes, pluginID)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize runtime")
 	}
@@ -190,7 +201,7 @@ func (m *Manager) load(
 		return nil, errors.WithMessage(err, "failed to create plugin wrapper")
 	}
 
-	loadedPlugin, err := m.initializePlugin(initCtx, r, plugin, config)
+	loadedPlugin, err := m.initializePlugin(loadCtx, r, plugin, config)
 	if err != nil {
 		closeErr := r.Close(ctx)
 		if closeErr != nil {
@@ -213,7 +224,9 @@ func (m *Manager) initializeRuntime(
 ) (wazero.Runtime, api.Module, error) {
 	// CloseOnContextDone lets call deadlines interrupt guest execution;
 	// without it a runaway plugin blocks its caller forever.
-	r := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCloseOnContextDone(true))
+	r := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().
+		WithCloseOnContextDone(true).
+		WithCompilationCache(m.cache))
 
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
 		closeErr := r.Close(ctx)
@@ -275,7 +288,12 @@ func (m *Manager) initializeRuntime(
 		WithStderr(io.Discard).
 		WithSysWalltime()
 
-	module, err := r.InstantiateModule(ctx, code, moduleConfig)
+	// Module start runs guest code; only from this point does the guest
+	// budget apply (compilation above is host work).
+	startCtx, cancel := context.WithTimeout(ctx, initializeTimeout)
+	defer cancel()
+
+	module, err := r.InstantiateModule(startCtx, code, moduleConfig)
 
 	//nolint:nestif
 	if err != nil {
@@ -303,7 +321,7 @@ func (m *Manager) initializeRuntime(
 		}
 	}
 
-	if err = m.verifyAPIVersion(ctx, r, module); err != nil {
+	if err = m.verifyAPIVersion(startCtx, r, module); err != nil {
 		return nil, nil, err
 	}
 
