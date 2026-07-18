@@ -165,6 +165,15 @@ func (f *fakeLoaderManager) Load(
 
 func (f *fakeLoaderManager) Unload(_ context.Context, _ string) error { return nil }
 
+func (f *fakeLoaderManager) LoadTransient(
+	ctx context.Context,
+	wasmBytes []byte,
+	config map[string]string,
+	pluginID uint64,
+) (*pkgplugin.LoadedPlugin, error) {
+	return f.Load(ctx, wasmBytes, config, pluginID)
+}
+
 func (f *fakeLoaderManager) GetPlugin(_ string) (*pkgplugin.LoadedPlugin, bool) {
 	return nil, false
 }

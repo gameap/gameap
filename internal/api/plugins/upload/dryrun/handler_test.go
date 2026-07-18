@@ -20,24 +20,15 @@ import (
 )
 
 type mockLoaderManager struct {
-	loadFunc   func(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error)
-	unloadFunc func(ctx context.Context, pluginID string) error
+	loadFunc func(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error)
 }
 
-func (m *mockLoaderManager) Load(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error) {
+func (m *mockLoaderManager) LoadTransient(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error) {
 	if m.loadFunc != nil {
 		return m.loadFunc(ctx, wasmBytes, config, pluginID)
 	}
 
 	return nil, nil
-}
-
-func (m *mockLoaderManager) Unload(ctx context.Context, pluginID string) error {
-	if m.unloadFunc != nil {
-		return m.unloadFunc(ctx, pluginID)
-	}
-
-	return nil
 }
 
 func createMultipartRequest(t *testing.T, filename string, content []byte) *http.Request {
@@ -106,9 +97,6 @@ func TestDryRun(t *testing.T) {
 						ServerAbilities: []*proto.ServerAbility{},
 						FrontendBundle:  []byte{1, 2, 3},
 					}, nil
-				},
-				unloadFunc: func(_ context.Context, _ string) error {
-					return nil
 				},
 			},
 			wantStatus:  http.StatusOK,
@@ -179,41 +167,4 @@ func TestDryRun_no_file_uploaded(t *testing.T) {
 	h.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
-}
-
-func TestDryRun_unload_called_on_success(t *testing.T) {
-	unloadCalled := false
-
-	mockManager := &mockLoaderManager{
-		loadFunc: func(_ context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
-			return &pkgplugin.LoadedPlugin{
-				Info: &proto.PluginInfo{
-					Id:          "testplugin",
-					Name:        "Test Plugin",
-					Version:     "1.0.0",
-					Description: "A test plugin",
-					Author:      "Test Author",
-					ApiVersion:  "v1",
-				},
-				Instance:        &mockPluginService{},
-				HTTPRoutes:      []*proto.HTTPRoute{},
-				ServerAbilities: []*proto.ServerAbility{},
-			}, nil
-		},
-		unloadFunc: func(_ context.Context, pluginID string) error {
-			unloadCalled = true
-			assert.Equal(t, "testplugin", pluginID)
-
-			return nil
-		},
-	}
-
-	h := dryrun.NewHandler(mockManager, api.NewResponder())
-	recorder := httptest.NewRecorder()
-
-	req := createMultipartRequest(t, "plugin.wasm", validWASMBytes())
-	h.ServeHTTP(recorder, req)
-
-	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.True(t, unloadCalled)
 }

@@ -47,6 +47,15 @@ func (m *mockPluginManager) Load(
 	}, nil
 }
 
+func (m *mockPluginManager) LoadTransient(
+	ctx context.Context,
+	wasmBytes []byte,
+	config map[string]string,
+	pluginID uint64,
+) (*pkgplugin.LoadedPlugin, error) {
+	return m.Load(ctx, wasmBytes, config, pluginID)
+}
+
 func (m *mockPluginManager) Unload(ctx context.Context, pluginID string) error {
 	if m.unloadFunc != nil {
 		return m.unloadFunc(ctx, pluginID)

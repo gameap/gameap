@@ -50,6 +50,21 @@ func BuildPluginRecord(
 	}
 }
 
+// RefreshSubscriptions refreshes plugin event subscriptions after a runtime
+// install/uninstall/update. Detached from the request context so it survives
+// the response being written; failure only logs — the plugin operation itself
+// has already succeeded, events just lag until the next refresh.
+func RefreshSubscriptions(ctx context.Context, refresher SubscriptionRefresher) {
+	if refresher == nil {
+		return
+	}
+
+	if err := refresher.RefreshSubscriptions(context.WithoutCancel(ctx)); err != nil {
+		slog.WarnContext(ctx, "failed to refresh plugin subscriptions",
+			slog.String("error", err.Error()))
+	}
+}
+
 func TryLoadPlugin(
 	ctx context.Context,
 	loader *plugin.Loader,

@@ -223,6 +223,7 @@ type container interface {
 	DaemonCommands() *daemon.CommandService
 	ConsoleLogService() *daemon.ConsoleLogService
 	PluginManager() *plugin.Manager
+	PluginDispatcher() *plugin.Dispatcher
 	PluginRepository() repositories.PluginRepository
 	PluginLoader() *internalplugin.Loader
 	PluginStoreService() *pluginstore.Service
@@ -273,8 +274,10 @@ func CreateRouter(c container) *http.ServeMux {
 
 	serverMux.Handle("/lang/", http.StripPrefix("/lang/", http.FileServer(http.FS(i18n.GetFS()))))
 
-	serverMux.Handle("/plugins.js", frontendPluginsHandler(c))
-	serverMux.Handle("/plugins.css", frontendPluginsStylesHandler(c))
+	if !c.Config().Plugins.Disabled {
+		serverMux.Handle("/plugins.js", frontendPluginsHandler(c))
+		serverMux.Handle("/plugins.css", frontendPluginsStylesHandler(c))
+	}
 
 	return serverMux
 }
@@ -604,6 +607,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonTaskRepository(),
 				c.ServerSettingRepository(),
 				c.TaskDispatcher(),
+				plugin.NewServerControlAdapter(c.PluginDispatcher()),
 				c.Responder(),
 			),
 			AdminOnly: true,
@@ -652,6 +656,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.DaemonTaskRepository(),
 				c.TaskDispatcher(),
+				plugin.NewServerControlAdapter(c.PluginDispatcher()),
 				c.RBAC(),
 				c.Responder(),
 			),
@@ -669,6 +674,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.GameRepository(),
 				c.GameModRepository(),
 				c.ServerConfigPusher(),
+				plugin.NewServerControlAdapter(c.PluginDispatcher()),
 				c.RBAC(),
 				c.Responder(),
 			),
@@ -1816,6 +1822,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginRepository(),
 				c.FileManager(),
 				c.PluginLoader(),
+				c.PluginDispatcher(),
 				c.PluginsDir(),
 				c.Responder(),
 			),
@@ -1829,6 +1836,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginRepository(),
 				c.FileManager(),
 				c.PluginLoader(),
+				c.PluginDispatcher(),
 				c.PluginsDir(),
 				c.Responder(),
 			),
@@ -1841,6 +1849,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginRepository(),
 				c.FileManager(),
 				c.PluginManager(),
+				c.PluginLoader(),
+				c.PluginDispatcher(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -1866,6 +1876,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginRepository(),
 				c.FileManager(),
 				c.PluginLoader(),
+				c.PluginDispatcher(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -2078,6 +2089,10 @@ func registerPluginRoutes(
 	corsMiddleware *middlewares.CORSMiddleware,
 	recoveryMiddleware *middlewares.RecoveryMiddleware,
 ) {
+	if c.Config().Plugins.Disabled {
+		return
+	}
+
 	pluginManager := c.PluginManager()
 	if pluginManager == nil {
 		return

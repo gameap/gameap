@@ -3,11 +3,16 @@ package plugin
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
 	"github.com/tetratelabs/wazero/api"
 )
+
+// defaultCallTimeout caps guest calls whose caller did not set a deadline,
+// so a runaway plugin cannot hold the per-plugin lock forever.
+const defaultCallTimeout = 30 * time.Second
 
 // pluginServiceWrapper wraps WASM module calls to implement proto.PluginService.
 type pluginServiceWrapper struct {
@@ -33,6 +38,18 @@ func (p *pluginServiceWrapper) callFunction(
 ) ([]byte, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	// The runtime closes the module when the call context is done
+	// (WithCloseOnContextDone), so caller cancellation (e.g. a client
+	// dropping an HTTP request) must not reach the guest — only explicit
+	// deadlines may interrupt it.
+	var cancel context.CancelFunc
+	if deadline, ok := ctx.Deadline(); ok {
+		ctx, cancel = context.WithDeadline(context.WithoutCancel(ctx), deadline)
+	} else {
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), defaultCallTimeout)
+	}
+	defer cancel()
 
 	data, err := request.MarshalVT()
 	if err != nil {

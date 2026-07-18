@@ -70,7 +70,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !plugin.Enabled {
+	if !plugin.IsEnabled() {
 		http.Error(w, "plugin is disabled", http.StatusServiceUnavailable)
 
 		return
@@ -135,7 +135,13 @@ func (h *HTTPHandler) handlePluginRequest(
 			slog.String("error", err.Error()),
 		)
 
-		if errors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+			// The runtime closed the module on deadline; stop routing to it.
+			plugin.Disable()
+
+			slog.Error("plugin HTTP handler timed out, plugin disabled until reload",
+				slog.String("plugin_id", plugin.Info.Id),
+			)
 			http.Error(w, "request timeout", http.StatusGatewayTimeout)
 
 			return

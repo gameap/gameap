@@ -11,6 +11,7 @@ import (
 	"github.com/gameap/gameap/internal/pubsub/channels"
 	"github.com/gameap/gameap/internal/pubsub/messages"
 	"github.com/gameap/gameap/internal/repositories"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/proto"
 	"github.com/pkg/errors"
 )
@@ -19,6 +20,7 @@ type TaskHandler struct {
 	daemonTaskRepo repositories.DaemonTaskRepository
 	serverRepo     repositories.ServerRepository
 	publisher      pubsub.Publisher
+	pluginEvents   PluginEventDispatcher
 	logger         *slog.Logger
 }
 
@@ -26,6 +28,7 @@ func NewTaskHandler(
 	daemonTaskRepo repositories.DaemonTaskRepository,
 	serverRepo repositories.ServerRepository,
 	publisher pubsub.Publisher,
+	pluginEvents PluginEventDispatcher,
 	logger *slog.Logger,
 ) *TaskHandler {
 	if logger == nil {
@@ -36,6 +39,7 @@ func NewTaskHandler(
 		daemonTaskRepo: daemonTaskRepo,
 		serverRepo:     serverRepo,
 		publisher:      publisher,
+		pluginEvents:   pluginEvents,
 		logger:         logger,
 	}
 }
@@ -78,6 +82,7 @@ func (h *TaskHandler) HandleTaskStatusUpdate(ctx context.Context, nodeID uint64,
 
 	if isTerminalStatus(task.Status) {
 		h.publishTaskComplete(ctx, update.TaskId, string(task.Status), task.DedicatedServerID)
+		h.dispatchPluginTaskEvent(ctx, &task)
 	}
 
 	h.logger.Debug("task status updated",
@@ -215,6 +220,7 @@ func (h *TaskHandler) markTaskAbandoned(ctx context.Context, task *domain.Daemon
 
 	h.publishTaskStatus(ctx, uint64(task.ID), string(task.Status), task.DedicatedServerID, AbandonedTaskMessage)
 	h.publishTaskComplete(ctx, uint64(task.ID), string(task.Status), task.DedicatedServerID)
+	h.dispatchPluginTaskEvent(ctx, task)
 
 	h.logger.Info("working task marked as error",
 		"task_id", task.ID,
@@ -223,6 +229,29 @@ func (h *TaskHandler) markTaskAbandoned(ctx context.Context, task *domain.Daemon
 	)
 
 	return nil
+}
+
+// dispatchPluginTaskEvent notifies plugins about a terminal task transition.
+func (h *TaskHandler) dispatchPluginTaskEvent(ctx context.Context, task *domain.DaemonTask) {
+	if h.pluginEvents == nil {
+		return
+	}
+
+	eventType := pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED
+	if task.Status != domain.DaemonTaskStatusSuccess {
+		eventType = pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_FAILED
+	}
+
+	h.pluginEvents.DispatchTaskEventAsync(
+		ctx,
+		eventType,
+		task.ID,
+		task.DedicatedServerID,
+		task.ServerID,
+		string(task.Task),
+		string(task.Status),
+		nil,
+	)
 }
 
 func (h *TaskHandler) publishTaskStatus(

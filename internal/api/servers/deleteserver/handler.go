@@ -11,6 +11,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/pkg/errors"
 )
@@ -20,27 +21,46 @@ type TaskDispatcher interface {
 	Dispatch(ctx context.Context, task *domain.DaemonTask) error
 }
 
+// PluginDispatcher dispatches server lifecycle events to plugins.
+type PluginDispatcher interface {
+	DispatchServerEvent(
+		ctx context.Context,
+		eventType servercontrol.PluginEventType,
+		server *domain.Server,
+		extraData map[string]string,
+	) *servercontrol.PluginDispatchResult
+	DispatchServerEventAsync(
+		ctx context.Context,
+		eventType servercontrol.PluginEventType,
+		server *domain.Server,
+		extraData map[string]string,
+	)
+}
+
 type Handler struct {
-	serverRepo     repositories.ServerRepository
-	daemonTaskRepo repositories.DaemonTaskRepository
-	taskDispatcher TaskDispatcher
-	rbac           base.RBAC
-	responder      base.Responder
+	serverRepo       repositories.ServerRepository
+	daemonTaskRepo   repositories.DaemonTaskRepository
+	taskDispatcher   TaskDispatcher
+	pluginDispatcher PluginDispatcher
+	rbac             base.RBAC
+	responder        base.Responder
 }
 
 func NewHandler(
 	serverRepo repositories.ServerRepository,
 	daemonTaskRepo repositories.DaemonTaskRepository,
 	taskDispatcher TaskDispatcher,
+	pluginDispatcher PluginDispatcher,
 	rbac base.RBAC,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		serverRepo:     serverRepo,
-		daemonTaskRepo: daemonTaskRepo,
-		taskDispatcher: taskDispatcher,
-		rbac:           rbac,
-		responder:      responder,
+		serverRepo:       serverRepo,
+		daemonTaskRepo:   daemonTaskRepo,
+		taskDispatcher:   taskDispatcher,
+		pluginDispatcher: pluginDispatcher,
+		rbac:             rbac,
+		responder:        responder,
 	}
 }
 
@@ -91,6 +111,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	server := &servers[0]
 
+	if err := h.dispatchPreDelete(ctx, server); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	if in.DeleteFiles {
 		if err := h.deleteWithFiles(ctx, server); err != nil {
 			h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to delete server with files"))
@@ -105,7 +131,40 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.dispatchPostDelete(ctx, server)
+
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// dispatchPreDelete gives plugins a chance to cancel the deletion.
+func (h *Handler) dispatchPreDelete(ctx context.Context, server *domain.Server) error {
+	if h.pluginDispatcher == nil {
+		return nil
+	}
+
+	result := h.pluginDispatcher.DispatchServerEvent(ctx, servercontrol.PluginEventServerPreDelete, server, nil)
+	if result != nil && result.Cancelled {
+		msg := result.CancelMessage
+		if msg == "" {
+			msg = result.CancelledBy
+		}
+
+		return api.WrapHTTPError(
+			errors.Wrapf(servercontrol.ErrCancelledByPlugin, "cancelled by %s: %s", result.CancelledBy, msg),
+			http.StatusConflict,
+		)
+	}
+
+	return nil
+}
+
+func (h *Handler) dispatchPostDelete(ctx context.Context, server *domain.Server) {
+	if h.pluginDispatcher == nil {
+		return
+	}
+
+	h.pluginDispatcher.DispatchServerEventAsync(ctx, servercontrol.PluginEventServerPostDelete, server, nil)
+	h.pluginDispatcher.DispatchServerEventAsync(ctx, servercontrol.PluginEventServerDeleted, server, nil)
 }
 
 func (h *Handler) deleteWithFiles(ctx context.Context, server *domain.Server) error {

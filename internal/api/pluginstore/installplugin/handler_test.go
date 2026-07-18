@@ -115,6 +115,7 @@ func TestInstallPlugin(t *testing.T) {
 				pluginRepo,
 				fileManager,
 				nil,
+				nil,
 				"plugins",
 				api.NewResponder(),
 			)
@@ -182,6 +183,7 @@ func TestInstallPlugin_already_installed(t *testing.T) {
 		storeService,
 		pluginRepo,
 		fileManager,
+		nil,
 		nil,
 		"plugins",
 		api.NewResponder(),
@@ -370,6 +372,15 @@ func (m *errLoaderManager) Load(
 	return &pkgplugin.LoadedPlugin{
 		Info: &proto.PluginInfo{Id: testPluginID, Name: "Test Plugin", Version: "1.0.0"},
 	}, nil
+}
+
+func (m *errLoaderManager) LoadTransient(
+	ctx context.Context,
+	wasmBytes []byte,
+	config map[string]string,
+	pluginID uint64,
+) (*pkgplugin.LoadedPlugin, error) {
+	return m.Load(ctx, wasmBytes, config, pluginID)
 }
 
 func (m *errLoaderManager) Unload(_ context.Context, _ string) error           { return nil }
@@ -638,6 +649,7 @@ func TestInstallPlugin_errors(t *testing.T) {
 				repo,
 				fm,
 				loader,
+				nil,
 				"plugins",
 				api.NewResponder(),
 			)
@@ -699,7 +711,7 @@ func TestInstallPlugin_load_error_keeps_record_with_correct_timestamps(t *testin
 		"plugins",
 	)
 
-	h := installplugin.NewHandler(storeService, repo, fm, loader, "plugins", api.NewResponder())
+	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
 
 	req := httptest.NewRequest(
 		http.MethodPost,

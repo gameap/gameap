@@ -21,12 +21,17 @@ func NewServerControlAdapter(dispatcher *Dispatcher) *ServerControlAdapter {
 }
 
 // DispatchServerEvent implements servercontrol.PluginDispatcher.
+// Safe to call on a nil adapter or one wrapping a nil dispatcher (plugins off).
 func (a *ServerControlAdapter) DispatchServerEvent(
 	ctx context.Context,
 	eventType servercontrol.PluginEventType,
 	server *domain.Server,
 	extraData map[string]string,
 ) *servercontrol.PluginDispatchResult {
+	if a == nil || a.dispatcher == nil {
+		return &servercontrol.PluginDispatchResult{}
+	}
+
 	protoEventType := mapEventType(eventType)
 
 	result := a.dispatcher.DispatchServerEvent(ctx, protoEventType, server, extraData)
@@ -36,6 +41,21 @@ func (a *ServerControlAdapter) DispatchServerEvent(
 		CancelledBy:   result.CancelledBy,
 		CancelMessage: result.CancelMessage,
 	}
+}
+
+// DispatchServerEventAsync implements servercontrol.PluginDispatcher.
+// Safe to call on a nil adapter or one wrapping a nil dispatcher (plugins off).
+func (a *ServerControlAdapter) DispatchServerEventAsync(
+	ctx context.Context,
+	eventType servercontrol.PluginEventType,
+	server *domain.Server,
+	extraData map[string]string,
+) {
+	if a == nil || a.dispatcher == nil {
+		return
+	}
+
+	a.dispatcher.DispatchServerEventAsync(ctx, mapEventType(eventType), server, extraData)
 }
 
 func mapEventType(eventType servercontrol.PluginEventType) proto.EventType {
@@ -68,6 +88,12 @@ func mapEventType(eventType servercontrol.PluginEventType) proto.EventType {
 		return proto.EventType_EVENT_TYPE_SERVER_PRE_DELETE
 	case servercontrol.PluginEventServerPostDelete:
 		return proto.EventType_EVENT_TYPE_SERVER_POST_DELETE
+	case servercontrol.PluginEventServerCreated:
+		return proto.EventType_EVENT_TYPE_SERVER_CREATED
+	case servercontrol.PluginEventServerUpdated:
+		return proto.EventType_EVENT_TYPE_SERVER_UPDATED
+	case servercontrol.PluginEventServerDeleted:
+		return proto.EventType_EVENT_TYPE_SERVER_DELETED
 	default:
 		return proto.EventType_EVENT_TYPE_UNSPECIFIED
 	}

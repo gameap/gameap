@@ -10,6 +10,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/pkg/api"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/pkg/errors"
@@ -20,6 +21,16 @@ type TaskDispatcher interface {
 	Dispatch(ctx context.Context, task *domain.DaemonTask) error
 }
 
+// PluginDispatcher dispatches server lifecycle events to plugins.
+type PluginDispatcher interface {
+	DispatchServerEventAsync(
+		ctx context.Context,
+		eventType servercontrol.PluginEventType,
+		server *domain.Server,
+		extraData map[string]string,
+	)
+}
+
 type Handler struct {
 	serverRepo         repositories.ServerRepository
 	nodeRepo           repositories.NodeRepository
@@ -28,6 +39,7 @@ type Handler struct {
 	daemonTaskRepo     repositories.DaemonTaskRepository
 	serverSettingsRepo repositories.ServerSettingRepository
 	taskDispatcher     TaskDispatcher
+	pluginDispatcher   PluginDispatcher
 	responder          base.Responder
 }
 
@@ -39,6 +51,7 @@ func NewHandler(
 	daemonTaskRepo repositories.DaemonTaskRepository,
 	serverSettingsRepo repositories.ServerSettingRepository,
 	taskDispatcher TaskDispatcher,
+	pluginDispatcher PluginDispatcher,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
@@ -49,6 +62,7 @@ func NewHandler(
 		daemonTaskRepo:     daemonTaskRepo,
 		serverSettingsRepo: serverSettingsRepo,
 		taskDispatcher:     taskDispatcher,
+		pluginDispatcher:   pluginDispatcher,
 		responder:          responder,
 	}
 }
@@ -88,6 +102,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save server"))
 
 		return
+	}
+
+	if h.pluginDispatcher != nil {
+		h.pluginDispatcher.DispatchServerEventAsync(ctx, servercontrol.PluginEventServerCreated, server, nil)
 	}
 
 	if len(input.Settings) > 0 {

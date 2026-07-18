@@ -42,6 +42,9 @@ const (
 	PluginEventServerPostReinstall
 	PluginEventServerPreDelete
 	PluginEventServerPostDelete
+	PluginEventServerCreated
+	PluginEventServerUpdated
+	PluginEventServerDeleted
 )
 
 // PluginDispatchResult contains the result of dispatching an event.
@@ -53,12 +56,23 @@ type PluginDispatchResult struct {
 
 // PluginDispatcher is an interface for dispatching plugin events.
 type PluginDispatcher interface {
+	// DispatchServerEvent dispatches synchronously; used for cancellable
+	// pre-events where the result matters.
 	DispatchServerEvent(
 		ctx context.Context,
 		eventType PluginEventType,
 		server *domain.Server,
 		extraData map[string]string,
 	) *PluginDispatchResult
+
+	// DispatchServerEventAsync dispatches in the background (fire-and-forget);
+	// used for post-events so plugins cannot delay the caller.
+	DispatchServerEventAsync(
+		ctx context.Context,
+		eventType PluginEventType,
+		server *domain.Server,
+		extraData map[string]string,
+	)
 }
 
 // TaskDispatcher is an interface for dispatching daemon tasks via gRPC.
@@ -159,7 +173,8 @@ func (s *Service) dispatchPreEvent(
 	return nil
 }
 
-// dispatchPostEvent dispatches a post-event (non-blocking).
+// dispatchPostEvent dispatches a post-event in the background so plugins
+// cannot delay the server operation.
 func (s *Service) dispatchPostEvent(
 	ctx context.Context,
 	eventType PluginEventType,
@@ -169,7 +184,7 @@ func (s *Service) dispatchPostEvent(
 		return
 	}
 
-	s.pluginDispatcher.DispatchServerEvent(ctx, eventType, server, nil)
+	s.pluginDispatcher.DispatchServerEventAsync(ctx, eventType, server, nil)
 }
 
 // Start creates a server start task.

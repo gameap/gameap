@@ -110,6 +110,8 @@ func TestUninstall_successful(t *testing.T) {
 		pluginRepo,
 		fileManager,
 		nil,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -137,6 +139,8 @@ func TestUninstall_not_installed(t *testing.T) {
 	h := uninstall.NewHandler(
 		pluginRepo,
 		fileManager,
+		nil,
+		nil,
 		nil,
 		"plugins",
 		api.NewResponder(),
@@ -178,6 +182,8 @@ func TestUninstall_with_manager(t *testing.T) {
 		pluginRepo,
 		fileManager,
 		manager,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -224,6 +230,8 @@ func TestUninstall_manager_unload_error(t *testing.T) {
 		pluginRepo,
 		fileManager,
 		manager,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -267,6 +275,8 @@ func TestUninstall_plugin_not_loaded_in_manager(t *testing.T) {
 		pluginRepo,
 		fileManager,
 		manager,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -317,7 +327,7 @@ func TestUninstall_Audit_SuccessfulUninstallIsRecorded(t *testing.T) {
 
 	recorder := &auditCapture{}
 	h := uninstall.NewHandler(
-		pluginRepo, fileManager, nil, "plugins", api.NewResponder(), recorder,
+		pluginRepo, fileManager, nil, nil, nil, "plugins", api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
 
@@ -351,7 +361,7 @@ func TestUninstall_Audit_NotInstalledIsNotRecorded(t *testing.T) {
 	// ARRANGE
 	recorder := &auditCapture{}
 	h := uninstall.NewHandler(
-		inmemory.NewPluginRepository(), files.NewInMemoryFileManager(), nil, "plugins",
+		inmemory.NewPluginRepository(), files.NewInMemoryFileManager(), nil, nil, nil, "plugins",
 		api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
