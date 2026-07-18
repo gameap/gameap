@@ -261,6 +261,8 @@ const en = {
         copyToClipboard: 'Copied to clipboard!',
         chmodSuccess: 'Permissions changed!',
         chmodError: 'Failed to change permissions!',
+        pasteSameDirectory: 'Items are already in this folder',
+        pasteIntoItself: 'Cannot paste a folder into itself',
     },
     response: {
         noConfig: 'Config not found!',

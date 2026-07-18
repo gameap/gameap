@@ -761,7 +761,16 @@
     tags:
       - FileManager
     summary: Copy/move files
-    description: Copies or moves files/directories
+    description: |
+      Copies (`clipboard.type: copy`) or moves (`clipboard.type: cut`)
+      clipboard items into the `path` directory. All paths are relative to
+      the server root directory; backslash separators are normalized to
+      forward slashes. Each item lands in `path` under its own basename
+      unless `names` overrides it. Existing destination items are silently
+      overwritten. Copying an item onto itself is rejected — pass a new
+      basename via `names` to duplicate an item in its own directory. Moving
+      an item onto itself is skipped as a no-op. Pasting a directory into
+      itself or its own subtree is rejected.
     operationId: pasteFiles
     parameters:
       - name: server
@@ -777,22 +786,61 @@
           schema:
             type: object
             properties:
-              items:
-                type: array
-                description: Source paths
-                items:
+              disk:
+                type: string
+                description: Disk name, only `server` is supported
+                enum:
+                  - server
+              path:
+                type: string
+                description: >
+                  Destination directory relative to the server root
+                  directory; empty string or `/` means the root itself
+              clipboard:
+                type: object
+                description: Items to paste and the operation type
+                properties:
+                  type:
+                    type: string
+                    description: Operation type
+                    enum:
+                      - copy
+                      - cut
+                  disk:
+                    type: string
+                    description: Source disk name, only `server` is supported
+                    enum:
+                      - server
+                  directories:
+                    type: array
+                    description: Source directory paths relative to the server root
+                    items:
+                      type: string
+                  files:
+                    type: array
+                    description: Source file paths relative to the server root
+                    items:
+                      type: string
+                required:
+                  - type
+                  - disk
+                  - directories
+                  - files
+              names:
+                type: object
+                description: >
+                  Optional destination basenames keyed by the exact source
+                  item strings from `clipboard.files` /
+                  `clipboard.directories`. Used to paste under a new name,
+                  e.g. duplicating `file.txt` in its own directory as
+                  `file_1.txt`. Values must be plain names without path
+                  separators or `..` components.
+                additionalProperties:
                   type: string
-              destination:
-                type: string
-                description: Destination directory
-              operation:
-                type: string
-                enum: [copy, move]
-                description: Operation type
             required:
-              - items
-              - destination
-              - operation
+              - disk
+              - path
+              - clipboard
     responses:
       '200':
         description: Operation completed
@@ -800,8 +848,29 @@
           application/json:
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
+      '400':
+        description: >
+          Bad request (invalid path or name, unsupported disk or clipboard
+          type, empty clipboard, copy onto itself, or directory pasted into
+          itself)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found
         content:
           application/json:
             schema:

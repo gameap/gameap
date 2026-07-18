@@ -261,6 +261,8 @@ const ru = {
         copyToClipboard: 'Скопировано!',
         chmodSuccess: 'Права изменены!',
         chmodError: 'Не удалось изменить права!',
+        pasteSameDirectory: 'Элементы уже находятся в этой папке',
+        pasteIntoItself: 'Нельзя вставить папку саму в себя',
     },
     response: {
         noConfig: 'Конфигурация не найдена!',
