@@ -23,6 +23,16 @@ func TestLoad_duplicate_returns_already_loaded(t *testing.T) {
 	require.Len(t, sharedManager.GetPlugins(), before, "duplicate load must not replace the registered plugin")
 }
 
+func TestLoadTransient_returns_error_when_manager_closed(t *testing.T) {
+	manager := NewManager(ManagerConfig{})
+	manager.closed = true
+
+	_, err := manager.LoadTransient(context.Background(), []byte{}, nil, 0)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrManagerClosed)
+}
+
 func TestLoadTransient_does_not_register_plugin(t *testing.T) {
 	shared := loadSharedServerLoggerWASM(t)
 	wasmBytes, err := decompressServerLoggerWASM()

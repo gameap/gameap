@@ -619,6 +619,30 @@ func TestShutdown(t *testing.T) {
 		assert.Empty(t, manager.plugins)
 	})
 
+	t.Run("passes_declared_plugin_id_to_shutdown_context", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		gotPluginID := ""
+		// "my-custom-plugin" is not a canonical compact ID, so the map key
+		// (normalized) differs from the declared Info.Id.
+		manager.plugins[normalizePluginID("my-custom-plugin")] = &LoadedPlugin{
+			Info: &proto.PluginInfo{Id: "my-custom-plugin"},
+			Instance: &mockPluginService{
+				shutdownFunc: func(_ context.Context, req *proto.ShutdownRequest) (*proto.ShutdownResponse, error) {
+					gotPluginID = req.Context.PluginId
+
+					return &proto.ShutdownResponse{}, nil
+				},
+			},
+			runtime: nil,
+		}
+
+		err := manager.Shutdown(context.Background())
+
+		require.NoError(t, err)
+		assert.Equal(t, "my-custom-plugin", gotPluginID,
+			"guest must receive its declared ID, not the normalized map key")
+	})
+
 	t.Run("calls_shutdown_on_all_plugins", func(t *testing.T) {
 		manager := NewManager(ManagerConfig{})
 		shutdownCalls := make(map[string]bool)

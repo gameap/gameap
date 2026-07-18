@@ -148,11 +148,12 @@ func (m *Manager) LoadTransient(
 	config map[string]string,
 	pluginID uint64,
 ) (*LoadedPlugin, error) {
+	// The read lock is held through the whole load so Shutdown (write lock)
+	// cannot complete while a transient runtime is still initializing.
 	m.mu.RLock()
-	closed := m.closed
-	m.mu.RUnlock()
+	defer m.mu.RUnlock()
 
-	if closed {
+	if m.closed {
 		return nil, ErrManagerClosed
 	}
 
@@ -553,8 +554,9 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	for pluginID, plugin := range m.plugins {
 		plugin.Disable()
 
+		// The guest knows itself by its declared ID, not the normalized map key.
 		_, _ = plugin.Instance.Shutdown(ctx, &proto.ShutdownRequest{
-			Context: &proto.PluginContext{PluginId: pluginID},
+			Context: &proto.PluginContext{PluginId: plugin.Info.Id},
 		})
 
 		if err := plugin.Close(ctx); err != nil {
