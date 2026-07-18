@@ -63,6 +63,42 @@ test('same-dir paste auto-renames, same-dir cut is a no-op, folder is not pasted
 
   const pasteBodies: Array<Record<string, unknown>> = [];
 
+  // The server page API is mocked as well: CI runs without any server row
+  // in the DB (servers cannot be provisioned without an enrolled daemon),
+  // so the spec must not depend on GET /api/servers/1 hitting the backend.
+  await page.route('**/api/servers/1/**', (route) =>
+    route.fulfill({ json: {} }),
+  );
+  await page.route('**/api/servers/1', (route) =>
+    route.fulfill({
+      json: {
+        id: 1,
+        uid: '11111111-1111-1111-1111-111111111111',
+        uuid: '11111111-1111-1111-1111-111111111111',
+        uuid_short: '11111111',
+        enabled: true,
+        installed: 1,
+        blocked: false,
+        name: 'E2E FM Server',
+        game_id: 'cs',
+        ds_id: 1,
+        game_mod_id: 1,
+        server_ip: '127.0.0.1',
+        server_port: 27015,
+        online: false,
+        game: { code: 'cs', name: 'Counter-Strike' },
+      },
+    }),
+  );
+  await page.route('**/api/servers/1/abilities', (route) =>
+    route.fulfill({
+      json: {
+        'game-server-common': true,
+        'game-server-files': true,
+      },
+    }),
+  );
+
   // Catch-all first: overlapping routes registered later win, so anything
   // not mocked explicitly still gets a harmless success instead of hitting
   // the daemon-less backend.
