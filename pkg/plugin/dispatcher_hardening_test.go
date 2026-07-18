@@ -1,7 +1,10 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -145,6 +148,74 @@ func TestDispatcher_DispatchServerEventsAsync_preserves_delivery_order(t *testin
 			proto.EventType_EVENT_TYPE_SERVER_DELETED,
 		}, got, "iteration %d: post-delete must be delivered before deleted", i)
 	}
+}
+
+func TestDispatcher_dispatchAsync_overflow_drops_batch_and_logs(t *testing.T) {
+	manager := newDispatcherTestManager()
+	received := make(chan proto.EventType, 4)
+	plugin := &LoadedPlugin{
+		Info:    &proto.PluginInfo{Id: "bounded"},
+		Enabled: true,
+		Instance: &mockPluginService{
+			handleEventFunc: func(_ context.Context, event *proto.Event) (*proto.EventResult, error) {
+				received <- event.Type
+
+				return &proto.EventResult{Handled: true}, nil
+			},
+		},
+	}
+
+	logs := &syncLogBuffer{}
+	dispatcher := NewDispatcher(manager, slog.New(slog.NewTextHandler(logs, nil)))
+	dispatcher.subscriptions[proto.EventType_EVENT_TYPE_SERVER_CREATED] = []*LoadedPlugin{plugin}
+
+	for range cap(dispatcher.asyncSlots) {
+		dispatcher.asyncSlots <- struct{}{}
+	}
+
+	dispatcher.DispatchServerEventAsync(
+		context.Background(), proto.EventType_EVENT_TYPE_SERVER_CREATED, &domain.Server{ID: 1}, nil,
+	)
+
+	assert.Contains(t, logs.String(), "async plugin events dropped",
+		"overflow must be reported loudly")
+	select {
+	case eventType := <-received:
+		t.Fatalf("dropped event %v must not be delivered", eventType)
+	default:
+	}
+
+	<-dispatcher.asyncSlots
+
+	dispatcher.DispatchServerEventAsync(
+		context.Background(), proto.EventType_EVENT_TYPE_SERVER_CREATED, &domain.Server{ID: 2}, nil,
+	)
+
+	select {
+	case eventType := <-received:
+		assert.Equal(t, proto.EventType_EVENT_TYPE_SERVER_CREATED, eventType)
+	case <-time.After(2 * time.Second):
+		t.Fatal("event must be delivered once a slot is free")
+	}
+}
+
+type syncLogBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncLogBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.Write(p)
+}
+
+func (b *syncLogBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.String()
 }
 
 func TestDispatcher_DispatchTaskEventAsync_delivers_payload(t *testing.T) {

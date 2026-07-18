@@ -75,7 +75,9 @@ Delivery semantics:
   request, 60s total budget) — plugins cannot delay the caller, and delivery errors
   are only logged. Several async events emitted by one operation
   (e.g. `SERVER_POST_DELETE` → `SERVER_DELETED`) are delivered sequentially in
-  that order.
+  that order. At most 64 background deliveries run concurrently; when the
+  backlog is full (wedged plugins), further async events are dropped with an
+  error log instead of blocking callers.
 - Subscriptions are collected via `GetSubscribedEvents` at panel startup and
   refreshed automatically after runtime plugin install/update/uninstall.
 - `DAEMON_TASK_CREATED` fires only for tasks that go through the gRPC task

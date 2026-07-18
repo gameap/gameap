@@ -38,6 +38,11 @@ const (
 	// asyncDispatchTimeout bounds the total delivery of one fire-and-forget
 	// event across all subscribers.
 	asyncDispatchTimeout = 60 * time.Second
+	// maxAsyncDispatches caps concurrent background deliveries. A hung plugin
+	// parks callers on its wrapper mutex (mutex waits ignore contexts), so
+	// without a bound every incoming operation would grow the goroutine pile
+	// until the per-call timeout disables the plugin.
+	maxAsyncDispatches = 64
 )
 
 // Dispatcher handles event dispatching to plugins.
@@ -47,6 +52,7 @@ type Dispatcher struct {
 	subscriptions   map[proto.EventType][]*LoadedPlugin
 	logger          *slog.Logger
 	callTimeout     time.Duration
+	asyncSlots      chan struct{}
 	subscriptionsOK bool
 }
 
@@ -57,6 +63,7 @@ func NewDispatcher(manager *Manager, logger *slog.Logger) *Dispatcher {
 		subscriptions: make(map[proto.EventType][]*LoadedPlugin),
 		logger:        logger,
 		callTimeout:   defaultEventCallTimeout,
+		asyncSlots:    make(chan struct{}, maxAsyncDispatches),
 	}
 }
 
@@ -245,9 +252,31 @@ func (d *Dispatcher) dispatchAsync(ctx context.Context, events ...*proto.Event) 
 		return
 	}
 
+	select {
+	case d.asyncSlots <- struct{}{}:
+	default:
+		// Fire-and-forget events are advisory; when the backlog is full
+		// (plugins wedged for longer than the disable timeout can drain),
+		// dropping the whole ordered batch is safer than blocking the
+		// caller or queueing without bound.
+		eventTypes := make([]int, 0, len(events))
+		for _, event := range events {
+			eventTypes = append(eventTypes, int(event.Type))
+		}
+
+		d.logger.Error("async plugin events dropped, dispatch backlog is full",
+			slog.Any("event_types", eventTypes),
+			slog.Int("capacity", cap(d.asyncSlots)),
+		)
+
+		return
+	}
+
 	bgCtx := context.WithoutCancel(ctx)
 
 	go func() {
+		defer func() { <-d.asyncSlots }()
+
 		dispatchCtx, cancel := context.WithTimeout(bgCtx, asyncDispatchTimeout)
 		defer cancel()
 
