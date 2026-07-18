@@ -86,6 +86,64 @@ func TestHandleTaskStatusUpdate_PluginTaskEvents(t *testing.T) {
 	}
 }
 
+func TestHandleTaskStatusUpdate_duplicate_terminal_update_dispatches_once(t *testing.T) {
+	now := time.Now()
+	task := &domain.DaemonTask{
+		DedicatedServerID: 1,
+		Task:              domain.DaemonTaskTypeServerStart,
+		Status:            domain.DaemonTaskStatusWorking,
+		CreatedAt:         &now,
+		UpdatedAt:         &now,
+	}
+	repo := setupDaemonTaskRepo(t, task)
+	pluginEvents := &fakePluginTaskEvents{}
+	handler := NewTaskHandler(repo, nil, nil, pluginEvents, slog.Default())
+
+	update := &proto.TaskStatusUpdate{
+		TaskId: uint64(task.ID),
+		Status: proto.DaemonTaskStatus_DAEMON_TASK_STATUS_SUCCESS,
+	}
+
+	require.NoError(t, handler.HandleTaskStatusUpdate(context.Background(), 1, update))
+	require.NoError(t, handler.HandleTaskStatusUpdate(context.Background(), 1, update))
+
+	assert.Equal(t,
+		[]pluginproto.EventType{pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED},
+		pluginEvents.events,
+		"a re-delivered terminal update must not emit a duplicate plugin event")
+}
+
+func TestHandleTaskStatusUpdate_terminal_transition_between_statuses_dispatches(t *testing.T) {
+	now := time.Now()
+	task := &domain.DaemonTask{
+		DedicatedServerID: 1,
+		Task:              domain.DaemonTaskTypeServerStart,
+		Status:            domain.DaemonTaskStatusWorking,
+		CreatedAt:         &now,
+		UpdatedAt:         &now,
+	}
+	repo := setupDaemonTaskRepo(t, task)
+	pluginEvents := &fakePluginTaskEvents{}
+	handler := NewTaskHandler(repo, nil, nil, pluginEvents, slog.Default())
+
+	require.NoError(t, handler.HandleTaskStatusUpdate(context.Background(), 1, &proto.TaskStatusUpdate{
+		TaskId: uint64(task.ID),
+		Status: proto.DaemonTaskStatus_DAEMON_TASK_STATUS_SUCCESS,
+	}))
+	require.NoError(t, handler.HandleTaskStatusUpdate(context.Background(), 1, &proto.TaskStatusUpdate{
+		TaskId: uint64(task.ID),
+		Status: proto.DaemonTaskStatus_DAEMON_TASK_STATUS_ERROR,
+	}))
+
+	assert.Equal(t,
+		[]pluginproto.EventType{
+			pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED,
+			pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_FAILED,
+		},
+		pluginEvents.events,
+		"a genuine transition between terminal statuses is a new event")
+}
+
 func TestReconcileWorkingTasks_dispatches_task_failure_event(t *testing.T) {
 	now := time.Now()
 	task := &domain.DaemonTask{

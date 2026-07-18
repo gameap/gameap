@@ -64,6 +64,7 @@ func (h *TaskHandler) HandleTaskStatusUpdate(ctx context.Context, nodeID uint64,
 	}
 
 	task := tasks[0]
+	prevStatus := task.Status
 	task.Status = status
 
 	if err := h.daemonTaskRepo.Save(ctx, &task); err != nil {
@@ -82,7 +83,12 @@ func (h *TaskHandler) HandleTaskStatusUpdate(ctx context.Context, nodeID uint64,
 
 	if isTerminalStatus(task.Status) {
 		h.publishTaskComplete(ctx, update.TaskId, string(task.Status), task.DedicatedServerID)
-		h.dispatchPluginTaskEvent(ctx, &task)
+
+		// The daemon may re-deliver a terminal update (retry, reconnect
+		// replay); plugins must see each transition only once.
+		if prevStatus != task.Status {
+			h.dispatchPluginTaskEvent(ctx, &task)
+		}
 	}
 
 	h.logger.Debug("task status updated",
