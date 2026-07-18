@@ -70,7 +70,9 @@ Delivery semantics:
 - **Sync** (cancellable pre-events) block the initiating request; a plugin returning
   `should_cancel` aborts the operation. Each plugin call is bounded by a per-call
   timeout (10s); on expiry the module is closed and the plugin is disabled until it
-  is reloaded.
+  is reloaded. Calls into one plugin are serialized; a caller queued behind an
+  in-flight call gives up at its own deadline with a "plugin is busy" error (the
+  plugin stays enabled — its module was never touched).
 - **Async** events are dispatched in a background goroutine (detached from the
   request, 60s total budget) — plugins cannot delay the caller, and delivery errors
   are only logged. Several async events emitted by one operation

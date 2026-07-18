@@ -471,6 +471,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 	getServerAbilities := module.ExportedFunction("plugin_service_get_server_abilities")
 
 	return &pluginServiceWrapper{
+		gate:                make(chan struct{}, 1),
 		module:              module,
 		malloc:              funcs["malloc"],
 		free:                funcs["free"],

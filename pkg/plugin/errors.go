@@ -16,6 +16,9 @@ var (
 	ErrExportNotFound       = errors.New("required export not found")
 	ErrMemoryOutOfRange     = errors.New("memory operation out of range")
 	ErrPluginReturnedError  = errors.New("plugin returned error")
+	// ErrPluginBusy means the caller gave up waiting for the per-plugin call
+	// gate; the guest was never invoked and its module is untouched.
+	ErrPluginBusy = errors.New("plugin is busy")
 )
 
 var knownErrors = []error{

@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -11,12 +10,14 @@ import (
 )
 
 // defaultCallTimeout caps guest calls whose caller did not set a deadline,
-// so a runaway plugin cannot hold the per-plugin lock forever.
+// so a runaway plugin cannot hold the per-plugin call gate forever.
 const defaultCallTimeout = 30 * time.Second
 
 // pluginServiceWrapper wraps WASM module calls to implement proto.PluginService.
 type pluginServiceWrapper struct {
-	mu                  sync.Mutex
+	// gate serializes guest calls; a channel instead of a mutex so queued
+	// callers can abandon the wait when their context ends.
+	gate                chan struct{}
 	module              api.Module
 	malloc              api.Function
 	free                api.Function
@@ -36,8 +37,19 @@ func (p *pluginServiceWrapper) callFunction(
 	fn api.Function,
 	request vtMarshaler,
 ) ([]byte, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	// The wait honors the caller's full context (deadline and cancellation):
+	// the guest has not been invoked yet, so giving up here is always safe.
+	select {
+	case p.gate <- struct{}{}:
+	case <-ctx.Done():
+		return nil, errors.Wrapf(ErrPluginBusy, "%s", ctx.Err())
+	}
+	defer func() { <-p.gate }()
+
+	// select picks randomly when both cases are ready.
+	if ctx.Err() != nil {
+		return nil, errors.Wrapf(ErrPluginBusy, "%s", ctx.Err())
+	}
 
 	// The runtime closes the module when the call context is done
 	// (WithCloseOnContextDone), so caller cancellation (e.g. a client

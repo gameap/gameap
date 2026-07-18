@@ -135,6 +135,13 @@ func (h *HTTPHandler) handlePluginRequest(
 			slog.String("error", err.Error()),
 		)
 
+		if errors.Is(err, ErrPluginBusy) {
+			// The guest was never invoked; the plugin stays enabled.
+			http.Error(w, "plugin is busy", http.StatusServiceUnavailable)
+
+			return
+		}
+
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
 			// The runtime closed the module on deadline; stop routing to it.
 			plugin.Disable()
