@@ -30,10 +30,12 @@ function addRenameSuffix(name, taken, splitExtension = true) {
 }
 
 function normalizeComparePath(p) {
-    return String(p ?? '')
+    const normalized = String(p ?? '')
         .replace(/\\/g, '/')
         .replace(/^\/+/, '')
         .replace(/\/+$/, '')
+
+    return normalized === '.' ? '' : normalized
 }
 
 function basenameOf(p) {
@@ -1013,7 +1015,9 @@ export const useFileManagerStore = defineStore('fm', () => {
                 ...manager.directories.map((d) => d.basename),
                 ...manager.files.map((f) => f.basename),
             ])
-            names = {}
+            // Null prototype: an item literally named "__proto__" must
+            // still become an own enumerable key of the payload map.
+            names = Object.create(null)
             for (const dir of clipboard.value.directories) {
                 if (!inDestDir(dir)) {
                     continue

@@ -69,8 +69,10 @@ var testNode = domain.Node{
 }
 
 type mockFileService struct {
-	copyFunc func(ctx context.Context, node *domain.Node, source, destination string) error
-	moveFunc func(ctx context.Context, node *domain.Node, source, destination string) error
+	copyFunc  func(ctx context.Context, node *domain.Node, source, destination string) error
+	moveFunc  func(ctx context.Context, node *domain.Node, source, destination string) error
+	copyCalls int
+	moveCalls int
 }
 
 func (m *mockFileService) Copy(
@@ -79,6 +81,8 @@ func (m *mockFileService) Copy(
 	source string,
 	destination string,
 ) error {
+	m.copyCalls++
+
 	if m.copyFunc != nil {
 		return m.copyFunc(ctx, node, source, destination)
 	}
@@ -92,6 +96,8 @@ func (m *mockFileService) Move(
 	source string,
 	destination string,
 ) error {
+	m.moveCalls++
+
 	if m.moveFunc != nil {
 		return m.moveFunc(ctx, node, source, destination)
 	}
@@ -156,6 +162,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		setupFileService func() *mockFileService
 		expectedStatus   int
 		wantError        string
+		wantCopyCalls    *int
+		wantMoveCalls    *int
 		validateResponse func(*testing.T, []byte)
 	}{
 		{
@@ -1499,6 +1507,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
+			wantCopyCalls:  new(1),
 			validateResponse: func(t *testing.T, body []byte) {
 				t.Helper()
 
@@ -1541,6 +1550,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
+			wantCopyCalls:  new(1),
 			validateResponse: func(t *testing.T, body []byte) {
 				t.Helper()
 
@@ -1582,6 +1592,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
+			wantCopyCalls:  new(1),
 			validateResponse: func(t *testing.T, body []byte) {
 				t.Helper()
 
@@ -1621,6 +1632,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
+			wantMoveCalls:  new(0),
 			validateResponse: func(t *testing.T, body []byte) {
 				t.Helper()
 
@@ -1661,6 +1673,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
+			wantMoveCalls:  new(0),
 			validateResponse: func(t *testing.T, body []byte) {
 				t.Helper()
 
@@ -1706,6 +1719,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
+			wantMoveCalls:  new(1),
 			validateResponse: func(t *testing.T, body []byte) {
 				t.Helper()
 
@@ -1967,6 +1981,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
+			wantCopyCalls:  new(2),
 			validateResponse: func(t *testing.T, body []byte) {
 				t.Helper()
 
@@ -1975,6 +1990,35 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, "success", response.Result.Status)
 				assert.Equal(t, "Copied successfully!", response.Result.Message)
 			},
+		},
+		{
+			name:     "invalid_item_aborts_batch_before_any_operation",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "backup",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"a.txt", "docs/b.txt"},
+				},
+				Names: map[string]string{"docs/b.txt": "sub/b.txt"},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "filename contains path separators",
+			wantCopyCalls:  new(0),
 		},
 	}
 
@@ -2019,6 +2063,14 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				errorMsg, ok := response["error"].(string)
 				require.True(t, ok)
 				assert.Contains(t, errorMsg, tt.wantError)
+			}
+
+			if tt.wantCopyCalls != nil {
+				assert.Equal(t, *tt.wantCopyCalls, fileService.copyCalls, "unexpected Copy call count")
+			}
+
+			if tt.wantMoveCalls != nil {
+				assert.Equal(t, *tt.wantMoveCalls, fileService.moveCalls, "unexpected Move call count")
 			}
 
 			if tt.validateResponse != nil {
