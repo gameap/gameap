@@ -99,6 +99,54 @@ func TestDispatcher_DispatchServerEventAsync_survives_caller_cancellation(t *tes
 	}
 }
 
+func TestDispatcher_DispatchServerEventsAsync_preserves_delivery_order(t *testing.T) {
+	// Both events are delivered by one background goroutine, so a subscriber
+	// to both must always observe them in the requested order.
+	for i := range 10 {
+		manager := newDispatcherTestManager()
+		received := make(chan proto.EventType, 2)
+		plugin := &LoadedPlugin{
+			Info:    &proto.PluginInfo{Id: "ordered"},
+			Enabled: true,
+			Instance: &mockPluginService{
+				handleEventFunc: func(_ context.Context, event *proto.Event) (*proto.EventResult, error) {
+					received <- event.Type
+
+					return &proto.EventResult{Handled: true}, nil
+				},
+			},
+		}
+		dispatcher := NewDispatcher(manager, discardLogger())
+		dispatcher.subscriptions[proto.EventType_EVENT_TYPE_SERVER_POST_DELETE] = []*LoadedPlugin{plugin}
+		dispatcher.subscriptions[proto.EventType_EVENT_TYPE_SERVER_DELETED] = []*LoadedPlugin{plugin}
+
+		dispatcher.DispatchServerEventsAsync(
+			context.Background(),
+			[]proto.EventType{
+				proto.EventType_EVENT_TYPE_SERVER_POST_DELETE,
+				proto.EventType_EVENT_TYPE_SERVER_DELETED,
+			},
+			&domain.Server{ID: 1, Name: "srv"},
+			nil,
+		)
+
+		var got []proto.EventType
+		for len(got) < 2 {
+			select {
+			case eventType := <-received:
+				got = append(got, eventType)
+			case <-time.After(2 * time.Second):
+				t.Fatalf("iteration %d: timed out waiting for events, got %v", i, got)
+			}
+		}
+
+		require.Equal(t, []proto.EventType{
+			proto.EventType_EVENT_TYPE_SERVER_POST_DELETE,
+			proto.EventType_EVENT_TYPE_SERVER_DELETED,
+		}, got, "iteration %d: post-delete must be delivered before deleted", i)
+	}
+}
+
 func TestDispatcher_DispatchTaskEventAsync_delivers_payload(t *testing.T) {
 	manager := newDispatcherTestManager()
 	received := make(chan *proto.Event, 1)

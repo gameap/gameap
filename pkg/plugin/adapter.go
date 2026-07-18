@@ -58,6 +58,27 @@ func (a *ServerControlAdapter) DispatchServerEventAsync(
 	a.dispatcher.DispatchServerEventAsync(ctx, mapEventType(eventType), server, extraData)
 }
 
+// DispatchServerEventsAsync dispatches several events for one operation in the
+// background, preserving their order for every subscriber.
+// Safe to call on a nil adapter or one wrapping a nil dispatcher (plugins off).
+func (a *ServerControlAdapter) DispatchServerEventsAsync(
+	ctx context.Context,
+	eventTypes []servercontrol.PluginEventType,
+	server *domain.Server,
+	extraData map[string]string,
+) {
+	if a == nil || a.dispatcher == nil {
+		return
+	}
+
+	protoTypes := make([]proto.EventType, 0, len(eventTypes))
+	for _, eventType := range eventTypes {
+		protoTypes = append(protoTypes, mapEventType(eventType))
+	}
+
+	a.dispatcher.DispatchServerEventsAsync(ctx, protoTypes, server, extraData)
+}
+
 func mapEventType(eventType servercontrol.PluginEventType) proto.EventType {
 	switch eventType {
 	case servercontrol.PluginEventServerPreStart:

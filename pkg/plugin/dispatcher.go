@@ -199,6 +199,23 @@ func (d *Dispatcher) DispatchServerEventAsync(
 	d.dispatchAsync(ctx, buildServerEvent(eventType, server, extraData))
 }
 
+// DispatchServerEventsAsync dispatches several server events for one operation
+// in the background, delivering them sequentially in the given order (a single
+// goroutine handles the whole batch).
+func (d *Dispatcher) DispatchServerEventsAsync(
+	ctx context.Context,
+	eventTypes []proto.EventType,
+	server *domain.Server,
+	extraData map[string]string,
+) {
+	events := make([]*proto.Event, 0, len(eventTypes))
+	for _, eventType := range eventTypes {
+		events = append(events, buildServerEvent(eventType, server, extraData))
+	}
+
+	d.dispatchAsync(ctx, events...)
+}
+
 // DispatchTaskEvent is a convenience method to dispatch a task event.
 func (d *Dispatcher) DispatchTaskEvent(
 	ctx context.Context,
@@ -223,14 +240,20 @@ func (d *Dispatcher) DispatchTaskEventAsync(
 	d.dispatchAsync(ctx, buildTaskEvent(eventType, taskID, nodeID, serverID, taskType, status, extraData))
 }
 
-func (d *Dispatcher) dispatchAsync(ctx context.Context, event *proto.Event) {
+func (d *Dispatcher) dispatchAsync(ctx context.Context, events ...*proto.Event) {
+	if len(events) == 0 {
+		return
+	}
+
 	bgCtx := context.WithoutCancel(ctx)
 
 	go func() {
 		dispatchCtx, cancel := context.WithTimeout(bgCtx, asyncDispatchTimeout)
 		defer cancel()
 
-		d.Dispatch(dispatchCtx, event)
+		for _, event := range events {
+			d.Dispatch(dispatchCtx, event)
+		}
 	}()
 }
 

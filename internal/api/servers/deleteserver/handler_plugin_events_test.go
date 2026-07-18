@@ -19,9 +19,10 @@ import (
 )
 
 type fakePluginDispatcher struct {
-	syncEvents  []servercontrol.PluginEventType
-	asyncEvents []servercontrol.PluginEventType
-	preResult   *servercontrol.PluginDispatchResult
+	syncEvents   []servercontrol.PluginEventType
+	asyncEvents  []servercontrol.PluginEventType
+	asyncBatches int
+	preResult    *servercontrol.PluginDispatchResult
 }
 
 func (f *fakePluginDispatcher) DispatchServerEvent(
@@ -38,13 +39,14 @@ func (f *fakePluginDispatcher) DispatchServerEvent(
 	return &servercontrol.PluginDispatchResult{}
 }
 
-func (f *fakePluginDispatcher) DispatchServerEventAsync(
+func (f *fakePluginDispatcher) DispatchServerEventsAsync(
 	_ context.Context,
-	eventType servercontrol.PluginEventType,
+	eventTypes []servercontrol.PluginEventType,
 	_ *domain.Server,
 	_ map[string]string,
 ) {
-	f.asyncEvents = append(f.asyncEvents, eventType)
+	f.asyncEvents = append(f.asyncEvents, eventTypes...)
+	f.asyncBatches++
 }
 
 func savePluginEventsTestServer(t *testing.T, serverRepo *inmemory.ServerRepository) {
@@ -118,6 +120,7 @@ func TestHandler_ServeHTTP_dispatches_delete_events(t *testing.T) {
 			servercontrol.PluginEventServerDeleted,
 		},
 		dispatcher.asyncEvents)
+	assert.Equal(t, 1, dispatcher.asyncBatches, "both post events must go out as one ordered batch")
 
 	servers, err := serverRepo.Find(context.Background(), filters.FindServerByIDs(1), nil, nil)
 	require.NoError(t, err)

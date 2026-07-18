@@ -29,9 +29,10 @@ type PluginDispatcher interface {
 		server *domain.Server,
 		extraData map[string]string,
 	) *servercontrol.PluginDispatchResult
-	DispatchServerEventAsync(
+	// DispatchServerEventsAsync delivers the events in the given order.
+	DispatchServerEventsAsync(
 		ctx context.Context,
-		eventType servercontrol.PluginEventType,
+		eventTypes []servercontrol.PluginEventType,
 		server *domain.Server,
 		extraData map[string]string,
 	)
@@ -163,8 +164,10 @@ func (h *Handler) dispatchPostDelete(ctx context.Context, server *domain.Server)
 		return
 	}
 
-	h.pluginDispatcher.DispatchServerEventAsync(ctx, servercontrol.PluginEventServerPostDelete, server, nil)
-	h.pluginDispatcher.DispatchServerEventAsync(ctx, servercontrol.PluginEventServerDeleted, server, nil)
+	h.pluginDispatcher.DispatchServerEventsAsync(ctx, []servercontrol.PluginEventType{
+		servercontrol.PluginEventServerPostDelete,
+		servercontrol.PluginEventServerDeleted,
+	}, server, nil)
 }
 
 func (h *Handler) deleteWithFiles(ctx context.Context, server *domain.Server) error {

@@ -73,7 +73,9 @@ Delivery semantics:
   is reloaded.
 - **Async** events are dispatched in a background goroutine (detached from the
   request, 60s total budget) — plugins cannot delay the caller, and delivery errors
-  are only logged.
+  are only logged. Several async events emitted by one operation
+  (e.g. `SERVER_POST_DELETE` → `SERVER_DELETED`) are delivered sequentially in
+  that order.
 - Subscriptions are collected via `GetSubscribedEvents` at panel startup and
   refreshed automatically after runtime plugin install/update/uninstall.
 - `DAEMON_TASK_CREATED` fires only for tasks that go through the gRPC task
