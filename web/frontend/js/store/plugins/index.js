@@ -87,6 +87,7 @@ export const usePluginsStore = defineStore('plugins', () => {
             icon: options.icon || null,
             name: options.name || '',
             checkPermission: options.checkPermission || null,
+            checkGame: options.checkGame || null,
         })
 
         slots[slotName].sort((a, b) => a.order - b.order)

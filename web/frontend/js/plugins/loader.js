@@ -152,6 +152,7 @@ async function registerPluginDefinition(pluginDef, store) {
                     icon: slotComp.icon,
                     name: slotComp.name,
                     checkPermission: slotComp.checkPermission,
+                    checkGame: slotComp.checkGame,
                 })
             }
         }
