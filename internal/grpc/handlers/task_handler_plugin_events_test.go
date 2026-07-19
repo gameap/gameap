@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 )
 
 type fakePluginTaskEvents struct {
+	mu       sync.Mutex
 	events   []pluginproto.EventType
 	statuses []string
 	taskIDs  []uint
@@ -27,6 +29,9 @@ func (f *fakePluginTaskEvents) DispatchTaskEventAsync(
 	_, status string,
 	_ map[string]string,
 ) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	f.events = append(f.events, eventType)
 	f.statuses = append(f.statuses, status)
 	f.taskIDs = append(f.taskIDs, taskID)
@@ -111,6 +116,51 @@ func TestHandleTaskStatusUpdate_duplicate_terminal_update_dispatches_once(t *tes
 		[]pluginproto.EventType{pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED},
 		pluginEvents.events,
 		"a re-delivered terminal update must not emit a duplicate plugin event")
+}
+
+func TestHandleTaskStatusUpdate_concurrent_duplicate_terminal_updates_dispatch_once(t *testing.T) {
+	now := time.Now()
+	task := &domain.DaemonTask{
+		DedicatedServerID: 1,
+		Task:              domain.DaemonTaskTypeServerStart,
+		Status:            domain.DaemonTaskStatusWorking,
+		CreatedAt:         &now,
+		UpdatedAt:         &now,
+	}
+	repo := setupDaemonTaskRepo(t, task)
+	pluginEvents := &fakePluginTaskEvents{}
+	handler := NewTaskHandler(repo, nil, nil, pluginEvents, slog.Default())
+
+	const workers = 8
+	start := make(chan struct{})
+	errs := make(chan error, workers)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			<-start
+
+			errs <- handler.HandleTaskStatusUpdate(context.Background(), 1, &proto.TaskStatusUpdate{
+				TaskId: uint64(task.ID),
+				Status: proto.DaemonTaskStatus_DAEMON_TASK_STATUS_SUCCESS,
+			})
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t,
+		[]pluginproto.EventType{pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED},
+		pluginEvents.events,
+		"concurrent duplicate terminal updates must emit exactly one plugin event")
 }
 
 func TestHandleTaskStatusUpdate_terminal_transition_between_statuses_dispatches(t *testing.T) {

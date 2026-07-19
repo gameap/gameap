@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -22,6 +23,11 @@ type TaskHandler struct {
 	publisher      pubsub.Publisher
 	pluginEvents   PluginEventDispatcher
 	logger         *slog.Logger
+
+	// statusMu serializes status transitions: concurrent duplicate updates
+	// (e.g. a retry delivered over an overlapping daemon session) must not
+	// both observe the pre-terminal status and double-emit completion events.
+	statusMu sync.Mutex
 }
 
 func NewTaskHandler(
@@ -46,6 +52,9 @@ func NewTaskHandler(
 
 func (h *TaskHandler) HandleTaskStatusUpdate(ctx context.Context, nodeID uint64, update *proto.TaskStatusUpdate) error {
 	status := gateway.ProtoTaskStatusToDomain(update.Status)
+
+	h.statusMu.Lock()
+	defer h.statusMu.Unlock()
 
 	tasks, err := h.daemonTaskRepo.Find(ctx, &filters.FindDaemonTask{
 		IDs: []uint{uint(update.TaskId)},
