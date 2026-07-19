@@ -7,7 +7,7 @@
         :model="form"
         :rules="rules"
     >
-      <n-tabs type="line" class="flex justify-between" animated>
+      <n-tabs type="line" animated>
         <n-tab-pane name="main">
           <template #tab>
             {{ trans('games.main') }}
@@ -140,7 +140,7 @@
                             footer: 'soft'
                           }"
               >
-                <div class="flex grid grid-cols-2 gap-x-5 gap-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
                   <n-form-item :label="trans('labels.kick_cmd')" path="kickCmd">
                     <n-input
                         v-model:value="form.kickCmd"

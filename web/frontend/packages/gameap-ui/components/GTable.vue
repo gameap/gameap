@@ -1,7 +1,6 @@
 <template>
   <n-table
     v-bind="mergedProps"
-    v-on="$attrs"
   >
     <slot />
   </n-table>

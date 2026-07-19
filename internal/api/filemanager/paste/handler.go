@@ -181,33 +181,41 @@ func (h *Handler) processItems(
 		return api.WrapHTTPError(err, http.StatusBadRequest)
 	}
 
+	sourceBase := filepath.Join(node.WorkPath, serverDir)
 	destinationBase := filepath.Join(node.WorkPath, serverDir, destPath)
 
+	operations := make([]pasteOperation, 0, len(req.Clipboard.Files)+len(req.Clipboard.Directories))
+
 	for _, rawFilePath := range req.Clipboard.Files {
-		filePath := strings.ReplaceAll(rawFilePath, "\\", "/")
-		if err := filemanagerpath.ValidatePath(filePath); err != nil {
-			return api.WrapHTTPError(err, http.StatusBadRequest)
+		operation, ok, err := planPasteItem(sourceBase, destinationBase, rawFilePath, false, req)
+		if err != nil {
+			return err
 		}
 
-		sourcePath := filepath.Join(node.WorkPath, serverDir, filePath)
-		destinationPath := filepath.Join(destinationBase, path.Base(filePath))
-
-		if err := h.pasteItem(ctx, node, sourcePath, destinationPath, req.Clipboard.Type); err != nil {
-			return errors.WithMessagef(err, "failed to paste file: %s", filePath)
+		if ok {
+			operations = append(operations, operation)
 		}
 	}
 
 	for _, rawDirPath := range req.Clipboard.Directories {
-		dirPath := strings.ReplaceAll(rawDirPath, "\\", "/")
-		if err := filemanagerpath.ValidatePath(dirPath); err != nil {
-			return api.WrapHTTPError(err, http.StatusBadRequest)
+		operation, ok, err := planPasteItem(sourceBase, destinationBase, rawDirPath, true, req)
+		if err != nil {
+			return err
 		}
 
-		sourcePath := filepath.Join(node.WorkPath, serverDir, dirPath)
-		destinationPath := filepath.Join(destinationBase, path.Base(dirPath))
+		if ok {
+			operations = append(operations, operation)
+		}
+	}
 
-		if err := h.pasteItem(ctx, node, sourcePath, destinationPath, req.Clipboard.Type); err != nil {
-			return errors.WithMessagef(err, "failed to paste directory: %s", dirPath)
+	for _, operation := range operations {
+		if err := h.pasteItem(ctx, node, operation.source, operation.destination, req.Clipboard.Type); err != nil {
+			itemKind := "file"
+			if operation.isDir {
+				itemKind = "directory"
+			}
+
+			return errors.WithMessagef(err, "failed to paste %s: %s", itemKind, operation.itemPath)
 		}
 	}
 
@@ -229,4 +237,85 @@ func (h *Handler) pasteItem(
 	default:
 		return errors.Errorf("unknown operation type: %s", operationType)
 	}
+}
+
+// pasteOperation is a validated copy/move planned for execution. The whole
+// request is planned before the first daemon call so a validation error in
+// any item rejects the batch without partially applying it.
+type pasteOperation struct {
+	source      string
+	destination string
+	itemPath    string
+	isDir       bool
+}
+
+// planPasteItem validates one clipboard item and resolves its operation.
+// ok is false for a same-path move, which is skipped as a no-op.
+func planPasteItem(
+	sourceBase string,
+	destinationBase string,
+	rawPath string,
+	isDir bool,
+	req *pasteRequest,
+) (pasteOperation, bool, error) {
+	itemPath := strings.ReplaceAll(rawPath, "\\", "/")
+	if err := filemanagerpath.ValidatePath(itemPath); err != nil {
+		return pasteOperation{}, false, api.WrapHTTPError(err, http.StatusBadRequest)
+	}
+
+	sourcePath := filepath.Join(sourceBase, itemPath)
+
+	if isDir && pathIsInside(destinationBase, sourcePath) {
+		return pasteOperation{}, false, api.WrapHTTPError(
+			errors.Errorf("cannot paste directory %s into itself", itemPath),
+			http.StatusBadRequest,
+		)
+	}
+
+	name, err := destinationName(rawPath, itemPath, req.Names)
+	if err != nil {
+		return pasteOperation{}, false, err
+	}
+
+	destinationPath := filepath.Join(destinationBase, name)
+
+	if sourcePath == destinationPath {
+		if req.Clipboard.Type == operationTypeCut {
+			return pasteOperation{}, false, nil
+		}
+
+		return pasteOperation{}, false, api.WrapHTTPError(
+			errors.Errorf("copy source and destination are the same: %s", itemPath),
+			http.StatusBadRequest,
+		)
+	}
+
+	operation := pasteOperation{
+		source:      sourcePath,
+		destination: destinationPath,
+		itemPath:    itemPath,
+		isDir:       isDir,
+	}
+
+	return operation, true, nil
+}
+
+// destinationName returns the basename an item is pasted under: the override
+// from names (keyed by the raw clipboard entry) or the item's own basename.
+func destinationName(rawPath, normalizedPath string, names map[string]string) (string, error) {
+	name, ok := names[rawPath]
+	if !ok {
+		return path.Base(normalizedPath), nil
+	}
+
+	if err := filemanagerpath.ValidateFilename(name); err != nil {
+		return "", api.WrapHTTPError(err, http.StatusBadRequest)
+	}
+
+	return name, nil
+}
+
+// pathIsInside reports whether child is parent itself or located inside it.
+func pathIsInside(child, parent string) bool {
+	return child == parent || strings.HasPrefix(child, parent+string(filepath.Separator))
 }

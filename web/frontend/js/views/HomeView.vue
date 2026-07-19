@@ -239,6 +239,12 @@ const homeButtons = computed(() => {
 })
 
 onMounted(() => {
+  // A hard-fail MFA session is scoped to the enrollment endpoints — the
+  // summary calls would only produce 403s behind the enforcement modal.
+  if (authStore.mfaNudge?.hard_fail) {
+    return
+  }
+
   fetchServersSummary()
 
   if (isAdmin.value) {

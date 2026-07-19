@@ -72,21 +72,31 @@ func (r *Responder) WriteError(ctx context.Context, rw http.ResponseWriter, err 
 		code = http.StatusBadRequest
 	}
 
-	if code >= http.StatusInternalServerError {
-		errMsg := err.Error()
-
-		if errMsg != description {
-			slog.ErrorContext(
-				ctx,
-				description,
-				slog.String("error", err.Error()),
-			)
-		} else {
-			slog.ErrorContext(ctx, errMsg)
-		}
-	}
+	logErrorResponse(ctx, code, err, description)
 
 	WriteErrWithTitle(rw, code, title, err)
+}
+
+// logErrorResponse makes error responses visible in logs: client errors would
+// otherwise leave no server-side trace at all (e.g. rejected file-manager
+// uploads). 401 is kept at debug to avoid flooding logs with expired tokens.
+func logErrorResponse(ctx context.Context, code int, err error, description string) {
+	var level slog.Level
+	switch {
+	case code >= http.StatusInternalServerError:
+		level = slog.LevelError
+	case code == http.StatusUnauthorized:
+		level = slog.LevelDebug
+	default:
+		level = slog.LevelWarn
+	}
+
+	errMsg := err.Error()
+	if errMsg != description {
+		slog.LogAttrs(ctx, level, description, slog.Int("status", code), slog.String("error", errMsg))
+	} else {
+		slog.LogAttrs(ctx, level, errMsg, slog.Int("status", code))
+	}
 }
 
 func (r *Responder) Write(_ context.Context, rw http.ResponseWriter, result any) {

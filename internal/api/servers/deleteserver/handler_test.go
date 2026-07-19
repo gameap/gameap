@@ -173,7 +173,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			rbacRepo := inmemory.NewRBACRepository()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+			handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(serverRepo, rbacRepo)
@@ -215,7 +215,7 @@ func TestHandler_ServerActuallyDeleted(t *testing.T) {
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+	handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 	now := time.Now()
 	u := uuid.New()
@@ -277,7 +277,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+	handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, serverRepo, handler.serverRepo)
@@ -293,7 +293,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 		rbacRepo := inmemory.NewRBACRepository()
 		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 		responder := api.NewResponder()
-		handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+		handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 		now := time.Now()
 		u := uuid.New()
@@ -346,7 +346,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 		rbacRepo := inmemory.NewRBACRepository()
 		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 		responder := api.NewResponder()
-		handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+		handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 		now := time.Now()
 		u := uuid.New()
@@ -407,7 +407,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 		rbacRepo := inmemory.NewRBACRepository()
 		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 		responder := api.NewResponder()
-		handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+		handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 		now := time.Now()
 		u := uuid.New()
@@ -479,7 +479,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 		rbacRepo := inmemory.NewRBACRepository()
 		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 		responder := api.NewResponder()
-		handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+		handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 		now := time.Now()
 		u := uuid.New()
@@ -537,7 +537,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 		rbacRepo := inmemory.NewRBACRepository()
 		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 		responder := api.NewResponder()
-		handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+		handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 		now := time.Now()
 		u := uuid.New()
@@ -604,7 +604,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 		rbacRepo := inmemory.NewRBACRepository()
 		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 		responder := api.NewResponder()
-		handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+		handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 		now := time.Now()
 		u := uuid.New()
@@ -660,7 +660,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 		rbacRepo := inmemory.NewRBACRepository()
 		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 		responder := api.NewResponder()
-		handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+		handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 		now := time.Now()
 		u := uuid.New()
@@ -725,7 +725,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 		rbacRepo := inmemory.NewRBACRepository()
 		rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 		responder := api.NewResponder()
-		handler := NewHandler(serverRepo, daemonTaskRepo, nil, rbacService, responder)
+		handler := NewHandler(serverRepo, daemonTaskRepo, nil, nil, rbacService, responder)
 
 		now := time.Now()
 		u := uuid.New()

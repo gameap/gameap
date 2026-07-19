@@ -1,6 +1,6 @@
 <template>
     <div>
-        <div class="mb-4">
+        <div class="mb-4 overflow-x-auto">
             <GTable>
                 <thead>
                   <tr>
@@ -109,9 +109,9 @@
       </GButton>
     </div>
 
-    <div class="grid grid-cols-2 gap-x-20 mb-4">
-      <div v-for="item in serverPermissions" class="grid grid-cols-4 gap-x-4 mb-6">
-        <div class="col-span-3">{{ transWithPlugin(item.name) }}</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 md:gap-x-20 mb-4">
+      <div v-for="item in serverPermissions" class="flex items-center justify-between gap-4 mb-6">
+        <div class="min-w-0">{{ transWithPlugin(item.name) }}</div>
         <GSwitch
             v-model:value="item.value"
         />

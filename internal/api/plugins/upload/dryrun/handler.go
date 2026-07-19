@@ -15,11 +15,9 @@ import (
 )
 
 type LoaderManager interface {
-	Load(
+	LoadTransient(
 		ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64,
 	) (*pkgplugin.LoadedPlugin, error)
-
-	Unload(ctx context.Context, pluginID string) error
 }
 
 type Handler struct {
@@ -53,7 +51,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	loaded, err := h.manager.Load(ctx, wasmBytes, nil, 0)
+	loaded, err := h.manager.LoadTransient(ctx, wasmBytes, nil, 0)
 	if err != nil {
 		wasmHash := sha256.Sum256(wasmBytes)
 
@@ -73,11 +71,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() {
-		err := h.manager.Unload(ctx, loaded.Info.Id)
-		if err != nil {
+		if err := loaded.Close(ctx); err != nil {
 			slog.ErrorContext(
 				ctx,
-				"failed to unload wasm file",
+				"failed to close transient plugin",
 				slog.String("error", err.Error()),
 				slog.String("plugin_id", loaded.Info.Id),
 			)

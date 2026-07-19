@@ -13,8 +13,9 @@
 // container. The enrollment token is minted through the container's real auth
 // service (the very service the auth middleware validates against), so the
 // scope claim travels the full auth → scope-guard path, not a stubbed one.
-// The guard fires purely from the token's scope claim, independent of the
-// AUTH_REQUIRE_MFA_FOR_ADMINS config, so the container's default config is fine.
+// The guard enforces the scope only while AUTH_REQUIRE_MFA_FOR_ADMINS is
+// enabled — with the feature off a leftover enrollment token is honoured as a
+// full session — so each test pins the flag explicitly before CreateRouter.
 //
 // NOTE: as documented in router_security_auditlog_test.go, CreateRouter builds
 // the mux only; RequestContextMiddleware is wired in createHTTPServer, so
@@ -50,6 +51,33 @@ func issueMFAEnrollmentToken(tb testing.TB, env *securityTestEnv, user *domain.U
 	return token
 }
 
+// setupMFARouterEnv mirrors setupAuditRouterEnv but pins
+// AUTH_REQUIRE_MFA_FOR_ADMINS before CreateRouter — the enrollment scope guard
+// captures the flag at wiring time, like production reading the env at startup.
+func setupMFARouterEnv(t *testing.T, requireMFAForAdmins bool) (*securityTestEnv, *auditCapture) {
+	t.Helper()
+
+	c, err := testcontainer.LoadInmemoryContainer()
+	require.NoError(t, err)
+	c.Config().Auth.RequireMFAForAdmins = requireMFAForAdmins
+
+	recorder := &auditCapture{}
+	c.SetAuditLogger(recorder)
+
+	ctx := context.Background()
+	fixtures, err := testcontainer.SetupFixtures(ctx, c)
+	require.NoError(t, err)
+
+	env := &securityTestEnv{
+		container: c,
+		fixtures:  fixtures,
+		router:    api.CreateRouter(c),
+		ctx:       ctx,
+	}
+
+	return env, recorder
+}
+
 // TestRouterSecurity_MFAEnrollmentToken_DeniedOnNonOptedInRoute covers OWASP
 // API1:2023 / API2:2023. An enrollment-scoped token presented to GET
 // /api/servers (a route that did NOT opt in) must be refused with 403, the
@@ -57,7 +85,7 @@ func issueMFAEnrollmentToken(tb testing.TB, env *securityTestEnv, user *domain.U
 // mfa_enrollment_scope reason attributed to the authenticated admin.
 func TestRouterSecurity_MFAEnrollmentToken_DeniedOnNonOptedInRoute(t *testing.T) {
 	// ARRANGE
-	env, recorder := setupAuditRouterEnv(t)
+	env, recorder := setupMFARouterEnv(t, true)
 	token := issueMFAEnrollmentToken(t, env, env.fixtures.AdminUser)
 
 	// ACT
@@ -84,7 +112,7 @@ func TestRouterSecurity_MFAEnrollmentToken_DeniedOnNonOptedInRoute(t *testing.T)
 // response must NOT be 401 or 403, and no scope denial may be audited.
 func TestRouterSecurity_MFAEnrollmentToken_AuthenticatesOnProfileRead(t *testing.T) {
 	// ARRANGE
-	env, recorder := setupAuditRouterEnv(t)
+	env, recorder := setupMFARouterEnv(t, true)
 	token := issueMFAEnrollmentToken(t, env, env.fixtures.AdminUser)
 
 	// ACT
@@ -110,7 +138,7 @@ func TestRouterSecurity_MFAEnrollmentToken_AuthenticatesOnProfileRead(t *testing
 // scope guard does not turn it into a 403 (nor the auth layer into a 401).
 func TestRouterSecurity_MFAEnrollmentToken_AllowedOnSetupRoute(t *testing.T) {
 	// ARRANGE
-	env, recorder := setupAuditRouterEnv(t)
+	env, recorder := setupMFARouterEnv(t, true)
 	token := issueMFAEnrollmentToken(t, env, env.fixtures.AdminUser)
 
 	// ACT
@@ -126,6 +154,31 @@ func TestRouterSecurity_MFAEnrollmentToken_AllowedOnSetupRoute(t *testing.T) {
 
 	_, denied := findEvent(recorder.snapshot(), audit.EventAccessDenied)
 	assert.False(t, denied, "no scope denial may be recorded for the opted-in setup route")
+}
+
+// TestRouterSecurity_MFAEnrollmentToken_HonoredWhenEnforcementDisabled covers
+// OWASP API2:2023. With AUTH_REQUIRE_MFA_FOR_ADMINS=false a still-valid
+// enrollment-scoped token (minted before the operator turned the flag off)
+// must be honoured as a full session: no scope-403, no mfa_enrollment_scope
+// audit denial — otherwise its bearer stays locked out of the whole API with
+// no enrollment modal to escape through.
+func TestRouterSecurity_MFAEnrollmentToken_HonoredWhenEnforcementDisabled(t *testing.T) {
+	// ARRANGE
+	env, recorder := setupMFARouterEnv(t, false)
+	token := issueMFAEnrollmentToken(t, env, env.fixtures.AdminUser)
+
+	// ACT
+	w := doRequest(t, env, http.MethodGet, "/api/servers", token)
+
+	// ASSERT
+	require.NotEqual(t, http.StatusUnauthorized, w.Code,
+		"a valid enrollment token must still authenticate; body=%s", w.Body.String())
+	assert.NotContains(t, w.Body.String(), "restricted to two-factor enrollment",
+		"the enrollment scope guard must stand down when the feature is disabled")
+
+	ev, denied := findEvent(recorder.snapshot(), audit.EventAccessDenied)
+	assert.False(t, denied,
+		"no scope denial may be recorded when enforcement is disabled; got reason=%s", ev.Reason)
 }
 
 // TestRouterSecurity_NormalToken_NotBlockedByEnrollmentGuard covers OWASP

@@ -136,6 +136,7 @@ export const useMessagesStore = defineStore('fm-messages', () => {
                 loaded: 0,
                 uploadedBytes: 0,
                 error: null,
+                errorDetail: null,
             })
             raws.push(f.file)
             for (const d of dirChain(dir)) {
@@ -275,11 +276,12 @@ export const useMessagesStore = defineStore('fm-messages', () => {
         recomputeDirAggregates()
     }
 
-    function setFileError({ index, error }) {
+    function setFileError({ index, error, detail = null }) {
         const file = uploadProgress.value.files[index]
         if (!file) return
         file.phase = 'error'
         file.error = error
+        file.errorDetail = detail
         recomputeDirAggregates()
     }
 
@@ -301,6 +303,7 @@ export const useMessagesStore = defineStore('fm-messages', () => {
                 file.loaded = 0
                 file.uploadedBytes = 0
                 file.error = null
+                file.errorDetail = null
             }
         }
         recomputeDirAggregates()

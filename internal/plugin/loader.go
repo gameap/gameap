@@ -20,6 +20,9 @@ import (
 
 type LoaderManager interface {
 	Load(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error)
+	LoadTransient(
+		ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64,
+	) (*pkgplugin.LoadedPlugin, error)
 	Unload(ctx context.Context, pluginID string) error
 	GetPlugin(pluginID string) (*pkgplugin.LoadedPlugin, bool)
 	GetPlugins() []*pkgplugin.LoadedPlugin
@@ -179,15 +182,15 @@ func (l *Loader) processAutoLoad(ctx context.Context) error {
 			return errors.WithMessage(err, "failed to read plugin file")
 		}
 
-		loaded, err := l.manager.Load(ctx, wasmBytes, nil, 0)
+		loaded, err := l.manager.LoadTransient(ctx, wasmBytes, nil, 0)
 		if err != nil {
 			return errors.WithMessagef(err, "failed to load plugin for info %s", filename)
 		}
 
 		pluginID := pkgplugin.ParsePluginID(loaded.Info.Id)
 
-		if err := l.manager.Unload(ctx, pkgplugin.CompactPluginID(pluginID)); err != nil {
-			slog.Warn("failed to unload temporary plugin",
+		if err := loaded.Close(ctx); err != nil {
+			slog.Warn("failed to close temporary plugin",
 				slog.String("plugin", loaded.Info.Id),
 				slog.String("error", err.Error()))
 		}

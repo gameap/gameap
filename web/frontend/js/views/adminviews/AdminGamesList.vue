@@ -41,6 +41,7 @@
       :data="gamesData"
       :loading="loading"
       :pagination="pagination"
+      :scroll-x="640"
   >
     <template #loading>
       <Loading />

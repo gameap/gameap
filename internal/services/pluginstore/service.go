@@ -23,6 +23,7 @@ const (
 	cacheTTL        = 5 * time.Minute
 	cacheKeyPrefix  = "pluginstore"
 	maxDownloadSize = 100 * 1024 * 1024 // 100MB
+	maxIconSize     = 5 * 1024 * 1024   // 5MB
 )
 
 type Service struct {
@@ -258,6 +259,48 @@ func (s *Service) DownloadPlugin(
 	}
 
 	return data, nil
+}
+
+func (s *Service) GetPluginIcon(ctx context.Context, pluginID string) (*PluginIcon, error) {
+	cacheKey := s.buildCacheKey("plugin:"+pluginID+":icon", "", "")
+
+	if s.cache != nil {
+		if icon, err := cache.GetTyped[PluginIcon](ctx, s.cache, cacheKey); err == nil {
+			return &icon, nil
+		}
+	}
+
+	iconURL := s.baseURL + "/plugins/" + url.PathEscape(pluginID) + "/icon"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, iconURL, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create icon request")
+	}
+
+	resp, err := s.httpClient.Do(req) //nolint:bodyclose
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute icon request")
+	}
+	defer closeBody(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, parseAPIError(resp.Body, resp.StatusCode)
+	}
+
+	limitedReader := io.LimitReader(resp.Body, maxIconSize)
+	data, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read icon response")
+	}
+
+	icon := PluginIcon{
+		Data:        data,
+		ContentType: resp.Header.Get("Content-Type"),
+	}
+
+	s.setCache(ctx, cacheKey, icon)
+
+	return &icon, nil
 }
 
 func VerifyHash(data []byte, expectedHash string) bool {

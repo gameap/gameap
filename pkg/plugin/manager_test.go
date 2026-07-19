@@ -329,7 +329,7 @@ func TestGetPlugin(t *testing.T) {
 			Info:    &proto.PluginInfo{Id: "test-plugin"},
 			Enabled: true,
 		}
-		manager.plugins["test-plugin"] = expectedPlugin
+		manager.plugins[normalizePluginID("test-plugin")] = expectedPlugin
 
 		plugin, exists := manager.GetPlugin("test-plugin")
 
@@ -524,7 +524,7 @@ func TestUnload(t *testing.T) {
 
 	t.Run("removes_plugin_from_map", func(t *testing.T) {
 		manager := NewManager(ManagerConfig{})
-		manager.plugins["test-plugin"] = &LoadedPlugin{
+		manager.plugins[normalizePluginID("test-plugin")] = &LoadedPlugin{
 			Info:     &proto.PluginInfo{Id: "test-plugin"},
 			Instance: &mockPluginService{},
 			runtime:  nil,
@@ -533,14 +533,44 @@ func TestUnload(t *testing.T) {
 		err := manager.Unload(context.Background(), "test-plugin")
 
 		require.NoError(t, err)
-		_, exists := manager.plugins["test-plugin"]
+		_, exists := manager.plugins[normalizePluginID("test-plugin")]
 		assert.False(t, exists)
+	})
+
+	t.Run("disables_plugin_on_unload", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		plugin := &LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: "test-plugin"},
+			Enabled:  true,
+			Instance: &mockPluginService{},
+			runtime:  nil,
+		}
+		manager.plugins[normalizePluginID("test-plugin")] = plugin
+
+		err := manager.Unload(context.Background(), "test-plugin")
+
+		require.NoError(t, err)
+		assert.False(t, plugin.IsEnabled())
+	})
+
+	t.Run("unloads_by_decimal_id_when_registered_under_compact_id", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		manager.plugins[normalizePluginID("123")] = &LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: "123"},
+			Instance: &mockPluginService{},
+			runtime:  nil,
+		}
+
+		err := manager.Unload(context.Background(), "123")
+
+		require.NoError(t, err)
+		assert.Empty(t, manager.plugins)
 	})
 
 	t.Run("calls_shutdown_on_plugin", func(t *testing.T) {
 		manager := NewManager(ManagerConfig{})
 		shutdownCalled := false
-		manager.plugins["test-plugin"] = &LoadedPlugin{
+		manager.plugins[normalizePluginID("test-plugin")] = &LoadedPlugin{
 			Info: &proto.PluginInfo{Id: "test-plugin"},
 			Instance: &mockPluginService{
 				shutdownFunc: func(_ context.Context, req *proto.ShutdownRequest) (*proto.ShutdownResponse, error) {
@@ -587,6 +617,30 @@ func TestShutdown(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Empty(t, manager.plugins)
+	})
+
+	t.Run("passes_declared_plugin_id_to_shutdown_context", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		gotPluginID := ""
+		// "my-custom-plugin" is not a canonical compact ID, so the map key
+		// (normalized) differs from the declared Info.Id.
+		manager.plugins[normalizePluginID("my-custom-plugin")] = &LoadedPlugin{
+			Info: &proto.PluginInfo{Id: "my-custom-plugin"},
+			Instance: &mockPluginService{
+				shutdownFunc: func(_ context.Context, req *proto.ShutdownRequest) (*proto.ShutdownResponse, error) {
+					gotPluginID = req.Context.PluginId
+
+					return &proto.ShutdownResponse{}, nil
+				},
+			},
+			runtime: nil,
+		}
+
+		err := manager.Shutdown(context.Background())
+
+		require.NoError(t, err)
+		assert.Equal(t, "my-custom-plugin", gotPluginID,
+			"guest must receive its declared ID, not the normalized map key")
 	})
 
 	t.Run("calls_shutdown_on_all_plugins", func(t *testing.T) {

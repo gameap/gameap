@@ -6,13 +6,12 @@
 
     <div v-else-if="plugin">
       <div class="flex items-start gap-4 mb-4">
-        <img
-            v-if="plugin.icon_url"
-            :src="plugin.icon_url"
-            :alt="plugin.name"
-            class="w-16 h-16 rounded-lg"
+        <PluginIcon
+            :plugin="plugin"
+            img-class="w-16 h-16 rounded-lg"
+            fallback-icon="puzzle-piece"
+            fallback-class="text-5xl text-stone-400"
         />
-        <GIcon v-else name="puzzle-piece" class="text-5xl text-stone-400" />
 
         <div class="flex-1">
           <div class="flex items-center gap-2 flex-wrap">
@@ -211,6 +210,7 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { trans } from '@/i18n/i18n'
 import { GIcon, Loading } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
+import PluginIcon from '@/components/plugins/PluginIcon.vue'
 import { NSelect } from 'naive-ui'
 
 const props = defineProps({

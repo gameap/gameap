@@ -22,7 +22,7 @@
         >
           <Loading v-if="loading"></Loading>
           <div :class="loading ? 'hidden' : ''">
-            <div class="grid grid-cols-3">
+            <div class="grid grid-cols-1 md:grid-cols-3">
               <div class="pr-8">
                 <n-form-item :label="trans('servers.status')">
                   <n-select

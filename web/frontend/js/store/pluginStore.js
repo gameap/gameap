@@ -98,6 +98,34 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         lang: getCurrentLanguage()
     })
 
+    // Icons are served by an admin-only panel endpoint, so a plain <img src>
+    // can't authenticate (token travels in the Authorization header). Fetch
+    // the bytes via axios and expose them as object URLs; promises are cached
+    // per plugin id so concurrent table rows share one request. Object URLs
+    // live for the session — a few KB per plugin.
+    const iconUrlPromises = new Map()
+
+    function fetchPluginIcon(plugin) {
+        if (!plugin?.id || !plugin?.icon_url) {
+            return Promise.resolve(null)
+        }
+
+        if (!iconUrlPromises.has(plugin.id)) {
+            iconUrlPromises.set(plugin.id, loadIconObjectUrl(plugin.icon_url))
+        }
+
+        return iconUrlPromises.get(plugin.id)
+    }
+
+    async function loadIconObjectUrl(iconUrl) {
+        try {
+            const response = await axios.get(iconUrl, { responseType: 'blob' })
+            return URL.createObjectURL(response.data)
+        } catch {
+            return null
+        }
+    }
+
     // Actions
     async function fetchCategories() {
         apiProcesses.value++
@@ -309,6 +337,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         fetchCategories,
         fetchLabels,
         fetchPlugins,
+        fetchPluginIcon,
         fetchPluginDetails,
         fetchPluginVersions,
         installPlugin,

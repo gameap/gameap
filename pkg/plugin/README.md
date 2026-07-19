@@ -42,28 +42,48 @@ Plugins can:
 
 ## Event Types
 
-| Event | Trigger | Cancellable |
-|-------|---------|-------------|
-| `SERVER_PRE_START` | Before server start task created | Yes |
-| `SERVER_POST_START` | After server start task created | No |
-| `SERVER_PRE_STOP` | Before server stop task created | Yes |
-| `SERVER_POST_STOP` | After server stop task created | No |
-| `SERVER_PRE_RESTART` | Before server restart task created | Yes |
-| `SERVER_POST_RESTART` | After server restart task created | No |
-| `SERVER_PRE_INSTALL` | Before server install task created | Yes |
-| `SERVER_POST_INSTALL` | After server install task created | No |
-| `SERVER_PRE_UPDATE` | Before server update task created | Yes |
-| `SERVER_POST_UPDATE` | After server update task created | No |
-| `SERVER_PRE_REINSTALL` | Before server reinstall workflow | Yes |
-| `SERVER_POST_REINSTALL` | After server reinstall workflow | No |
-| `SERVER_PRE_DELETE` | Before server delete task created | Yes |
-| `SERVER_POST_DELETE` | After server delete task created | No |
-| `SERVER_CREATED` | After server created in database | No |
-| `SERVER_UPDATED` | After server updated in database | No |
-| `SERVER_DELETED` | After server deleted from database | No |
-| `DAEMON_TASK_CREATED` | After daemon task created | No |
-| `DAEMON_TASK_COMPLETED` | After daemon task completed successfully | No |
-| `DAEMON_TASK_FAILED` | After daemon task failed | No |
+| Event | Trigger | Cancellable | Delivery |
+|-------|---------|-------------|----------|
+| `SERVER_PRE_START` | Before server start task created | Yes | Sync |
+| `SERVER_POST_START` | After server start task created | No | Async |
+| `SERVER_PRE_STOP` | Before server stop task created | Yes | Sync |
+| `SERVER_POST_STOP` | After server stop task created | No | Async |
+| `SERVER_PRE_RESTART` | Before server restart task created | Yes | Sync |
+| `SERVER_POST_RESTART` | After server restart task created | No | Async |
+| `SERVER_PRE_INSTALL` | Before server install task created | Yes | Sync |
+| `SERVER_POST_INSTALL` | After server install task created | No | Async |
+| `SERVER_PRE_UPDATE` | Before server update task created | Yes | Sync |
+| `SERVER_POST_UPDATE` | After server update task created | No | Async |
+| `SERVER_PRE_REINSTALL` | Before server reinstall workflow | Yes | Sync |
+| `SERVER_POST_REINSTALL` | After server reinstall workflow | No | Async |
+| `SERVER_PRE_DELETE` | Before server deletion | Yes | Sync |
+| `SERVER_POST_DELETE` | After server deletion | No | Async |
+| `SERVER_CREATED` | After server created in database | No | Async |
+| `SERVER_UPDATED` | After server updated in database | No | Async |
+| `SERVER_DELETED` | After server deleted/soft-deleted in database | No | Async |
+| `DAEMON_TASK_CREATED` | After daemon task persisted for dispatch | No | Async |
+| `DAEMON_TASK_COMPLETED` | After daemon reported task success | No | Async |
+| `DAEMON_TASK_FAILED` | After daemon reported task error/cancel or the task was abandoned | No | Async |
+
+Delivery semantics:
+
+- **Sync** (cancellable pre-events) block the initiating request; a plugin returning
+  `should_cancel` aborts the operation. Each plugin call is bounded by a per-call
+  timeout (10s); on expiry the module is closed and the plugin is disabled until it
+  is reloaded. Calls into one plugin are serialized; a caller queued behind an
+  in-flight call gives up at its own deadline with a "plugin is busy" error (the
+  plugin stays enabled — its module was never touched).
+- **Async** events are dispatched in a background goroutine (detached from the
+  request, 60s total budget) — plugins cannot delay the caller, and delivery errors
+  are only logged. Several async events emitted by one operation
+  (e.g. `SERVER_POST_DELETE` → `SERVER_DELETED`) are delivered sequentially in
+  that order. At most 64 background deliveries run concurrently; when the
+  backlog is full (wedged plugins), further async events are dropped with an
+  error log instead of blocking callers.
+- Subscriptions are collected via `GetSubscribedEvents` at panel startup and
+  refreshed automatically after runtime plugin install/update/uninstall.
+- `DAEMON_TASK_CREATED` fires only for tasks that go through the gRPC task
+  dispatcher (the default); legacy repository-only saves do not emit it.
 
 ## Host Function Libraries
 

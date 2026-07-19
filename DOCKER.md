@@ -377,6 +377,10 @@ server {
     listen 80;
     server_name gameap.example.com;
 
+    # File manager uploads send chunks of FILES_UPLOAD_CHUNK_SIZE (8MB by default).
+    # The nginx default client_max_body_size of 1m rejects them with 413.
+    client_max_body_size 64m;
+
     location / {
         proxy_pass http://localhost:8025;
         proxy_set_header Host $host;

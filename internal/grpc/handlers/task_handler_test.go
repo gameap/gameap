@@ -141,7 +141,7 @@ func TestHandleTaskStatusUpdate_ServerInstalledStatus(t *testing.T) {
 				require.NoError(t, serverRepo.Save(context.Background(), tt.server))
 			}
 
-			handler := NewTaskHandler(taskRepo, serverRepo, nil, slog.Default())
+			handler := NewTaskHandler(taskRepo, serverRepo, nil, nil, slog.Default())
 
 			err := handler.HandleTaskStatusUpdate(context.Background(), 1, &proto.TaskStatusUpdate{
 				TaskId: uint64(tt.task.ID),
@@ -332,7 +332,7 @@ func TestReconcileWorkingTasks(t *testing.T) {
 				Installed: domain.ServerInstalledStatusInstallationInProg,
 			}))
 
-			handler := NewTaskHandler(taskRepo, serverRepo, nil, slog.Default())
+			handler := NewTaskHandler(taskRepo, serverRepo, nil, nil, slog.Default())
 
 			marked, err := handler.ReconcileWorkingTasks(ctx, tt.nodeID, tt.inFlightIDs, "test_reason")
 			require.NoError(t, err)

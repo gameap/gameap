@@ -84,3 +84,8 @@
 .g-card-header {
     @apply bg-stone-100 dark:bg-stone-700;
 }
+
+/* Fixed-width modals (600-1000px inline styles) must never exceed the phone viewport. */
+.n-modal {
+    max-width: 94vw;
+}

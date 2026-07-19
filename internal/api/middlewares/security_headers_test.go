@@ -364,9 +364,11 @@ func TestSecurityHeaders_CSPExtraSources(t *testing.T) {
 
 // TestSecurityHeaders_CSPCoreDirectives — OWASP API8:2023 — pins the
 // structural invariants of the generated CSP: blob: in script-src/worker-src
-// (plugin loader uses dynamic import of a blob: URL), 'unsafe-inline' in
-// style-src only (Naive UI css-render runtime <style>) and never in
-// script-src (where it would gut XSS protection).
+// (plugin loader uses dynamic import of a blob: URL), 'wasm-unsafe-eval' in
+// script-src (file-manager upload hashes files via hash-wasm) while JS eval
+// stays blocked, 'unsafe-inline' in style-src only (Naive UI css-render
+// runtime <style>) and never in script-src (where it would gut XSS
+// protection).
 func TestSecurityHeaders_CSPCoreDirectives(t *testing.T) {
 	cfg := baseSecureConfig()
 
@@ -375,8 +377,12 @@ func TestSecurityHeaders_CSPCoreDirectives(t *testing.T) {
 
 	require.Contains(t, directives, "script-src")
 	assert.Contains(t, directives["script-src"], "blob:", "plugin loader uses import(blob:…)")
+	assert.Contains(t, directives["script-src"], "'wasm-unsafe-eval'",
+		"file-manager upload hashes files with hash-wasm; without it WebAssembly.compile is blocked")
 	assert.NotContains(t, directives["script-src"], "'unsafe-inline'",
 		"script-src must not allow inline; that would defeat the inline-hash strategy")
+	assert.NotContains(t, directives["script-src"], "'unsafe-eval'",
+		"JS eval must stay blocked; 'wasm-unsafe-eval' covers wasm compilation alone")
 
 	require.Contains(t, directives, "style-src")
 	assert.Contains(t, directives["style-src"], "'unsafe-inline'", "Naive UI injects runtime <style>")

@@ -13,6 +13,7 @@
       :data="serversData"
       :loading="loading"
       :pagination="pagination"
+      :scroll-x="isSmallScreen ? 520 : 900"
       @update:page="handlePageChange"
   >
     <template #loading>
@@ -34,6 +35,7 @@ import {useNodeListStore} from "../../store/nodeList"
 import {errorNotification} from "../../parts/dialogs"
 import {storeToRefs} from "pinia"
 import { RouterLink } from 'vue-router';
+import {useIsSmallScreen} from "@/composables/useIsSmallScreen";
 
 const serverListStore = useServerListStore()
 const nodeListStore = useNodeListStore()
@@ -65,6 +67,7 @@ const createColumns = () => {
     },
     {
       title: trans('servers.dedicated_server'),
+      key: "node",
       render: (row) => {
         let node = nodes.value.find(node => node.id === row.nodeId)
 
@@ -117,7 +120,16 @@ const loading = computed(() => {
   return serverListStore.loading || nodeListStore.loading
 })
 
-const columns = ref(createColumns())
+const isSmallScreen = useIsSmallScreen()
+
+const columns = computed(() => {
+  const cols = createColumns()
+  if (isSmallScreen.value) {
+    return cols.filter((col) => !['game', 'node'].includes(col.key))
+  }
+
+  return cols
+})
 const pagination = reactive({
   page: 1,
   pageSize: 30,

@@ -73,6 +73,7 @@ import (
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/secret"
 	"github.com/gameap/gameap/pkg/tlsutil"
 	"github.com/gameap/gameap/pkg/twofactor"
@@ -811,6 +812,9 @@ func (c *Container) TaskDispatcher() *taskdispatcher.Dispatcher {
 			c.PubSub(),
 			slog.Default(),
 		)
+		if !c.config.Plugins.Disabled {
+			c.taskDispatcher.SetPluginEventDispatcher(&lazyPluginTaskEvents{container: c})
+		}
 	}
 
 	return c.taskDispatcher
@@ -1837,15 +1841,36 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 				MaxRedirects:            c.config.Plugin.HTTP.MaxRedirects,
 				ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
 			}),
-			hostlibrary.NewLogHostLibrary(slog.Default()),
 			hostlibrary.NewNodeFSHostLibrary(c.DaemonFiles(), c.NodeRepository()),
 			hostlibrary.NewNodeCmdHostLibrary(c.DaemonCommands(), c.NodeRepository()),
 			hostlibrary.NewCryptoHostLibrary(),
 		},
 		LibraryFactories: []pkgplugin.HostLibraryFactory{
 			hostlibrary.NewStorageHostLibraryFactory(c.PluginStorageRepository()),
+			hostlibrary.NewLogHostLibraryFactory(slog.Default()),
 		},
 	})
+}
+
+// lazyPluginTaskEvents defers PluginDispatcher resolution to call time:
+// the plugin manager's host libraries depend on TaskDispatcher and the gRPC
+// gateway (via TaskHandler), so resolving the dispatcher during their
+// construction would recurse.
+type lazyPluginTaskEvents struct {
+	container *Container
+}
+
+func (l *lazyPluginTaskEvents) DispatchTaskEventAsync(
+	ctx context.Context,
+	eventType pluginproto.EventType,
+	taskID, nodeID uint,
+	serverID *uint,
+	taskType, status string,
+	extraData map[string]string,
+) {
+	l.container.PluginDispatcher().DispatchTaskEventAsync(
+		ctx, eventType, taskID, nodeID, serverID, taskType, status, extraData,
+	)
 }
 
 // lazyServerController is a wrapper that lazily resolves the ServerControlService to break circular deps.
@@ -1962,7 +1987,18 @@ func (c *Container) SessionRegistry() *session.Registry {
 
 func (c *Container) TaskHandler() *handlers.TaskHandler {
 	if c.taskHandler == nil {
-		c.taskHandler = handlers.NewTaskHandler(c.DaemonTaskRepository(), c.ServerRepository(), c.PubSub(), slog.Default())
+		var pluginEvents handlers.PluginEventDispatcher
+		if !c.config.Plugins.Disabled {
+			pluginEvents = &lazyPluginTaskEvents{container: c}
+		}
+
+		c.taskHandler = handlers.NewTaskHandler(
+			c.DaemonTaskRepository(),
+			c.ServerRepository(),
+			c.PubSub(),
+			pluginEvents,
+			slog.Default(),
+		)
 	}
 
 	return c.taskHandler

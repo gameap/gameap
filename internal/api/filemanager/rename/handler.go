@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
@@ -177,22 +178,32 @@ func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error
 	return &nodes[0], nil
 }
 
+// renameItem treats oldName/newName as paths relative to the server root
+// directory (the file-manager frontend sends the full item path, e.g.
+// "valve/addons" -> "valve/addons2"), so it validates them the same way the
+// delete/paste handlers validate their paths. A path addressing the server
+// root itself is rejected: Move would relocate the whole server directory.
 func (h *Handler) renameItem(
 	ctx context.Context,
 	node *domain.Node,
 	serverDir string,
 	req *renameRequest,
 ) error {
-	if err := filemanagerpath.ValidateFilename(req.OldName); err != nil {
-		return api.WrapHTTPError(err, http.StatusBadRequest)
+	oldName := strings.ReplaceAll(req.OldName, "\\", "/")
+	newName := strings.ReplaceAll(req.NewName, "\\", "/")
+
+	for _, p := range []string{oldName, newName} {
+		if err := filemanagerpath.ValidatePath(p); err != nil {
+			return api.WrapHTTPError(err, http.StatusBadRequest)
+		}
+
+		if filemanagerpath.IsRoot(p) {
+			return api.WrapHTTPError(filemanagerpath.ErrPathIsRoot, http.StatusBadRequest)
+		}
 	}
 
-	if err := filemanagerpath.ValidateFilename(req.NewName); err != nil {
-		return api.WrapHTTPError(err, http.StatusBadRequest)
-	}
-
-	oldPath := filepath.Join(node.WorkPath, serverDir, req.OldName)
-	newPath := filepath.Join(node.WorkPath, serverDir, req.NewName)
+	oldPath := filepath.Join(node.WorkPath, serverDir, oldName)
+	newPath := filepath.Join(node.WorkPath, serverDir, newName)
 
 	err := h.daemonFiles.Move(ctx, node, oldPath, newPath)
 	if err != nil {

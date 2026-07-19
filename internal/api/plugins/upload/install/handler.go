@@ -22,18 +22,20 @@ import (
 const extendedWriteDeadline = 5 * time.Minute
 
 type LoaderManager interface {
-	Load(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error)
-	Unload(ctx context.Context, pluginID string) error
+	LoadTransient(
+		ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64,
+	) (*pkgplugin.LoadedPlugin, error)
 }
 
 type Handler struct {
-	manager     LoaderManager
-	pluginRepo  repositories.PluginRepository
-	fileManager files.FileManager
-	loader      *plugin.Loader
-	pluginsDir  string
-	responder   base.Responder
-	audit       audit.Logger
+	manager       LoaderManager
+	pluginRepo    repositories.PluginRepository
+	fileManager   files.FileManager
+	loader        *plugin.Loader
+	subscriptions plugininstall.SubscriptionRefresher
+	pluginsDir    string
+	responder     base.Responder
+	audit         audit.Logger
 }
 
 func NewHandler(
@@ -41,6 +43,7 @@ func NewHandler(
 	pluginRepo repositories.PluginRepository,
 	fileManager files.FileManager,
 	loader *plugin.Loader,
+	subscriptions plugininstall.SubscriptionRefresher,
 	pluginsDir string,
 	responder base.Responder,
 	auditLogger audit.Logger,
@@ -50,13 +53,14 @@ func NewHandler(
 	}
 
 	return &Handler{
-		manager:     manager,
-		pluginRepo:  pluginRepo,
-		fileManager: fileManager,
-		loader:      loader,
-		pluginsDir:  pluginsDir,
-		responder:   responder,
-		audit:       auditLogger,
+		manager:       manager,
+		pluginRepo:    pluginRepo,
+		fileManager:   fileManager,
+		loader:        loader,
+		subscriptions: subscriptions,
+		pluginsDir:    pluginsDir,
+		responder:     responder,
+		audit:         auditLogger,
 	}
 }
 
@@ -81,21 +85,21 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	loaded, err := h.manager.Load(ctx, wasmBytes, nil, 0)
+	loaded, err := h.manager.LoadTransient(ctx, wasmBytes, nil, 0)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to load plugin for validation"))
 
 		return
 	}
+	defer func() {
+		if err := loaded.Close(ctx); err != nil {
+			slog.WarnContext(ctx, "failed to close transient plugin",
+				slog.String("plugin_id", loaded.Info.Id),
+				slog.String("error", err.Error()))
+		}
+	}()
 
-	pluginID := pkgplugin.CompactPluginID(pkgplugin.ParsePluginID(loaded.Info.Id))
 	dbID := pkgplugin.ParsePluginID(loaded.Info.Id)
-
-	if err := h.manager.Unload(ctx, pluginID); err != nil {
-		slog.WarnContext(ctx, "failed to unload temporary plugin",
-			slog.String("plugin_id", pluginID),
-			slog.String("error", err.Error()))
-	}
 
 	if err := plugininstall.CheckNotInstalled(ctx, h.pluginRepo, dbID); err != nil {
 		h.responder.WriteError(ctx, rw, err)
@@ -133,6 +137,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
 
 	h.responder.Write(ctx, rw, newInstallResponse(pluginRecord))
 }

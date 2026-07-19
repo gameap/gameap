@@ -4,9 +4,9 @@
     <div
       v-for="setting in settings"
       :key="setting.name"
-      class="grid grid-cols-[1fr_2fr] gap-4 items-center"
+      class="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2 sm:gap-4 sm:items-center"
     >
-      <label class="text-sm text-right truncate" :title="setting.label">
+      <label class="text-sm sm:text-right truncate" :title="setting.label">
         {{ setting.label }}
       </label>
       <div>

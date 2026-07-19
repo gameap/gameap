@@ -23,14 +23,22 @@ var errMFAEnrollmentScope = errors.New("session is restricted to two-factor enro
 // It must run after the auth middleware (the session is read from context) and
 // before the handler. A request without an enrollment-scoped session passes
 // through untouched, so it is safe to wrap every route with it.
+//
+// enforce mirrors AUTH_REQUIRE_MFA_FOR_ADMINS: with the feature disabled an
+// enrollment-scoped token that is still in circulation (minted before the
+// operator turned the flag off) is honoured as a full session — otherwise its
+// bearer would stay locked out of the API with no enrollment modal to escape
+// through.
 type MFAEnrollmentScopeMiddleware struct {
 	responder base.Responder
 	audit     audit.Logger
+	enforce   bool
 }
 
 func NewMFAEnrollmentScopeMiddleware(
 	responder base.Responder,
 	auditLogger audit.Logger,
+	enforce bool,
 ) *MFAEnrollmentScopeMiddleware {
 	if auditLogger == nil {
 		auditLogger = audit.NopLogger{}
@@ -39,6 +47,7 @@ func NewMFAEnrollmentScopeMiddleware(
 	return &MFAEnrollmentScopeMiddleware{
 		responder: responder,
 		audit:     auditLogger,
+		enforce:   enforce,
 	}
 }
 
@@ -47,7 +56,7 @@ func (m *MFAEnrollmentScopeMiddleware) Middleware(next http.Handler, allowMFAEnr
 		ctx := r.Context()
 		session := auth.SessionFromContext(ctx)
 
-		if session != nil && session.MFAEnrollmentOnly && !allowMFAEnrollment {
+		if m.enforce && session != nil && session.MFAEnrollmentOnly && !allowMFAEnrollment {
 			audit.AccessDenied(ctx, m.audit, "endpoint", r.URL.Path, "mfa_enrollment_scope")
 			m.responder.WriteError(ctx, w, api.WrapHTTPError(
 				errMFAEnrollmentScope,

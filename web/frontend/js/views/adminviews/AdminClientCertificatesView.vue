@@ -12,6 +12,7 @@
       :data="clientCertificatesData"
       :loading="loading"
       :pagination="pagination"
+      :scroll-x="640"
   >
     <template #loading>
       <Loading />
@@ -101,6 +102,9 @@ const createColumns = () => {
     {
       title: trans('client_certificates.fingerprint'),
       key: "fingerprint",
+      ellipsis: {
+        tooltip: true,
+      },
     },
     {
       title: trans('client_certificates.expires'),

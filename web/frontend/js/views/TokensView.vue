@@ -14,6 +14,7 @@
       :data="listData"
       :loading="loading"
       :pagination="pagination"
+      :scroll-x="isSmallScreen ? 480 : 720"
   >
     <template #loading>
       <Loading />
@@ -48,6 +49,7 @@ import {
 } from "naive-ui"
 import {errorNotification, notification} from "@/parts/dialogs";
 import {copyToClipboard, isClipboardSupported} from "@/utils/clipboard";
+import {useIsSmallScreen} from "@/composables/useIsSmallScreen";
 import GenerateTokenForm from "./forms/GenerateTokenForm.vue";
 
 const tokensStore = useTokensStore()
@@ -93,7 +95,16 @@ const createColumns = () => {
   ]
 }
 
-const columns = ref(createColumns())
+const isSmallScreen = useIsSmallScreen()
+
+const columns = computed(() => {
+  const cols = createColumns()
+  if (isSmallScreen.value) {
+    return cols.filter((col) => col.key !== 'abilities')
+  }
+
+  return cols
+})
 const pagination = {
   pageSize: 30,
 }

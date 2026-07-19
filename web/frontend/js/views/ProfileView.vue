@@ -46,7 +46,7 @@
             data-testid="twofactor-status"
         />
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <GButton
             v-if="!is2FAEnabled"
             color="green"

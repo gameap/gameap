@@ -347,6 +347,47 @@ func TestGetPlugin_subscription_info_populated_from_valid_license(t *testing.T) 
 	assert.Equal(t, "2027-12-31T23:59:59Z", resp["subscription_expires_at"])
 }
 
+func TestGetPlugin_icon_url_rewritten_to_panel_endpoint(t *testing.T) {
+	// ARRANGE
+	storeResp := pluginstore.PluginDetails{
+		ID:            "hexeditor4jm2",
+		Name:          "HEX Editor",
+		IconURL:       "https://plugins.gameap.dev/api/plugins/hexeditor4jm2/icon",
+		LatestVersion: "1.0.0",
+		Author:        pluginstore.Author{ID: 2, Username: "GameAP"},
+		Category:      pluginstore.Category{ID: 3, Slug: "files", Name: "Files"},
+	}
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(storeResp)
+	}))
+	defer mockServer.Close()
+
+	storeService := pluginstore.NewService(mockServer.URL, "", cache.NewInMemory())
+	pluginRepo := inmemory.NewPluginRepository()
+	h := getplugin.NewHandler(storeService, pluginRepo, api.NewResponder())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/plugins/store/plugins/hexeditor4jm2", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "hexeditor4jm2"})
+	recorder := httptest.NewRecorder()
+
+	// ACT
+	h.ServeHTTP(recorder, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	assert.Equal(
+		t,
+		"/api/plugin-store/plugins/hexeditor4jm2/icon",
+		resp["icon_url"],
+		"external store icon URL must be rewritten to the panel proxy endpoint",
+	)
+}
+
 type errPluginRepo struct {
 	repositories.PluginRepository
 

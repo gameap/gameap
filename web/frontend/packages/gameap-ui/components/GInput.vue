@@ -1,7 +1,6 @@
 <template>
   <n-input
     v-bind="mergedProps"
-    v-on="$attrs"
   >
     <template v-for="(_, slotName) in $slots" :key="slotName" #[slotName]="slotProps">
       <slot :name="slotName" v-bind="slotProps || {}" />

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -162,6 +164,107 @@ func TestResponder_WriteError(t *testing.T) {
 			if tt.expectedContains != "" {
 				assert.Contains(t, resp.Error, tt.expectedContains)
 			}
+		})
+	}
+}
+
+type capturedLogRecord struct {
+	level   slog.Level
+	message string
+	status  int64
+}
+
+type capturingLogHandler struct {
+	mu      sync.Mutex
+	records []capturedLogRecord
+}
+
+func (h *capturingLogHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *capturingLogHandler) Handle(_ context.Context, r slog.Record) error {
+	captured := capturedLogRecord{level: r.Level, message: r.Message, status: -1}
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Key == "status" {
+			captured.status = a.Value.Int64()
+		}
+
+		return true
+	})
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = append(h.records, captured)
+
+	return nil
+}
+
+func (h *capturingLogHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h *capturingLogHandler) WithGroup(string) slog.Handler { return h }
+
+func TestResponder_WriteError_LogLevels(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantLevel  slog.Level
+		wantMsg    string
+	}{
+		{
+			name:       "internal_error_logged_as_error",
+			err:        errors.New("database exploded"),
+			wantStatus: http.StatusInternalServerError,
+			wantLevel:  slog.LevelError,
+			wantMsg:    "database exploded",
+		},
+		{
+			name:       "bad_request_logged_as_warn",
+			err:        NewError(http.StatusBadRequest, "invalid chunk index"),
+			wantStatus: http.StatusBadRequest,
+			wantLevel:  slog.LevelWarn,
+			wantMsg:    "invalid chunk index",
+		},
+		{
+			name:       "request_entity_too_large_logged_as_warn",
+			err:        NewError(http.StatusRequestEntityTooLarge, "chunk size mismatch"),
+			wantStatus: http.StatusRequestEntityTooLarge,
+			wantLevel:  slog.LevelWarn,
+			wantMsg:    "chunk size mismatch",
+		},
+		{
+			name:       "not_found_logged_as_warn",
+			err:        NewNotFoundError("upload session not found"),
+			wantStatus: http.StatusNotFound,
+			wantLevel:  slog.LevelWarn,
+			wantMsg:    "upload session not found",
+		},
+		{
+			name:       "unauthorized_logged_as_debug",
+			err:        NewError(http.StatusUnauthorized, "token expired"),
+			wantStatus: http.StatusUnauthorized,
+			wantLevel:  slog.LevelDebug,
+			wantMsg:    "token expired",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &capturingLogHandler{}
+			prev := slog.Default()
+			slog.SetDefault(slog.New(handler))
+			t.Cleanup(func() { slog.SetDefault(prev) })
+
+			responder := NewResponder()
+			rec := httptest.NewRecorder()
+
+			responder.WriteError(context.Background(), rec, tt.err)
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			require.Len(t, handler.records, 1)
+			logged := handler.records[0]
+			assert.Equal(t, tt.wantLevel, logged.level)
+			assert.Equal(t, tt.wantMsg, logged.message)
+			assert.Equal(t, int64(tt.wantStatus), logged.status)
 		})
 	}
 }

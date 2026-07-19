@@ -30,12 +30,29 @@ type EventDispatchResult struct {
 	Errors []error
 }
 
+const (
+	// defaultEventCallTimeout bounds a single plugin HandleEvent call.
+	// On expiry the runtime closes the module, so the plugin is disabled
+	// until it is reloaded.
+	defaultEventCallTimeout = 10 * time.Second
+	// asyncDispatchTimeout bounds the total delivery of one fire-and-forget
+	// event across all subscribers.
+	asyncDispatchTimeout = 60 * time.Second
+	// maxAsyncDispatches caps concurrent background deliveries. A hung plugin
+	// parks callers on its wrapper mutex (mutex waits ignore contexts), so
+	// without a bound every incoming operation would grow the goroutine pile
+	// until the per-call timeout disables the plugin.
+	maxAsyncDispatches = 64
+)
+
 // Dispatcher handles event dispatching to plugins.
 type Dispatcher struct {
 	mu              sync.RWMutex
 	manager         *Manager
 	subscriptions   map[proto.EventType][]*LoadedPlugin
 	logger          *slog.Logger
+	callTimeout     time.Duration
+	asyncSlots      chan struct{}
 	subscriptionsOK bool
 }
 
@@ -45,6 +62,8 @@ func NewDispatcher(manager *Manager, logger *slog.Logger) *Dispatcher {
 		manager:       manager,
 		subscriptions: make(map[proto.EventType][]*LoadedPlugin),
 		logger:        logger,
+		callTimeout:   defaultEventCallTimeout,
+		asyncSlots:    make(chan struct{}, maxAsyncDispatches),
 	}
 }
 
@@ -58,7 +77,7 @@ func (d *Dispatcher) RefreshSubscriptions(ctx context.Context) error {
 
 	plugins := d.manager.GetPlugins()
 	for _, plugin := range plugins {
-		if !plugin.Enabled {
+		if !plugin.IsEnabled() {
 			continue
 		}
 
@@ -101,11 +120,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *proto.Event) *EventDis
 	cancellable := isCancellableEvent(event.Type)
 
 	for _, plugin := range subscribers {
-		if !plugin.Enabled {
+		if !plugin.IsEnabled() {
 			continue
 		}
 
-		eventResult, err := plugin.Instance.HandleEvent(ctx, event)
+		eventResult, err := d.handleEvent(ctx, plugin, event)
 		if err != nil {
 			result.Errors = append(result.Errors, errors.Wrapf(
 				err, "plugin %s failed to handle event", plugin.Info.Id,
@@ -140,6 +159,33 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *proto.Event) *EventDis
 	return result
 }
 
+// handleEvent calls a single plugin with a per-call deadline. On expiry the
+// module is closed by the runtime, so the plugin is disabled to stop routing
+// further calls to a dead instance.
+func (d *Dispatcher) handleEvent(
+	ctx context.Context,
+	plugin *LoadedPlugin,
+	event *proto.Event,
+) (*proto.EventResult, error) {
+	callCtx, cancel := context.WithTimeout(ctx, d.callTimeout)
+	defer cancel()
+
+	eventResult, err := plugin.Instance.HandleEvent(callCtx, event)
+	// ErrPluginBusy means the wait for the call gate was abandoned — the
+	// module is untouched, so the plugin must stay enabled.
+	if err != nil && callCtx.Err() != nil && ctx.Err() == nil && !errors.Is(err, ErrPluginBusy) {
+		plugin.Disable()
+
+		d.logger.Error("plugin event handler timed out, plugin disabled until reload",
+			slog.String("plugin_id", plugin.Info.Id),
+			slog.Int("event_type", int(event.Type)),
+			slog.Duration("timeout", d.callTimeout),
+		)
+	}
+
+	return eventResult, err
+}
+
 // DispatchServerEvent is a convenience method to dispatch a server event.
 func (d *Dispatcher) DispatchServerEvent(
 	ctx context.Context,
@@ -147,7 +193,107 @@ func (d *Dispatcher) DispatchServerEvent(
 	server *domain.Server,
 	extraData map[string]string,
 ) *EventDispatchResult {
-	event := &proto.Event{
+	return d.Dispatch(ctx, buildServerEvent(eventType, server, extraData))
+}
+
+// DispatchServerEventAsync dispatches a server event in the background.
+// The event payload is snapshotted synchronously; delivery errors are only
+// logged by Dispatch.
+func (d *Dispatcher) DispatchServerEventAsync(
+	ctx context.Context,
+	eventType proto.EventType,
+	server *domain.Server,
+	extraData map[string]string,
+) {
+	d.dispatchAsync(ctx, buildServerEvent(eventType, server, extraData))
+}
+
+// DispatchServerEventsAsync dispatches several server events for one operation
+// in the background, delivering them sequentially in the given order (a single
+// goroutine handles the whole batch).
+func (d *Dispatcher) DispatchServerEventsAsync(
+	ctx context.Context,
+	eventTypes []proto.EventType,
+	server *domain.Server,
+	extraData map[string]string,
+) {
+	events := make([]*proto.Event, 0, len(eventTypes))
+	for _, eventType := range eventTypes {
+		events = append(events, buildServerEvent(eventType, server, extraData))
+	}
+
+	d.dispatchAsync(ctx, events...)
+}
+
+// DispatchTaskEvent is a convenience method to dispatch a task event.
+func (d *Dispatcher) DispatchTaskEvent(
+	ctx context.Context,
+	eventType proto.EventType,
+	taskID, nodeID uint,
+	serverID *uint,
+	taskType, status string,
+	extraData map[string]string,
+) *EventDispatchResult {
+	return d.Dispatch(ctx, buildTaskEvent(eventType, taskID, nodeID, serverID, taskType, status, extraData))
+}
+
+// DispatchTaskEventAsync dispatches a task event in the background.
+func (d *Dispatcher) DispatchTaskEventAsync(
+	ctx context.Context,
+	eventType proto.EventType,
+	taskID, nodeID uint,
+	serverID *uint,
+	taskType, status string,
+	extraData map[string]string,
+) {
+	d.dispatchAsync(ctx, buildTaskEvent(eventType, taskID, nodeID, serverID, taskType, status, extraData))
+}
+
+func (d *Dispatcher) dispatchAsync(ctx context.Context, events ...*proto.Event) {
+	if len(events) == 0 {
+		return
+	}
+
+	select {
+	case d.asyncSlots <- struct{}{}:
+	default:
+		// Fire-and-forget events are advisory; when the backlog is full
+		// (plugins wedged for longer than the disable timeout can drain),
+		// dropping the whole ordered batch is safer than blocking the
+		// caller or queueing without bound.
+		eventTypes := make([]int, 0, len(events))
+		for _, event := range events {
+			eventTypes = append(eventTypes, int(event.Type))
+		}
+
+		d.logger.Error("async plugin events dropped, dispatch backlog is full",
+			slog.Any("event_types", eventTypes),
+			slog.Int("capacity", cap(d.asyncSlots)),
+		)
+
+		return
+	}
+
+	bgCtx := context.WithoutCancel(ctx)
+
+	go func() {
+		defer func() { <-d.asyncSlots }()
+
+		dispatchCtx, cancel := context.WithTimeout(bgCtx, asyncDispatchTimeout)
+		defer cancel()
+
+		for _, event := range events {
+			d.Dispatch(dispatchCtx, event)
+		}
+	}()
+}
+
+func buildServerEvent(
+	eventType proto.EventType,
+	server *domain.Server,
+	extraData map[string]string,
+) *proto.Event {
+	return &proto.Event{
 		Type:      eventType,
 		Timestamp: time.Now().Unix(),
 		Context: &proto.PluginContext{
@@ -160,19 +306,15 @@ func (d *Dispatcher) DispatchServerEvent(
 			},
 		},
 	}
-
-	return d.Dispatch(ctx, event)
 }
 
-// DispatchTaskEvent is a convenience method to dispatch a task event.
-func (d *Dispatcher) DispatchTaskEvent(
-	ctx context.Context,
+func buildTaskEvent(
 	eventType proto.EventType,
 	taskID, nodeID uint,
 	serverID *uint,
 	taskType, status string,
 	extraData map[string]string,
-) *EventDispatchResult {
+) *proto.Event {
 	payload := &proto.TaskEventPayload{
 		TaskId:    uint64(taskID),
 		NodeId:    uint64(nodeID),
@@ -185,7 +327,7 @@ func (d *Dispatcher) DispatchTaskEvent(
 		payload.ServerId = &sid
 	}
 
-	event := &proto.Event{
+	return &proto.Event{
 		Type:      eventType,
 		Timestamp: time.Now().Unix(),
 		Context: &proto.PluginContext{
@@ -195,8 +337,6 @@ func (d *Dispatcher) DispatchTaskEvent(
 			TaskEvent: payload,
 		},
 	}
-
-	return d.Dispatch(ctx, event)
 }
 
 // HasSubscribers returns true if there are any subscribers for the event type.
@@ -206,7 +346,7 @@ func (d *Dispatcher) HasSubscribers(eventType proto.EventType) bool {
 
 	subscribers := d.subscriptions[eventType]
 	for _, p := range subscribers {
-		if p.Enabled {
+		if p.IsEnabled() {
 			return true
 		}
 	}

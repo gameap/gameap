@@ -520,6 +520,21 @@ function onKeyDown(event) {
     .fm-th--date { width: 16%; }
     .fm-th--perm { width: 10ch; }
 
+    // Phones: keep name + size, the rest returns at >=768px.
+    @media (max-width: 767px) {
+        th:nth-child(3),
+        td:nth-child(3),
+        th:nth-child(4),
+        td:nth-child(4),
+        th:nth-child(5),
+        td:nth-child(5) {
+            display: none;
+        }
+
+        .fm-th--name { width: 70%; }
+        .fm-th--size { width: 30%; }
+    }
+
     td {
         white-space: nowrap;
         overflow: hidden;

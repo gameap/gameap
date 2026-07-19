@@ -1,9 +1,11 @@
 // OWASP API Top 10:2023 — API1:2023 Broken Object Level Authorization.
-// The rename oldName/newName fields are attacker-controlled; without strict
-// filename validation a caller could traverse out of the server data
-// directory (path/filename traversal) and move objects belonging to other
-// tenants. These tests assert both name fields are validated with
-// filemanagerpath.ValidateFilename (rejects "", "..", path separators).
+// The rename oldName/newName fields are attacker-controlled paths relative
+// to the server data directory; without validation a caller could traverse
+// out of that directory and move objects belonging to other tenants. These
+// tests assert both fields are validated with filemanagerpath.ValidatePath
+// (rejects ".." components and null bytes) and may never address the server
+// root itself, while legitimate subdirectory paths ("valve/addons") that the
+// file-manager frontend always sends are accepted.
 package rename
 
 import (
@@ -136,9 +138,9 @@ func (m *mockFileService) Move(
 }
 
 // TestHandler_ServeHTTP — OWASP API Top 10:2023 API1:2023 Broken Object Level
-// Authorization. The oldName/newName cases (empty/"..", separators) prove the
-// handler rejects names that could escape the per-server directory; a name
-// that previously passed because it contained a "/" subpath is now rejected.
+// Authorization. The oldName/newName cases (empty, "..", server root) prove
+// the handler rejects paths that could escape the per-server directory or
+// relocate it wholesale, while paths inside subdirectories are accepted.
 func TestHandler_ServeHTTP(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -294,10 +296,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			// Renaming a file inside a subdirectory is no longer accepted:
-			// oldName/newName must be plain file names so an attacker cannot
-			// supply a "/"-bearing path that escapes the server directory.
-			name:     "subdirectory_in_name_rejected",
+			// The file-manager frontend sends the full item path relative to
+			// the server root (dirname is preserved on rename), so a file
+			// inside a subdirectory must be renamable.
+			name:     "successful_file_rename_inside_subdirectory",
 			serverID: "1",
 			requestBody: renameRequest{
 				Disk:    "server",
@@ -348,10 +350,93 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.NoError(t, nodeRepo.Save(context.Background(), &node))
 			},
 			setupFileService: func() *mockFileService {
-				return &mockFileService{}
+				return &mockFileService{
+					moveFunc: func(_ context.Context, _ *domain.Node, source, destination string) error {
+						assert.Equal(t, "/srv/gameap/servers/test1/some-dir/ca.crt", source)
+						assert.Equal(t, "/srv/gameap/servers/test1/some-dir/ca2.crt", destination)
+
+						return nil
+					},
+				}
 			},
-			expectedStatus: http.StatusBadRequest,
-			wantError:      "filename contains path separators",
+			expectedStatus: http.StatusOK,
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response renameResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+			},
+		},
+		{
+			name:     "successful_directory_rename_inside_subdirectory",
+			serverID: "1",
+			requestBody: renameRequest{
+				Disk:    "server",
+				OldName: "valve/addons",
+				NewName: "valve/addons2",
+				Type:    "dir",
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "cs",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27015,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					moveFunc: func(_ context.Context, _ *domain.Node, source, destination string) error {
+						assert.Equal(t, "/srv/gameap/servers/test1/valve/addons", source)
+						assert.Equal(t, "/srv/gameap/servers/test1/valve/addons2", destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response renameResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+			},
 		},
 		{
 			name:     "unsupported_disk",
@@ -826,7 +911,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				return &mockFileService{}
 			},
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "filename contains invalid directory traversal",
+			wantError:      "path contains invalid directory traversal",
 		},
 		{
 			name:     "invalid_path_with_directory_traversal_in_newName",
@@ -883,10 +968,14 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				return &mockFileService{}
 			},
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "filename contains invalid directory traversal",
+			wantError:      "path contains invalid directory traversal",
 		},
 		{
-			name:     "newName_with_path_separator_rejected",
+			// The rename protocol is a constrained move: a newName with a
+			// different parent relocates the item within the server
+			// directory, the same operation paste/cut performs under the
+			// same files ability.
+			name:     "newName_with_new_parent_moves_item",
 			serverID: "1",
 			requestBody: renameRequest{
 				Disk:    "server",
@@ -937,10 +1026,23 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.NoError(t, nodeRepo.Save(context.Background(), &node))
 			},
 			setupFileService: func() *mockFileService {
-				return &mockFileService{}
+				return &mockFileService{
+					moveFunc: func(_ context.Context, _ *domain.Node, source, destination string) error {
+						assert.Equal(t, "/srv/gameap/servers/test1/valid.txt", source)
+						assert.Equal(t, "/srv/gameap/servers/test1/a/b", destination)
+
+						return nil
+					},
+				}
 			},
-			expectedStatus: http.StatusBadRequest,
-			wantError:      "filename contains path separators",
+			expectedStatus: http.StatusOK,
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response renameResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+			},
 		},
 		{
 			name:     "newName_equal_to_double_dot_rejected",
@@ -997,10 +1099,13 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				return &mockFileService{}
 			},
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "filename contains invalid directory traversal",
+			wantError:      "path contains invalid directory traversal",
 		},
 		{
-			name:     "oldName_with_backslash_rejected",
+			// Windows daemons and Windows cut/paste flows produce
+			// "\"-separated paths; they are normalized to "/" the same way
+			// the paste handler does.
+			name:     "oldName_with_backslash_normalized",
 			serverID: "1",
 			requestBody: renameRequest{
 				Disk:    "server",
@@ -1051,14 +1156,144 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.NoError(t, nodeRepo.Save(context.Background(), &node))
 			},
 			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					moveFunc: func(_ context.Context, _ *domain.Node, source, destination string) error {
+						assert.Equal(t, "/srv/gameap/servers/test1/a/b", source)
+						assert.Equal(t, "/srv/gameap/servers/test1/renamed.txt", destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response renameResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+			},
+		},
+		{
+			// Renaming the server root itself would hand the whole server
+			// directory to Move; such paths were unreachable before path
+			// semantics were adopted and must stay rejected.
+			name:     "oldName_server_root_rejected",
+			serverID: "1",
+			requestBody: renameRequest{
+				Disk:    "server",
+				OldName: "/",
+				NewName: "renamed",
+				Type:    "dir",
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "cs",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27015,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
 				return &mockFileService{}
 			},
 			expectedStatus: http.StatusBadRequest,
-			wantError:      "filename contains path separators",
+			wantError:      "path refers to the server root",
+		},
+		{
+			name:     "newName_server_root_rejected",
+			serverID: "1",
+			requestBody: renameRequest{
+				Disk:    "server",
+				OldName: "valid.txt",
+				NewName: ".",
+				Type:    "file",
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "cs",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27015,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "path refers to the server root",
 		},
 		{
 			// Empty oldName/newName is rejected by validateRequest before the
-			// filename check, but the rejection (a name field cannot be empty)
+			// path check, but the rejection (a name field cannot be empty)
 			// is still part of the name-validation contract under test.
 			name:     "empty_newName_rejected",
 			serverID: "1",

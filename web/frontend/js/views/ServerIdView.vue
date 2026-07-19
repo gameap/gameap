@@ -6,7 +6,6 @@
     v-else
     v-model:value="activeTab"
     type="line"
-    class="flex justify-between"
     :class="(!isServerEnabled) ? 'hidden': ''"
     animated
     display-directive="show:lazy"

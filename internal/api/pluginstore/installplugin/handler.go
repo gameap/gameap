@@ -23,12 +23,13 @@ import (
 )
 
 type Handler struct {
-	storeService *pluginstore.Service
-	pluginRepo   repositories.PluginRepository
-	fileManager  files.FileManager
-	loader       *plugin.Loader
-	pluginsDir   string
-	responder    base.Responder
+	storeService  *pluginstore.Service
+	pluginRepo    repositories.PluginRepository
+	fileManager   files.FileManager
+	loader        *plugin.Loader
+	subscriptions plugininstall.SubscriptionRefresher
+	pluginsDir    string
+	responder     base.Responder
 }
 
 func NewHandler(
@@ -36,16 +37,18 @@ func NewHandler(
 	pluginRepo repositories.PluginRepository,
 	fileManager files.FileManager,
 	loader *plugin.Loader,
+	subscriptions plugininstall.SubscriptionRefresher,
 	pluginsDir string,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		storeService: storeService,
-		pluginRepo:   pluginRepo,
-		fileManager:  fileManager,
-		loader:       loader,
-		pluginsDir:   pluginsDir,
-		responder:    responder,
+		storeService:  storeService,
+		pluginRepo:    pluginRepo,
+		fileManager:   fileManager,
+		loader:        loader,
+		subscriptions: subscriptions,
+		pluginsDir:    pluginsDir,
+		responder:     responder,
 	}
 }
 
@@ -132,7 +135,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.tryLoadPlugin(ctx, pluginRecord, filename); err != nil {
+	if err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
 		wasmHash := sha256.Sum256(wasmBytes)
 
 		slog.WarnContext(
@@ -148,6 +151,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
 
 	h.responder.Write(ctx, rw, newInstallResponse(pluginRecord))
 }
@@ -282,25 +287,4 @@ func (h *Handler) buildPluginRecord(
 		Status:      domain.PluginStatusActive,
 		InstalledAt: new(time.Now()),
 	}
-}
-
-func (h *Handler) tryLoadPlugin(ctx context.Context, pluginRecord *domain.Plugin, filename string) error {
-	if h.loader == nil {
-		return nil
-	}
-	if _, err := h.loader.Load(ctx, filename); err != nil {
-		slog.ErrorContext(
-			ctx,
-			"failed to load plugin",
-			slog.String("filename", filename),
-			slog.String("error", err.Error()),
-		)
-
-		pluginRecord.Status = domain.PluginStatusError
-		_ = h.pluginRepo.Save(ctx, pluginRecord)
-
-		return errors.WithMessage(err, "failed to load plugin")
-	}
-
-	return nil
 }

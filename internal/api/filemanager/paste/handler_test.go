@@ -69,8 +69,10 @@ var testNode = domain.Node{
 }
 
 type mockFileService struct {
-	copyFunc func(ctx context.Context, node *domain.Node, source, destination string) error
-	moveFunc func(ctx context.Context, node *domain.Node, source, destination string) error
+	copyFunc  func(ctx context.Context, node *domain.Node, source, destination string) error
+	moveFunc  func(ctx context.Context, node *domain.Node, source, destination string) error
+	copyCalls int
+	moveCalls int
 }
 
 func (m *mockFileService) Copy(
@@ -79,6 +81,8 @@ func (m *mockFileService) Copy(
 	source string,
 	destination string,
 ) error {
+	m.copyCalls++
+
 	if m.copyFunc != nil {
 		return m.copyFunc(ctx, node, source, destination)
 	}
@@ -92,11 +96,60 @@ func (m *mockFileService) Move(
 	source string,
 	destination string,
 ) error {
+	m.moveCalls++
+
 	if m.moveFunc != nil {
 		return m.moveFunc(ctx, node, source, destination)
 	}
 
 	return nil
+}
+
+func testUser1Session() context.Context {
+	session := &auth.Session{
+		Login: "testuser",
+		Email: "test@example.com",
+		User:  &testUser1,
+	}
+
+	return auth.ContextWithSession(context.Background(), session)
+}
+
+func setupServer1WithNode(
+	t *testing.T,
+	serverRepo *inmemory.ServerRepository,
+	nodeRepo *inmemory.NodeRepository,
+	rbacRepo *inmemory.RBACRepository,
+) {
+	t.Helper()
+
+	now := time.Now()
+
+	server := &domain.Server{
+		ID:            1,
+		UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		UUIDShort:     "short1",
+		Enabled:       true,
+		Installed:     1,
+		Blocked:       false,
+		Name:          "Test Server 1",
+		GameID:        "cs",
+		DSID:          1,
+		GameModID:     1,
+		ServerIP:      "127.0.0.1",
+		ServerPort:    27015,
+		Dir:           "servers/test1",
+		ProcessActive: false,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+
+	require.NoError(t, serverRepo.Save(context.Background(), server))
+	serverRepo.AddUserServer(1, 1)
+	allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+	node := testNode
+	require.NoError(t, nodeRepo.Save(context.Background(), &node))
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
@@ -109,6 +162,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		setupFileService func() *mockFileService
 		expectedStatus   int
 		wantError        string
+		wantCopyCalls    *int
+		wantMoveCalls    *int
 		validateResponse func(*testing.T, []byte)
 	}{
 		{
@@ -1386,6 +1441,585 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, "success", response.Result.Status)
 			},
 		},
+		{
+			name:     "copy_to_same_directory_without_rename",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "docs",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"docs/report.txt"},
+				},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						t.Errorf("Copy must not be called, got %s -> %s", source, destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "copy source and destination are the same",
+		},
+		{
+			name:     "copy_to_same_directory_with_rename_suffix",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "docs",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"docs/report.txt"},
+				},
+				Names: map[string]string{"docs/report.txt": "report_1.txt"},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						assert.Equal(t, "/srv/gameap/servers/test1/docs/report.txt", source)
+						assert.Equal(t, "/srv/gameap/servers/test1/docs/report_1.txt", destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			wantCopyCalls:  new(1),
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response pasteResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+				assert.Equal(t, "Copied successfully!", response.Result.Message)
+			},
+		},
+		{
+			name:     "copy_windows_backslash_path_to_same_directory_with_rename_suffix",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "ioquake3",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"ioquake3\\SDL264.dll"},
+				},
+				Names: map[string]string{"ioquake3\\SDL264.dll": "SDL264_1.dll"},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						assert.Equal(t, "/srv/gameap/servers/test1/ioquake3/SDL264.dll", source)
+						assert.Equal(t, "/srv/gameap/servers/test1/ioquake3/SDL264_1.dll", destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			wantCopyCalls:  new(1),
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response pasteResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+			},
+		},
+		{
+			name:     "copy_directory_to_same_directory_with_rename_suffix",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: ".",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{"configs"},
+					Files:       []string{},
+				},
+				Names: map[string]string{"configs": "configs_1"},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						assert.Equal(t, "/srv/gameap/servers/test1/configs", source)
+						assert.Equal(t, "/srv/gameap/servers/test1/configs_1", destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			wantCopyCalls:  new(1),
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response pasteResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+			},
+		},
+		{
+			name:     "cut_to_same_directory_is_noop",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "docs",
+				Clipboard: clipboard{
+					Type:        "cut",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"docs/report.txt"},
+				},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					moveFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						t.Errorf("Move must not be called, got %s -> %s", source, destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			wantMoveCalls:  new(0),
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response pasteResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+				assert.Equal(t, "Moved successfully!", response.Result.Message)
+			},
+		},
+		{
+			name:     "cut_directory_to_same_directory_is_noop",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: ".",
+				Clipboard: clipboard{
+					Type:        "cut",
+					Disk:        "server",
+					Directories: []string{"configs"},
+					Files:       []string{},
+				},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					moveFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						t.Errorf("Move must not be called, got %s -> %s", source, destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			wantMoveCalls:  new(0),
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response pasteResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+				assert.Equal(t, "Moved successfully!", response.Result.Message)
+			},
+		},
+		{
+			name:     "cut_mixed_items_moves_only_relocated_ones",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "new",
+				Clipboard: clipboard{
+					Type:        "cut",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"new/a.txt", "b.txt"},
+				},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				callCount := 0
+
+				return &mockFileService{
+					moveFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						require.Equal(t, 0, callCount, "only one move expected")
+						assert.Equal(t, "/srv/gameap/servers/test1/b.txt", source)
+						assert.Equal(t, "/srv/gameap/servers/test1/new/b.txt", destination)
+						callCount++
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			wantMoveCalls:  new(1),
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response pasteResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+				assert.Equal(t, "Moved successfully!", response.Result.Message)
+			},
+		},
+		{
+			name:     "invalid_name_with_path_separator",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "backup",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"docs/report.txt"},
+				},
+				Names: map[string]string{"docs/report.txt": "sub/report.txt"},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						t.Errorf("Copy must not be called, got %s -> %s", source, destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "filename contains path separators",
+		},
+		{
+			name:     "invalid_name_with_directory_traversal",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "backup",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"docs/report.txt"},
+				},
+				Names: map[string]string{"docs/report.txt": ".."},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						t.Errorf("Copy must not be called, got %s -> %s", source, destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "filename contains invalid directory traversal",
+		},
+		{
+			name:     "invalid_empty_name",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "backup",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"docs/report.txt"},
+				},
+				Names: map[string]string{"docs/report.txt": ""},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						t.Errorf("Copy must not be called, got %s -> %s", source, destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "filename is empty",
+		},
+		{
+			name:     "directory_pasted_into_itself",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "configs",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{"configs"},
+					Files:       []string{},
+				},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						t.Errorf("Copy must not be called, got %s -> %s", source, destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "into itself",
+		},
+		{
+			name:     "directory_pasted_into_own_subdirectory",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "configs/nested",
+				Clipboard: clipboard{
+					Type:        "cut",
+					Disk:        "server",
+					Directories: []string{"configs"},
+					Files:       []string{},
+				},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					moveFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						t.Errorf("Move must not be called, got %s -> %s", source, destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "into itself",
+		},
+		{
+			name:     "directory_pasted_into_itself_with_rename",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "configs",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{"configs"},
+					Files:       []string{},
+				},
+				Names: map[string]string{"configs": "configs_1"},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						t.Errorf("Copy must not be called, got %s -> %s", source, destination)
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "into itself",
+		},
+		{
+			name:     "names_applied_only_to_listed_items",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "backup",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"a.txt", "docs/b.txt"},
+				},
+				Names: map[string]string{"docs/b.txt": "b_1.txt"},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				callCount := 0
+				expectedCalls := []struct {
+					source      string
+					destination string
+				}{
+					{
+						source:      "/srv/gameap/servers/test1/a.txt",
+						destination: "/srv/gameap/servers/test1/backup/a.txt",
+					},
+					{
+						source:      "/srv/gameap/servers/test1/docs/b.txt",
+						destination: "/srv/gameap/servers/test1/backup/b_1.txt",
+					},
+				}
+
+				return &mockFileService{
+					copyFunc: func(_ context.Context, _ *domain.Node, source string, destination string) error {
+						require.Less(t, callCount, len(expectedCalls), "more calls than expected")
+						assert.Equal(t, expectedCalls[callCount].source, source)
+						assert.Equal(t, expectedCalls[callCount].destination, destination)
+						callCount++
+
+						return nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+			wantCopyCalls:  new(2),
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var response pasteResponse
+				require.NoError(t, json.Unmarshal(body, &response))
+				assert.Equal(t, "success", response.Result.Status)
+				assert.Equal(t, "Copied successfully!", response.Result.Message)
+			},
+		},
+		{
+			name:     "invalid_item_aborts_batch_before_any_operation",
+			serverID: "1",
+			requestBody: pasteRequest{
+				Disk: "server",
+				Path: "backup",
+				Clipboard: clipboard{
+					Type:        "copy",
+					Disk:        "server",
+					Directories: []string{},
+					Files:       []string{"a.txt", "docs/b.txt"},
+				},
+				Names: map[string]string{"docs/b.txt": "sub/b.txt"},
+			},
+			setupAuth: testUser1Session,
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "filename contains path separators",
+			wantCopyCalls:  new(0),
+		},
 	}
 
 	for _, tt := range tests {
@@ -1429,6 +2063,14 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				errorMsg, ok := response["error"].(string)
 				require.True(t, ok)
 				assert.Contains(t, errorMsg, tt.wantError)
+			}
+
+			if tt.wantCopyCalls != nil {
+				assert.Equal(t, *tt.wantCopyCalls, fileService.copyCalls, "unexpected Copy call count")
+			}
+
+			if tt.wantMoveCalls != nil {
+				assert.Equal(t, *tt.wantMoveCalls, fileService.moveCalls, "unexpected Move call count")
 			}
 
 			if tt.validateResponse != nil {

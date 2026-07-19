@@ -10,8 +10,7 @@
       </p>
 
       <div v-if="plugin" class="flex items-center gap-3 p-3 bg-stone-50 dark:bg-stone-800 rounded-lg">
-        <img v-if="plugin.icon_url" :src="plugin.icon_url" :alt="plugin.name" class="w-12 h-12 rounded" />
-        <GIcon v-else name="plugin" class="text-4xl text-stone-400" />
+        <PluginIcon :plugin="plugin" img-class="w-12 h-12 rounded" fallback-class="text-4xl text-stone-400" />
         <div>
           <div class="font-medium">{{ plugin.name }}</div>
           <div class="text-sm text-stone-500">{{ plugin.summary }}</div>
@@ -38,6 +37,7 @@ import { computed } from 'vue'
 import { trans } from '@/i18n/i18n'
 import { GIcon, GModal } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
+import PluginIcon from '@/components/plugins/PluginIcon.vue'
 
 const props = defineProps({
   show: {

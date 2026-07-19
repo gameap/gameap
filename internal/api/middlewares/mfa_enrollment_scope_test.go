@@ -31,6 +31,7 @@ func TestMFAEnrollmentScopeMiddleware(t *testing.T) {
 		name               string
 		session            *auth.Session
 		allowMFAEnrollment bool
+		enforceDisabled    bool
 		wantStatus         int
 		wantDenied         bool
 	}{
@@ -59,12 +60,22 @@ func TestMFAEnrollmentScopeMiddleware(t *testing.T) {
 			allowMFAEnrollment: false,
 			wantStatus:         http.StatusOK,
 		},
+		{
+			// AUTH_REQUIRE_MFA_FOR_ADMINS=false: a leftover enrollment-scoped
+			// token must be honoured as a full session, otherwise its bearer is
+			// locked out with no enrollment flow to escape through.
+			name:               "enrollment_session_honoured_when_enforcement_disabled",
+			session:            &auth.Session{User: authedUser, MFAEnrollmentOnly: true},
+			allowMFAEnrollment: false,
+			enforceDisabled:    true,
+			wantStatus:         http.StatusOK,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := &auditCapture{}
-			mw := NewMFAEnrollmentScopeMiddleware(api.NewResponder(), recorder)
+			mw := NewMFAEnrollmentScopeMiddleware(api.NewResponder(), recorder, !tt.enforceDisabled)
 			handler := mw.Middleware(noopNextHandler(), tt.allowMFAEnrollment)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/servers", http.NoBody)
@@ -94,7 +105,7 @@ func TestMFAEnrollmentScopeMiddleware(t *testing.T) {
 // the denied request must never reach the wrapped handler.
 func TestMFAEnrollmentScopeMiddleware_DeniedBeforeHandler(t *testing.T) {
 	reached := false
-	mw := NewMFAEnrollmentScopeMiddleware(api.NewResponder(), &auditCapture{})
+	mw := NewMFAEnrollmentScopeMiddleware(api.NewResponder(), &auditCapture{}, true)
 	handler := mw.Middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		reached = true
 	}), false)

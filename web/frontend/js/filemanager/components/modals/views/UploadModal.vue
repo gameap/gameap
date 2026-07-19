@@ -46,7 +46,7 @@
         </div>
 
         <div v-if="status === 'review'" class="space-y-3">
-            <div v-if="!isSingleFile" class="grid grid-cols-3 gap-2 text-sm bg-stone-50 dark:bg-stone-800 rounded p-3">
+            <div v-if="!isSingleFile" class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm bg-stone-50 dark:bg-stone-800 rounded p-3">
                 <div>
                     <strong>{{ lang.modal.upload.summaryFiles }}</strong>
                     {{ totals.files }}

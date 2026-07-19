@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/plugininstall"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/pkg/errors"
@@ -22,19 +23,29 @@ type PluginManager interface {
 	Unload(ctx context.Context, pluginID string) error
 }
 
+// ManagerIDResolver maps a plugin DB ID to the ID it is registered under in
+// the manager (they differ when the wasm's own info ID is not the store ID).
+type ManagerIDResolver interface {
+	GetPluginManagerID(dbID domain.Uint64ID) (string, bool)
+}
+
 type Handler struct {
-	pluginRepo  repositories.PluginRepository
-	fileManager files.FileManager
-	manager     PluginManager
-	pluginsDir  string
-	responder   base.Responder
-	audit       audit.Logger
+	pluginRepo    repositories.PluginRepository
+	fileManager   files.FileManager
+	manager       PluginManager
+	resolver      ManagerIDResolver
+	subscriptions plugininstall.SubscriptionRefresher
+	pluginsDir    string
+	responder     base.Responder
+	audit         audit.Logger
 }
 
 func NewHandler(
 	pluginRepo repositories.PluginRepository,
 	fileManager files.FileManager,
 	manager PluginManager,
+	resolver ManagerIDResolver,
+	subscriptions plugininstall.SubscriptionRefresher,
 	pluginsDir string,
 	responder base.Responder,
 	auditLogger audit.Logger,
@@ -44,12 +55,14 @@ func NewHandler(
 	}
 
 	return &Handler{
-		pluginRepo:  pluginRepo,
-		fileManager: fileManager,
-		manager:     manager,
-		pluginsDir:  pluginsDir,
-		responder:   responder,
-		audit:       auditLogger,
+		pluginRepo:    pluginRepo,
+		fileManager:   fileManager,
+		manager:       manager,
+		resolver:      resolver,
+		subscriptions: subscriptions,
+		pluginsDir:    pluginsDir,
+		responder:     responder,
+		audit:         auditLogger,
 	}
 }
 
@@ -121,10 +134,23 @@ func (h *Handler) unloadPlugin(ctx context.Context, dbID domain.Uint64ID) error 
 		return nil
 	}
 
-	managerID := pkgplugin.CompactPluginID(dbID)
+	managerID := ""
+	if h.resolver != nil {
+		managerID, _ = h.resolver.GetPluginManagerID(dbID)
+	}
+	if managerID == "" {
+		managerID = pkgplugin.CompactPluginID(dbID)
+	}
+
 	if _, exists := h.manager.GetPlugin(managerID); !exists {
 		return nil
 	}
 
-	return h.manager.Unload(ctx, managerID)
+	if err := h.manager.Unload(ctx, managerID); err != nil {
+		return err
+	}
+
+	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
+
+	return nil
 }

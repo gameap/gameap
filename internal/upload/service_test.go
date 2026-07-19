@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/upload"
+	"github.com/gameap/gameap/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -415,7 +417,7 @@ func TestService_WriteChunk(t *testing.T) {
 			userID:    testUserID,
 			index:     0,
 			body:      []byte("12345"),
-			wantError: "chunk size does not match expected size",
+			wantError: "chunk 0: received 5 bytes, expected 4: chunk size does not match expected size",
 			check: func(t *testing.T, storage *files.InMemoryFileManager, uploadID string) {
 				t.Helper()
 				assert.False(t, storage.Exists(context.Background(), "transfers/"+uploadID+"/chunks/000000"),
@@ -432,7 +434,7 @@ func TestService_WriteChunk(t *testing.T) {
 			userID:    testUserID,
 			index:     0,
 			body:      []byte("12"),
-			wantError: "chunk size does not match expected size",
+			wantError: "chunk 0: received 2 bytes, expected 4: chunk size does not match expected size",
 		},
 		{
 			name: "rejects_index_out_of_range_far",
@@ -527,6 +529,20 @@ func TestService_WriteChunk(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestService_WriteChunk_SizeMismatchKeepsHTTPStatus(t *testing.T) {
+	payload := []byte("0123456789")
+	checksum := sha256Hex(t, payload)
+	svc, _, _, _ := newTestSetup(t) //nolint:dogsled // 4 returns from setup, only svc needed
+	uploadID := createSession(t, svc, 10, checksum).UploadID
+
+	err := svc.WriteChunk(context.Background(), uploadID, testUserID, 0, bytes.NewReader([]byte("12345")))
+
+	require.Error(t, err)
+	var httpErr *api.Error
+	require.ErrorAs(t, err, &httpErr)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, httpErr.HTTPStatus())
 }
 
 func TestService_WriteChunk_RejectsExpiredSession(t *testing.T) {

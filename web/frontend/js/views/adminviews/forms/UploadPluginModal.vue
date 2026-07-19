@@ -49,7 +49,7 @@
           {{ uploadResult.description }}
         </div>
 
-        <div class="grid grid-cols-2 gap-4 mb-4 p-3 bg-stone-100 dark:bg-stone-800 rounded-lg">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 p-3 bg-stone-100 dark:bg-stone-800 rounded-lg">
           <div v-if="uploadResult.author">
             <span class="text-xs text-stone-500">{{ trans('plugins.author') }}</span>
             <p class="text-sm font-medium">{{ uploadResult.author }}</p>

@@ -1,9 +1,10 @@
 package paste
 
 type pasteRequest struct {
-	Disk      string    `json:"disk"`
-	Path      string    `json:"path"`
-	Clipboard clipboard `json:"clipboard"`
+	Disk      string            `json:"disk"`
+	Path      string            `json:"path"`
+	Clipboard clipboard         `json:"clipboard"`
+	Names     map[string]string `json:"names"`
 }
 
 type clipboard struct {

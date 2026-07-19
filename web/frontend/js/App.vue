@@ -12,11 +12,11 @@
           <mfa-enforcement-modal />
 
           <div id="main-section" class="mt-16 mr-5 sm:flex">
-            <div class="sm:visible invisible flex-none">
+            <div class="hidden sm:block flex-none">
               <main-sidebar></main-sidebar>
             </div>
 
-            <div class="sm:flex-1">
+            <div class="sm:flex-1 min-w-0">
               <div class="max-w-full">
                 <div class="pt-3 pb-16 max-sm:pl-5 content">
                   <content-view></content-view>

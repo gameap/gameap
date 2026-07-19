@@ -183,6 +183,42 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
 
+/api/plugin-store/plugins/{id}/icon:
+  get:
+    tags:
+      - PluginStore
+    summary: Get plugin icon
+    description: Returns the plugin icon image proxied from the store (Admin only)
+    operationId: getPluginStorePluginIcon
+    parameters:
+      - $ref: '../parameters/PathPluginId.yaml'
+    responses:
+      '200':
+        description: Plugin icon image
+        content:
+          image/*:
+            schema:
+              type: string
+              format: binary
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Plugin or icon not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
 /api/plugin-store/plugins/{id}/install:
   post:
     tags:

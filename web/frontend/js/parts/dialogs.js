@@ -1,8 +1,29 @@
 import {trans} from "@/i18n/i18n";
 import {h} from 'vue';
+import {useAuthStore} from "@/store/auth";
+
+// Matches the 403 emitted by the backend MFAEnrollmentScopeMiddleware for a
+// session that is confined to two-factor enrollment.
+const isMFAEnrollmentScopeError = function(error) {
+    return error?.response?.status === 403
+        && typeof error.response.data?.message === 'string'
+        && error.response.data.message.includes('two-factor enrollment')
+}
 
 const errorNotification = function(error, callback) {
     if (error.__CANCEL__) {
+        return
+    }
+
+    if (typeof error === 'object' && error !== null && isMFAEnrollmentScopeError(error)) {
+        // The actionable surface for a enrollment-scoped session is the MFA
+        // enforcement modal, not an error dialog per rejected request. Make
+        // sure the modal is up and swallow the error.
+        const authStore = useAuthStore()
+        if (!authStore.mfaNudge?.required) {
+            authStore.mfaNudge = { required: true, show_now: true, hard_fail: true, days_remaining: 0 }
+        }
+
         return
     }
 

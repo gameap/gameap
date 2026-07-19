@@ -112,6 +112,79 @@ func TestValidatePath(t *testing.T) {
 	}
 }
 
+// TestIsRoot — OWASP API1:2023 Broken Object Level Authorization (operations
+// that relocate or remove their target must not be able to address the server
+// root itself).
+func TestIsRoot(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "empty",
+			path: "",
+			want: true,
+		},
+		{
+			name: "single_slash",
+			path: "/",
+			want: true,
+		},
+		{
+			name: "double_slash",
+			path: "//",
+			want: true,
+		},
+		{
+			name: "single_dot",
+			path: ".",
+			want: true,
+		},
+		{
+			name: "dot_slash",
+			path: "./",
+			want: true,
+		},
+		{
+			name: "slash_dot",
+			path: "/.",
+			want: true,
+		},
+		{
+			name: "single_backslash",
+			path: "\\",
+			want: true,
+		},
+		{
+			name: "file_at_root",
+			path: "test.txt",
+			want: false,
+		},
+		{
+			name: "leading_slash_file",
+			path: "/test.txt",
+			want: false,
+		},
+		{
+			name: "nested_path",
+			path: "valve/addons",
+			want: false,
+		},
+		{
+			name: "windows_separator_path",
+			path: "valve\\addons",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, filemanagerpath.IsRoot(tt.path))
+		})
+	}
+}
+
 // TestValidateFilename — OWASP API1:2023 Broken Object Level Authorization.
 func TestValidateFilename(t *testing.T) {
 	tests := []struct {

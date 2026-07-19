@@ -76,24 +76,15 @@ func extraString(e audit.Event, key string) (string, bool) {
 }
 
 type mockLoaderManager struct {
-	loadFunc   func(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error)
-	unloadFunc func(ctx context.Context, pluginID string) error
+	loadFunc func(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error)
 }
 
-func (m *mockLoaderManager) Load(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error) {
+func (m *mockLoaderManager) LoadTransient(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error) {
 	if m.loadFunc != nil {
 		return m.loadFunc(ctx, wasmBytes, config, pluginID)
 	}
 
 	return nil, nil
-}
-
-func (m *mockLoaderManager) Unload(ctx context.Context, pluginID string) error {
-	if m.unloadFunc != nil {
-		return m.unloadFunc(ctx, pluginID)
-	}
-
-	return nil
 }
 
 //nolint:unparam // filename is fixed today but kept as a parameter for clarity at call sites
@@ -149,9 +140,6 @@ func TestInstall(t *testing.T) {
 						},
 					}, nil
 				},
-				unloadFunc: func(_ context.Context, _ string) error {
-					return nil
-				},
 			},
 			wantStatus:  http.StatusOK,
 			wantName:    "Test Plugin",
@@ -184,6 +172,7 @@ func TestInstall(t *testing.T) {
 				tt.mockManager,
 				pluginRepo,
 				fileManager,
+				nil,
 				nil,
 				"plugins",
 				api.NewResponder(),
@@ -249,15 +238,13 @@ func TestInstall_already_installed_returns_409(t *testing.T) {
 				},
 			}, nil
 		},
-		unloadFunc: func(_ context.Context, _ string) error {
-			return nil
-		},
 	}
 
 	h := install.NewHandler(
 		mockManager,
 		pluginRepo,
 		fileManager,
+		nil,
 		nil,
 		"plugins",
 		api.NewResponder(),
@@ -277,6 +264,7 @@ func TestInstall_no_file_uploaded(t *testing.T) {
 		&mockLoaderManager{},
 		inmemory.NewPluginRepository(),
 		files.NewInMemoryFileManager(),
+		nil,
 		nil,
 		"plugins",
 		api.NewResponder(),
@@ -324,12 +312,11 @@ func TestInstall_Audit_SuccessfulInstallIsRecorded(t *testing.T) {
 				},
 			}, nil
 		},
-		unloadFunc: func(_ context.Context, _ string) error { return nil },
 	}
 
 	recorder := &auditCapture{}
 	h := install.NewHandler(
-		mockManager, pluginRepo, fileManager, nil, "plugins", api.NewResponder(), recorder,
+		mockManager, pluginRepo, fileManager, nil, nil, "plugins", api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
 
@@ -379,12 +366,11 @@ func TestInstall_Audit_AlreadyInstalledIsNotRecorded(t *testing.T) {
 				},
 			}, nil
 		},
-		unloadFunc: func(_ context.Context, _ string) error { return nil },
 	}
 
 	recorder := &auditCapture{}
 	h := install.NewHandler(
-		mockManager, pluginRepo, files.NewInMemoryFileManager(), nil, "plugins",
+		mockManager, pluginRepo, files.NewInMemoryFileManager(), nil, nil, "plugins",
 		api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()

@@ -10,6 +10,7 @@ import { trans } from '@/i18n/i18n'
 
 import ServerTaskForm from './ServerTaskForm.vue'
 import ServerTaskExecutionsModal from './ServerTaskExecutionsModal.vue'
+import { useIsSmallScreen } from '@/composables/useIsSmallScreen'
 
 const props = defineProps({
     serverId: { type: Number, required: true },
@@ -27,6 +28,7 @@ const formVisible = ref(false)
 const executionsVisible = ref(false)
 const selectedTaskIndex = ref(null)
 const executionsTask = ref(null)
+const isSmallScreen = useIsSmallScreen()
 
 const COMMAND_BADGE_CLASS = {
     start: 'badge-green',
@@ -188,35 +190,43 @@ function renderActionsCell(row, rowIndex) {
     ])
 }
 
-const columns = computed(() => [
-    {
-        title: trans('servers_tasks.task'),
-        key: 'task',
-        render: renderTaskCell,
-    },
-    {
-        title: trans('servers_tasks.schedule'),
-        key: 'schedule',
-        render: renderScheduleCell,
-    },
-    {
-        title: trans('servers_tasks.repeat'),
-        key: 'repeat',
-        render: renderRepeatCell,
-    },
-    {
-        title: trans('servers_tasks.status'),
-        key: 'status',
-        width: 120,
-        render: renderStatusCell,
-    },
-    {
-        title: trans('main.actions'),
-        key: 'actions',
-        align: 'right',
-        render: renderActionsCell,
-    },
-])
+const columns = computed(() => {
+    const cols = [
+        {
+            title: trans('servers_tasks.task'),
+            key: 'task',
+            render: renderTaskCell,
+        },
+        {
+            title: trans('servers_tasks.schedule'),
+            key: 'schedule',
+            render: renderScheduleCell,
+        },
+        {
+            title: trans('servers_tasks.repeat'),
+            key: 'repeat',
+            render: renderRepeatCell,
+        },
+        {
+            title: trans('servers_tasks.status'),
+            key: 'status',
+            width: 120,
+            render: renderStatusCell,
+        },
+        {
+            title: trans('main.actions'),
+            key: 'actions',
+            align: 'right',
+            render: renderActionsCell,
+        },
+    ]
+
+    if (isSmallScreen.value) {
+        return cols.filter((col) => col.key !== 'repeat')
+    }
+
+    return cols
+})
 
 function openCreate() {
     selectedTaskIndex.value = null
@@ -271,6 +281,7 @@ onMounted(() => {
             :data="tasks"
             :loading="loading"
             :row-key="(row) => row.id"
+            :scroll-x="isSmallScreen ? 560 : 760"
         >
             <template #loading>
                 <Loading />

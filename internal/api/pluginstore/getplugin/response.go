@@ -82,7 +82,7 @@ func newPluginResponse(
 		Name:                plugin.Name,
 		Summary:             plugin.Summary,
 		Description:         plugin.Description,
-		IconURL:             plugin.IconURL,
+		IconURL:             panelIconURL(plugin.ID, plugin.IconURL),
 		License:             plugin.License,
 		RepositoryURL:       plugin.RepositoryURL,
 		MinGameAPVersion:    plugin.MinGameAPVersion,
@@ -113,6 +113,17 @@ func newPluginResponse(
 		HasSubscription:       hasSubscription,
 		SubscriptionExpiresAt: subscriptionExpiresAt,
 	}
+}
+
+// panelIconURL replaces the external store icon URL with the panel's proxy
+// endpoint so the browser loads icons same-origin (external hosts are blocked
+// by the CSP img-src directive).
+func panelIconURL(pluginID, storeIconURL string) string {
+	if storeIconURL == "" {
+		return ""
+	}
+
+	return "/api/plugin-store/plugins/" + pluginID + "/icon"
 }
 
 func getSubscriptionInfo(

@@ -20,7 +20,8 @@ properties:
     example: "Automatically restarts servers on crash"
   icon_url:
     type: string
-    description: Plugin icon URL
+    description: Panel-relative URL of the plugin icon endpoint. Empty when the plugin has no icon.
+    example: "/api/plugin-store/plugins/files/icon"
   category:
     $ref: 'StorePluginCategory.yaml'
   labels:

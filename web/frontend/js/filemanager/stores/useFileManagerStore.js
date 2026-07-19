@@ -9,12 +9,14 @@ import { detectConflicts, joinPath, dirOf } from '../http/upload-conflicts.js'
 import { useSettingsStore } from './useSettingsStore.js'
 import { useMessagesStore } from './useMessagesStore.js'
 import { useModalStore } from './useModalStore.js'
+import { useTranslate } from '../composables/useTranslate.js'
+import { notification } from '@/parts/dialogs.js'
 
 const FILE_CONCURRENCY = 3
 const MKDIR_CONCURRENCY = 5
 
-function addRenameSuffix(name, taken) {
-    const dot = name.lastIndexOf('.')
+function addRenameSuffix(name, taken, splitExtension = true) {
+    const dot = splitExtension ? name.lastIndexOf('.') : -1
     const base = dot > 0 ? name.slice(0, dot) : name
     const ext = dot > 0 ? name.slice(dot) : ''
     let i = 1
@@ -25,6 +27,21 @@ function addRenameSuffix(name, taken) {
     }
 
     return candidate
+}
+
+function normalizeComparePath(p) {
+    const normalized = String(p ?? '')
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, '')
+        .replace(/\/+$/, '')
+
+    return normalized === '.' ? '' : normalized
+}
+
+function basenameOf(p) {
+    const normalized = normalizeComparePath(p)
+
+    return normalized.slice(normalized.lastIndexOf('/') + 1)
 }
 
 async function runPool(items, concurrency, worker) {
@@ -720,7 +737,14 @@ export const useFileManagerStore = defineStore('fm', () => {
                 messages.setFilePhase({ index: file.index, phase: 'done' })
             } catch (err) {
                 const code = err && err.code ? err.code : 'unknown'
-                messages.setFileError({ index: file.index, error: code })
+                if (code !== 'aborted') {
+                    console.error('[filemanager] upload failed:', filename, code, err)
+                }
+                messages.setFileError({
+                    index: file.index,
+                    error: code,
+                    detail: err && err.message ? err.message : null,
+                })
             }
         })
     }
@@ -956,11 +980,75 @@ export const useFileManagerStore = defineStore('fm', () => {
     }
 
     async function paste() {
-        const response = await POST.paste({
-            disk: selectedDisk.value,
-            path: selectedDirectory.value,
-            clipboard: clipboard.value,
+        const manager = getManager(activeManager.value)
+        const { lang } = useTranslate()
+        const destDir = normalizeComparePath(manager.selectedDirectory)
+        const sameDisk = clipboard.value.disk === manager.selectedDisk
+
+        const pastingIntoItself = sameDisk && clipboard.value.directories.some((dir) => {
+            const src = normalizeComparePath(dir)
+
+            return destDir === src || destDir.startsWith(`${src}/`)
         })
+        if (pastingIntoItself) {
+            notification({ content: lang.value.notifications.pasteIntoItself, type: 'error' })
+
+            return
+        }
+
+        const inDestDir = (itemPath) => sameDisk && dirOf(normalizeComparePath(itemPath)) === destDir
+
+        if (clipboard.value.type === 'cut') {
+            const items = [...clipboard.value.directories, ...clipboard.value.files]
+            if (items.length > 0 && items.every(inDestDir)) {
+                notification({ content: lang.value.notifications.pasteSameDirectory, type: 'info' })
+
+                return
+            }
+        }
+
+        let names = null
+        if (clipboard.value.type === 'copy') {
+            // Hidden entries occupy names too, so collect from the raw
+            // listings rather than the hiddenFiles-filtered getters.
+            const taken = new Set([
+                ...manager.directories.map((d) => d.basename),
+                ...manager.files.map((f) => f.basename),
+            ])
+            // Null prototype: an item literally named "__proto__" must
+            // still become an own enumerable key of the payload map.
+            names = Object.create(null)
+            for (const dir of clipboard.value.directories) {
+                if (!inDestDir(dir)) {
+                    continue
+                }
+                const renamed = addRenameSuffix(basenameOf(dir), taken, false)
+                names[dir] = renamed
+                taken.add(renamed)
+            }
+            for (const file of clipboard.value.files) {
+                if (!inDestDir(file)) {
+                    continue
+                }
+                const renamed = addRenameSuffix(basenameOf(file), taken)
+                names[file] = renamed
+                taken.add(renamed)
+            }
+            if (Object.keys(names).length === 0) {
+                names = null
+            }
+        }
+
+        const payload = {
+            disk: manager.selectedDisk,
+            path: manager.selectedDirectory,
+            clipboard: clipboard.value,
+        }
+        if (names) {
+            payload.names = names
+        }
+
+        const response = await POST.paste(payload)
 
         if (response.data.result.status === 'success') {
             refreshManagers()

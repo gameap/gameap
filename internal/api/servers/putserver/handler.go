@@ -10,18 +10,30 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
+	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/pkg/errors"
 )
 
+// PluginDispatcher dispatches server lifecycle events to plugins.
+type PluginDispatcher interface {
+	DispatchServerEventAsync(
+		ctx context.Context,
+		eventType servercontrol.PluginEventType,
+		server *domain.Server,
+		extraData map[string]string,
+	)
+}
+
 type Handler struct {
-	serverRepo   repositories.ServerRepository
-	nodeRepo     repositories.NodeRepository
-	gameRepo     repositories.GameRepository
-	gameModRepo  repositories.GameModRepository
-	configPusher *serverconfigpush.Pusher
-	rbac         base.RBAC
-	responder    base.Responder
+	serverRepo       repositories.ServerRepository
+	nodeRepo         repositories.NodeRepository
+	gameRepo         repositories.GameRepository
+	gameModRepo      repositories.GameModRepository
+	configPusher     *serverconfigpush.Pusher
+	pluginDispatcher PluginDispatcher
+	rbac             base.RBAC
+	responder        base.Responder
 }
 
 func NewHandler(
@@ -30,17 +42,19 @@ func NewHandler(
 	gameRepo repositories.GameRepository,
 	gameModRepo repositories.GameModRepository,
 	configPusher *serverconfigpush.Pusher,
+	pluginDispatcher PluginDispatcher,
 	rbac base.RBAC,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		serverRepo:   serverRepo,
-		nodeRepo:     nodeRepo,
-		gameRepo:     gameRepo,
-		gameModRepo:  gameModRepo,
-		configPusher: configPusher,
-		rbac:         rbac,
-		responder:    responder,
+		serverRepo:       serverRepo,
+		nodeRepo:         nodeRepo,
+		gameRepo:         gameRepo,
+		gameModRepo:      gameModRepo,
+		configPusher:     configPusher,
+		pluginDispatcher: pluginDispatcher,
+		rbac:             rbac,
+		responder:        responder,
 	}
 }
 
@@ -112,6 +126,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save server"))
 
 		return
+	}
+
+	if h.pluginDispatcher != nil {
+		h.pluginDispatcher.DispatchServerEventAsync(ctx, servercontrol.PluginEventServerUpdated, server, nil)
 	}
 
 	if h.configPusher != nil {

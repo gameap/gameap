@@ -24,7 +24,8 @@ properties:
     example: "A plugin that monitors server health and automatically restarts crashed servers."
   icon_url:
     type: string
-    description: Plugin icon URL
+    description: Panel-relative URL of the plugin icon endpoint. Empty when the plugin has no icon.
+    example: "/api/plugin-store/plugins/files/icon"
   license:
     type: string
     description: License type

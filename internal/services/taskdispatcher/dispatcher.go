@@ -13,6 +13,7 @@ import (
 	"github.com/gameap/gameap/internal/pubsub/messages"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/idgen"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/proto"
 	"github.com/pkg/errors"
 )
@@ -26,6 +27,7 @@ type Dispatcher struct {
 	gameModRepo       repositories.GameModRepository
 	nodeRepo          repositories.NodeRepository
 	publisher         pubsub.Publisher
+	pluginEvents      PluginEventDispatcher
 	logger            *slog.Logger
 }
 
@@ -57,10 +59,19 @@ func NewDispatcher(
 	}
 }
 
+// SetPluginEventDispatcher wires plugin task events. It is a setter (not a
+// constructor argument) to break the container cycle: the plugin manager's
+// host libraries depend on this dispatcher.
+func (d *Dispatcher) SetPluginEventDispatcher(pluginEvents PluginEventDispatcher) {
+	d.pluginEvents = pluginEvents
+}
+
 func (d *Dispatcher) Dispatch(ctx context.Context, task *domain.DaemonTask) error {
 	if err := d.daemonTaskRepo.Save(ctx, task); err != nil {
 		return errors.Wrap(err, "persist task")
 	}
+
+	d.dispatchTaskCreatedEvent(ctx, task)
 
 	d.sendServerConfigUpdate(ctx, task)
 
@@ -265,6 +276,23 @@ func (d *Dispatcher) CancelTask(ctx context.Context, taskID uint64, reason strin
 	}
 
 	return nil
+}
+
+func (d *Dispatcher) dispatchTaskCreatedEvent(ctx context.Context, task *domain.DaemonTask) {
+	if d.pluginEvents == nil {
+		return
+	}
+
+	d.pluginEvents.DispatchTaskEventAsync(
+		ctx,
+		pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_CREATED,
+		task.ID,
+		task.DedicatedServerID,
+		task.ServerID,
+		string(task.Task),
+		string(task.Status),
+		nil,
+	)
 }
 
 func (d *Dispatcher) publishTaskStatus(

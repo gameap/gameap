@@ -535,6 +535,8 @@ paths:
     $ref: './paths/plugin-store.yaml#/~1api~1plugin-store~1plugins~1{id}'
   /api/plugin-store/plugins/{id}/versions:
     $ref: './paths/plugin-store.yaml#/~1api~1plugin-store~1plugins~1{id}~1versions'
+  /api/plugin-store/plugins/{id}/icon:
+    $ref: './paths/plugin-store.yaml#/~1api~1plugin-store~1plugins~1{id}~1icon'
   /api/plugin-store/plugins/{id}/install:
     $ref: './paths/plugin-store.yaml#/~1api~1plugin-store~1plugins~1{id}~1install'
   /api/plugin-store/plugins/{id}/update:

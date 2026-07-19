@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -11,6 +12,7 @@ import (
 	"github.com/gameap/gameap/internal/pubsub/channels"
 	"github.com/gameap/gameap/internal/pubsub/messages"
 	"github.com/gameap/gameap/internal/repositories"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/proto"
 	"github.com/pkg/errors"
 )
@@ -19,13 +21,20 @@ type TaskHandler struct {
 	daemonTaskRepo repositories.DaemonTaskRepository
 	serverRepo     repositories.ServerRepository
 	publisher      pubsub.Publisher
+	pluginEvents   PluginEventDispatcher
 	logger         *slog.Logger
+
+	// statusMu serializes status transitions: concurrent duplicate updates
+	// (e.g. a retry delivered over an overlapping daemon session) must not
+	// both observe the pre-terminal status and double-emit completion events.
+	statusMu sync.Mutex
 }
 
 func NewTaskHandler(
 	daemonTaskRepo repositories.DaemonTaskRepository,
 	serverRepo repositories.ServerRepository,
 	publisher pubsub.Publisher,
+	pluginEvents PluginEventDispatcher,
 	logger *slog.Logger,
 ) *TaskHandler {
 	if logger == nil {
@@ -36,12 +45,16 @@ func NewTaskHandler(
 		daemonTaskRepo: daemonTaskRepo,
 		serverRepo:     serverRepo,
 		publisher:      publisher,
+		pluginEvents:   pluginEvents,
 		logger:         logger,
 	}
 }
 
 func (h *TaskHandler) HandleTaskStatusUpdate(ctx context.Context, nodeID uint64, update *proto.TaskStatusUpdate) error {
 	status := gateway.ProtoTaskStatusToDomain(update.Status)
+
+	h.statusMu.Lock()
+	defer h.statusMu.Unlock()
 
 	tasks, err := h.daemonTaskRepo.Find(ctx, &filters.FindDaemonTask{
 		IDs: []uint{uint(update.TaskId)},
@@ -60,6 +73,7 @@ func (h *TaskHandler) HandleTaskStatusUpdate(ctx context.Context, nodeID uint64,
 	}
 
 	task := tasks[0]
+	prevStatus := task.Status
 	task.Status = status
 
 	if err := h.daemonTaskRepo.Save(ctx, &task); err != nil {
@@ -78,6 +92,12 @@ func (h *TaskHandler) HandleTaskStatusUpdate(ctx context.Context, nodeID uint64,
 
 	if isTerminalStatus(task.Status) {
 		h.publishTaskComplete(ctx, update.TaskId, string(task.Status), task.DedicatedServerID)
+
+		// The daemon may re-deliver a terminal update (retry, reconnect
+		// replay); plugins must see each transition only once.
+		if prevStatus != task.Status {
+			h.dispatchPluginTaskEvent(ctx, &task)
+		}
 	}
 
 	h.logger.Debug("task status updated",
@@ -215,6 +235,7 @@ func (h *TaskHandler) markTaskAbandoned(ctx context.Context, task *domain.Daemon
 
 	h.publishTaskStatus(ctx, uint64(task.ID), string(task.Status), task.DedicatedServerID, AbandonedTaskMessage)
 	h.publishTaskComplete(ctx, uint64(task.ID), string(task.Status), task.DedicatedServerID)
+	h.dispatchPluginTaskEvent(ctx, task)
 
 	h.logger.Info("working task marked as error",
 		"task_id", task.ID,
@@ -223,6 +244,29 @@ func (h *TaskHandler) markTaskAbandoned(ctx context.Context, task *domain.Daemon
 	)
 
 	return nil
+}
+
+// dispatchPluginTaskEvent notifies plugins about a terminal task transition.
+func (h *TaskHandler) dispatchPluginTaskEvent(ctx context.Context, task *domain.DaemonTask) {
+	if h.pluginEvents == nil {
+		return
+	}
+
+	eventType := pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED
+	if task.Status != domain.DaemonTaskStatusSuccess {
+		eventType = pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_FAILED
+	}
+
+	h.pluginEvents.DispatchTaskEventAsync(
+		ctx,
+		eventType,
+		task.ID,
+		task.DedicatedServerID,
+		task.ServerID,
+		string(task.Task),
+		string(task.Status),
+		nil,
+	)
 }
 
 func (h *TaskHandler) publishTaskStatus(

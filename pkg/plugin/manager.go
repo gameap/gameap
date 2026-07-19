@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
@@ -15,6 +17,15 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"github.com/tetratelabs/wazero/sys"
 )
+
+// initializeTimeout bounds guest code executed during module start
+// (_initialize/_start) and API version verification. Host-side WASM
+// compilation is deliberately outside this budget: compiling a large module
+// on a slow machine can take longer than any reasonable guest budget, and it
+// is not something a plugin controls. Initialization calls after start
+// (GetInfo, Initialize, …) are each bounded by the wrapper's default call
+// timeout.
+const initializeTimeout = 60 * time.Second
 
 // HostLibrary represents a host function library that can be instantiated.
 type HostLibrary interface {
@@ -39,7 +50,22 @@ type LoadedPlugin struct {
 	FrontendStyles  []byte
 	ServerAbilities []*proto.ServerAbility
 
-	runtime wazero.Runtime
+	// disabled is atomic because it is flipped on Unload and on guest call
+	// timeouts while dispatchers concurrently read it without the manager lock.
+	disabled atomic.Bool
+	runtime  wazero.Runtime
+}
+
+// IsEnabled reports whether the plugin should receive events and HTTP requests.
+func (p *LoadedPlugin) IsEnabled() bool {
+	return p.Enabled && !p.disabled.Load()
+}
+
+// Disable permanently stops event and HTTP delivery to the plugin. Used when
+// its runtime is closed (unload) or misbehaving (call timeout); dispatchers
+// may still hold a pointer to it until their subscriptions are refreshed.
+func (p *LoadedPlugin) Disable() {
+	p.disabled.Store(true)
 }
 
 // Close releases the plugin resources.
@@ -62,7 +88,12 @@ type Manager struct {
 	mu      sync.RWMutex
 	plugins map[string]*LoadedPlugin
 	config  ManagerConfig
-	closed  bool
+	// cache shares compiled code between runtimes for the manager's
+	// lifetime, so validating and then installing the same wasm (or
+	// reloading it) compiles it only once. In-memory; reclaimed at process
+	// exit, deliberately never closed while transient modules may be alive.
+	cache  wazero.CompilationCache
+	closed bool
 }
 
 // NewManager creates a new plugin manager.
@@ -70,10 +101,17 @@ func NewManager(cfg ManagerConfig) *Manager {
 	return &Manager{
 		plugins: make(map[string]*LoadedPlugin),
 		config:  cfg,
+		cache:   wazero.NewCompilationCache(),
 	}
 }
 
-// Load loads a plugin from WASM bytes.
+// normalizePluginID converts any accepted plugin ID form (compact, decimal,
+// arbitrary string) to the canonical compact form used as the registry key.
+func normalizePluginID(pluginID string) string {
+	return CompactPluginID(ParsePluginID(pluginID))
+}
+
+// Load loads a plugin from WASM bytes and registers it in the manager.
 // pluginID is used to configure per-plugin host libraries (like storage).
 // Pass 0 if the plugin ID is not known (e.g., during initial info discovery).
 func (m *Manager) Load(
@@ -89,7 +127,63 @@ func (m *Manager) Load(
 		return nil, ErrManagerClosed
 	}
 
-	r, module, err := m.initializeRuntime(ctx, wasmBytes, pluginID)
+	loadedPlugin, err := m.load(ctx, wasmBytes, config, pluginID)
+	if err != nil {
+		return nil, err
+	}
+
+	id := normalizePluginID(loadedPlugin.Info.Id)
+	if _, exists := m.plugins[id]; exists {
+		if closeErr := loadedPlugin.Close(ctx); closeErr != nil {
+			slog.Warn("failed to close duplicate plugin runtime",
+				slog.String("plugin_id", loadedPlugin.Info.Id),
+				slog.String("error", closeErr.Error()),
+			)
+		}
+
+		return nil, errors.Wrapf(ErrPluginAlreadyLoaded, "plugin: %s", loadedPlugin.Info.Id)
+	}
+
+	m.plugins[id] = loadedPlugin
+
+	return loadedPlugin, nil
+}
+
+// LoadTransient loads a plugin without registering it in the manager.
+// It is meant for validation and inspection flows (dry-run, pre-install
+// checks): the plugin never receives events or HTTP requests, and the caller
+// owns the returned instance and must release it with Close.
+func (m *Manager) LoadTransient(
+	ctx context.Context,
+	wasmBytes []byte,
+	config map[string]string,
+	pluginID uint64,
+) (*LoadedPlugin, error) {
+	// The read lock is held through the whole load so Shutdown (write lock)
+	// cannot complete while a transient runtime is still initializing.
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.closed {
+		return nil, ErrManagerClosed
+	}
+
+	return m.load(ctx, wasmBytes, config, pluginID)
+}
+
+func (m *Manager) load(
+	ctx context.Context,
+	wasmBytes []byte,
+	config map[string]string,
+	pluginID uint64,
+) (*LoadedPlugin, error) {
+	// Detached from the caller so a dropped HTTP request does not close the
+	// module mid-initialization. Guest execution stays bounded: module start
+	// inside initializeRuntime, and every initialization call below via the
+	// wrapper's default call timeout.
+	loadCtx := context.WithoutCancel(ctx)
+
+	r, module, err := m.initializeRuntime(loadCtx, wasmBytes, pluginID)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize runtime")
 	}
@@ -107,7 +201,7 @@ func (m *Manager) Load(
 		return nil, errors.WithMessage(err, "failed to create plugin wrapper")
 	}
 
-	loadedPlugin, err := m.initializePlugin(ctx, r, plugin, config)
+	loadedPlugin, err := m.initializePlugin(loadCtx, r, plugin, config)
 	if err != nil {
 		closeErr := r.Close(ctx)
 		if closeErr != nil {
@@ -120,10 +214,6 @@ func (m *Manager) Load(
 		return nil, err
 	}
 
-	id := CompactPluginID(ParsePluginID(loadedPlugin.Info.Id))
-
-	m.plugins[id] = loadedPlugin
-
 	return loadedPlugin, nil
 }
 
@@ -132,7 +222,11 @@ func (m *Manager) initializeRuntime(
 	wasmBytes []byte,
 	pluginID uint64,
 ) (wazero.Runtime, api.Module, error) {
-	r := wazero.NewRuntime(ctx)
+	// CloseOnContextDone lets call deadlines interrupt guest execution;
+	// without it a runaway plugin blocks its caller forever.
+	r := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().
+		WithCloseOnContextDone(true).
+		WithCompilationCache(m.cache))
 
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
 		closeErr := r.Close(ctx)
@@ -194,7 +288,12 @@ func (m *Manager) initializeRuntime(
 		WithStderr(io.Discard).
 		WithSysWalltime()
 
-	module, err := r.InstantiateModule(ctx, code, moduleConfig)
+	// Module start runs guest code; only from this point does the guest
+	// budget apply (compilation above is host work).
+	startCtx, cancel := context.WithTimeout(ctx, initializeTimeout)
+	defer cancel()
+
+	module, err := r.InstantiateModule(startCtx, code, moduleConfig)
 
 	//nolint:nestif
 	if err != nil {
@@ -222,7 +321,7 @@ func (m *Manager) initializeRuntime(
 		}
 	}
 
-	if err = m.verifyAPIVersion(ctx, r, module); err != nil {
+	if err = m.verifyAPIVersion(startCtx, r, module); err != nil {
 		return nil, nil, err
 	}
 
@@ -255,10 +354,6 @@ func (m *Manager) initializePlugin(
 	info, err := plugin.GetInfo(ctx, &proto.GetInfoRequest{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get plugin info")
-	}
-
-	if _, exists := m.plugins[info.Id]; exists {
-		return nil, errors.Wrapf(ErrPluginAlreadyLoaded, "plugin: %s", info.Id)
 	}
 
 	initResp, err := plugin.Initialize(ctx, &proto.InitializeRequest{
@@ -394,6 +489,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 	getServerAbilities := module.ExportedFunction("plugin_service_get_server_abilities")
 
 	return &pluginServiceWrapper{
+		gate:                make(chan struct{}, 1),
 		module:              module,
 		malloc:              funcs["malloc"],
 		free:                funcs["free"],
@@ -409,22 +505,27 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 	}, nil
 }
 
-// Unload unloads a plugin by ID.
+// Unload unloads a plugin by ID. The ID may be given in any accepted form
+// (compact, decimal, raw plugin info ID).
 func (m *Manager) Unload(ctx context.Context, pluginID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	plugin, exists := m.plugins[pluginID]
+	id := normalizePluginID(pluginID)
+
+	plugin, exists := m.plugins[id]
 	if !exists {
 		return errors.Wrapf(ErrPluginNotFound, "plugin: %s", pluginID)
 	}
 
+	plugin.Disable()
+
 	_, err := plugin.Instance.Shutdown(ctx, &proto.ShutdownRequest{
-		Context: &proto.PluginContext{PluginId: pluginID},
+		Context: &proto.PluginContext{PluginId: plugin.Info.Id},
 	})
 	if err != nil {
 		slog.Warn("plugin shutdown failed",
-			slog.String("plugin_id", pluginID),
+			slog.String("plugin_id", plugin.Info.Id),
 			slog.String("error", err.Error()),
 		)
 	}
@@ -433,17 +534,17 @@ func (m *Manager) Unload(ctx context.Context, pluginID string) error {
 		return errors.WithMessage(err, "failed to close plugin")
 	}
 
-	delete(m.plugins, pluginID)
+	delete(m.plugins, id)
 
 	return nil
 }
 
-// GetPlugin returns a loaded plugin by ID.
+// GetPlugin returns a loaded plugin by ID in any accepted form.
 func (m *Manager) GetPlugin(pluginID string) (*LoadedPlugin, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	plugin, exists := m.plugins[pluginID]
+	plugin, exists := m.plugins[normalizePluginID(pluginID)]
 
 	return plugin, exists
 }
@@ -470,8 +571,11 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 
 	var errs []error
 	for pluginID, plugin := range m.plugins {
+		plugin.Disable()
+
+		// The guest knows itself by its declared ID, not the normalized map key.
 		_, _ = plugin.Instance.Shutdown(ctx, &proto.ShutdownRequest{
-			Context: &proto.PluginContext{PluginId: pluginID},
+			Context: &proto.PluginContext{PluginId: plugin.Info.Id},
 		})
 
 		if err := plugin.Close(ctx); err != nil {
@@ -512,7 +616,7 @@ func (m *Manager) GetHTTPRoutes() map[string][]*proto.HTTPRoute {
 
 	routes := make(map[string][]*proto.HTTPRoute)
 	for pluginID, p := range m.plugins {
-		if p.Enabled && len(p.HTTPRoutes) > 0 {
+		if p.IsEnabled() && len(p.HTTPRoutes) > 0 {
 			routes[pluginID] = p.HTTPRoutes
 		}
 	}
@@ -534,7 +638,7 @@ func (m *Manager) GetAllServerAbilities() []ServerAbility {
 
 	var abilities []ServerAbility
 	for pluginID, p := range m.plugins {
-		if !p.Enabled || len(p.ServerAbilities) == 0 {
+		if !p.IsEnabled() || len(p.ServerAbilities) == 0 {
 			continue
 		}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/plugininstall"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
@@ -21,12 +22,13 @@ import (
 )
 
 type Handler struct {
-	storeService *pluginstore.Service
-	pluginRepo   repositories.PluginRepository
-	fileManager  files.FileManager
-	loader       *plugin.Loader
-	pluginsDir   string
-	responder    base.Responder
+	storeService  *pluginstore.Service
+	pluginRepo    repositories.PluginRepository
+	fileManager   files.FileManager
+	loader        *plugin.Loader
+	subscriptions plugininstall.SubscriptionRefresher
+	pluginsDir    string
+	responder     base.Responder
 }
 
 func NewHandler(
@@ -34,16 +36,18 @@ func NewHandler(
 	pluginRepo repositories.PluginRepository,
 	fileManager files.FileManager,
 	loader *plugin.Loader,
+	subscriptions plugininstall.SubscriptionRefresher,
 	pluginsDir string,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		storeService: storeService,
-		pluginRepo:   pluginRepo,
-		fileManager:  fileManager,
-		loader:       loader,
-		pluginsDir:   pluginsDir,
-		responder:    responder,
+		storeService:  storeService,
+		pluginRepo:    pluginRepo,
+		fileManager:   fileManager,
+		loader:        loader,
+		subscriptions: subscriptions,
+		pluginsDir:    pluginsDir,
+		responder:     responder,
 	}
 }
 
@@ -89,6 +93,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+	defer plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
 
 	selectedVersion, err := h.selectVersion(ctx, storePluginID, inp.Version)
 	if err != nil {
@@ -121,7 +126,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.tryLoadPlugin(ctx, pluginRecord, filename); err != nil {
+	if err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "plugin installed but failed to load"),
 			http.StatusUnprocessableEntity,
@@ -167,10 +172,14 @@ func (h *Handler) unloadPlugin(ctx context.Context, dbID domain.Uint64ID) error 
 
 	managerID, ok := h.loader.GetPluginManagerID(dbID)
 	if !ok {
-		return nil
+		managerID = pkgplugin.CompactPluginID(dbID)
 	}
 
 	if err := h.loader.Unload(ctx, managerID); err != nil {
+		if errors.Is(err, pkgplugin.ErrPluginNotFound) {
+			return nil
+		}
+
 		return errors.WithMessage(err, "failed to unload plugin")
 	}
 
@@ -239,25 +248,4 @@ func (h *Handler) updatePluginRecord(record *domain.Plugin, version *pluginstore
 	record.Filename = new(filename)
 	record.Status = domain.PluginStatusActive
 	record.UpdatedAt = new(time.Now())
-}
-
-func (h *Handler) tryLoadPlugin(ctx context.Context, pluginRecord *domain.Plugin, filename string) error {
-	if h.loader == nil {
-		return nil
-	}
-	if _, err := h.loader.Load(ctx, filename); err != nil {
-		slog.ErrorContext(
-			ctx,
-			"failed to load plugin",
-			slog.String("filename", filename),
-			slog.String("error", err.Error()),
-		)
-
-		pluginRecord.Status = domain.PluginStatusError
-		_ = h.pluginRepo.Save(ctx, pluginRecord)
-
-		return errors.WithMessage(err, "failed to load plugin")
-	}
-
-	return nil
 }

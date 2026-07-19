@@ -1,6 +1,6 @@
 <template>
     <div>
-        <div class="grid grid-cols-3 gap-4 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
+        <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
             <div><strong>{{ lang.modal.properties.disk }}:</strong></div>
             <div>{{ selectedDisk }}</div>
             <div v-if="canCopy" class="text-right cursor-pointer">
@@ -11,7 +11,7 @@
                 />
             </div>
         </div>
-        <div class="grid grid-cols-3 gap-4 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
+        <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
             <div><strong>{{ lang.modal.properties.name }}:</strong></div>
             <div class="break-all">{{ selectedItem.basename }}</div>
             <div v-if="canCopy" class="text-right cursor-pointer">
@@ -22,7 +22,7 @@
                 />
             </div>
         </div>
-        <div class="grid grid-cols-3 gap-4 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
+        <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
             <div><strong>{{ lang.modal.properties.path }}:</strong></div>
             <div class="break-all">{{ selectedItem.path }}</div>
             <div v-if="canCopy" class="text-right cursor-pointer">
@@ -34,7 +34,7 @@
             </div>
         </div>
         <template v-if="selectedItem.type === 'file'">
-            <div class="grid grid-cols-3 gap-4 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
+            <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
                 <div><strong>{{ lang.modal.properties.size }}:</strong></div>
                 <div>{{ bytesToHuman(selectedItem.size) }}</div>
                 <div v-if="canCopy" class="text-right cursor-pointer">
@@ -47,7 +47,7 @@
             </div>
         </template>
         <template v-if="selectedItem.hasOwnProperty('timestamp')">
-            <div class="grid grid-cols-3 gap-4 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
+            <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1">
                 <div><strong>{{ lang.modal.properties.modified }}:</strong></div>
                 <div>{{ timestampToDate(selectedItem.timestamp) }}</div>
                 <div v-if="canCopy" class="text-right cursor-pointer">
@@ -60,13 +60,13 @@
             </div>
         </template>
         <template v-if="selectedItem.hasOwnProperty('acl')">
-            <div class="grid grid-cols-3 gap-4 my-3 p-1">
+            <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 my-3 p-1">
                 <div>{{ lang.modal.properties.access }}:</div>
                 <div>{{ lang.modal.properties['access_' + selectedItem.acl] }}</div>
             </div>
         </template>
         <template v-if="hasMode">
-            <div class="grid grid-cols-3 gap-4 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1 items-center">
+            <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 my-3 hover:bg-stone-100 dark:hover:bg-stone-800 rounded p-1 items-center">
                 <div><strong>{{ lang.modal.properties.permissions }}:</strong></div>
                 <div>
                     <code>{{ symbolicMode }}</code>

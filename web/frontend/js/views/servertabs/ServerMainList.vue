@@ -414,6 +414,7 @@
         :data="data"
         :loading="loading"
         :pagination="pagination"
+        :scroll-x="isSmallScreen ? 520 : 800"
         @update:page="handlePageChange"
     >
         <template #loading>

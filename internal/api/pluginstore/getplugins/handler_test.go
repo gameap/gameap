@@ -205,3 +205,55 @@ func TestGetPlugins(t *testing.T) {
 		})
 	}
 }
+
+func TestGetPlugins_icon_url_rewritten_to_panel_endpoint(t *testing.T) {
+	// ARRANGE
+	storeResp := pluginstore.PaginatedResponse[pluginstore.Plugin]{
+		CurrentPage: 1,
+		Data: []pluginstore.Plugin{
+			{
+				ID:            "hexeditor4jm2",
+				Name:          "HEX Editor",
+				IconURL:       "https://plugins.gameap.dev/api/plugins/hexeditor4jm2/icon",
+				LatestVersion: "1.0.0",
+			},
+		},
+		From:     1,
+		LastPage: 1,
+		PerPage:  20,
+		Total:    1,
+	}
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(storeResp)
+	}))
+	defer mockServer.Close()
+
+	storeService := pluginstore.NewService(mockServer.URL, "", cache.NewInMemory())
+	pluginRepo := inmemory.NewPluginRepository()
+	h := getplugins.NewHandler(storeService, pluginRepo, api.NewResponder())
+	recorder := httptest.NewRecorder()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/plugins/store/plugins", nil)
+
+	// ACT
+	h.ServeHTTP(recorder, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var resp struct {
+		Data []struct {
+			IconURL string `json:"icon_url"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Len(t, resp.Data, 1)
+	assert.Equal(
+		t,
+		"/api/plugin-store/plugins/hexeditor4jm2/icon",
+		resp.Data[0].IconURL,
+		"external store icon URL must be rewritten to the panel proxy endpoint",
+	)
+}

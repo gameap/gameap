@@ -199,7 +199,7 @@ function responseInterceptor() {
                         ? lang.value.response[error.response.data.message]
                         : error.response.data.message
                 } else {
-                    errorMessage.message = error.response.statusText
+                    errorMessage.message = error.response.statusText || `HTTP ${error.response.status}`
                 }
             } else if (error.request) {
                 errorMessage.status = error.request.status

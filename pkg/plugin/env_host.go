@@ -108,8 +108,9 @@ func utf16LEToString(data []byte) string {
 
 	// Simple conversion for ASCII-compatible characters
 	// For full UTF-16 support, use unicode/utf16 package
+	// i+1 bound guards against an odd byteLength read from guest memory.
 	result := make([]byte, 0, len(data)/2)
-	for i := 0; i < len(data); i += 2 {
+	for i := 0; i+1 < len(data); i += 2 {
 		low := data[i]
 		high := data[i+1]
 

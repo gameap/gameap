@@ -12,6 +12,7 @@
       :data="usersData"
       :loading="loading"
       :pagination="pagination"
+      :scroll-x="560"
   >
     <template #loading>
       <Loading />

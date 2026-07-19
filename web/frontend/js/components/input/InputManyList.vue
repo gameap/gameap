@@ -1,12 +1,12 @@
 <template>
-  <div class="block w-full overflow-auto scrolling-touch" :class="$attrs.class">
+  <div class="block w-full overflow-auto" :class="$attrs.class">
     <div class="mb-3">
       <GButton color="green" size="small" v-on:click="addItem">
         <GIcon name="add" />
       </GButton>
     </div>
 
-    <n-table :bordered="false" :single-line="true">
+    <n-table :bordered="false" :single-line="true" :style="{ minWidth: tableMinWidth }">
       <thead>
         <tr>
           <th v-for="label in labels" :key="label">{{ label }}</th>
@@ -84,7 +84,7 @@ import {
   NModal,
   NTable,
 } from "naive-ui"
-import { ref, defineModel } from 'vue';
+import { ref, computed, defineModel } from 'vue';
 import {trans} from "@/i18n/i18n";
 
 const props = defineProps({
@@ -93,6 +93,11 @@ const props = defineProps({
   inputTypes: Array,
   name: String,
 });
+
+// An auto-layout table lets n-input (min-width: 0) collapse to a few px next
+// to the fixed maximize button; a per-column floor keeps inputs usable and
+// hands the overflow to the scrolling wrapper instead.
+const tableMinWidth = computed(() => `${props.keys.length * 170 + 110}px`);
 
 const items = defineModel()
 

@@ -14,7 +14,7 @@
 import {computed} from 'vue'
 
 const defaultClass = 'inline-block align-middle text-center select-none ' +
-    'font-normal whitespace-no-wrap rounded leading-normal no-underline'
+    'font-normal whitespace-nowrap rounded leading-normal no-underline'
 
 const defaultDisabledClass = 'cursor-not-allowed'
 

@@ -43,7 +43,7 @@ func newLoadedPluginResponse(
 		Version:           loaded.Info.Version,
 		Source:            source,
 		SourceType:        determineSourceType(source),
-		Enabled:           loaded.Enabled,
+		Enabled:           loaded.IsEnabled(),
 		HasFrontendBundle: len(loaded.FrontendBundle) > 0,
 	}
 

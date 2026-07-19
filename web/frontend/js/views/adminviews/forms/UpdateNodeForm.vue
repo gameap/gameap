@@ -7,7 +7,7 @@
         :model="form"
         :rules="rules"
     >
-      <n-tabs type="line" class="flex justify-between" animated>
+      <n-tabs type="line" animated>
         <n-tab-pane name="main">
           <template #tab>
             {{ trans('dedicated_servers.main') }}

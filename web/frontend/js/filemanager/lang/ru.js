@@ -226,6 +226,8 @@ const ru = {
                 checksum_mismatch: 'Несовпадение контрольной суммы',
                 server_error: 'Ошибка сервера',
                 network: 'Сетевая ошибка',
+                hash_failed: 'Ошибка хеширования файла',
+                proxy_limit: 'Отклонено прокси (слишком большой запрос)',
                 dir_vs_file: 'По этому пути существует каталог',
                 unknown: 'Загрузка не удалась',
             },
@@ -259,6 +261,8 @@ const ru = {
         copyToClipboard: 'Скопировано!',
         chmodSuccess: 'Права изменены!',
         chmodError: 'Не удалось изменить права!',
+        pasteSameDirectory: 'Элементы уже находятся в этой папке',
+        pasteIntoItself: 'Нельзя вставить папку саму в себя',
     },
     response: {
         noConfig: 'Конфигурация не найдена!',

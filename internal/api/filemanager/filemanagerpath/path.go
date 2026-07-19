@@ -1,6 +1,7 @@
 package filemanagerpath
 
 import (
+	"path"
 	"slices"
 	"strings"
 
@@ -11,6 +12,7 @@ var (
 	ErrPathContainsTraversal         = errors.New("path contains invalid directory traversal")
 	ErrPathContainsNullByte          = errors.New("path contains a null byte")
 	ErrPathEscapesBaseDirectory      = errors.New("path attempts to escape base directory")
+	ErrPathIsRoot                    = errors.New("path refers to the server root")
 	ErrFilenameEmpty                 = errors.New("filename is empty")
 	ErrFilenameContainsTraversal     = errors.New("filename contains invalid directory traversal")
 	ErrFilenameContainsPathSeparator = errors.New("filename contains path separators")
@@ -51,6 +53,16 @@ func ValidatePath(p string) error {
 	}
 
 	return nil
+}
+
+// IsRoot reports whether p refers to the server data directory itself rather
+// than an item inside it ("", "/", ".", "\" and equivalents). Operations that
+// relocate or remove their target must reject such paths — the root is the
+// boundary the file manager works within, not an addressable item.
+func IsRoot(p string) bool {
+	rel := strings.TrimLeft(strings.ReplaceAll(p, "\\", "/"), "/")
+
+	return path.Clean(rel) == "."
 }
 
 func ValidateFilename(filename string) error {

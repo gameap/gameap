@@ -34,14 +34,14 @@
             :key="file.index"
             class="grid grid-cols-12 items-center gap-2 py-1 px-2 rounded hover:bg-stone-50 dark:hover:bg-stone-800/40"
         >
-            <div class="col-span-5 flex items-center gap-2 min-w-0">
+            <div class="col-span-12 sm:col-span-5 flex items-center gap-2 min-w-0">
                 <GIcon :name="phaseIcon(file)" :class="phaseIconClass(file)" />
                 <span class="truncate text-sm" :title="file.name">{{ effectiveName(file) }}</span>
             </div>
-            <div class="col-span-2 text-xs text-stone-500 truncate text-right">
+            <div class="col-span-4 sm:col-span-2 text-xs text-stone-500 truncate text-right">
                 {{ bytesToHuman(file.size) }}
             </div>
-            <div class="col-span-3">
+            <div class="col-span-5 sm:col-span-3">
                 <template v-if="isReview && file.conflict === 'file'">
                     <n-select
                         :value="file.action"
@@ -65,8 +65,8 @@
                     />
                 </template>
             </div>
-            <div class="col-span-2 flex items-center justify-end gap-1">
-                <n-tag v-if="phaseLabel(file)" :type="phaseTagType(file)" size="tiny" round>
+            <div class="col-span-3 sm:col-span-2 flex items-center justify-end gap-1">
+                <n-tag v-if="phaseLabel(file)" :type="phaseTagType(file)" size="tiny" round :title="errorTitle(file)">
                     {{ phaseLabel(file) }}
                 </n-tag>
             </div>
@@ -148,6 +148,12 @@ function phaseLabel(file) {
     if (file.phase === 'pending') return ''
 
     return phases[file.phase] || ''
+}
+
+function errorTitle(file) {
+    if (file.phase === 'error' && file.errorDetail) return file.errorDetail
+
+    return undefined
 }
 
 function phaseIcon(file) {

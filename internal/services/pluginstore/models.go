@@ -72,6 +72,11 @@ type PluginDetails struct {
 	UpdatedAt            time.Time `json:"updated_at"`
 }
 
+type PluginIcon struct {
+	Data        []byte `json:"data"`
+	ContentType string `json:"content_type"`
+}
+
 type PluginVersion struct {
 	ID                  int          `json:"id"`
 	Version             string       `json:"version"`

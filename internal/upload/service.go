@@ -151,7 +151,10 @@ func (s *Service) WriteChunk(
 	if counter.count < 0 || uint64(counter.count) != expectedSize {
 		_ = s.storage.Delete(context.Background(), cp)
 
-		return ErrChunkSizeMismatch
+		return errors.WithMessagef(
+			ErrChunkSizeMismatch,
+			"chunk %d: received %d bytes, expected %d", index, counter.count, expectedSize,
+		)
 	}
 
 	return nil

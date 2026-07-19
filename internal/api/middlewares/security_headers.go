@@ -236,7 +236,12 @@ func buildGeneratedCSP(cfg *config.Config, scriptHashes []string) string {
 		"object-src 'none'",
 		"frame-ancestors 'self'",
 		"form-action 'self'",
-		joinTokens("script-src", []string{"'self'", "blob:"}, scriptHashes, captchaScript, csp.ExtraScriptSrc),
+		// 'wasm-unsafe-eval' allows WebAssembly.compile only (JS eval stays
+		// blocked): the file-manager upload flow hashes files client-side via
+		// hash-wasm, whose inlined wasm module cannot compile without it and
+		// every upload then dies in the hashing phase.
+		joinTokens("script-src",
+			[]string{"'self'", "blob:", "'wasm-unsafe-eval'"}, scriptHashes, captchaScript, csp.ExtraScriptSrc),
 		joinTokens("style-src", []string{"'self'", "'unsafe-inline'"}, csp.ExtraStyleSrc),
 		joinTokens("img-src", []string{"'self'", "data:", "blob:"}, csp.ExtraImgSrc),
 		joinTokens("font-src", []string{"'self'"}, csp.ExtraFontSrc),

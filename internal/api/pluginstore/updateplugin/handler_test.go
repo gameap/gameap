@@ -56,6 +56,15 @@ func (m *fakeLoaderManager) Load(
 	}, nil
 }
 
+func (m *fakeLoaderManager) LoadTransient(
+	ctx context.Context,
+	wasmBytes []byte,
+	config map[string]string,
+	pluginID uint64,
+) (*pkgplugin.LoadedPlugin, error) {
+	return m.Load(ctx, wasmBytes, config, pluginID)
+}
+
 func (m *fakeLoaderManager) Unload(ctx context.Context, pluginID string) error {
 	if m.unloadFunc != nil {
 		return m.unloadFunc(ctx, pluginID)
@@ -178,6 +187,7 @@ func executeUpdate(
 		pluginRepo,
 		fileManager,
 		loader,
+		nil,
 		"plugins",
 		api.NewResponder(),
 	)
@@ -336,7 +346,7 @@ func TestUpdatePlugin_with_loader_unloads_old_and_loads_new(t *testing.T) {
 	assert.Equal(t, "2.0.0", updated[0].Version)
 }
 
-func TestUpdatePlugin_with_loader_no_registered_manager_id_skips_unload(t *testing.T) {
+func TestUpdatePlugin_with_loader_no_registered_manager_id_falls_back_to_compact_id(t *testing.T) {
 	// ARRANGE
 	server := newMockServer(t, defaultMockHandler(t))
 	storeService := pluginstore.NewService(server.URL, "", cache.NewInMemory())
@@ -344,12 +354,12 @@ func TestUpdatePlugin_with_loader_no_registered_manager_id_skips_unload(t *testi
 	fileManager := files.NewInMemoryFileManager()
 	saveExistingPlugin(t, pluginRepo)
 
-	unloadCalled := false
+	unloadedID := ""
 	manager := &fakeLoaderManager{
-		unloadFunc: func(_ context.Context, _ string) error {
-			unloadCalled = true
+		unloadFunc: func(_ context.Context, pluginID string) error {
+			unloadedID = pluginID
 
-			return nil
+			return pkgplugin.ErrPluginNotFound
 		},
 	}
 	loader := plugin.NewLoader(manager, fileManager, pluginRepo, nil, "plugins")
@@ -357,9 +367,12 @@ func TestUpdatePlugin_with_loader_no_registered_manager_id_skips_unload(t *testi
 	// ACT
 	recorder := executeUpdate(t, pluginRepo, fileManager, loader, storeService)
 
-	// ASSERT
+	// ASSERT: without a registered mapping the handler must try the compact
+	// form of the DB ID and tolerate the plugin not being loaded.
 	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.False(t, unloadCalled, "unload must be skipped when no manager ID is registered for the plugin")
+	assert.Equal(t,
+		pkgplugin.CompactPluginID(pkgplugin.ParsePluginID(testPluginID)), unloadedID,
+		"unload must be attempted with the compact DB id when no manager ID is registered")
 }
 
 func TestUpdatePlugin_not_installed(t *testing.T) {
@@ -375,6 +388,7 @@ func TestUpdatePlugin_not_installed(t *testing.T) {
 		storeService,
 		pluginRepo,
 		fileManager,
+		nil,
 		nil,
 		"plugins",
 		api.NewResponder(),
@@ -754,6 +768,7 @@ func TestUpdatePlugin_pipeline_failures(t *testing.T) {
 				repo,
 				fileManager,
 				loader,
+				nil,
 				"plugins",
 				api.NewResponder(),
 			)

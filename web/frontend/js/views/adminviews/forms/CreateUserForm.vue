@@ -39,7 +39,7 @@
         </n-form-item>
 
         <n-form-item :label="trans('labels.password')" path="password">
-          <div class="flex grid-cols-2 gap-x-4 w-full">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
             <n-input
                 v-model:value="form.password"
                 type="password"

@@ -2,7 +2,7 @@
   <n-modal class="create-node-modal" v-model:show="showModal">
     <n-card
         :title="trans('dedicated_servers.autosetup_title')"
-        style="max-width: 800px;min-height: 500px"
+        style="width: 800px; max-width: 94vw; min-height: 500px"
         :bordered="false"
         size="huge"
         role="dialog"
@@ -14,7 +14,7 @@
         </button>
       </template>
 
-      <n-tabs v-model:value="activeTab" type="line" class="flex justify-between mb-2" animated>
+      <n-tabs v-model:value="activeTab" type="line" class="mb-2" animated>
         <n-tab-pane name="linux">
           <template #tab>
             <GIcon name="linux" class="mr-1" />Linux

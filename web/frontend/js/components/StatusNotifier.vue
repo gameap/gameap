@@ -15,7 +15,7 @@ const messageMap = new Map()
 function renderActions(actions) {
     return h(
         'div',
-        { class: 'flex gap-3 shrink-0' },
+        { class: 'flex flex-wrap gap-x-3 gap-y-1' },
         actions.map(action =>
             h('a', {
                 class: 'underline text-sm cursor-pointer whitespace-nowrap',

@@ -145,18 +145,22 @@ func Run(runParams RunParams) {
 		slog.String("build_date", defaults.BuildDate),
 	)
 
-	err = container.PluginLoader().LoadAll(ctx)
-	if err != nil {
-		slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))
+	if cfg.Plugins.Disabled {
+		slog.InfoContext(ctx, "Plugins are disabled, skipping plugin loading")
+	} else {
+		err = container.PluginLoader().LoadAll(ctx)
+		if err != nil {
+			slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))
 
-		osExit(1)
-	}
+			osExit(1)
+		}
 
-	err = container.PluginDispatcher().RefreshSubscriptions(ctx)
-	if err != nil {
-		slog.ErrorContext(ctx, "Failed to refresh plugin subscriptions", slog.String("error", err.Error()))
+		err = container.PluginDispatcher().RefreshSubscriptions(ctx)
+		if err != nil {
+			slog.ErrorContext(ctx, "Failed to refresh plugin subscriptions", slog.String("error", err.Error()))
 
-		osExit(1)
+			osExit(1)
+		}
 	}
 
 	startPubSub(ctx, container)

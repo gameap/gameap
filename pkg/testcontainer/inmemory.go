@@ -144,6 +144,7 @@ func (c *InmemoryContainer) FileManagerArchiveGuard() *archiver.InMemoryConcurre
 func (c *InmemoryContainer) DaemonCommands() *daemon.CommandService       { return c.daemonCommandsService }
 func (c *InmemoryContainer) ConsoleLogService() *daemon.ConsoleLogService { return nil }
 func (c *InmemoryContainer) PluginManager() *plugin.Manager               { return nil }
+func (c *InmemoryContainer) PluginDispatcher() *plugin.Dispatcher         { return nil }
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
 	return inmemory.NewPluginRepository()
 }

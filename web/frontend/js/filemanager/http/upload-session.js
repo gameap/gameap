@@ -41,7 +41,19 @@ const classifyAxiosError = (err) => {
     if (status === 404) return new UploadError('session_expired', 'Session not found', err)
     if (status === 410) return new UploadError('session_expired', 'Session expired', err)
     if (status === 409) return new UploadError('conflict', 'Conflict', err)
-    if (status === 413) return new UploadError('size_mismatch', 'Chunk size mismatch', err)
+    if (status === 413) {
+        const body = err.response.data
+        const fromAPI = body && typeof body === 'object' && body.http_code
+        if (!fromAPI) {
+            return new UploadError(
+                'proxy_limit',
+                'Request rejected by reverse proxy (413), check client_max_body_size',
+                err,
+            )
+        }
+
+        return new UploadError('size_mismatch', 'Chunk size mismatch', err)
+    }
     if (status === 422) return new UploadError('checksum_mismatch', 'Checksum mismatch', err)
     if (status >= 500 && status < 600) return new UploadError('server_error', `Server ${status}`, err)
     if (err.code === 'ERR_CANCELED') return new UploadError('aborted', 'Aborted', err)
@@ -224,10 +236,20 @@ export async function uploadFileChunked(file, { path, filename, onPhase, onProgr
     let createdUploadId = null
     try {
         if (onPhase) onPhase('hashing')
-        const expectedChecksum = await hashFile(file, {
-            onProgress: (p) => onProgress && onProgress({ phase: 'hashing', ...p }),
-            signal,
-        })
+        let expectedChecksum
+        try {
+            expectedChecksum = await hashFile(file, {
+                onProgress: (p) => onProgress && onProgress({ phase: 'hashing', ...p }),
+                signal,
+            })
+        } catch (err) {
+            if (err instanceof UploadError) throw err
+            throw new UploadError(
+                'hash_failed',
+                `SHA-256 hashing failed: ${err && err.message ? err.message : err}`,
+                err,
+            )
+        }
 
         throwIfAborted(signal)
         if (onPhase) onPhase('uploading')
