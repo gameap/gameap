@@ -74,9 +74,11 @@ func (s *scriptedTCPServer) Close() {
 
 // scriptedUDPServer reads one datagram at a time and answers via handler. handler returns the
 // response datagrams (each is written as a separate UDP packet); nil or empty means "do not reply".
+// writeDelay optionally paces the response datagrams of a multi-packet reply.
 type scriptedUDPServer struct {
-	conn net.PacketConn
-	addr string
+	conn       net.PacketConn
+	addr       string
+	writeDelay time.Duration
 
 	wg     sync.WaitGroup
 	closed chan struct{}
@@ -85,15 +87,26 @@ type scriptedUDPServer struct {
 func newScriptedUDPServer(t *testing.T, handler func(req []byte, idx int) [][]byte) *scriptedUDPServer {
 	t.Helper()
 
+	return newPacedScriptedUDPServer(t, 0, handler)
+}
+
+func newPacedScriptedUDPServer(
+	t *testing.T,
+	writeDelay time.Duration,
+	handler func(req []byte, idx int) [][]byte,
+) *scriptedUDPServer {
+	t.Helper()
+
 	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("scriptedUDPServer: listen: %v", err)
 	}
 
 	srv := &scriptedUDPServer{
-		conn:   pc,
-		addr:   pc.LocalAddr().String(),
-		closed: make(chan struct{}),
+		conn:       pc,
+		addr:       pc.LocalAddr().String(),
+		writeDelay: writeDelay,
+		closed:     make(chan struct{}),
 	}
 
 	srv.wg.Go(func() {
@@ -125,6 +138,11 @@ func newScriptedUDPServer(t *testing.T, handler func(req []byte, idx int) [][]by
 			idx++
 			for _, dgram := range resp {
 				_, _ = pc.WriteTo(dgram, peer)
+				// Pacing keeps a burst of response datagrams from overrunning the client's
+				// kernel receive buffer faster than the client can drain it.
+				if srv.writeDelay > 0 {
+					time.Sleep(srv.writeDelay)
+				}
 			}
 		}
 	})

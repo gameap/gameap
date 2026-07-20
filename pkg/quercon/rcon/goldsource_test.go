@@ -465,13 +465,16 @@ func TestGoldSource_Open_TimesOutOnSilentServer(t *testing.T) {
 func TestGoldSource_Execute_CapsReassembledResponse(t *testing.T) {
 	const challenge = "888"
 
-	// Enough back-to-back datagrams to exceed maxReassembledResponseSize with no idle gap.
+	// Enough datagrams to exceed maxReassembledResponseSize with no idle gap.
 	datagrams := make([][]byte, 0, maxReassembledResponseSize/4096+2)
 	for range maxReassembledResponseSize/4096 + 2 {
 		datagrams = append(datagrams, []byte(header+"\x00"+strings.Repeat("D", 4096)))
 	}
 
-	srv := newScriptedUDPServer(t, func(_ []byte, idx int) [][]byte {
+	// The datagrams are paced: an unpaced burst overruns the kernel receive buffer (as small
+	// as ~212 KiB on Linux) faster than the client can drain it, and the resulting packet
+	// loss — not the client-side cap — would end the response.
+	srv := newPacedScriptedUDPServer(t, 2*time.Millisecond, func(_ []byte, idx int) [][]byte {
 		switch idx {
 		case 0:
 			return [][]byte{[]byte(header + "\x00challenge rcon " + challenge + "\n")}
@@ -491,13 +494,6 @@ func TestGoldSource_Execute_CapsReassembledResponse(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, g.Open(context.Background()))
 	defer func() { _ = g.Close() }()
-
-	// The default OS UDP receive buffer (~768 KiB on macOS) is smaller than the cap;
-	// enlarge it so the whole burst fits and the test exercises the client-side cap
-	// instead of kernel-level datagram drops.
-	udpConn, ok := g.connection.(*net.UDPConn)
-	require.True(t, ok, "goldsource connection must be a *net.UDPConn")
-	require.NoError(t, udpConn.SetReadBuffer(4<<20))
 
 	got, err := g.Execute(context.Background(), "cvarlist")
 	require.NoError(t, err, "hitting the size cap must end the response normally, not error")
