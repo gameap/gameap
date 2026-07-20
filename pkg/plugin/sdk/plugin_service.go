@@ -63,3 +63,10 @@ func (EmptyPluginService) GetServerAbilities(
 ) (*proto.GetServerAbilitiesResponse, error) {
 	return &proto.GetServerAbilitiesResponse{}, nil
 }
+
+func (EmptyPluginService) GetAssets(
+	context.Context,
+	*proto.GetAssetsRequest,
+) (*proto.GetAssetsResponse, error) {
+	return &proto.GetAssetsResponse{}, nil
+}

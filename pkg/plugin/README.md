@@ -39,6 +39,7 @@ Plugins can:
 - **Make HTTP requests** (external API calls)
 - **Log messages** (debug, info, warn, error)
 - **Register custom HTTP endpoints** (extend the API)
+- **Contribute translation & frontend files** (layered over the built-in filesystems, via `GetAssets`)
 
 ## Event Types
 
@@ -557,6 +558,46 @@ func (p MyPlugin) HandleEvent(ctx context.Context, event *proto.Event) (*proto.E
     return &proto.EventResult{Handled: true}, nil
 }
 ```
+
+### Contributing translation & frontend files
+
+Implement `GetAssets` to ship translation files (served at `/lang/`) and frontend static
+files (served under the SPA root). Each group is layered **over** the built-in filesystem,
+so a plugin file shadows a core file of the same path and a new file is simply added — the
+first match in the first layer wins. Files are resolved per request, so a plugin installed
+at runtime contributes immediately.
+
+```go
+//go:embed assets/i18n/es.json
+var i18nES []byte
+
+//go:embed assets/frontend/plugins/my-plugin/meta.json
+var frontendMeta []byte
+
+func (p *MyPlugin) GetAssets(
+    _ context.Context,
+    _ *proto.GetAssetsRequest,
+) (*proto.GetAssetsResponse, error) {
+    return &proto.GetAssetsResponse{
+        I18NFiles: []*proto.AssetFile{
+            {Path: "es.json", Content: i18nES}, // -> /lang/es.json
+        },
+        FrontendFiles: []*proto.AssetFile{
+            {Path: "plugins/my-plugin/meta.json", Content: frontendMeta}, // -> /plugins/my-plugin/meta.json
+        },
+    }, nil
+}
+```
+
+Guidelines:
+
+- **Paths** must be valid, unrooted (no leading `/`), and free of `..`. Invalid paths are skipped.
+- **Additive by convention.** Namespace frontend files (e.g. under `plugins/<id>/`). Do **not**
+  ship `index.html`: the Content-Security-Policy is hashed from the built-in `index.html`, so an
+  overriding `index.html` would have its inline scripts blocked.
+- **Whole-file shadowing.** A plugin `en.json` replaces the core `en.json` entirely (it is not a
+  key-level JSON merge). Prefer adding new locale files (`es.json`, `de.json`, …).
+- **Limits.** Each file is capped at 8 MiB and each group at 64 MiB; oversized files are skipped.
 
 ## Security
 

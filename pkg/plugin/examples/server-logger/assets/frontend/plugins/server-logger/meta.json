@@ -1,0 +1,5 @@
+{
+  "plugin": "server-logger",
+  "version": "1.0.0",
+  "assets": ["plugin.js"]
+}

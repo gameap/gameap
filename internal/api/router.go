@@ -151,7 +151,6 @@ import (
 	"github.com/gameap/gameap/internal/files"
 	grpchandlers "github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
-	"github.com/gameap/gameap/internal/i18n"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/pubsub"
@@ -177,7 +176,6 @@ import (
 	"github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/secret"
 	"github.com/gameap/gameap/pkg/twofactor"
-	webstatic "github.com/gameap/gameap/web/static"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
@@ -244,6 +242,8 @@ type container interface {
 	ACMEService() *acme.Service
 	AuditLogger() audit.Logger
 	FileUploadMIMEChecker() *filemanagermime.Checker
+	I18nFS() fs.FS
+	FrontendFS() fs.FS
 }
 
 func CreateRouter(c container) *http.ServeMux {
@@ -265,14 +265,9 @@ func CreateRouter(c container) *http.ServeMux {
 		serverMux.Handle(http01.ChallengePathPrefix, h)
 	}
 
-	static, err := webstatic.GetFS()
-	if err != nil {
-		panic("failed to get static files: " + err.Error())
-	}
+	serverMux.Handle("/", spaHandler(c.FrontendFS()))
 
-	serverMux.Handle("/", spaHandler(static))
-
-	serverMux.Handle("/lang/", http.StripPrefix("/lang/", http.FileServer(http.FS(i18n.GetFS()))))
+	serverMux.Handle("/lang/", http.StripPrefix("/lang/", http.FileServer(http.FS(c.I18nFS()))))
 
 	if !c.Config().Plugins.Disabled {
 		serverMux.Handle("/plugins.js", frontendPluginsHandler(c))

@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"io"
+	"io/fs"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gameap/gameap/pkg/mergefs"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
 	"github.com/tetratelabs/wazero"
@@ -49,6 +51,12 @@ type LoadedPlugin struct {
 	FrontendBundle  []byte
 	FrontendStyles  []byte
 	ServerAbilities []*proto.ServerAbility
+
+	// I18nFS and FrontendFS hold the plugin's contributed translation and
+	// frontend static files (nil when the plugin ships none). They are layered
+	// over the built-in filesystems by the application container.
+	I18nFS     fs.FS
+	FrontendFS fs.FS
 
 	// disabled is atomic because it is flipped on Unload and on guest call
 	// timeouts while dispatchers concurrently read it without the manager lock.
@@ -406,6 +414,8 @@ func (m *Manager) initializePlugin(
 		serverAbilities = abilitiesResp.Abilities
 	}
 
+	i18nFS, frontendFS := m.buildPluginAssets(ctx, plugin, info.Id)
+
 	return &LoadedPlugin{
 		Info:            info,
 		Instance:        plugin,
@@ -415,8 +425,111 @@ func (m *Manager) initializePlugin(
 		FrontendBundle:  frontendBundle,
 		FrontendStyles:  frontendStyles,
 		ServerAbilities: serverAbilities,
+		I18nFS:          i18nFS,
+		FrontendFS:      frontendFS,
 		runtime:         r,
 	}, nil
+}
+
+// Asset delivery limits bound how much a single plugin can push across the WASM
+// boundary as translation/frontend files, so a misbehaving plugin cannot
+// exhaust host memory.
+const (
+	maxAssetFileSize  = 8 << 20  // 8 MiB per file
+	maxAssetTotalSize = 64 << 20 // 64 MiB per file group
+)
+
+// buildPluginAssets fetches the plugin's contributed translation and frontend
+// files and turns each group into an in-memory fs.FS. A plugin without the
+// GetAssets export, or with no valid files, contributes nil for that group.
+func (m *Manager) buildPluginAssets(
+	ctx context.Context,
+	plugin proto.PluginService,
+	pluginID string,
+) (i18nFS, frontendFS fs.FS) {
+	resp, err := plugin.GetAssets(ctx, &proto.GetAssetsRequest{})
+	if err != nil {
+		slog.Debug("plugin has no assets",
+			slog.String("plugin_id", pluginID),
+			slog.String("error", err.Error()),
+		)
+
+		return nil, nil
+	}
+	if resp == nil {
+		return nil, nil
+	}
+
+	return buildAssetFS(pluginID, "i18n", resp.I18NFiles),
+		buildAssetFS(pluginID, "frontend", resp.FrontendFiles)
+}
+
+// buildAssetFS validates and collects plugin-provided files into an fs.FS.
+// Invalid paths, oversized files, and empty content are skipped and logged; the
+// group is capped at maxAssetTotalSize. Returns nil when nothing usable remains.
+func buildAssetFS(pluginID, group string, assets []*proto.AssetFile) fs.FS {
+	if len(assets) == 0 {
+		return nil
+	}
+
+	files := make(map[string][]byte, len(assets))
+	var total int
+
+	for _, asset := range assets {
+		if asset == nil || len(asset.Content) == 0 {
+			continue
+		}
+
+		if !fs.ValidPath(asset.Path) || asset.Path == "." {
+			slog.Warn("skipping plugin asset with invalid path",
+				slog.String("plugin_id", pluginID),
+				slog.String("group", group),
+				slog.String("path", asset.Path),
+			)
+
+			continue
+		}
+
+		if len(asset.Content) > maxAssetFileSize {
+			slog.Warn("skipping oversized plugin asset",
+				slog.String("plugin_id", pluginID),
+				slog.String("group", group),
+				slog.String("path", asset.Path),
+				slog.Int("size", len(asset.Content)),
+			)
+
+			continue
+		}
+
+		if total+len(asset.Content) > maxAssetTotalSize {
+			slog.Warn("plugin asset group exceeds size limit, ignoring remaining files",
+				slog.String("plugin_id", pluginID),
+				slog.String("group", group),
+			)
+
+			break
+		}
+
+		total += len(asset.Content)
+		files[asset.Path] = asset.Content
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	assetFS, err := mergefs.FromFiles(files)
+	if err != nil {
+		slog.Warn("failed to build plugin asset filesystem",
+			slog.String("plugin_id", pluginID),
+			slog.String("group", group),
+			slog.String("error", err.Error()),
+		)
+
+		return nil
+	}
+
+	return assetFS
 }
 
 func (m *Manager) verifyAPIVersion(ctx context.Context, r wazero.Runtime, module api.Module) error {
@@ -487,6 +600,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 	// Optional exports (not all plugins implement these)
 	getFrontendBundle := module.ExportedFunction("plugin_service_get_frontend_bundle")
 	getServerAbilities := module.ExportedFunction("plugin_service_get_server_abilities")
+	getAssets := module.ExportedFunction("plugin_service_get_assets")
 
 	return &pluginServiceWrapper{
 		gate:                make(chan struct{}, 1),
@@ -502,6 +616,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 		handlehttprequest:   funcs["plugin_service_handle_http_request"],
 		getfrontendbundle:   getFrontendBundle,
 		getserverabilities:  getServerAbilities,
+		getassets:           getAssets,
 	}, nil
 }
 

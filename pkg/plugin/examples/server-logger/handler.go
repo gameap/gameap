@@ -17,6 +17,16 @@ import (
 //go:embed frontend/dist/plugin.js
 var frontendBundle []byte
 
+// Contributed static files. es.json layers over the built-in translations and
+// is served at /lang/es.json; meta.json is a namespaced frontend static file
+// served at /plugins/server-logger/meta.json.
+var (
+	//go:embed assets/i18n/es.json
+	i18nES []byte
+	//go:embed assets/frontend/plugins/server-logger/meta.json
+	frontendMeta []byte
+)
+
 func (p *ServerLoggerPlugin) GetFrontendBundle(
 	_ context.Context,
 	_ *pluginproto.GetFrontendBundleRequest,
@@ -24,6 +34,20 @@ func (p *ServerLoggerPlugin) GetFrontendBundle(
 	return &pluginproto.GetFrontendBundleResponse{
 		HasBundle: true,
 		Bundle:    frontendBundle,
+	}, nil
+}
+
+func (p *ServerLoggerPlugin) GetAssets(
+	_ context.Context,
+	_ *pluginproto.GetAssetsRequest,
+) (*pluginproto.GetAssetsResponse, error) {
+	return &pluginproto.GetAssetsResponse{
+		I18NFiles: []*pluginproto.AssetFile{
+			{Path: "es.json", Content: i18nES},
+		},
+		FrontendFiles: []*pluginproto.AssetFile{
+			{Path: "plugins/server-logger/meta.json", Content: frontendMeta},
+		},
 	}, nil
 }
 
