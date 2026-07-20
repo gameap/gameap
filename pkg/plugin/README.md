@@ -596,7 +596,9 @@ Guidelines:
   ship `index.html`: the Content-Security-Policy is hashed from the built-in `index.html`, so an
   overriding `index.html` would have its inline scripts blocked.
 - **Whole-file shadowing.** A plugin `en.json` replaces the core `en.json` entirely (it is not a
-  key-level JSON merge). Prefer adding new locale files (`es.json`, `de.json`, …).
+  key-level JSON merge). Prefer adding new locale files (`es.json`, `de.json`, …) with a top-level
+  `_language` label (`{"name": "English name", "native_name": "own name"}`) so the locale appears in the
+  UI language switcher (served by `GET /lang`).
 - **Limits.** Each file is capped at 8 MiB and each group at 64 MiB; oversized files are skipped.
 
 ## Security

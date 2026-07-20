@@ -68,12 +68,21 @@ const pageLanguage = () => {
 }
 
 /**
+ * Available languages, provided by the backend `/lang` endpoint and loaded in
+ * index.html before the app starts.
+ * @returns {Array<{code: string, name: string, native_name: string}>}
+ */
+const getAvailableLanguages = () => {
+    return window.gameapLanguages || [];
+}
+
+/**
  * Change the application language
- * @param {string} newLang - Language code ('en' or 'ru')
+ * @param {string} newLang - Language code (must be one of the available languages)
  */
 const changeLanguage = (newLang) => {
-    const supportedLangs = ['en', 'ru'];
-    if (!supportedLangs.includes(newLang)) {
+    const isSupported = getAvailableLanguages().some((l) => l.code === newLang);
+    if (!isSupported) {
         console.error('[i18n] Unsupported language:', newLang);
 
         return;
@@ -92,4 +101,4 @@ const getCurrentLanguage = () => {
     return window.gameapLang || pageLanguage();
 }
 
-export {pluralize, trans, pageLanguage, changeLanguage, getCurrentLanguage}
+export {pluralize, trans, pageLanguage, changeLanguage, getCurrentLanguage, getAvailableLanguages}

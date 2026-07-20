@@ -58,6 +58,7 @@ import (
 	"github.com/gameap/gameap/internal/api/games/putgame"
 	"github.com/gameap/gameap/internal/api/games/upgradegames"
 	"github.com/gameap/gameap/internal/api/gethealth"
+	"github.com/gameap/gameap/internal/api/languages"
 	letsencryptgetstatus "github.com/gameap/gameap/internal/api/letsencrypt/getstatus"
 	"github.com/gameap/gameap/internal/api/middlewares"
 	"github.com/gameap/gameap/internal/api/nodes/deletenode"
@@ -267,6 +268,7 @@ func CreateRouter(c container) *http.ServeMux {
 
 	serverMux.Handle("/", spaHandler(c.FrontendFS()))
 
+	serverMux.Handle("/lang", languages.NewHandler(c.I18nFS()))
 	serverMux.Handle("/lang/", http.StripPrefix("/lang/", http.FileServer(http.FS(c.I18nFS()))))
 
 	if !c.Config().Plugins.Disabled {
