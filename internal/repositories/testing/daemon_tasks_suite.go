@@ -974,20 +974,6 @@ func (s *DaemonTaskRepositorySuite) TestDaemonTaskRepositorySorting() {
 			},
 			want: []uint{taskY.ID, taskX.ID, taskZ.ID},
 		},
-		{
-			name: "sort_by_status_asc",
-			order: []filters.Sorting{
-				{Field: "status", Direction: filters.SortDirectionAsc},
-			},
-			want: []uint{taskZ.ID, taskX.ID, taskY.ID},
-		},
-		{
-			name: "sort_by_status_desc",
-			order: []filters.Sorting{
-				{Field: "status", Direction: filters.SortDirectionDesc},
-			},
-			want: []uint{taskY.ID, taskX.ID, taskZ.ID},
-		},
 	}
 
 	for _, tt := range tests {
@@ -1000,6 +986,70 @@ func (s *DaemonTaskRepositorySuite) TestDaemonTaskRepositorySorting() {
 			require.Len(t, results, 3)
 
 			gotIDs := []uint{results[0].ID, results[1].ID, results[2].ID}
+			assert.Equal(t, tt.want, gotIDs, "daemon tasks are in wrong order")
+		})
+	}
+}
+
+// TestDaemonTaskRepositorySortingStatus exercises status ordering with a
+// waiting/working pair — the only statuses whose relative order coincides on
+// every backend. MySQL stores the status as ENUM and sorts by the enum value
+// index (waiting < working < error < success < canceled), while TEXT-backed
+// backends (sqlite, postgres, inmemory) sort alphabetically; no three statuses
+// are monotonic in both orders, so the shared 3-task fixture above cannot
+// assert status ordering portably.
+func (s *DaemonTaskRepositorySuite) TestDaemonTaskRepositorySortingStatus() {
+	ctx := context.Background()
+
+	// ARRANGE
+	taskW1 := &domain.DaemonTask{
+		DedicatedServerID: 111,
+		ServerID:          new(uint(211)),
+		Task:              domain.DaemonTaskTypeServerStart,
+		Status:            domain.DaemonTaskStatusWaiting,
+	}
+	taskW2 := &domain.DaemonTask{
+		DedicatedServerID: 112,
+		ServerID:          new(uint(212)),
+		Task:              domain.DaemonTaskTypeServerStop,
+		Status:            domain.DaemonTaskStatusWorking,
+	}
+	require.NoError(s.T(), s.repo.Save(ctx, taskW1))
+	require.NoError(s.T(), s.repo.Save(ctx, taskW2))
+
+	filter := filters.FindDaemonTaskByIDs(taskW1.ID, taskW2.ID)
+
+	tests := []struct {
+		name  string
+		order []filters.Sorting
+		want  []uint
+	}{
+		{
+			name: "sort_by_status_asc",
+			order: []filters.Sorting{
+				{Field: "status", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{taskW1.ID, taskW2.ID},
+		},
+		{
+			name: "sort_by_status_desc",
+			order: []filters.Sorting{
+				{Field: "status", Direction: filters.SortDirectionDesc},
+			},
+			want: []uint{taskW2.ID, taskW1.ID},
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			// ACT
+			results, err := s.repo.Find(ctx, filter, tt.order, nil)
+
+			// ASSERT
+			require.NoError(t, err)
+			require.Len(t, results, 2)
+
+			gotIDs := []uint{results[0].ID, results[1].ID}
 			assert.Equal(t, tt.want, gotIDs, "daemon tasks are in wrong order")
 		})
 	}
