@@ -61,6 +61,9 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
                 source_type: loaded.source_type,
                 enabled: loaded.enabled,
 
+                summary: storePlugin?.summary || loaded.description || '',
+                description: loaded.description || '',
+
                 icon_url: storePlugin?.icon_url || null,
                 category: storePlugin?.category || null,
                 labels: storePlugin?.labels || [],
@@ -256,6 +259,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
             installed_version: loadedPlugin.version,
             latest_version: loadedPlugin.latest_version || null,
             source_type: loadedPlugin.source_type,
+            description: loadedPlugin.description || '',
         }
         currentPluginVersions.value = []
     }
