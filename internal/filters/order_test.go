@@ -87,3 +87,106 @@ func TestParseUserSort_EmptyMappedColumnRejected(t *testing.T) {
 		"expected ErrInvalidSortField, got %v", err)
 	assert.Nil(t, got)
 }
+
+func TestSortDirection_String(t *testing.T) {
+	tests := []struct {
+		name      string
+		direction filters.SortDirection
+		want      string
+	}{
+		{name: "asc", direction: filters.SortDirectionAsc, want: "asc"},
+		{name: "desc", direction: filters.SortDirectionDesc, want: "desc"},
+		{name: "unknown_returns_empty", direction: filters.SortDirection(42), want: ""},
+		{name: "negative_returns_empty", direction: filters.SortDirection(-1), want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE done in the table above
+
+			// ACT
+			got := tt.direction.String()
+
+			// ASSERT
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestNewSorting(t *testing.T) {
+	tests := []struct {
+		name      string
+		field     string
+		direction filters.SortDirection
+		want      *filters.Sorting
+	}{
+		{
+			name:      "asc_field",
+			field:     "name",
+			direction: filters.SortDirectionAsc,
+			want:      &filters.Sorting{Field: "name", Direction: filters.SortDirectionAsc},
+		},
+		{
+			name:      "desc_field",
+			field:     "created_at",
+			direction: filters.SortDirectionDesc,
+			want:      &filters.Sorting{Field: "created_at", Direction: filters.SortDirectionDesc},
+		},
+		{
+			name:      "empty_field",
+			field:     "",
+			direction: filters.SortDirectionAsc,
+			want:      &filters.Sorting{Field: "", Direction: filters.SortDirectionAsc},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE done in the table above
+
+			// ACT
+			got := filters.NewSorting(tt.field, tt.direction)
+
+			// ASSERT
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestSorting_String(t *testing.T) {
+	tests := []struct {
+		name    string
+		sorting *filters.Sorting
+		want    string
+	}{
+		{name: "asc", sorting: filters.NewSorting("name", filters.SortDirectionAsc), want: "name asc"},
+		{name: "desc", sorting: filters.NewSorting("id", filters.SortDirectionDesc), want: "id desc"},
+		{name: "empty_field", sorting: filters.NewSorting("", filters.SortDirectionAsc), want: " asc"},
+		{name: "unknown_direction", sorting: filters.NewSorting("name", filters.SortDirection(7)), want: "name "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE done in the table above
+
+			// ACT
+			got := tt.sorting.String()
+
+			// ASSERT
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestSorting_String_ParseUserSortCompatible(t *testing.T) {
+	// ARRANGE
+	allowed := map[string]string{"createdAt": "created_at"}
+
+	// ACT
+	sorting, err := filters.ParseUserSort("-createdAt", allowed)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, sorting)
+	assert.Equal(t, "created_at desc", sorting.String())
+}

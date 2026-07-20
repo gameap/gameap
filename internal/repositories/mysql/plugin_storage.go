@@ -48,7 +48,9 @@ func (r *PluginStorageRepository) find(
 ) ([]domain.PluginStorageEntry, error) {
 	if len(order) > 0 {
 		for _, o := range order {
-			builder = builder.OrderBy(o.String())
+			// Backtick-quote the column: `key` is a reserved word in MySQL and
+			// must be escaped here just like in pluginStorageFields.
+			builder = builder.OrderBy("`" + o.Field + "` " + o.Direction.String())
 		}
 	} else {
 		builder = builder.OrderBy("id ASC")

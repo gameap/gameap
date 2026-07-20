@@ -841,3 +841,77 @@ func (s *ServerTaskExecutionRepositorySuite) TestServerTaskExecutionRepositoryDe
 		assert.Equal(t, domain.ServerTaskExecutionStatusSuccess, remaining[0].Status)
 	})
 }
+
+func (s *ServerTaskExecutionRepositorySuite) TestServerTaskExecutionRepositorySorting() {
+	ctx := context.Background()
+
+	// ARRANGE — one fixture for the whole method: subtests share the repo.
+	base := nowTrunc().Add(-4 * time.Hour)
+
+	execE1 := newExecution(xid.New(), base)
+	execE1.ServerID = 9200
+	execE1.Status = domain.ServerTaskExecutionStatusRunning
+
+	execE2 := newExecution(xid.New(), base.Add(time.Minute))
+	execE2.ServerID = 9200
+	execE2.Status = domain.ServerTaskExecutionStatusCanceled
+
+	execE3 := newExecution(xid.New(), base.Add(2*time.Minute))
+	execE3.ServerID = 9200
+	execE3.Status = domain.ServerTaskExecutionStatusSuccess
+
+	for _, e := range []*domain.ServerTaskExecution{execE1, execE2, execE3} {
+		require.NoError(s.T(), s.repo.Create(ctx, e))
+	}
+
+	filter := &filters.FindServerTaskExecution{ServerIDs: []uint{9200}}
+
+	tests := []struct {
+		name  string
+		order []filters.Sorting
+		want  []xid.ID
+	}{
+		{
+			name: "sort_by_started_at_asc",
+			order: []filters.Sorting{
+				{Field: "started_at", Direction: filters.SortDirectionAsc},
+			},
+			want: []xid.ID{execE1.ExecutionID, execE2.ExecutionID, execE3.ExecutionID},
+		},
+		{
+			name: "sort_by_started_at_desc",
+			order: []filters.Sorting{
+				{Field: "started_at", Direction: filters.SortDirectionDesc},
+			},
+			want: []xid.ID{execE3.ExecutionID, execE2.ExecutionID, execE1.ExecutionID},
+		},
+		{
+			name: "sort_by_status_asc",
+			order: []filters.Sorting{
+				{Field: "status", Direction: filters.SortDirectionAsc},
+			},
+			want: []xid.ID{execE2.ExecutionID, execE1.ExecutionID, execE3.ExecutionID},
+		},
+		{
+			name: "sort_by_status_desc",
+			order: []filters.Sorting{
+				{Field: "status", Direction: filters.SortDirectionDesc},
+			},
+			want: []xid.ID{execE3.ExecutionID, execE1.ExecutionID, execE2.ExecutionID},
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			// ACT
+			results, err := s.repo.Find(ctx, filter, tt.order, nil)
+
+			// ASSERT
+			require.NoError(t, err)
+			require.Len(t, results, 3)
+
+			gotIDs := []xid.ID{results[0].ExecutionID, results[1].ExecutionID, results[2].ExecutionID}
+			assert.Equal(t, tt.want, gotIDs, "executions are in wrong order")
+		})
+	}
+}
