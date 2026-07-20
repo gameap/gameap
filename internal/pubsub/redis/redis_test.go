@@ -40,12 +40,33 @@ func setupRedisClient(t *testing.T) *goredis.Client {
 	return client
 }
 
+// startListener launches ps.Start in a background goroutine and returns a
+// teardown func that cancels the Start context, waits for the goroutine to
+// exit, then closes ps. Deferring the returned func guarantees Close never
+// races with the still-running Start goroutine.
+func startListener(t *testing.T, ps *pubsubredis.Redis) func() {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		_ = ps.Start(ctx)
+	}()
+
+	return func() {
+		cancel()
+		<-done
+		_ = ps.Close()
+	}
+}
+
 func TestRedis_PublishSubscribe(t *testing.T) {
 	client := setupRedisClient(t)
 	defer client.Close()
 
 	ps := pubsubredis.NewFromClient(client, "test-instance")
-	defer ps.Close()
 
 	var received atomic.Int32
 	receivedCh := make(chan *pubsub.Message, 1)
@@ -58,12 +79,8 @@ func TestRedis_PublishSubscribe(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background()) //nolint:modernize
-	defer cancel()
-
-	go func() {
-		_ = ps.Start(ctx)
-	}()
+	stop := startListener(t, ps)
+	defer stop()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -94,7 +111,6 @@ func TestRedis_PatternSubscription(t *testing.T) {
 	defer client.Close()
 
 	ps := pubsubredis.NewFromClient(client, "test-instance")
-	defer ps.Close()
 
 	var received atomic.Int32
 	receivedCh := make(chan *pubsub.Message, 3)
@@ -107,12 +123,8 @@ func TestRedis_PatternSubscription(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background()) //nolint:modernize
-	defer cancel()
-
-	go func() {
-		_ = ps.Start(ctx)
-	}()
+	stop := startListener(t, ps)
+	defer stop()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -145,17 +157,12 @@ func TestRedis_DynamicSubscription(t *testing.T) {
 	defer client.Close()
 
 	ps := pubsubredis.NewFromClient(client, "test-instance")
-	defer ps.Close()
 
 	var received atomic.Int32
 	receivedCh := make(chan struct{}, 1)
 
-	ctx, cancel := context.WithCancel(context.Background()) //nolint:modernize
-	defer cancel()
-
-	go func() {
-		_ = ps.Start(ctx)
-	}()
+	stop := startListener(t, ps)
+	defer stop()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -193,7 +200,6 @@ func TestRedis_Unsubscribe(t *testing.T) {
 	defer client.Close()
 
 	ps := pubsubredis.NewFromClient(client, "test-instance")
-	defer ps.Close()
 
 	var received atomic.Int32
 
@@ -204,12 +210,8 @@ func TestRedis_Unsubscribe(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background()) //nolint:modernize
-	defer cancel()
-
-	go func() {
-		_ = ps.Start(ctx)
-	}()
+	stop := startListener(t, ps)
+	defer stop()
 
 	time.Sleep(100 * time.Millisecond)
 
