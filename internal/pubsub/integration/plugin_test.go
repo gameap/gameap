@@ -53,13 +53,16 @@ func setupPubsub(t *testing.T) (*memory.Memory, context.Context) {
 
 	bus := memory.New()
 	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
 
 	go func() {
+		defer close(done)
 		_ = bus.Start(ctx)
 	}()
 
 	t.Cleanup(func() {
 		cancel()
+		<-done
 		_ = bus.Close()
 	})
 
