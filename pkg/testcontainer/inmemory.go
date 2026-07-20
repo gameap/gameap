@@ -152,10 +152,14 @@ func (c *InmemoryContainer) PluginDispatcher() *plugin.Dispatcher         { retu
 func (c *InmemoryContainer) I18nFS() fs.FS { return i18n.GetFS() }
 
 func (c *InmemoryContainer) FrontendFS() fs.FS {
-	fsys, _ := webstatic.GetFS()
+	fsys, err := webstatic.GetFS()
+	if err != nil {
+		panic("testcontainer: failed to get static files: " + err.Error())
+	}
 
 	return fsys
 }
+
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
 	return inmemory.NewPluginRepository()
 }

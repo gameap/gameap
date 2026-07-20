@@ -139,10 +139,31 @@ func (m *MergeFS) ReadDir(name string) ([]fs.DirEntry, error) {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
 
+	merged, found := unionEntries(name, m.layers())
+	if !found {
+		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrNotExist}
+	}
+
+	return sortedEntries(merged), nil
+}
+
+func newMergedDir(name string, layers []fs.FS) *dirFile {
+	merged, _ := unionEntries(name, layers)
+
+	return &dirFile{
+		info:    memFileInfo{name: path.Base(name), dir: true},
+		entries: sortedEntries(merged),
+	}
+}
+
+// unionEntries merges the directory entries of name across layers, keeping the
+// first occurrence of each name (earlier layers win). found reports whether any
+// layer held name as a directory; nil layers are skipped.
+func unionEntries(name string, layers []fs.FS) (map[string]fs.DirEntry, bool) {
 	merged := make(map[string]fs.DirEntry)
 	found := false
 
-	for _, layer := range m.layers() {
+	for _, layer := range layers {
 		if layer == nil {
 			continue
 		}
@@ -161,33 +182,7 @@ func (m *MergeFS) ReadDir(name string) ([]fs.DirEntry, error) {
 		}
 	}
 
-	if !found {
-		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrNotExist}
-	}
-
-	return sortedEntries(merged), nil
-}
-
-func newMergedDir(name string, layers []fs.FS) *dirFile {
-	merged := make(map[string]fs.DirEntry)
-
-	for _, layer := range layers {
-		entries, err := fs.ReadDir(layer, name)
-		if err != nil {
-			continue
-		}
-
-		for _, entry := range entries {
-			if _, exists := merged[entry.Name()]; !exists {
-				merged[entry.Name()] = entry
-			}
-		}
-	}
-
-	return &dirFile{
-		info:    memFileInfo{name: path.Base(name), dir: true},
-		entries: sortedEntries(merged),
-	}
+	return merged, found
 }
 
 func sortedEntries(entries map[string]fs.DirEntry) []fs.DirEntry {

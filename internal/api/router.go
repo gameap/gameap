@@ -363,7 +363,14 @@ func spaHandler(staticFS fs.FS) http.Handler {
 			return
 		}
 
-		http.ServeContent(w, r, "index.html", stat.ModTime(), index.(io.ReadSeeker))
+		seeker, ok := index.(io.ReadSeeker)
+		if !ok {
+			http.NotFound(w, r)
+
+			return
+		}
+
+		http.ServeContent(w, r, "index.html", stat.ModTime(), seeker)
 	})
 }
 
