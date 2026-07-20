@@ -530,3 +530,97 @@ func (s *UserRepositorySuite) TestUserRepositoryMetadata() {
 		assert.Nil(t, results[0].MFAFirstShownAt())
 	})
 }
+
+func (s *UserRepositorySuite) TestUserRepositorySorting() {
+	ctx := context.Background()
+
+	// ARRANGE — one fixture for the whole method: subtests share the repo.
+	createdB := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
+	createdC := time.Date(2024, 1, 2, 10, 0, 0, 0, time.UTC)
+	createdA := time.Date(2024, 1, 3, 10, 0, 0, 0, time.UTC)
+	userA := &domain.User{Login: "sort_alpha", Email: "sort_alpha@example.com", Password: "hash1", Name: new("Charlie Sort"), CreatedAt: &createdA}
+	userB := &domain.User{Login: "sort_beta", Email: "sort_beta@example.com", Password: "hash2", Name: new("Alpha Sort"), CreatedAt: &createdB}
+	userC := &domain.User{Login: "sort_gamma", Email: "sort_gamma@example.com", Password: "hash3", Name: new("Bravo Sort"), CreatedAt: &createdC}
+	require.NoError(s.T(), s.repo.Save(ctx, userA))
+	require.NoError(s.T(), s.repo.Save(ctx, userB))
+	require.NoError(s.T(), s.repo.Save(ctx, userC))
+
+	filter := filters.FindUserByIDs(userA.ID, userB.ID, userC.ID)
+
+	tests := []struct {
+		name  string
+		order []filters.Sorting
+		want  []uint
+	}{
+		{
+			name: "sort_by_login_asc",
+			order: []filters.Sorting{
+				{Field: "login", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{userA.ID, userB.ID, userC.ID},
+		},
+		{
+			name: "sort_by_login_desc",
+			order: []filters.Sorting{
+				{Field: "login", Direction: filters.SortDirectionDesc},
+			},
+			want: []uint{userC.ID, userB.ID, userA.ID},
+		},
+		{
+			name: "sort_by_email_asc",
+			order: []filters.Sorting{
+				{Field: "email", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{userA.ID, userB.ID, userC.ID},
+		},
+		{
+			name: "sort_by_email_desc",
+			order: []filters.Sorting{
+				{Field: "email", Direction: filters.SortDirectionDesc},
+			},
+			want: []uint{userC.ID, userB.ID, userA.ID},
+		},
+		{
+			name: "sort_by_name_asc",
+			order: []filters.Sorting{
+				{Field: "name", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{userB.ID, userC.ID, userA.ID},
+		},
+		{
+			name: "sort_by_name_desc",
+			order: []filters.Sorting{
+				{Field: "name", Direction: filters.SortDirectionDesc},
+			},
+			want: []uint{userA.ID, userC.ID, userB.ID},
+		},
+		{
+			name: "sort_by_created_at_asc",
+			order: []filters.Sorting{
+				{Field: "created_at", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{userB.ID, userC.ID, userA.ID},
+		},
+		{
+			name: "sort_by_created_at_desc",
+			order: []filters.Sorting{
+				{Field: "created_at", Direction: filters.SortDirectionDesc},
+			},
+			want: []uint{userA.ID, userC.ID, userB.ID},
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			// ACT
+			results, err := s.repo.Find(ctx, filter, tt.order, nil)
+
+			// ASSERT
+			require.NoError(t, err)
+			require.Len(t, results, 3)
+
+			gotIDs := []uint{results[0].ID, results[1].ID, results[2].ID}
+			assert.Equal(t, tt.want, gotIDs, "users are in wrong order")
+		})
+	}
+}

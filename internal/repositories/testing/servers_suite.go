@@ -2,6 +2,7 @@ package testing
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -947,5 +948,942 @@ func (s *ServerRepositorySuite) TestServerRepositoryUpdateServerStatuses() {
 	s.T().Run("empty_statuses_no_error", func(t *testing.T) {
 		err := s.repo.UpdateServerStatuses(ctx, 5, []repositories.ServerStatusUpdate{})
 		require.NoError(t, err)
+	})
+}
+
+func (s *ServerRepositorySuite) TestServerRepositoryFindFilters() {
+	ctx := context.Background()
+
+	const userID = uint(7001)
+
+	setupRepo := func(t *testing.T) (alpha, beta, gamma *domain.Server) {
+		t.Helper()
+
+		alpha = &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "fltalph",
+			Enabled:    true,
+			Installed:  domain.ServerInstalledStatusInstalled,
+			Blocked:    false,
+			Name:       "Filter Alpha",
+			GameID:     "csgo",
+			DSID:       501,
+			GameModID:  51,
+			ServerIP:   "10.40.0.1",
+			ServerPort: 27015,
+			Dir:        "/servers/filter-alpha",
+		}
+		beta = &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "fltbeta",
+			Enabled:    false,
+			Installed:  domain.ServerInstalledStatusNotInstalled,
+			Blocked:    true,
+			Name:       "Filter Beta",
+			GameID:     "minecraft",
+			DSID:       502,
+			GameModID:  52,
+			ServerIP:   "10.40.0.2",
+			ServerPort: 25565,
+			Dir:        "/servers/filter-beta",
+		}
+		gamma = &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "fltgamma",
+			Enabled:    true,
+			Installed:  domain.ServerInstalledStatusInstalled,
+			Blocked:    false,
+			Name:       "Filter Gamma",
+			GameID:     "csgo",
+			DSID:       503,
+			GameModID:  53,
+			ServerIP:   "10.40.0.3",
+			ServerPort: 28015,
+			Dir:        "/servers/filter-gamma",
+		}
+
+		require.NoError(t, s.repo.Save(ctx, alpha))
+		require.NoError(t, s.repo.Save(ctx, beta))
+		require.NoError(t, s.repo.Save(ctx, gamma))
+		require.NoError(t, s.repo.SetUserServers(ctx, userID, []uint{alpha.ID, beta.ID}))
+
+		return alpha, beta, gamma
+	}
+
+	// Servers are created once for the whole method: subtests share one repo
+	// instance, so per-subtest fixtures would accumulate and break expectations.
+	alpha, beta, gamma := setupRepo(s.T())
+
+	tests := []struct {
+		name   string
+		filter func(alpha, beta, gamma *domain.Server) *filters.FindServer
+		want   func(alpha, beta, gamma *domain.Server) []uint
+	}{
+		{
+			name: "find_server_by_ids",
+			filter: func(alpha, _, gamma *domain.Server) *filters.FindServer {
+				return filters.FindServerByIDs(alpha.ID, gamma.ID)
+			},
+			want: func(alpha, _, gamma *domain.Server) []uint {
+				return []uint{alpha.ID, gamma.ID}
+			},
+		},
+		{
+			name: "find_server_by_ids_no_match",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return filters.FindServerByIDs(999991)
+			},
+			want: func(_, _, _ *domain.Server) []uint {
+				return nil
+			},
+		},
+		{
+			name: "find_server_by_node_ids",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return filters.FindServerByNodeIDs(501)
+			},
+			want: func(alpha, _, _ *domain.Server) []uint {
+				return []uint{alpha.ID}
+			},
+		},
+		{
+			name: "find_server_by_node_ids_no_match",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return filters.FindServerByNodeIDs(999992)
+			},
+			want: func(_, _, _ *domain.Server) []uint {
+				return nil
+			},
+		},
+		{
+			name: "find_server_by_uuids",
+			filter: func(_, beta, _ *domain.Server) *filters.FindServer {
+				return filters.FindServerByUUIDs([]uuid.UUID{beta.UID})
+			},
+			want: func(_, beta, _ *domain.Server) []uint {
+				return []uint{beta.ID}
+			},
+		},
+		{
+			name: "find_server_by_uuids_no_match",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return filters.FindServerByUUIDs([]uuid.UUID{uuid.New()})
+			},
+			want: func(_, _, _ *domain.Server) []uint {
+				return nil
+			},
+		},
+		{
+			name: "find_by_user_ids",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{UserIDs: []uint{userID}}
+			},
+			want: func(alpha, beta, _ *domain.Server) []uint {
+				return []uint{alpha.ID, beta.ID}
+			},
+		},
+		{
+			name: "find_by_user_ids_no_match",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{UserIDs: []uint{999993}}
+			},
+			want: func(_, _, _ *domain.Server) []uint {
+				return nil
+			},
+		},
+		{
+			name: "find_by_enabled_false",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{Enabled: new(false)}
+			},
+			want: func(_, beta, _ *domain.Server) []uint {
+				return []uint{beta.ID}
+			},
+		},
+		{
+			name: "find_by_blocked_true",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{Blocked: new(true)}
+			},
+			want: func(_, beta, _ *domain.Server) []uint {
+				return []uint{beta.ID}
+			},
+		},
+		{
+			name: "find_by_game_mod_ids",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{GameModIDs: []uint{51}}
+			},
+			want: func(alpha, _, _ *domain.Server) []uint {
+				return []uint{alpha.ID}
+			},
+		},
+		{
+			name: "find_by_game_mod_ids_no_match",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{GameModIDs: []uint{999994}}
+			},
+			want: func(_, _, _ *domain.Server) []uint {
+				return nil
+			},
+		},
+		{
+			name: "find_by_names",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{Names: []string{"Filter Gamma"}}
+			},
+			want: func(_, _, gamma *domain.Server) []uint {
+				return []uint{gamma.ID}
+			},
+		},
+		{
+			name: "find_by_names_no_match",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{Names: []string{"No Such Server"}}
+			},
+			want: func(_, _, _ *domain.Server) []uint {
+				return nil
+			},
+		},
+		{
+			name: "find_by_ids_and_uuids",
+			filter: func(alpha, beta, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{
+					IDs:   []uint{alpha.ID, beta.ID},
+					UUIDs: []uuid.UUID{alpha.UID},
+				}
+			},
+			want: func(alpha, _, _ *domain.Server) []uint {
+				return []uint{alpha.ID}
+			},
+		},
+		{
+			name: "find_by_ids_and_uuids_no_match",
+			filter: func(alpha, beta, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{
+					IDs:   []uint{alpha.ID},
+					UUIDs: []uuid.UUID{beta.UID},
+				}
+			},
+			want: func(_, _, _ *domain.Server) []uint {
+				return nil
+			},
+		},
+		{
+			name: "find_by_ids_and_user_ids",
+			filter: func(alpha, beta, gamma *domain.Server) *filters.FindServer {
+				return &filters.FindServer{
+					IDs:     []uint{alpha.ID, beta.ID, gamma.ID},
+					UserIDs: []uint{userID},
+				}
+			},
+			want: func(alpha, beta, _ *domain.Server) []uint {
+				return []uint{alpha.ID, beta.ID}
+			},
+		},
+		{
+			name: "find_by_ids_and_enabled",
+			filter: func(alpha, beta, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{
+					IDs:     []uint{alpha.ID, beta.ID},
+					Enabled: new(true),
+				}
+			},
+			want: func(alpha, _, _ *domain.Server) []uint {
+				return []uint{alpha.ID}
+			},
+		},
+		{
+			name: "find_by_ids_and_blocked",
+			filter: func(alpha, beta, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{
+					IDs:     []uint{alpha.ID, beta.ID},
+					Blocked: new(true),
+				}
+			},
+			want: func(_, beta, _ *domain.Server) []uint {
+				return []uint{beta.ID}
+			},
+		},
+		{
+			name: "find_by_ids_and_game_ids",
+			filter: func(alpha, beta, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{
+					IDs:     []uint{alpha.ID, beta.ID},
+					GameIDs: []string{"csgo"},
+				}
+			},
+			want: func(alpha, _, _ *domain.Server) []uint {
+				return []uint{alpha.ID}
+			},
+		},
+		{
+			name: "find_by_game_ids_and_ds_ids",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{
+					GameIDs: []string{"csgo"},
+					DSIDs:   []uint{503},
+				}
+			},
+			want: func(_, _, gamma *domain.Server) []uint {
+				return []uint{gamma.ID}
+			},
+		},
+		{
+			name: "find_by_game_ids_and_names",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{
+					GameIDs: []string{"csgo"},
+					Names:   []string{"Filter Gamma"},
+				}
+			},
+			want: func(_, _, gamma *domain.Server) []uint {
+				return []uint{gamma.ID}
+			},
+		},
+		{
+			name: "find_by_enabled_and_game_ids",
+			filter: func(_, _, _ *domain.Server) *filters.FindServer {
+				return &filters.FindServer{
+					Enabled: new(true),
+					GameIDs: []string{"csgo"},
+				}
+			},
+			want: func(alpha, _, gamma *domain.Server) []uint {
+				return []uint{alpha.ID, gamma.ID}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			// ACT
+			results, err := s.repo.Find(ctx, tt.filter(alpha, beta, gamma), nil, nil)
+
+			// ASSERT
+			require.NoError(t, err)
+
+			gotIDs := make([]uint, 0, len(results))
+			for i := range results {
+				gotIDs = append(gotIDs, results[i].ID)
+			}
+
+			assert.ElementsMatch(t, tt.want(alpha, beta, gamma), gotIDs, "returned server IDs mismatch")
+		})
+	}
+}
+
+func (s *ServerRepositorySuite) TestServerRepositoryFindSorting() {
+	ctx := context.Background()
+
+	setupRepo := func(t *testing.T) (first, second, third *domain.Server) {
+		t.Helper()
+
+		createdFirst := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
+		createdSecond := time.Date(2024, 1, 2, 10, 0, 0, 0, time.UTC)
+		createdThird := time.Date(2024, 1, 3, 10, 0, 0, 0, time.UTC)
+
+		first = &domain.Server{
+			UID:           uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			Enabled:       true,
+			Installed:     domain.ServerInstalledStatusInstalled,
+			Blocked:       false,
+			Name:          "Alpha Sort",
+			GameID:        "csgo",
+			DSID:          601,
+			GameModID:     61,
+			ServerIP:      "10.50.0.1",
+			ServerPort:    27015,
+			Dir:           "/servers/sort-alpha",
+			ProcessActive: true,
+			CreatedAt:     &createdFirst,
+		}
+		second = &domain.Server{
+			UID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+			Enabled:       false,
+			Installed:     domain.ServerInstalledStatusNotInstalled,
+			Blocked:       true,
+			Name:          "Beta Sort",
+			GameID:        "minecraft",
+			DSID:          602,
+			GameModID:     62,
+			ServerIP:      "10.50.0.2",
+			ServerPort:    25565,
+			Dir:           "/servers/sort-beta",
+			ProcessActive: false,
+			CreatedAt:     &createdSecond,
+		}
+		third = &domain.Server{
+			UID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+			Enabled:       true,
+			Installed:     domain.ServerInstalledStatusInstalled,
+			Blocked:       false,
+			Name:          "Gamma Sort",
+			GameID:        "tf2",
+			DSID:          603,
+			GameModID:     63,
+			ServerIP:      "10.50.0.3",
+			ServerPort:    28015,
+			Dir:           "/servers/sort-gamma",
+			ProcessActive: true,
+			CreatedAt:     &createdThird,
+		}
+
+		require.NoError(t, s.repo.Save(ctx, first))
+		require.NoError(t, s.repo.Save(ctx, second))
+		require.NoError(t, s.repo.Save(ctx, third))
+
+		return first, second, third
+	}
+
+	// Servers are created once for the whole method: subtests share one repo
+	// instance, so per-subtest fixtures would accumulate and break expectations.
+	first, second, third := setupRepo(s.T())
+
+	tests := []struct {
+		name      string
+		field     string
+		direction filters.SortDirection
+		want      func(first, second, third *domain.Server) []uint
+	}{
+		{
+			name:      "sort_by_id_asc",
+			field:     "id",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, second.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_id_desc",
+			field:     "id",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, second.ID, first.ID}
+			},
+		},
+		{
+			name:      "sort_by_uid_asc",
+			field:     "uid",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, second.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_uid_desc",
+			field:     "uid",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, second.ID, first.ID}
+			},
+		},
+		{
+			name:      "sort_by_enabled_asc",
+			field:     "enabled",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{second.ID, first.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_enabled_desc",
+			field:     "enabled",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, third.ID, second.ID}
+			},
+		},
+		{
+			name:      "sort_by_installed_asc",
+			field:     "installed",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{second.ID, first.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_installed_desc",
+			field:     "installed",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, third.ID, second.ID}
+			},
+		},
+		{
+			name:      "sort_by_blocked_asc",
+			field:     "blocked",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, third.ID, second.ID}
+			},
+		},
+		{
+			name:      "sort_by_blocked_desc",
+			field:     "blocked",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{second.ID, first.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_name_asc",
+			field:     "name",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, second.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_name_desc",
+			field:     "name",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, second.ID, first.ID}
+			},
+		},
+		{
+			name:      "sort_by_game_id_asc",
+			field:     "game_id",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, second.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_game_id_desc",
+			field:     "game_id",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, second.ID, first.ID}
+			},
+		},
+		{
+			name:      "sort_by_ds_id_asc",
+			field:     "ds_id",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, second.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_ds_id_desc",
+			field:     "ds_id",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, second.ID, first.ID}
+			},
+		},
+		{
+			name:      "sort_by_game_mod_id_asc",
+			field:     "game_mod_id",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, second.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_game_mod_id_desc",
+			field:     "game_mod_id",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, second.ID, first.ID}
+			},
+		},
+		{
+			name:      "sort_by_server_ip_asc",
+			field:     "server_ip",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, second.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_server_ip_desc",
+			field:     "server_ip",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, second.ID, first.ID}
+			},
+		},
+		{
+			name:      "sort_by_server_port_asc",
+			field:     "server_port",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{second.ID, first.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_server_port_desc",
+			field:     "server_port",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, first.ID, second.ID}
+			},
+		},
+		{
+			name:      "sort_by_dir_asc",
+			field:     "dir",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, second.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_dir_desc",
+			field:     "dir",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, second.ID, first.ID}
+			},
+		},
+		{
+			name:      "sort_by_process_active_asc",
+			field:     "process_active",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{second.ID, first.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_process_active_desc",
+			field:     "process_active",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, third.ID, second.ID}
+			},
+		},
+		{
+			name:      "sort_by_created_at_asc",
+			field:     "created_at",
+			direction: filters.SortDirectionAsc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{first.ID, second.ID, third.ID}
+			},
+		},
+		{
+			name:      "sort_by_created_at_desc",
+			field:     "created_at",
+			direction: filters.SortDirectionDesc,
+			want: func(first, second, third *domain.Server) []uint {
+				return []uint{third.ID, second.ID, first.ID}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			// Secondary id sort makes the order deterministic when the primary
+			// field ties (bool fields share values between servers).
+			order := []filters.Sorting{
+				{Field: tt.field, Direction: tt.direction},
+				{Field: "id", Direction: filters.SortDirectionAsc},
+			}
+
+			// ACT
+			results, err := s.repo.Find(ctx, &filters.FindServer{}, order, nil)
+
+			// ASSERT
+			require.NoError(t, err)
+			require.Len(t, results, 3)
+
+			gotIDs := []uint{results[0].ID, results[1].ID, results[2].ID}
+			assert.Equal(t, tt.want(first, second, third), gotIDs, "servers are in wrong order")
+		})
+	}
+
+	s.T().Run("sort_by_updated_at_asc", func(t *testing.T) {
+		// ARRANGE
+		order := []filters.Sorting{
+			{Field: "updated_at", Direction: filters.SortDirectionAsc},
+		}
+
+		// ACT
+		results, err := s.repo.Find(ctx, &filters.FindServer{}, order, nil)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+
+		for i := 0; i < len(results)-1; i++ {
+			require.NotNil(t, results[i].UpdatedAt)
+			require.NotNil(t, results[i+1].UpdatedAt)
+			assert.False(t, results[i].UpdatedAt.After(*results[i+1].UpdatedAt),
+				"updated_at must be in ascending order")
+		}
+	})
+
+	s.T().Run("sort_by_updated_at_desc", func(t *testing.T) {
+		// ARRANGE
+		order := []filters.Sorting{
+			{Field: "updated_at", Direction: filters.SortDirectionDesc},
+		}
+
+		// ACT
+		results, err := s.repo.Find(ctx, &filters.FindServer{}, order, nil)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+
+		for i := 0; i < len(results)-1; i++ {
+			require.NotNil(t, results[i].UpdatedAt)
+			require.NotNil(t, results[i+1].UpdatedAt)
+			assert.False(t, results[i].UpdatedAt.Before(*results[i+1].UpdatedAt),
+				"updated_at must be in descending order")
+		}
+	})
+
+	s.T().Run("find_all_with_name_order", func(t *testing.T) {
+		// ARRANGE
+		order := []filters.Sorting{
+			{Field: "name", Direction: filters.SortDirectionDesc},
+		}
+
+		// ACT
+		results, err := s.repo.FindAll(ctx, order, nil)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		assert.Equal(t, third.ID, results[0].ID, "FindAll must order by name descending")
+
+		for i := 0; i < len(results)-1; i++ {
+			assert.GreaterOrEqual(t, results[i].Name, results[i+1].Name)
+		}
+	})
+}
+
+// userServerLinkEditor is implemented only by repositories that expose direct
+// user-server link manipulation outside the ServerRepository contract
+// (currently the inmemory implementation used for fast unit tests).
+type userServerLinkEditor interface {
+	AddUserServer(userID uint, serverID uint)
+	RemoveUserServer(userID uint, serverID uint)
+}
+
+func (s *ServerRepositorySuite) TestServerRepositoryRemoveUserServer() {
+	ctx := context.Background()
+
+	s.T().Run("remove_existing_relation", func(t *testing.T) {
+		// ARRANGE
+		editor, ok := s.repo.(userServerLinkEditor)
+		if !ok {
+			t.Skip("repository implementation does not expose AddUserServer/RemoveUserServer")
+		}
+
+		server := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "rmlink1",
+			Name:       "Remove Link Server",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "192.168.5.1",
+			ServerPort: 27015,
+			Dir:        "/servers/rmlink1",
+		}
+		require.NoError(t, s.repo.Save(ctx, server))
+		editor.AddUserServer(4000, server.ID)
+
+		// ACT
+		editor.RemoveUserServer(4000, server.ID)
+
+		// ASSERT
+		results, err := s.repo.FindUserServers(ctx, 4000, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, results, "removed relation must not show up in user servers")
+	})
+
+	s.T().Run("remove_one_of_many_relations", func(t *testing.T) {
+		// ARRANGE
+		editor, ok := s.repo.(userServerLinkEditor)
+		if !ok {
+			t.Skip("repository implementation does not expose AddUserServer/RemoveUserServer")
+		}
+
+		server1 := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "rmlink2",
+			Name:       "Remove Link Server 1",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "192.168.5.2",
+			ServerPort: 27015,
+			Dir:        "/servers/rmlink2",
+		}
+		server2 := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "rmlink3",
+			Name:       "Remove Link Server 2",
+			GameID:     "minecraft",
+			DSID:       1,
+			ServerIP:   "192.168.5.3",
+			ServerPort: 25565,
+			Dir:        "/servers/rmlink3",
+		}
+		require.NoError(t, s.repo.Save(ctx, server1))
+		require.NoError(t, s.repo.Save(ctx, server2))
+		require.NoError(t, s.repo.SetUserServers(ctx, 4001, []uint{server1.ID, server2.ID}))
+
+		// ACT
+		editor.RemoveUserServer(4001, server1.ID)
+
+		// ASSERT
+		results, err := s.repo.FindUserServers(ctx, 4001, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, server2.ID, results[0].ID, "only the removed relation must disappear")
+	})
+
+	s.T().Run("remove_nonexistent_relation", func(t *testing.T) {
+		// ARRANGE
+		editor, ok := s.repo.(userServerLinkEditor)
+		if !ok {
+			t.Skip("repository implementation does not expose AddUserServer/RemoveUserServer")
+		}
+
+		// ACT
+		editor.RemoveUserServer(99999, 99999)
+
+		// ASSERT
+		results, err := s.repo.FindUserServers(ctx, 99999, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+}
+
+func (s *ServerRepositorySuite) TestServerRepositoryPagination() {
+	ctx := context.Background()
+
+	setupRepo := func(t *testing.T) []uint {
+		t.Helper()
+
+		ids := make([]uint, 0, 5)
+		for i := 1; i <= 5; i++ {
+			server := &domain.Server{
+				UID:        uuid.New(),
+				UUIDShort:  fmt.Sprintf("page%d", i),
+				Name:       fmt.Sprintf("Pagination Server %d", i),
+				GameID:     "csgo",
+				DSID:       1,
+				ServerIP:   "10.60.0.1",
+				ServerPort: 27014 + i,
+				Dir:        fmt.Sprintf("/servers/page%d", i),
+			}
+			require.NoError(t, s.repo.Save(ctx, server))
+			ids = append(ids, server.ID)
+		}
+
+		return ids
+	}
+
+	tests := []struct {
+		name       string
+		pagination *filters.Pagination
+		want       func(ids []uint) []uint
+	}{
+		{
+			name:       "limit_only",
+			pagination: &filters.Pagination{Limit: 2, Offset: 0},
+			want: func(ids []uint) []uint {
+				return ids[0:2]
+			},
+		},
+		{
+			name:       "limit_and_offset",
+			pagination: &filters.Pagination{Limit: 2, Offset: 2},
+			want: func(ids []uint) []uint {
+				return ids[2:4]
+			},
+		},
+		{
+			name:       "offset_on_last_page",
+			pagination: &filters.Pagination{Limit: 2, Offset: 4},
+			want: func(ids []uint) []uint {
+				return ids[4:5]
+			},
+		},
+		{
+			name:       "offset_beyond_total",
+			pagination: &filters.Pagination{Limit: 2, Offset: 100},
+			want: func(_ []uint) []uint {
+				return nil
+			},
+		},
+		{
+			name:       "offset_exactly_at_end",
+			pagination: &filters.Pagination{Limit: 2, Offset: 5},
+			want: func(_ []uint) []uint {
+				return nil
+			},
+		},
+		{
+			name:       "zero_limit_applies_default",
+			pagination: &filters.Pagination{Limit: 0, Offset: 0},
+			want: func(ids []uint) []uint {
+				return ids
+			},
+		},
+		{
+			name:       "limit_larger_than_total",
+			pagination: &filters.Pagination{Limit: 100, Offset: 0},
+			want: func(ids []uint) []uint {
+				return ids
+			},
+		},
+	}
+
+	// Servers are created once for the whole method: subtests share one repo
+	// instance, so per-subtest fixtures would accumulate and break expectations.
+	ids := setupRepo(s.T())
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			// ACT
+			results, err := s.repo.Find(ctx, nil, nil, tt.pagination)
+
+			// ASSERT
+			require.NoError(t, err)
+
+			gotIDs := make([]uint, 0, len(results))
+			for i := range results {
+				gotIDs = append(gotIDs, results[i].ID)
+			}
+
+			wantIDs := tt.want(ids)
+			if len(wantIDs) == 0 {
+				assert.Empty(t, gotIDs, "paginated server IDs must be empty")
+			} else {
+				assert.Equal(t, wantIDs, gotIDs, "paginated server IDs mismatch")
+			}
+		})
+	}
+
+	s.T().Run("find_all_limit_and_offset", func(t *testing.T) {
+		// ARRANGE
+		pagination := &filters.Pagination{Limit: 2, Offset: 1}
+
+		// ACT
+		results, err := s.repo.FindAll(ctx, nil, pagination)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+		assert.Equal(t, ids[1], results[0].ID)
+		assert.Equal(t, ids[2], results[1].ID)
+	})
+
+	s.T().Run("find_all_offset_beyond_total", func(t *testing.T) {
+		// ARRANGE
+		pagination := &filters.Pagination{Limit: 2, Offset: 100}
+
+		// ACT
+		results, err := s.repo.FindAll(ctx, nil, pagination)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Empty(t, results)
 	})
 }
