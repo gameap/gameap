@@ -55,6 +55,9 @@ func (g *GoldSource) Open(ctx context.Context) error {
 	g.connection = conn
 
 	if err := g.getChallengeNumber(); err != nil {
+		_ = conn.Close()
+		g.connection = nil
+
 		return err
 	}
 

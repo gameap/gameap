@@ -91,6 +91,7 @@ func TestGoldSource_getChallengeNumber_RejectsMalformedReplies(t *testing.T) {
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantError)
+			assert.Nil(t, g.connection, "a failed Open must release the dialed connection")
 		})
 	}
 }
@@ -338,11 +339,13 @@ func TestGoldSource_Open_TimesOutOnSilentServer(t *testing.T) {
 		return nil // never answer the challenge request
 	})
 
+	const timeout = 300 * time.Millisecond
+
 	g, err := NewGoldSource(Config{
 		Address:  srv.addr,
 		Password: "pw",
 		Protocol: ProtocolGoldSrc,
-		Timeout:  300 * time.Millisecond,
+		Timeout:  timeout,
 	})
 	require.NoError(t, err)
 
@@ -351,6 +354,6 @@ func TestGoldSource_Open_TimesOutOnSilentServer(t *testing.T) {
 	defer func() { _ = g.Close() }()
 
 	require.Error(t, err, "a silent server must not hang Open forever")
-	assert.Less(t, time.Since(start), 5*time.Second,
-		"Open must return around the configured Timeout, not block indefinitely")
+	assert.Less(t, time.Since(start), timeout+time.Second,
+		"Open must return around the configured Timeout, not block for seconds")
 }
