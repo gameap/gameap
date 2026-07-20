@@ -394,10 +394,24 @@ func TestReaperStart(t *testing.T) {
 
 	t.Run("stops_on_context_cancel", func(t *testing.T) {
 		// ARRANGE — a huge interval guarantees the ticker never fires, so the
-		// goroutine can only leave the select through the ctx.Done branch.
+		// goroutine can only leave the select through the ctx.Done branch. The
+		// repo is seeded with the same stale, abandoned task as sweeps_on_ticker
+		// so that any eager sweep slipping in before the first tick would record
+		// reconciler activity — without it, an empty repo makes the assertion
+		// below pass even if a sweep did run.
+		stale := time.Now().Add(-30 * time.Minute)
+		repo := &fakeTaskRepo{tasks: []domain.DaemonTask{
+			{
+				ID:                1,
+				DedicatedServerID: 7,
+				Task:              domain.DaemonTaskTypeCmdExec,
+				Status:            domain.DaemonTaskStatusWorking,
+				UpdatedAt:         &stale,
+			},
+		}}
 		reconciler := &fakeReconciler{}
 		reaper := NewReaper(
-			&fakeTaskRepo{},
+			repo,
 			&fakeRegistry{connected: make(map[uint64]struct{})},
 			reconciler,
 			Options{Interval: time.Hour, StaleThreshold: 10 * time.Minute},
@@ -412,7 +426,8 @@ func TestReaperStart(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.Empty(t, reconciler.recordedNodeIDs(), "no sweep must run before the first tick")
+		assert.Empty(t, reconciler.recordedNodeIDs(),
+			"no sweep must run before the first tick, even with a reconcilable task present")
 	})
 }
 
