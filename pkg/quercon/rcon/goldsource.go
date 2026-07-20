@@ -20,6 +20,11 @@ const (
 	// GoldSource sends every part of a large RCON reply back-to-back right after the command,
 	// so a short idle gap means the response is complete.
 	responseIdleTimeout = 500 * time.Millisecond
+	// maxReassembledResponseSize caps the total size of a reassembled multi-packet response.
+	// Without it a server streaming datagrams faster than the idle timeout would grow the
+	// reassembly buffer without bound. Sized well above real-world replies (a full cvarlist
+	// dump is tens of KiB).
+	maxReassembledResponseSize = 1 << 20 // 1 MiB
 )
 
 var (
@@ -111,6 +116,12 @@ func (g *GoldSource) Execute(_ context.Context, command string) (string, error) 
 		}
 
 		buffer.Write(part)
+
+		// Stop once the accumulated response exceeds the cap; any datagrams still
+		// queued afterwards are drained before the next command.
+		if buffer.Len() > maxReassembledResponseSize {
+			break
+		}
 	}
 
 	return strings.TrimSpace(buffer.String()), nil

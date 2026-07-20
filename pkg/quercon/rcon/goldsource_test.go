@@ -461,3 +461,48 @@ func TestGoldSource_Open_TimesOutOnSilentServer(t *testing.T) {
 	assert.Less(t, time.Since(start), timeout+time.Second,
 		"Open must return around the configured Timeout, not block for seconds")
 }
+
+func TestGoldSource_Execute_CapsReassembledResponse(t *testing.T) {
+	const challenge = "888"
+
+	// Enough back-to-back datagrams to exceed maxReassembledResponseSize with no idle gap.
+	datagrams := make([][]byte, 0, maxReassembledResponseSize/4096+2)
+	for range maxReassembledResponseSize/4096 + 2 {
+		datagrams = append(datagrams, []byte(header+"\x00"+strings.Repeat("D", 4096)))
+	}
+
+	srv := newScriptedUDPServer(t, func(_ []byte, idx int) [][]byte {
+		switch idx {
+		case 0:
+			return [][]byte{[]byte(header + "\x00challenge rcon " + challenge + "\n")}
+		case 1:
+			return datagrams
+		}
+
+		return nil
+	})
+
+	g, err := NewGoldSource(Config{
+		Address:  srv.addr,
+		Password: "pw",
+		Protocol: ProtocolGoldSrc,
+		Timeout:  2 * time.Second,
+	})
+	require.NoError(t, err)
+	require.NoError(t, g.Open(context.Background()))
+	defer func() { _ = g.Close() }()
+
+	// The default OS UDP receive buffer (~768 KiB on macOS) is smaller than the cap;
+	// enlarge it so the whole burst fits and the test exercises the client-side cap
+	// instead of kernel-level datagram drops.
+	udpConn, ok := g.connection.(*net.UDPConn)
+	require.True(t, ok, "goldsource connection must be a *net.UDPConn")
+	require.NoError(t, udpConn.SetReadBuffer(4<<20))
+
+	got, err := g.Execute(context.Background(), "cvarlist")
+	require.NoError(t, err, "hitting the size cap must end the response normally, not error")
+	assert.Greater(t, len(got), maxReassembledResponseSize,
+		"the accumulated response must be returned once the cap is exceeded")
+	assert.Less(t, len(got), maxReassembledResponseSize+maxResponseSize,
+		"the response must stop growing right after the cap is exceeded")
+}
