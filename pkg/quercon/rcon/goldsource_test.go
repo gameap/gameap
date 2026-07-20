@@ -91,6 +91,7 @@ func TestGoldSource_getChallengeNumber_RejectsMalformedReplies(t *testing.T) {
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantError)
+			assert.Nil(t, g.connection, "a failed Open must release the dialed connection")
 		})
 	}
 }
@@ -229,8 +230,130 @@ func TestGoldSource_Close_NilConnection(t *testing.T) {
 	assert.NoError(t, g.Close(), "Close on a never-opened goldsource must be a no-op")
 }
 
-// NOTE: There is no test for "Open against a silent UDP server" because GoldSource only applies
-// Config.Timeout to the dial step (net.Dialer.Timeout) and never calls SetReadDeadline on the
-// socket. A silent server therefore blocks Open forever — this is a property of the production
-// code, not of the test, and cannot be exercised without changing GoldSource.Open. Keeping this
-// note so the gap is documented.
+func TestGoldSource_Execute_LargeDatagramNotTruncated(t *testing.T) {
+	const challenge = "777"
+	// Non-whitespace, position-identifiable content larger than the old 1024-byte read buffer.
+	// Before the fix this datagram was chopped to 1019 bytes and its tail was silently dropped.
+	longBody := strings.Repeat("0123456789", 130) // 1300 bytes
+	const tail = "END"
+
+	srv := newScriptedUDPServer(t, func(_ []byte, idx int) []byte {
+		switch idx {
+		case 0:
+			return []byte(header + "\x00challenge rcon " + challenge + "\n")
+		case 1:
+			return []byte(header + "\x00" + longBody)
+		case 2:
+			return []byte(header + "\x00" + tail)
+		}
+
+		return nil
+	})
+
+	g, err := NewGoldSource(Config{
+		Address:  srv.addr,
+		Password: "pw",
+		Protocol: ProtocolGoldSrc,
+		Timeout:  2 * time.Second,
+	})
+	require.NoError(t, err)
+	require.NoError(t, g.Open(context.Background()))
+	defer func() { _ = g.Close() }()
+
+	got, err := g.Execute(context.Background(), "amxx plugins")
+	require.NoError(t, err)
+	assert.Equal(t, longBody+tail, got,
+		"a datagram larger than the old 1024-byte buffer must be returned in full and joined with the next part")
+}
+
+func TestGoldSource_Execute_PreservesBoundaryWhitespace(t *testing.T) {
+	const challenge = "555"
+	// First part exceeds maxSymbolsPerCommand so a continuation is fetched, and it ends with a
+	// space that lands exactly on the datagram boundary. The old per-chunk TrimSpace ate it.
+	firstPart := strings.Repeat("a", maxSymbolsPerCommand) + " foo "
+	const secondPart = "bar"
+
+	srv := newScriptedUDPServer(t, func(_ []byte, idx int) []byte {
+		switch idx {
+		case 0:
+			return []byte(header + "\x00challenge rcon " + challenge + "\n")
+		case 1:
+			return []byte(header + "\x00" + firstPart)
+		case 2:
+			return []byte(header + "\x00" + secondPart)
+		}
+
+		return nil
+	})
+
+	g, err := NewGoldSource(Config{
+		Address:  srv.addr,
+		Password: "pw",
+		Protocol: ProtocolGoldSrc,
+		Timeout:  2 * time.Second,
+	})
+	require.NoError(t, err)
+	require.NoError(t, g.Open(context.Background()))
+	defer func() { _ = g.Close() }()
+
+	got, err := g.Execute(context.Background(), "status")
+	require.NoError(t, err)
+	assert.Contains(t, got, "foo bar",
+		"whitespace on a datagram boundary must survive reassembly")
+}
+
+func TestGoldSource_Execute_ContinuationTimeoutTerminatesLoop(t *testing.T) {
+	const challenge = "321"
+	firstPart := strings.Repeat("Z", maxSymbolsPerCommand+10) // forces a continuation read
+
+	srv := newScriptedUDPServer(t, func(_ []byte, idx int) []byte {
+		switch idx {
+		case 0:
+			return []byte(header + "\x00challenge rcon " + challenge + "\n")
+		case 1:
+			return []byte(header + "\x00" + firstPart)
+		}
+		// The continuation request (idx 2) gets no reply: the loop must time out and return what
+		// it already has instead of erroring or blocking forever.
+		return nil
+	})
+
+	g, err := NewGoldSource(Config{
+		Address:  srv.addr,
+		Password: "pw",
+		Protocol: ProtocolGoldSrc,
+		Timeout:  300 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.NoError(t, g.Open(context.Background()))
+	defer func() { _ = g.Close() }()
+
+	got, err := g.Execute(context.Background(), "status")
+	require.NoError(t, err,
+		"a continuation-read timeout must be treated as end-of-response, not an error")
+	assert.Equal(t, firstPart, got, "the already-received part must be returned intact")
+}
+
+func TestGoldSource_Open_TimesOutOnSilentServer(t *testing.T) {
+	srv := newScriptedUDPServer(t, func(_ []byte, _ int) []byte {
+		return nil // never answer the challenge request
+	})
+
+	const timeout = 300 * time.Millisecond
+
+	g, err := NewGoldSource(Config{
+		Address:  srv.addr,
+		Password: "pw",
+		Protocol: ProtocolGoldSrc,
+		Timeout:  timeout,
+	})
+	require.NoError(t, err)
+
+	start := time.Now()
+	err = g.Open(context.Background())
+	defer func() { _ = g.Close() }()
+
+	require.Error(t, err, "a silent server must not hang Open forever")
+	assert.Less(t, time.Since(start), timeout+time.Second,
+		"Open must return around the configured Timeout, not block for seconds")
+}
