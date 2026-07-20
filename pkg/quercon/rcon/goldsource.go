@@ -11,13 +11,15 @@ import (
 )
 
 const (
-	header               = "\xff\xff\xff\xff"
-	defaultBufferSize    = 1024
-	maxSymbolsPerCommand = 256
+	header = "\xff\xff\xff\xff"
 	// maxResponseSize is the read buffer for a single UDP datagram. GoldSource can send RCON
 	// replies up to the network MTU, so this is sized to the maximum UDP payload to avoid
 	// truncating (and silently dropping) the tail of a datagram.
 	maxResponseSize = 65535
+	// responseIdleTimeout bounds the wait for follow-up datagrams of a multi-packet response.
+	// GoldSource sends every part of a large RCON reply back-to-back right after the command,
+	// so a short idle gap means the response is complete.
+	responseIdleTimeout = 500 * time.Millisecond
 )
 
 var (
@@ -76,35 +78,39 @@ func (g *GoldSource) Close() error {
 }
 
 func (g *GoldSource) Execute(_ context.Context, command string) (string, error) {
-	firstCommand := true
+	// Drop late or unsolicited datagrams left over from previous commands so the first
+	// read below belongs to this command's response (matters for reused pooled connections).
+	g.drainStaleDatagrams()
+
+	cmd := header + "rcon " + g.challengeNumber + " \"" + g.password + "\" " + command
+
+	if _, err := g.connection.Write([]byte(cmd)); err != nil {
+		return "", err
+	}
 
 	buffer := bytes.Buffer{}
-	buffer.Grow(defaultBufferSize)
 
+	// The first datagram of the response gets the full configured timeout.
+	part, err := g.readDatagram(g.timeout)
+	if err != nil {
+		return "", err
+	}
+
+	buffer.Write(part)
+
+	// A large response arrives as several back-to-back datagrams; read until the socket
+	// goes idle instead of polling the server with extra "continuation" rcon requests.
 	for {
-		var cmd string
-		if firstCommand {
-			cmd = header + "rcon " + g.challengeNumber + " \"" + g.password + "\" " + command
-		} else {
-			cmd = header + "rcon " + g.challengeNumber + " \"" + g.password + "\""
-		}
-
-		cmdPartResult, err := g.writeAndReadSocket(cmd)
+		part, err = g.readDatagram(responseIdleTimeout)
 		if err != nil {
-			if !firstCommand && isTimeoutError(err) {
+			if isTimeoutError(err) {
 				break
 			}
 
 			return "", err
 		}
 
-		buffer.Write(cmdPartResult)
-
-		if len(cmdPartResult) < maxSymbolsPerCommand {
-			break
-		}
-
-		firstCommand = false
+		buffer.Write(part)
 	}
 
 	return strings.TrimSpace(buffer.String()), nil
@@ -131,8 +137,15 @@ func (g *GoldSource) writeAndReadSocket(command string) ([]byte, error) {
 		return nil, err
 	}
 
-	if g.timeout > 0 {
-		_ = g.connection.SetReadDeadline(time.Now().Add(g.timeout))
+	return g.readDatagram(g.timeout)
+}
+
+// readDatagram reads a single UDP datagram and returns its body with the 5-byte GoldSource
+// prefix (4-byte header plus the 'l' print type) and trailing NULs stripped. Datagrams that
+// do not carry the GoldSource header, or carry no body at all, yield nil.
+func (g *GoldSource) readDatagram(timeout time.Duration) ([]byte, error) {
+	if timeout > 0 {
+		_ = g.connection.SetReadDeadline(time.Now().Add(timeout))
 	}
 
 	buffer := make([]byte, maxResponseSize)
@@ -142,11 +155,25 @@ func (g *GoldSource) writeAndReadSocket(command string) ([]byte, error) {
 		return nil, err
 	}
 
-	if n < 5 {
-		return nil, nil
+	if !bytes.HasPrefix(buffer[:n], []byte(header)) || n < 5 {
+		return nil, nil //nolint:nilnil // "no usable body" is not an error here
 	}
 
 	return bytes.Trim(buffer[5:n], "\x00"), nil
+}
+
+// drainStaleDatagrams discards datagrams already sitting in the socket receive buffer
+// (late replies to previous commands) so the next read starts from a clean slate.
+func (g *GoldSource) drainStaleDatagrams() {
+	buffer := make([]byte, maxResponseSize)
+
+	for {
+		_ = g.connection.SetReadDeadline(time.Now())
+
+		if _, err := g.connection.Read(buffer); err != nil {
+			return
+		}
+	}
 }
 
 func isTimeoutError(err error) bool {

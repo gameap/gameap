@@ -73,7 +73,7 @@ func (s *scriptedTCPServer) Close() {
 }
 
 // scriptedUDPServer reads one datagram at a time and answers via handler. handler returns the
-// raw response bytes; nil means "do not reply".
+// response datagrams (each is written as a separate UDP packet); nil or empty means "do not reply".
 type scriptedUDPServer struct {
 	conn net.PacketConn
 	addr string
@@ -82,7 +82,7 @@ type scriptedUDPServer struct {
 	closed chan struct{}
 }
 
-func newScriptedUDPServer(t *testing.T, handler func(req []byte, idx int) []byte) *scriptedUDPServer {
+func newScriptedUDPServer(t *testing.T, handler func(req []byte, idx int) [][]byte) *scriptedUDPServer {
 	t.Helper()
 
 	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
@@ -123,8 +123,8 @@ func newScriptedUDPServer(t *testing.T, handler func(req []byte, idx int) []byte
 
 			resp := handler(req, idx)
 			idx++
-			if resp != nil {
-				_, _ = pc.WriteTo(resp, peer)
+			for _, dgram := range resp {
+				_, _ = pc.WriteTo(dgram, peer)
 			}
 		}
 	})
