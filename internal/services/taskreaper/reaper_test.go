@@ -389,7 +389,15 @@ func TestReaperStart(t *testing.T) {
 		assert.Eventually(t, func() bool {
 			return len(reconciler.recordedNodeIDs()) > 0
 		}, 2*time.Second, 10*time.Millisecond, "the ticker must drive periodic sweeps")
-		assert.Equal(t, []uint64{7}, reconciler.recordedNodeIDs())
+
+		// The short-interval ticker keeps firing, so the exact number of
+		// sweeps by the time we read is timing-dependent. Assert the invariant
+		// that actually matters: every sweep reconciles only the abandoned node.
+		recorded := reconciler.recordedNodeIDs()
+		require.NotEmpty(t, recorded)
+		for _, nodeID := range recorded {
+			assert.Equal(t, uint64(7), nodeID, "every ticker-driven sweep must reconcile only the abandoned node")
+		}
 	})
 
 	t.Run("stops_on_context_cancel", func(t *testing.T) {
