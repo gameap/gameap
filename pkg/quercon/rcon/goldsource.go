@@ -1,7 +1,6 @@
 package rcon
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"net"
@@ -15,6 +14,10 @@ const (
 	header               = "\xff\xff\xff\xff"
 	defaultBufferSize    = 1024
 	maxSymbolsPerCommand = 256
+	// maxResponseSize is the read buffer for a single UDP datagram. GoldSource can send RCON
+	// replies up to the network MTU, so this is sized to the maximum UDP payload to avoid
+	// truncating (and silently dropping) the tail of a datagram.
+	maxResponseSize = 65535
 )
 
 var (
@@ -85,6 +88,10 @@ func (g *GoldSource) Execute(_ context.Context, command string) (string, error) 
 
 		cmdPartResult, err := g.writeAndReadSocket(cmd)
 		if err != nil {
+			if !firstCommand && isTimeoutError(err) {
+				break
+			}
+
 			return "", err
 		}
 
@@ -106,7 +113,7 @@ func (g *GoldSource) getChallengeNumber() error {
 		return err
 	}
 
-	parts := strings.Split(string(response), " ")
+	parts := strings.Fields(string(response))
 	if len(parts) < 3 {
 		return ErrInvalidChallengeResponse
 	}
@@ -121,10 +128,13 @@ func (g *GoldSource) writeAndReadSocket(command string) ([]byte, error) {
 		return nil, err
 	}
 
-	reader := bufio.NewReader(g.connection)
-	buffer := make([]byte, defaultBufferSize)
+	if g.timeout > 0 {
+		_ = g.connection.SetReadDeadline(time.Now().Add(g.timeout))
+	}
 
-	n, err := reader.Read(buffer)
+	buffer := make([]byte, maxResponseSize)
+
+	n, err := g.connection.Read(buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +143,11 @@ func (g *GoldSource) writeAndReadSocket(command string) ([]byte, error) {
 		return nil, nil
 	}
 
-	return bytes.TrimSpace(
-		bytes.Trim(buffer[5:n], "\x00"),
-	), nil
+	return bytes.Trim(buffer[5:n], "\x00"), nil
+}
+
+func isTimeoutError(err error) bool {
+	var netErr net.Error
+
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
