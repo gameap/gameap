@@ -150,6 +150,22 @@ func (r *RBACRepository) DeleteRole(_ context.Context, id uint) error {
 
 	delete(r.roles, id)
 
+	for assignedID, assigned := range r.assignedRoles {
+		if assigned.RoleID == id {
+			delete(r.assignedRoles, assignedID)
+		}
+	}
+
+	for permissionID, permission := range r.permissions {
+		if permission.EntityID == nil || *permission.EntityID != id {
+			continue
+		}
+
+		if permission.EntityType != nil && *permission.EntityType == domain.EntityTypeRole {
+			delete(r.permissions, permissionID)
+		}
+	}
+
 	return nil
 }
 

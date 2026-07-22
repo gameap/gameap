@@ -31,6 +31,24 @@ func (r *RBAC) Close() {
 	r.cache.Close()
 }
 
+// InvalidateUserCache drops the cached permission set of a single user.
+// Callers that write permissions through the repository instead of this
+// service must use it, otherwise checks keep answering from the stale cache
+// until the TTL expires.
+func (r *RBAC) InvalidateUserCache(userID uint) {
+	r.cache.Delete(cacheKey{
+		EntityType: domain.EntityTypeUser,
+		EntityID:   userID,
+	})
+}
+
+// InvalidateCache drops every cached permission set. Needed after changes
+// that cannot be attributed to one user — editing a role's abilities affects
+// everyone holding that role.
+func (r *RBAC) InvalidateCache() {
+	r.cache.Clear()
+}
+
 // Can checks if the user has all the specified abilities.
 func (r *RBAC) Can(ctx context.Context, userID uint, abilities []domain.AbilityName) (bool, error) {
 	permissionsByAbilityName, err := r.getAllPermissionsForUser(ctx, userID)
@@ -207,7 +225,13 @@ func (r *RBAC) GetRoles(ctx context.Context, userID uint) ([]string, error) {
 
 func (r *RBAC) SetRolesToUser(ctx context.Context, userID uint, roleNames []string) error {
 	return r.tm.Do(ctx, func(ctx context.Context) error {
-		return r.setRolesToUser(ctx, userID, roleNames)
+		if err := r.setRolesToUser(ctx, userID, roleNames); err != nil {
+			return err
+		}
+
+		r.InvalidateUserCache(userID)
+
+		return nil
 	})
 }
 

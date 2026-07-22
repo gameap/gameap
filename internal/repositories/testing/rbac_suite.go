@@ -122,6 +122,62 @@ func (s *RBACRepositorySuite) TestRBACRepositorySaveRole() {
 	})
 }
 
+func (s *RBACRepositorySuite) TestRBACRepositoryDeleteRole() {
+	ctx := context.Background()
+
+	s.T().Run("delete_removes_role", func(t *testing.T) {
+		role := s.createRoleFunc(ctx, t, xid.New().String())
+
+		require.NoError(t, s.repo.DeleteRole(ctx, role.ID))
+
+		roles, err := s.repo.GetRoles(ctx)
+		require.NoError(t, err)
+
+		for _, r := range roles {
+			assert.NotEqual(t, role.ID, r.ID, "deleted role is still listed")
+		}
+	})
+
+	s.T().Run("delete_removes_assignments", func(t *testing.T) {
+		role := s.createRoleFunc(ctx, t, xid.New().String())
+		entityID := uint(7100)
+
+		err := s.repo.AssignRolesForEntity(ctx, entityID, domain.EntityTypeUser, []domain.RestrictedRole{
+			domain.NewRestrictedRoleFromRole(role),
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, s.repo.DeleteRole(ctx, role.ID))
+
+		assigned, err := s.repo.GetRolesForEntity(ctx, entityID, domain.EntityTypeUser)
+		require.NoError(t, err)
+		assert.Empty(t, assigned)
+	})
+
+	s.T().Run("delete_removes_role_permissions", func(t *testing.T) {
+		role := s.createRoleFunc(ctx, t, xid.New().String())
+
+		err := s.repo.Allow(ctx, role.ID, domain.EntityTypeRole, []domain.Ability{
+			{Name: domain.AbilityName(xid.New().String())},
+		})
+		require.NoError(t, err)
+
+		permissions, err := s.repo.GetPermissions(ctx, role.ID, domain.EntityTypeRole)
+		require.NoError(t, err)
+		require.NotEmpty(t, permissions)
+
+		require.NoError(t, s.repo.DeleteRole(ctx, role.ID))
+
+		permissions, err = s.repo.GetPermissions(ctx, role.ID, domain.EntityTypeRole)
+		require.NoError(t, err)
+		assert.Empty(t, permissions)
+	})
+
+	s.T().Run("delete_missing_role_is_not_an_error", func(t *testing.T) {
+		require.NoError(t, s.repo.DeleteRole(ctx, 999999))
+	})
+}
+
 func (s *RBACRepositorySuite) TestRBACRepositoryGetRolesForEntity() {
 	ctx := context.Background()
 

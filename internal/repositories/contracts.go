@@ -114,6 +114,12 @@ type ServerRepository interface {
 type RBACRepository interface {
 	GetRoles(context.Context) ([]domain.Role, error)
 	SaveRole(context.Context, *domain.Role) error
+
+	// DeleteRole removes a role together with the permissions granted to it.
+	// Role assignments are dropped by the assigned_roles foreign key.
+	// Deleting a role that does not exist is not an error.
+	DeleteRole(context.Context, uint) error
+
 	GetPermissions(context.Context, uint, domain.EntityType) ([]domain.Permission, error)
 	GetRolesForEntity(context.Context, uint, domain.EntityType) ([]domain.RestrictedRole, error)
 	AssignRolesForEntity(context.Context, uint, domain.EntityType, []domain.RestrictedRole) error

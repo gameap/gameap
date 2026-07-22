@@ -1844,10 +1844,18 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			hostlibrary.NewNodeFSHostLibrary(c.DaemonFiles(), c.NodeRepository()),
 			hostlibrary.NewNodeCmdHostLibrary(c.DaemonCommands(), c.NodeRepository()),
 			hostlibrary.NewCryptoHostLibrary(),
+			hostlibrary.NewAuthzHostLibrary(c.RBAC()),
 		},
 		LibraryFactories: []pkgplugin.HostLibraryFactory{
 			hostlibrary.NewStorageHostLibraryFactory(c.PluginStorageRepository()),
 			hostlibrary.NewLogHostLibraryFactory(slog.Default()),
+			// Per-plugin: the module is gated on the plugin's own
+			// manage_rbac grant, so it needs to know which plugin it serves.
+			hostlibrary.NewRBACHostLibraryFactory(
+				c.RBAC(),
+				c.RBACRepository(),
+				hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			),
 		},
 	})
 }
