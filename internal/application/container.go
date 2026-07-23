@@ -154,6 +154,7 @@ type Container struct {
 	serverTaskDispatcher *servertaskdispatcher.Dispatcher
 	serverConfigPusher   *serverconfigpush.Pusher
 	globalAPIService     *services.GlobalAPIService
+	cdnGamesService      *services.CDNGamesService
 	pluginStoreService   *pluginstore.Service
 	captchaVerifier      *captcha.Service
 	gameUpgrader         *services.GameUpgradeService
@@ -1500,6 +1501,18 @@ func (c *Container) createGlobalAPIService() *services.GlobalAPIService {
 	return services.NewGlobalAPIService(c.Config())
 }
 
+func (c *Container) CDNGamesService() *services.CDNGamesService {
+	if c.cdnGamesService == nil {
+		c.cdnGamesService = c.createCDNGamesService()
+	}
+
+	return c.cdnGamesService
+}
+
+func (c *Container) createCDNGamesService() *services.CDNGamesService {
+	return services.NewCDNGamesService(c.Config())
+}
+
 // CaptchaVerifier returns the login captcha verifier. It is a no-op
 // (Enabled() == false) until CAPTCHA_PROVIDER and CAPTCHA_SECRET_KEY are set.
 func (c *Container) CaptchaVerifier() *captcha.Service {
@@ -1545,7 +1558,7 @@ func (c *Container) GameUpgradeService() *services.GameUpgradeService {
 
 func (c *Container) createGameUpgradeService() *services.GameUpgradeService {
 	return services.NewGameUpgradeService(
-		c.GlobalAPIService(),
+		c.CDNGamesService(),
 		c.GameRepository(),
 		c.GameModRepository(),
 		c.TransactionManager(),

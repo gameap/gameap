@@ -205,6 +205,15 @@ type Config struct {
 		URL string `env:"GLOBAL_API_URL" envDefault:"https://api.gameap.com"`
 	}
 
+	// GamesCDN is the source for the games/mods catalog used when seeding a
+	// fresh installation and when an operator triggers a games upgrade. The
+	// URLs are tried in order until one returns a valid catalog, so the first
+	// entry is the primary mirror and the rest are fallbacks. Each URL must
+	// point at a games.json document ({"data": [...]}).
+	GamesCDN struct {
+		URLs []string `env:"GAMES_CDN_URLS" envSeparator:"," envDefault:"https://cdn.gameap.ru/games.json,https://cdn.gameap.com/games.json"` //nolint:lll // long env default in struct tag cannot be wrapped
+	}
+
 	UI struct {
 		DefaultLanguage string `env:"DEFAULT_LANGUAGE" envDefault:""`
 	}
