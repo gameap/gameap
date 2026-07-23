@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -130,6 +131,21 @@ func TestCDNGamesService_Games(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no games CDN URLs configured")
+	})
+
+	t.Run("rejects_oversized_valid_response", func(t *testing.T) {
+		server := httptest.NewServer(gamesResponseHandler([]domain.GlobalAPIGame{
+			{Code: "cstrike", Name: strings.Repeat("a", 256), Engine: "GoldSource"},
+		}))
+		defer server.Close()
+
+		service := newCDNGamesService(server.URL)
+		service.maxCatalogSize = 64 // smaller than the valid response body
+
+		_, err := service.Games(context.Background())
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds maximum allowed size")
 	})
 
 	t.Run("empty_catalog_is_a_success", func(t *testing.T) {

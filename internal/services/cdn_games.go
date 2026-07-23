@@ -13,12 +13,19 @@ import (
 	"github.com/pkg/errors"
 )
 
+// defaultMaxCatalogSize bounds the CDN games catalog response read into memory,
+// guarding against a misbehaving or compromised mirror returning an unbounded
+// body. The catalog is a small JSON document (tens of KB); 10 MB is a generous
+// ceiling that still prevents memory exhaustion.
+const defaultMaxCatalogSize = 10 * 1024 * 1024 // 10 MB
+
 // CDNGamesService fetches the games and mods catalog from the GameAP CDN.
 // The configured mirror URLs are tried in order; the catalog from the first
 // mirror that returns a valid document is used.
 type CDNGamesService struct {
-	urls       []string
-	httpClient *http.Client
+	urls           []string
+	httpClient     *http.Client
+	maxCatalogSize int64
 }
 
 // NewCDNGamesService creates a new CDN games service.
@@ -28,6 +35,7 @@ func NewCDNGamesService(cfg *config.Config) *CDNGamesService {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		maxCatalogSize: defaultMaxCatalogSize,
 	}
 }
 
@@ -82,8 +90,17 @@ func (s *CDNGamesService) fetch(ctx context.Context, url string) ([]domain.Globa
 		return nil, errors.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
 	}
 
+	body, err := io.ReadAll(io.LimitReader(resp.Body, s.maxCatalogSize+1))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read response")
+	}
+
+	if int64(len(body)) > s.maxCatalogSize {
+		return nil, errors.Errorf("games catalog exceeds maximum allowed size of %d bytes", s.maxCatalogSize)
+	}
+
 	var apiResp domain.GlobalAPIResponse[[]domain.GlobalAPIGame]
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return nil, errors.Wrap(err, "failed to decode response")
 	}
 
