@@ -1,9 +1,8 @@
 package getrconfeatures
 
 import (
-	"github.com/gameap/gameap/internal/api/servers/rcon/base"
 	"github.com/gameap/gameap/internal/domain"
-	"github.com/gameap/gameap/pkg/quercon/rcon"
+	"github.com/gameap/gameap/internal/quercon"
 )
 
 type featuresResponse struct {
@@ -11,17 +10,11 @@ type featuresResponse struct {
 	PlayersManage bool `json:"playersManage"`
 }
 
-func newFeaturesResponse(game domain.Game) featuresResponse {
-	protocol, err := base.DetermineProtocol(game)
-	if err != nil {
-		return featuresResponse{
-			Rcon:          false,
-			PlayersManage: false,
-		}
-	}
+func newFeaturesResponse(resolver *quercon.Resolver, game domain.Game) featuresResponse {
+	rconSupported, playersSupported := resolver.RconFeatures(game)
 
 	return featuresResponse{
-		Rcon:          rcon.IsProtocolSupported(protocol),
-		PlayersManage: rcon.IsPlayerManagementSupported(game.Code),
+		Rcon:          rconSupported,
+		PlayersManage: playersSupported,
 	}
 }

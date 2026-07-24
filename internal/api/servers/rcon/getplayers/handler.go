@@ -9,9 +9,9 @@ import (
 
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
-	rconbase "github.com/gameap/gameap/internal/api/servers/rcon/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
@@ -24,12 +24,14 @@ type Handler struct {
 	serverFinder   *serversbase.ServerFinder
 	abilityChecker *serversbase.AbilityChecker
 	gameRepo       repositories.GameRepository
+	resolver       *quercon.Resolver
 	responder      base.Responder
 }
 
 func NewHandler(
 	serverRepo repositories.ServerRepository,
 	gameRepo repositories.GameRepository,
+	resolver *quercon.Resolver,
 	rbac base.RBAC,
 	responder base.Responder,
 ) *Handler {
@@ -37,6 +39,7 @@ func NewHandler(
 		serverFinder:   serversbase.NewServerFinder(serverRepo, rbac),
 		abilityChecker: serversbase.NewAbilityChecker(rbac),
 		gameRepo:       gameRepo,
+		resolver:       resolver,
 		responder:      responder,
 	}
 }
@@ -85,16 +88,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	protocol, err := rconbase.DetermineProtocol(*game)
-	if err != nil {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.WithMessage(err, "unsupported game"),
-			http.StatusBadRequest,
-		))
-
-		return
-	}
-
 	if server.Rcon == nil || *server.Rcon == "" {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.New("rcon password not configured for server"),
@@ -104,7 +97,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	playerManager, err := players.NewPlayerManagerByGameCode(server.GameID)
+	playerManager, err := h.resolver.PlayerManager(ctx, *game)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "player management not supported for this game"),
@@ -114,7 +107,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	playersList, err := h.getPlayers(ctx, server, protocol, playerManager)
+	playersList, err := h.getPlayers(ctx, server, *game, playerManager)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -159,7 +152,7 @@ func (h *Handler) findGame(ctx context.Context, gameID string) (*domain.Game, er
 func (h *Handler) getPlayers(
 	ctx context.Context,
 	server *domain.Server,
-	protocol rcon.Protocol,
+	game domain.Game,
 	playerManager players.PlayerManager,
 ) ([]players.Player, error) {
 	rconAddress := fmt.Sprintf("%s:%d", server.ServerIP, getRconPort(server))
@@ -167,12 +160,18 @@ func (h *Handler) getPlayers(
 	rconConfig := rcon.Config{
 		Address:  rconAddress,
 		Password: *server.Rcon,
-		Protocol: protocol,
 		Timeout:  10 * time.Second,
 	}
 
-	client, err := rcon.NewClient(rconConfig)
+	client, err := h.resolver.RconClient(ctx, game, rconConfig)
 	if err != nil {
+		if errors.Is(err, quercon.ErrRconProtocolUnsupported) {
+			return nil, api.WrapHTTPError(
+				errors.WithMessage(err, "unsupported game"),
+				http.StatusBadRequest,
+			)
+		}
+
 		return nil, api.WrapHTTPError(
 			errors.WithMessage(err, "failed to create rcon client"),
 			http.StatusInternalServerError,

@@ -155,6 +155,7 @@ import (
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/pubsub"
+	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/base"
@@ -223,6 +224,7 @@ type container interface {
 	DaemonCommands() *daemon.CommandService
 	ConsoleLogService() *daemon.ConsoleLogService
 	PluginManager() *plugin.Manager
+	QuerconResolver() *quercon.Resolver
 	PluginDispatcher() *plugin.Dispatcher
 	PluginRepository() repositories.PluginRepository
 	PluginLoader() *internalplugin.Loader
@@ -708,6 +710,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: getquery.NewHandler(
 				c.ServerRepository(),
 				c.GameRepository(),
+				c.QuerconResolver(),
 				c.RBAC(),
 				c.Responder(),
 			),
@@ -718,6 +721,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: getrconfeatures.NewHandler(
 				c.ServerRepository(),
 				c.GameRepository(),
+				c.QuerconResolver(),
 				c.RBAC(),
 				c.Responder(),
 			),
@@ -744,6 +748,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: rconpostcommand.NewHandler(
 				c.ServerRepository(),
 				c.GameRepository(),
+				c.QuerconResolver(),
 				c.RBAC(),
 				c.Responder(),
 			),
@@ -757,6 +762,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: rcongetplayers.NewHandler(
 				c.ServerRepository(),
 				c.GameRepository(),
+				c.QuerconResolver(),
 				c.RBAC(),
 				c.Responder(),
 			),
@@ -778,6 +784,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: rconkickplayer.NewHandler(
 				c.ServerRepository(),
 				c.GameRepository(),
+				c.QuerconResolver(),
 				c.RBAC(),
 				c.Responder(),
 			),

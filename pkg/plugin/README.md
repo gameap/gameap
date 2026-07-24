@@ -39,6 +39,7 @@ Plugins can:
 - **Make HTTP requests** (external API calls)
 - **Log messages** (debug, info, warn, error)
 - **Register custom HTTP endpoints** (extend the API)
+- **Extend RCON/Query protocols** (add new games, override built-ins, implement new wire protocols)
 
 ## Event Types
 
@@ -558,11 +559,99 @@ func (p MyPlugin) HandleEvent(ctx context.Context, event *proto.Event) (*proto.E
 }
 ```
 
+## RCON / Query Protocol Extension
+
+Plugins can add support for new games, override the built-in game→protocol
+mappings, and implement entirely new RCON/Query wire protocols. The panel
+consults plugin registrations **before** its built-in tables, so a plugin
+registration overrides a built-in for the same game/engine.
+
+Protocol extension is a **separate, optional service** — `ProtocolService` in
+`pkg/plugin/sdk/protocol` — so the core `PluginService` stays lean. A plugin
+opts in by implementing `ProtocolService` (embed `protocol.EmptyProtocolService`
+for defaults) and registering it alongside the core service:
+
+```go
+import "github.com/gameap/gameap/pkg/plugin/sdk/protocol"
+
+type MyPlugin struct {
+    sdk.EmptyPluginService       // core lifecycle/events/http
+    protocol.EmptyProtocolService // optional RCON/Query extension
+}
+
+func init() {
+    p := &MyPlugin{}
+    proto.RegisterPluginService(p)
+    protocol.RegisterProtocolService(p)
+}
+```
+
+### Registering protocols
+
+Implement `GetRconProtocols` / `GetQueryProtocols`. Each registration lists the
+`game_codes` and `engines` it applies to and picks a transport:
+
+- `RCON_TRANSPORT_BUILTIN_SOURCE` / `RCON_TRANSPORT_BUILTIN_GOLDSOURCE` and
+  `QUERY_TRANSPORT_BUILTIN` (with `builtin_protocol`) — reuse the panel's
+  engine. Pure mapping: no plugin code runs at execute time. Use this to add a
+  new game that speaks an existing protocol.
+- `RCON_TRANSPORT_PLUGIN` / `QUERY_TRANSPORT_PLUGIN` — the plugin implements the
+  wire protocol (see below).
+
+```go
+func (p MyPlugin) GetRconProtocols(ctx context.Context, req *protocol.GetRconProtocolsRequest) (*protocol.GetRconProtocolsResponse, error) {
+    return &protocol.GetRconProtocolsResponse{Protocols: []*protocol.RconProtocol{{
+        Id:        "mygame-rcon",
+        GameCodes: []string{"mygame"},
+        Transport: protocol.RconTransport_RCON_TRANSPORT_BUILTIN_SOURCE,
+        Players: &protocol.PlayerCapability{
+            Supported:      true,
+            PlayersCommand: "status",
+            KickCommand:    "kickid {id} {reason}",  // templates: {id} {name} {uniqid} {reason} {duration}
+            BanCommand:     "banid {duration} {id}",
+            ParseViaPlugin: true,                     // route players output to ParsePlayers
+        },
+    }}}, nil
+}
+```
+
+Player management: kick/ban are command templates the host renders (`{duration}`
+is whole seconds). The players-list output is parsed by the built-in parser, or
+by your `ParsePlayers` RPC when `parse_via_plugin` is set.
+
+### Implementing a wire protocol (gameap-net)
+
+For `*_TRANSPORT_PLUGIN`, the host opens and guards the TCP/UDP connection to the
+game server (address from the server record, timeouts, IP policy) and hands the
+plugin a `conn_handle`. The plugin performs I/O over that handle with the
+**gameap-net** host library — it never dials, so it can only ever reach the
+server the host opened for it.
+
+- RCON: implement `RconOpen` (authenticate over the handle), `RconExecute` (run
+  one command), and optionally `RconClose`.
+- Query: implement `QueryServer` (returns a `QueryResult`).
+
+```go
+func (p MyPlugin) QueryServer(ctx context.Context, req *protocol.QueryServerRequest) (*protocol.QueryServerResponse, error) {
+    n := net.NewNetService() // github.com/gameap/gameap/pkg/plugin/sdk/net
+    n.Send(ctx, &net.NetSendRequest{Handle: req.ConnHandle, Data: probe})
+    resp, _ := n.Recv(ctx, &net.NetRecvRequest{Handle: req.ConnHandle, MaxBytes: 1400, TimeoutMs: 1000})
+    // parse resp.Data ...
+    return &protocol.QueryServerResponse{Result: &protocol.QueryResult{Online: len(resp.Data) > 0}}, nil
+}
+```
+
+The gameap-net library is gated by `PLUGIN_NET_*` config (enable, per-read size
+and timeout caps, per-plugin connection cap, and a private-IP dial policy —
+cloud-metadata IPs are always blocked). See
+`pkg/plugin/examples/protocol-extension/` for a complete example.
+
 ## Security
 
 - Plugins run in a WebAssembly sandbox
 - No direct filesystem access
-- No direct network access (use gameap-http for external calls)
+- No direct network access — use gameap-http for external calls, or gameap-net
+  for protocol I/O on host-opened connections (plugins never dial)
 - Repository operations respect RBAC permissions
 - Plugin configuration can restrict capabilities
 
@@ -624,9 +713,12 @@ pkg/plugin/
 │   ├── cache/                # gameap-cache module
 │   ├── crypto/               # gameap-crypto module (cryptography)
 │   ├── http/                 # gameap-http module
+│   ├── net/                  # gameap-net module (host-managed socket I/O)
+│   ├── protocol/             # ProtocolService (optional RCON/Query extension)
 │   └── log/                  # gameap-log module
 ├── examples/
-│   └── server-logger/        # Example plugin
+│   ├── server-logger/        # Example plugin (lifecycle events)
+│   └── protocol-extension/   # Example plugin (RCON/Query protocols)
 ├── manager.go                # Plugin manager
 ├── dispatcher.go             # Event dispatcher
 ├── wrapper.go                # WASM plugin wrapper

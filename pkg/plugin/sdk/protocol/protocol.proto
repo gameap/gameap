@@ -1,0 +1,156 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.protocol;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/protocol";
+
+// ProtocolService is an optional plugin service for extending RCON and Query
+// protocols. Plugins implement it in addition to the core PluginService when
+// they add games, override built-in protocols, or implement new wire protocols.
+//
+// The registration RPCs are polled by the host at load time. The execution RPCs
+// are called on demand: the host opens and guards the connection to the game
+// server and hands the plugin a conn_handle; the plugin performs the wire I/O
+// over that handle with the gameap-net host library (it never dials).
+//
+// go:plugin type=plugin version=1
+service ProtocolService {
+  rpc GetRconProtocols(GetRconProtocolsRequest) returns (GetRconProtocolsResponse);
+  rpc GetQueryProtocols(GetQueryProtocolsRequest) returns (GetQueryProtocolsResponse);
+  rpc RconOpen(RconOpenRequest) returns (RconOpenResponse);
+  rpc RconExecute(RconExecuteRequest) returns (RconExecuteResponse);
+  rpc RconClose(RconCloseRequest) returns (RconCloseResponse);
+  rpc QueryServer(QueryServerRequest) returns (QueryServerResponse);
+  rpc ParsePlayers(ParsePlayersRequest) returns (ParsePlayersResponse);
+}
+
+// RconTransport selects how an RCON protocol registration is executed.
+enum RconTransport {
+  RCON_TRANSPORT_UNSPECIFIED = 0;
+  RCON_TRANSPORT_BUILTIN_SOURCE = 1;
+  RCON_TRANSPORT_BUILTIN_GOLDSOURCE = 2;
+  RCON_TRANSPORT_PLUGIN = 3;
+}
+
+// QueryTransport selects how a Query protocol registration is executed.
+enum QueryTransport {
+  QUERY_TRANSPORT_UNSPECIFIED = 0;
+  QUERY_TRANSPORT_BUILTIN = 1;
+  QUERY_TRANSPORT_PLUGIN = 2;
+}
+
+// PlayerCapability declares player-management support for an RCON protocol.
+// Command fields are templates; the host substitutes {id}, {name}, {uniqid},
+// {reason} and {duration} placeholders before executing them via RCON.
+message PlayerCapability {
+  bool supported = 1;
+  string players_command = 2;
+  string kick_command = 3;
+  string ban_command = 4;
+  bool parse_via_plugin = 5;
+}
+
+message RconProtocol {
+  string id = 1;
+  string name = 2;
+  repeated string game_codes = 3;
+  repeated string engines = 4;
+  RconTransport transport = 5;
+  PlayerCapability players = 6;
+}
+
+message QueryProtocol {
+  string id = 1;
+  string name = 2;
+  repeated string engines = 3;
+  repeated string game_codes = 4;
+  QueryTransport transport = 5;
+  string builtin_protocol = 6;
+}
+
+message GetRconProtocolsRequest {}
+message GetRconProtocolsResponse {
+  repeated RconProtocol protocols = 1;
+}
+
+message GetQueryProtocolsRequest {}
+message GetQueryProtocolsResponse {
+  repeated QueryProtocol protocols = 1;
+}
+
+message RconPlayer {
+  string id = 1;
+  string name = 2;
+  string ping = 3;
+  string score = 4;
+  string addr = 5;
+  string uniqid = 6;
+}
+
+message RconOpenRequest {
+  string protocol_id = 1;
+  uint64 conn_handle = 2;
+  string password = 3;
+  string address = 4;
+}
+
+message RconOpenResponse {
+  bool ok = 1;
+  bool auth_failed = 2;
+  optional string error = 3;
+}
+
+message RconExecuteRequest {
+  string protocol_id = 1;
+  uint64 conn_handle = 2;
+  string command = 3;
+}
+
+message RconExecuteResponse {
+  string output = 1;
+  optional string error = 2;
+}
+
+message RconCloseRequest {
+  string protocol_id = 1;
+  uint64 conn_handle = 2;
+}
+
+message RconCloseResponse {
+  optional string error = 1;
+}
+
+message QueryServerRequest {
+  string protocol_id = 1;
+  uint64 conn_handle = 2;
+  string address = 3;
+}
+
+message QueryResultPlayer {
+  string name = 1;
+  int64 score = 2;
+}
+
+message QueryResult {
+  bool online = 1;
+  string name = 2;
+  string map = 3;
+  int64 players_num = 4;
+  int64 max_players_num = 5;
+  repeated QueryResultPlayer players = 6;
+}
+
+message QueryServerResponse {
+  QueryResult result = 1;
+  optional string error = 2;
+}
+
+message ParsePlayersRequest {
+  string protocol_id = 1;
+  string raw = 2;
+}
+
+message ParsePlayersResponse {
+  repeated RconPlayer players = 1;
+  optional string error = 2;
+}

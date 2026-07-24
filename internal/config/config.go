@@ -343,6 +343,38 @@ type Config struct {
 			// by a reachable origin.
 			ResponseHeaderAllowlist []string `env:"PLUGIN_HTTP_RESPONSE_HEADER_ALLOWLIST" envSeparator:"," envDefault:""`
 		}
+
+		// Net gates the plugin socket host library
+		// (internal/plugin/hostlibrary/net.go), which lets plugins implement
+		// custom RCON/Query wire protocols over connections the host opens and
+		// guards. Plugins never dial themselves.
+		Net struct {
+			// Enabled turns on the gameap-net host library. When false,
+			// plugin-implemented protocols cannot perform I/O (declarative
+			// game→built-in-protocol mappings still work).
+			Enabled bool `env:"PLUGIN_NET_ENABLED" envDefault:"true"`
+
+			// BlockPrivateIPs refuses to dial a game server whose post-DNS IP
+			// is loopback / RFC1918 / link-local / CGNAT. Unlike the HTTP
+			// library this defaults to false: self-hosted game servers commonly
+			// live on private networks. Cloud-metadata IPs are blocked even
+			// when this switch is off.
+			BlockPrivateIPs bool `env:"PLUGIN_NET_BLOCK_PRIVATE_IPS" envDefault:"false"`
+
+			// AllowedHosts bypasses the private-IP block for specific hosts
+			// when BlockPrivateIPs is on. Cloud-metadata IPs are never bypassed.
+			AllowedHosts []string `env:"PLUGIN_NET_ALLOWED_HOSTS" envSeparator:"," envDefault:""`
+
+			// MaxTimeoutSeconds caps the overall duration of a single plugin
+			// protocol operation (dial plus all reads and writes).
+			MaxTimeoutSeconds int `env:"PLUGIN_NET_MAX_TIMEOUT_SECONDS" envDefault:"10"`
+
+			// ReadBufferBytes caps a single Recv a plugin may request.
+			ReadBufferBytes int `env:"PLUGIN_NET_READ_BUFFER_BYTES" envDefault:"65536"`
+
+			// MaxConnections caps simultaneously open connections per plugin.
+			MaxConnections int `env:"PLUGIN_NET_MAX_CONNECTIONS" envDefault:"8"`
+		}
 	}
 
 	PubSub struct {

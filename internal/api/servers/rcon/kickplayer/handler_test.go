@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	rconbase "github.com/gameap/gameap/internal/api/servers/rcon/base"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/internal/services"
@@ -21,6 +23,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func testResolver() *quercon.Resolver {
+	return quercon.New(quercon.Config{
+		BuiltinRconProtocol:  rconbase.DetermineProtocol,
+		BuiltinPlayerManager: players.NewPlayerManagerByGameCode,
+	})
+}
 
 //nolint:unparam
 func allowUserAbilityForServer(
@@ -615,7 +624,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			rbacRepo := inmemory.NewRBACRepository()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, gameRepo, rbacService, responder)
+			handler := NewHandler(serverRepo, gameRepo, testResolver(), rbacService, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(serverRepo, gameRepo, rbacRepo)
@@ -663,7 +672,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := NewHandler(serverRepo, gameRepo, rbacService, responder)
+	handler := NewHandler(serverRepo, gameRepo, testResolver(), rbacService, responder)
 
 	require.NotNil(t, handler)
 	assert.NotNil(t, handler.serverFinder)

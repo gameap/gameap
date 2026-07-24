@@ -8,6 +8,8 @@ import (
 
 	"github.com/gameap/gameap/internal/acme"
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagermime"
+	getqueryapi "github.com/gameap/gameap/internal/api/servers/getquery"
+	rconbase "github.com/gameap/gameap/internal/api/servers/rcon/base"
 	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/certificates"
@@ -21,6 +23,7 @@ import (
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/pubsub"
+	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/base"
@@ -42,6 +45,7 @@ import (
 	pkgapi "github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/quercon/rcon/players"
 	"github.com/gameap/gameap/pkg/secret"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gameap/gameap/pkg/twofactor"
@@ -144,7 +148,15 @@ func (c *InmemoryContainer) FileManagerArchiveGuard() *archiver.InMemoryConcurre
 func (c *InmemoryContainer) DaemonCommands() *daemon.CommandService       { return c.daemonCommandsService }
 func (c *InmemoryContainer) ConsoleLogService() *daemon.ConsoleLogService { return nil }
 func (c *InmemoryContainer) PluginManager() *plugin.Manager               { return nil }
-func (c *InmemoryContainer) PluginDispatcher() *plugin.Dispatcher         { return nil }
+func (c *InmemoryContainer) QuerconResolver() *quercon.Resolver {
+	return quercon.New(quercon.Config{
+		BuiltinRconProtocol:   rconbase.DetermineProtocol,
+		BuiltinQueryProtocol:  getqueryapi.QueryProtocolByEngine,
+		BuiltinPlayerManager:  players.NewPlayerManagerByGameCode,
+		PlayerManagementCheck: players.IsPlayerManagementSupported,
+	})
+}
+func (c *InmemoryContainer) PluginDispatcher() *plugin.Dispatcher { return nil }
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
 	return inmemory.NewPluginRepository()
 }

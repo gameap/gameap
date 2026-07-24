@@ -30,6 +30,13 @@ type pluginServiceWrapper struct {
 	handlehttprequest   api.Function
 	getfrontendbundle   api.Function
 	getserverabilities  api.Function
+	getrconprotocols    api.Function
+	getqueryprotocols   api.Function
+	rconopen            api.Function
+	rconexecute         api.Function
+	rconclose           api.Function
+	queryserver         api.Function
+	parseplayers        api.Function
 }
 
 func (p *pluginServiceWrapper) callFunction(
