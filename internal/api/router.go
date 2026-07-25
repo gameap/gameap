@@ -165,6 +165,7 @@ import (
 	"github.com/gameap/gameap/internal/services/gameexporter"
 	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
+	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
@@ -226,6 +227,7 @@ type container interface {
 	PluginDispatcher() *plugin.Dispatcher
 	PluginRepository() repositories.PluginRepository
 	PluginLoader() *internalplugin.Loader
+	PluginScheduler() *pluginscheduler.Service
 	PluginStoreService() *pluginstore.Service
 	PluginsDir() string
 	TaskDispatcher() *taskdispatcher.Dispatcher
@@ -1851,6 +1853,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginScheduler(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),

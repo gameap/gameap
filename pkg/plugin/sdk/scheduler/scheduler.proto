@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.scheduler;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/scheduler";
+
+// SchedulerService provides scheduled task registration to plugins
+// go:plugin type=host module=gameap-scheduler
+service SchedulerService {
+  // AddTask registers a task or, when the name is already registered by this
+  // plugin, replaces its definition (upsert)
+  rpc AddTask(AddTaskRequest) returns (AddTaskResponse);
+  rpc RemoveTask(RemoveTaskRequest) returns (RemoveTaskResponse);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+}
+
+// ScheduledTaskHandler is implemented by plugins that register scheduled
+// tasks; the panel invokes it every time a registered task fires
+// go:plugin type=plugin version=1
+service ScheduledTaskHandler {
+  rpc HandleScheduledTask(HandleScheduledTaskRequest) returns (HandleScheduledTaskResponse);
+}
+
+enum ErrorPolicyType {
+  ERROR_POLICY_TYPE_IGNORE = 0;
+  ERROR_POLICY_TYPE_RETRY = 1;
+}
+
+message ErrorPolicy {
+  ErrorPolicyType policy = 1;
+  // Number of additional attempts after a run error; the total number of
+  // attempts is max_retries + 1
+  uint32 max_retries = 2;
+  int64 retry_delay_ms = 3;
+  // Random 0..max_jitter_ms added to each retry delay
+  int64 max_jitter_ms = 4;
+}
+
+message AddTaskRequest {
+  string name = 1;
+  // Interval between runs in milliseconds; runs are aligned to Unix-epoch
+  // multiples of the interval
+  int64 interval_ms = 2;
+  optional ErrorPolicy error_policy = 3;
+  // Per-run handler call timeout in milliseconds; zero means the panel default
+  int64 timeout_ms = 4;
+}
+
+message AddTaskResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message RemoveTaskRequest {
+  string name = 1;
+}
+
+message RemoveTaskResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message ListTasksRequest {}
+
+message ListTasksResponse {
+  repeated TaskInfo tasks = 1;
+}
+
+message TaskInfo {
+  string name = 1;
+  int64 interval_ms = 2;
+  optional ErrorPolicy error_policy = 3;
+  int64 timeout_ms = 4;
+}
+
+message HandleScheduledTaskRequest {
+  string task_name = 1;
+  // Unix milliseconds of the slot that triggered this invocation
+  int64 scheduled_at = 2;
+  // 1-based; incremented on retries per the task error policy
+  uint32 attempt = 3;
+}
+
+message HandleScheduledTaskResponse {}

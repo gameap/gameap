@@ -13,6 +13,7 @@ import (
 	"github.com/gameap/gameap/pkg/plugin/sdk/gamemods"
 	"github.com/gameap/gameap/pkg/plugin/sdk/games"
 	"github.com/gameap/gameap/pkg/plugin/sdk/log"
+	"github.com/gameap/gameap/pkg/plugin/sdk/scheduler"
 	"github.com/gameap/gameap/pkg/plugin/sdk/servers"
 	domainproto "github.com/gameap/gameap/pkg/proto"
 	"github.com/pkg/errors"
@@ -119,6 +120,38 @@ func (f hostLibFunc) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	return f(ctx, r)
 }
 
+// stubSchedulerService satisfies scheduler.SchedulerService; the example
+// plugin registers its demo task during Initialize.
+type stubSchedulerService struct {
+	mu       sync.Mutex
+	addCalls []*scheduler.AddTaskRequest
+}
+
+func (s *stubSchedulerService) AddTask(
+	_ context.Context,
+	req *scheduler.AddTaskRequest,
+) (*scheduler.AddTaskResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.addCalls = append(s.addCalls, req)
+
+	return &scheduler.AddTaskResponse{Success: true}, nil
+}
+
+func (s *stubSchedulerService) RemoveTask(
+	_ context.Context,
+	_ *scheduler.RemoveTaskRequest,
+) (*scheduler.RemoveTaskResponse, error) {
+	return &scheduler.RemoveTaskResponse{Success: true}, nil
+}
+
+func (s *stubSchedulerService) ListTasks(
+	_ context.Context,
+	_ *scheduler.ListTasksRequest,
+) (*scheduler.ListTasksResponse, error) {
+	return &scheduler.ListTasksResponse{}, nil
+}
+
 // Shared plugin instance — Manager.Load is expensive because of WASM compilation,
 // and the wrapper API is read-only/idempotent for these tests. Each test queries
 // the same loaded plugin without observable cross-test interference. The WASM
@@ -155,6 +188,9 @@ func loadSharedServerLoggerWASM(t *testing.T) *LoadedPlugin {
 				}),
 				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
 					return servers.Instantiate(ctx, r, &stubServersService{})
+				}),
+				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+					return scheduler.Instantiate(ctx, r, &stubSchedulerService{})
 				}),
 			},
 		}

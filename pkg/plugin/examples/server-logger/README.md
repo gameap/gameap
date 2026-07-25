@@ -7,6 +7,7 @@ This plugin logs server lifecycle events and provides statistics via HTTP API an
 - Subscribes to all server lifecycle events (start, stop, restart, install, update, reinstall, delete)
 - Provides HTTP API endpoints for status and statistics
 - Includes a Vue.js frontend with dashboard widget and server tab
+- Registers a periodic `stats-report` scheduled task (every 5 minutes, retry policy with jitter) via the gameap-scheduler module (`scheduled.go`)
 
 ## Building
 

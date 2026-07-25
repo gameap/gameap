@@ -21,6 +21,7 @@ const NodesTable = "dedicated_servers"
 const ClientCertificatesTable = "client_certificates"
 const PluginStorageTable = "plugin_storage"
 const PluginsTable = "plugins"
+const PluginScheduledTasksTable = "plugin_scheduled_tasks"
 const DLQTable = "pubsub_dlq"
 
 var (
@@ -40,4 +41,5 @@ var (
 	NodeFields                = allFields(domain.Node{})
 	ClientCertificateFields   = allFields(domain.ClientCertificate{})
 	PluginStorageFields       = allFields(domain.PluginStorageEntry{})
+	PluginScheduledTaskFields = allFields(domain.PluginScheduledTask{})
 )

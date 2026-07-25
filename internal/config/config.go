@@ -343,6 +343,35 @@ type Config struct {
 			// by a reachable origin.
 			ResponseHeaderAllowlist []string `env:"PLUGIN_HTTP_RESPONSE_HEADER_ALLOWLIST" envSeparator:"," envDefault:""`
 		}
+
+		// Scheduler gates plugin-registered periodic tasks (the
+		// gameap-scheduler host library). Task definitions are stored in
+		// the database; instances deduplicate runs via distributed locks.
+		Scheduler struct {
+			// MinInterval is the floor for task intervals.
+			MinInterval time.Duration `env:"PLUGIN_SCHEDULER_MIN_INTERVAL" envDefault:"1s"`
+
+			// MaxTasksPerPlugin caps registrations per plugin.
+			MaxTasksPerPlugin int `env:"PLUGIN_SCHEDULER_MAX_TASKS_PER_PLUGIN" envDefault:"32"`
+
+			// CallTimeout bounds one handler call when the task does not
+			// set its own timeout; matches the async event budget.
+			CallTimeout time.Duration `env:"PLUGIN_SCHEDULER_CALL_TIMEOUT" envDefault:"60s"`
+
+			// MaxCallTimeout is the ceiling for per-task timeout overrides.
+			MaxCallTimeout time.Duration `env:"PLUGIN_SCHEDULER_MAX_CALL_TIMEOUT" envDefault:"5m"`
+
+			// MaxRetries, MaxRetryDelay and MaxJitter cap the per-task
+			// retry policy a plugin may request.
+			MaxRetries    int           `env:"PLUGIN_SCHEDULER_MAX_RETRIES" envDefault:"10"`
+			MaxRetryDelay time.Duration `env:"PLUGIN_SCHEDULER_MAX_RETRY_DELAY" envDefault:"10m"`
+			MaxJitter     time.Duration `env:"PLUGIN_SCHEDULER_MAX_JITTER" envDefault:"30s"`
+
+			// RefreshInterval is how often task definitions are re-read
+			// from the database to pick up registrations made by other
+			// panel instances.
+			RefreshInterval time.Duration `env:"PLUGIN_SCHEDULER_REFRESH_INTERVAL" envDefault:"30s"`
+		}
 	}
 
 	PubSub struct {

@@ -361,6 +361,26 @@ type PluginRepository interface {
 	Exists(ctx context.Context, filter *filters.FindPlugin) (bool, error)
 }
 
+type PluginScheduledTaskRepository interface {
+	// Upsert inserts the task or, when a row with the same (plugin_id, name)
+	// exists, replaces its definition. created_at is preserved on update;
+	// updated_at is always refreshed. The surrogate row ID is written back
+	// to task.ID.
+	Upsert(ctx context.Context, task *domain.PluginScheduledTask) error
+
+	Delete(ctx context.Context, pluginID domain.Uint64ID, name string) error
+
+	// DeleteByPlugin removes every scheduled task registered by the plugin
+	// and returns the number of deleted rows. Called on plugin uninstall.
+	DeleteByPlugin(ctx context.Context, pluginID domain.Uint64ID) (int, error)
+
+	// FindAll returns every task definition ordered by (plugin_id, name).
+	// Used by the scheduler to hydrate and refresh its in-memory registry.
+	FindAll(ctx context.Context) ([]domain.PluginScheduledTask, error)
+
+	FindByPlugin(ctx context.Context, pluginID domain.Uint64ID) ([]domain.PluginScheduledTask, error)
+}
+
 type DLQRepository interface {
 	Push(ctx context.Context, msg *dlq.FailedMessage) error
 	Pop(ctx context.Context) (*dlq.FailedMessage, error)

@@ -18,6 +18,7 @@ import (
 	"github.com/gameap/gameap/internal/files"
 	grpchandlers "github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
+	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/pubsub"
@@ -32,6 +33,7 @@ import (
 	"github.com/gameap/gameap/internal/services/gameexporter"
 	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
+	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
@@ -148,7 +150,17 @@ func (c *InmemoryContainer) PluginDispatcher() *plugin.Dispatcher         { retu
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
 	return inmemory.NewPluginRepository()
 }
-func (c *InmemoryContainer) PluginLoader() *internalplugin.Loader             { return nil }
+func (c *InmemoryContainer) PluginLoader() *internalplugin.Loader { return nil }
+func (c *InmemoryContainer) PluginScheduler() *pluginscheduler.Service {
+	return pluginscheduler.New(
+		inmemory.NewPluginScheduledTaskRepository(),
+		nil,
+		nil,
+		locker.NewInMemoryLocker(),
+		pluginscheduler.Options{},
+		nil,
+	)
+}
 func (c *InmemoryContainer) PluginStoreService() *pluginstore.Service         { return nil }
 func (c *InmemoryContainer) PluginsDir() string                               { return "plugins" }
 func (c *InmemoryContainer) PelicanEggImporter() *pelicaneggimporter.Importer { return nil }
