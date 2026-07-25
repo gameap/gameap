@@ -90,6 +90,20 @@ func TestInMemoryLocker_Refresh(t *testing.T) {
 	require.NoError(t, lock.Release(ctx))
 }
 
+func TestInMemoryLocker_RefreshLostAfterExpiry(t *testing.T) {
+	l := locker.NewInMemoryLocker()
+	ctx := context.Background()
+
+	lock, err := l.Acquire(ctx, "expired", 50*time.Millisecond)
+	require.NoError(t, err)
+
+	time.Sleep(80 * time.Millisecond)
+
+	err = lock.Refresh(ctx, 1*time.Second)
+	assert.True(t, errors.Is(err, locker.ErrLockLost),
+		"an expired lock must not be resurrected by refresh")
+}
+
 func TestInMemoryLocker_RefreshAfterRelease(t *testing.T) {
 	l := locker.NewInMemoryLocker()
 	ctx := context.Background()

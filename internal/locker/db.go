@@ -3,7 +3,9 @@ package locker
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gameap/gameap/internal/repositories/base"
@@ -60,12 +62,18 @@ CREATE INDEX IF NOT EXISTS idx_kv_store_expires ON kv_store (expires_at) WHERE e
 `
 )
 
+// dbLockCleanupInterval throttles the opportunistic sweep of expired lock rows.
+const dbLockCleanupInterval = time.Minute
+
 // DBLocker implements distributed locking on top of the shared kv_store
 // table. It works on any SQL backend and needs no extra infrastructure,
 // which makes it the multi-instance fallback when Redis is not configured.
 type DBLocker struct {
 	db      base.DB
 	dialect DBDialect
+	// lastCleanupNano throttles cleanupExpired: slot-style keys are unique
+	// per occurrence, so without reclamation the table grows unboundedly.
+	lastCleanupNano atomic.Int64
 }
 
 func NewDBLocker(db base.DB, dialect DBDialect) *DBLocker {
@@ -124,6 +132,8 @@ func (l *DBLocker) Acquire(ctx context.Context, key string, ttl time.Duration) (
 	fullKey := dbLockKeyPrefix + key
 	now := time.Now()
 
+	l.maybeCleanupExpired(ctx, now)
+
 	acquired, err := l.tryAcquire(ctx, fullKey, token, now, now.Add(ttl))
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to acquire db lock")
@@ -134,6 +144,40 @@ func (l *DBLocker) Acquire(ctx context.Context, key string, ttl time.Duration) (
 	}
 
 	return &dbLock{owner: l, key: fullKey, token: token}, nil
+}
+
+// maybeCleanupExpired reclaims expired lock rows at most once per interval.
+// Best-effort: cache backends sweep the shared table only when the cache
+// itself runs on the database, so the locker cannot rely on them.
+func (l *DBLocker) maybeCleanupExpired(ctx context.Context, now time.Time) {
+	last := l.lastCleanupNano.Load()
+	if now.UnixNano()-last < dbLockCleanupInterval.Nanoseconds() {
+		return
+	}
+
+	if !l.lastCleanupNano.CompareAndSwap(last, now.UnixNano()) {
+		return
+	}
+
+	if err := l.cleanupExpired(ctx, now); err != nil {
+		slog.Warn("failed to clean up expired db locks", slog.String("error", err.Error()))
+	}
+}
+
+func (l *DBLocker) cleanupExpired(ctx context.Context, now time.Time) error {
+	query := "DELETE FROM kv_store WHERE key LIKE ? AND expires_at IS NOT NULL AND expires_at < ?"
+
+	switch l.dialect {
+	case DBDialectMySQL:
+		query = "DELETE FROM kv_store WHERE `key` LIKE ? AND `expires_at` IS NOT NULL AND `expires_at` < ?"
+	case DBDialectPostgres:
+		query = "DELETE FROM kv_store WHERE key LIKE $1 AND expires_at IS NOT NULL AND expires_at < $2"
+	case DBDialectSQLite:
+	}
+
+	_, err := l.db.ExecContext(ctx, query, dbLockKeyPrefix+"%", l.timeArg(now))
+
+	return err
 }
 
 func (l *DBLocker) tryAcquire(
@@ -222,18 +266,24 @@ func (l *DBLocker) release(ctx context.Context, fullKey, token string) error {
 	return err
 }
 
+// refresh extends only a still-live lock: an expired one is treated as lost
+// even when nobody has stolen it yet, matching the Redis backend where the
+// key is physically gone after the TTL.
 func (l *DBLocker) refresh(ctx context.Context, fullKey, token string, expiresAt time.Time) (bool, error) {
-	query := "UPDATE kv_store SET expires_at = ? WHERE key = ? AND value = ?"
+	query := "UPDATE kv_store SET expires_at = ? WHERE key = ? AND value = ?" +
+		" AND expires_at IS NOT NULL AND expires_at > ?"
 
 	switch l.dialect {
 	case DBDialectMySQL:
-		query = "UPDATE kv_store SET `expires_at` = ? WHERE `key` = ? AND `value` = ?"
+		query = "UPDATE kv_store SET `expires_at` = ? WHERE `key` = ? AND `value` = ?" +
+			" AND `expires_at` IS NOT NULL AND `expires_at` > ?"
 	case DBDialectPostgres:
-		query = "UPDATE kv_store SET expires_at = $1 WHERE key = $2 AND value = $3"
+		query = "UPDATE kv_store SET expires_at = $1 WHERE key = $2 AND value = $3" +
+			" AND expires_at IS NOT NULL AND expires_at > $4"
 	case DBDialectSQLite:
 	}
 
-	res, err := l.db.ExecContext(ctx, query, l.timeArg(expiresAt), fullKey, []byte(token))
+	res, err := l.db.ExecContext(ctx, query, l.timeArg(expiresAt), fullKey, []byte(token), l.timeArg(time.Now()))
 	if err != nil {
 		return false, err
 	}

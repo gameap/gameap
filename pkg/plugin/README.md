@@ -229,7 +229,7 @@ Registering and removing tasks:
 ```go
 schedulerSvc := scheduler.NewSchedulerService()
 
-resp, _ := schedulerSvc.AddTask(ctx, &scheduler.AddTaskRequest{
+resp, err := schedulerSvc.AddTask(ctx, &scheduler.AddTaskRequest{
     Name:       "stats-report",
     IntervalMs: 300_000, // every 5 minutes
     ErrorPolicy: &scheduler.ErrorPolicy{
@@ -240,6 +240,9 @@ resp, _ := schedulerSvc.AddTask(ctx, &scheduler.AddTaskRequest{
     },
     TimeoutMs: 5_000, // per-run handler budget; 0 = panel default
 })
+if err != nil {
+    return err // the host call itself failed
+}
 if !resp.Success {
     // *resp.Error explains the rejection (bad interval, limits, ...)
 }

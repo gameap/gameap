@@ -36,6 +36,14 @@ func (l *InMemoryLocker) Acquire(_ context.Context, key string, ttl time.Duratio
 
 	now := time.Now()
 
+	// Slot-style keys are unique per occurrence and are never re-acquired,
+	// so expired entries must be reclaimed or the map grows unboundedly.
+	for k, entry := range l.locks {
+		if !entry.expiresAt.After(now) {
+			delete(l.locks, k)
+		}
+	}
+
 	if entry, ok := l.locks[key]; ok && entry.expiresAt.After(now) {
 		return nil, ErrLocked
 	}
@@ -100,12 +108,16 @@ func (l *memLock) Refresh(_ context.Context, ttl time.Duration) error {
 	l.owner.mu.Lock()
 	defer l.owner.mu.Unlock()
 
+	now := time.Now()
+
+	// An expired lock is lost even when nobody has stolen it yet, matching
+	// the Redis backend where the key is physically gone after the TTL.
 	entry, ok := l.owner.locks[l.key]
-	if !ok || entry.token != l.token {
+	if !ok || entry.token != l.token || !entry.expiresAt.After(now) {
 		return ErrLockLost
 	}
 
-	entry.expiresAt = time.Now().Add(ttl)
+	entry.expiresAt = now.Add(ttl)
 
 	return nil
 }

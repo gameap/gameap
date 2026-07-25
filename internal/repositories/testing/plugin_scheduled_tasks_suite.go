@@ -87,6 +87,9 @@ func (s *PluginScheduledTaskRepositorySuite) TestPluginScheduledTaskRepositoryUp
 
 		require.NoError(t, s.repo.Upsert(ctx, updated))
 		assert.Equal(t, first.ID, updated.ID)
+		require.NotNil(t, updated.CreatedAt)
+		assert.WithinDuration(t, firstCreatedAt, *updated.CreatedAt, 2*time.Second,
+			"upsert must write the persisted created_at back to the task")
 
 		found, err := s.repo.FindByPlugin(ctx, 2)
 		require.NoError(t, err)

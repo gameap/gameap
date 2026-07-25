@@ -39,9 +39,12 @@ func (r *PluginScheduledTaskRepository) Upsert(ctx context.Context, task *domain
 			max_retries = EXCLUDED.max_retries, retry_delay_ms = EXCLUDED.retry_delay_ms,
 			max_jitter_ms = EXCLUDED.max_jitter_ms, timeout_ms = EXCLUDED.timeout_ms,
 			updated_at = EXCLUDED.updated_at
-		RETURNING id`
+		RETURNING id, created_at`
 
+	// created_at is read back because the conflict path keeps the row's
+	// original value, not the local timestamp bound above.
 	var returnedID uint64
+	var storedCreatedAt *time.Time
 	err := r.db.QueryRowContext(ctx, query,
 		task.PluginID,
 		task.Name,
@@ -53,12 +56,16 @@ func (r *PluginScheduledTaskRepository) Upsert(ctx context.Context, task *domain
 		task.Timeout.Milliseconds(),
 		task.CreatedAt,
 		task.UpdatedAt,
-	).Scan(&returnedID)
+	).Scan(&returnedID, &storedCreatedAt)
 	if err != nil {
 		return errors.WithMessage(err, "failed to execute upsert query")
 	}
 
 	task.ID = returnedID
+
+	if storedCreatedAt != nil {
+		task.CreatedAt = storedCreatedAt
+	}
 
 	return nil
 }

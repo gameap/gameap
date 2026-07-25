@@ -56,16 +56,23 @@ func (r *PluginScheduledTaskRepository) Upsert(ctx context.Context, task *domain
 	}
 
 	// LastInsertId is unreliable on the duplicate-key update path, so the row
-	// ID is always fetched by its natural key.
-	selectQuery := `SELECT id FROM ` + base.PluginScheduledTasksTable +
+	// ID is always fetched by its natural key; created_at is read back too,
+	// because the update path keeps the row's original value.
+	selectQuery := `SELECT id, created_at FROM ` + base.PluginScheduledTasksTable +
 		` WHERE plugin_id = ? AND name = ?`
 
 	var returnedID uint64
-	err = r.db.QueryRowContext(ctx, selectQuery, task.PluginID, task.Name).Scan(&returnedID)
+	var storedCreatedAt *time.Time
+	err = r.db.QueryRowContext(ctx, selectQuery, task.PluginID, task.Name).
+		Scan(&returnedID, &storedCreatedAt)
 	if err != nil {
 		return errors.WithMessage(err, "failed to get task ID after upsert")
 	}
 	task.ID = returnedID
+
+	if storedCreatedAt != nil {
+		task.CreatedAt = storedCreatedAt
+	}
 
 	return nil
 }

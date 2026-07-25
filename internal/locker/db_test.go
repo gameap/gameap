@@ -149,6 +149,20 @@ func TestDBLocker_ReleaseKeepsForeignLock(t *testing.T) {
 	require.NoError(t, second.Release(ctx))
 }
 
+func TestDBLocker_RefreshLostAfterExpiry(t *testing.T) {
+	l := setupDBLocker(t)
+	ctx := context.Background()
+
+	lock, err := l.Acquire(ctx, "expired-refresh", 50*time.Millisecond)
+	require.NoError(t, err)
+
+	time.Sleep(80 * time.Millisecond)
+
+	err = lock.Refresh(ctx, 1*time.Second)
+	assert.True(t, errors.Is(err, locker.ErrLockLost),
+		"an expired lock must not be resurrected by refresh")
+}
+
 func TestDBLocker_RefreshAfterRelease(t *testing.T) {
 	l := setupDBLocker(t)
 	ctx := context.Background()

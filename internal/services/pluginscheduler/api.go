@@ -19,31 +19,32 @@ func (s *Service) AddTask(ctx context.Context, task domain.PluginScheduledTask) 
 		return err
 	}
 
+	// The cap check, persistence and arming stay under one lock so concurrent
+	// registrations cannot both pass the per-plugin limit. Holding s.mu across
+	// the DB write is deadlock-free (nothing here touches the plugin manager)
+	// and only briefly delays the scheduler loop.
 	s.mu.Lock()
-	if _, exists := s.tasks[taskKey{pluginID: task.PluginID, name: task.Name}]; !exists {
+	defer s.mu.Unlock()
+
+	key := taskKey{pluginID: task.PluginID, name: task.Name}
+
+	if _, exists := s.tasks[key]; !exists {
 		count := 0
-		for key := range s.tasks {
-			if key.pluginID == task.PluginID {
+		for k := range s.tasks {
+			if k.pluginID == task.PluginID {
 				count++
 			}
 		}
 
 		if count >= s.opts.MaxTasksPerPlugin {
-			s.mu.Unlock()
-
 			return errors.Wrapf(ErrTaskLimitReached, "at most %d tasks per plugin", s.opts.MaxTasksPerPlugin)
 		}
 	}
-	s.mu.Unlock()
 
 	if err := s.repo.Upsert(ctx, &task); err != nil {
 		return errors.WithMessage(err, "failed to persist scheduled task")
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	key := taskKey{pluginID: task.PluginID, name: task.Name}
 	if st, ok := s.tasks[key]; ok {
 		st.task = task
 		st.nextAt = nextSlot(s.clock.Now(), task.Interval)

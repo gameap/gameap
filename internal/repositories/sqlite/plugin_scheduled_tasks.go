@@ -59,15 +59,27 @@ func (r *PluginScheduledTaskRepository) Upsert(ctx context.Context, task *domain
 		return errors.WithMessage(err, "failed to execute upsert query")
 	}
 
-	selectQuery := `SELECT id FROM ` + base.PluginScheduledTasksTable +
+	selectQuery := `SELECT id, created_at FROM ` + base.PluginScheduledTasksTable +
 		` WHERE plugin_id = ? AND name = ?`
 
+	// The duplicate-key path keeps the row's original created_at, so the
+	// persisted value is read back instead of trusting the local timestamp.
 	var returnedID uint64
-	err = r.db.QueryRowContext(ctx, selectQuery, task.PluginID, task.Name).Scan(&returnedID)
+	var storedCreatedAtStr *string
+	err = r.db.QueryRowContext(ctx, selectQuery, task.PluginID, task.Name).
+		Scan(&returnedID, &storedCreatedAtStr)
 	if err != nil {
 		return errors.WithMessage(err, "failed to get task ID after upsert")
 	}
 	task.ID = returnedID
+
+	if storedCreatedAtStr != nil && *storedCreatedAtStr != "" {
+		storedCreatedAt, err := base.ParseTime(*storedCreatedAtStr)
+		if err != nil {
+			return errors.WithMessage(err, "failed to parse created_at time")
+		}
+		task.CreatedAt = &storedCreatedAt
+	}
 
 	return nil
 }
