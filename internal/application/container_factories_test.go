@@ -112,6 +112,7 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"CertificatesService", func(c *Container) any { return c.CertificatesService() }},
 		{"EnrollmentService", func(c *Container) any { return c.EnrollmentService() }},
 		{"GlobalAPIService", func(c *Container) any { return c.GlobalAPIService() }},
+		{"CDNGamesService", func(c *Container) any { return c.CDNGamesService() }},
 		{"CaptchaVerifier", func(c *Container) any { return c.CaptchaVerifier() }},
 		{"GameUpgradeService", func(c *Container) any { return c.GameUpgradeService() }},
 		{"PelicanEggImporter", func(c *Container) any { return c.PelicanEggImporter() }},

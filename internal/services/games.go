@@ -13,35 +13,35 @@ type transactionManager interface {
 	Do(ctx context.Context, fn func(ctx context.Context) error) (err error)
 }
 
-type globalAPIService interface {
+type gamesProvider interface {
 	Games(ctx context.Context) ([]domain.GlobalAPIGame, error)
 }
 
 type GameUpgradeService struct {
-	globalAPIService globalAPIService
-	gameRepo         repositories.GameRepository
-	gameModRepo      repositories.GameModRepository
-	tm               transactionManager
+	gamesProvider gamesProvider
+	gameRepo      repositories.GameRepository
+	gameModRepo   repositories.GameModRepository
+	tm            transactionManager
 }
 
 func NewGameUpgradeService(
-	globalAPIService globalAPIService,
+	gamesProvider gamesProvider,
 	gameRepo repositories.GameRepository,
 	gameModRepo repositories.GameModRepository,
 	tm transactionManager,
 ) *GameUpgradeService {
 	return &GameUpgradeService{
-		globalAPIService: globalAPIService,
-		gameRepo:         gameRepo,
-		gameModRepo:      gameModRepo,
-		tm:               tm,
+		gamesProvider: gamesProvider,
+		gameRepo:      gameRepo,
+		gameModRepo:   gameModRepo,
+		tm:            tm,
 	}
 }
 
 func (s *GameUpgradeService) UpgradeGames(ctx context.Context) error {
-	apiGames, err := s.globalAPIService.Games(ctx)
+	apiGames, err := s.gamesProvider.Games(ctx)
 	if err != nil {
-		return errors.WithMessage(err, "failed to fetch games from global api")
+		return errors.WithMessage(err, "failed to fetch games")
 	}
 
 	err = s.tm.Do(ctx, func(ctx context.Context) error {
