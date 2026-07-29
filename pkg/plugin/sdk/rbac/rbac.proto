@@ -1,0 +1,179 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.rbac;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/rbac";
+
+import "pkg/proto/entity.proto";
+
+// RBACService provides role and permission management to plugins.
+//
+// Requires the "manage_rbac" plugin permission: the plugin must declare it in
+// PluginInfo.required_permissions and an operator must have granted it at
+// install time. Without the grant every method here answers with
+// success = false and an explanatory error — the module stays importable so a
+// plugin can degrade gracefully instead of failing to load.
+//
+// Permission checks belong in the gameap-authz module, which is open to all
+// plugins.
+//
+// Every method reports failures through the response `error` field and never
+// returns an error to the host: a host-side error traps the guest call.
+//
+// go:plugin type=host module=gameap-rbac
+service RBACService {
+  // --- Service level: goes through the panel's RBAC service, which keeps
+  // its permission cache coherent and applies the panel's own semantics.
+
+  // SetUserRoles replaces the user's role set. Every name must already exist.
+  rpc SetUserRoles(SetUserRolesRequest) returns (Result);
+
+  // AllowUserAbilitiesForEntity grants the user the listed abilities scoped
+  // to one entity.
+  rpc AllowUserAbilitiesForEntity(UserAbilitiesRequest) returns (Result);
+
+  // RevokeOrForbidUserAbilitiesForEntity removes the user's direct grants
+  // and, when the abilities are still reachable through a role, records an
+  // explicit denial.
+  rpc RevokeOrForbidUserAbilitiesForEntity(UserAbilitiesRequest) returns (Result);
+
+  // --- Repository level: raw access to roles, abilities and permission rows
+  // for any entity type. This is what a plugin building its own role model
+  // needs; the panel's permission cache is invalidated after every mutation.
+
+  rpc GetRoles(GetRolesRequest) returns (GetRolesResponse);
+
+  // SaveRole creates a role when id is 0, updates it otherwise. The stored
+  // role, including its assigned id, comes back in the response.
+  rpc SaveRole(SaveRoleRequest) returns (SaveRoleResponse);
+
+  // DeleteRole removes the role along with its assignments and its own
+  // permissions. Deleting a role that does not exist is not an error.
+  rpc DeleteRole(DeleteRoleRequest) returns (Result);
+
+  // GetPermissions returns the permission rows attached directly to the
+  // entity — for a role, the abilities that role grants.
+  rpc GetPermissions(EntityRequest) returns (GetPermissionsResponse);
+
+  rpc GetRolesForEntity(EntityRequest) returns (GetRolesForEntityResponse);
+
+  // AssignRolesForEntity adds role assignments; it does not replace existing
+  // ones. Pair it with ClearRolesForEntity to replace.
+  rpc AssignRolesForEntity(AssignRolesRequest) returns (Result);
+
+  rpc ClearRolesForEntity(EntityRequest) returns (Result);
+
+  rpc Allow(AbilitiesRequest) returns (Result);
+  rpc Forbid(AbilitiesRequest) returns (Result);
+  rpc Revoke(AbilitiesRequest) returns (Result);
+}
+
+// ===============================
+// Models
+// ===============================
+
+message Role {
+  uint64 id = 1;
+  string name = 2;
+  optional string title = 3;
+  optional uint64 level = 4;
+  optional int32 scope = 5;
+}
+
+// RestrictedRole is a role assignment that only applies within the bounds of
+// another entity — a role restricted to one server, or to servers in general.
+message RestrictedRole {
+  Role role = 1;
+  optional gameap.EntityType restricted_to_type = 2;
+  optional uint64 restricted_to_id = 3;
+}
+
+// Ability is a named capability, optionally narrowed to an entity type or to
+// a single entity. Leaving both unset makes it global.
+message Ability {
+  string name = 1;
+  optional string title = 2;
+  optional gameap.EntityType entity_type = 3;
+  optional uint64 entity_id = 4;
+  bool only_owned = 5;
+  optional int32 scope = 6;
+}
+
+// Permission binds an ability to an entity, either as a grant or a denial.
+message Permission {
+  uint64 id = 1;
+  uint64 ability_id = 2;
+  optional gameap.EntityType entity_type = 3;
+  optional uint64 entity_id = 4;
+  bool forbidden = 5;
+  optional Ability ability = 6;
+}
+
+message Result {
+  bool success = 1;
+  optional string error = 2;
+}
+
+// ===============================
+// Requests / responses
+// ===============================
+
+message SetUserRolesRequest {
+  uint64 user_id = 1;
+  repeated string role_names = 2;
+}
+
+message UserAbilitiesRequest {
+  uint64 user_id = 1;
+  gameap.EntityType entity_type = 2;
+  uint64 entity_id = 3;
+  repeated string abilities = 4;
+}
+
+message GetRolesRequest {}
+
+message GetRolesResponse {
+  repeated Role roles = 1;
+  optional string error = 2;
+}
+
+message SaveRoleRequest {
+  Role role = 1;
+}
+
+message SaveRoleResponse {
+  bool success = 1;
+  optional string error = 2;
+  optional Role role = 3;
+}
+
+message DeleteRoleRequest {
+  uint64 id = 1;
+}
+
+message EntityRequest {
+  gameap.EntityType entity_type = 1;
+  uint64 entity_id = 2;
+}
+
+message GetPermissionsResponse {
+  repeated Permission permissions = 1;
+  optional string error = 2;
+}
+
+message GetRolesForEntityResponse {
+  repeated RestrictedRole roles = 1;
+  optional string error = 2;
+}
+
+message AssignRolesRequest {
+  gameap.EntityType entity_type = 1;
+  uint64 entity_id = 2;
+  repeated RestrictedRole roles = 3;
+}
+
+message AbilitiesRequest {
+  gameap.EntityType entity_type = 1;
+  uint64 entity_id = 2;
+  repeated Ability abilities = 3;
+}

@@ -65,6 +65,19 @@ func (r *RBACRepository) SaveRole(ctx context.Context, role *domain.Role) error 
 	return nil
 }
 
+// DeleteRole removes a role and invalidates cache.
+func (r *RBACRepository) DeleteRole(ctx context.Context, id uint) error {
+	err := r.inner.DeleteRole(ctx, id)
+	if err != nil {
+		return errors.WithMessage(err, "failed to delete role")
+	}
+
+	r.invalidateRoleCache(ctx)
+	r.invalidateEntityCache(ctx, id, domain.EntityTypeRole)
+
+	return nil
+}
+
 // GetPermissions retrieves permissions for an entity - very frequently called.
 func (r *RBACRepository) GetPermissions(
 	ctx context.Context, entityID uint, entityType domain.EntityType,

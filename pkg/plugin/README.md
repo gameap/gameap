@@ -193,6 +193,130 @@ if verifyResp.Match {
 }
 ```
 
+### gameap-authz
+
+Read-only permission checks. Available to every plugin — answering "may this
+user do X" never changes state. Use it before acting on behalf of a user in
+your own HTTP routes.
+
+```go
+az := authz.NewAuthzService()
+
+// Global check: does the user hold ALL of these abilities?
+resp, _ := az.Can(ctx, &authz.CanRequest{
+    UserId:    userID,
+    Abilities: []string{"admin roles & permissions"},
+})
+if resp.Error != nil {
+    // The check could not be performed — do NOT read Allowed as a denial.
+    return
+}
+if resp.Allowed {
+    // ...
+}
+
+// At least one of them
+az.CanOneOf(ctx, &authz.CanRequest{UserId: userID, Abilities: []string{"view", "edit"}})
+
+// Scoped to one entity, e.g. a single game server
+entityResp, _ := az.CanForEntity(ctx, &authz.CanForEntityRequest{
+    UserId:     userID,
+    EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+    EntityId:   serverID,
+    Abilities:  []string{"game-server-restart"},
+})
+
+// CanAnyForEntity works the same way but passes with a single ability.
+
+rolesResp, _ := az.GetUserRoles(ctx, &authz.GetUserRolesRequest{UserId: userID})
+// rolesResp.Roles -> ["admin"]
+```
+
+Abilities are plain strings: the panel's built-ins (`game-server-start`,
+`view`, `edit`, …) as well as abilities contributed by plugins, which are
+namespaced as `plugin:<plugin-id>:<name>`.
+
+### gameap-rbac
+
+Role and permission management: define your own roles with an individual set
+of abilities instead of living with the panel's stock `admin` / `user`.
+
+**Requires the `manage_rbac` permission.** Declare it in `GetInfo`:
+
+```go
+return &proto.PluginInfo{
+    // ...
+    RequiredPermissions: []string{"manage_rbac"},
+}, nil
+```
+
+Without the grant the module stays importable, but every call answers with
+`success = false` and an error naming the missing permission — check it and
+degrade gracefully rather than assuming access.
+
+```go
+rb := rbac.NewRBACService()
+
+// Create a role
+saved, _ := rb.SaveRole(ctx, &rbac.SaveRoleRequest{
+    Role: &rbac.Role{Name: "server-operator", Title: proto.String("Server Operator")},
+})
+if !saved.Success {
+    // saved.Error explains why — missing permission, storage failure, ...
+    return
+}
+roleID := saved.Role.Id
+
+// Give the role an ability, scoped to one server
+rb.Allow(ctx, &rbac.AbilitiesRequest{
+    EntityType: proto.EntityType_ENTITY_TYPE_ROLE,
+    EntityId:   roleID,
+    Abilities: []*rbac.Ability{{
+        Name:       "game-server-restart",
+        EntityType: entityTypeServer,   // *proto.EntityType
+        EntityId:   proto.Uint64(serverID),
+    }},
+})
+
+// Hand the role to a user
+rb.AssignRolesForEntity(ctx, &rbac.AssignRolesRequest{
+    EntityType: proto.EntityType_ENTITY_TYPE_USER,
+    EntityId:   userID,
+    Roles:      []*rbac.RestrictedRole{{Role: saved.Role}},
+})
+
+// Inspect what a role grants
+perms, _ := rb.GetPermissions(ctx, &rbac.EntityRequest{
+    EntityType: proto.EntityType_ENTITY_TYPE_ROLE,
+    EntityId:   roleID,
+})
+
+// Replace a user's roles by name (every name must already exist)
+rb.SetUserRoles(ctx, &rbac.SetUserRolesRequest{
+    UserId:    userID,
+    RoleNames: []string{"server-operator"},
+})
+
+// Grant or take away abilities from one user directly
+rb.AllowUserAbilitiesForEntity(ctx, &rbac.UserAbilitiesRequest{
+    UserId:     userID,
+    EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+    EntityId:   serverID,
+    Abilities:  []string{"game-server-console-view"},
+})
+
+rb.DeleteRole(ctx, &rbac.DeleteRoleRequest{Id: roleID})
+```
+
+Notes:
+
+- `AssignRolesForEntity` adds assignments; pair it with `ClearRolesForEntity`
+  to replace them.
+- `RevokeOrForbidUserAbilitiesForEntity` removes a user's direct grants and,
+  when a role still grants the ability, records an explicit denial.
+- Every mutation drops the panel's permission cache, so a following
+  `gameap-authz` check sees the change immediately.
+
 ### gameap-servercontrol
 
 Provides server control capabilities.
@@ -606,8 +730,30 @@ Guidelines:
 - Plugins run in a WebAssembly sandbox
 - No direct filesystem access
 - No direct network access (use gameap-http for external calls)
-- Repository operations respect RBAC permissions
 - Plugin configuration can restrict capabilities
+
+### Plugin permissions
+
+Privileged host modules are gated on the plugin's own grants, kept in the
+`allowed_permissions` column of its database record:
+
+| Permission | Gates |
+|---|---|
+| `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
+
+A plugin declares what it needs in `PluginInfo.RequiredPermissions`. The
+admin-only dry-run endpoint (`POST /api/admin/plugins/upload/dry-run`) reports
+that list before anything is installed, and confirming the install records the
+grant. Unknown permission names are dropped rather than stored.
+
+Grants are re-read from the database on every call, so revoking one takes
+effect without restarting the panel. Updating a plugin does not widen its
+grants: a plugin that starts requiring `manage_rbac` after an update is denied
+(with a warning in the log naming the missing permission) until it is
+reinstalled.
+
+Modules not listed above — including `gameap-authz`, which only reads — are
+available to every plugin.
 
 ## Configuration
 
@@ -666,6 +812,8 @@ pkg/plugin/
 │   ├── nodecmd/              # gameap-nodecmd module (command execution)
 │   ├── cache/                # gameap-cache module
 │   ├── crypto/               # gameap-crypto module (cryptography)
+│   ├── authz/                # gameap-authz module (permission checks)
+│   ├── rbac/                 # gameap-rbac module (roles & permissions)
 │   ├── http/                 # gameap-http module
 │   └── log/                  # gameap-log module
 ├── examples/
