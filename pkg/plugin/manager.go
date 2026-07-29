@@ -3,14 +3,16 @@ package plugin
 import (
 	"context"
 	"io"
+	"io/fs"
 	"log/slog"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/gameap/gameap/pkg/mergefs"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk/protocol"
 	"github.com/pkg/errors"
@@ -59,6 +61,12 @@ type LoadedPlugin struct {
 	Protocol       protocol.ProtocolService
 	RconProtocols  []*protocol.RconProtocol
 	QueryProtocols []*protocol.QueryProtocol
+
+	// I18nFS and FrontendFS hold the plugin's contributed translation and
+	// frontend static files (nil when the plugin ships none). They are layered
+	// over the built-in filesystems by the application container.
+	I18nFS     fs.FS
+	FrontendFS fs.FS
 
 	// disabled is atomic because it is flipped on Unload and on guest call
 	// timeouts while dispatchers concurrently read it without the manager lock.
@@ -418,6 +426,8 @@ func (m *Manager) initializePlugin(
 
 	protocolSvc, rconProtocols, queryProtocols := m.fetchProtocols(ctx, plugin, info.Id)
 
+	i18nFS, frontendFS := m.buildPluginAssets(ctx, plugin, info.Id)
+
 	return &LoadedPlugin{
 		Info:            info,
 		Instance:        plugin,
@@ -430,6 +440,8 @@ func (m *Manager) initializePlugin(
 		Protocol:        protocolSvc,
 		RconProtocols:   rconProtocols,
 		QueryProtocols:  queryProtocols,
+		I18nFS:          i18nFS,
+		FrontendFS:      frontendFS,
 		runtime:         r,
 	}, nil
 }
@@ -468,6 +480,107 @@ func (m *Manager) fetchProtocols(
 	}
 
 	return protocolSvc, rconProtocols, queryProtocols
+}
+
+// Asset delivery limits bound how much a single plugin can push across the WASM
+// boundary as translation/frontend files, so a misbehaving plugin cannot
+// exhaust host memory.
+const (
+	maxAssetFileSize  = 8 << 20  // 8 MiB per file
+	maxAssetTotalSize = 64 << 20 // 64 MiB per file group
+)
+
+// buildPluginAssets fetches the plugin's contributed translation and frontend
+// files and turns each group into an in-memory fs.FS. A plugin without the
+// GetAssets export, or with no valid files, contributes nil for that group.
+func (m *Manager) buildPluginAssets(
+	ctx context.Context,
+	plugin proto.PluginService,
+	pluginID string,
+) (i18nFS, frontendFS fs.FS) {
+	resp, err := plugin.GetAssets(ctx, &proto.GetAssetsRequest{})
+	if err != nil {
+		slog.Debug("plugin has no assets",
+			slog.String("plugin_id", pluginID),
+			slog.String("error", err.Error()),
+		)
+
+		return nil, nil
+	}
+	if resp == nil {
+		return nil, nil
+	}
+
+	return buildAssetFS(pluginID, "i18n", resp.I18NFiles),
+		buildAssetFS(pluginID, "frontend", resp.FrontendFiles)
+}
+
+// buildAssetFS validates and collects plugin-provided files into an fs.FS.
+// Invalid paths, oversized files, and empty content are skipped and logged; the
+// group is capped at maxAssetTotalSize. Returns nil when nothing usable remains.
+func buildAssetFS(pluginID, group string, assets []*proto.AssetFile) fs.FS {
+	if len(assets) == 0 {
+		return nil
+	}
+
+	files := make(map[string][]byte, len(assets))
+	var total int
+
+	for _, asset := range assets {
+		if asset == nil || len(asset.Content) == 0 {
+			continue
+		}
+
+		if !fs.ValidPath(asset.Path) || asset.Path == "." {
+			slog.Warn("skipping plugin asset with invalid path",
+				slog.String("plugin_id", pluginID),
+				slog.String("group", group),
+				slog.String("path", asset.Path),
+			)
+
+			continue
+		}
+
+		if len(asset.Content) > maxAssetFileSize {
+			slog.Warn("skipping oversized plugin asset",
+				slog.String("plugin_id", pluginID),
+				slog.String("group", group),
+				slog.String("path", asset.Path),
+				slog.Int("size", len(asset.Content)),
+			)
+
+			continue
+		}
+
+		if total+len(asset.Content) > maxAssetTotalSize {
+			slog.Warn("plugin asset group exceeds size limit, ignoring remaining files",
+				slog.String("plugin_id", pluginID),
+				slog.String("group", group),
+			)
+
+			break
+		}
+
+		total += len(asset.Content)
+		files[asset.Path] = asset.Content
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	assetFS, err := mergefs.FromFiles(files)
+	if err != nil {
+		slog.Warn("failed to build plugin asset filesystem",
+			slog.String("plugin_id", pluginID),
+			slog.String("group", group),
+			slog.String("error", err.Error()),
+		)
+
+		return nil
+	}
+
+	return assetFS
 }
 
 func (m *Manager) verifyAPIVersion(ctx context.Context, r wazero.Runtime, module api.Module) error {
@@ -538,6 +651,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 	// Optional exports (not all plugins implement these)
 	getFrontendBundle := module.ExportedFunction("plugin_service_get_frontend_bundle")
 	getServerAbilities := module.ExportedFunction("plugin_service_get_server_abilities")
+	getAssets := module.ExportedFunction("plugin_service_get_assets")
 	getRconProtocols := module.ExportedFunction("protocol_service_get_rcon_protocols")
 	getQueryProtocols := module.ExportedFunction("protocol_service_get_query_protocols")
 	rconOpen := module.ExportedFunction("protocol_service_rcon_open")
@@ -560,6 +674,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 		handlehttprequest:   funcs["plugin_service_handle_http_request"],
 		getfrontendbundle:   getFrontendBundle,
 		getserverabilities:  getServerAbilities,
+		getassets:           getAssets,
 		getrconprotocols:    getRconProtocols,
 		getqueryprotocols:   getQueryProtocols,
 		rconopen:            rconOpen,
@@ -614,14 +729,25 @@ func (m *Manager) GetPlugin(pluginID string) (*LoadedPlugin, bool) {
 	return plugin, exists
 }
 
-// GetPlugins returns all loaded plugins.
+// GetPlugins returns all loaded plugins, ordered by plugin ID. The order is
+// stable because callers derive order-sensitive output from it: the container
+// layers plugin filesystems (so two plugins shipping the same path shadow each
+// other deterministically) and the frontend handlers concatenate styles and
+// bundles.
 func (m *Manager) GetPlugins() []*LoadedPlugin {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	plugins := make([]*LoadedPlugin, 0, len(m.plugins))
-	for _, p := range m.plugins {
-		plugins = append(plugins, p)
+	ids := make([]string, 0, len(m.plugins))
+	for id := range m.plugins {
+		ids = append(ids, id)
+	}
+
+	slices.Sort(ids)
+
+	plugins := make([]*LoadedPlugin, 0, len(ids))
+	for _, id := range ids {
+		plugins = append(plugins, m.plugins[id])
 	}
 
 	return plugins
@@ -750,7 +876,9 @@ func (m *Manager) GetAllRconProtocols() []RconProtocolRegistration {
 		}
 	}
 
-	sortRegistrationsByPluginID(regs)
+	slices.SortFunc(regs, func(a, b RconProtocolRegistration) int {
+		return strings.Compare(a.PluginID, b.PluginID)
+	})
 
 	return regs
 }
@@ -772,17 +900,11 @@ func (m *Manager) GetAllQueryProtocols() []QueryProtocolRegistration {
 		}
 	}
 
-	sort.Slice(regs, func(i, j int) bool {
-		return regs[i].PluginID < regs[j].PluginID
+	slices.SortFunc(regs, func(a, b QueryProtocolRegistration) int {
+		return strings.Compare(a.PluginID, b.PluginID)
 	})
 
 	return regs
-}
-
-func sortRegistrationsByPluginID(regs []RconProtocolRegistration) {
-	sort.Slice(regs, func(i, j int) bool {
-		return regs[i].PluginID < regs[j].PluginID
-	})
 }
 
 // fetchAndValidateHTTPRoutes fetches HTTP routes from a plugin and validates them.

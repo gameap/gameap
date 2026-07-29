@@ -135,6 +135,53 @@ func TestBuildPluginRecord(t *testing.T) {
 	}
 }
 
+func TestBuildPluginRecord_permissions(t *testing.T) {
+	tests := []struct {
+		name     string
+		declared []string
+		want     []domain.PluginPermission
+	}{
+		{
+			name:     "no_permissions_declared",
+			declared: nil,
+			want:     nil,
+		},
+		{
+			name:     "known_permissions_are_carried_over",
+			declared: []string{"manage_rbac", "listen_events"},
+			want: []domain.PluginPermission{
+				domain.PluginPermissionManageRBAC,
+				domain.PluginPermissionListenEvents,
+			},
+		},
+		{
+			name:     "unknown_permissions_are_dropped",
+			declared: []string{"manage_rbac", "become_root"},
+			want:     []domain.PluginPermission{domain.PluginPermissionManageRBAC},
+		},
+		{
+			name:     "only_unknown_permissions_grants_nothing",
+			declared: []string{"become_root"},
+			want:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			record := plugininstall.BuildPluginRecord(1, &pkgplugin.LoadedPlugin{
+				Info: &proto.PluginInfo{
+					Name:                "Test Plugin",
+					RequiredPermissions: tt.declared,
+				},
+			}, "1.wasm", "file://1.wasm")
+
+			assert.Equal(t, tt.want, record.RequiredPermissions)
+			assert.Equal(t, tt.want, record.AllowedPermissions,
+				"confirming the install is the grant")
+		})
+	}
+}
+
 type fakeLoaderManager struct {
 	loadErr     error
 	loadedID    string

@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockGlobalAPIService struct {
+type mockGamesProvider struct {
 	games []domain.GlobalAPIGame
 	err   error
 }
 
-func (m *mockGlobalAPIService) Games(_ context.Context) ([]domain.GlobalAPIGame, error) {
+func (m *mockGamesProvider) Games(_ context.Context) ([]domain.GlobalAPIGame, error) {
 	return m.games, m.err
 }
 
@@ -238,7 +238,7 @@ func TestGameUpgradeService_UpgradeGames(t *testing.T) {
 			apiErr:       errors.New("connection refused"),
 			setupGameMod: func(_ *inmemory.GameModRepository) {},
 			wantErr:      true,
-			errContains:  "failed to fetch games from global api",
+			errContains:  "failed to fetch games",
 		},
 		{
 			name:         "empty_api_response",
@@ -291,7 +291,7 @@ func TestGameUpgradeService_UpgradeGames(t *testing.T) {
 
 			tt.setupGameMod(gameModRepo)
 
-			mockAPI := &mockGlobalAPIService{
+			mockAPI := &mockGamesProvider{
 				games: tt.apiGames,
 				err:   tt.apiErr,
 			}

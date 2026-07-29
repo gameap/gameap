@@ -735,6 +735,34 @@ func (r *RBACRepository) SaveRole(ctx context.Context, role *domain.Role) error 
 	return nil
 }
 
+// DeleteRole removes the role, its assignments and the permissions granted
+// to it. Assignments are cleared explicitly rather than relying on the
+// assigned_roles foreign key so the outcome does not depend on the storage
+// engine actually enforcing it.
+func (r *RBACRepository) DeleteRole(ctx context.Context, id uint) error {
+	return r.tm.Do(ctx, func(ctx context.Context) error {
+		deletes := []sq.DeleteBuilder{
+			sq.Delete(base.PermissionsTable).
+				Where(sq.Eq{"entity_id": id, "entity_type": domain.EntityTypeRole}),
+			sq.Delete(base.AssignedRolesTable).Where(sq.Eq{"role_id": id}),
+			sq.Delete(base.RolesTable).Where(sq.Eq{"id": id}),
+		}
+
+		for _, builder := range deletes {
+			query, args, err := builder.ToSql()
+			if err != nil {
+				return errors.Wrap(err, "failed to build delete query")
+			}
+
+			if _, err = r.db.ExecContext(ctx, query, args...); err != nil {
+				return errors.Wrap(err, "failed to delete role")
+			}
+		}
+
+		return nil
+	})
+}
+
 func (r *RBACRepository) ClearRolesForEntity(
 	ctx context.Context,
 	entityID uint,

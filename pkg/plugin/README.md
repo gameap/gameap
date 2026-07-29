@@ -40,6 +40,7 @@ Plugins can:
 - **Log messages** (debug, info, warn, error)
 - **Register custom HTTP endpoints** (extend the API)
 - **Extend RCON/Query protocols** (add new games, override built-ins, implement new wire protocols)
+- **Contribute translation & frontend files** (layered over the built-in filesystems, via `GetAssets`)
 
 ## Event Types
 
@@ -192,6 +193,130 @@ if verifyResp.Match {
     // Password is correct
 }
 ```
+
+### gameap-authz
+
+Read-only permission checks. Available to every plugin — answering "may this
+user do X" never changes state. Use it before acting on behalf of a user in
+your own HTTP routes.
+
+```go
+az := authz.NewAuthzService()
+
+// Global check: does the user hold ALL of these abilities?
+resp, _ := az.Can(ctx, &authz.CanRequest{
+    UserId:    userID,
+    Abilities: []string{"admin roles & permissions"},
+})
+if resp.Error != nil {
+    // The check could not be performed — do NOT read Allowed as a denial.
+    return
+}
+if resp.Allowed {
+    // ...
+}
+
+// At least one of them
+az.CanOneOf(ctx, &authz.CanRequest{UserId: userID, Abilities: []string{"view", "edit"}})
+
+// Scoped to one entity, e.g. a single game server
+entityResp, _ := az.CanForEntity(ctx, &authz.CanForEntityRequest{
+    UserId:     userID,
+    EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+    EntityId:   serverID,
+    Abilities:  []string{"game-server-restart"},
+})
+
+// CanAnyForEntity works the same way but passes with a single ability.
+
+rolesResp, _ := az.GetUserRoles(ctx, &authz.GetUserRolesRequest{UserId: userID})
+// rolesResp.Roles -> ["admin"]
+```
+
+Abilities are plain strings: the panel's built-ins (`game-server-start`,
+`view`, `edit`, …) as well as abilities contributed by plugins, which are
+namespaced as `plugin:<plugin-id>:<name>`.
+
+### gameap-rbac
+
+Role and permission management: define your own roles with an individual set
+of abilities instead of living with the panel's stock `admin` / `user`.
+
+**Requires the `manage_rbac` permission.** Declare it in `GetInfo`:
+
+```go
+return &proto.PluginInfo{
+    // ...
+    RequiredPermissions: []string{"manage_rbac"},
+}, nil
+```
+
+Without the grant the module stays importable, but every call answers with
+`success = false` and an error naming the missing permission — check it and
+degrade gracefully rather than assuming access.
+
+```go
+rb := rbac.NewRBACService()
+
+// Create a role
+saved, _ := rb.SaveRole(ctx, &rbac.SaveRoleRequest{
+    Role: &rbac.Role{Name: "server-operator", Title: proto.String("Server Operator")},
+})
+if !saved.Success {
+    // saved.Error explains why — missing permission, storage failure, ...
+    return
+}
+roleID := saved.Role.Id
+
+// Give the role an ability, scoped to one server
+rb.Allow(ctx, &rbac.AbilitiesRequest{
+    EntityType: proto.EntityType_ENTITY_TYPE_ROLE,
+    EntityId:   roleID,
+    Abilities: []*rbac.Ability{{
+        Name:       "game-server-restart",
+        EntityType: entityTypeServer,   // *proto.EntityType
+        EntityId:   proto.Uint64(serverID),
+    }},
+})
+
+// Hand the role to a user
+rb.AssignRolesForEntity(ctx, &rbac.AssignRolesRequest{
+    EntityType: proto.EntityType_ENTITY_TYPE_USER,
+    EntityId:   userID,
+    Roles:      []*rbac.RestrictedRole{{Role: saved.Role}},
+})
+
+// Inspect what a role grants
+perms, _ := rb.GetPermissions(ctx, &rbac.EntityRequest{
+    EntityType: proto.EntityType_ENTITY_TYPE_ROLE,
+    EntityId:   roleID,
+})
+
+// Replace a user's roles by name (every name must already exist)
+rb.SetUserRoles(ctx, &rbac.SetUserRolesRequest{
+    UserId:    userID,
+    RoleNames: []string{"server-operator"},
+})
+
+// Grant or take away abilities from one user directly
+rb.AllowUserAbilitiesForEntity(ctx, &rbac.UserAbilitiesRequest{
+    UserId:     userID,
+    EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+    EntityId:   serverID,
+    Abilities:  []string{"game-server-console-view"},
+})
+
+rb.DeleteRole(ctx, &rbac.DeleteRoleRequest{Id: roleID})
+```
+
+Notes:
+
+- `AssignRolesForEntity` adds assignments; pair it with `ClearRolesForEntity`
+  to replace them.
+- `RevokeOrForbidUserAbilitiesForEntity` removes a user's direct grants and,
+  when a role still grants the ability, records an explicit denial.
+- Every mutation drops the panel's permission cache, so a following
+  `gameap-authz` check sees the change immediately.
 
 ### gameap-servercontrol
 
@@ -559,6 +684,48 @@ func (p MyPlugin) HandleEvent(ctx context.Context, event *proto.Event) (*proto.E
 }
 ```
 
+### Contributing translation & frontend files
+
+Implement `GetAssets` to ship translation files (served at `/lang/`) and frontend static
+files (served under the SPA root). Each group is layered **over** the built-in filesystem,
+so a plugin file shadows a core file of the same path and a new file is simply added — the
+first match in the first layer wins. Files are resolved per request, so a plugin installed
+at runtime contributes immediately.
+
+```go
+//go:embed assets/i18n/es.json
+var i18nES []byte
+
+//go:embed assets/frontend/plugins/my-plugin/meta.json
+var frontendMeta []byte
+
+func (p *MyPlugin) GetAssets(
+    _ context.Context,
+    _ *proto.GetAssetsRequest,
+) (*proto.GetAssetsResponse, error) {
+    return &proto.GetAssetsResponse{
+        I18NFiles: []*proto.AssetFile{
+            {Path: "es.json", Content: i18nES}, // -> /lang/es.json
+        },
+        FrontendFiles: []*proto.AssetFile{
+            {Path: "plugins/my-plugin/meta.json", Content: frontendMeta}, // -> /plugins/my-plugin/meta.json
+        },
+    }, nil
+}
+```
+
+Guidelines:
+
+- **Paths** must be valid, unrooted (no leading `/`), and free of `..`. Invalid paths are skipped.
+- **Additive by convention.** Namespace frontend files (e.g. under `plugins/<id>/`). Do **not**
+  ship `index.html`: the Content-Security-Policy is hashed from the built-in `index.html`, so an
+  overriding `index.html` would have its inline scripts blocked.
+- **Whole-file shadowing.** A plugin `en.json` replaces the core `en.json` entirely (it is not a
+  key-level JSON merge). Prefer adding new locale files (`es.json`, `de.json`, …) with a top-level
+  `_language` label (`{"name": "English name", "native_name": "own name"}`) so the locale appears in the
+  UI language switcher (served by `GET /lang`).
+- **Limits.** Each file is capped at 8 MiB and each group at 64 MiB; oversized files are skipped.
+
 ## RCON / Query Protocol Extension
 
 Plugins can add support for new games, override the built-in game→protocol
@@ -652,8 +819,30 @@ cloud-metadata IPs are always blocked). See
 - No direct filesystem access
 - No direct network access — use gameap-http for external calls, or gameap-net
   for protocol I/O on host-opened connections (plugins never dial)
-- Repository operations respect RBAC permissions
 - Plugin configuration can restrict capabilities
+
+### Plugin permissions
+
+Privileged host modules are gated on the plugin's own grants, kept in the
+`allowed_permissions` column of its database record:
+
+| Permission | Gates |
+|---|---|
+| `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
+
+A plugin declares what it needs in `PluginInfo.RequiredPermissions`. The
+admin-only dry-run endpoint (`POST /api/admin/plugins/upload/dry-run`) reports
+that list before anything is installed, and confirming the install records the
+grant. Unknown permission names are dropped rather than stored.
+
+Grants are re-read from the database on every call, so revoking one takes
+effect without restarting the panel. Updating a plugin does not widen its
+grants: a plugin that starts requiring `manage_rbac` after an update is denied
+(with a warning in the log naming the missing permission) until it is
+reinstalled.
+
+Modules not listed above — including `gameap-authz`, which only reads — are
+available to every plugin.
 
 ## Configuration
 
@@ -712,6 +901,8 @@ pkg/plugin/
 │   ├── nodecmd/              # gameap-nodecmd module (command execution)
 │   ├── cache/                # gameap-cache module
 │   ├── crypto/               # gameap-crypto module (cryptography)
+│   ├── authz/                # gameap-authz module (permission checks)
+│   ├── rbac/                 # gameap-rbac module (roles & permissions)
 │   ├── http/                 # gameap-http module
 │   ├── net/                  # gameap-net module (host-managed socket I/O)
 │   ├── protocol/             # ProtocolService (optional RCON/Query extension)

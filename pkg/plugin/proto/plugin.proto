@@ -127,6 +127,11 @@ service PluginService {
 
   // GetServerAbilities returns the server permissions this plugin provides
   rpc GetServerAbilities(GetServerAbilitiesRequest) returns (GetServerAbilitiesResponse);
+
+  // GetAssets returns static files the plugin contributes: translation files
+  // served under /lang/ and frontend static files served under the SPA root.
+  // The files layer over the built-in filesystems (plugin files win).
+  rpc GetAssets(GetAssetsRequest) returns (GetAssetsResponse);
 }
 
 // Plugin metadata
@@ -240,4 +245,20 @@ message GetServerAbilitiesRequest {}
 
 message GetServerAbilitiesResponse {
   repeated ServerAbility abilities = 1;
+}
+
+// Static assets (translations + frontend files) a plugin contributes.
+message AssetFile {
+  // Slash-separated, unrooted path (e.g. "es.json", "assets/plugin/app.js").
+  string path = 1;
+  bytes content = 2;
+}
+
+message GetAssetsRequest {}
+
+message GetAssetsResponse {
+  // Translation files, merged over the built-in i18n FS and served at /lang/.
+  repeated AssetFile i18n_files = 1;
+  // Frontend static files, merged over the built-in SPA FS and served at /.
+  repeated AssetFile frontend_files = 2;
 }

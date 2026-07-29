@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
@@ -819,6 +820,33 @@ func TestRBAC_SetRolesToUser(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Role assignments change what a user may do, so the cached permission set
+// has to go with them. Every other test here runs with the cache disabled
+// (TTL 0), which would hide a missing invalidation.
+func TestRBAC_SetRolesToUser_invalidates_the_cached_permissions(t *testing.T) {
+	ctx := context.Background()
+
+	repo := inmemory.NewRBACRepository()
+	rbacService := NewRBAC(services.NewNilTransactionManager(), repo, time.Hour)
+	t.Cleanup(rbacService.Close)
+
+	role := &domain.Role{Name: "viewer"}
+	require.NoError(t, repo.SaveRole(ctx, role))
+	require.NoError(t, repo.Allow(ctx, role.ID, domain.EntityTypeRole, []domain.Ability{
+		{Name: domain.AbilityNameView},
+	}))
+
+	can, err := rbacService.Can(ctx, noPermUser.ID, []domain.AbilityName{domain.AbilityNameView})
+	require.NoError(t, err)
+	require.False(t, can)
+
+	require.NoError(t, rbacService.SetRolesToUser(ctx, noPermUser.ID, []string{"viewer"}))
+
+	can, err = rbacService.Can(ctx, noPermUser.ID, []domain.AbilityName{domain.AbilityNameView})
+	require.NoError(t, err)
+	assert.True(t, can, "the new role must apply at once, not after the cache TTL")
 }
 
 func TestRBAC_AllowUserAbilitiesForEntity(t *testing.T) {

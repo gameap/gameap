@@ -413,6 +413,9 @@ const isAdmin = computed(() => {
 const pluginTabs = computed(() => {
   const allTabs = pluginsStore.getSlotComponents('server-tabs')
   return allTabs.filter(tab => {
+    if (!matchesTabGame(tab.checkGame)) {
+      return false
+    }
     if (!tab.checkPermission) return true
     if (tab.checkPermission.type === 'hasServerPermissions') {
       return tab.checkPermission.permissions.every(
@@ -422,6 +425,20 @@ const pluginTabs = computed(() => {
     return true
   })
 })
+
+function matchesTabGame(checkGame) {
+  if (!checkGame) return true
+  const game = server.value?.game
+  if (!game) return false
+  const engines = checkGame.engines ?? []
+  const codes = checkGame.codes ?? []
+  if (engines.length === 0 && codes.length === 0) return true
+  const engineMatches = engines.some(
+      engine => String(engine).toLowerCase() === String(game.engine ?? '').toLowerCase()
+  )
+  const codeMatches = codes.includes(game.code)
+  return engineMatches || codeMatches
+}
 
 function hashToTabName(hash) {
   if (!hash || hash === '#' || hash === '#control') {

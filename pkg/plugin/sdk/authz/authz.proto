@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.authz;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/authz";
+
+import "pkg/proto/entity.proto";
+
+// AuthzService provides read-only permission checks to plugins.
+// Available to every plugin: answering "may this user do X" never changes
+// state. Managing roles and permissions lives in the gameap-rbac module,
+// which requires the "manage_rbac" plugin permission.
+//
+// Every method reports failures through the response `error` field and never
+// returns an error to the host: a host-side error traps the guest call.
+//
+// go:plugin type=host module=gameap-authz
+service AuthzService {
+  // Can reports whether the user holds ALL of the listed abilities globally.
+  rpc Can(CanRequest) returns (CanResponse);
+
+  // CanOneOf reports whether the user holds AT LEAST ONE of the listed
+  // abilities globally.
+  rpc CanOneOf(CanRequest) returns (CanResponse);
+
+  // CanForEntity reports whether the user holds ALL of the listed abilities
+  // for the given entity.
+  rpc CanForEntity(CanForEntityRequest) returns (CanResponse);
+
+  // CanAnyForEntity reports whether the user holds AT LEAST ONE of the listed
+  // abilities for the given entity.
+  rpc CanAnyForEntity(CanForEntityRequest) returns (CanResponse);
+
+  // GetUserRoles returns the names of the roles assigned to the user.
+  rpc GetUserRoles(GetUserRolesRequest) returns (GetUserRolesResponse);
+}
+
+message CanRequest {
+  uint64 user_id = 1;
+  // Ability names, e.g. "game-server-start" or "plugin:<id>:<name>".
+  repeated string abilities = 2;
+}
+
+message CanForEntityRequest {
+  uint64 user_id = 1;
+  gameap.EntityType entity_type = 2;
+  uint64 entity_id = 3;
+  repeated string abilities = 4;
+}
+
+message CanResponse {
+  bool allowed = 1;
+  // Set when the check could not be performed; allowed is false in that case
+  // and must not be read as a denial decision.
+  optional string error = 2;
+}
+
+message GetUserRolesRequest {
+  uint64 user_id = 1;
+}
+
+message GetUserRolesResponse {
+  repeated string roles = 1;
+  optional string error = 2;
+}

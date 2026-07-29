@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"time"
 
 	"github.com/gameap/gameap/internal/acme"
@@ -20,6 +21,7 @@ import (
 	"github.com/gameap/gameap/internal/files"
 	grpchandlers "github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
+	"github.com/gameap/gameap/internal/i18n"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/pubsub"
@@ -49,6 +51,7 @@ import (
 	"github.com/gameap/gameap/pkg/secret"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gameap/gameap/pkg/twofactor"
+	webstatic "github.com/gameap/gameap/web/static"
 	"github.com/samber/lo"
 )
 
@@ -157,6 +160,18 @@ func (c *InmemoryContainer) QuerconResolver() *quercon.Resolver {
 	})
 }
 func (c *InmemoryContainer) PluginDispatcher() *plugin.Dispatcher { return nil }
+
+func (c *InmemoryContainer) I18nFS() fs.FS { return i18n.GetFS() }
+
+func (c *InmemoryContainer) FrontendFS() fs.FS {
+	fsys, err := webstatic.GetFS()
+	if err != nil {
+		panic("testcontainer: failed to get static files: " + err.Error())
+	}
+
+	return fsys
+}
+
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
 	return inmemory.NewPluginRepository()
 }

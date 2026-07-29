@@ -286,6 +286,57 @@ func TestEntityTypeFromProto(t *testing.T) {
 	}
 }
 
+func TestOptionalEntityTypeToProto(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *domain.EntityType
+		expected *proto.EntityType
+	}{
+		{
+			name:     "nil_input",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty_type_returns_nil",
+			input:    lo.ToPtr(domain.EntityTypeEmpty),
+			expected: nil,
+		},
+		{
+			name:     "unknown_type_returns_nil",
+			input:    lo.ToPtr(domain.EntityType("unknown_type")),
+			expected: nil,
+		},
+		{
+			name:     "user_type",
+			input:    lo.ToPtr(domain.EntityTypeUser),
+			expected: lo.ToPtr(proto.EntityType_ENTITY_TYPE_USER),
+		},
+		{
+			name:     "server_type",
+			input:    lo.ToPtr(domain.EntityTypeServer),
+			expected: lo.ToPtr(proto.EntityType_ENTITY_TYPE_SERVER),
+		},
+		{
+			name:     "role_type",
+			input:    lo.ToPtr(domain.EntityTypeRole),
+			expected: lo.ToPtr(proto.EntityType_ENTITY_TYPE_ROLE),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := optionalEntityTypeToProto(tt.input)
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, *tt.expected, *result)
+			}
+		})
+	}
+}
+
 func TestEntityTypeToProtoPtr(t *testing.T) {
 	tests := []struct {
 		name     string
