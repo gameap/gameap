@@ -224,15 +224,19 @@ func (r *RBAC) GetRoles(ctx context.Context, userID uint) ([]string, error) {
 }
 
 func (r *RBAC) SetRolesToUser(ctx context.Context, userID uint, roleNames []string) error {
-	return r.tm.Do(ctx, func(ctx context.Context) error {
-		if err := r.setRolesToUser(ctx, userID, roleNames); err != nil {
-			return err
-		}
-
-		r.InvalidateUserCache(userID)
-
-		return nil
+	err := r.tm.Do(ctx, func(ctx context.Context) error {
+		return r.setRolesToUser(ctx, userID, roleNames)
 	})
+	if err != nil {
+		return err
+	}
+
+	// After the commit: dropping the entry while the transaction is still open
+	// lets a concurrent check repopulate it from the pre-commit state and keep
+	// answering with the old roles until the TTL expires.
+	r.InvalidateUserCache(userID)
+
+	return nil
 }
 
 func (r *RBAC) setRolesToUser(ctx context.Context, userID uint, roleNames []string) error {

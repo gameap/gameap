@@ -143,8 +143,11 @@ func optionalEntityTypeFromProto(et *proto.EntityType) *domain.EntityType {
 	return &domainET
 }
 
+// optionalEntityTypeToProto mirrors optionalEntityTypeFromProto: an empty or
+// unknown entity type is reported as absent, not as an explicit UNSPECIFIED
+// value that a plugin would read as "scoped to something I don't know".
 func optionalEntityTypeToProto(et *domain.EntityType) *proto.EntityType {
-	if et == nil {
+	if et == nil || *et == domain.EntityTypeEmpty {
 		return nil
 	}
 

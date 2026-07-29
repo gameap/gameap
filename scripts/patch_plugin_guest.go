@@ -78,11 +78,26 @@ func patch(path string) error {
 		return fmt.Errorf("not a protoc-gen-go-plugin file")
 	}
 
+	count := strings.Count(src, unpatched)
+
+	// Nothing to replace is only fine when the file already carries the fix.
+	// Otherwise the generator changed its output and this patch no longer
+	// matches it — writing the file anyway would advertise a fix that is not
+	// there and let the leak back in unnoticed.
+	if count == 0 {
+		if !strings.Contains(src, patched) {
+			return fmt.Errorf("no response buffer unmarshal matched: generator output changed, update the patch")
+		}
+
+		fmt.Printf("patch_plugin_guest: %s: already patched\n", path)
+
+		return nil
+	}
+
 	if !strings.Contains(src, patchNote) {
 		src = strings.Replace(src, header, header+patchNote, 1)
 	}
 
-	count := strings.Count(src, unpatched)
 	src = strings.ReplaceAll(src, unpatched, patched)
 
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
