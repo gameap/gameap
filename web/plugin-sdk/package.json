@@ -1,6 +1,6 @@
 {
   "name": "@gameap/plugin-sdk",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "SDK for developing GameAP frontend plugins",
   "type": "module",
   "main": "./dist/index.js",
