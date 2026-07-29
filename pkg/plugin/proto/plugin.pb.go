@@ -969,6 +969,74 @@ func (x *GetServerAbilitiesResponse) GetAbilities() []*ServerAbility {
 	return nil
 }
 
+// Static assets (translations + frontend files) a plugin contributes.
+type AssetFile struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Slash-separated, unrooted path (e.g. "es.json", "assets/plugin/app.js").
+	Path    string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Content []byte `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+}
+
+func (x *AssetFile) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *AssetFile) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *AssetFile) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+type GetAssetsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *GetAssetsRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+type GetAssetsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Translation files, merged over the built-in i18n FS and served at /lang/.
+	I18NFiles []*AssetFile `protobuf:"bytes,1,rep,name=i18n_files,json=i18nFiles,proto3" json:"i18n_files,omitempty"`
+	// Frontend static files, merged over the built-in SPA FS and served at /.
+	FrontendFiles []*AssetFile `protobuf:"bytes,2,rep,name=frontend_files,json=frontendFiles,proto3" json:"frontend_files,omitempty"`
+}
+
+func (x *GetAssetsResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *GetAssetsResponse) GetI18NFiles() []*AssetFile {
+	if x != nil {
+		return x.I18NFiles
+	}
+	return nil
+}
+
+func (x *GetAssetsResponse) GetFrontendFiles() []*AssetFile {
+	if x != nil {
+		return x.FrontendFiles
+	}
+	return nil
+}
+
 // PluginService is the interface that plugins must implement
 // go:plugin type=plugin version=1
 type PluginService interface {
@@ -990,4 +1058,8 @@ type PluginService interface {
 	GetFrontendBundle(context.Context, *GetFrontendBundleRequest) (*GetFrontendBundleResponse, error)
 	// GetServerAbilities returns the server permissions this plugin provides
 	GetServerAbilities(context.Context, *GetServerAbilitiesRequest) (*GetServerAbilitiesResponse, error)
+	// GetAssets returns static files the plugin contributes: translation files
+	// served under /lang/ and frontend static files served under the SPA root.
+	// The files layer over the built-in filesystems (plugin files win).
+	GetAssets(context.Context, *GetAssetsRequest) (*GetAssetsResponse, error)
 }

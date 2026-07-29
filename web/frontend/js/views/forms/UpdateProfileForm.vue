@@ -78,7 +78,7 @@
 <script setup>
 import {ref, defineModel} from "vue"
 import { GIcon, GDivider } from "@gameap/ui"
-import {trans} from "@/i18n/i18n";
+import {trans, getAvailableLanguages} from "@/i18n/i18n";
 import GButton from "@/components/GButton.vue";
 import {
   NForm,
@@ -104,16 +104,12 @@ const form = defineModel({
   passwordConfirmation: '',
 })
 
-const languageOptions = [
-  {
-    label: 'English',
-    value: 'en',
-  },
-  {
-    label: 'Русский',
-    value: 'ru',
-  },
-]
+const languageOptions = getAvailableLanguages().map((language) => ({
+  label: language.native_name && language.native_name !== language.name
+      ? `${language.native_name} (${language.name})`
+      : (language.native_name || language.name || language.code),
+  value: language.code,
+}))
 
 const rules = {
   name: {

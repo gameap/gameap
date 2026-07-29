@@ -166,6 +166,8 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"HTTPSServer", func(c *Container) any { return c.HTTPSServer() }},
 		{"Router", func(c *Container) any { return c.Router() }},
 		{"SecurityHeadersMiddleware", func(c *Container) any { return c.SecurityHeadersMiddleware() }},
+		{"I18nFS", func(c *Container) any { return c.I18nFS() }},
+		{"FrontendFS", func(c *Container) any { return c.FrontendFS() }},
 	}
 
 	for _, a := range accessors {

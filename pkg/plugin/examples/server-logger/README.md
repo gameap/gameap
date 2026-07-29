@@ -7,6 +7,8 @@ This plugin logs server lifecycle events and provides statistics via HTTP API an
 - Subscribes to all server lifecycle events (start, stop, restart, install, update, reinstall, delete)
 - Provides HTTP API endpoints for status and statistics
 - Includes a Vue.js frontend with dashboard widget and server tab
+- Contributes static assets via `GetAssets` (see `assets/`): a Spanish translation served at
+  `/lang/es.json` and a namespaced frontend file served at `/plugins/server-logger/meta.json`
 
 ## Building
 

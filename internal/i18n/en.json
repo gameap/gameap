@@ -1,4 +1,8 @@
 {
+  "_language": {
+    "name": "English",
+    "native_name": "English"
+  },
   "two_factor": {
     "title": "Two-Factor Authentication",
     "description": "Add an extra layer of security to your account using an authenticator app.",
