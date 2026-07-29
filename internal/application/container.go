@@ -689,9 +689,10 @@ func (c *Container) FrontendFS() fs.FS {
 }
 
 // pluginAssetLayers returns the ordered layers for a merged filesystem: each
-// enabled plugin's contributed filesystem (in load order, above the base),
-// followed by base. Plugins are consulted only when the manager already exists,
-// so a disabled plugin subsystem leaves just the base layer.
+// enabled plugin's contributed filesystem (ordered by plugin ID, above the
+// base), followed by base. Two plugins shipping the same path therefore shadow
+// each other deterministically. Plugins are consulted only when the manager
+// already exists, so a disabled plugin subsystem leaves just the base layer.
 func (c *Container) pluginAssetLayers(pick func(*pkgplugin.LoadedPlugin) fs.FS, base fs.FS) []fs.FS {
 	var layers []fs.FS
 

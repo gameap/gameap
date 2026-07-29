@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -664,14 +665,25 @@ func (m *Manager) GetPlugin(pluginID string) (*LoadedPlugin, bool) {
 	return plugin, exists
 }
 
-// GetPlugins returns all loaded plugins.
+// GetPlugins returns all loaded plugins, ordered by plugin ID. The order is
+// stable because callers derive order-sensitive output from it: the container
+// layers plugin filesystems (so two plugins shipping the same path shadow each
+// other deterministically) and the frontend handlers concatenate styles and
+// bundles.
 func (m *Manager) GetPlugins() []*LoadedPlugin {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	plugins := make([]*LoadedPlugin, 0, len(m.plugins))
-	for _, p := range m.plugins {
-		plugins = append(plugins, p)
+	ids := make([]string, 0, len(m.plugins))
+	for id := range m.plugins {
+		ids = append(ids, id)
+	}
+
+	slices.Sort(ids)
+
+	plugins := make([]*LoadedPlugin, 0, len(ids))
+	for _, id := range ids {
+		plugins = append(plugins, m.plugins[id])
 	}
 
 	return plugins
