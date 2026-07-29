@@ -608,3 +608,168 @@ func (s *PluginStorageRepositorySuite) TestPluginStorageRepositoryIntegration() 
 		require.Len(t, resultsAll, 3)
 	})
 }
+
+func (s *PluginStorageRepositorySuite) TestPluginStorageRepositoryDeleteByFilter() {
+	ctx := context.Background()
+
+	s.T().Run("delete_by_plugin_ids", func(t *testing.T) {
+		// ARRANGE
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: 900, Key: "a", Payload: []byte(`{}`)}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: 900, Key: "b", Payload: []byte(`{}`)}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: 901, Key: "a", Payload: []byte(`{}`)}))
+
+		// ACT
+		err := s.repo.DeleteByFilter(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{900}})
+
+		// ASSERT
+		require.NoError(t, err)
+
+		deleted, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{900}}, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, deleted, "entries of plugin 900 must be deleted")
+
+		survived, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{901}}, nil, nil)
+		require.NoError(t, err)
+		assert.Len(t, survived, 1, "entries of other plugins must survive")
+	})
+
+	s.T().Run("delete_by_plugin_and_keys", func(t *testing.T) {
+		// ARRANGE
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: 902, Key: "remove", Payload: []byte(`{}`)}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: 902, Key: "keep", Payload: []byte(`{}`)}))
+
+		// ACT
+		err := s.repo.DeleteByFilter(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{902}, Keys: []string{"remove"}})
+
+		// ASSERT
+		require.NoError(t, err)
+
+		remaining, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{902}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, remaining, 1, "only the non-matching key must survive")
+		assert.Equal(t, "keep", remaining[0].Key)
+	})
+
+	s.T().Run("delete_by_entity_pairs", func(t *testing.T) {
+		// ARRANGE
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{
+			PluginID: 903, Key: "stats", EntityType: new("server"), EntityID: new(uint(1)), Payload: []byte(`{}`),
+		}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{
+			PluginID: 903, Key: "stats", EntityType: new("server"), EntityID: new(uint(2)), Payload: []byte(`{}`),
+		}))
+
+		// ACT
+		err := s.repo.DeleteByFilter(ctx, &filters.FindPluginStorage{
+			EntityPairs: []domain.PluginStorageEntityPair{
+				{EntityType: new("server"), EntityID: new(uint(1))},
+			},
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+
+		remaining, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{903}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, remaining, 1, "only the targeted entity pair must be deleted")
+		require.NotNil(t, remaining[0].EntityID)
+		assert.Equal(t, uint(2), *remaining[0].EntityID)
+	})
+
+	s.T().Run("delete_by_ids", func(t *testing.T) {
+		// ARRANGE
+		entry := &domain.PluginStorageEntry{PluginID: 904, Key: "target", Payload: []byte(`{}`)}
+		require.NoError(t, s.repo.Save(ctx, entry))
+		other := &domain.PluginStorageEntry{PluginID: 904, Key: "other", Payload: []byte(`{}`)}
+		require.NoError(t, s.repo.Save(ctx, other))
+
+		// ACT
+		err := s.repo.DeleteByFilter(ctx, &filters.FindPluginStorage{IDs: []uint64{entry.ID}})
+
+		// ASSERT
+		require.NoError(t, err)
+
+		remaining, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{904}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, remaining, 1)
+		assert.Equal(t, other.ID, remaining[0].ID)
+	})
+
+	s.T().Run("delete_with_no_matches_keeps_everything", func(t *testing.T) {
+		// ARRANGE
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: 905, Key: "keep", Payload: []byte(`{}`)}))
+
+		// ACT
+		err := s.repo.DeleteByFilter(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{999999}})
+
+		// ASSERT
+		require.NoError(t, err)
+
+		remaining, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{905}}, nil, nil)
+		require.NoError(t, err)
+		assert.Len(t, remaining, 1, "a no-match DeleteByFilter must not delete anything")
+	})
+}
+
+func (s *PluginStorageRepositorySuite) TestPluginStorageRepositorySorting() {
+	ctx := context.Background()
+
+	// ARRANGE — one fixture for the whole method: subtests share the repo.
+	entryA := &domain.PluginStorageEntry{PluginID: 950, Key: "beta", Payload: []byte(`{}`)}
+	entryB := &domain.PluginStorageEntry{PluginID: 951, Key: "alpha", Payload: []byte(`{}`)}
+	entryC := &domain.PluginStorageEntry{PluginID: 952, Key: "gamma", Payload: []byte(`{}`)}
+	require.NoError(s.T(), s.repo.Save(ctx, entryA))
+	require.NoError(s.T(), s.repo.Save(ctx, entryB))
+	require.NoError(s.T(), s.repo.Save(ctx, entryC))
+
+	pluginIDsFilter := &filters.FindPluginStorage{PluginIDs: []uint64{950, 951, 952}}
+
+	tests := []struct {
+		name  string
+		order []filters.Sorting
+		want  func() []uint64
+	}{
+		{
+			name: "sort_by_plugin_id_asc",
+			order: []filters.Sorting{
+				{Field: "plugin_id", Direction: filters.SortDirectionAsc},
+			},
+			want: func() []uint64 { return []uint64{entryA.ID, entryB.ID, entryC.ID} },
+		},
+		{
+			name: "sort_by_plugin_id_desc",
+			order: []filters.Sorting{
+				{Field: "plugin_id", Direction: filters.SortDirectionDesc},
+			},
+			want: func() []uint64 { return []uint64{entryC.ID, entryB.ID, entryA.ID} },
+		},
+		{
+			name: "sort_by_key_asc",
+			order: []filters.Sorting{
+				{Field: "key", Direction: filters.SortDirectionAsc},
+			},
+			want: func() []uint64 { return []uint64{entryB.ID, entryA.ID, entryC.ID} },
+		},
+		{
+			name: "sort_by_key_desc",
+			order: []filters.Sorting{
+				{Field: "key", Direction: filters.SortDirectionDesc},
+			},
+			want: func() []uint64 { return []uint64{entryC.ID, entryA.ID, entryB.ID} },
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			// ACT
+			results, err := s.repo.Find(ctx, pluginIDsFilter, tt.order, nil)
+
+			// ASSERT
+			require.NoError(t, err)
+			require.Len(t, results, 3)
+
+			gotIDs := []uint64{results[0].ID, results[1].ID, results[2].ID}
+			assert.Equal(t, tt.want(), gotIDs, "entries are in wrong order")
+		})
+	}
+}

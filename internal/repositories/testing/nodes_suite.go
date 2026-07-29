@@ -558,3 +558,120 @@ func (s *NodeRepositorySuite) TestNodeRepositoryIntegration() {
 		assert.Empty(t, results)
 	})
 }
+
+func (s *NodeRepositorySuite) TestNodeRepositorySorting() {
+	ctx := context.Background()
+
+	// ARRANGE — one fixture for the whole method: subtests share the repo.
+	createdA := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
+	createdB := time.Date(2024, 1, 2, 10, 0, 0, 0, time.UTC)
+	createdC := time.Date(2024, 1, 3, 10, 0, 0, 0, time.UTC)
+	nodeA := &domain.Node{
+		Name: "Alpha Sort", OS: domain.NodeOSLinux, Location: "US", IPs: domain.IPList{"10.9.1.1"},
+		WorkPath: "/var/gameap", GdaemonHost: "sort-a", GdaemonPort: 31717,
+		GdaemonAPIKey: "sort-key-a", GdaemonServerCert: "cert-a", ClientCertificateID: 1,
+		PreferInstallMethod: domain.NodePreferInstallMethodAuto,
+		Enabled:             true,
+		CreatedAt:           &createdA,
+	}
+	nodeB := &domain.Node{
+		Name: "Beta Sort", OS: domain.NodeOSWindows, Location: "EU", IPs: domain.IPList{"10.9.2.1"},
+		WorkPath: "C:\\gameap", GdaemonHost: "sort-b", GdaemonPort: 31717,
+		GdaemonAPIKey: "sort-key-b", GdaemonServerCert: "cert-b", ClientCertificateID: 2,
+		PreferInstallMethod: domain.NodePreferInstallMethodAuto,
+		Enabled:             false,
+		CreatedAt:           &createdB,
+	}
+	nodeC := &domain.Node{
+		Name: "Gamma Sort", OS: domain.NodeOSLinux, Location: "ASIA", IPs: domain.IPList{"10.9.3.1"},
+		WorkPath: "/opt/gameap", GdaemonHost: "sort-c", GdaemonPort: 31717,
+		GdaemonAPIKey: "sort-key-c", GdaemonServerCert: "cert-c", ClientCertificateID: 3,
+		PreferInstallMethod: domain.NodePreferInstallMethodAuto,
+		Enabled:             true,
+		CreatedAt:           &createdC,
+	}
+	require.NoError(s.T(), s.repo.Save(ctx, nodeA))
+	require.NoError(s.T(), s.repo.Save(ctx, nodeB))
+	require.NoError(s.T(), s.repo.Save(ctx, nodeC))
+
+	tests := []struct {
+		name  string
+		order []filters.Sorting
+		want  []uint
+	}{
+		{
+			name: "sort_by_name_asc",
+			order: []filters.Sorting{
+				{Field: "name", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{nodeA.ID, nodeB.ID, nodeC.ID},
+		},
+		{
+			name: "sort_by_name_desc",
+			order: []filters.Sorting{
+				{Field: "name", Direction: filters.SortDirectionDesc},
+			},
+			want: []uint{nodeC.ID, nodeB.ID, nodeA.ID},
+		},
+		{
+			name: "sort_by_os_asc",
+			order: []filters.Sorting{
+				{Field: "os", Direction: filters.SortDirectionAsc},
+				{Field: "id", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{nodeA.ID, nodeC.ID, nodeB.ID},
+		},
+		{
+			name: "sort_by_os_desc",
+			order: []filters.Sorting{
+				{Field: "os", Direction: filters.SortDirectionDesc},
+				{Field: "id", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{nodeB.ID, nodeA.ID, nodeC.ID},
+		},
+		{
+			name: "sort_by_enabled_asc",
+			order: []filters.Sorting{
+				{Field: "enabled", Direction: filters.SortDirectionAsc},
+				{Field: "id", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{nodeB.ID, nodeA.ID, nodeC.ID},
+		},
+		{
+			name: "sort_by_enabled_desc",
+			order: []filters.Sorting{
+				{Field: "enabled", Direction: filters.SortDirectionDesc},
+				{Field: "id", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{nodeA.ID, nodeC.ID, nodeB.ID},
+		},
+		{
+			name: "sort_by_created_at_asc",
+			order: []filters.Sorting{
+				{Field: "created_at", Direction: filters.SortDirectionAsc},
+			},
+			want: []uint{nodeA.ID, nodeB.ID, nodeC.ID},
+		},
+		{
+			name: "sort_by_created_at_desc",
+			order: []filters.Sorting{
+				{Field: "created_at", Direction: filters.SortDirectionDesc},
+			},
+			want: []uint{nodeC.ID, nodeB.ID, nodeA.ID},
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			// ACT
+			results, err := s.repo.FindAll(ctx, tt.order, nil)
+
+			// ASSERT
+			require.NoError(t, err)
+			require.Len(t, results, 3)
+
+			gotIDs := []uint{results[0].ID, results[1].ID, results[2].ID}
+			assert.Equal(t, tt.want, gotIDs, "nodes are in wrong order")
+		})
+	}
+}

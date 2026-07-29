@@ -143,7 +143,9 @@ func TestService_GetLabels(t *testing.T) {
 		lang           string
 		mockResponse   any
 		mockStatusCode int
+		cachedValue    any
 		wantErr        bool
+		errContains    string
 		validate       func(t *testing.T, labels []Label)
 	}{
 		{
@@ -162,6 +164,37 @@ func TestService_GetLabels(t *testing.T) {
 				assert.Equal(t, "#737373", labels[0].Color)
 			},
 		},
+		{
+			name:           "returns_cached_labels",
+			lang:           "ru",
+			mockStatusCode: http.StatusOK,
+			mockResponse:   []Label{},
+			cachedValue: []Label{
+				{ID: 5, Slug: "cached", Name: "Cached Label", Color: "#000000"},
+			},
+			wantErr: false,
+			validate: func(t *testing.T, labels []Label) {
+				t.Helper()
+				require.Len(t, labels, 1)
+				assert.Equal(t, "cached", labels[0].Slug)
+			},
+		},
+		{
+			name:           "HTTP_error_status_500",
+			lang:           "en",
+			mockStatusCode: http.StatusInternalServerError,
+			mockResponse:   nil,
+			wantErr:        true,
+			errContains:    "plugin store API error: HTTP 500",
+		},
+		{
+			name:           "invalid_JSON_response",
+			lang:           "en",
+			mockStatusCode: http.StatusOK,
+			mockResponse:   "invalid json",
+			wantErr:        true,
+			errContains:    "failed to decode response",
+		},
 	}
 
 	for _, tt := range tests {
@@ -171,16 +204,32 @@ func TestService_GetLabels(t *testing.T) {
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tt.mockStatusCode)
-				_ = json.NewEncoder(w).Encode(tt.mockResponse)
+				if tt.mockResponse != nil {
+					if str, ok := tt.mockResponse.(string); ok {
+						_, _ = w.Write([]byte(str))
+					} else {
+						_ = json.NewEncoder(w).Encode(tt.mockResponse)
+					}
+				}
 			}))
 			defer server.Close()
 
-			service := NewService(server.URL, "", cache.NewInMemory())
+			testCache := cache.NewInMemory()
+			if tt.cachedValue != nil {
+				key := "pluginstore:labels:" + tt.lang
+				err := testCache.Set(context.Background(), key, tt.cachedValue)
+				require.NoError(t, err)
+			}
+
+			service := NewService(server.URL, "", testCache)
 
 			labels, err := service.GetLabels(context.Background(), tt.lang)
 
 			if tt.wantErr {
 				require.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
 			} else {
 				require.NoError(t, err)
 				if tt.validate != nil {

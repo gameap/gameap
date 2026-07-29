@@ -819,3 +819,103 @@ func (s *RBACRepositorySuite) TestRBACRepositoryIntegration() {
 		assert.Empty(t, assignedRoles)
 	})
 }
+
+func (s *RBACRepositorySuite) TestRBACRepositoryAbilityAttributes() {
+	ctx := context.Background()
+
+	s.T().Run("ability_with_only_owned_and_options_round_trips", func(t *testing.T) {
+		// ARRANGE
+		entityID := uint(9000)
+		entityType := domain.EntityTypeUser
+		options := `{"servers":[1,2,3]}`
+		abilities := []domain.Ability{
+			{
+				Name:      domain.AbilityNameGameServerStart,
+				Title:     new("Start Owned Only"),
+				OnlyOwned: true,
+				Options:   &options,
+			},
+		}
+
+		// ACT
+		require.NoError(t, s.repo.Allow(ctx, entityID, entityType, abilities))
+
+		// ASSERT
+		permissions, err := s.repo.GetPermissions(ctx, entityID, entityType)
+		require.NoError(t, err)
+		require.Len(t, permissions, 1)
+		require.NotNil(t, permissions[0].Ability)
+		assert.True(t, permissions[0].Ability.OnlyOwned, "only_owned flag must round-trip")
+		require.NotNil(t, permissions[0].Ability.Options)
+		assert.Equal(t, options, *permissions[0].Ability.Options, "options must round-trip")
+	})
+
+	s.T().Run("repeated_allow_of_same_ability_is_visible_once_per_call", func(t *testing.T) {
+		// ARRANGE — Allow twice; implementations may store duplicates or deduplicate,
+		// but every stored permission must reference the same single ability.
+		entityID := uint(9001)
+		entityType := domain.EntityTypeUser
+		abilities := []domain.Ability{
+			{Name: domain.AbilityNameGameServerStop, Title: new("Stop"), OnlyOwned: false},
+		}
+
+		// ACT
+		require.NoError(t, s.repo.Allow(ctx, entityID, entityType, abilities))
+		require.NoError(t, s.repo.Allow(ctx, entityID, entityType, abilities))
+
+		// ASSERT
+		permissions, err := s.repo.GetPermissions(ctx, entityID, entityType)
+		require.NoError(t, err)
+		require.NotEmpty(t, permissions, "allowed ability must produce at least one permission")
+		for _, perm := range permissions {
+			require.NotNil(t, perm.Ability)
+			assert.Equal(t, domain.AbilityNameGameServerStop, perm.Ability.Name)
+			assert.False(t, perm.Forbidden)
+		}
+	})
+}
+
+func (s *RBACRepositorySuite) TestRBACRepositoryEntityTypeIsolation() {
+	ctx := context.Background()
+
+	s.T().Run("permissions_are_isolated_by_entity_type", func(t *testing.T) {
+		// ARRANGE
+		entityID := uint(9100)
+		abilities := []domain.Ability{
+			{Name: domain.AbilityNameGameServerRestart, Title: new("Restart"), OnlyOwned: false},
+		}
+		require.NoError(t, s.repo.Allow(ctx, entityID, domain.EntityTypeUser, abilities))
+
+		// ACT
+		serverPermissions, err := s.repo.GetPermissions(ctx, entityID, domain.EntityTypeServer)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Empty(t, serverPermissions,
+			"permissions granted to a user entity must not leak to a server entity with the same ID")
+
+		userPermissions, err := s.repo.GetPermissions(ctx, entityID, domain.EntityTypeUser)
+		require.NoError(t, err)
+		assert.Len(t, userPermissions, 1)
+	})
+
+	s.T().Run("role_assignments_are_isolated_by_entity_type", func(t *testing.T) {
+		// ARRANGE
+		role := s.createRoleFunc(ctx, t, "role_type_isolated")
+		entityID := uint(9101)
+		require.NoError(t, s.repo.AssignRolesForEntity(ctx, entityID, domain.EntityTypeUser,
+			[]domain.RestrictedRole{domain.NewRestrictedRoleFromRole(role)}))
+
+		// ACT
+		serverRoles, err := s.repo.GetRolesForEntity(ctx, entityID, domain.EntityTypeServer)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Empty(t, serverRoles,
+			"roles assigned to a user entity must not leak to a server entity with the same ID")
+
+		userRoles, err := s.repo.GetRolesForEntity(ctx, entityID, domain.EntityTypeUser)
+		require.NoError(t, err)
+		assert.Len(t, userRoles, 1)
+	})
+}

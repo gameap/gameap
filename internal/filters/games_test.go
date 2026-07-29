@@ -35,3 +35,39 @@ func TestFindGame_FilterCount(t *testing.T) {
 
 	assert.Equal(t, fieldsSet, filter.FilterCount(), "FilterCount should match the number of fields set")
 }
+
+func TestFindGameByCodes(t *testing.T) {
+	tests := []struct {
+		name  string
+		codes []string
+		want  *FindGame
+	}{
+		{
+			name:  "with_codes",
+			codes: []string{"cs", "tf2"},
+			want:  &FindGame{Codes: []string{"cs", "tf2"}},
+		},
+		{
+			name:  "single_code",
+			codes: []string{"minecraft"},
+			want:  &FindGame{Codes: []string{"minecraft"}},
+		},
+		{
+			name:  "no_codes",
+			codes: nil,
+			want:  &FindGame{Codes: nil},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE done in the table above
+
+			// ACT
+			got := FindGameByCodes(tt.codes...)
+
+			// ASSERT
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

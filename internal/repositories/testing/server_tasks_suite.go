@@ -652,3 +652,91 @@ func (s *ServerTaskRepositorySuite) TestServerTaskRepositoryIntegration() {
 		assert.True(t, commands[domain.ServerTaskCommandRestart])
 	})
 }
+
+func (s *ServerTaskRepositorySuite) TestServerTaskRepositoryBumpVersion() {
+	ctx := context.Background()
+
+	s.T().Run("bump_increments_version_and_returns_new_value", func(t *testing.T) {
+		// ARRANGE
+		task := &domain.ServerTask{
+			Command:     domain.ServerTaskCommandStart,
+			ServerID:    8100,
+			ExecuteDate: time.Now().Add(1 * time.Hour),
+		}
+		require.NoError(t, s.repo.Save(ctx, task))
+
+		filter := &filters.FindServerTask{IDs: []uint{task.ID}}
+		stored, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+		initialVersion := stored[0].Version
+
+		// ACT
+		first, err := s.repo.BumpVersion(ctx, task.ID)
+		require.NoError(t, err)
+		second, err := s.repo.BumpVersion(ctx, task.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, initialVersion+1, first, "first bump must increment the stored version by one")
+		assert.Equal(t, initialVersion+2, second, "second bump must increment again")
+
+		stored, err = s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+		assert.Equal(t, initialVersion+2, stored[0].Version, "bumped version must be persisted")
+	})
+}
+
+func (s *ServerTaskRepositorySuite) TestServerTaskRepositorySoftDelete() {
+	ctx := context.Background()
+
+	s.T().Run("soft_deleted_task_disappears_from_default_queries", func(t *testing.T) {
+		// ARRANGE
+		task := &domain.ServerTask{
+			Command:     domain.ServerTaskCommandStop,
+			ServerID:    8200,
+			ExecuteDate: time.Now().Add(1 * time.Hour),
+		}
+		require.NoError(t, s.repo.Save(ctx, task))
+
+		filter := &filters.FindServerTask{IDs: []uint{task.ID}}
+		stored, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+		initialVersion := stored[0].Version
+
+		// ACT
+		err = s.repo.SoftDelete(ctx, task.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		stored, err = s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, stored, "soft-deleted task must be excluded from Find")
+
+		all, err := s.repo.FindAll(ctx, nil, nil)
+		require.NoError(t, err)
+		for i := range all {
+			assert.NotEqual(t, task.ID, all[i].ID, "soft-deleted task must be excluded from FindAll")
+		}
+
+		withDeleted, err := s.repo.Find(ctx, &filters.FindServerTask{
+			IDs:            []uint{task.ID},
+			IncludeDeleted: true,
+		}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, withDeleted, 1, "task must remain fetchable with IncludeDeleted")
+		assert.NotNil(t, withDeleted[0].DeletedAt, "deleted_at must be set")
+		assert.Equal(t, initialVersion+1, withDeleted[0].Version, "soft delete must bump the version")
+	})
+
+	s.T().Run("soft_delete_non_existent_task", func(t *testing.T) {
+		// ACT
+		err := s.repo.SoftDelete(ctx, 99999)
+
+		// ASSERT
+		require.NoError(t, err)
+	})
+}

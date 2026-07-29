@@ -35,3 +35,39 @@ func TestFindPersonalAccessToken_FilterCount(t *testing.T) {
 
 	assert.Equal(t, fieldsSet, filter.FilterCount(), "FilterCount should match the number of fields set")
 }
+
+func TestFindPersonalAccessTokenByIDs(t *testing.T) {
+	tests := []struct {
+		name string
+		ids  []uint
+		want *FindPersonalAccessToken
+	}{
+		{
+			name: "with_ids",
+			ids:  []uint{1, 2, 3},
+			want: &FindPersonalAccessToken{IDs: []uint{1, 2, 3}},
+		},
+		{
+			name: "single_id",
+			ids:  []uint{11},
+			want: &FindPersonalAccessToken{IDs: []uint{11}},
+		},
+		{
+			name: "no_ids",
+			ids:  nil,
+			want: &FindPersonalAccessToken{IDs: nil},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE done in the table above
+
+			// ACT
+			got := FindPersonalAccessTokenByIDs(tt.ids...)
+
+			// ASSERT
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

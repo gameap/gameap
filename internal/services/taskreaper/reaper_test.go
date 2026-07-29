@@ -2,6 +2,7 @@ package taskreaper
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"testing"
@@ -263,4 +264,192 @@ func TestReaperOptionsApplyDefaults(t *testing.T) {
 	o.applyDefaults()
 	assert.Equal(t, 5*time.Second, o.Interval)
 	assert.Equal(t, 30*time.Second, o.StaleThreshold)
+}
+
+var (
+	errTestRepoFind  = errors.New("simulated repo find failure")
+	errTestReconcile = errors.New("simulated reconcile failure")
+)
+
+type errorTaskRepo struct{ err error }
+
+func (r *errorTaskRepo) Find(
+	context.Context, *filters.FindDaemonTask, []filters.Sorting, *filters.Pagination,
+) ([]domain.DaemonTask, error) {
+	return nil, r.err
+}
+
+type errorReconciler struct {
+	fakeReconciler
+
+	err error
+}
+
+func (r *errorReconciler) ReconcileWorkingTasks(
+	ctx context.Context, nodeID uint64, inFlightIDs []uint64, reason string,
+) (int, error) {
+	_, _ = r.fakeReconciler.ReconcileWorkingTasks(ctx, nodeID, inFlightIDs, reason)
+
+	return 0, r.err
+}
+
+func TestReaperSweep_FindError(t *testing.T) {
+	// ARRANGE
+	reaper := NewReaper(
+		&errorTaskRepo{err: errTestRepoFind},
+		&fakeRegistry{connected: make(map[uint64]struct{})},
+		&fakeReconciler{},
+		Options{},
+		slog.New(slog.DiscardHandler),
+	)
+
+	// ACT
+	err := reaper.Sweep(context.Background())
+
+	// ASSERT
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find working tasks", "error message mismatch")
+	assert.ErrorIs(t, err, errTestRepoFind, "the repository error must be wrapped, not replaced")
+}
+
+func TestReaperSweep_ReconcileErrorIsIgnored(t *testing.T) {
+	// ARRANGE
+	stale := time.Now().Add(-30 * time.Minute)
+	repo := &fakeTaskRepo{tasks: []domain.DaemonTask{
+		{
+			ID:                1,
+			DedicatedServerID: 7,
+			Task:              domain.DaemonTaskTypeCmdExec,
+			Status:            domain.DaemonTaskStatusWorking,
+			UpdatedAt:         &stale,
+		},
+	}}
+	reconciler := &errorReconciler{err: errTestReconcile}
+	reaper := NewReaper(
+		repo,
+		&fakeRegistry{connected: make(map[uint64]struct{})},
+		reconciler,
+		Options{StaleThreshold: 10 * time.Minute},
+		slog.New(slog.DiscardHandler),
+	)
+
+	// ACT
+	err := reaper.Sweep(context.Background())
+
+	// ASSERT
+	require.NoError(t, err, "reconcile errors are logged and must not bubble up out of Sweep")
+	assert.Equal(t, []uint64{7}, reconciler.recordedNodeIDs(), "the abandoned node must still be reconciled")
+}
+
+func TestReaper_safeSweep_logsSweepError(t *testing.T) {
+	// ARRANGE
+	reaper := NewReaper(
+		&errorTaskRepo{err: errTestRepoFind},
+		&fakeRegistry{connected: make(map[uint64]struct{})},
+		&fakeReconciler{},
+		Options{},
+		slog.New(slog.DiscardHandler),
+	)
+
+	// ACT & ASSERT
+	assert.NotPanics(t, func() {
+		reaper.safeSweep(context.Background())
+	}, "a Sweep error must be logged so the reaper loop survives")
+}
+
+func TestReaperStart(t *testing.T) {
+	t.Run("sweeps_on_ticker", func(t *testing.T) {
+		// ARRANGE
+		stale := time.Now().Add(-30 * time.Minute)
+		repo := &fakeTaskRepo{tasks: []domain.DaemonTask{
+			{
+				ID:                1,
+				DedicatedServerID: 7,
+				Task:              domain.DaemonTaskTypeCmdExec,
+				Status:            domain.DaemonTaskStatusWorking,
+				UpdatedAt:         &stale,
+			},
+		}}
+		reconciler := &fakeReconciler{}
+		reaper := NewReaper(
+			repo,
+			&fakeRegistry{connected: make(map[uint64]struct{})},
+			reconciler,
+			Options{Interval: 10 * time.Millisecond, StaleThreshold: 10 * time.Minute},
+			slog.New(slog.DiscardHandler),
+		)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// ACT
+		err := reaper.Start(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Eventually(t, func() bool {
+			return len(reconciler.recordedNodeIDs()) > 0
+		}, 2*time.Second, 10*time.Millisecond, "the ticker must drive periodic sweeps")
+
+		// The short-interval ticker keeps firing, so the exact number of
+		// sweeps by the time we read is timing-dependent. Assert the invariant
+		// that actually matters: every sweep reconciles only the abandoned node.
+		recorded := reconciler.recordedNodeIDs()
+		require.NotEmpty(t, recorded)
+		for _, nodeID := range recorded {
+			assert.Equal(t, uint64(7), nodeID, "every ticker-driven sweep must reconcile only the abandoned node")
+		}
+	})
+
+	t.Run("stops_on_context_cancel", func(t *testing.T) {
+		// ARRANGE — a huge interval guarantees the ticker never fires, so the
+		// goroutine can only leave the select through the ctx.Done branch. The
+		// repo is seeded with the same stale, abandoned task as sweeps_on_ticker
+		// so that any eager sweep slipping in before the first tick would record
+		// reconciler activity — without it, an empty repo makes the assertion
+		// below pass even if a sweep did run.
+		stale := time.Now().Add(-30 * time.Minute)
+		repo := &fakeTaskRepo{tasks: []domain.DaemonTask{
+			{
+				ID:                1,
+				DedicatedServerID: 7,
+				Task:              domain.DaemonTaskTypeCmdExec,
+				Status:            domain.DaemonTaskStatusWorking,
+				UpdatedAt:         &stale,
+			},
+		}}
+		reconciler := &fakeReconciler{}
+		reaper := NewReaper(
+			repo,
+			&fakeRegistry{connected: make(map[uint64]struct{})},
+			reconciler,
+			Options{Interval: time.Hour, StaleThreshold: 10 * time.Minute},
+			slog.New(slog.DiscardHandler),
+		)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// ACT
+		err := reaper.Start(ctx)
+		cancel()
+		time.Sleep(50 * time.Millisecond)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Empty(t, reconciler.recordedNodeIDs(),
+			"no sweep must run before the first tick, even with a reconcilable task present")
+	})
+}
+
+func TestNewReaper_NilLogger(t *testing.T) {
+	// ARRANGE & ACT
+	reaper := NewReaper(
+		&fakeTaskRepo{},
+		&fakeRegistry{connected: make(map[uint64]struct{})},
+		&fakeReconciler{},
+		Options{},
+		nil,
+	)
+
+	// ASSERT
+	require.NotNil(t, reaper, "a nil logger must fall back to the default logger")
+	require.NoError(t, reaper.Sweep(context.Background()))
 }
