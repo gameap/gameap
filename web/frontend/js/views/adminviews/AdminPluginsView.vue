@@ -193,8 +193,8 @@ const createInstalledColumns = () => {
         }, [
           h('div', { class: 'shrink-0' }, [h(PluginIcon, { plugin: row })]),
           h('div', { class: 'flex flex-col min-w-0' }, [
-            h('span', { class: 'font-medium text-blue-600 dark:text-blue-400 hover:underline' }, row.name),
-            row.summary ? h('div', { class: 'text-xs text-stone-500 dark:text-stone-400 line-clamp-2 whitespace-normal' }, row.summary) : null,
+            h('span', { class: 'font-medium text-blue-600 dark:text-blue-400 hover:underline break-words' }, row.name),
+            row.summary ? h('div', { class: 'text-xs text-stone-500 dark:text-stone-400 line-clamp-2 whitespace-normal break-words' }, row.summary) : null,
             badges.length > 0 ? h('div', { class: 'flex gap-1 mt-1 flex-wrap' }, badges) : null
           ])
         ])
@@ -286,8 +286,8 @@ const createStoreColumns = () => {
         }, [
           h('div', { class: 'shrink-0' }, [h(PluginIcon, { plugin: row })]),
           h('div', { class: 'flex flex-col min-w-0' }, [
-            h('div', { class: 'flex items-center gap-2' }, [
-              h('span', { class: 'font-medium text-blue-600 dark:text-blue-400 hover:underline' }, row.name),
+            h('div', { class: 'flex items-center gap-2 min-w-0' }, [
+              h('span', { class: 'font-medium text-blue-600 dark:text-blue-400 hover:underline break-words min-w-0' }, row.name),
               row.requires_subscription
                   ? h(GIcon, { name: 'star', class: 'text-yellow-500' })
                   : null,
@@ -295,7 +295,7 @@ const createStoreColumns = () => {
                   ? h('span', { class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-300 whitespace-nowrap' }, trans('plugins.already_installed'))
                   : null
             ]),
-            row.summary ? h('div', { class: 'text-xs text-stone-500 dark:text-stone-400 line-clamp-2 whitespace-normal' }, row.summary) : null,
+            row.summary ? h('div', { class: 'text-xs text-stone-500 dark:text-stone-400 line-clamp-2 whitespace-normal break-words' }, row.summary) : null,
             !isSmallScreen.value && row.labels?.length > 0
                 ? h('div', { class: 'flex gap-1 mt-1 flex-wrap' },
                     row.labels.map(label =>

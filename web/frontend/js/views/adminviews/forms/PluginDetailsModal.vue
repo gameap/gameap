@@ -129,7 +129,7 @@
             || plugin.min_gameap_version
             || (plugin.url && !isFilePlugin)
           "
-          class="flex flex-wrap justify-around gap-y-3 py-4 border-t border-b border-stone-200 dark:border-stone-700 mb-4 divide-x divide-stone-100 dark:divide-stone-700"
+          class="flex flex-wrap justify-around gap-y-3 py-4 border-t border-b border-stone-200 dark:border-stone-700 mb-4"
       >
         <div v-if="plugin.author" class="flex flex-col items-center text-center px-4">
           <GIcon name="user" class="text-xl text-stone-500 dark:text-stone-400 mb-1" />
