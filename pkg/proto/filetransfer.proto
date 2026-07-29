@@ -237,6 +237,8 @@ enum ArchiveFormat {
   ARCHIVE_FORMAT_BZ2 = 8;
   ARCHIVE_FORMAT_XZ = 9;
   ARCHIVE_FORMAT_ZSTD = 10;
+  // Extraction only: creating these is not supported, requesting one in
+  // CreateArchiveParams is answered with an error.
   ARCHIVE_FORMAT_7Z = 11;
   ARCHIVE_FORMAT_RAR = 12;
 }
@@ -281,6 +283,7 @@ message ExtractArchiveParams {
 // Entry names are stored relative to base_path.
 message CreateArchiveParams {
   string archive_path = 1;
+  // Extraction-only values (ARCHIVE_FORMAT_7Z, ARCHIVE_FORMAT_RAR) are rejected here.
   ArchiveFormat format = 2;
   string base_path = 3;
   repeated string sources = 4;

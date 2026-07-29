@@ -569,6 +569,19 @@ func (s *Service) processMessage(ctx context.Context, sess *session.Session, msg
 	case *proto.DaemonMessage_FileOperationResponse:
 		return resolveResponse(sess, payload.FileOperationResponse.RequestId, msg)
 
+	case *proto.DaemonMessage_ArchiveResponse:
+		return resolveResponse(sess, payload.ArchiveResponse.RequestId, msg)
+
+	case *proto.DaemonMessage_ArchiveProgress:
+		// Intermediate updates of a still-running archive operation: they must not
+		// resolve the pending request, which waits for the final ArchiveResponse.
+		s.logger.Debug("archive progress received",
+			"node_id", sess.NodeID,
+			"request_id", payload.ArchiveProgress.RequestId,
+			"files_processed", payload.ArchiveProgress.FilesProcessed,
+			"bytes_processed", payload.ArchiveProgress.BytesProcessed,
+		)
+
 	case *proto.DaemonMessage_StatusResponse:
 		return resolveResponse(sess, payload.StatusResponse.RequestId, msg)
 

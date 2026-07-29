@@ -290,6 +290,58 @@ func TestService_processMessage(t *testing.T) {
 		}
 	})
 
+	t.Run("archive_response_resolves_pending_request", func(t *testing.T) {
+		svc, _ := newServiceWithDeps(t)
+		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
+		ch := sess.RegisterPendingRequest("ar-1")
+
+		err := svc.processMessage(context.Background(), sess, &proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_ArchiveResponse{
+				ArchiveResponse: &proto.ArchiveResponse{RequestId: "ar-1", Success: true, FilesProcessed: 3},
+			},
+		})
+
+		require.NoError(t, err)
+		select {
+		case msg := <-ch:
+			require.NotNil(t, msg.GetArchiveResponse())
+			assert.True(t, msg.GetArchiveResponse().Success)
+			assert.Equal(t, uint32(3), msg.GetArchiveResponse().FilesProcessed)
+		case <-time.After(time.Second):
+			t.Fatal("archive_response not resolved")
+		}
+	})
+
+	t.Run("archive_progress_keeps_pending_request_open", func(t *testing.T) {
+		svc, _ := newServiceWithDeps(t)
+		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
+		ch := sess.RegisterPendingRequest("ar-2")
+
+		err := svc.processMessage(context.Background(), sess, &proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_ArchiveProgress{
+				ArchiveProgress: &proto.ArchiveProgress{RequestId: "ar-2", FilesProcessed: 1},
+			},
+		})
+
+		require.NoError(t, err)
+		select {
+		case msg, ok := <-ch:
+			t.Fatalf("progress must not resolve the pending request, got msg=%v open=%v", msg, ok)
+		default:
+		}
+
+		require.True(t,
+			sess.ResolvePendingRequest("ar-2", &proto.DaemonMessage{
+				Payload: &proto.DaemonMessage_ArchiveResponse{
+					ArchiveResponse: &proto.ArchiveResponse{RequestId: "ar-2", Success: true},
+				},
+			}),
+			"pending request must survive progress and be resolvable by the final response",
+		)
+		msg := <-ch
+		require.NotNil(t, msg.GetArchiveResponse())
+	})
+
 	t.Run("attach_started_routed_to_attach_handler", func(t *testing.T) {
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
