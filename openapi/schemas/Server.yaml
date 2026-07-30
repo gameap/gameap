@@ -57,7 +57,7 @@ properties:
       Published server address, shown the same way to every viewer. Equals the `public_ip`
       metadata value when one is set, so a node behind NAT does not expose its LAN address,
       and falls back to the address the daemon connects to otherwise.
-    example: "192.168.1.100"
+    example: "203.0.113.10"
   internal_server_ip:
     type: string
     description: >-

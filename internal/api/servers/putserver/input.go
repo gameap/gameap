@@ -38,6 +38,9 @@ var (
 	ErrInvalidCPULimit = api.NewValidationError("cpu_limit must be >= 0")
 	ErrInvalidRAMLimit = api.NewValidationError("ram_limit must be >= 0")
 	ErrInvalidDir      = api.NewValidationError("dir must be a relative path without drive letter or '..' segments")
+	ErrInvalidPublicIP = api.NewValidationError(
+		"metadata.public_ip is not a valid IP address or hostname",
+	)
 )
 
 type updateServerInput struct {
@@ -117,6 +120,11 @@ func (in *updateServerInput) Validate() error {
 
 	if in.Dir != nil && *in.Dir != "" && !validation.IsRelativeServerPath(*in.Dir) {
 		return ErrInvalidDir
+	}
+
+	// public_ip is served in place of server_ip, so it gets the same address check.
+	if !domain.IsValidPublicIPMetadata(in.Metadata) {
+		return ErrInvalidPublicIP
 	}
 
 	return nil
