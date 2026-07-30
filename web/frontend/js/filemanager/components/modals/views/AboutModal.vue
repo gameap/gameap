@@ -13,11 +13,11 @@
                 Nikita Kuznetsov (nikita.hldm@gmail.com)
             </n-descriptions-item>
             <n-descriptions-item label="GitHub">
-                <a class="font-medium text-blue-600 dark:text-blue-500 hover:underline" href="https://github.com/gameap/gameap-file-manager" target="_blank">
+                <a class="font-medium text-info hover:underline" href="https://github.com/gameap/gameap-file-manager" target="_blank">
                     gameap/gameap-file-manager
                 </a>
                 <br />
-                <a class="font-medium text-blue-600 dark:text-blue-500 hover:underline" href="https://github.com/gameap/vue-gameap-file-manager" target="_blank">
+                <a class="font-medium text-info hover:underline" href="https://github.com/gameap/vue-gameap-file-manager" target="_blank">
                     gameap/vue-laravel-file-manager
                 </a>
             </n-descriptions-item>

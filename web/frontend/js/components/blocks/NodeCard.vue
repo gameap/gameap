@@ -79,11 +79,11 @@
 
       <div v-if="hasNet" class="flex justify-between text-xs font-mono text-stone-500 dark:text-stone-400">
         <span>
-          <span class="text-sky-500">↑</span>
+          <span class="text-chart-7">↑</span>
           <span class="ml-1 tabular-nums">{{ formatBitrate(snapshot?.netInBps) }}</span>
         </span>
         <span>
-          <span class="text-fuchsia-500">↓</span>
+          <span class="text-chart-3">↓</span>
           <span class="ml-1 tabular-nums">{{ formatBitrate(snapshot?.netOutBps) }}</span>
         </span>
       </div>
@@ -102,6 +102,7 @@
 import { computed } from 'vue'
 import { NCard, NProgress, NTag } from 'naive-ui'
 import { GIcon } from '@gameap/ui'
+import { useThemeVars } from '@/utils/theme'
 import { trans } from '@/i18n/i18n'
 
 const props = defineProps({
@@ -131,8 +132,10 @@ const memPercent = computed(() => props.snapshot?.memPercent ?? null)
 const cpuWidth = computed(() => clamp(cpuPercent.value, 0, 100))
 const memWidth = computed(() => clamp(memPercent.value, 0, 100))
 
-const cpuColor = computed(() => paletteFor(cpuPercent.value, '#84cc16'))
-const memColor = computed(() => paletteFor(memPercent.value, '#0ea5e9'))
+const { chartPalette, statusColors } = useThemeVars()
+
+const cpuColor = computed(() => paletteFor(cpuPercent.value, chartPalette.value[1]))
+const memColor = computed(() => paletteFor(memPercent.value, chartPalette.value[6]))
 
 const hasMetrics = computed(() =>
     cpuPercent.value !== null
@@ -153,8 +156,8 @@ function clamp(v, min, max) {
 
 function paletteFor(v, base) {
     if (v === null || v === undefined) return base
-    if (v > 90) return '#ef4444'
-    if (v > 75) return '#f59e0b'
+    if (v > 90) return statusColors.value.danger
+    if (v > 75) return statusColors.value.warning
     return base
 }
 

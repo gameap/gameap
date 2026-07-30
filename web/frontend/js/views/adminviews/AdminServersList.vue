@@ -79,7 +79,7 @@ const createColumns = () => {
             RouterLink,
             {
               to: {name: 'admin.nodes.view', params: {id: node.id}},
-              class: "text-blue-600 underline dark:text-blue-500 hover:no-underline",
+              class: "text-info underline hover:no-underline",
             },
             { default: () => node.name },
         )

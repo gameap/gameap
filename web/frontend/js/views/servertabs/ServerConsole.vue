@@ -1,17 +1,17 @@
 <template>
     <div>
       <div class="w-full">
-        <div class="coding inverse-toggle px-5 pt-4 shadow-lg text-stone-100 text-sm font-mono subpixel-antialiased
-              bg-stone-800 dark:bg-stone-900 pb-6 rounded-lg leading-normal overflow-hidden">
+        <div class="coding inverse-toggle px-5 pt-4 shadow-lg text-terminal text-sm font-mono subpixel-antialiased
+              bg-terminal pb-6 rounded-lg leading-normal overflow-hidden">
           <div class="top mb-2 flex">
             <div class="h-3 w-3 bg-red-500 rounded-full"></div>
             <div class="ml-2 h-3 w-3 bg-orange-300 rounded-full"></div>
-            <div class="ml-2 h-3 w-3 bg-green-500 rounded-full"></div>
+            <div class="ml-2 h-3 w-3 bg-lime-500 rounded-full"></div>
           </div>
           <div v-if="!serverActive" class="bg-red-500 text-white dark:bg-red-800 dark:text-stone-200 font-bold rounded px-4 py-2 mt-6 mb-3">
             {{ trans('servers.offline_console_msg') }}
           </div>
-          <div v-if="serverActive && closeReason" class="bg-amber-500 text-white dark:bg-amber-700 dark:text-stone-200 font-bold rounded px-4 py-2 mt-6 mb-3">
+          <div v-if="serverActive && closeReason" class="bg-warning text-white dark:bg-orange-700 dark:text-stone-200 font-bold rounded px-4 py-2 mt-6 mb-3">
             {{ trans('servers.console_unavailable') }}: {{ closeReason }}
           </div>
           <div ref="consoleRef" class="break-all whitespace-pre-wrap mt-4 flex h-[60vh] overflow-y-scroll overscroll-contain">

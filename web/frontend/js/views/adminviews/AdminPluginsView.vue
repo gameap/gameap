@@ -162,19 +162,19 @@ const createInstalledColumns = () => {
 
         badges.push(h('span', {
           class: row.isFilePlugin
-            ? 'px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
-            : 'px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+            ? 'px-2 py-0.5 text-xs font-medium rounded-full bg-info-soft text-info-soft-text'
+            : 'px-2 py-0.5 text-xs font-medium rounded-full bg-success-soft text-success-soft-text'
         }, row.isFilePlugin ? trans('plugins.source_file') : trans('plugins.source_store')))
 
         badges.push(h('span', {
           class: row.enabled
-            ? 'px-2 py-0.5 text-xs font-medium rounded-full bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-300'
+            ? 'px-2 py-0.5 text-xs font-medium rounded-full bg-success-soft text-success-soft-text'
             : 'px-2 py-0.5 text-xs font-medium rounded-full bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300'
         }, row.enabled ? trans('plugins.status_active') : trans('plugins.status_disabled')))
 
         if (row.hasUpdate) {
           badges.push(h('span', {
-            class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300'
+            class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-warning-soft text-warning-soft-text'
           }, trans('plugins.update_available')))
         }
 
@@ -193,7 +193,7 @@ const createInstalledColumns = () => {
         }, [
           h('div', { class: 'shrink-0' }, [h(PluginIcon, { plugin: row })]),
           h('div', { class: 'flex flex-col min-w-0' }, [
-            h('span', { class: 'font-medium text-blue-600 dark:text-blue-400 hover:underline break-words' }, row.name),
+            h('span', { class: 'font-medium text-info hover:underline break-words' }, row.name),
             row.summary ? h('div', { class: 'text-xs text-stone-500 dark:text-stone-400 line-clamp-2 whitespace-normal break-words' }, row.summary) : null,
             badges.length > 0 ? h('div', { class: 'flex gap-1 mt-1 flex-wrap' }, badges) : null
           ])
@@ -287,12 +287,12 @@ const createStoreColumns = () => {
           h('div', { class: 'shrink-0' }, [h(PluginIcon, { plugin: row })]),
           h('div', { class: 'flex flex-col min-w-0' }, [
             h('div', { class: 'flex items-center gap-2 min-w-0' }, [
-              h('span', { class: 'font-medium text-blue-600 dark:text-blue-400 hover:underline break-words min-w-0' }, row.name),
+              h('span', { class: 'font-medium text-info hover:underline break-words min-w-0' }, row.name),
               row.requires_subscription
                   ? h(GIcon, { name: 'star', class: 'text-yellow-500' })
                   : null,
               !isSmallScreen.value && row.installed
-                  ? h('span', { class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-300 whitespace-nowrap' }, trans('plugins.already_installed'))
+                  ? h('span', { class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-success-soft text-success-soft-text whitespace-nowrap' }, trans('plugins.already_installed'))
                   : null
             ]),
             row.summary ? h('div', { class: 'text-xs text-stone-500 dark:text-stone-400 line-clamp-2 whitespace-normal break-words' }, row.summary) : null,

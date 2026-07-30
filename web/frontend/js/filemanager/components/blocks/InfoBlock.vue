@@ -116,8 +116,7 @@ function clearSelection() {
 <style lang="scss">
 .fm-info-block {
     @apply flex items-center justify-between gap-4 pt-2 pb-1 px-1
-        border-t border-stone-200 dark:border-stone-700
-        text-xs text-stone-600 dark:text-stone-400;
+        border-t text-xs text-stone-600 dark:text-stone-400;
     flex: 0 0 auto;
 }
 
@@ -135,7 +134,7 @@ function clearSelection() {
 
 .fm-info-pill {
     @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded
-        bg-stone-100 dark:bg-stone-800/60 text-stone-600 dark:text-stone-300;
+        bg-stone-100 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-800)_60%,transparent)] text-secondary;
     font-variant-numeric: tabular-nums;
 }
 
@@ -144,7 +143,7 @@ function clearSelection() {
 }
 
 .fm-info-pill-icon {
-    @apply text-stone-400 dark:text-stone-500;
+    @apply text-faint;
     font-size: 0.85em;
 }
 
@@ -153,12 +152,12 @@ function clearSelection() {
 }
 
 .fm-info-pill-label {
-    @apply font-normal text-stone-600 dark:text-stone-300 text-[0.7rem] uppercase tracking-wide;
+    @apply font-normal text-secondary text-[0.7rem] uppercase tracking-wide;
 }
 
 .fm-info-clear {
     @apply inline-flex items-center gap-1 px-2 py-0.5 rounded
-        text-stone-500 dark:text-stone-400
+        text-muted
         hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-800 dark:hover:text-stone-200
         transition-colors duration-100;
     cursor: pointer;
@@ -170,14 +169,14 @@ function clearSelection() {
 
 .fm-info-icon-btn {
     @apply inline-flex items-center justify-center w-6 h-6 rounded
-        text-stone-500 dark:text-stone-400
+        text-muted
         hover:bg-stone-100 dark:hover:bg-stone-700 hover:text-stone-700 dark:hover:text-stone-200
         transition-colors duration-100;
     cursor: pointer;
 }
 
 .fm-info-icon-btn--ok {
-    @apply text-stone-500 dark:text-stone-400;
+    @apply text-muted;
 }
 
 .fm-info-icon-btn--error {

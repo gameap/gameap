@@ -567,6 +567,76 @@ message GetFrontendBundleResponse {
 
 CSS from all plugins is combined and served at `/plugins.css`, which is automatically loaded before plugin JavaScript.
 
+## Theming
+
+The panel's colors are driven by CSS custom properties with the `--gameap-`
+prefix, defined in `/theme.css` (source: `@gameap/ui/theme.css`). The full
+variable table lives in the `@gameap/ui` README ("Theming" section).
+
+### Load order guarantees
+
+1. `/theme.css` — `<link>` in the document head (variable definitions)
+2. Panel CSS — `main-*.css`
+3. Plugin CSS — `<style id="gameap-plugin-styles">`, injected **before** the
+   app mounts
+4. Lazy route chunks (e.g. the file manager) — injected whenever their route
+   loads, i.e. **after** plugin CSS
+
+Consequence: plugin overrides of `--gameap-*` variables always win, while
+selector-level overrides of panel classes are unreliable (a lazy chunk loaded
+later out-cascades them at equal specificity). **Override variables, not
+selectors.**
+
+### Re-theming the panel from a plugin
+
+Ship regular CSS in your plugin bundle:
+
+```css
+:root {
+    --gameap-primary: #e11d48;
+    --gameap-primary-hover: #be123c;
+}
+
+html.dark {
+    --gameap-surface: #1e1b4b;
+}
+```
+
+Dark-mode values must be overridden under `html.dark` (the panel toggles the
+`dark` class on `<html>`); a plain `:root` declaration loses to the panel's
+own `html.dark` rules.
+
+Limitations:
+
+- `/plugins.css` is served behind authentication, so plugin theme overrides do
+  not apply to the login screen (the `/theme.css` defaults do).
+- naive-ui components are CSS-in-JS. The panel derives its naive-ui theme from
+  the variables on load and on every light/dark switch, so variable overrides
+  reach naive components too — but only the variables the panel maps:
+  `--gameap-{primary,success,warning,danger}[-hover]`, `--gameap-table-header`,
+  `--gameap-surface-overlay`, `--gameap-surface-raised`, `--gameap-surface-hover`,
+  `--gameap-text-muted`, `--gameap-tab-accent`.
+
+### Using panel colors in plugin UI
+
+In plugin templates, prefer the safelisted semantic utility classes
+(`bg-surface`, `text-muted`, `bg-primary`, `text-danger`, `border-strong`, …;
+full list in the `@gameap/ui` README) — they follow the active theme and need
+no `dark:` variants. In plugin CSS, use `var(--gameap-*)` directly. Other
+Tailwind classes are only available if the panel's own markup happens to use
+them, so do not rely on arbitrary utilities.
+
+### Testing themes
+
+Use the `@gameap/debug` harness:
+
+```js
+window.gameapDebug.loadPlugin(
+    'export const themeTest = {id: "theme-test", name: "Theme Test", version: "1.0.0"}',
+    ':root { --gameap-primary: #e11d48; }\nhtml.dark { --gameap-surface: #1e1b4b; }'
+)
+```
+
 ## Development
 
 ```bash

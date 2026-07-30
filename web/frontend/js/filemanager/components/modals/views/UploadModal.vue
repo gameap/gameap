@@ -60,7 +60,7 @@
                     {{ bytesToHuman(totals.bytes) }}
                 </div>
             </div>
-            <div v-if="hasConflicts" class="border border-orange-300 dark:border-orange-800 rounded p-3 bg-orange-50 dark:bg-orange-950/40">
+            <div v-if="hasConflicts" class="border border-orange-300 dark:border-orange-800 rounded p-3 bg-warning-soft">
                 <div class="flex items-center gap-2 mb-2">
                     <GIcon name="warning" class="text-orange-500" />
                     <strong class="text-orange-700 dark:text-orange-300">
@@ -208,10 +208,10 @@ const resultMessage = computed(() => {
 })
 
 const resultBoxClass = computed(() => {
-    if (status.value === 'completed') return 'bg-lime-50 dark:bg-lime-950/40 text-lime-700 dark:text-lime-300 border border-lime-300 dark:border-lime-800'
+    if (status.value === 'completed') return 'bg-success-soft text-success-soft-text border border-lime-300 dark:border-lime-800'
     if (status.value === 'cancelled') return 'bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-300 dark:border-stone-700'
 
-    return 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-800'
+    return 'bg-warning-soft text-warning-soft-text border border-orange-300 dark:border-orange-800'
 })
 
 function openFolderPicker() {

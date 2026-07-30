@@ -19,7 +19,8 @@
 }
 
 .badge-light {
-    @apply bg-stone-50 text-stone-600 me-2 px-1.5 py-0.5 rounded ring-1 ring-inset ring-stone-500/10;
+    @apply bg-stone-50 text-stone-600 me-2 px-1.5 py-0.5 rounded ring-1 ring-inset;
+    --tw-ring-color: var(--gameap-ring-subtle);
 }
 
 .badge-circle-red {
@@ -47,5 +48,5 @@
 }
 
 .progress-bar-info {
-    @apply bg-blue-500;
+    @apply bg-info;
 }

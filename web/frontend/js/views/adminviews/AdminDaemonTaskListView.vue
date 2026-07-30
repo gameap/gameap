@@ -142,7 +142,7 @@ const columns = computed(() => {
           RouterLink,
           {
             to: {name: 'servers.control', params: {id: server.id}},
-            class: "text-blue-600 underline dark:text-blue-500 hover:no-underline",
+            class: "text-info underline hover:no-underline",
           },
           { default: () => server.name },
         )

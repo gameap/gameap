@@ -8,7 +8,7 @@
         {{ item.name }}
       </div>
       <div
-          class="ml-[2px] text-xs h-full inline-flex items-center px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-e cursor-pointer"
+          class="ml-[2px] text-xs h-full inline-flex items-center px-2 py-1 bg-danger hover:bg-danger-hover text-white rounded-e cursor-pointer"
           @click="onClickDelete(item.id)"
       >
         <GIcon name="delete" />&nbsp;

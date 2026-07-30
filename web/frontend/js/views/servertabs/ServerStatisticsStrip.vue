@@ -11,7 +11,7 @@
       @keydown.enter="$emit('open')"
       @keydown.space.prevent="$emit('open')"
   >
-    <div v-if="errorMessage" class="text-xs text-amber-600 dark:text-amber-500 mb-2">
+    <div v-if="errorMessage" class="text-xs text-orange-600 dark:text-orange-500 mb-2">
       {{ errorMessage }}
     </div>
 
@@ -53,8 +53,8 @@
       <div class="flex items-center justify-between gap-2 md:flex-1 md:px-4">
         <span class="text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400">NET</span>
         <span class="text-xs font-mono tabular-nums">
-          <span class="text-sky-500">↑</span> {{ formatBitrate(netIn) }}
-          <span class="text-fuchsia-500 ml-2">↓</span> {{ formatBitrate(netOut) }}
+          <span class="text-chart-7">↑</span> {{ formatBitrate(netIn) }}
+          <span class="text-chart-3 ml-2">↓</span> {{ formatBitrate(netOut) }}
         </span>
       </div>
 
@@ -78,6 +78,7 @@ import { computed } from 'vue'
 import { NCard, NProgress } from 'naive-ui'
 import { GIcon } from '@gameap/ui'
 import { useServerMetricsWebSocket } from '@/composables/useServerMetricsWebSocket'
+import { useThemeVars } from '@/utils/theme'
 import { trans } from '@/i18n/i18n'
 
 const props = defineProps({
@@ -86,9 +87,7 @@ const props = defineProps({
 
 defineEmits(['open'])
 
-const PALETTE_BASE = '#3097D1'
-const PALETTE_WARNING = '#cbb956'
-const PALETTE_DANGER = '#bf5329'
+const { chartPalette, statusColors } = useThemeVars()
 
 const {
     errorMessage,
@@ -142,11 +141,11 @@ function clamp(v, min, max) {
 }
 
 function paletteFor(v) {
-    if (v === null || v === undefined) return PALETTE_BASE
-    if (v > 90) return PALETTE_DANGER
-    if (v > 75) return PALETTE_WARNING
+    if (v === null || v === undefined) return chartPalette.value[6]
+    if (v > 90) return statusColors.value.danger
+    if (v > 75) return statusColors.value.warning
 
-    return PALETTE_BASE
+    return chartPalette.value[6]
 }
 
 function formatPercent(v) {

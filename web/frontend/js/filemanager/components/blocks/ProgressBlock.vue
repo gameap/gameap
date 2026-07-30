@@ -166,7 +166,7 @@ function dismissArchive() {
 
 <style lang="scss">
 .fm-progress-block {
-    @apply border-t dark:border-stone-700 bg-stone-50 dark:bg-stone-800/50;
+    @apply border-t bg-stone-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-800)_50%,transparent)];
     flex: 0 0 auto;
 }
 </style>

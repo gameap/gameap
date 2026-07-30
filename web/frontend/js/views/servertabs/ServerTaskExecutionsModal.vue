@@ -153,7 +153,7 @@ function renderExpand(row) {
                 'div',
                 {
                     class:
-                        'mb-3 p-3 rounded border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-sm whitespace-pre-wrap font-mono',
+                        'mb-3 p-3 rounded border border-red-300 dark:border-red-900 bg-danger-soft text-danger-soft-text text-sm whitespace-pre-wrap font-mono',
                 },
                 row.error_message,
             ),
@@ -210,7 +210,7 @@ function renderExpand(row) {
         'div',
         {
             class:
-                'p-4 bg-stone-50 dark:bg-stone-900/40 border-t border-stone-200 dark:border-stone-800',
+                'p-4 bg-stone-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-900)_40%,transparent)] border-t border-stone-200 dark:border-stone-800',
         },
         children,
     )

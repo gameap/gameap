@@ -37,7 +37,7 @@
         {{ errorMessage }}
       </div>
 
-      <div v-if="yamlPreview" class="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded">
+      <div v-if="yamlPreview" class="mb-4 p-4 bg-stone-100 dark:bg-stone-800 rounded">
         <div>
           <h4 class="font-semibold mb-2">{{ yamlPreview.gameName }}</h4>
           <p class="text-sm text-stone-600 dark:text-stone-400">

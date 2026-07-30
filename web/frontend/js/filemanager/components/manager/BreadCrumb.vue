@@ -117,7 +117,7 @@ function selectMainDirectory() {
 
 .fm-breadcrumb-nav {
     @apply flex items-center gap-1 px-1.5 py-1 rounded-md
-        bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700
+        bg-stone-100 dark:bg-stone-800 border
         min-w-0;
     transition: border-color 120ms ease, background-color 120ms ease;
 }
@@ -129,13 +129,13 @@ function selectMainDirectory() {
 .fm-breadcrumb-disk {
     @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded
         text-stone-700 dark:text-stone-200 text-sm font-medium
-        hover:bg-white dark:hover:bg-stone-700/50
+        hover:bg-white dark:hover:bg-[color:color-mix(in_srgb,var(--gameap-stone-700)_50%,transparent)]
         transition-colors duration-100;
     flex: 0 0 auto;
 }
 
 .fm-breadcrumb-disk-label {
-    @apply text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400;
+    @apply text-xs uppercase tracking-wide text-muted;
 }
 
 .fm-breadcrumb-list {
@@ -154,7 +154,7 @@ function selectMainDirectory() {
 }
 
 .fm-breadcrumb-text {
-    @apply px-1.5 py-0.5 rounded text-sm text-stone-600 dark:text-stone-300;
+    @apply px-1.5 py-0.5 rounded text-sm text-secondary;
     cursor: pointer;
     transition: background-color 120ms ease, color 120ms ease;
     overflow: hidden;
@@ -164,7 +164,7 @@ function selectMainDirectory() {
 }
 
 .fm-breadcrumb-item:not(.fm-breadcrumb-item--active) .fm-breadcrumb-text:hover {
-    @apply bg-white dark:bg-stone-700/50 text-stone-900 dark:text-white;
+    @apply bg-white dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-700)_50%,transparent)] text-body;
 }
 
 .fm-breadcrumb-item--active .fm-breadcrumb-text {
@@ -173,6 +173,6 @@ function selectMainDirectory() {
 }
 
 .fm-breadcrumb-ellipsis {
-    @apply px-1.5 text-stone-400 dark:text-stone-500 select-none;
+    @apply px-1.5 text-faint select-none;
 }
 </style>

@@ -37,7 +37,7 @@
         {{ errorMessage }}
       </div>
 
-      <div v-if="eggPreview" class="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded">
+      <div v-if="eggPreview" class="mb-4 p-4 bg-stone-100 dark:bg-stone-800 rounded">
         <div class="flex gap-4">
           <img
               v-if="eggPreview.image"

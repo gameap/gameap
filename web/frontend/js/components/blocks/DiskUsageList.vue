@@ -14,7 +14,7 @@
       <n-progress
           type="line"
           :percentage="clampPct(m.percent)"
-          :color="paletteFor(m.percent, '#22d3ee')"
+          :color="paletteFor(m.percent, chartPalette[0])"
           :height="10"
           :border-radius="2"
           :show-indicator="false"
@@ -32,10 +32,13 @@
 
 <script setup>
 import { NProgress } from 'naive-ui'
+import { useThemeVars } from '@/utils/theme'
 
 defineProps({
     mounts: { type: Array, required: true },
 })
+
+const { chartPalette, statusColors } = useThemeVars()
 
 function clampPct(v) {
     if (v === null || v === undefined || Number.isNaN(v)) return 0
@@ -44,8 +47,8 @@ function clampPct(v) {
 
 function paletteFor(v, base) {
     if (v === null || v === undefined) return base
-    if (v > 90) return '#ef4444'
-    if (v > 75) return '#f59e0b'
+    if (v > 90) return statusColors.value.danger
+    if (v > 75) return statusColors.value.warning
     return base
 }
 

@@ -1,0 +1,197 @@
+/*
+ * GameAP theme tokens.
+ *
+ * This file is the public theming API of the panel. It is shipped verbatim
+ * as /theme.css and is loaded before every other stylesheet, so any CSS that
+ * comes later (plugin styles delivered via /plugins.css included) can
+ * override the variables below and re-theme the whole panel, naive-ui
+ * components included.
+ *
+ * Two tiers:
+ *   1. Palette (--gameap-<family>-<shade>) — raw color ramps. They do NOT
+ *      change between light and dark mode.
+ *   2. Semantic (--gameap-surface, --gameap-text-muted, ...) — role tokens.
+ *      Light values live in :root, dark overrides in html.dark.
+ *
+ * Override example (plugin CSS):
+ *   :root { --gameap-primary: #e11d48; --gameap-primary-hover: #be123c; }
+ *   html.dark { --gameap-surface: #1e1b4b; }
+ *
+ * Dark-mode values MUST be overridden under `html.dark` — a plain :root
+ * declaration loses to the html.dark rules below on specificity.
+ *
+ * Variables are covered by semver of @gameap/ui: additions are a minor
+ * release, renames or removals are a major release.
+ */
+
+/* Tier 1 — palette (Tailwind v3 default ramps; identical in both modes) */
+:root {
+    --gameap-stone-50: #fafaf9;
+    --gameap-stone-100: #f5f5f4;
+    --gameap-stone-200: #e7e5e4;
+    --gameap-stone-300: #d6d3d1;
+    --gameap-stone-400: #a8a29e;
+    --gameap-stone-500: #78716c;
+    --gameap-stone-600: #57534e;
+    --gameap-stone-700: #44403c;
+    --gameap-stone-800: #292524;
+    --gameap-stone-900: #1c1917;
+    --gameap-stone-950: #0c0a09;
+
+    --gameap-red-50: #fef2f2;
+    --gameap-red-100: #fee2e2;
+    --gameap-red-200: #fecaca;
+    --gameap-red-300: #fca5a5;
+    --gameap-red-400: #f87171;
+    --gameap-red-500: #ef4444;
+    --gameap-red-600: #dc2626;
+    --gameap-red-700: #b91c1c;
+    --gameap-red-800: #991b1b;
+    --gameap-red-900: #7f1d1d;
+    --gameap-red-950: #450a0a;
+
+    --gameap-orange-50: #fff7ed;
+    --gameap-orange-100: #ffedd5;
+    --gameap-orange-200: #fed7aa;
+    --gameap-orange-300: #fdba74;
+    --gameap-orange-400: #fb923c;
+    --gameap-orange-500: #f97316;
+    --gameap-orange-600: #ea580c;
+    --gameap-orange-700: #c2410c;
+    --gameap-orange-800: #9a3412;
+    --gameap-orange-900: #7c2d12;
+    --gameap-orange-950: #431407;
+
+    --gameap-lime-50: #f7fee7;
+    --gameap-lime-100: #ecfccb;
+    --gameap-lime-200: #d9f99d;
+    --gameap-lime-300: #bef264;
+    --gameap-lime-400: #a3e635;
+    --gameap-lime-500: #84cc16;
+    --gameap-lime-600: #65a30d;
+    --gameap-lime-700: #4d7c0f;
+    --gameap-lime-800: #3f6212;
+    --gameap-lime-900: #365314;
+    --gameap-lime-950: #1a2e05;
+
+    --gameap-sky-50: #f0f9ff;
+    --gameap-sky-100: #e0f2fe;
+    --gameap-sky-200: #bae6fd;
+    --gameap-sky-300: #7dd3fc;
+    --gameap-sky-400: #38bdf8;
+    --gameap-sky-500: #0ea5e9;
+    --gameap-sky-600: #0284c7;
+    --gameap-sky-700: #0369a1;
+    --gameap-sky-800: #075985;
+    --gameap-sky-900: #0c4a6e;
+    --gameap-sky-950: #082f49;
+}
+
+/* Tier 2 — semantic, light values */
+:root {
+    /* Surfaces */
+    --gameap-surface: #ffffff;
+    --gameap-surface-raised: #ffffff;
+    --gameap-surface-overlay: #ffffff;
+    --gameap-surface-hover: var(--gameap-stone-100);
+    --gameap-scrim: color-mix(in srgb, var(--gameap-stone-900) 10%, transparent);
+
+    /* Borders */
+    --gameap-border: var(--gameap-stone-200);
+    --gameap-border-strong: var(--gameap-stone-300);
+
+    /* Text */
+    --gameap-text: var(--gameap-stone-900);
+    --gameap-text-secondary: var(--gameap-stone-600);
+    --gameap-text-muted: var(--gameap-stone-500);
+    --gameap-text-faint: var(--gameap-stone-400);
+
+    /* Intent: primary / success / danger / warning / info */
+    --gameap-primary: var(--gameap-lime-500);
+    --gameap-primary-hover: var(--gameap-lime-600);
+    --gameap-primary-soft: var(--gameap-lime-50);
+    --gameap-primary-soft-text: var(--gameap-lime-700);
+
+    --gameap-success: var(--gameap-lime-500);
+    --gameap-success-hover: var(--gameap-lime-600);
+    --gameap-success-soft: var(--gameap-lime-50);
+    --gameap-success-soft-text: var(--gameap-lime-700);
+
+    --gameap-danger: var(--gameap-red-500);
+    --gameap-danger-hover: var(--gameap-red-600);
+    --gameap-danger-soft: var(--gameap-red-50);
+    --gameap-danger-soft-text: var(--gameap-red-700);
+
+    --gameap-warning: var(--gameap-orange-400);
+    --gameap-warning-hover: var(--gameap-orange-500);
+    --gameap-warning-soft: var(--gameap-orange-50);
+    --gameap-warning-soft-text: var(--gameap-orange-700);
+
+    --gameap-info: var(--gameap-sky-500);
+    --gameap-info-hover: var(--gameap-sky-600);
+    --gameap-info-soft: var(--gameap-sky-50);
+    --gameap-info-soft-text: var(--gameap-sky-700);
+
+    /* App chrome (navbar + sidebar); intentionally the same in both modes */
+    --gameap-chrome: var(--gameap-stone-900);
+    --gameap-chrome-item: var(--gameap-stone-800);
+    --gameap-chrome-hover: var(--gameap-stone-700);
+
+    /* naive-ui specific tones */
+    --gameap-table-header: var(--gameap-stone-100);
+    --gameap-tab-accent: var(--gameap-stone-900);
+
+    /* Rings and selection outlines */
+    --gameap-ring-subtle: color-mix(in srgb, var(--gameap-stone-500) 10%, transparent);
+    --gameap-selection-outline: color-mix(in srgb, var(--gameap-stone-500) 70%, transparent);
+    --gameap-selection-outline-weak: color-mix(in srgb, var(--gameap-stone-500) 30%, transparent);
+
+    /* Terminal (console output); intentionally dark in both modes */
+    --gameap-terminal-bg: var(--gameap-stone-800);
+    --gameap-terminal-text: var(--gameap-stone-100);
+
+    /* Chart series palette (ECharts, progress thresholds) */
+    --gameap-chart-1: #22d3ee;
+    --gameap-chart-2: #84cc16;
+    --gameap-chart-3: #e879f9;
+    --gameap-chart-4: #f59e0b;
+    --gameap-chart-5: #ef4444;
+    --gameap-chart-6: #a78bfa;
+    --gameap-chart-7: #0ea5e9;
+    --gameap-chart-8: #facc15;
+    --gameap-chart-9: #10b981;
+    --gameap-chart-10: #fb7185;
+}
+
+/* Tier 2 — semantic, dark overrides */
+html.dark {
+    --gameap-surface: var(--gameap-stone-800);
+    --gameap-surface-raised: var(--gameap-stone-800);
+    --gameap-surface-overlay: var(--gameap-stone-800);
+    --gameap-surface-hover: #262322;
+    --gameap-scrim: color-mix(in srgb, var(--gameap-stone-100) 10%, transparent);
+
+    --gameap-border: var(--gameap-stone-700);
+    --gameap-border-strong: var(--gameap-stone-600);
+
+    --gameap-text: #ffffff;
+    --gameap-text-secondary: var(--gameap-stone-300);
+    --gameap-text-muted: var(--gameap-stone-400);
+    --gameap-text-faint: var(--gameap-stone-500);
+
+    --gameap-primary-soft: color-mix(in srgb, var(--gameap-lime-950) 40%, transparent);
+    --gameap-primary-soft-text: var(--gameap-lime-300);
+    --gameap-success-soft: color-mix(in srgb, var(--gameap-lime-950) 40%, transparent);
+    --gameap-success-soft-text: var(--gameap-lime-300);
+    --gameap-danger-soft: color-mix(in srgb, var(--gameap-red-950) 40%, transparent);
+    --gameap-danger-soft-text: var(--gameap-red-300);
+    --gameap-warning-soft: color-mix(in srgb, var(--gameap-orange-950) 40%, transparent);
+    --gameap-warning-soft-text: var(--gameap-orange-300);
+    --gameap-info-soft: color-mix(in srgb, var(--gameap-sky-950) 40%, transparent);
+    --gameap-info-soft-text: var(--gameap-sky-300);
+
+    --gameap-table-header: var(--gameap-stone-700);
+    --gameap-tab-accent: #737373;
+
+    --gameap-terminal-bg: var(--gameap-stone-900);
+}

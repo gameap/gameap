@@ -1,6 +1,6 @@
 {
   "name": "@gameap/ui",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "main": "./index.js",
   "module": "./index.js",
@@ -8,11 +8,13 @@
     ".": {
       "import": "./index.js"
     },
-    "./style.css": "./style.css"
+    "./style.css": "./style.css",
+    "./theme.css": "./theme.css"
   },
   "files": [
     "index.js",
     "style.css",
+    "theme.css",
     "components"
   ],
   "peerDependencies": {

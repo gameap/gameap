@@ -74,7 +74,7 @@
             </div>
 
             <template #footer>
-                <button type="button" class="inline-block align-middle text-center select-none border font-normal whitespace-nowrap rounded py-2 px-3 leading-normal no-underline bg-blue-600 text-white hover:bg-blue-600 me-1" v-on:click="send">{{ trans('main.send') }}</button>
+                <button type="button" class="inline-block align-middle text-center select-none border font-normal whitespace-nowrap rounded py-2 px-3 leading-normal no-underline bg-info text-white hover:bg-info-hover me-1" v-on:click="send">{{ trans('main.send') }}</button>
                 <button type="button" class="inline-block align-middle text-center select-none border font-normal whitespace-nowrap rounded py-2 px-3 leading-normal no-underline bg-stone-600 text-white hover:bg-stone-700" v-on:click="hideModal">{{ trans('main.close') }}</button>
 
             </template>

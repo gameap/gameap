@@ -403,7 +403,7 @@ onMounted(() => {
         cursor: pointer;
 
         &:hover {
-          @apply bg-stone-100 dark:bg-[#262322];
+          @apply bg-surface-hover;
         }
 
         i, svg {

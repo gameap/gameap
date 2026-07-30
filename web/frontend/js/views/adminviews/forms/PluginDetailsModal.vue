@@ -17,18 +17,18 @@
           <div class="flex items-center gap-2 flex-wrap">
             <h2 class="text-xl font-bold break-words">{{ plugin.name }}</h2>
             <GIcon v-if="plugin.requires_subscription" name="star" class="text-yellow-500" />
-            <a v-if="plugin.url" :href="plugin.url" target="_blank" class="text-blue-500 hover:text-blue-600">
+            <a v-if="plugin.url" :href="plugin.url" target="_blank" class="text-info hover:text-info-hover">
               <GIcon name="external-link" />
             </a>
-            <span v-if="plugin.installed" class="hidden md:inline px-2 py-0.5 text-xs font-medium rounded-full bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-300 whitespace-nowrap">
+            <span v-if="plugin.installed" class="hidden md:inline px-2 py-0.5 text-xs font-medium rounded-full bg-success-soft text-success-soft-text whitespace-nowrap">
               {{ trans('plugins.already_installed') }}
             </span>
             <span
               v-if="loadedInfo?.source_type"
               class="hidden md:inline px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
               :class="loadedInfo.source_type === 'file'
-                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
-                : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'"
+                ? 'bg-info-soft text-info-soft-text'
+                : 'bg-success-soft text-success-soft-text'"
             >
               {{ loadedInfo.source_type === 'file' ? trans('plugins.source_file') : trans('plugins.source_store') }}
             </span>
@@ -36,8 +36,8 @@
               v-if="loadedInfo"
               class="hidden md:inline px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
               :class="loadedInfo.enabled
-                ? 'bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-300'
-                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'"
+                ? 'bg-success-soft text-success-soft-text'
+                : 'bg-danger-soft text-danger-soft-text'"
             >
               {{ loadedInfo.enabled ? trans('plugins.status_active') : trans('plugins.status_disabled') }}
             </span>
@@ -61,7 +61,7 @@
 
           <div v-if="!isFilePlugin" class="flex items-center gap-2 mt-2">
             <span class="text-orange-500 text-lg">{{ renderStars(plugin.rating_avg) }}</span>
-            <a v-if="plugin.url" :href="plugin.url + '/reviews'" target="_blank" class="text-stone-500 hover:text-blue-500 hover:underline">
+            <a v-if="plugin.url" :href="plugin.url + '/reviews'" target="_blank" class="text-stone-500 hover:text-info hover:underline">
               ({{ plugin.rating_count || 0 }} {{ trans('plugins.reviews') }})
             </a>
             <span v-else class="text-stone-500">({{ plugin.rating_count || 0 }} {{ trans('plugins.reviews') }})</span>
@@ -173,9 +173,9 @@
           <span class="text-xs text-stone-500">{{ trans('plugins.min_gameap_version') }}</span>
         </div>
 
-        <a v-if="plugin.url && !isFilePlugin" :href="plugin.url" target="_blank" class="flex flex-col items-center text-center px-4 hover:text-blue-500 transition-colors">
-          <GIcon name="external-link" class="text-xl text-blue-500 mb-1" />
-          <span class="text-sm font-medium text-blue-500">{{ trans('plugins.plugin_page') }}</span>
+        <a v-if="plugin.url && !isFilePlugin" :href="plugin.url" target="_blank" class="flex flex-col items-center text-center px-4 hover:text-info transition-colors">
+          <GIcon name="external-link" class="text-xl text-info mb-1" />
+          <span class="text-sm font-medium text-info">{{ trans('plugins.plugin_page') }}</span>
         </a>
       </div>
 
