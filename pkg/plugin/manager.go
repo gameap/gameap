@@ -14,6 +14,7 @@ import (
 
 	"github.com/gameap/gameap/pkg/mergefs"
 	"github.com/gameap/gameap/pkg/plugin/proto"
+	"github.com/gameap/gameap/pkg/plugin/sdk/protocol"
 	"github.com/pkg/errors"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -52,6 +53,14 @@ type LoadedPlugin struct {
 	FrontendBundle  []byte
 	FrontendStyles  []byte
 	ServerAbilities []*proto.ServerAbility
+
+	// Protocol is the optional ProtocolService implementation (RCON/Query
+	// protocol extension). It is non-nil for every loaded plugin (the wrapper
+	// implements it); plugins that export no protocol functions simply return
+	// empty registrations.
+	Protocol       protocol.ProtocolService
+	RconProtocols  []*protocol.RconProtocol
+	QueryProtocols []*protocol.QueryProtocol
 
 	// I18nFS and FrontendFS hold the plugin's contributed translation and
 	// frontend static files (nil when the plugin ships none). They are layered
@@ -423,6 +432,8 @@ func (m *Manager) initializePlugin(
 		serverAbilities = abilitiesResp.Abilities
 	}
 
+	protocolSvc, rconProtocols, queryProtocols := m.fetchProtocols(ctx, plugin, info.Id)
+
 	i18nFS, frontendFS := m.buildPluginAssets(ctx, plugin, info.Id)
 
 	return &LoadedPlugin{
@@ -434,10 +445,49 @@ func (m *Manager) initializePlugin(
 		FrontendBundle:  frontendBundle,
 		FrontendStyles:  frontendStyles,
 		ServerAbilities: serverAbilities,
+		Protocol:        protocolSvc,
+		RconProtocols:   rconProtocols,
+		QueryProtocols:  queryProtocols,
 		I18nFS:          i18nFS,
 		FrontendFS:      frontendFS,
 		runtime:         r,
 	}, nil
+}
+
+// fetchProtocols reads the optional ProtocolService registrations. The module
+// wrapper always implements ProtocolService; plugins that export no protocol
+// functions simply return empty registrations.
+func (m *Manager) fetchProtocols(
+	ctx context.Context,
+	plugin proto.PluginService,
+	pluginID string,
+) (protocol.ProtocolService, []*protocol.RconProtocol, []*protocol.QueryProtocol) {
+	protocolSvc, ok := plugin.(protocol.ProtocolService)
+	if !ok {
+		return nil, nil, nil
+	}
+
+	var rconProtocols []*protocol.RconProtocol
+	if resp, err := protocolSvc.GetRconProtocols(ctx, &protocol.GetRconProtocolsRequest{}); err != nil {
+		slog.Debug("plugin has no rcon protocols",
+			slog.String("plugin_id", pluginID),
+			slog.String("error", err.Error()),
+		)
+	} else if resp != nil {
+		rconProtocols = resp.Protocols
+	}
+
+	var queryProtocols []*protocol.QueryProtocol
+	if resp, err := protocolSvc.GetQueryProtocols(ctx, &protocol.GetQueryProtocolsRequest{}); err != nil {
+		slog.Debug("plugin has no query protocols",
+			slog.String("plugin_id", pluginID),
+			slog.String("error", err.Error()),
+		)
+	} else if resp != nil {
+		queryProtocols = resp.Protocols
+	}
+
+	return protocolSvc, rconProtocols, queryProtocols
 }
 
 // Asset delivery limits bound how much a single plugin can push across the WASM
@@ -610,6 +660,13 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 	getFrontendBundle := module.ExportedFunction("plugin_service_get_frontend_bundle")
 	getServerAbilities := module.ExportedFunction("plugin_service_get_server_abilities")
 	getAssets := module.ExportedFunction("plugin_service_get_assets")
+	getRconProtocols := module.ExportedFunction("protocol_service_get_rcon_protocols")
+	getQueryProtocols := module.ExportedFunction("protocol_service_get_query_protocols")
+	rconOpen := module.ExportedFunction("protocol_service_rcon_open")
+	rconExecute := module.ExportedFunction("protocol_service_rcon_execute")
+	rconClose := module.ExportedFunction("protocol_service_rcon_close")
+	queryServer := module.ExportedFunction("protocol_service_query_server")
+	parsePlayers := module.ExportedFunction("protocol_service_parse_players")
 	handleScheduledTask := module.ExportedFunction("scheduled_task_handler_handle_scheduled_task")
 
 	return &pluginServiceWrapper{
@@ -627,6 +684,13 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 		getfrontendbundle:   getFrontendBundle,
 		getserverabilities:  getServerAbilities,
 		getassets:           getAssets,
+		getrconprotocols:    getRconProtocols,
+		getqueryprotocols:   getQueryProtocols,
+		rconopen:            rconOpen,
+		rconexecute:         rconExecute,
+		rconclose:           rconClose,
+		queryserver:         queryServer,
+		parseplayers:        parsePlayers,
 		handlescheduledtask: handleScheduledTask,
 	}, nil
 }
@@ -789,6 +853,68 @@ func (m *Manager) GetAllServerAbilities() []ServerAbility {
 	}
 
 	return abilities
+}
+
+// RconProtocolRegistration is a plugin RCON protocol registration paired with
+// the compact ID of the plugin that provides it.
+type RconProtocolRegistration struct {
+	PluginID string
+	Protocol *protocol.RconProtocol
+}
+
+// QueryProtocolRegistration is a plugin Query protocol registration paired with
+// the compact ID of the plugin that provides it.
+type QueryProtocolRegistration struct {
+	PluginID string
+	Protocol *protocol.QueryProtocol
+}
+
+// GetAllRconProtocols returns every RCON protocol registration from enabled
+// plugins. The registrations are ordered by plugin ID so resolution is stable.
+func (m *Manager) GetAllRconProtocols() []RconProtocolRegistration {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var regs []RconProtocolRegistration
+	for pluginID, p := range m.plugins {
+		if !p.IsEnabled() || len(p.RconProtocols) == 0 {
+			continue
+		}
+
+		for _, pr := range p.RconProtocols {
+			regs = append(regs, RconProtocolRegistration{PluginID: pluginID, Protocol: pr})
+		}
+	}
+
+	slices.SortFunc(regs, func(a, b RconProtocolRegistration) int {
+		return strings.Compare(a.PluginID, b.PluginID)
+	})
+
+	return regs
+}
+
+// GetAllQueryProtocols returns every Query protocol registration from enabled
+// plugins, ordered by plugin ID.
+func (m *Manager) GetAllQueryProtocols() []QueryProtocolRegistration {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var regs []QueryProtocolRegistration
+	for pluginID, p := range m.plugins {
+		if !p.IsEnabled() || len(p.QueryProtocols) == 0 {
+			continue
+		}
+
+		for _, pr := range p.QueryProtocols {
+			regs = append(regs, QueryProtocolRegistration{PluginID: pluginID, Protocol: pr})
+		}
+	}
+
+	slices.SortFunc(regs, func(a, b QueryProtocolRegistration) int {
+		return strings.Compare(a.PluginID, b.PluginID)
+	})
+
+	return regs
 }
 
 // fetchAndValidateHTTPRoutes fetches HTTP routes from a plugin and validates them.

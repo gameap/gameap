@@ -12,7 +12,7 @@
                 <th v-if="scoreRow">{{ trans('rcon.player_score') }}</th>
                 <th v-if="pingRow">{{ trans('rcon.player_ping') }}</th>
                 <th v-if="ipRow">{{ trans('rcon.player_ip') }}</th>
-                <th>{{ trans('main.actions') }}</th>
+                <th v-if="showActions">{{ trans('main.actions') }}</th>
             </tr>
             </thead>
             <tbody v-for="(value, key) in players">
@@ -21,13 +21,13 @@
                 <td v-if="scoreRow">{{ value.score }}</td>
                 <td v-if="pingRow">{{ value.ping }}</td>
                 <td v-if="ipRow">{{ value.ip }}</td>
-                <td class="grid grid-cols-2 gap-x-4">
-                  <GButton color="black" size="small" class="mb-2" v-on:click="openDialog('kick', key)">
+                <td v-if="showActions" class="grid grid-cols-2 gap-x-4">
+                  <GButton v-if="canKick" color="black" size="small" class="mb-2" v-on:click="openDialog('kick', key)">
                     <i class="gicon gicon-kick mr-1"></i>
                     <span class="hidden lg:inline">{{ trans('rcon.kick') }}</span>
                   </GButton>
 
-                  <GButton color="black" size="small" class="mb-2" v-on:click="openDialog('ban', key)">
+                  <GButton v-if="canBan" color="black" size="small" class="mb-2" v-on:click="openDialog('ban', key)">
                     <GIcon name="ban" class="mr-1" />
                     <span class="hidden lg:inline">{{ trans('rcon.ban') }}</span>
                   </GButton>
@@ -102,12 +102,13 @@
         setup() {
             const serverStore = useServerStore()
             const rconStore = useServerRconStore()
-            const { players } = storeToRefs(rconStore)
+            const { players, rconSupportedFeatures } = storeToRefs(rconStore)
 
             return {
                 serverStore,
                 rconStore,
                 players,
+                rconSupportedFeatures,
             }
         },
         data: function () {
@@ -272,6 +273,15 @@
             },
             scoreRow() {
                 return some(this.players, player => !isEmpty(player.score));
+            },
+            canKick() {
+                return this.rconSupportedFeatures.playersKick === true;
+            },
+            canBan() {
+                return this.rconSupportedFeatures.playersBan === true;
+            },
+            showActions() {
+                return this.canKick || this.canBan;
             }
         },
         mounted() {

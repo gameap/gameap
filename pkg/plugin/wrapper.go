@@ -32,6 +32,13 @@ type pluginServiceWrapper struct {
 	getfrontendbundle   api.Function
 	getserverabilities  api.Function
 	getassets           api.Function
+	getrconprotocols    api.Function
+	getqueryprotocols   api.Function
+	rconopen            api.Function
+	rconexecute         api.Function
+	rconclose           api.Function
+	queryserver         api.Function
+	parseplayers        api.Function
 	handlescheduledtask api.Function
 }
 

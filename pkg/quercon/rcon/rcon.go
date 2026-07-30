@@ -15,9 +15,26 @@ var (
 type Protocol string
 
 const (
-	ProtocolSource  Protocol = "source"
-	ProtocolGoldSrc Protocol = "goldsource"
+	ProtocolSource   Protocol = "source"
+	ProtocolGoldSrc  Protocol = "goldsource"
+	ProtocolQuake2   Protocol = "quake2"
+	ProtocolQuake3   Protocol = "quake3"
+	ProtocolSAMP     Protocol = "samp"
+	ProtocolBattlEye Protocol = "battleye"
 )
+
+// clientFactories is the single registry of supported protocols. Both NewClient and
+// IsProtocolSupported read it, so a protocol cannot be runnable but unadvertised (or the
+// reverse) — the two used to be independent switch statements that had to be kept in sync.
+// The closures exist because the concrete constructors return concrete types.
+var clientFactories = map[Protocol]func(Config) (Client, error){
+	ProtocolSource:   func(c Config) (Client, error) { return NewSource(c) },
+	ProtocolGoldSrc:  func(c Config) (Client, error) { return NewGoldSource(c) },
+	ProtocolQuake2:   func(c Config) (Client, error) { return NewQuake2(c) },
+	ProtocolQuake3:   func(c Config) (Client, error) { return NewQuake3(c) },
+	ProtocolSAMP:     func(c Config) (Client, error) { return NewSAMP(c) },
+	ProtocolBattlEye: func(c Config) (Client, error) { return NewBattlEye(c) },
+}
 
 type Config struct {
 	Address  string
@@ -44,23 +61,18 @@ type Client interface {
 }
 
 func NewClient(config Config) (Client, error) {
-	switch config.Protocol {
-	case ProtocolGoldSrc:
-		return NewGoldSource(config)
-	case ProtocolSource:
-		return NewSource(config)
+	factory, ok := clientFactories[config.Protocol]
+	if !ok {
+		return nil, ErrUnsupportedProtocol
 	}
 
-	return nil, ErrUnsupportedProtocol
+	return factory(config)
 }
 
 func IsProtocolSupported(protocol Protocol) bool {
-	switch protocol {
-	case ProtocolGoldSrc, ProtocolSource:
-		return true
-	default:
-		return false
-	}
+	_, ok := clientFactories[protocol]
+
+	return ok
 }
 
 func IsPlayerManagementSupported(gameCode string) bool {

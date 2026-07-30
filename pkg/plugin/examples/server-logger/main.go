@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
+	"github.com/gameap/gameap/pkg/plugin/sdk"
 	"github.com/gameap/gameap/pkg/plugin/sdk/gamemods"
 	"github.com/gameap/gameap/pkg/plugin/sdk/games"
 	"github.com/gameap/gameap/pkg/plugin/sdk/log"
@@ -36,7 +37,9 @@ func init() {
 	scheduler.RegisterScheduledTaskHandler(&scheduledTaskHandler{})
 }
 
-type ServerLoggerPlugin struct{}
+type ServerLoggerPlugin struct {
+	sdk.EmptyPluginService
+}
 
 func (p *ServerLoggerPlugin) GetInfo(
 	_ context.Context,

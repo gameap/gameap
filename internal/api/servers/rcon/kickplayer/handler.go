@@ -11,9 +11,9 @@ import (
 
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
-	rconbase "github.com/gameap/gameap/internal/api/servers/rcon/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
@@ -26,12 +26,14 @@ type Handler struct {
 	serverFinder   *serversbase.ServerFinder
 	abilityChecker *serversbase.AbilityChecker
 	gameRepo       repositories.GameRepository
+	resolver       *quercon.Resolver
 	responder      base.Responder
 }
 
 func NewHandler(
 	serverRepo repositories.ServerRepository,
 	gameRepo repositories.GameRepository,
+	resolver *quercon.Resolver,
 	rbac base.RBAC,
 	responder base.Responder,
 ) *Handler {
@@ -39,6 +41,7 @@ func NewHandler(
 		serverFinder:   serversbase.NewServerFinder(serverRepo, rbac),
 		abilityChecker: serversbase.NewAbilityChecker(rbac),
 		gameRepo:       gameRepo,
+		resolver:       resolver,
 		responder:      responder,
 	}
 }
@@ -126,16 +129,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	protocol, err := rconbase.DetermineProtocol(*game)
-	if err != nil {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.WithMessage(err, "unsupported game"),
-			http.StatusBadRequest,
-		))
-
-		return
-	}
-
 	if server.Rcon == nil || *server.Rcon == "" {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.New("rcon password not configured for server"),
@@ -145,12 +138,18 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	playerManager, err := players.NewPlayerManagerByGameCode(server.GameID)
+	playerManager, err := h.resolver.PlayerManager(ctx, *game)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "player management not supported for this game"),
 			http.StatusNotImplemented,
 		))
+
+		return
+	}
+
+	if err = checkPlayerActionSupported(playerManager, command); err != nil {
+		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}
@@ -188,10 +187,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		ctx,
 		"Executing RCON command",
 		slog.String("command", rconCommand),
-		slog.String("protocol", string(protocol)),
+		slog.String("game", game.Code),
 	)
 
-	output, err := h.executeRconCommand(ctx, server, protocol, rconCommand)
+	output, err := h.executeRconCommand(ctx, server, *game, rconCommand)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -199,6 +198,26 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	h.responder.Write(ctx, rw, newKickResponse(output))
+}
+
+// checkPlayerActionSupported rejects the request before a command is built, so a protocol that
+// can only list players answers "not implemented" instead of failing on an empty template.
+func checkPlayerActionSupported(playerManager players.PlayerManager, command string) error {
+	capability := playerManager.Capabilities()
+
+	supported := capability.Kick
+	if command == "ban" {
+		supported = capability.Ban
+	}
+
+	if supported {
+		return nil
+	}
+
+	return api.WrapHTTPError(
+		errors.Errorf("%s is not supported for this game", command),
+		http.StatusNotImplemented,
+	)
 }
 
 func (h *Handler) readKickInput(r *http.Request) (*kickRequest, error) {
@@ -255,7 +274,7 @@ func (h *Handler) findGame(ctx context.Context, gameID string) (*domain.Game, er
 func (h *Handler) executeRconCommand(
 	ctx context.Context,
 	server *domain.Server,
-	protocol rcon.Protocol,
+	game domain.Game,
 	command string,
 ) (string, error) {
 	rconAddress := fmt.Sprintf("%s:%d", server.ServerIP, getRconPort(server))
@@ -263,12 +282,18 @@ func (h *Handler) executeRconCommand(
 	rconConfig := rcon.Config{
 		Address:  rconAddress,
 		Password: *server.Rcon,
-		Protocol: protocol,
 		Timeout:  10 * time.Second,
 	}
 
-	client, err := rcon.NewClient(rconConfig)
+	client, err := h.resolver.RconClient(ctx, game, rconConfig)
 	if err != nil {
+		if errors.Is(err, quercon.ErrRconProtocolUnsupported) {
+			return "", api.WrapHTTPError(
+				errors.WithMessage(err, "unsupported game"),
+				http.StatusBadRequest,
+			)
+		}
+
 		return "", api.WrapHTTPError(
 			errors.WithMessage(err, "failed to create rcon client"),
 			http.StatusInternalServerError,
@@ -300,6 +325,15 @@ func (h *Handler) executeRconCommand(
 
 	output, err := client.Execute(ctx, command)
 	if err != nil {
+		// The stateless UDP protocols carry the password on every command instead of
+		// authenticating on connect, so a wrong password only surfaces here.
+		if errors.Is(err, rcon.ErrAuthenticationFailed) {
+			return "", api.WrapHTTPError(
+				errors.WithMessage(err, "rcon authentication failed"),
+				http.StatusUnprocessableEntity,
+			)
+		}
+
 		return "", api.WrapHTTPError(
 			errors.WithMessage(err, "failed to execute rcon command"),
 			http.StatusInternalServerError,
