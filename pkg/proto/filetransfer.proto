@@ -4,6 +4,7 @@ package gameap;
 
 option go_package = "github.com/gameap/gameap/pkg/proto";
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 service FileTransferService {
@@ -71,6 +72,17 @@ enum FileOperationType {
   FILE_OPERATION_TYPE_TOUCH = 7;
   FILE_OPERATION_TYPE_STAT = 8;
   FILE_OPERATION_TYPE_EXISTS = 9;
+  FILE_OPERATION_TYPE_HASH = 10;
+}
+
+enum HashAlgorithm {
+  HASH_ALGORITHM_UNSPECIFIED = 0;
+  HASH_ALGORITHM_MD5 = 1;
+  HASH_ALGORITHM_SHA1 = 2;
+  HASH_ALGORITHM_SHA256 = 3;
+  HASH_ALGORITHM_SHA512 = 4;
+  HASH_ALGORITHM_CRC32 = 5;  // IEEE polynomial
+  HASH_ALGORITHM_CRC64 = 6;  // ECMA-182 polynomial
 }
 
 message FileOperationRequest {
@@ -86,6 +98,7 @@ message FileOperationRequest {
     TouchParams touch_params = 9;
     StatParams stat_params = 10;
     ExistsParams exists_params = 11;
+    HashParams hash_params = 12;
   }
 }
 
@@ -137,6 +150,12 @@ message ExistsParams {
   string path = 1;
 }
 
+// Directories are not expanded: a directory in paths yields a per-file error.
+message HashParams {
+  repeated string paths = 1;
+  HashAlgorithm algorithm = 2;
+}
+
 message FileOperationResponse {
   bool success = 1;
   string error = 2;
@@ -144,6 +163,7 @@ message FileOperationResponse {
   oneof result {
     StatResult stat_result = 6;
     ExistsResult exists_result = 7;
+    HashResult hash_result = 8;
   }
 }
 
@@ -153,6 +173,19 @@ message StatResult {
 
 message ExistsResult {
   bool exists = 1;
+}
+
+// A per-file failure is reported in error, the whole operation still succeeds.
+message FileHash {
+  string path = 1;
+  string hash = 2;  // lowercase hex, empty when error is set
+  uint64 size = 3;
+  string error = 4;
+}
+
+message HashResult {
+  HashAlgorithm algorithm = 1;
+  repeated FileHash hashes = 2;
 }
 
 message FileStat {
@@ -185,4 +218,108 @@ message ListDirectoryResponse {
   string error = 2;
   repeated FileStat files = 3;
   int32 total_count = 4;
+}
+
+// Every listed format is expected to be supported; a daemon that cannot handle
+// the requested one answers with an error instead.
+enum ArchiveFormat {
+  // Extracting resolves the format by magic bytes or extension, creating
+  // resolves it by the target file extension.
+  ARCHIVE_FORMAT_UNSPECIFIED = 0;
+  ARCHIVE_FORMAT_ZIP = 1;
+  ARCHIVE_FORMAT_TAR = 2;
+  ARCHIVE_FORMAT_TAR_GZ = 3;
+  ARCHIVE_FORMAT_TAR_BZ2 = 4;
+  ARCHIVE_FORMAT_TAR_XZ = 5;
+  ARCHIVE_FORMAT_TAR_ZSTD = 6;
+  // Single-file stream compression, carries no directory structure.
+  ARCHIVE_FORMAT_GZ = 7;
+  ARCHIVE_FORMAT_BZ2 = 8;
+  ARCHIVE_FORMAT_XZ = 9;
+  ARCHIVE_FORMAT_ZSTD = 10;
+  // Extraction only: creating these is not supported, requesting one in
+  // CreateArchiveParams is answered with an error.
+  ARCHIVE_FORMAT_7Z = 11;
+  ARCHIVE_FORMAT_RAR = 12;
+}
+
+enum ArchiveConflictPolicy {
+  ARCHIVE_CONFLICT_POLICY_UNSPECIFIED = 0;  // same as ERROR
+  ARCHIVE_CONFLICT_POLICY_ERROR = 1;
+  ARCHIVE_CONFLICT_POLICY_SKIP = 2;
+  ARCHIVE_CONFLICT_POLICY_OVERWRITE = 3;
+}
+
+// Long-running operation: the daemon reports ArchiveProgress until it answers
+// with a single final ArchiveResponse carrying the same request_id.
+message ArchiveRequest {
+  string request_id = 1;
+
+  oneof operation {
+    ExtractArchiveParams extract = 2;
+    CreateArchiveParams create = 3;
+  }
+
+  google.protobuf.Duration progress_interval = 4;  // 0 = daemon default
+  google.protobuf.Duration timeout = 5;            // 0 = daemon default
+}
+
+// Entries resolving outside destination must be rejected by the daemon.
+message ExtractArchiveParams {
+  string archive_path = 1;
+  string destination = 2;
+  ArchiveFormat format = 3;
+  bool create_destination = 4;
+  ArchiveConflictPolicy conflict_policy = 5;
+  bool preserve_permissions = 6;
+  int32 mode = 7;  // applied when preserve_permissions is false
+  string owner_user = 8;
+  int32 owner_uid = 9;
+  int32 owner_gid = 10;
+  uint64 max_total_bytes = 11;  // uncompressed payload limit, guards decompression bombs, 0 = daemon default
+  uint32 max_files = 12;        // 0 = daemon default
+}
+
+// Entry names are stored relative to base_path.
+message CreateArchiveParams {
+  string archive_path = 1;
+  // Extraction-only values (ARCHIVE_FORMAT_7Z, ARCHIVE_FORMAT_RAR) are rejected here.
+  ArchiveFormat format = 2;
+  string base_path = 3;
+  repeated string sources = 4;
+  optional int32 compression_level = 5;  // unset = format default, 0 = store, 1..9
+  bool follow_symlinks = 6;
+  bool overwrite = 7;
+  int32 mode = 8;
+  string owner_user = 9;
+  int32 owner_uid = 10;
+  int32 owner_gid = 11;
+  uint64 max_total_bytes = 12;
+  uint32 max_files = 13;
+}
+
+message ArchiveProgress {
+  string request_id = 1;
+  uint32 files_processed = 2;
+  uint32 files_total = 3;      // 0 when unknown
+  uint64 bytes_processed = 4;  // uncompressed payload
+  uint64 bytes_total = 5;      // 0 when unknown
+  string current_entry = 6;
+}
+
+message ArchiveResponse {
+  string request_id = 1;
+  bool success = 2;
+  string error = 3;
+  uint32 files_processed = 4;
+  uint64 bytes_processed = 5;
+  uint64 archive_size = 6;      // created archive when packing, source archive when extracting
+  repeated string skipped = 7;  // may be truncated by the daemon
+  uint32 skipped_count = 8;
+  ArchiveFormat format = 9;     // format the daemon actually used
+}
+
+message ArchiveCancel {
+  string request_id = 1;
+  string reason = 2;
 }

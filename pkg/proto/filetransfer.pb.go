@@ -9,6 +9,7 @@ package proto
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -99,21 +100,23 @@ const (
 	FileOperationType_FILE_OPERATION_TYPE_TOUCH       FileOperationType = 7
 	FileOperationType_FILE_OPERATION_TYPE_STAT        FileOperationType = 8
 	FileOperationType_FILE_OPERATION_TYPE_EXISTS      FileOperationType = 9
+	FileOperationType_FILE_OPERATION_TYPE_HASH        FileOperationType = 10
 )
 
 // Enum value maps for FileOperationType.
 var (
 	FileOperationType_name = map[int32]string{
-		0: "FILE_OPERATION_TYPE_UNSPECIFIED",
-		1: "FILE_OPERATION_TYPE_DELETE",
-		2: "FILE_OPERATION_TYPE_MOVE",
-		3: "FILE_OPERATION_TYPE_COPY",
-		4: "FILE_OPERATION_TYPE_CHMOD",
-		5: "FILE_OPERATION_TYPE_CHOWN",
-		6: "FILE_OPERATION_TYPE_MKDIR",
-		7: "FILE_OPERATION_TYPE_TOUCH",
-		8: "FILE_OPERATION_TYPE_STAT",
-		9: "FILE_OPERATION_TYPE_EXISTS",
+		0:  "FILE_OPERATION_TYPE_UNSPECIFIED",
+		1:  "FILE_OPERATION_TYPE_DELETE",
+		2:  "FILE_OPERATION_TYPE_MOVE",
+		3:  "FILE_OPERATION_TYPE_COPY",
+		4:  "FILE_OPERATION_TYPE_CHMOD",
+		5:  "FILE_OPERATION_TYPE_CHOWN",
+		6:  "FILE_OPERATION_TYPE_MKDIR",
+		7:  "FILE_OPERATION_TYPE_TOUCH",
+		8:  "FILE_OPERATION_TYPE_STAT",
+		9:  "FILE_OPERATION_TYPE_EXISTS",
+		10: "FILE_OPERATION_TYPE_HASH",
 	}
 	FileOperationType_value = map[string]int32{
 		"FILE_OPERATION_TYPE_UNSPECIFIED": 0,
@@ -126,6 +129,7 @@ var (
 		"FILE_OPERATION_TYPE_TOUCH":       7,
 		"FILE_OPERATION_TYPE_STAT":        8,
 		"FILE_OPERATION_TYPE_EXISTS":      9,
+		"FILE_OPERATION_TYPE_HASH":        10,
 	}
 )
 
@@ -154,6 +158,205 @@ func (x FileOperationType) Number() protoreflect.EnumNumber {
 // Deprecated: Use FileOperationType.Descriptor instead.
 func (FileOperationType) EnumDescriptor() ([]byte, []int) {
 	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{1}
+}
+
+type HashAlgorithm int32
+
+const (
+	HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED HashAlgorithm = 0
+	HashAlgorithm_HASH_ALGORITHM_MD5         HashAlgorithm = 1
+	HashAlgorithm_HASH_ALGORITHM_SHA1        HashAlgorithm = 2
+	HashAlgorithm_HASH_ALGORITHM_SHA256      HashAlgorithm = 3
+	HashAlgorithm_HASH_ALGORITHM_SHA512      HashAlgorithm = 4
+	HashAlgorithm_HASH_ALGORITHM_CRC32       HashAlgorithm = 5 // IEEE polynomial
+	HashAlgorithm_HASH_ALGORITHM_CRC64       HashAlgorithm = 6 // ECMA-182 polynomial
+)
+
+// Enum value maps for HashAlgorithm.
+var (
+	HashAlgorithm_name = map[int32]string{
+		0: "HASH_ALGORITHM_UNSPECIFIED",
+		1: "HASH_ALGORITHM_MD5",
+		2: "HASH_ALGORITHM_SHA1",
+		3: "HASH_ALGORITHM_SHA256",
+		4: "HASH_ALGORITHM_SHA512",
+		5: "HASH_ALGORITHM_CRC32",
+		6: "HASH_ALGORITHM_CRC64",
+	}
+	HashAlgorithm_value = map[string]int32{
+		"HASH_ALGORITHM_UNSPECIFIED": 0,
+		"HASH_ALGORITHM_MD5":         1,
+		"HASH_ALGORITHM_SHA1":        2,
+		"HASH_ALGORITHM_SHA256":      3,
+		"HASH_ALGORITHM_SHA512":      4,
+		"HASH_ALGORITHM_CRC32":       5,
+		"HASH_ALGORITHM_CRC64":       6,
+	}
+)
+
+func (x HashAlgorithm) Enum() *HashAlgorithm {
+	p := new(HashAlgorithm)
+	*p = x
+	return p
+}
+
+func (x HashAlgorithm) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HashAlgorithm) Descriptor() protoreflect.EnumDescriptor {
+	return file_pkg_proto_filetransfer_proto_enumTypes[2].Descriptor()
+}
+
+func (HashAlgorithm) Type() protoreflect.EnumType {
+	return &file_pkg_proto_filetransfer_proto_enumTypes[2]
+}
+
+func (x HashAlgorithm) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use HashAlgorithm.Descriptor instead.
+func (HashAlgorithm) EnumDescriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{2}
+}
+
+// Every listed format is expected to be supported; a daemon that cannot handle
+// the requested one answers with an error instead.
+type ArchiveFormat int32
+
+const (
+	// Extracting resolves the format by magic bytes or extension, creating
+	// resolves it by the target file extension.
+	ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED ArchiveFormat = 0
+	ArchiveFormat_ARCHIVE_FORMAT_ZIP         ArchiveFormat = 1
+	ArchiveFormat_ARCHIVE_FORMAT_TAR         ArchiveFormat = 2
+	ArchiveFormat_ARCHIVE_FORMAT_TAR_GZ      ArchiveFormat = 3
+	ArchiveFormat_ARCHIVE_FORMAT_TAR_BZ2     ArchiveFormat = 4
+	ArchiveFormat_ARCHIVE_FORMAT_TAR_XZ      ArchiveFormat = 5
+	ArchiveFormat_ARCHIVE_FORMAT_TAR_ZSTD    ArchiveFormat = 6
+	// Single-file stream compression, carries no directory structure.
+	ArchiveFormat_ARCHIVE_FORMAT_GZ   ArchiveFormat = 7
+	ArchiveFormat_ARCHIVE_FORMAT_BZ2  ArchiveFormat = 8
+	ArchiveFormat_ARCHIVE_FORMAT_XZ   ArchiveFormat = 9
+	ArchiveFormat_ARCHIVE_FORMAT_ZSTD ArchiveFormat = 10
+	// Extraction only: creating these is not supported, requesting one in
+	// CreateArchiveParams is answered with an error.
+	ArchiveFormat_ARCHIVE_FORMAT_7Z  ArchiveFormat = 11
+	ArchiveFormat_ARCHIVE_FORMAT_RAR ArchiveFormat = 12
+)
+
+// Enum value maps for ArchiveFormat.
+var (
+	ArchiveFormat_name = map[int32]string{
+		0:  "ARCHIVE_FORMAT_UNSPECIFIED",
+		1:  "ARCHIVE_FORMAT_ZIP",
+		2:  "ARCHIVE_FORMAT_TAR",
+		3:  "ARCHIVE_FORMAT_TAR_GZ",
+		4:  "ARCHIVE_FORMAT_TAR_BZ2",
+		5:  "ARCHIVE_FORMAT_TAR_XZ",
+		6:  "ARCHIVE_FORMAT_TAR_ZSTD",
+		7:  "ARCHIVE_FORMAT_GZ",
+		8:  "ARCHIVE_FORMAT_BZ2",
+		9:  "ARCHIVE_FORMAT_XZ",
+		10: "ARCHIVE_FORMAT_ZSTD",
+		11: "ARCHIVE_FORMAT_7Z",
+		12: "ARCHIVE_FORMAT_RAR",
+	}
+	ArchiveFormat_value = map[string]int32{
+		"ARCHIVE_FORMAT_UNSPECIFIED": 0,
+		"ARCHIVE_FORMAT_ZIP":         1,
+		"ARCHIVE_FORMAT_TAR":         2,
+		"ARCHIVE_FORMAT_TAR_GZ":      3,
+		"ARCHIVE_FORMAT_TAR_BZ2":     4,
+		"ARCHIVE_FORMAT_TAR_XZ":      5,
+		"ARCHIVE_FORMAT_TAR_ZSTD":    6,
+		"ARCHIVE_FORMAT_GZ":          7,
+		"ARCHIVE_FORMAT_BZ2":         8,
+		"ARCHIVE_FORMAT_XZ":          9,
+		"ARCHIVE_FORMAT_ZSTD":        10,
+		"ARCHIVE_FORMAT_7Z":          11,
+		"ARCHIVE_FORMAT_RAR":         12,
+	}
+)
+
+func (x ArchiveFormat) Enum() *ArchiveFormat {
+	p := new(ArchiveFormat)
+	*p = x
+	return p
+}
+
+func (x ArchiveFormat) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ArchiveFormat) Descriptor() protoreflect.EnumDescriptor {
+	return file_pkg_proto_filetransfer_proto_enumTypes[3].Descriptor()
+}
+
+func (ArchiveFormat) Type() protoreflect.EnumType {
+	return &file_pkg_proto_filetransfer_proto_enumTypes[3]
+}
+
+func (x ArchiveFormat) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ArchiveFormat.Descriptor instead.
+func (ArchiveFormat) EnumDescriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{3}
+}
+
+type ArchiveConflictPolicy int32
+
+const (
+	ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_UNSPECIFIED ArchiveConflictPolicy = 0 // same as ERROR
+	ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_ERROR       ArchiveConflictPolicy = 1
+	ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_SKIP        ArchiveConflictPolicy = 2
+	ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_OVERWRITE   ArchiveConflictPolicy = 3
+)
+
+// Enum value maps for ArchiveConflictPolicy.
+var (
+	ArchiveConflictPolicy_name = map[int32]string{
+		0: "ARCHIVE_CONFLICT_POLICY_UNSPECIFIED",
+		1: "ARCHIVE_CONFLICT_POLICY_ERROR",
+		2: "ARCHIVE_CONFLICT_POLICY_SKIP",
+		3: "ARCHIVE_CONFLICT_POLICY_OVERWRITE",
+	}
+	ArchiveConflictPolicy_value = map[string]int32{
+		"ARCHIVE_CONFLICT_POLICY_UNSPECIFIED": 0,
+		"ARCHIVE_CONFLICT_POLICY_ERROR":       1,
+		"ARCHIVE_CONFLICT_POLICY_SKIP":        2,
+		"ARCHIVE_CONFLICT_POLICY_OVERWRITE":   3,
+	}
+)
+
+func (x ArchiveConflictPolicy) Enum() *ArchiveConflictPolicy {
+	p := new(ArchiveConflictPolicy)
+	*p = x
+	return p
+}
+
+func (x ArchiveConflictPolicy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ArchiveConflictPolicy) Descriptor() protoreflect.EnumDescriptor {
+	return file_pkg_proto_filetransfer_proto_enumTypes[4].Descriptor()
+}
+
+func (ArchiveConflictPolicy) Type() protoreflect.EnumType {
+	return &file_pkg_proto_filetransfer_proto_enumTypes[4]
+}
+
+func (x ArchiveConflictPolicy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ArchiveConflictPolicy.Descriptor instead.
+func (ArchiveConflictPolicy) EnumDescriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{4}
 }
 
 type UploadChunk struct {
@@ -519,6 +722,7 @@ type FileOperationRequest struct {
 	//	*FileOperationRequest_TouchParams
 	//	*FileOperationRequest_StatParams
 	//	*FileOperationRequest_ExistsParams
+	//	*FileOperationRequest_HashParams
 	Parameters    isFileOperationRequest_Parameters `protobuf_oneof:"parameters"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -656,6 +860,15 @@ func (x *FileOperationRequest) GetExistsParams() *ExistsParams {
 	return nil
 }
 
+func (x *FileOperationRequest) GetHashParams() *HashParams {
+	if x != nil {
+		if x, ok := x.Parameters.(*FileOperationRequest_HashParams); ok {
+			return x.HashParams
+		}
+	}
+	return nil
+}
+
 type isFileOperationRequest_Parameters interface {
 	isFileOperationRequest_Parameters()
 }
@@ -696,6 +909,10 @@ type FileOperationRequest_ExistsParams struct {
 	ExistsParams *ExistsParams `protobuf:"bytes,11,opt,name=exists_params,json=existsParams,proto3,oneof"`
 }
 
+type FileOperationRequest_HashParams struct {
+	HashParams *HashParams `protobuf:"bytes,12,opt,name=hash_params,json=hashParams,proto3,oneof"`
+}
+
 func (*FileOperationRequest_DeleteParams) isFileOperationRequest_Parameters() {}
 
 func (*FileOperationRequest_MoveParams) isFileOperationRequest_Parameters() {}
@@ -713,6 +930,8 @@ func (*FileOperationRequest_TouchParams) isFileOperationRequest_Parameters() {}
 func (*FileOperationRequest_StatParams) isFileOperationRequest_Parameters() {}
 
 func (*FileOperationRequest_ExistsParams) isFileOperationRequest_Parameters() {}
+
+func (*FileOperationRequest_HashParams) isFileOperationRequest_Parameters() {}
 
 type DeleteParams struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1206,6 +1425,59 @@ func (x *ExistsParams) GetPath() string {
 	return ""
 }
 
+// Directories are not expanded: a directory in paths yields a per-file error.
+type HashParams struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Paths         []string               `protobuf:"bytes,1,rep,name=paths,proto3" json:"paths,omitempty"`
+	Algorithm     HashAlgorithm          `protobuf:"varint,2,opt,name=algorithm,proto3,enum=gameap.HashAlgorithm" json:"algorithm,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HashParams) Reset() {
+	*x = HashParams{}
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HashParams) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HashParams) ProtoMessage() {}
+
+func (x *HashParams) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HashParams.ProtoReflect.Descriptor instead.
+func (*HashParams) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *HashParams) GetPaths() []string {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+func (x *HashParams) GetAlgorithm() HashAlgorithm {
+	if x != nil {
+		return x.Algorithm
+	}
+	return HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED
+}
+
 type FileOperationResponse struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Success   bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -1215,6 +1487,7 @@ type FileOperationResponse struct {
 	//
 	//	*FileOperationResponse_StatResult
 	//	*FileOperationResponse_ExistsResult
+	//	*FileOperationResponse_HashResult
 	Result        isFileOperationResponse_Result `protobuf_oneof:"result"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1222,7 +1495,7 @@ type FileOperationResponse struct {
 
 func (x *FileOperationResponse) Reset() {
 	*x = FileOperationResponse{}
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[15]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1234,7 +1507,7 @@ func (x *FileOperationResponse) String() string {
 func (*FileOperationResponse) ProtoMessage() {}
 
 func (x *FileOperationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[15]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1247,7 +1520,7 @@ func (x *FileOperationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileOperationResponse.ProtoReflect.Descriptor instead.
 func (*FileOperationResponse) Descriptor() ([]byte, []int) {
-	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{15}
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *FileOperationResponse) GetSuccess() bool {
@@ -1296,6 +1569,15 @@ func (x *FileOperationResponse) GetExistsResult() *ExistsResult {
 	return nil
 }
 
+func (x *FileOperationResponse) GetHashResult() *HashResult {
+	if x != nil {
+		if x, ok := x.Result.(*FileOperationResponse_HashResult); ok {
+			return x.HashResult
+		}
+	}
+	return nil
+}
+
 type isFileOperationResponse_Result interface {
 	isFileOperationResponse_Result()
 }
@@ -1308,9 +1590,15 @@ type FileOperationResponse_ExistsResult struct {
 	ExistsResult *ExistsResult `protobuf:"bytes,7,opt,name=exists_result,json=existsResult,proto3,oneof"`
 }
 
+type FileOperationResponse_HashResult struct {
+	HashResult *HashResult `protobuf:"bytes,8,opt,name=hash_result,json=hashResult,proto3,oneof"`
+}
+
 func (*FileOperationResponse_StatResult) isFileOperationResponse_Result() {}
 
 func (*FileOperationResponse_ExistsResult) isFileOperationResponse_Result() {}
+
+func (*FileOperationResponse_HashResult) isFileOperationResponse_Result() {}
 
 type StatResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1321,7 +1609,7 @@ type StatResult struct {
 
 func (x *StatResult) Reset() {
 	*x = StatResult{}
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[16]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1333,7 +1621,7 @@ func (x *StatResult) String() string {
 func (*StatResult) ProtoMessage() {}
 
 func (x *StatResult) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[16]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1346,7 +1634,7 @@ func (x *StatResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatResult.ProtoReflect.Descriptor instead.
 func (*StatResult) Descriptor() ([]byte, []int) {
-	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{16}
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *StatResult) GetStat() *FileStat {
@@ -1365,7 +1653,7 @@ type ExistsResult struct {
 
 func (x *ExistsResult) Reset() {
 	*x = ExistsResult{}
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[17]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1377,7 +1665,7 @@ func (x *ExistsResult) String() string {
 func (*ExistsResult) ProtoMessage() {}
 
 func (x *ExistsResult) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[17]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1390,7 +1678,7 @@ func (x *ExistsResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExistsResult.ProtoReflect.Descriptor instead.
 func (*ExistsResult) Descriptor() ([]byte, []int) {
-	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{17}
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ExistsResult) GetExists() bool {
@@ -1398,6 +1686,127 @@ func (x *ExistsResult) GetExists() bool {
 		return x.Exists
 	}
 	return false
+}
+
+// A per-file failure is reported in error, the whole operation still succeeds.
+type FileHash struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Hash          string                 `protobuf:"bytes,2,opt,name=hash,proto3" json:"hash,omitempty"` // lowercase hex, empty when error is set
+	Size          uint64                 `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileHash) Reset() {
+	*x = FileHash{}
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileHash) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileHash) ProtoMessage() {}
+
+func (x *FileHash) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileHash.ProtoReflect.Descriptor instead.
+func (*FileHash) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *FileHash) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *FileHash) GetHash() string {
+	if x != nil {
+		return x.Hash
+	}
+	return ""
+}
+
+func (x *FileHash) GetSize() uint64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *FileHash) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type HashResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Algorithm     HashAlgorithm          `protobuf:"varint,1,opt,name=algorithm,proto3,enum=gameap.HashAlgorithm" json:"algorithm,omitempty"`
+	Hashes        []*FileHash            `protobuf:"bytes,2,rep,name=hashes,proto3" json:"hashes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HashResult) Reset() {
+	*x = HashResult{}
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HashResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HashResult) ProtoMessage() {}
+
+func (x *HashResult) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HashResult.ProtoReflect.Descriptor instead.
+func (*HashResult) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *HashResult) GetAlgorithm() HashAlgorithm {
+	if x != nil {
+		return x.Algorithm
+	}
+	return HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED
+}
+
+func (x *HashResult) GetHashes() []*FileHash {
+	if x != nil {
+		return x.Hashes
+	}
+	return nil
 }
 
 type FileStat struct {
@@ -1422,7 +1831,7 @@ type FileStat struct {
 
 func (x *FileStat) Reset() {
 	*x = FileStat{}
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[18]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1434,7 +1843,7 @@ func (x *FileStat) String() string {
 func (*FileStat) ProtoMessage() {}
 
 func (x *FileStat) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[18]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1447,7 +1856,7 @@ func (x *FileStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileStat.ProtoReflect.Descriptor instead.
 func (*FileStat) Descriptor() ([]byte, []int) {
-	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{18}
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *FileStat) GetName() string {
@@ -1561,7 +1970,7 @@ type ListDirectoryRequest struct {
 
 func (x *ListDirectoryRequest) Reset() {
 	*x = ListDirectoryRequest{}
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[19]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1573,7 +1982,7 @@ func (x *ListDirectoryRequest) String() string {
 func (*ListDirectoryRequest) ProtoMessage() {}
 
 func (x *ListDirectoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[19]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1586,7 +1995,7 @@ func (x *ListDirectoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDirectoryRequest.ProtoReflect.Descriptor instead.
 func (*ListDirectoryRequest) Descriptor() ([]byte, []int) {
-	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{19}
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListDirectoryRequest) GetPath() string {
@@ -1636,7 +2045,7 @@ type ListDirectoryResponse struct {
 
 func (x *ListDirectoryResponse) Reset() {
 	*x = ListDirectoryResponse{}
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[20]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1648,7 +2057,7 @@ func (x *ListDirectoryResponse) String() string {
 func (*ListDirectoryResponse) ProtoMessage() {}
 
 func (x *ListDirectoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_pkg_proto_filetransfer_proto_msgTypes[20]
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1661,7 +2070,7 @@ func (x *ListDirectoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDirectoryResponse.ProtoReflect.Descriptor instead.
 func (*ListDirectoryResponse) Descriptor() ([]byte, []int) {
-	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{20}
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListDirectoryResponse) GetSuccess() bool {
@@ -1692,11 +2101,638 @@ func (x *ListDirectoryResponse) GetTotalCount() int32 {
 	return 0
 }
 
+// Long-running operation: the daemon reports ArchiveProgress until it answers
+// with a single final ArchiveResponse carrying the same request_id.
+type ArchiveRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	RequestId string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	// Types that are valid to be assigned to Operation:
+	//
+	//	*ArchiveRequest_Extract
+	//	*ArchiveRequest_Create
+	Operation        isArchiveRequest_Operation `protobuf_oneof:"operation"`
+	ProgressInterval *durationpb.Duration       `protobuf:"bytes,4,opt,name=progress_interval,json=progressInterval,proto3" json:"progress_interval,omitempty"` // 0 = daemon default
+	Timeout          *durationpb.Duration       `protobuf:"bytes,5,opt,name=timeout,proto3" json:"timeout,omitempty"`                                           // 0 = daemon default
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ArchiveRequest) Reset() {
+	*x = ArchiveRequest{}
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArchiveRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArchiveRequest) ProtoMessage() {}
+
+func (x *ArchiveRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArchiveRequest.ProtoReflect.Descriptor instead.
+func (*ArchiveRequest) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ArchiveRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ArchiveRequest) GetOperation() isArchiveRequest_Operation {
+	if x != nil {
+		return x.Operation
+	}
+	return nil
+}
+
+func (x *ArchiveRequest) GetExtract() *ExtractArchiveParams {
+	if x != nil {
+		if x, ok := x.Operation.(*ArchiveRequest_Extract); ok {
+			return x.Extract
+		}
+	}
+	return nil
+}
+
+func (x *ArchiveRequest) GetCreate() *CreateArchiveParams {
+	if x != nil {
+		if x, ok := x.Operation.(*ArchiveRequest_Create); ok {
+			return x.Create
+		}
+	}
+	return nil
+}
+
+func (x *ArchiveRequest) GetProgressInterval() *durationpb.Duration {
+	if x != nil {
+		return x.ProgressInterval
+	}
+	return nil
+}
+
+func (x *ArchiveRequest) GetTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.Timeout
+	}
+	return nil
+}
+
+type isArchiveRequest_Operation interface {
+	isArchiveRequest_Operation()
+}
+
+type ArchiveRequest_Extract struct {
+	Extract *ExtractArchiveParams `protobuf:"bytes,2,opt,name=extract,proto3,oneof"`
+}
+
+type ArchiveRequest_Create struct {
+	Create *CreateArchiveParams `protobuf:"bytes,3,opt,name=create,proto3,oneof"`
+}
+
+func (*ArchiveRequest_Extract) isArchiveRequest_Operation() {}
+
+func (*ArchiveRequest_Create) isArchiveRequest_Operation() {}
+
+// Entries resolving outside destination must be rejected by the daemon.
+type ExtractArchiveParams struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	ArchivePath         string                 `protobuf:"bytes,1,opt,name=archive_path,json=archivePath,proto3" json:"archive_path,omitempty"`
+	Destination         string                 `protobuf:"bytes,2,opt,name=destination,proto3" json:"destination,omitempty"`
+	Format              ArchiveFormat          `protobuf:"varint,3,opt,name=format,proto3,enum=gameap.ArchiveFormat" json:"format,omitempty"`
+	CreateDestination   bool                   `protobuf:"varint,4,opt,name=create_destination,json=createDestination,proto3" json:"create_destination,omitempty"`
+	ConflictPolicy      ArchiveConflictPolicy  `protobuf:"varint,5,opt,name=conflict_policy,json=conflictPolicy,proto3,enum=gameap.ArchiveConflictPolicy" json:"conflict_policy,omitempty"`
+	PreservePermissions bool                   `protobuf:"varint,6,opt,name=preserve_permissions,json=preservePermissions,proto3" json:"preserve_permissions,omitempty"`
+	Mode                int32                  `protobuf:"varint,7,opt,name=mode,proto3" json:"mode,omitempty"` // applied when preserve_permissions is false
+	OwnerUser           string                 `protobuf:"bytes,8,opt,name=owner_user,json=ownerUser,proto3" json:"owner_user,omitempty"`
+	OwnerUid            int32                  `protobuf:"varint,9,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
+	OwnerGid            int32                  `protobuf:"varint,10,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
+	MaxTotalBytes       uint64                 `protobuf:"varint,11,opt,name=max_total_bytes,json=maxTotalBytes,proto3" json:"max_total_bytes,omitempty"` // uncompressed payload limit, guards decompression bombs, 0 = daemon default
+	MaxFiles            uint32                 `protobuf:"varint,12,opt,name=max_files,json=maxFiles,proto3" json:"max_files,omitempty"`                  // 0 = daemon default
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *ExtractArchiveParams) Reset() {
+	*x = ExtractArchiveParams{}
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtractArchiveParams) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtractArchiveParams) ProtoMessage() {}
+
+func (x *ExtractArchiveParams) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtractArchiveParams.ProtoReflect.Descriptor instead.
+func (*ExtractArchiveParams) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ExtractArchiveParams) GetArchivePath() string {
+	if x != nil {
+		return x.ArchivePath
+	}
+	return ""
+}
+
+func (x *ExtractArchiveParams) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
+func (x *ExtractArchiveParams) GetFormat() ArchiveFormat {
+	if x != nil {
+		return x.Format
+	}
+	return ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED
+}
+
+func (x *ExtractArchiveParams) GetCreateDestination() bool {
+	if x != nil {
+		return x.CreateDestination
+	}
+	return false
+}
+
+func (x *ExtractArchiveParams) GetConflictPolicy() ArchiveConflictPolicy {
+	if x != nil {
+		return x.ConflictPolicy
+	}
+	return ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_UNSPECIFIED
+}
+
+func (x *ExtractArchiveParams) GetPreservePermissions() bool {
+	if x != nil {
+		return x.PreservePermissions
+	}
+	return false
+}
+
+func (x *ExtractArchiveParams) GetMode() int32 {
+	if x != nil {
+		return x.Mode
+	}
+	return 0
+}
+
+func (x *ExtractArchiveParams) GetOwnerUser() string {
+	if x != nil {
+		return x.OwnerUser
+	}
+	return ""
+}
+
+func (x *ExtractArchiveParams) GetOwnerUid() int32 {
+	if x != nil {
+		return x.OwnerUid
+	}
+	return 0
+}
+
+func (x *ExtractArchiveParams) GetOwnerGid() int32 {
+	if x != nil {
+		return x.OwnerGid
+	}
+	return 0
+}
+
+func (x *ExtractArchiveParams) GetMaxTotalBytes() uint64 {
+	if x != nil {
+		return x.MaxTotalBytes
+	}
+	return 0
+}
+
+func (x *ExtractArchiveParams) GetMaxFiles() uint32 {
+	if x != nil {
+		return x.MaxFiles
+	}
+	return 0
+}
+
+// Entry names are stored relative to base_path.
+type CreateArchiveParams struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	ArchivePath string                 `protobuf:"bytes,1,opt,name=archive_path,json=archivePath,proto3" json:"archive_path,omitempty"`
+	// Extraction-only values (ARCHIVE_FORMAT_7Z, ARCHIVE_FORMAT_RAR) are rejected here.
+	Format           ArchiveFormat `protobuf:"varint,2,opt,name=format,proto3,enum=gameap.ArchiveFormat" json:"format,omitempty"`
+	BasePath         string        `protobuf:"bytes,3,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"`
+	Sources          []string      `protobuf:"bytes,4,rep,name=sources,proto3" json:"sources,omitempty"`
+	CompressionLevel *int32        `protobuf:"varint,5,opt,name=compression_level,json=compressionLevel,proto3,oneof" json:"compression_level,omitempty"` // unset = format default, 0 = store, 1..9
+	FollowSymlinks   bool          `protobuf:"varint,6,opt,name=follow_symlinks,json=followSymlinks,proto3" json:"follow_symlinks,omitempty"`
+	Overwrite        bool          `protobuf:"varint,7,opt,name=overwrite,proto3" json:"overwrite,omitempty"`
+	Mode             int32         `protobuf:"varint,8,opt,name=mode,proto3" json:"mode,omitempty"`
+	OwnerUser        string        `protobuf:"bytes,9,opt,name=owner_user,json=ownerUser,proto3" json:"owner_user,omitempty"`
+	OwnerUid         int32         `protobuf:"varint,10,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
+	OwnerGid         int32         `protobuf:"varint,11,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
+	MaxTotalBytes    uint64        `protobuf:"varint,12,opt,name=max_total_bytes,json=maxTotalBytes,proto3" json:"max_total_bytes,omitempty"`
+	MaxFiles         uint32        `protobuf:"varint,13,opt,name=max_files,json=maxFiles,proto3" json:"max_files,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *CreateArchiveParams) Reset() {
+	*x = CreateArchiveParams{}
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateArchiveParams) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateArchiveParams) ProtoMessage() {}
+
+func (x *CreateArchiveParams) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateArchiveParams.ProtoReflect.Descriptor instead.
+func (*CreateArchiveParams) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *CreateArchiveParams) GetArchivePath() string {
+	if x != nil {
+		return x.ArchivePath
+	}
+	return ""
+}
+
+func (x *CreateArchiveParams) GetFormat() ArchiveFormat {
+	if x != nil {
+		return x.Format
+	}
+	return ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED
+}
+
+func (x *CreateArchiveParams) GetBasePath() string {
+	if x != nil {
+		return x.BasePath
+	}
+	return ""
+}
+
+func (x *CreateArchiveParams) GetSources() []string {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+func (x *CreateArchiveParams) GetCompressionLevel() int32 {
+	if x != nil && x.CompressionLevel != nil {
+		return *x.CompressionLevel
+	}
+	return 0
+}
+
+func (x *CreateArchiveParams) GetFollowSymlinks() bool {
+	if x != nil {
+		return x.FollowSymlinks
+	}
+	return false
+}
+
+func (x *CreateArchiveParams) GetOverwrite() bool {
+	if x != nil {
+		return x.Overwrite
+	}
+	return false
+}
+
+func (x *CreateArchiveParams) GetMode() int32 {
+	if x != nil {
+		return x.Mode
+	}
+	return 0
+}
+
+func (x *CreateArchiveParams) GetOwnerUser() string {
+	if x != nil {
+		return x.OwnerUser
+	}
+	return ""
+}
+
+func (x *CreateArchiveParams) GetOwnerUid() int32 {
+	if x != nil {
+		return x.OwnerUid
+	}
+	return 0
+}
+
+func (x *CreateArchiveParams) GetOwnerGid() int32 {
+	if x != nil {
+		return x.OwnerGid
+	}
+	return 0
+}
+
+func (x *CreateArchiveParams) GetMaxTotalBytes() uint64 {
+	if x != nil {
+		return x.MaxTotalBytes
+	}
+	return 0
+}
+
+func (x *CreateArchiveParams) GetMaxFiles() uint32 {
+	if x != nil {
+		return x.MaxFiles
+	}
+	return 0
+}
+
+type ArchiveProgress struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RequestId      string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	FilesProcessed uint32                 `protobuf:"varint,2,opt,name=files_processed,json=filesProcessed,proto3" json:"files_processed,omitempty"`
+	FilesTotal     uint32                 `protobuf:"varint,3,opt,name=files_total,json=filesTotal,proto3" json:"files_total,omitempty"`             // 0 when unknown
+	BytesProcessed uint64                 `protobuf:"varint,4,opt,name=bytes_processed,json=bytesProcessed,proto3" json:"bytes_processed,omitempty"` // uncompressed payload
+	BytesTotal     uint64                 `protobuf:"varint,5,opt,name=bytes_total,json=bytesTotal,proto3" json:"bytes_total,omitempty"`             // 0 when unknown
+	CurrentEntry   string                 `protobuf:"bytes,6,opt,name=current_entry,json=currentEntry,proto3" json:"current_entry,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ArchiveProgress) Reset() {
+	*x = ArchiveProgress{}
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArchiveProgress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArchiveProgress) ProtoMessage() {}
+
+func (x *ArchiveProgress) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArchiveProgress.ProtoReflect.Descriptor instead.
+func (*ArchiveProgress) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ArchiveProgress) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ArchiveProgress) GetFilesProcessed() uint32 {
+	if x != nil {
+		return x.FilesProcessed
+	}
+	return 0
+}
+
+func (x *ArchiveProgress) GetFilesTotal() uint32 {
+	if x != nil {
+		return x.FilesTotal
+	}
+	return 0
+}
+
+func (x *ArchiveProgress) GetBytesProcessed() uint64 {
+	if x != nil {
+		return x.BytesProcessed
+	}
+	return 0
+}
+
+func (x *ArchiveProgress) GetBytesTotal() uint64 {
+	if x != nil {
+		return x.BytesTotal
+	}
+	return 0
+}
+
+func (x *ArchiveProgress) GetCurrentEntry() string {
+	if x != nil {
+		return x.CurrentEntry
+	}
+	return ""
+}
+
+type ArchiveResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RequestId      string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Success        bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	Error          string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	FilesProcessed uint32                 `protobuf:"varint,4,opt,name=files_processed,json=filesProcessed,proto3" json:"files_processed,omitempty"`
+	BytesProcessed uint64                 `protobuf:"varint,5,opt,name=bytes_processed,json=bytesProcessed,proto3" json:"bytes_processed,omitempty"`
+	ArchiveSize    uint64                 `protobuf:"varint,6,opt,name=archive_size,json=archiveSize,proto3" json:"archive_size,omitempty"` // created archive when packing, source archive when extracting
+	Skipped        []string               `protobuf:"bytes,7,rep,name=skipped,proto3" json:"skipped,omitempty"`                             // may be truncated by the daemon
+	SkippedCount   uint32                 `protobuf:"varint,8,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
+	Format         ArchiveFormat          `protobuf:"varint,9,opt,name=format,proto3,enum=gameap.ArchiveFormat" json:"format,omitempty"` // format the daemon actually used
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ArchiveResponse) Reset() {
+	*x = ArchiveResponse{}
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArchiveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArchiveResponse) ProtoMessage() {}
+
+func (x *ArchiveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArchiveResponse.ProtoReflect.Descriptor instead.
+func (*ArchiveResponse) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ArchiveResponse) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ArchiveResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ArchiveResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ArchiveResponse) GetFilesProcessed() uint32 {
+	if x != nil {
+		return x.FilesProcessed
+	}
+	return 0
+}
+
+func (x *ArchiveResponse) GetBytesProcessed() uint64 {
+	if x != nil {
+		return x.BytesProcessed
+	}
+	return 0
+}
+
+func (x *ArchiveResponse) GetArchiveSize() uint64 {
+	if x != nil {
+		return x.ArchiveSize
+	}
+	return 0
+}
+
+func (x *ArchiveResponse) GetSkipped() []string {
+	if x != nil {
+		return x.Skipped
+	}
+	return nil
+}
+
+func (x *ArchiveResponse) GetSkippedCount() uint32 {
+	if x != nil {
+		return x.SkippedCount
+	}
+	return 0
+}
+
+func (x *ArchiveResponse) GetFormat() ArchiveFormat {
+	if x != nil {
+		return x.Format
+	}
+	return ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED
+}
+
+type ArchiveCancel struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArchiveCancel) Reset() {
+	*x = ArchiveCancel{}
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArchiveCancel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArchiveCancel) ProtoMessage() {}
+
+func (x *ArchiveCancel) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_proto_filetransfer_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArchiveCancel.ProtoReflect.Descriptor instead.
+func (*ArchiveCancel) Descriptor() ([]byte, []int) {
+	return file_pkg_proto_filetransfer_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ArchiveCancel) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ArchiveCancel) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 var File_pkg_proto_filetransfer_proto protoreflect.FileDescriptor
 
 const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"\n" +
-	"\x1cpkg/proto/filetransfer.proto\x12\x06gameap\x1a\x1fgoogle/protobuf/timestamp.proto\"U\n" +
+	"\x1cpkg/proto/filetransfer.proto\x12\x06gameap\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"U\n" +
 	"\vUploadChunk\x122\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x16.gameap.UploadMetadataR\bmetadata\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\fR\x04data\"\xda\x01\n" +
@@ -1726,7 +2762,7 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"\n" +
 	"total_size\x18\x03 \x01(\x03R\ttotalSize\x12'\n" +
 	"\x0fchecksum_sha256\x18\x04 \x01(\tR\x0echecksumSha256\x12\x19\n" +
-	"\bis_final\x18\x05 \x01(\bR\aisFinal\"\x83\x05\n" +
+	"\bis_final\x18\x05 \x01(\bR\aisFinal\"\xba\x05\n" +
 	"\x14FileOperationRequest\x127\n" +
 	"\toperation\x18\x01 \x01(\x0e2\x19.gameap.FileOperationTypeR\toperation\x12\x1d\n" +
 	"\n" +
@@ -1743,7 +2779,9 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"\vstat_params\x18\n" +
 	" \x01(\v2\x12.gameap.StatParamsH\x00R\n" +
 	"statParams\x12;\n" +
-	"\rexists_params\x18\v \x01(\v2\x14.gameap.ExistsParamsH\x00R\fexistsParamsB\f\n" +
+	"\rexists_params\x18\v \x01(\v2\x14.gameap.ExistsParamsH\x00R\fexistsParams\x125\n" +
+	"\vhash_params\x18\f \x01(\v2\x12.gameap.HashParamsH\x00R\n" +
+	"hashParamsB\f\n" +
 	"\n" +
 	"parameters\"@\n" +
 	"\fDeleteParams\x12\x12\n" +
@@ -1779,7 +2817,11 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"StatParams\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"\"\n" +
 	"\fExistsParams\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\xe4\x01\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\"W\n" +
+	"\n" +
+	"HashParams\x12\x14\n" +
+	"\x05paths\x18\x01 \x03(\tR\x05paths\x123\n" +
+	"\talgorithm\x18\x02 \x01(\x0e2\x15.gameap.HashAlgorithmR\talgorithm\"\x9b\x02\n" +
 	"\x15FileOperationResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12\x1d\n" +
@@ -1787,13 +2829,24 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"request_id\x18\x05 \x01(\tR\trequestId\x125\n" +
 	"\vstat_result\x18\x06 \x01(\v2\x12.gameap.StatResultH\x00R\n" +
 	"statResult\x12;\n" +
-	"\rexists_result\x18\a \x01(\v2\x14.gameap.ExistsResultH\x00R\fexistsResultB\b\n" +
+	"\rexists_result\x18\a \x01(\v2\x14.gameap.ExistsResultH\x00R\fexistsResult\x125\n" +
+	"\vhash_result\x18\b \x01(\v2\x12.gameap.HashResultH\x00R\n" +
+	"hashResultB\b\n" +
 	"\x06result\"2\n" +
 	"\n" +
 	"StatResult\x12$\n" +
 	"\x04stat\x18\x01 \x01(\v2\x10.gameap.FileStatR\x04stat\"&\n" +
 	"\fExistsResult\x12\x16\n" +
-	"\x06exists\x18\x01 \x01(\bR\x06exists\"\xd3\x04\n" +
+	"\x06exists\x18\x01 \x01(\bR\x06exists\"\\\n" +
+	"\bFileHash\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x04hash\x18\x02 \x01(\tR\x04hash\x12\x12\n" +
+	"\x04size\x18\x03 \x01(\x04R\x04size\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"k\n" +
+	"\n" +
+	"HashResult\x123\n" +
+	"\talgorithm\x18\x01 \x01(\x0e2\x15.gameap.HashAlgorithmR\talgorithm\x12(\n" +
+	"\x06hashes\x18\x02 \x03(\v2\x10.gameap.FileHashR\x06hashes\"\xd3\x04\n" +
 	"\bFileStat\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
@@ -1828,7 +2881,72 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12&\n" +
 	"\x05files\x18\x03 \x03(\v2\x10.gameap.FileStatR\x05files\x12\x1f\n" +
 	"\vtotal_count\x18\x04 \x01(\x05R\n" +
-	"totalCount*\xcd\x01\n" +
+	"totalCount\"\xaa\x02\n" +
+	"\x0eArchiveRequest\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x128\n" +
+	"\aextract\x18\x02 \x01(\v2\x1c.gameap.ExtractArchiveParamsH\x00R\aextract\x125\n" +
+	"\x06create\x18\x03 \x01(\v2\x1b.gameap.CreateArchiveParamsH\x00R\x06create\x12F\n" +
+	"\x11progress_interval\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x10progressInterval\x123\n" +
+	"\atimeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\atimeoutB\v\n" +
+	"\toperation\"\xe6\x03\n" +
+	"\x14ExtractArchiveParams\x12!\n" +
+	"\farchive_path\x18\x01 \x01(\tR\varchivePath\x12 \n" +
+	"\vdestination\x18\x02 \x01(\tR\vdestination\x12-\n" +
+	"\x06format\x18\x03 \x01(\x0e2\x15.gameap.ArchiveFormatR\x06format\x12-\n" +
+	"\x12create_destination\x18\x04 \x01(\bR\x11createDestination\x12F\n" +
+	"\x0fconflict_policy\x18\x05 \x01(\x0e2\x1d.gameap.ArchiveConflictPolicyR\x0econflictPolicy\x121\n" +
+	"\x14preserve_permissions\x18\x06 \x01(\bR\x13preservePermissions\x12\x12\n" +
+	"\x04mode\x18\a \x01(\x05R\x04mode\x12\x1d\n" +
+	"\n" +
+	"owner_user\x18\b \x01(\tR\townerUser\x12\x1b\n" +
+	"\towner_uid\x18\t \x01(\x05R\bownerUid\x12\x1b\n" +
+	"\towner_gid\x18\n" +
+	" \x01(\x05R\bownerGid\x12&\n" +
+	"\x0fmax_total_bytes\x18\v \x01(\x04R\rmaxTotalBytes\x12\x1b\n" +
+	"\tmax_files\x18\f \x01(\rR\bmaxFiles\"\xdf\x03\n" +
+	"\x13CreateArchiveParams\x12!\n" +
+	"\farchive_path\x18\x01 \x01(\tR\varchivePath\x12-\n" +
+	"\x06format\x18\x02 \x01(\x0e2\x15.gameap.ArchiveFormatR\x06format\x12\x1b\n" +
+	"\tbase_path\x18\x03 \x01(\tR\bbasePath\x12\x18\n" +
+	"\asources\x18\x04 \x03(\tR\asources\x120\n" +
+	"\x11compression_level\x18\x05 \x01(\x05H\x00R\x10compressionLevel\x88\x01\x01\x12'\n" +
+	"\x0ffollow_symlinks\x18\x06 \x01(\bR\x0efollowSymlinks\x12\x1c\n" +
+	"\toverwrite\x18\a \x01(\bR\toverwrite\x12\x12\n" +
+	"\x04mode\x18\b \x01(\x05R\x04mode\x12\x1d\n" +
+	"\n" +
+	"owner_user\x18\t \x01(\tR\townerUser\x12\x1b\n" +
+	"\towner_uid\x18\n" +
+	" \x01(\x05R\bownerUid\x12\x1b\n" +
+	"\towner_gid\x18\v \x01(\x05R\bownerGid\x12&\n" +
+	"\x0fmax_total_bytes\x18\f \x01(\x04R\rmaxTotalBytes\x12\x1b\n" +
+	"\tmax_files\x18\r \x01(\rR\bmaxFilesB\x14\n" +
+	"\x12_compression_level\"\xe9\x01\n" +
+	"\x0fArchiveProgress\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12'\n" +
+	"\x0ffiles_processed\x18\x02 \x01(\rR\x0efilesProcessed\x12\x1f\n" +
+	"\vfiles_total\x18\x03 \x01(\rR\n" +
+	"filesTotal\x12'\n" +
+	"\x0fbytes_processed\x18\x04 \x01(\x04R\x0ebytesProcessed\x12\x1f\n" +
+	"\vbytes_total\x18\x05 \x01(\x04R\n" +
+	"bytesTotal\x12#\n" +
+	"\rcurrent_entry\x18\x06 \x01(\tR\fcurrentEntry\"\xc3\x02\n" +
+	"\x0fArchiveResponse\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\x12'\n" +
+	"\x0ffiles_processed\x18\x04 \x01(\rR\x0efilesProcessed\x12'\n" +
+	"\x0fbytes_processed\x18\x05 \x01(\x04R\x0ebytesProcessed\x12!\n" +
+	"\farchive_size\x18\x06 \x01(\x04R\varchiveSize\x12\x18\n" +
+	"\askipped\x18\a \x03(\tR\askipped\x12#\n" +
+	"\rskipped_count\x18\b \x01(\rR\fskippedCount\x12-\n" +
+	"\x06format\x18\t \x01(\x0e2\x15.gameap.ArchiveFormatR\x06format\"F\n" +
+	"\rArchiveCancel\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason*\xcd\x01\n" +
 	"\bFileType\x12\x19\n" +
 	"\x15FILE_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11FILE_TYPE_REGULAR\x10\x01\x12\x17\n" +
@@ -1837,7 +2955,7 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"\x10FILE_TYPE_SOCKET\x10\x04\x12\x12\n" +
 	"\x0eFILE_TYPE_FIFO\x10\x05\x12\x1a\n" +
 	"\x16FILE_TYPE_BLOCK_DEVICE\x10\x06\x12\x19\n" +
-	"\x15FILE_TYPE_CHAR_DEVICE\x10\a*\xce\x02\n" +
+	"\x15FILE_TYPE_CHAR_DEVICE\x10\a*\xec\x02\n" +
 	"\x11FileOperationType\x12#\n" +
 	"\x1fFILE_OPERATION_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aFILE_OPERATION_TYPE_DELETE\x10\x01\x12\x1c\n" +
@@ -1848,7 +2966,37 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"\x19FILE_OPERATION_TYPE_MKDIR\x10\x06\x12\x1d\n" +
 	"\x19FILE_OPERATION_TYPE_TOUCH\x10\a\x12\x1c\n" +
 	"\x18FILE_OPERATION_TYPE_STAT\x10\b\x12\x1e\n" +
-	"\x1aFILE_OPERATION_TYPE_EXISTS\x10\t2\xae\x02\n" +
+	"\x1aFILE_OPERATION_TYPE_EXISTS\x10\t\x12\x1c\n" +
+	"\x18FILE_OPERATION_TYPE_HASH\x10\n" +
+	"*\xca\x01\n" +
+	"\rHashAlgorithm\x12\x1e\n" +
+	"\x1aHASH_ALGORITHM_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12HASH_ALGORITHM_MD5\x10\x01\x12\x17\n" +
+	"\x13HASH_ALGORITHM_SHA1\x10\x02\x12\x19\n" +
+	"\x15HASH_ALGORITHM_SHA256\x10\x03\x12\x19\n" +
+	"\x15HASH_ALGORITHM_SHA512\x10\x04\x12\x18\n" +
+	"\x14HASH_ALGORITHM_CRC32\x10\x05\x12\x18\n" +
+	"\x14HASH_ALGORITHM_CRC64\x10\x06*\xdc\x02\n" +
+	"\rArchiveFormat\x12\x1e\n" +
+	"\x1aARCHIVE_FORMAT_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12ARCHIVE_FORMAT_ZIP\x10\x01\x12\x16\n" +
+	"\x12ARCHIVE_FORMAT_TAR\x10\x02\x12\x19\n" +
+	"\x15ARCHIVE_FORMAT_TAR_GZ\x10\x03\x12\x1a\n" +
+	"\x16ARCHIVE_FORMAT_TAR_BZ2\x10\x04\x12\x19\n" +
+	"\x15ARCHIVE_FORMAT_TAR_XZ\x10\x05\x12\x1b\n" +
+	"\x17ARCHIVE_FORMAT_TAR_ZSTD\x10\x06\x12\x15\n" +
+	"\x11ARCHIVE_FORMAT_GZ\x10\a\x12\x16\n" +
+	"\x12ARCHIVE_FORMAT_BZ2\x10\b\x12\x15\n" +
+	"\x11ARCHIVE_FORMAT_XZ\x10\t\x12\x17\n" +
+	"\x13ARCHIVE_FORMAT_ZSTD\x10\n" +
+	"\x12\x15\n" +
+	"\x11ARCHIVE_FORMAT_7Z\x10\v\x12\x16\n" +
+	"\x12ARCHIVE_FORMAT_RAR\x10\f*\xac\x01\n" +
+	"\x15ArchiveConflictPolicy\x12'\n" +
+	"#ARCHIVE_CONFLICT_POLICY_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x1dARCHIVE_CONFLICT_POLICY_ERROR\x10\x01\x12 \n" +
+	"\x1cARCHIVE_CONFLICT_POLICY_SKIP\x10\x02\x12%\n" +
+	"!ARCHIVE_CONFLICT_POLICY_OVERWRITE\x10\x032\xae\x02\n" +
 	"\x13FileTransferService\x129\n" +
 	"\n" +
 	"UploadFile\x12\x13.gameap.UploadChunk\x1a\x14.gameap.UploadResult(\x01\x12@\n" +
@@ -1868,70 +3016,96 @@ func file_pkg_proto_filetransfer_proto_rawDescGZIP() []byte {
 	return file_pkg_proto_filetransfer_proto_rawDescData
 }
 
-var file_pkg_proto_filetransfer_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_pkg_proto_filetransfer_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_pkg_proto_filetransfer_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_pkg_proto_filetransfer_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_pkg_proto_filetransfer_proto_goTypes = []any{
 	(FileType)(0),                 // 0: gameap.FileType
 	(FileOperationType)(0),        // 1: gameap.FileOperationType
-	(*UploadChunk)(nil),           // 2: gameap.UploadChunk
-	(*UploadMetadata)(nil),        // 3: gameap.UploadMetadata
-	(*UploadResult)(nil),          // 4: gameap.UploadResult
-	(*DownloadRequest)(nil),       // 5: gameap.DownloadRequest
-	(*DownloadChunk)(nil),         // 6: gameap.DownloadChunk
-	(*FileOperationRequest)(nil),  // 7: gameap.FileOperationRequest
-	(*DeleteParams)(nil),          // 8: gameap.DeleteParams
-	(*MoveParams)(nil),            // 9: gameap.MoveParams
-	(*CopyParams)(nil),            // 10: gameap.CopyParams
-	(*ChmodParams)(nil),           // 11: gameap.ChmodParams
-	(*ChownParams)(nil),           // 12: gameap.ChownParams
-	(*MkdirParams)(nil),           // 13: gameap.MkdirParams
-	(*TouchParams)(nil),           // 14: gameap.TouchParams
-	(*StatParams)(nil),            // 15: gameap.StatParams
-	(*ExistsParams)(nil),          // 16: gameap.ExistsParams
-	(*FileOperationResponse)(nil), // 17: gameap.FileOperationResponse
-	(*StatResult)(nil),            // 18: gameap.StatResult
-	(*ExistsResult)(nil),          // 19: gameap.ExistsResult
-	(*FileStat)(nil),              // 20: gameap.FileStat
-	(*ListDirectoryRequest)(nil),  // 21: gameap.ListDirectoryRequest
-	(*ListDirectoryResponse)(nil), // 22: gameap.ListDirectoryResponse
-	nil,                           // 23: gameap.FileStat.XattrsEntry
-	(*timestamppb.Timestamp)(nil), // 24: google.protobuf.Timestamp
+	(HashAlgorithm)(0),            // 2: gameap.HashAlgorithm
+	(ArchiveFormat)(0),            // 3: gameap.ArchiveFormat
+	(ArchiveConflictPolicy)(0),    // 4: gameap.ArchiveConflictPolicy
+	(*UploadChunk)(nil),           // 5: gameap.UploadChunk
+	(*UploadMetadata)(nil),        // 6: gameap.UploadMetadata
+	(*UploadResult)(nil),          // 7: gameap.UploadResult
+	(*DownloadRequest)(nil),       // 8: gameap.DownloadRequest
+	(*DownloadChunk)(nil),         // 9: gameap.DownloadChunk
+	(*FileOperationRequest)(nil),  // 10: gameap.FileOperationRequest
+	(*DeleteParams)(nil),          // 11: gameap.DeleteParams
+	(*MoveParams)(nil),            // 12: gameap.MoveParams
+	(*CopyParams)(nil),            // 13: gameap.CopyParams
+	(*ChmodParams)(nil),           // 14: gameap.ChmodParams
+	(*ChownParams)(nil),           // 15: gameap.ChownParams
+	(*MkdirParams)(nil),           // 16: gameap.MkdirParams
+	(*TouchParams)(nil),           // 17: gameap.TouchParams
+	(*StatParams)(nil),            // 18: gameap.StatParams
+	(*ExistsParams)(nil),          // 19: gameap.ExistsParams
+	(*HashParams)(nil),            // 20: gameap.HashParams
+	(*FileOperationResponse)(nil), // 21: gameap.FileOperationResponse
+	(*StatResult)(nil),            // 22: gameap.StatResult
+	(*ExistsResult)(nil),          // 23: gameap.ExistsResult
+	(*FileHash)(nil),              // 24: gameap.FileHash
+	(*HashResult)(nil),            // 25: gameap.HashResult
+	(*FileStat)(nil),              // 26: gameap.FileStat
+	(*ListDirectoryRequest)(nil),  // 27: gameap.ListDirectoryRequest
+	(*ListDirectoryResponse)(nil), // 28: gameap.ListDirectoryResponse
+	(*ArchiveRequest)(nil),        // 29: gameap.ArchiveRequest
+	(*ExtractArchiveParams)(nil),  // 30: gameap.ExtractArchiveParams
+	(*CreateArchiveParams)(nil),   // 31: gameap.CreateArchiveParams
+	(*ArchiveProgress)(nil),       // 32: gameap.ArchiveProgress
+	(*ArchiveResponse)(nil),       // 33: gameap.ArchiveResponse
+	(*ArchiveCancel)(nil),         // 34: gameap.ArchiveCancel
+	nil,                           // 35: gameap.FileStat.XattrsEntry
+	(*timestamppb.Timestamp)(nil), // 36: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),   // 37: google.protobuf.Duration
 }
 var file_pkg_proto_filetransfer_proto_depIdxs = []int32{
-	3,  // 0: gameap.UploadChunk.metadata:type_name -> gameap.UploadMetadata
+	6,  // 0: gameap.UploadChunk.metadata:type_name -> gameap.UploadMetadata
 	1,  // 1: gameap.FileOperationRequest.operation:type_name -> gameap.FileOperationType
-	8,  // 2: gameap.FileOperationRequest.delete_params:type_name -> gameap.DeleteParams
-	9,  // 3: gameap.FileOperationRequest.move_params:type_name -> gameap.MoveParams
-	10, // 4: gameap.FileOperationRequest.copy_params:type_name -> gameap.CopyParams
-	11, // 5: gameap.FileOperationRequest.chmod_params:type_name -> gameap.ChmodParams
-	12, // 6: gameap.FileOperationRequest.chown_params:type_name -> gameap.ChownParams
-	13, // 7: gameap.FileOperationRequest.mkdir_params:type_name -> gameap.MkdirParams
-	14, // 8: gameap.FileOperationRequest.touch_params:type_name -> gameap.TouchParams
-	15, // 9: gameap.FileOperationRequest.stat_params:type_name -> gameap.StatParams
-	16, // 10: gameap.FileOperationRequest.exists_params:type_name -> gameap.ExistsParams
-	18, // 11: gameap.FileOperationResponse.stat_result:type_name -> gameap.StatResult
-	19, // 12: gameap.FileOperationResponse.exists_result:type_name -> gameap.ExistsResult
-	20, // 13: gameap.StatResult.stat:type_name -> gameap.FileStat
-	24, // 14: gameap.FileStat.modified_at:type_name -> google.protobuf.Timestamp
-	24, // 15: gameap.FileStat.accessed_at:type_name -> google.protobuf.Timestamp
-	24, // 16: gameap.FileStat.changed_at:type_name -> google.protobuf.Timestamp
-	24, // 17: gameap.FileStat.created_at:type_name -> google.protobuf.Timestamp
-	0,  // 18: gameap.FileStat.type:type_name -> gameap.FileType
-	23, // 19: gameap.FileStat.xattrs:type_name -> gameap.FileStat.XattrsEntry
-	20, // 20: gameap.ListDirectoryResponse.files:type_name -> gameap.FileStat
-	2,  // 21: gameap.FileTransferService.UploadFile:input_type -> gameap.UploadChunk
-	5,  // 22: gameap.FileTransferService.DownloadFile:input_type -> gameap.DownloadRequest
-	7,  // 23: gameap.FileTransferService.FileOperation:input_type -> gameap.FileOperationRequest
-	21, // 24: gameap.FileTransferService.ListDirectory:input_type -> gameap.ListDirectoryRequest
-	4,  // 25: gameap.FileTransferService.UploadFile:output_type -> gameap.UploadResult
-	6,  // 26: gameap.FileTransferService.DownloadFile:output_type -> gameap.DownloadChunk
-	17, // 27: gameap.FileTransferService.FileOperation:output_type -> gameap.FileOperationResponse
-	22, // 28: gameap.FileTransferService.ListDirectory:output_type -> gameap.ListDirectoryResponse
-	25, // [25:29] is the sub-list for method output_type
-	21, // [21:25] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	11, // 2: gameap.FileOperationRequest.delete_params:type_name -> gameap.DeleteParams
+	12, // 3: gameap.FileOperationRequest.move_params:type_name -> gameap.MoveParams
+	13, // 4: gameap.FileOperationRequest.copy_params:type_name -> gameap.CopyParams
+	14, // 5: gameap.FileOperationRequest.chmod_params:type_name -> gameap.ChmodParams
+	15, // 6: gameap.FileOperationRequest.chown_params:type_name -> gameap.ChownParams
+	16, // 7: gameap.FileOperationRequest.mkdir_params:type_name -> gameap.MkdirParams
+	17, // 8: gameap.FileOperationRequest.touch_params:type_name -> gameap.TouchParams
+	18, // 9: gameap.FileOperationRequest.stat_params:type_name -> gameap.StatParams
+	19, // 10: gameap.FileOperationRequest.exists_params:type_name -> gameap.ExistsParams
+	20, // 11: gameap.FileOperationRequest.hash_params:type_name -> gameap.HashParams
+	2,  // 12: gameap.HashParams.algorithm:type_name -> gameap.HashAlgorithm
+	22, // 13: gameap.FileOperationResponse.stat_result:type_name -> gameap.StatResult
+	23, // 14: gameap.FileOperationResponse.exists_result:type_name -> gameap.ExistsResult
+	25, // 15: gameap.FileOperationResponse.hash_result:type_name -> gameap.HashResult
+	26, // 16: gameap.StatResult.stat:type_name -> gameap.FileStat
+	2,  // 17: gameap.HashResult.algorithm:type_name -> gameap.HashAlgorithm
+	24, // 18: gameap.HashResult.hashes:type_name -> gameap.FileHash
+	36, // 19: gameap.FileStat.modified_at:type_name -> google.protobuf.Timestamp
+	36, // 20: gameap.FileStat.accessed_at:type_name -> google.protobuf.Timestamp
+	36, // 21: gameap.FileStat.changed_at:type_name -> google.protobuf.Timestamp
+	36, // 22: gameap.FileStat.created_at:type_name -> google.protobuf.Timestamp
+	0,  // 23: gameap.FileStat.type:type_name -> gameap.FileType
+	35, // 24: gameap.FileStat.xattrs:type_name -> gameap.FileStat.XattrsEntry
+	26, // 25: gameap.ListDirectoryResponse.files:type_name -> gameap.FileStat
+	30, // 26: gameap.ArchiveRequest.extract:type_name -> gameap.ExtractArchiveParams
+	31, // 27: gameap.ArchiveRequest.create:type_name -> gameap.CreateArchiveParams
+	37, // 28: gameap.ArchiveRequest.progress_interval:type_name -> google.protobuf.Duration
+	37, // 29: gameap.ArchiveRequest.timeout:type_name -> google.protobuf.Duration
+	3,  // 30: gameap.ExtractArchiveParams.format:type_name -> gameap.ArchiveFormat
+	4,  // 31: gameap.ExtractArchiveParams.conflict_policy:type_name -> gameap.ArchiveConflictPolicy
+	3,  // 32: gameap.CreateArchiveParams.format:type_name -> gameap.ArchiveFormat
+	3,  // 33: gameap.ArchiveResponse.format:type_name -> gameap.ArchiveFormat
+	5,  // 34: gameap.FileTransferService.UploadFile:input_type -> gameap.UploadChunk
+	8,  // 35: gameap.FileTransferService.DownloadFile:input_type -> gameap.DownloadRequest
+	10, // 36: gameap.FileTransferService.FileOperation:input_type -> gameap.FileOperationRequest
+	27, // 37: gameap.FileTransferService.ListDirectory:input_type -> gameap.ListDirectoryRequest
+	7,  // 38: gameap.FileTransferService.UploadFile:output_type -> gameap.UploadResult
+	9,  // 39: gameap.FileTransferService.DownloadFile:output_type -> gameap.DownloadChunk
+	21, // 40: gameap.FileTransferService.FileOperation:output_type -> gameap.FileOperationResponse
+	28, // 41: gameap.FileTransferService.ListDirectory:output_type -> gameap.ListDirectoryResponse
+	38, // [38:42] is the sub-list for method output_type
+	34, // [34:38] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_filetransfer_proto_init() }
@@ -1949,18 +3123,25 @@ func file_pkg_proto_filetransfer_proto_init() {
 		(*FileOperationRequest_TouchParams)(nil),
 		(*FileOperationRequest_StatParams)(nil),
 		(*FileOperationRequest_ExistsParams)(nil),
+		(*FileOperationRequest_HashParams)(nil),
 	}
-	file_pkg_proto_filetransfer_proto_msgTypes[15].OneofWrappers = []any{
+	file_pkg_proto_filetransfer_proto_msgTypes[16].OneofWrappers = []any{
 		(*FileOperationResponse_StatResult)(nil),
 		(*FileOperationResponse_ExistsResult)(nil),
+		(*FileOperationResponse_HashResult)(nil),
 	}
+	file_pkg_proto_filetransfer_proto_msgTypes[24].OneofWrappers = []any{
+		(*ArchiveRequest_Extract)(nil),
+		(*ArchiveRequest_Create)(nil),
+	}
+	file_pkg_proto_filetransfer_proto_msgTypes[26].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_proto_filetransfer_proto_rawDesc), len(file_pkg_proto_filetransfer_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   22,
+			NumEnums:      5,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
