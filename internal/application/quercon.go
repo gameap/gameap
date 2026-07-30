@@ -1,6 +1,7 @@
 package application
 
 import (
+	"log/slog"
 	"time"
 
 	getqueryapi "github.com/gameap/gameap/internal/api/servers/getquery"
@@ -8,7 +9,7 @@ import (
 	"github.com/gameap/gameap/internal/quercon"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/sdk/protocol"
-	"github.com/gameap/gameap/pkg/quercon/rcon/players"
+	"github.com/gameap/gameap/pkg/quercon/rcon"
 )
 
 // QuerconResolver returns the RCON/Query protocol resolver. Plugin protocol
@@ -25,10 +26,9 @@ func (c *Container) QuerconResolver() *quercon.Resolver {
 
 func (c *Container) createQuerconResolver() *quercon.Resolver {
 	cfg := quercon.Config{
-		BuiltinRconProtocol:   rconbase.DetermineProtocol,
-		BuiltinQueryProtocol:  getqueryapi.QueryProtocolByEngine,
-		BuiltinPlayerManager:  players.NewPlayerManagerByGameCode,
-		PlayerManagementCheck: players.IsPlayerManagementSupported,
+		BuiltinRconProtocol:  rconbase.DetermineProtocol,
+		BuiltinQueryProtocol: getqueryapi.QueryProtocolByEngine,
+		BuiltinPlayerManager: rconbase.DeterminePlayerManager,
 	}
 
 	if c.config.Plugins.Disabled {
@@ -86,19 +86,33 @@ func mapRconRegistrations(
 			continue
 		}
 
-		transport := mapRconTransport(pr.Transport)
+		transport, builtinProtocol := mapRconTransport(pr.Transport, pr.BuiltinProtocol)
 		if transport == quercon.RconPlugin && !pluginTransport {
 			continue
 		}
 
+		// A built-in name the panel does not implement can only ever fail, and the
+		// registration would shadow the built-in tables. Dropping it keeps a game that also
+		// has a built-in mapping working, and the warning makes the plugin's typo findable.
+		if transport == quercon.RconBuiltin && !rcon.IsProtocolSupported(rcon.Protocol(builtinProtocol)) {
+			slog.Warn("plugin rcon registration declares an unknown built-in protocol, dropping it",
+				slog.String("plugin_id", reg.PluginID),
+				slog.String("protocol_id", pr.Id),
+				slog.String("builtin_protocol", builtinProtocol),
+			)
+
+			continue
+		}
+
 		out = append(out, quercon.RconRegistration{
-			PluginID:   reg.PluginID,
-			ProtocolID: pr.Id,
-			Name:       pr.Name,
-			GameCodes:  pr.GameCodes,
-			Engines:    pr.Engines,
-			Transport:  transport,
-			Players:    mapPlayerCapability(pr.Players),
+			PluginID:        reg.PluginID,
+			ProtocolID:      pr.Id,
+			Name:            pr.Name,
+			GameCodes:       pr.GameCodes,
+			Engines:         pr.Engines,
+			Transport:       transport,
+			Players:         mapPlayerCapability(pr.Players),
+			BuiltinProtocol: builtinProtocol,
 		})
 	}
 
@@ -149,18 +163,24 @@ func mapQueryRegistrations(
 	return out
 }
 
-func mapRconTransport(t protocol.RconTransport) quercon.RconTransport {
+// mapRconTransport translates a plugin's declared transport into the resolver's, resolving the
+// built-in protocol name at the same time. The two legacy shorthand values are folded onto
+// RconBuiltin here rather than in the resolver, so plugins built before builtin_protocol existed
+// keep working while the resolver has a single built-in path.
+func mapRconTransport(t protocol.RconTransport, builtinProtocol string) (quercon.RconTransport, string) {
 	switch t {
+	case protocol.RconTransport_RCON_TRANSPORT_BUILTIN:
+		return quercon.RconBuiltin, builtinProtocol
 	case protocol.RconTransport_RCON_TRANSPORT_BUILTIN_SOURCE:
-		return quercon.RconBuiltinSource
+		return quercon.RconBuiltin, string(rcon.ProtocolSource)
 	case protocol.RconTransport_RCON_TRANSPORT_BUILTIN_GOLDSOURCE:
-		return quercon.RconBuiltinGoldSource
+		return quercon.RconBuiltin, string(rcon.ProtocolGoldSrc)
 	case protocol.RconTransport_RCON_TRANSPORT_PLUGIN:
-		return quercon.RconPlugin
+		return quercon.RconPlugin, ""
 	case protocol.RconTransport_RCON_TRANSPORT_UNSPECIFIED:
-		return quercon.RconTransportUnspecified
+		return quercon.RconTransportUnspecified, ""
 	default:
-		return quercon.RconTransportUnspecified
+		return quercon.RconTransportUnspecified, ""
 	}
 }
 

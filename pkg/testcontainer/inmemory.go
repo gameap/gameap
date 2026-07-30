@@ -47,7 +47,6 @@ import (
 	pkgapi "github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin"
-	"github.com/gameap/gameap/pkg/quercon/rcon/players"
 	"github.com/gameap/gameap/pkg/secret"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gameap/gameap/pkg/twofactor"
@@ -153,10 +152,9 @@ func (c *InmemoryContainer) ConsoleLogService() *daemon.ConsoleLogService { retu
 func (c *InmemoryContainer) PluginManager() *plugin.Manager               { return nil }
 func (c *InmemoryContainer) QuerconResolver() *quercon.Resolver {
 	return quercon.New(quercon.Config{
-		BuiltinRconProtocol:   rconbase.DetermineProtocol,
-		BuiltinQueryProtocol:  getqueryapi.QueryProtocolByEngine,
-		BuiltinPlayerManager:  players.NewPlayerManagerByGameCode,
-		PlayerManagementCheck: players.IsPlayerManagementSupported,
+		BuiltinRconProtocol:  rconbase.DetermineProtocol,
+		BuiltinQueryProtocol: getqueryapi.QueryProtocolByEngine,
+		BuiltinPlayerManager: rconbase.DeterminePlayerManager,
 	})
 }
 func (c *InmemoryContainer) PluginDispatcher() *plugin.Dispatcher { return nil }

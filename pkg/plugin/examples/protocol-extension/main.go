@@ -5,7 +5,8 @@
 // It demonstrates both extension modes:
 //   - A declarative RCON registration that maps the game code "mygame" onto the
 //     panel's built-in Source engine and adds player management (the panel runs
-//     the RCON; the plugin only parses the players list).
+//     the RCON; the plugin only parses the players list). Any protocol the panel
+//     implements can be named here, including the UDP ones.
 //   - A plugin-implemented Query protocol: the host opens and guards the UDP
 //     connection, and the plugin does the wire I/O over the gameap-net library.
 //

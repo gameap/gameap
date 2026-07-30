@@ -201,6 +201,15 @@ func (h *Handler) getPlayers(
 	command := playerManager.PlayersCommand()
 	output, err := client.Execute(ctx, command)
 	if err != nil {
+		// The stateless UDP protocols carry the password on every command instead of
+		// authenticating on connect, so a wrong password only surfaces here.
+		if errors.Is(err, rcon.ErrAuthenticationFailed) {
+			return nil, api.WrapHTTPError(
+				errors.WithMessage(err, "rcon authentication failed"),
+				http.StatusUnprocessableEntity,
+			)
+		}
+
 		return nil, api.WrapHTTPError(
 			errors.WithMessage(err, "failed to execute rcon command"),
 			http.StatusInternalServerError,

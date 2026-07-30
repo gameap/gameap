@@ -16,7 +16,6 @@ import (
 	"github.com/gameap/gameap/internal/services"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
-	"github.com/gameap/gameap/pkg/quercon/rcon/players"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +25,7 @@ import (
 func testResolver() *quercon.Resolver {
 	return quercon.New(quercon.Config{
 		BuiltinRconProtocol:  rconbase.DetermineProtocol,
-		BuiltinPlayerManager: players.NewPlayerManagerByGameCode,
+		BuiltinPlayerManager: rconbase.DeterminePlayerManager,
 	})
 }
 

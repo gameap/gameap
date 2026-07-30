@@ -30,16 +30,13 @@ const (
 	// features endpoint reports RCON as unsupported. Always set a transport
 	// explicitly.
 	RconTransport_RCON_TRANSPORT_UNSPECIFIED RconTransport = 0
-	// RCON_TRANSPORT_BUILTIN_SOURCE maps the game onto the panel's own Source
-	// RCON implementation (the "source" protocol: TCP, SERVERDATA_AUTH
-	// handshake). Purely declarative — no plugin code runs at execute time, the
-	// gameap-net host library is not involved, and the registration keeps
-	// working with PLUGIN_NET_ENABLED=false. Use it to teach the panel about a
-	// new game that speaks an existing protocol.
+	// RCON_TRANSPORT_BUILTIN_SOURCE is a shorthand for RCON_TRANSPORT_BUILTIN
+	// with builtin_protocol "source", kept for plugins built before that field
+	// existed. New plugins should use RCON_TRANSPORT_BUILTIN.
 	RconTransport_RCON_TRANSPORT_BUILTIN_SOURCE RconTransport = 1
-	// RCON_TRANSPORT_BUILTIN_GOLDSOURCE maps the game onto the panel's
-	// GoldSource RCON implementation (the "goldsource" protocol: UDP challenge
-	// plus rcon command). Declarative, exactly like the Source variant.
+	// RCON_TRANSPORT_BUILTIN_GOLDSOURCE is a shorthand for
+	// RCON_TRANSPORT_BUILTIN with builtin_protocol "goldsource", kept for
+	// backward compatibility like the Source variant above.
 	RconTransport_RCON_TRANSPORT_BUILTIN_GOLDSOURCE RconTransport = 2
 	// RCON_TRANSPORT_PLUGIN means the plugin implements the wire protocol
 	// itself through RconOpen / RconExecute / RconClose, doing I/O over the
@@ -50,6 +47,15 @@ const (
 	// the built-in tables, so games that also have a built-in mapping keep
 	// working while the plugin protocol is simply absent.
 	RconTransport_RCON_TRANSPORT_PLUGIN RconTransport = 3
+	// RCON_TRANSPORT_BUILTIN reuses one of the panel's own RCON engines, named
+	// by RconProtocol.builtin_protocol. Purely declarative: no plugin code runs
+	// at execute time, the gameap-net host library is not involved, and the
+	// registration keeps working with PLUGIN_NET_ENABLED=false. Use it to teach
+	// the panel about a new game that speaks a protocol it already implements.
+	//
+	// This is the form to prefer: a protocol the panel gains later becomes
+	// available to plugins without any change to this enum.
+	RconTransport_RCON_TRANSPORT_BUILTIN RconTransport = 4
 )
 
 // Enum value maps for RconTransport.
@@ -59,12 +65,14 @@ var (
 		1: "RCON_TRANSPORT_BUILTIN_SOURCE",
 		2: "RCON_TRANSPORT_BUILTIN_GOLDSOURCE",
 		3: "RCON_TRANSPORT_PLUGIN",
+		4: "RCON_TRANSPORT_BUILTIN",
 	}
 	RconTransport_value = map[string]int32{
 		"RCON_TRANSPORT_UNSPECIFIED":        0,
 		"RCON_TRANSPORT_BUILTIN_SOURCE":     1,
 		"RCON_TRANSPORT_BUILTIN_GOLDSOURCE": 2,
 		"RCON_TRANSPORT_PLUGIN":             3,
+		"RCON_TRANSPORT_BUILTIN":            4,
 	}
 )
 
@@ -234,6 +242,13 @@ type RconProtocol struct {
 	// players declares kick/ban/list support. Leave unset (or unsupported) when
 	// the protocol only executes raw console commands.
 	Players *PlayerCapability `protobuf:"bytes,6,opt,name=players,proto3" json:"players,omitempty"`
+	// builtin_protocol names the panel RCON engine to reuse when transport is
+	// RCON_TRANSPORT_BUILTIN: one of "source", "goldsource", "quake2",
+	// "quake3", "samp", "battleye". An unknown or empty name makes the host drop
+	// the whole registration with a warning, so a typo cannot shadow the
+	// built-in tables and leave the game without RCON. Ignored for
+	// RCON_TRANSPORT_PLUGIN and for the two legacy shorthand transports.
+	BuiltinProtocol string `protobuf:"bytes,7,opt,name=builtin_protocol,json=builtinProtocol,proto3" json:"builtin_protocol,omitempty"`
 }
 
 func (x *RconProtocol) ProtoReflect() protoreflect.Message {
@@ -280,6 +295,13 @@ func (x *RconProtocol) GetPlayers() *PlayerCapability {
 		return x.Players
 	}
 	return nil
+}
+
+func (x *RconProtocol) GetBuiltinProtocol() string {
+	if x != nil {
+		return x.BuiltinProtocol
+	}
+	return ""
 }
 
 // QueryProtocol registers one Query (server status) protocol.

@@ -1,6 +1,7 @@
 package rcon
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,26 @@ func TestNewClient_DispatchesByProtocol(t *testing.T) {
 			name:     "goldsource_protocol_returns_goldsource_client",
 			protocol: ProtocolGoldSrc,
 			wantType: "*rcon.GoldSource",
+		},
+		{
+			name:     "quake3_protocol_returns_quake_client",
+			protocol: ProtocolQuake3,
+			wantType: "*rcon.Quake",
+		},
+		{
+			name:     "quake2_protocol_returns_quake_client",
+			protocol: ProtocolQuake2,
+			wantType: "*rcon.Quake",
+		},
+		{
+			name:     "samp_protocol_returns_samp_client",
+			protocol: ProtocolSAMP,
+			wantType: "*rcon.SAMP",
+		},
+		{
+			name:     "battleye_protocol_returns_battleye_client",
+			protocol: ProtocolBattlEye,
+			wantType: "*rcon.BattlEye",
 		},
 		{
 			name:      "unknown_protocol_returns_error",
@@ -60,16 +81,26 @@ func TestNewClient_DispatchesByProtocol(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, client)
 
-			switch tt.protocol {
-			case ProtocolSource:
-				_, ok := client.(*Source)
-				assert.True(t, ok, "Source protocol must yield *Source, got %T", client)
-			case ProtocolGoldSrc:
-				_, ok := client.(*GoldSource)
-				assert.True(t, ok, "GoldSrc protocol must yield *GoldSource, got %T", client)
-			}
+			assert.Equal(t, tt.wantType, fmt.Sprintf("%T", client))
 		})
 	}
+}
+
+// TestIsProtocolSupported_MatchesNewClient locks the two together. They used to be independent
+// switch statements, and the plugin layer validates a declared built-in protocol name with
+// IsProtocolSupported before NewClient ever runs.
+func TestIsProtocolSupported_MatchesNewClient(t *testing.T) {
+	for protocol := range clientFactories {
+		t.Run(string(protocol), func(t *testing.T) {
+			require.True(t, IsProtocolSupported(protocol))
+
+			_, err := NewClient(Config{Address: "127.0.0.1:27015", Protocol: protocol})
+
+			require.NoError(t, err)
+		})
+	}
+
+	assert.False(t, IsProtocolSupported(Protocol("rogue")))
 }
 
 func TestIsProtocolSupported(t *testing.T) {
@@ -80,6 +111,10 @@ func TestIsProtocolSupported(t *testing.T) {
 	}{
 		{name: "source_is_supported", protocol: ProtocolSource, want: true},
 		{name: "goldsource_is_supported", protocol: ProtocolGoldSrc, want: true},
+		{name: "quake3_is_supported", protocol: ProtocolQuake3, want: true},
+		{name: "quake2_is_supported", protocol: ProtocolQuake2, want: true},
+		{name: "samp_is_supported", protocol: ProtocolSAMP, want: true},
+		{name: "battleye_is_supported", protocol: ProtocolBattlEye, want: true},
 		{name: "unknown_is_not_supported", protocol: Protocol("rogue"), want: false},
 		{name: "empty_is_not_supported", protocol: Protocol(""), want: false},
 	}

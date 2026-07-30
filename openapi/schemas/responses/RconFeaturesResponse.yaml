@@ -7,8 +7,28 @@ properties:
     example: true
   playersManage:
     type: boolean
-    description: Players management supported
+    deprecated: true
+    description: >-
+      Alias of playersList, kept for compatibility with clients released before
+      listing and moderation were reported separately.
+    example: true
+  playersList:
+    type: boolean
+    description: Reading the player list is supported
+    example: true
+  playersKick:
+    type: boolean
+    description: >-
+      Kicking a player is supported. False for protocols that can list players
+      but have no kick command the panel can build.
+    example: true
+  playersBan:
+    type: boolean
+    description: Banning a player is supported
     example: true
 required:
   - rcon
   - playersManage
+  - playersList
+  - playersKick
+  - playersBan

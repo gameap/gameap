@@ -234,6 +234,15 @@ func (h *Handler) executeRconCommand(
 
 	output, err := client.Execute(ctx, command)
 	if err != nil {
+		// The stateless UDP protocols carry the password on every command instead of
+		// authenticating on connect, so a wrong password only surfaces here.
+		if errors.Is(err, rcon.ErrAuthenticationFailed) {
+			return "", api.WrapHTTPError(
+				errors.WithMessage(err, "rcon authentication failed"),
+				http.StatusUnprocessableEntity,
+			)
+		}
+
 		return "", api.WrapHTTPError(
 			errors.WithMessage(err, "failed to execute rcon command"),
 			http.StatusInternalServerError,

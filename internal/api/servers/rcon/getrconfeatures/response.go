@@ -6,15 +6,23 @@ import (
 )
 
 type featuresResponse struct {
-	Rcon          bool `json:"rcon"`
+	Rcon bool `json:"rcon"`
+	// PlayersManage predates the split between listing and moderating players. It mirrors
+	// PlayersList so clients released before the split keep working.
 	PlayersManage bool `json:"playersManage"`
+	PlayersList   bool `json:"playersList"`
+	PlayersKick   bool `json:"playersKick"`
+	PlayersBan    bool `json:"playersBan"`
 }
 
 func newFeaturesResponse(resolver *quercon.Resolver, game domain.Game) featuresResponse {
-	rconSupported, playersSupported := resolver.RconFeatures(game)
+	features := resolver.RconFeatures(game)
 
 	return featuresResponse{
-		Rcon:          rconSupported,
-		PlayersManage: playersSupported,
+		Rcon:          features.Rcon,
+		PlayersManage: features.PlayersList,
+		PlayersList:   features.PlayersList,
+		PlayersKick:   features.PlayersKick,
+		PlayersBan:    features.PlayersBan,
 	}
 }

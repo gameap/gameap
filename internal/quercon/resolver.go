@@ -42,6 +42,10 @@ const (
 	RconBuiltinSource
 	RconBuiltinGoldSource
 	RconPlugin
+	// RconBuiltin runs one of the panel's own RCON engines, named by
+	// RconRegistration.BuiltinProtocol. The two older members above are the same thing with
+	// the protocol baked in, and the container maps them onto this one.
+	RconBuiltin
 )
 
 // QueryTransport selects how a resolved Query registration is executed.
@@ -71,6 +75,8 @@ type RconRegistration struct {
 	Engines    []string
 	Transport  RconTransport
 	Players    PlayerCapability
+	// BuiltinProtocol names the panel RCON engine to run when Transport is RconBuiltin.
+	BuiltinProtocol string
 }
 
 // QueryRegistration is a plugin Query protocol registration in resolver terms.
@@ -118,10 +124,19 @@ type Config struct {
 	RconExecutor  PluginRconExecutor
 	QueryExecutor PluginQueryExecutor
 
-	BuiltinRconProtocol   func(game domain.Game) (rcon.Protocol, error)
-	BuiltinQueryProtocol  func(engine string) (query.Protocol, bool)
-	BuiltinPlayerManager  func(gameCode string) (players.PlayerManager, error)
-	PlayerManagementCheck func(gameCode string) bool
+	BuiltinRconProtocol  func(game domain.Game) (rcon.Protocol, error)
+	BuiltinQueryProtocol func(engine string) (query.Protocol, bool)
+	BuiltinPlayerManager func(game domain.Game) (players.PlayerManager, error)
+}
+
+// Features reports what the panel can offer for a game, so the UI advertises only actions that
+// will work. Listing players is separate from moderating them: several protocols expose a
+// readable player list but no kick or ban command.
+type Features struct {
+	Rcon        bool
+	PlayersList bool
+	PlayersKick bool
+	PlayersBan  bool
 }
 
 // Resolver resolves and constructs protocol clients for game servers.
@@ -140,6 +155,16 @@ func New(cfg Config) *Resolver {
 func (r *Resolver) RconClient(_ context.Context, game domain.Game, cfg rcon.Config) (rcon.Client, error) {
 	if reg, ok := r.resolveRcon(game); ok {
 		switch reg.Transport {
+		case RconBuiltin:
+			protocol := rcon.Protocol(reg.BuiltinProtocol)
+			if !rcon.IsProtocolSupported(protocol) {
+				return nil, errors.WithMessagef(rcon.ErrUnsupportedProtocol,
+					"rcon protocol %q declares built-in %q", reg.ProtocolID, reg.BuiltinProtocol)
+			}
+
+			cfg.Protocol = protocol
+
+			return rcon.NewClient(cfg)
 		case RconBuiltinSource:
 			cfg.Protocol = rcon.ProtocolSource
 
@@ -180,7 +205,7 @@ func (r *Resolver) PlayerManager(_ context.Context, game domain.Game) (players.P
 		return r.newPluginPlayerManager(game, reg)
 	}
 
-	return r.cfg.BuiltinPlayerManager(game.Code)
+	return r.cfg.BuiltinPlayerManager(game)
 }
 
 // Query performs a server query for the game, choosing the plugin or built-in
@@ -209,19 +234,29 @@ func (r *Resolver) Query(ctx context.Context, game domain.Game, host string, por
 	return query.Query(ctx, host, port, protocol)
 }
 
-// RconFeatures reports whether RCON and player management are available for the
-// game, powering the features endpoint.
-func (r *Resolver) RconFeatures(game domain.Game) (rconSupported, playersSupported bool) {
+// RconFeatures reports what RCON and player management the game supports, powering the features
+// endpoint. Player capabilities are read off the manager that would actually serve a request,
+// so the advertised features and the request path cannot disagree.
+func (r *Resolver) RconFeatures(game domain.Game) Features {
+	features := Features{}
+
 	if reg, ok := r.resolveRcon(game); ok {
-		return r.rconRegistrationExecutable(reg), reg.Players.Supported
+		features.Rcon = r.rconRegistrationExecutable(reg)
+	} else if protocol, err := r.cfg.BuiltinRconProtocol(game); err == nil {
+		features.Rcon = rcon.IsProtocolSupported(protocol)
 	}
 
-	protocol, err := r.cfg.BuiltinRconProtocol(game)
+	manager, err := r.PlayerManager(context.Background(), game)
 	if err != nil {
-		return false, false
+		return features
 	}
 
-	return rcon.IsProtocolSupported(protocol), r.cfg.PlayerManagementCheck(game.Code)
+	capability := manager.Capabilities()
+	features.PlayersList = capability.List
+	features.PlayersKick = capability.Kick
+	features.PlayersBan = capability.Ban
+
+	return features
 }
 
 // rconRegistrationExecutable reports whether a matched plugin registration can
@@ -230,6 +265,8 @@ func (r *Resolver) RconFeatures(game domain.Game) (rconSupported, playersSupport
 // rather than an advertised feature that fails on use.
 func (r *Resolver) rconRegistrationExecutable(reg RconRegistration) bool {
 	switch reg.Transport {
+	case RconBuiltin:
+		return rcon.IsProtocolSupported(rcon.Protocol(reg.BuiltinProtocol))
 	case RconBuiltinSource, RconBuiltinGoldSource:
 		return true
 	case RconPlugin:

@@ -762,19 +762,31 @@ func init() {
 Implement `GetRconProtocols` / `GetQueryProtocols`. Each registration lists the
 `game_codes` and `engines` it applies to and picks a transport:
 
-- `RCON_TRANSPORT_BUILTIN_SOURCE` / `RCON_TRANSPORT_BUILTIN_GOLDSOURCE` and
-  `QUERY_TRANSPORT_BUILTIN` (with `builtin_protocol`) — reuse the panel's
-  engine. Pure mapping: no plugin code runs at execute time. Use this to add a
-  new game that speaks an existing protocol.
+- `RCON_TRANSPORT_BUILTIN` and `QUERY_TRANSPORT_BUILTIN`, both with a
+  `builtin_protocol` name — reuse the panel's engine. Pure mapping: no plugin
+  code runs at execute time. Use this to add a new game that speaks a protocol
+  the panel already implements.
+  - RCON names: `source`, `goldsource`, `quake2`, `quake3`, `samp`, `battleye`.
+  - Query names: `source`, `minecraft`, `gamespy2`, `gamespy3`, `quake2`,
+    `quake3`, `samp`, `raknet`.
+  - An RCON registration naming a protocol the panel does not implement is
+    **dropped with a warning**, so a typo cannot shadow the built-in tables and
+    leave the game without RCON.
+  - `RCON_TRANSPORT_BUILTIN_SOURCE` and `RCON_TRANSPORT_BUILTIN_GOLDSOURCE` are
+    older shorthands for `RCON_TRANSPORT_BUILTIN` with `builtin_protocol`
+    `"source"` / `"goldsource"`. They keep working; new plugins should not use
+    them, because a protocol the panel adds later needs no new enum value.
 - `RCON_TRANSPORT_PLUGIN` / `QUERY_TRANSPORT_PLUGIN` — the plugin implements the
-  wire protocol (see below).
+  wire protocol (see below). RCON connections are always TCP here; a UDP-based
+  RCON protocol has to be a built-in one.
 
 ```go
 func (p MyPlugin) GetRconProtocols(ctx context.Context, req *protocol.GetRconProtocolsRequest) (*protocol.GetRconProtocolsResponse, error) {
     return &protocol.GetRconProtocolsResponse{Protocols: []*protocol.RconProtocol{{
         Id:        "mygame-rcon",
         GameCodes: []string{"mygame"},
-        Transport: protocol.RconTransport_RCON_TRANSPORT_BUILTIN_SOURCE,
+        Transport:       protocol.RconTransport_RCON_TRANSPORT_BUILTIN,
+        BuiltinProtocol: "source",
         Players: &protocol.PlayerCapability{
             Supported:      true,
             PlayersCommand: "status",
@@ -789,6 +801,11 @@ func (p MyPlugin) GetRconProtocols(ctx context.Context, req *protocol.GetRconPro
 Player management: kick/ban are command templates the host renders (`{duration}`
 is whole seconds). The players-list output is parsed by the built-in parser, or
 by your `ParsePlayers` RPC when `parse_via_plugin` is set.
+
+Leave `kick_command` or `ban_command` empty when your game has no such command:
+the panel then hides that button instead of offering one that fails. The
+features endpoint reports `playersList`, `playersKick` and `playersBan`
+separately for exactly this reason.
 
 ### Implementing a wire protocol (gameap-net)
 

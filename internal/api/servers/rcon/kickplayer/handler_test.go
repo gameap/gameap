@@ -27,7 +27,7 @@ import (
 func testResolver() *quercon.Resolver {
 	return quercon.New(quercon.Config{
 		BuiltinRconProtocol:  rconbase.DetermineProtocol,
-		BuiltinPlayerManager: players.NewPlayerManagerByGameCode,
+		BuiltinPlayerManager: rconbase.DeterminePlayerManager,
 	})
 }
 
@@ -661,6 +661,66 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 				assert.NotEmpty(t, response.Message)
 			}
+		})
+	}
+}
+
+// A protocol that can list players but has no kick or ban command must refuse before building a
+// command, so the caller gets "not implemented" instead of a confusing bad-request.
+func TestHandler_ListOnlyProtocolRejectsModeration(t *testing.T) {
+	for _, command := range []string{"kick", "ban"} {
+		t.Run(command, func(t *testing.T) {
+			serverRepo := inmemory.NewServerRepository()
+			gameRepo := inmemory.NewGameRepository()
+			rbacRepo := inmemory.NewRBACRepository()
+			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+			handler := NewHandler(serverRepo, gameRepo, testResolver(), rbacService, api.NewResponder())
+
+			now := time.Now()
+			rconPassword := testRconPassword
+			server := &domain.Server{
+				ID:               1,
+				UID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+				UUIDShort:        "short1",
+				Enabled:          true,
+				Installed:        1,
+				Name:             "Quake Server",
+				GameID:           "q3",
+				DSID:             1,
+				GameModID:        1,
+				ServerIP:         "127.0.0.1",
+				ServerPort:       27960,
+				Rcon:             &rconPassword,
+				ProcessActive:    true,
+				LastProcessCheck: &now,
+				CreatedAt:        &now,
+				UpdatedAt:        &now,
+			}
+			game := &domain.Game{Code: "q3", Name: "Quake 3", Engine: "q3", EngineVersion: "3"}
+
+			require.NoError(t, serverRepo.Save(context.Background(), server))
+			require.NoError(t, gameRepo.Save(context.Background(), game))
+			serverRepo.AddUserServer(1, 1)
+			allowUserAbilityForServer(t, rbacRepo, testUser1.ID, 1, domain.AbilityNameGameServerRconPlayers)
+
+			body, err := json.Marshal(map[string]any{"player": "0", "reason": "cheating"})
+			require.NoError(t, err)
+
+			session := &auth.Session{Login: "testuser", Email: "test@example.com", User: &testUser1}
+			req := httptest.NewRequest(http.MethodPost, "/api/servers/1/rcon/players/"+command, bytes.NewReader(body))
+			req = req.WithContext(auth.ContextWithSession(context.Background(), session))
+			req = mux.SetURLVars(req, map[string]string{"server": "1", "command": command})
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusNotImplemented, w.Code)
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			errorMsg, ok := response["error"].(string)
+			require.True(t, ok)
+			assert.Contains(t, errorMsg, "Not Implemented")
 		})
 	}
 }

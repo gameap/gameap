@@ -24,7 +24,7 @@ func (r *Resolver) newPluginPlayerManager(game domain.Game, reg RconRegistration
 	var fallback players.PlayerManager
 
 	if !reg.Players.ParseViaPlugin {
-		pm, err := r.cfg.BuiltinPlayerManager(game.Code)
+		pm, err := r.cfg.BuiltinPlayerManager(game)
 		if err != nil {
 			return nil, errors.WithMessagef(err,
 				"plugin rcon protocol %q declares player management without a plugin parser", reg.ProtocolID)
@@ -34,6 +34,20 @@ func (r *Resolver) newPluginPlayerManager(game domain.Game, reg RconRegistration
 	}
 
 	return &pluginPlayerManager{reg: reg, exec: r.cfg.RconExecutor, fallback: fallback}, nil
+}
+
+// Capabilities derives what the plugin actually supports from its registration: a command it
+// left empty is a command the panel must not offer.
+func (m *pluginPlayerManager) Capabilities() players.Capability {
+	if !m.reg.Players.Supported {
+		return players.Capability{}
+	}
+
+	return players.Capability{
+		List: true,
+		Kick: m.reg.Players.KickCommand != "",
+		Ban:  m.reg.Players.BanCommand != "",
+	}
 }
 
 func (m *pluginPlayerManager) PlayersCommand() string {

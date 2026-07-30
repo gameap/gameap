@@ -18,6 +18,7 @@ import (
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/quercon/rcon"
+	"github.com/gameap/gameap/pkg/quercon/rcon/players"
 	"github.com/pkg/errors"
 )
 
@@ -147,6 +148,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err = checkPlayerActionSupported(playerManager, command); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	player, err := kickInput.ToPlayer()
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
@@ -191,6 +198,26 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	h.responder.Write(ctx, rw, newKickResponse(output))
+}
+
+// checkPlayerActionSupported rejects the request before a command is built, so a protocol that
+// can only list players answers "not implemented" instead of failing on an empty template.
+func checkPlayerActionSupported(playerManager players.PlayerManager, command string) error {
+	capability := playerManager.Capabilities()
+
+	supported := capability.Kick
+	if command == "ban" {
+		supported = capability.Ban
+	}
+
+	if supported {
+		return nil
+	}
+
+	return api.WrapHTTPError(
+		errors.Errorf("%s is not supported for this game", command),
+		http.StatusNotImplemented,
+	)
 }
 
 func (h *Handler) readKickInput(r *http.Request) (*kickRequest, error) {
@@ -298,6 +325,15 @@ func (h *Handler) executeRconCommand(
 
 	output, err := client.Execute(ctx, command)
 	if err != nil {
+		// The stateless UDP protocols carry the password on every command instead of
+		// authenticating on connect, so a wrong password only surfaces here.
+		if errors.Is(err, rcon.ErrAuthenticationFailed) {
+			return "", api.WrapHTTPError(
+				errors.WithMessage(err, "rcon authentication failed"),
+				http.StatusUnprocessableEntity,
+			)
+		}
+
 		return "", api.WrapHTTPError(
 			errors.WithMessage(err, "failed to execute rcon command"),
 			http.StatusInternalServerError,

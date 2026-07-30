@@ -2,6 +2,7 @@ package quercon
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -78,10 +79,11 @@ func builtinQuery(engine string) (query.Protocol, bool) {
 
 func baseConfig() Config {
 	return Config{
-		BuiltinRconProtocol:   builtinRcon,
-		BuiltinQueryProtocol:  builtinQuery,
-		BuiltinPlayerManager:  players.NewPlayerManagerByGameCode,
-		PlayerManagementCheck: players.IsPlayerManagementSupported,
+		BuiltinRconProtocol:  builtinRcon,
+		BuiltinQueryProtocol: builtinQuery,
+		BuiltinPlayerManager: func(game domain.Game) (players.PlayerManager, error) {
+			return players.NewPlayerManagerByGameCode(game.Code)
+		},
 	}
 }
 
@@ -209,68 +211,136 @@ func TestQuery_UnsupportedEngine(t *testing.T) {
 	assert.ErrorIs(t, err, ErrQueryProtocolUnsupported)
 }
 
+func TestRconClient_BuiltinTransportUsesDeclaredProtocol(t *testing.T) {
+	tests := []struct {
+		name     string
+		protocol string
+		wantType string
+	}{
+		{name: "source", protocol: "source", wantType: "*rcon.Source"},
+		{name: "goldsource", protocol: "goldsource", wantType: "*rcon.GoldSource"},
+		{name: "quake3", protocol: "quake3", wantType: "*rcon.Quake"},
+		{name: "quake2", protocol: "quake2", wantType: "*rcon.Quake"},
+		{name: "samp", protocol: "samp", wantType: "*rcon.SAMP"},
+		{name: "battleye", protocol: "battleye", wantType: "*rcon.BattlEye"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := baseConfig()
+			cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
+				{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
+					Transport: RconBuiltin, BuiltinProtocol: tt.protocol},
+			}}
+
+			client, err := New(cfg).RconClient(
+				context.Background(), domain.Game{Code: "newgame"}, rcon.Config{Address: "127.0.0.1:27015"})
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantType, fmt.Sprintf("%T", client))
+		})
+	}
+}
+
+func TestRconClient_BuiltinTransportUnknownProtocol(t *testing.T) {
+	cfg := baseConfig()
+	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
+		{PluginID: "p1", ProtocolID: "typo", GameCodes: []string{"newgame"},
+			Transport: RconBuiltin, BuiltinProtocol: "quaake3"},
+	}}
+
+	_, err := New(cfg).RconClient(context.Background(), domain.Game{Code: "newgame"}, rcon.Config{})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, rcon.ErrUnsupportedProtocol)
+	assert.Contains(t, err.Error(), "typo", "the error must name the offending registration")
+}
+
 func TestRconFeatures(t *testing.T) {
 	cfg := baseConfig()
 	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
 		{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"}, Transport: RconPlugin,
-			Players: PlayerCapability{Supported: true}},
+			Players: PlayerCapability{
+				Supported: true, KickCommand: "kick {id}", BanCommand: "ban {id}", ParseViaPlugin: true,
+			}},
 	}}
 	cfg.RconExecutor = &fakeRconExecutor{}
 	r := New(cfg)
 
-	// Plugin-registered game.
-	rconOK, playersOK := r.RconFeatures(domain.Game{Code: "newgame"})
-	assert.True(t, rconOK)
-	assert.True(t, playersOK)
+	// Plugin-registered game: the plugin declared both moderation templates.
+	assert.Equal(t,
+		Features{Rcon: true, PlayersList: true, PlayersKick: true, PlayersBan: true},
+		r.RconFeatures(domain.Game{Code: "newgame"}))
 
-	// Built-in game (cs supports goldsource rcon + valve players).
-	rconOK, playersOK = r.RconFeatures(domain.Game{Code: "cs"})
-	assert.True(t, rconOK)
-	assert.True(t, playersOK)
+	// Built-in game (cs supports goldsource rcon plus the valve parser, which can moderate).
+	assert.Equal(t,
+		Features{Rcon: true, PlayersList: true, PlayersKick: true, PlayersBan: true},
+		r.RconFeatures(domain.Game{Code: "cs"}))
 
 	// Unknown game.
-	rconOK, playersOK = r.RconFeatures(domain.Game{Code: "unknown"})
-	assert.False(t, rconOK)
-	assert.False(t, playersOK)
+	assert.Equal(t, Features{}, r.RconFeatures(domain.Game{Code: "unknown"}))
+}
+
+func TestRconFeatures_ListOnlyPlugin(t *testing.T) {
+	cfg := baseConfig()
+	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
+		{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"}, Transport: RconPlugin,
+			Players: PlayerCapability{Supported: true, PlayersCommand: "status", ParseViaPlugin: true}},
+	}}
+	cfg.RconExecutor = &fakeRconExecutor{}
+
+	got := New(cfg).RconFeatures(domain.Game{Code: "newgame"})
+
+	assert.Equal(t, Features{Rcon: true, PlayersList: true}, got,
+		"a plugin that declares no kick or ban template must not have those buttons advertised")
 }
 
 func TestRconFeatures_UnrunnableRegistrations(t *testing.T) {
 	tests := []struct {
-		name        string
-		reg         RconRegistration
-		withExec    bool
-		wantRcon    bool
-		wantPlayers bool
+		name         string
+		reg          RconRegistration
+		withExec     bool
+		wantFeatures Features
 	}{
 		{
 			name: "plugin_transport_without_executor",
 			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
-				Transport: RconPlugin, Players: PlayerCapability{Supported: true}},
-			wantRcon:    false,
-			wantPlayers: true,
+				Transport: RconPlugin,
+				Players:   PlayerCapability{Supported: true, ParseViaPlugin: true}},
+			wantFeatures: Features{PlayersList: true},
 		},
 		{
 			name: "plugin_transport_with_executor",
 			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
-				Transport: RconPlugin, Players: PlayerCapability{Supported: true}},
-			withExec:    true,
-			wantRcon:    true,
-			wantPlayers: true,
+				Transport: RconPlugin,
+				Players:   PlayerCapability{Supported: true, ParseViaPlugin: true}},
+			withExec:     true,
+			wantFeatures: Features{Rcon: true, PlayersList: true},
 		},
 		{
 			name: "unspecified_transport",
 			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
 				Transport: RconTransportUnspecified},
-			withExec:    true,
-			wantRcon:    false,
-			wantPlayers: false,
+			withExec:     true,
+			wantFeatures: Features{},
 		},
 		{
 			name: "builtin_transport_needs_no_executor",
 			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
 				Transport: RconBuiltinSource},
-			wantRcon:    true,
-			wantPlayers: false,
+			wantFeatures: Features{Rcon: true},
+		},
+		{
+			name: "builtin_transport_with_a_known_protocol",
+			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
+				Transport: RconBuiltin, BuiltinProtocol: "quake3"},
+			wantFeatures: Features{Rcon: true},
+		},
+		{
+			name: "builtin_transport_with_an_unknown_protocol",
+			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
+				Transport: RconBuiltin, BuiltinProtocol: "quaake3"},
+			wantFeatures: Features{},
 		},
 	}
 
@@ -282,10 +352,9 @@ func TestRconFeatures_UnrunnableRegistrations(t *testing.T) {
 				cfg.RconExecutor = &fakeRconExecutor{}
 			}
 
-			rconOK, playersOK := New(cfg).RconFeatures(domain.Game{Code: "newgame"})
+			got := New(cfg).RconFeatures(domain.Game{Code: "newgame"})
 
-			assert.Equal(t, tt.wantRcon, rconOK)
-			assert.Equal(t, tt.wantPlayers, playersOK)
+			assert.Equal(t, tt.wantFeatures, got)
 		})
 	}
 }
