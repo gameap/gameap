@@ -13,9 +13,9 @@
             fallback-class="text-5xl text-stone-400"
         />
 
-        <div class="flex-1">
+        <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
-            <h2 class="text-xl font-bold whitespace-nowrap">{{ plugin.name }}</h2>
+            <h2 class="text-xl font-bold break-words">{{ plugin.name }}</h2>
             <GIcon v-if="plugin.requires_subscription" name="star" class="text-yellow-500" />
             <a v-if="plugin.url" :href="plugin.url" target="_blank" class="text-blue-500 hover:text-blue-600">
               <GIcon name="external-link" />
@@ -47,7 +47,7 @@
             {{ plugin.summary }}
           </div>
 
-          <div v-if="plugin.labels?.length > 0" class="hidden md:flex gap-1 mt-1">
+          <div v-if="plugin.labels?.length > 0" class="hidden md:flex flex-wrap gap-1 mt-1">
             <span
                 v-for="label in plugin.labels"
                 :key="label.id"
@@ -129,7 +129,7 @@
             || plugin.min_gameap_version
             || (plugin.url && !isFilePlugin)
           "
-          class="flex justify-around py-4 border-t border-b border-stone-200 dark:border-stone-700 mb-4 divide-x divide-stone-100 dark:divide-stone-700"
+          class="flex flex-wrap justify-around gap-y-3 py-4 border-t border-b border-stone-200 dark:border-stone-700 mb-4"
       >
         <div v-if="plugin.author" class="flex flex-col items-center text-center px-4">
           <GIcon name="user" class="text-xl text-stone-500 dark:text-stone-400 mb-1" />
@@ -181,7 +181,7 @@
 
       <div v-if="plugin.description" class="mb-4">
         <h3 class="font-semibold mb-2">{{ trans('plugins.description') }}</h3>
-        <div class="text-sm whitespace-pre-wrap">{{ plugin.description }}</div>
+        <div class="text-sm whitespace-pre-wrap break-words">{{ plugin.description }}</div>
       </div>
 
       <div v-if="plugin.installed" class="flex justify-center gap-6 mb-4 p-3 bg-stone-100 dark:bg-stone-800 rounded-lg">

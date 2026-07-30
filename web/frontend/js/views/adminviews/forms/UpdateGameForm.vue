@@ -175,6 +175,7 @@
                 :labels="[trans('labels.key'), trans('labels.the_value')]"
                 :keys="['key', 'value']"
                 :input-types="['text', 'text']"
+                :reference="metadataKeyGroups"
             />
           </div>
         </n-tab-pane>
@@ -197,6 +198,7 @@ import {trans} from "@/i18n/i18n";
 import GButton from "@/components/GButton.vue";
 import GFixedBottomBar from "@/components/GFixedBottomBar.vue";
 import InputManyList from "@/components/input/InputManyList.vue";
+import {metadataKeyGroups} from "@/parts/metadataKeys";
 import {
   NCard,
   NForm,

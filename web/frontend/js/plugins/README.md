@@ -52,6 +52,28 @@ Supports `hasServerPermissions` permission check:
 
 The tab is only shown if the user has all specified permissions for the current server.
 
+#### Game Matching
+
+Supports `checkGame` to show the tab only for servers running specific games.
+The tab is shown when the server's game matches at least one listed engine
+(case-insensitive) or game code. Both conditions can be combined; while the
+server data is still loading, the tab stays hidden.
+
+```javascript
+{
+  component: MyTabComponent,
+  label: 'My Tab',
+  icon: 'puzzle-piece',
+  checkGame: {
+    engines: ['GoldSource'],       // matches game.engine
+    codes: ['cstrike', 'valve']    // matches game.code
+  }
+}
+```
+
+`checkGame` and `checkPermission` are independent: when both are set, the tab
+is shown only if both checks pass.
+
 #### Usage Example
 
 ```javascript

@@ -112,6 +112,7 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"CertificatesService", func(c *Container) any { return c.CertificatesService() }},
 		{"EnrollmentService", func(c *Container) any { return c.EnrollmentService() }},
 		{"GlobalAPIService", func(c *Container) any { return c.GlobalAPIService() }},
+		{"CDNGamesService", func(c *Container) any { return c.CDNGamesService() }},
 		{"CaptchaVerifier", func(c *Container) any { return c.CaptchaVerifier() }},
 		{"GameUpgradeService", func(c *Container) any { return c.GameUpgradeService() }},
 		{"PelicanEggImporter", func(c *Container) any { return c.PelicanEggImporter() }},
@@ -166,6 +167,8 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"HTTPSServer", func(c *Container) any { return c.HTTPSServer() }},
 		{"Router", func(c *Container) any { return c.Router() }},
 		{"SecurityHeadersMiddleware", func(c *Container) any { return c.SecurityHeadersMiddleware() }},
+		{"I18nFS", func(c *Container) any { return c.I18nFS() }},
+		{"FrontendFS", func(c *Container) any { return c.FrontendFS() }},
 	}
 
 	for _, a := range accessors {

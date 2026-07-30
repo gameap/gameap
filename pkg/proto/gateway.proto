@@ -43,6 +43,8 @@ message DaemonMessage {
     FileWriteResponse file_write_response = 61;
     FileListResponse file_list_response = 62;
     FileOperationResponse file_operation_response = 63;
+    ArchiveProgress archive_progress = 64;
+    ArchiveResponse archive_response = 65;
 
     StatusResponse status_response = 70;
 
@@ -82,6 +84,8 @@ message GatewayMessage {
     FileUploadTask file_upload_task = 63;
     FileOperationRequest file_operation = 64;
     FileDownloadTask file_download_task = 65;
+    ArchiveRequest archive = 66;
+    ArchiveCancel archive_cancel = 67;
 
     StatusRequest status_request = 70;
 

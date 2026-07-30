@@ -16,6 +16,7 @@ type mockPluginService struct {
 	shutdownFunc            func(ctx context.Context, req *proto.ShutdownRequest) (*proto.ShutdownResponse, error)
 	handleEventFunc         func(ctx context.Context, event *proto.Event) (*proto.EventResult, error)
 	getSubscribedEventsFunc func(ctx context.Context, req *proto.GetSubscribedEventsRequest) (*proto.GetSubscribedEventsResponse, error)
+	getAssetsFunc           func(ctx context.Context, req *proto.GetAssetsRequest) (*proto.GetAssetsResponse, error)
 }
 
 func (m *mockPluginService) GetInfo(
@@ -95,6 +96,17 @@ func (m *mockPluginService) GetServerAbilities(
 	_ *proto.GetServerAbilitiesRequest,
 ) (*proto.GetServerAbilitiesResponse, error) {
 	return &proto.GetServerAbilitiesResponse{}, nil
+}
+
+func (m *mockPluginService) GetAssets(
+	ctx context.Context,
+	req *proto.GetAssetsRequest,
+) (*proto.GetAssetsResponse, error) {
+	if m.getAssetsFunc != nil {
+		return m.getAssetsFunc(ctx, req)
+	}
+
+	return &proto.GetAssetsResponse{}, nil
 }
 
 func TestValidateRoutePath(t *testing.T) {

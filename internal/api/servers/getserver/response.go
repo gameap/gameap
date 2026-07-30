@@ -21,6 +21,10 @@ type adminGameResponse struct {
 	Enabled                 int     `json:"enabled"`
 }
 
+// ServerIP carries the published address (public_ip metadata when set), the same
+// value every other viewer gets. InternalServerIP is the record's own value — the
+// address the daemon connects to — which the edit form must read and send back,
+// otherwise saving would overwrite the LAN address with the published one.
 type adminServerResponse struct {
 	ID               uint               `json:"id"`
 	UID              string             `json:"uid"`
@@ -35,6 +39,7 @@ type adminServerResponse struct {
 	GameModID        uint               `json:"game_mod_id"`
 	Expires          *time.Time         `json:"expires"`
 	ServerIP         string             `json:"server_ip"`
+	InternalServerIP string             `json:"internal_server_ip"`
 	ServerPort       int                `json:"server_port"`
 	QueryPort        *int               `json:"query_port"`
 	RconPort         *int               `json:"rcon_port"`
@@ -162,7 +167,8 @@ func newAdminServerResponseFromServer(
 		DSID:             s.DSID,
 		GameModID:        s.GameModID,
 		Expires:          s.Expires,
-		ServerIP:         s.ServerIP,
+		ServerIP:         s.VisibleServerIP(),
+		InternalServerIP: s.ServerIP,
 		ServerPort:       s.ServerPort,
 		QueryPort:        s.QueryPort,
 		RconPort:         s.RconPort,
@@ -224,7 +230,7 @@ func newUserServerResponseFromServer(s *domain.Server, game *domain.Game) userSe
 		GameID:           s.GameID,
 		GameModID:        s.GameModID,
 		Expires:          s.Expires,
-		ServerIP:         s.ServerIP,
+		ServerIP:         s.VisibleServerIP(),
 		ServerPort:       s.ServerPort,
 		QueryPort:        s.QueryPort,
 		RconPort:         s.RconPort,

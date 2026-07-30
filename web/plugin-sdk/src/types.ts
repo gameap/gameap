@@ -107,6 +107,18 @@ export interface HasServerPermissionsCheck {
 export type PermissionCheck = HasServerPermissionsCheck;
 
 /**
+ * Game match condition for slot components.
+ * Supported by the server-tabs slot: the tab is shown only when the
+ * current server's game matches at least one of the listed values.
+ */
+export interface GameCheck {
+    /** Game engines to match (case-insensitive), e.g. ['GoldSource'] */
+    engines?: string[];
+    /** Game codes to match, e.g. ['cstrike', 'valve'] */
+    codes?: string[];
+}
+
+/**
  * Plugin slot component definition.
  */
 export interface PluginSlotComponent {
@@ -124,6 +136,8 @@ export interface PluginSlotComponent {
     props?: Record<string, unknown>;
     /** Permission check - each slot recipient checks types it understands */
     checkPermission?: PermissionCheck;
+    /** Game match condition - each slot recipient checks it if supported */
+    checkGame?: GameCheck;
 }
 
 /**

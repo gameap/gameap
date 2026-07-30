@@ -13,6 +13,10 @@ properties:
     type: string
     description: Plugin version
     example: "1.0.0"
+  description:
+    type: string
+    description: Plugin description
+    example: "My Plugin description"
   source:
     type: string
     description: Plugin source URL or file path

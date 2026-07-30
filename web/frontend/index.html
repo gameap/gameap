@@ -81,9 +81,27 @@
                 return 'en';
             }
 
+            // Load the list of available languages from the backend so the set
+            // of locales is not hardcoded here.
+            let languages = [];
+            try {
+                const langsXhr = new XMLHttpRequest();
+                langsXhr.open('GET', '/lang', false);
+                langsXhr.send();
+                if (langsXhr.status === 200) {
+                    languages = JSON.parse(langsXhr.responseText);
+                }
+            } catch (e) {
+                console.error('[i18n] Failed to load language list:', e);
+            }
+            window.gameapLanguages = languages;
+
+            const availableCodes = languages.map(function (l) { return l.code; });
             const lang = detectLanguage();
-            const supportedLangs = ['en', 'ru'];
-            const finalLang = supportedLangs.includes(lang) ? lang : 'en';
+            let finalLang = lang;
+            if (!availableCodes.includes(finalLang)) {
+                finalLang = availableCodes.includes('en') ? 'en' : (availableCodes[0] || 'en');
+            }
 
             // Set HTML lang attribute for consistency
             document.documentElement.lang = finalLang;

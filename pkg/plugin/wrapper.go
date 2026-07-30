@@ -31,6 +31,7 @@ type pluginServiceWrapper struct {
 	handlehttprequest   api.Function
 	getfrontendbundle   api.Function
 	getserverabilities  api.Function
+	getassets           api.Function
 	handlescheduledtask api.Function
 }
 
@@ -276,6 +277,27 @@ func (p *pluginServiceWrapper) GetServerAbilities(
 	}
 
 	response := new(proto.GetServerAbilitiesResponse)
+	if err = response.UnmarshalVT(bytes); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (p *pluginServiceWrapper) GetAssets(
+	ctx context.Context,
+	request *proto.GetAssetsRequest,
+) (*proto.GetAssetsResponse, error) {
+	if p.getassets == nil {
+		return &proto.GetAssetsResponse{}, nil
+	}
+
+	bytes, err := p.callFunction(ctx, p.getassets, request)
+	if err != nil {
+		return nil, err
+	}
+
+	response := new(proto.GetAssetsResponse)
 	if err = response.UnmarshalVT(bytes); err != nil {
 		return nil, err
 	}

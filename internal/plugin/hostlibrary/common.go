@@ -7,6 +7,7 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/pkg/plugin/sdk/common"
 	"github.com/gameap/gameap/pkg/proto"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -60,6 +61,22 @@ func uint64PtrFromUintPtr(v *uint) *uint64 {
 	return new(uint64(*v))
 }
 
+func intPtrFromInt32Ptr(v *int32) *int {
+	if v == nil {
+		return nil
+	}
+
+	return new(int(*v))
+}
+
+func int32PtrFromIntPtr(v *int) *int32 {
+	if v == nil {
+		return nil
+	}
+
+	return new(int32(*v)) //nolint:gosec
+}
+
 var protoToEntityType = map[proto.EntityType]domain.EntityType{
 	proto.EntityType_ENTITY_TYPE_UNSPECIFIED:        domain.EntityTypeEmpty,
 	proto.EntityType_ENTITY_TYPE_USER:               domain.EntityTypeUser,
@@ -93,6 +110,53 @@ func entityTypeFromProto(et *proto.EntityType) *string {
 	}
 
 	return new(string(domainET))
+}
+
+var errUnknownEntityType = errors.New("unknown entity type")
+
+// requiredEntityTypeFromProto resolves an entity type that the caller must
+// provide. UNSPECIFIED is rejected rather than silently treated as a global
+// scope — a plugin that forgot to set the field would otherwise widen the
+// scope of whatever it is asking for.
+func requiredEntityTypeFromProto(et proto.EntityType) (domain.EntityType, error) {
+	domainET, ok := protoToEntityType[et]
+	if !ok || domainET == domain.EntityTypeEmpty {
+		return domain.EntityTypeEmpty, errors.Wrapf(errUnknownEntityType, "%s", et)
+	}
+
+	return domainET, nil
+}
+
+// optionalEntityTypeFromProto resolves an entity type that may legitimately
+// be absent, meaning "not scoped to any entity". Unknown values map to nil,
+// same as absent.
+func optionalEntityTypeFromProto(et *proto.EntityType) *domain.EntityType {
+	if et == nil {
+		return nil
+	}
+
+	domainET, ok := protoToEntityType[*et]
+	if !ok || domainET == domain.EntityTypeEmpty {
+		return nil
+	}
+
+	return &domainET
+}
+
+// optionalEntityTypeToProto mirrors optionalEntityTypeFromProto: an empty or
+// unknown entity type is reported as absent, not as an explicit UNSPECIFIED
+// value that a plugin would read as "scoped to something I don't know".
+func optionalEntityTypeToProto(et *domain.EntityType) *proto.EntityType {
+	if et == nil || *et == domain.EntityTypeEmpty {
+		return nil
+	}
+
+	protoET, ok := entityTypeToProto[*et]
+	if !ok {
+		return nil
+	}
+
+	return &protoET
 }
 
 func domainMetadataToProto(metadata domain.Metadata) map[string]*anypb.Any {

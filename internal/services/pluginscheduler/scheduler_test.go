@@ -245,6 +245,12 @@ func (f *fakePluginInstance) GetServerAbilities(
 	return &proto.GetServerAbilitiesResponse{}, nil
 }
 
+func (f *fakePluginInstance) GetAssets(
+	context.Context, *proto.GetAssetsRequest,
+) (*proto.GetAssetsResponse, error) {
+	return &proto.GetAssetsResponse{}, nil
+}
+
 type testEnv struct {
 	service  *Service
 	repo     *inmemory.PluginScheduledTaskRepository

@@ -85,6 +85,14 @@ properties:
     example:
       maxplayers: "32"
       hostname: "My Server"
+  metadata:
+    type:
+      - object
+      - "null"
+    description: Server metadata (arbitrary key-value pairs). Omit the field to keep the stored metadata
+    additionalProperties: true
+    example:
+      docker_image: "gameap/srcds:latest"
   cpu_limit:
     oneOf:
       - type: integer

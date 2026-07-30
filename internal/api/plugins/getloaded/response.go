@@ -21,6 +21,7 @@ type loadedPluginResponse struct {
 	ID                string                  `json:"id"`
 	Name              string                  `json:"name"`
 	Version           string                  `json:"version"`
+	Description       string                  `json:"description,omitempty"`
 	Source            string                  `json:"source,omitempty"`
 	SourceType        string                  `json:"source_type"`
 	Enabled           bool                    `json:"enabled"`
@@ -41,6 +42,7 @@ func newLoadedPluginResponse(
 		ID:                pkgplugin.CompactPluginID(pkgplugin.ParsePluginID(loaded.Info.Id)),
 		Name:              loaded.Info.Name,
 		Version:           loaded.Info.Version,
+		Description:       loaded.Info.Description,
 		Source:            source,
 		SourceType:        determineSourceType(source),
 		Enabled:           loaded.IsEnabled(),

@@ -1,0 +1,15 @@
+{
+  "_language": {
+    "name": "Spanish",
+    "native_name": "Español"
+  },
+  "plugins": {
+    "fwgfo26jzwnm4": {
+      "name": "Registrador de servidor",
+      "abilities": {
+        "view-logs": "Ver registros",
+        "export-logs": "Exportar registros"
+      }
+    }
+  }
+}

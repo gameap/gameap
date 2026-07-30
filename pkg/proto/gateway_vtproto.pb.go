@@ -487,6 +487,48 @@ func (m *DaemonMessage_FileOperationResponse) MarshalToSizedBufferVT(dAtA []byte
 	}
 	return len(dAtA) - i, nil
 }
+func (m *DaemonMessage_ArchiveProgress) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *DaemonMessage_ArchiveProgress) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.ArchiveProgress != nil {
+		size, err := m.ArchiveProgress.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0x82
+	}
+	return len(dAtA) - i, nil
+}
+func (m *DaemonMessage_ArchiveResponse) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *DaemonMessage_ArchiveResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.ArchiveResponse != nil {
+		size, err := m.ArchiveResponse.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0x8a
+	}
+	return len(dAtA) - i, nil
+}
 func (m *DaemonMessage_StatusResponse) MarshalToVT(dAtA []byte) (int, error) {
 	size := m.SizeVT()
 	return m.MarshalToSizedBufferVT(dAtA[:size])
@@ -1052,6 +1094,48 @@ func (m *GatewayMessage_FileDownloadTask) MarshalToSizedBufferVT(dAtA []byte) (i
 		dAtA[i] = 0x4
 		i--
 		dAtA[i] = 0x8a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *GatewayMessage_Archive) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *GatewayMessage_Archive) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Archive != nil {
+		size, err := m.Archive.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0x92
+	}
+	return len(dAtA) - i, nil
+}
+func (m *GatewayMessage_ArchiveCancel) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *GatewayMessage_ArchiveCancel) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.ArchiveCancel != nil {
+		size, err := m.ArchiveCancel.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0x9a
 	}
 	return len(dAtA) - i, nil
 }
@@ -4220,6 +4304,30 @@ func (m *DaemonMessage_FileOperationResponse) SizeVT() (n int) {
 	}
 	return n
 }
+func (m *DaemonMessage_ArchiveProgress) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ArchiveProgress != nil {
+		l = m.ArchiveProgress.SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	return n
+}
+func (m *DaemonMessage_ArchiveResponse) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ArchiveResponse != nil {
+		l = m.ArchiveResponse.SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	return n
+}
 func (m *DaemonMessage_StatusResponse) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -4533,6 +4641,30 @@ func (m *GatewayMessage_FileDownloadTask) SizeVT() (n int) {
 	_ = l
 	if m.FileDownloadTask != nil {
 		l = m.FileDownloadTask.SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	return n
+}
+func (m *GatewayMessage_Archive) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Archive != nil {
+		l = m.Archive.SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	return n
+}
+func (m *GatewayMessage_ArchiveCancel) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ArchiveCancel != nil {
+		l = m.ArchiveCancel.SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	return n
@@ -6608,6 +6740,88 @@ func (m *DaemonMessage) UnmarshalVT(dAtA []byte) error {
 				m.Payload = &DaemonMessage_FileOperationResponse{FileOperationResponse: v}
 			}
 			iNdEx = postIndex
+		case 64:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ArchiveProgress", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.Payload.(*DaemonMessage_ArchiveProgress); ok {
+				if err := oneof.ArchiveProgress.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &ArchiveProgress{}
+				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.Payload = &DaemonMessage_ArchiveProgress{ArchiveProgress: v}
+			}
+			iNdEx = postIndex
+		case 65:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ArchiveResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.Payload.(*DaemonMessage_ArchiveResponse); ok {
+				if err := oneof.ArchiveResponse.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &ArchiveResponse{}
+				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.Payload = &DaemonMessage_ArchiveResponse{ArchiveResponse: v}
+			}
+			iNdEx = postIndex
 		case 70:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field StatusResponse", wireType)
@@ -7714,6 +7928,88 @@ func (m *GatewayMessage) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 				m.Payload = &GatewayMessage_FileDownloadTask{FileDownloadTask: v}
+			}
+			iNdEx = postIndex
+		case 66:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Archive", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.Payload.(*GatewayMessage_Archive); ok {
+				if err := oneof.Archive.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &ArchiveRequest{}
+				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.Payload = &GatewayMessage_Archive{Archive: v}
+			}
+			iNdEx = postIndex
+		case 67:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ArchiveCancel", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.Payload.(*GatewayMessage_ArchiveCancel); ok {
+				if err := oneof.ArchiveCancel.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &ArchiveCancel{}
+				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.Payload = &GatewayMessage_ArchiveCancel{ArchiveCancel: v}
 			}
 			iNdEx = postIndex
 		case 70:

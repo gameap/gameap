@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -37,6 +38,7 @@ import (
 	"github.com/gameap/gameap/internal/grpc/gateway"
 	"github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
+	"github.com/gameap/gameap/internal/i18n"
 	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
@@ -74,6 +76,7 @@ import (
 	"github.com/gameap/gameap/internal/ws"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/mergefs"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/secret"
@@ -157,6 +160,7 @@ type Container struct {
 	serverTaskDispatcher *servertaskdispatcher.Dispatcher
 	serverConfigPusher   *serverconfigpush.Pusher
 	globalAPIService     *services.GlobalAPIService
+	cdnGamesService      *services.CDNGamesService
 	pluginStoreService   *pluginstore.Service
 	captchaVerifier      *captcha.Service
 	gameUpgrader         *services.GameUpgradeService
@@ -212,6 +216,8 @@ type Container struct {
 	auditLogger               audit.Logger
 	securityHeadersMiddleware *middlewares.SecurityHeadersMiddleware
 	fileUploadMIMEChecker     *filemanagermime.Checker
+	i18nFS                    fs.FS
+	frontendFS                fs.FS
 
 	// ACME
 	acmeService *acme.Service
@@ -659,6 +665,69 @@ func (c *Container) SecurityHeadersMiddleware() *middlewares.SecurityHeadersMidd
 
 	return c.securityHeadersMiddleware
 }
+
+// I18nFS returns the translation filesystem served at /lang/: enabled plugins'
+// contributed translations layered above the built-in i18n files, so a plugin
+// file shadows a core file of the same name and a new locale file is simply
+// added. Layers are resolved per request, so plugins loaded at runtime are
+// reflected without a restart.
+func (c *Container) I18nFS() fs.FS {
+	if c.i18nFS == nil {
+		base := i18n.GetFS()
+		c.i18nFS = mergefs.NewDynamic(func() []fs.FS {
+			return c.pluginAssetLayers(pluginI18nFS, base)
+		})
+	}
+
+	return c.i18nFS
+}
+
+// FrontendFS returns the SPA filesystem served at /: enabled plugins'
+// contributed frontend files layered above the built-in bundle. The base build
+// is resolved once here (a broken embed fails fast at startup); plugin layers
+// are resolved per request. The security-headers middleware deliberately hashes
+// the base build instead, so plugin files cannot alter the CSP.
+func (c *Container) FrontendFS() fs.FS {
+	if c.frontendFS == nil {
+		base, err := webstatic.GetFS()
+		if err != nil {
+			panic("failed to get static files: " + err.Error())
+		}
+
+		c.frontendFS = mergefs.NewDynamic(func() []fs.FS {
+			return c.pluginAssetLayers(pluginFrontendFS, base)
+		})
+	}
+
+	return c.frontendFS
+}
+
+// pluginAssetLayers returns the ordered layers for a merged filesystem: each
+// enabled plugin's contributed filesystem (ordered by plugin ID, above the
+// base), followed by base. Two plugins shipping the same path therefore shadow
+// each other deterministically. Plugins are consulted only when the manager
+// already exists, so a disabled plugin subsystem leaves just the base layer.
+func (c *Container) pluginAssetLayers(pick func(*pkgplugin.LoadedPlugin) fs.FS, base fs.FS) []fs.FS {
+	var layers []fs.FS
+
+	if c.pluginManager != nil {
+		for _, p := range c.pluginManager.GetPlugins() {
+			if !p.IsEnabled() {
+				continue
+			}
+
+			if pluginFS := pick(p); pluginFS != nil {
+				layers = append(layers, pluginFS)
+			}
+		}
+	}
+
+	return append(layers, base)
+}
+
+func pluginI18nFS(p *pkgplugin.LoadedPlugin) fs.FS { return p.I18nFS }
+
+func pluginFrontendFS(p *pkgplugin.LoadedPlugin) fs.FS { return p.FrontendFS }
 
 func (c *Container) ACMEService() *acme.Service {
 	if c.acmeService == nil {
@@ -1536,6 +1605,18 @@ func (c *Container) createGlobalAPIService() *services.GlobalAPIService {
 	return services.NewGlobalAPIService(c.Config())
 }
 
+func (c *Container) CDNGamesService() *services.CDNGamesService {
+	if c.cdnGamesService == nil {
+		c.cdnGamesService = c.createCDNGamesService()
+	}
+
+	return c.cdnGamesService
+}
+
+func (c *Container) createCDNGamesService() *services.CDNGamesService {
+	return services.NewCDNGamesService(c.Config())
+}
+
 // CaptchaVerifier returns the login captcha verifier. It is a no-op
 // (Enabled() == false) until CAPTCHA_PROVIDER and CAPTCHA_SECRET_KEY are set.
 func (c *Container) CaptchaVerifier() *captcha.Service {
@@ -1581,7 +1662,7 @@ func (c *Container) GameUpgradeService() *services.GameUpgradeService {
 
 func (c *Container) createGameUpgradeService() *services.GameUpgradeService {
 	return services.NewGameUpgradeService(
-		c.GlobalAPIService(),
+		c.CDNGamesService(),
 		c.GameRepository(),
 		c.GameModRepository(),
 		c.TransactionManager(),
@@ -1936,10 +2017,18 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			hostlibrary.NewNodeFSHostLibrary(c.DaemonFiles(), c.NodeRepository()),
 			hostlibrary.NewNodeCmdHostLibrary(c.DaemonCommands(), c.NodeRepository()),
 			hostlibrary.NewCryptoHostLibrary(),
+			hostlibrary.NewAuthzHostLibrary(c.RBAC()),
 		},
 		LibraryFactories: []pkgplugin.HostLibraryFactory{
 			hostlibrary.NewStorageHostLibraryFactory(c.PluginStorageRepository()),
 			hostlibrary.NewLogHostLibraryFactory(slog.Default()),
+			// Per-plugin: the module is gated on the plugin's own
+			// manage_rbac grant, so it needs to know which plugin it serves.
+			hostlibrary.NewRBACHostLibraryFactory(
+				c.RBAC(),
+				c.RBACRepository(),
+				hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			),
 			hostlibrary.NewSchedulerHostLibraryFactory(&lazyTaskScheduler{container: c}),
 		},
 	})

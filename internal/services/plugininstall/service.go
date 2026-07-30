@@ -36,17 +36,25 @@ func BuildPluginRecord(
 	filename string,
 	source string,
 ) *domain.Plugin {
+	// Installing is an admin-only action and the dry-run endpoint shows the
+	// manifest's required_permissions beforehand, so confirming the install
+	// is the grant. AllowedPermissions stays the runtime source of truth and
+	// can be narrowed later without touching the manifest.
+	permissions := domain.ParsePluginPermissions(loaded.Info.RequiredPermissions)
+
 	return &domain.Plugin{
-		ID:          dbID,
-		Name:        loaded.Info.Name,
-		Version:     loaded.Info.Version,
-		Description: loaded.Info.Description,
-		Author:      loaded.Info.Author,
-		APIVersion:  loaded.Info.ApiVersion,
-		Filename:    new(filename),
-		Source:      new(source),
-		Status:      domain.PluginStatusActive,
-		InstalledAt: new(time.Now()),
+		ID:                  dbID,
+		Name:                loaded.Info.Name,
+		Version:             loaded.Info.Version,
+		Description:         loaded.Info.Description,
+		Author:              loaded.Info.Author,
+		APIVersion:          loaded.Info.ApiVersion,
+		Filename:            new(filename),
+		Source:              new(source),
+		RequiredPermissions: permissions,
+		AllowedPermissions:  permissions,
+		Status:              domain.PluginStatusActive,
+		InstalledAt:         new(time.Now()),
 	}
 }
 
