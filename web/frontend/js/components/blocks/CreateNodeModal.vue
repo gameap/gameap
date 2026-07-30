@@ -89,7 +89,7 @@
 
               <n-form-item label="GitHub">
                 <n-switch v-model:value="useGithubSource" />
-                <span class="ml-2 text-sm text-gray-500">Install from GitHub source</span>
+                <span class="ml-2 text-sm text-muted">Install from GitHub source</span>
               </n-form-item>
 
               <n-form-item v-if="useGithubSource" label="Branch">
@@ -381,7 +381,7 @@ watch(() => props.modelValue, (visible) => {
 <style>
 .create-node-modal {
   code {
-    @apply text-rose-800 dark:text-rose-300 text-sm;
+    @apply text-red-800 dark:text-red-300 text-sm;
     word-wrap: break-word;
   }
 
@@ -410,7 +410,7 @@ watch(() => props.modelValue, (visible) => {
   }
 
   .copied-icon {
-    @apply text-green-500;
+    @apply text-success;
   }
 
   .icon-fade-enter-active,
@@ -445,7 +445,7 @@ watch(() => props.modelValue, (visible) => {
   }
 
   a {
-    @apply font-medium text-blue-600 dark:text-blue-500 underline hover:no-underline;
+    @apply font-medium text-info underline hover:no-underline;
   }
 }
 </style>

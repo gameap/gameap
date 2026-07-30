@@ -49,7 +49,7 @@
 </template>
 
 <script setup>
-import {computed, onMounted, provide, watch} from "vue"
+import {computed, onMounted, provide, ref, watch} from "vue"
 import {
   NConfigProvider,
   NDialogProvider,
@@ -93,101 +93,94 @@ const user = computed(() => {
   return authStore.user
 })
 
-const lightThemeOverrides = {
-  "common": {
-    "primaryColor": "#84cc16",
-    "primaryColorHover": "#65a30d",
-    "primaryColorPressed": "#65a30d",
-    "successColor": "#84CC16FF",
-    "successColorHover": "#65A30DFF",
-    "successColorPressed": "#65A30DFF",
-    "successColorSuppl": "#65A30DFF",
-    "warningColor": "#fb923cFF",
-    "warningColorHover": "#f97316FF",
-    "warningColorPressed": "#f97316FF",
-    "warningColorSuppl": "#f97316FF",
-    "errorColor": "#ef4444FF",
-    "errorColorHover": "#dc2626ff",
-    "errorColorPressed": "#dc2626ff",
-    "errorColorSuppl": "#dc2626ff",
-    "tableHeaderColor": "#f5f5f4ff"
-  },
-  "Tabs": {
-    "tabTextColorLine": "#78716c",
-    "tabTextColorActiveLine": "#1c1917",
-    "tabTextColorHoverLine": "#1c1917",
-    "barColor": "#1c1917"
-  }
+// naive-ui is CSS-in-JS and cannot consume the --gameap-* CSS variables
+// directly, so its overrides are rebuilt from the resolved variable values on
+// mount and on every theme switch. Fallbacks keep naive usable when
+// /theme.css is missing (frontend-stub builds).
+const FALLBACK = {
+  primary: '#84cc16',
+  primaryHover: '#65a30d',
+  warning: '#fb923c',
+  warningHover: '#f97316',
+  danger: '#ef4444',
+  dangerHover: '#dc2626',
+  tableHeader: {light: '#f5f5f4', dark: '#44403c'},
+  overlay: {light: '#ffffff', dark: '#292524'},
+  raised: {light: '#ffffff', dark: '#292524'},
+  textMuted: {light: '#78716c', dark: '#a8a29e'},
+  tabAccent: {light: '#1c1917', dark: '#737373'},
+  surfaceHover: '#262322',
 }
 
-const darkThemeOverrides = {
-  "common": {
-    "primaryColor": "#84cc16",
-    "primaryColorHover": "#65a30d",
-    "primaryColorPressed": "#65a30d",
-    "successColor": "#84CC16FF",
-    "successColorHover": "#65A30DFF",
-    "successColorPressed": "#65A30DFF",
-    "successColorSuppl": "#65A30DFF",
-    "warningColor": "#fb923cFF",
-    "warningColorHover": "#f97316FF",
-    "warningColorPressed": "#f97316FF",
-    "warningColorSuppl": "#f97316FF",
-    "errorColor": "#ef4444FF",
-    "errorColorHover": "#dc2626ff",
-    "errorColorPressed": "#dc2626ff",
-    "errorColorSuppl": "#dc2626ff",
-    "tableHeaderColor": "#44403c",
-    "modalColor": "#292524FF",
-    "tableColor": "rgb(24, 24, 28)",
-    "bodyColor": "rgb(16, 16, 20)",
-    "cardColor": "#292524FF"
-  },
-  "Tabs": {
-    "tabTextColorLine": "#a8a29e",
-    "tabTextColorActiveLine": "#737373",
-    "tabTextColorHoverLine": "#737373",
-    "barColor": "#737373"
-  },
-  "DataTable": {
-    "tdColorStriped": "rgba(36, 36, 39, 1)",
-    "thColor": "#44403cFF",
-    "tdColor": "#292524FF",
-    "thColorHover": "rgba(79, 75, 72, 1)",
-    "tdColorHoverModal": "rgba(57, 57, 62, 1)",
-    "tdColorModal": "rgba(44, 44, 50, 1)",
-    "tdColorHover": "#262322FF"
+function buildNaiveOverrides(mode) {
+  const styles = getComputedStyle(document.documentElement)
+  const v = (name, fallback) => {
+    const value = styles.getPropertyValue(name).trim()
+
+    return value || (typeof fallback === 'string' ? fallback : fallback[mode])
   }
+
+  const overrides = {
+    common: {
+      primaryColor: v('--gameap-primary', FALLBACK.primary),
+      primaryColorHover: v('--gameap-primary-hover', FALLBACK.primaryHover),
+      primaryColorPressed: v('--gameap-primary-hover', FALLBACK.primaryHover),
+      successColor: v('--gameap-success', FALLBACK.primary),
+      successColorHover: v('--gameap-success-hover', FALLBACK.primaryHover),
+      successColorPressed: v('--gameap-success-hover', FALLBACK.primaryHover),
+      successColorSuppl: v('--gameap-success-hover', FALLBACK.primaryHover),
+      warningColor: v('--gameap-warning', FALLBACK.warning),
+      warningColorHover: v('--gameap-warning-hover', FALLBACK.warningHover),
+      warningColorPressed: v('--gameap-warning-hover', FALLBACK.warningHover),
+      warningColorSuppl: v('--gameap-warning-hover', FALLBACK.warningHover),
+      errorColor: v('--gameap-danger', FALLBACK.danger),
+      errorColorHover: v('--gameap-danger-hover', FALLBACK.dangerHover),
+      errorColorPressed: v('--gameap-danger-hover', FALLBACK.dangerHover),
+      errorColorSuppl: v('--gameap-danger-hover', FALLBACK.dangerHover),
+      tableHeaderColor: v('--gameap-table-header', FALLBACK.tableHeader),
+      modalColor: v('--gameap-surface-overlay', FALLBACK.overlay),
+      cardColor: v('--gameap-surface-raised', FALLBACK.raised),
+    },
+    Tabs: {
+      tabTextColorLine: v('--gameap-text-muted', FALLBACK.textMuted),
+      tabTextColorActiveLine: v('--gameap-tab-accent', FALLBACK.tabAccent),
+      tabTextColorHoverLine: v('--gameap-tab-accent', FALLBACK.tabAccent),
+      barColor: v('--gameap-tab-accent', FALLBACK.tabAccent),
+    },
+  }
+
+  if (mode === 'dark') {
+    const rowHover = v('--gameap-surface-hover', FALLBACK.surfaceHover)
+    overrides.DataTable = {
+      tdColorHover: rowHover,
+      tdColorStriped: rowHover,
+      tdColorHoverModal: rowHover,
+    }
+  }
+
+  return overrides
+}
+
+const naiveThemeOverrides = ref(buildNaiveOverrides(uiSettingsStore.currentTheme))
+
+// getComputedStyle right after the classList mutation forces a synchronous
+// style recalc, so the fresh variable values are already visible here.
+function applyTheme(theme) {
+  document.documentElement.classList.remove('dark', 'light')
+  document.documentElement.classList.add(theme)
+  naiveThemeOverrides.value = buildNaiveOverrides(theme)
 }
 
 onMounted(() => {
-  const currentTheme = uiSettingsStore.currentTheme
-  document.documentElement.classList.remove('dark', 'light')
-  document.documentElement.classList.add(currentTheme)
+  applyTheme(uiSettingsStore.currentTheme)
 })
 
-watch(() => uiSettingsStore.currentTheme, (newTheme, oldTheme) => {
-  if (oldTheme) {
-    document.documentElement.classList.remove(oldTheme)
-  }
-  document.documentElement.classList.add(newTheme)
-})
-
-const theme = computed({
-  get() { return uiSettingsStore.currentTheme },
-  set(value) {
-    document.documentElement.classList.remove('dark', 'light')
-    document.documentElement.classList.add(value)
-    uiSettingsStore.setTheme(value)
-  }
+watch(() => uiSettingsStore.currentTheme, (newTheme) => {
+  applyTheme(newTheme)
 })
 
 const naiveTheme = computed(() => {
   return uiSettingsStore.currentTheme === 'dark' ? darkTheme : lightTheme
-})
-
-const naiveThemeOverrides = computed(() => {
-  return uiSettingsStore.currentTheme === 'dark' ? darkThemeOverrides : lightThemeOverrides
 })
 
 provide(THEME_KEY, computed(() => uiSettingsStore.currentTheme === 'dark' ? 'dark' : 'default'))

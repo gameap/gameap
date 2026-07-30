@@ -1,21 +1,21 @@
 <template>
     <!-- Component Start -->
     <div v-if="minimized === true" class="items-center w-16 mr-5"></div>
-    <div v-if="minimized === true" class="sidebar-menu fixed items-center w-16 h-full overflow-y-scroll no-scrollbar text-stone-400 bg-stone-900 z-40">
+    <div v-if="minimized === true" class="sidebar-menu fixed items-center w-16 h-full overflow-y-scroll no-scrollbar text-stone-400 bg-chrome z-40">
         <a class="flex items-center w-full px-3 mt-3">
           <span class="ml-2 w-full text-center text-sm font-bold">—</span>
         </a>
 
         <div class="w-full px-2">
           <div class="flex flex-col items-center w-full mb-3 border-stone-700">
-            <router-link v-for="link in serversLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2">
+            <router-link v-for="link in serversLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2">
               <GIcon :name="link.icon" class="ml-1" />
             </router-link>
             <router-link
                 v-for="item in pluginServersMenuItems"
                 :key="item.pluginId + '-' + item.text"
                 :to="item.route"
-                class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+                class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2"
             >
               <GIcon :name="item.icon" class="ml-1" />
             </router-link>
@@ -28,14 +28,14 @@
 
         <div v-if="isAdmin" class="w-full px-2">
           <div class="flex flex-col items-center w-full mb-3 border-stone-700">
-            <router-link v-for="link in adminLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2">
+            <router-link v-for="link in adminLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2">
               <GIcon :name="link.icon" class="ml-1" />
             </router-link>
             <router-link
                 v-for="item in pluginAdminMenuItems"
                 :key="item.pluginId + '-' + item.text"
                 :to="item.route"
-                class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+                class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2"
             >
               <GIcon :name="item.icon" class="ml-1" />
             </router-link>
@@ -52,7 +52,7 @@
                   v-for="item in items"
                   :key="item.pluginId + '-' + item.text"
                   :to="item.route"
-                  class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+                  class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2"
               >
                 <GIcon :name="item.icon" class="ml-1" />
               </router-link>
@@ -62,7 +62,7 @@
 
         <div class="w-full px-2 mt-3">
           <div class="flex flex-col items-center w-full mb-3 border-stone-700">
-            <a v-on:click="toggleMinimized" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2">
+            <a v-on:click="toggleMinimized" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2">
               <GIcon name="chevron-right" class="ml-1" />
             </a>
           </div>
@@ -75,7 +75,7 @@
 
     <!-- Component Start -->
     <div v-if="minimized === false" class="items-center w-56 mr-5"></div>
-    <div v-if="minimized === false" class="sidebar-menu fixed items-center w-56 h-full overflow-y-scroll no-scrollbar text-stone-400 bg-stone-900 z-40">
+    <div v-if="minimized === false" class="sidebar-menu fixed items-center w-56 h-full overflow-y-scroll no-scrollbar text-stone-400 bg-chrome z-40">
       <a class="flex items-center w-full px-3 mt-3">
         <span class="ml-2 w-full text-center text-sm font-bold">{{ trans('sidebar.control') }}</span>
       </a>
@@ -83,7 +83,7 @@
       <div class="w-full px-2">
         <div class="flex flex-col items-center w-full mb-3 border-stone-700">
           <template v-for="link in serversLinks">
-            <router-link :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2">
+            <router-link :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2">
               <GIcon :name="link.icon" class="ml-1" />
               <span class="ml-2 text-sm font-medium">{{ link.text }}</span>
             </router-link>
@@ -92,7 +92,7 @@
               v-for="item in pluginServersMenuItems"
               :key="item.pluginId + '-' + item.text"
               :to="item.route"
-              class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+              class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2"
           >
             <GIcon :name="item.icon" class="ml-1" />
             <span class="ml-2 text-sm font-medium">{{ pluginsStore.resolvePluginText(item.pluginId, item.text) }}</span>
@@ -106,7 +106,7 @@
 
       <div v-if="isAdmin" class="w-full px-2">
         <div class="flex flex-col items-center w-full mb-3 border-stone-700">
-          <router-link v-for="link in adminLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2">
+          <router-link v-for="link in adminLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2">
             <GIcon :name="link.icon" class="ml-1" />
             <span class="ml-2 text-sm font-medium">{{ link.text }}</span>
           </router-link>
@@ -114,7 +114,7 @@
               v-for="item in pluginAdminMenuItems"
               :key="item.pluginId + '-' + item.text"
               :to="item.route"
-              class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+              class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2"
           >
             <GIcon :name="item.icon" class="ml-1" />
             <span class="ml-2 text-sm font-medium">{{ pluginsStore.resolvePluginText(item.pluginId, item.text) }}</span>
@@ -132,7 +132,7 @@
                 v-for="item in items"
                 :key="item.pluginId + '-' + item.text"
                 :to="item.route"
-                class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2"
+                class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2"
             >
               <GIcon :name="item.icon" class="ml-1" />
               <span class="ml-2 text-sm font-medium">{{ pluginsStore.resolvePluginText(item.pluginId, item.text) }}</span>
@@ -143,7 +143,7 @@
 
       <div class="w-full px-2 mt-3">
         <div class="flex flex-col items-center w-full mb-3 border-stone-700">
-          <a v-on:click.prevent="toggleMinimized" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-stone-800 hover:translate-x-2" href="#">
+          <a v-on:click.prevent="toggleMinimized" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2" href="#">
             <GIcon name="chevron-left" class="ml-1" />
             <span class="ml-2 text-sm font-medium">{{ trans('sidebar.minimize') }}</span>
           </a>

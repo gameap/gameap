@@ -21,10 +21,10 @@ const defaultDisabledClass = 'cursor-not-allowed'
 const colors = {
   black: 'bg-stone-700 text-white hover:bg-stone-800 dark:bg-stone-900 dark:hover:bg-stone-950',
   white: 'text-black bg-white hover:bg-stone-100 dark:bg-stone-800 dark:text-white dark:border-stone-600 dark:hover:bg-stone-700 dark:hover:border-stone-600',
-  green: 'bg-lime-500 text-white hover:bg-lime-600 dark:bg-lime-800 dark:hover:bg-lime-900 dark:text-stone-200',
-  red: 'bg-red-500 text-white hover:bg-red-600 dark:bg-red-800 dark:hover:bg-red-900 dark:text-stone-200',
-  orange: 'bg-orange-400 text-white hover:bg-orange-500 dark:bg-orange-800 dark:hover:bg-orange-900 dark:text-stone-200',
-  blue: 'bg-sky-500 text-white hover:bg-sky-600 dark:bg-sky-800 dark:hover:bg-sky-900 dark:text-stone-200',
+  green: 'bg-primary text-white hover:bg-primary-hover dark:bg-lime-800 dark:hover:bg-lime-900 dark:text-stone-200',
+  red: 'bg-danger text-white hover:bg-danger-hover dark:bg-red-800 dark:hover:bg-red-900 dark:text-stone-200',
+  orange: 'bg-warning text-white hover:bg-warning-hover dark:bg-orange-800 dark:hover:bg-orange-900 dark:text-stone-200',
+  blue: 'bg-info text-white hover:bg-info-hover dark:bg-sky-800 dark:hover:bg-sky-900 dark:text-stone-200',
 }
 
 const disabledColors = {
@@ -43,12 +43,12 @@ const sizes = {
 }
 
 const props = defineProps({
-  color: 'white',
-  size: 'middle',
-  link: null,
-  route: null,
-  class: '',
-  disabled: false,
+  color: { type: String, default: 'white' },
+  size: { type: String, default: 'middle' },
+  link: { type: String, default: null },
+  route: { type: [String, Object], default: null },
+  class: { type: String, default: '' },
+  disabled: { type: Boolean, default: false },
 })
 
 const classes = computed(() => {

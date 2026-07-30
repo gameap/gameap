@@ -223,7 +223,7 @@ defineExpose({
 
     thead th {
         font-weight: 600;
-        @apply border-b border-stone-200 dark:border-stone-700;
+        @apply border-b;
     }
 
     tbody tr:hover {

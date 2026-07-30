@@ -18,8 +18,8 @@
 
 <script setup>
 const props = defineProps({
-  titleKey: '',
-  titleValue: '',
-  items: null,
+  titleKey: { type: String, default: '' },
+  titleValue: { type: String, default: '' },
+  items: { type: Object, default: null },
 });
 </script>

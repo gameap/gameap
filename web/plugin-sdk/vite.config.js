@@ -57,6 +57,15 @@ function globalExternalsPlugin() {
                 result = result.replace(importDefaultRegex, (_, name) => {
                     return `const ${name} = ${globalVar};`;
                 });
+
+                // Handle side-effect imports: import '@gameap/ui'
+                // A bare specifier survives externalization and breaks blob-module
+                // loading in the panel, so it is dropped entirely.
+                const importSideEffectRegex = new RegExp(
+                    `import\\s*["']${moduleId}["'];?`,
+                    'g'
+                );
+                result = result.replace(importSideEffectRegex, '');
             }
             return { code: result, map: null };
         }

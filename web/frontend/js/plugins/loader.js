@@ -3,16 +3,20 @@ import * as Vue from 'vue'
 import * as VueRouter from 'vue-router'
 import * as Pinia from 'pinia'
 import * as NaiveUI from 'naive-ui/es/index.mjs'
+import * as gameapUI from '@gameap/ui'
 import { usePluginsStore } from '../store/plugins'
 
 // Expose Vue and related libraries globally for pre-compiled plugin components
-// When plugins are built with external: ['vue', 'vue-router', 'pinia', 'axios', 'naive-ui'],
+// When plugins are built with external: ['vue', 'vue-router', 'pinia', 'axios', '@gameap/ui'],
 // they expect these to be available globally
 window.Vue = Vue
 window.VueRouter = VueRouter
 window.Pinia = Pinia
 window.axios = axios
 window.NaiveUI = NaiveUI
+// The debug harness historically exposed naive-ui as `naive`
+window.naive = NaiveUI
+window.gameapUI = gameapUI
 
 // Keep backwards compatibility with render function plugins
 window.__gameap_vue_h = Vue.h
@@ -59,7 +63,10 @@ export async function loadPlugins(router) {
             }
         })
 
+        // Bundles built before the SDK stripped bare side-effect imports of
+        // externalized modules would break the blob-module import below.
         const moduleText = response.data
+            .replace(/^\s*import\s*["'](?:@gameap\/ui|naive-ui)["'];?\s*$/gm, '')
 
         if (!moduleText || moduleText.trim() === '') {
             console.log('No plugins to load')

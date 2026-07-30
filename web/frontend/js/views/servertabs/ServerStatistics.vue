@@ -70,6 +70,7 @@ import VChart from 'vue-echarts'
 import { NCard, NAlert } from 'naive-ui'
 import { Loading } from '@gameap/ui'
 import { useServerMetricsWebSocket } from '@/composables/useServerMetricsWebSocket'
+import { useThemeVars } from '@/utils/theme'
 import { trans } from '@/i18n/i18n'
 
 use([
@@ -85,11 +86,12 @@ const props = defineProps({
     serverId: { type: Number, required: true },
 })
 
-const PALETTE_PRIMARY = '#3097D1'
-const PALETTE_SUCCESS = '#2ab27b'
-const PALETTE_WARNING = '#cbb956'
-const PALETTE_DANGER = '#bf5329'
-const PALETTE_INFO = '#8eb4cb'
+const { chartPalette, statusColors } = useThemeVars()
+
+const palettePrimary = computed(() => chartPalette.value[6])
+const paletteSuccess = computed(() => chartPalette.value[1])
+const paletteWarning = computed(() => statusColors.value.warning)
+const paletteDanger = computed(() => statusColors.value.danger)
 
 const updateOptions = { replaceMerge: ['series'] }
 
@@ -183,7 +185,7 @@ const cpuOption = computed(() => {
     const opt = baseOption({
         yMax: 100,
         yFormatter: formatPercent,
-        palette: [PALETTE_PRIMARY, PALETTE_SUCCESS, PALETTE_WARNING],
+        palette: [palettePrimary.value, paletteSuccess.value, paletteWarning.value],
     })
     opt.series = cpuSeries.value.map(s =>
         makeLineSeries(trans('servers.statistics_cpu'), s.points, { areaStyle: { opacity: 0.1 } }),
@@ -195,7 +197,7 @@ const memoryOption = computed(() => {
     const opt = baseOption({
         yMax: null,
         yFormatter: formatBytes,
-        palette: [PALETTE_PRIMARY],
+        palette: [palettePrimary.value],
     })
     opt.series = memoryBytesSeries.value.map(s =>
         makeLineSeries(trans('servers.statistics_memory'), s.points, { areaStyle: { opacity: 0.1 } }),
@@ -206,7 +208,7 @@ const memoryOption = computed(() => {
 const diskOption = computed(() => {
     const opt = baseOption({
         yFormatter: formatBitrate,
-        palette: [PALETTE_SUCCESS, PALETTE_WARNING],
+        palette: [paletteSuccess.value, paletteWarning.value],
         showLegend: true,
     })
     const seriesList = []
@@ -223,7 +225,7 @@ const diskOption = computed(() => {
 const networkOption = computed(() => {
     const opt = baseOption({
         yFormatter: formatBitrate,
-        palette: [PALETTE_PRIMARY, PALETTE_DANGER],
+        palette: [palettePrimary.value, paletteDanger.value],
         showLegend: true,
     })
     const seriesList = []

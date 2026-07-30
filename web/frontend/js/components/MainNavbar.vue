@@ -1,5 +1,5 @@
 <template>
-  <nav class="fixed z-50 top-0 w-full bg-stone-900">
+  <nav class="fixed z-50 top-0 w-full bg-chrome">
     <div class="w-full px-2 sm:px-6 lg:px-8">
       <div class="relative flex h-16 items-center justify-between">
 
@@ -8,7 +8,7 @@
           <button
               type="button"
               @click="showMobileMenu = !showMobileMenu"
-              class="relative inline-flex items-center justify-center rounded-md p-2 text-stone-400 hover:bg-stone-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+              class="relative inline-flex items-center justify-center rounded-md p-2 text-stone-400 hover:bg-chrome-hover hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
               aria-controls="mobile-menu"
               aria-expanded="false"
           >
@@ -43,7 +43,7 @@
         </div>
 
         <div class="flex items-center">
-          <div class="flex items-center md:mr-4 gap-x-1.5 text-white hover:bg-stone-800 px-5 py-2 rounded cursor-pointer" v-on:click="switchTheme()">
+          <div class="flex items-center md:mr-4 gap-x-1.5 text-white hover:bg-chrome-item px-5 py-2 rounded cursor-pointer" v-on:click="switchTheme()">
             <GIcon v-if="currentTheme === 'dark'" name="sun" />
             <GIcon v-if="currentTheme === 'light'" name="moon" />
           </div>
@@ -106,7 +106,7 @@
             :key="'server-' + link.route.name"
             @click="showMobileMenu = !showMobileMenu"
             :to="link.route"
-            class="bg-stone-800 text-white flex items-center rounded px-3 py-2 font-medium"
+            class="bg-chrome-item text-white flex items-center rounded px-3 py-2 font-medium"
             aria-current="page"
         >
           <GIcon :name="link.icon" class="ml-1 shrink-0" />
@@ -117,7 +117,7 @@
             :key="'plugin-server-' + item.pluginId + '-' + item.text"
             @click="showMobileMenu = !showMobileMenu"
             :to="item.route"
-            class="bg-stone-800 text-white flex items-center rounded px-3 py-2 font-medium"
+            class="bg-chrome-item text-white flex items-center rounded px-3 py-2 font-medium"
             aria-current="page"
         >
           <GIcon :name="item.icon" class="ml-1 shrink-0" />
@@ -130,7 +130,7 @@
               :key="'admin-' + link.route.name"
               @click="showMobileMenu = !showMobileMenu"
               :to="link.route"
-              class="bg-stone-800 text-white flex items-center rounded px-3 py-2 font-medium"
+              class="bg-chrome-item text-white flex items-center rounded px-3 py-2 font-medium"
               aria-current="page"
           >
             <GIcon :name="link.icon" class="ml-1 shrink-0" />
@@ -141,7 +141,7 @@
               :key="'plugin-admin-' + item.pluginId + '-' + item.text"
               @click="showMobileMenu = !showMobileMenu"
               :to="item.route"
-              class="bg-stone-800 text-white flex items-center rounded px-3 py-2 font-medium"
+              class="bg-chrome-item text-white flex items-center rounded px-3 py-2 font-medium"
               aria-current="page"
           >
             <GIcon :name="item.icon" class="ml-1 shrink-0" />
@@ -156,7 +156,7 @@
               :key="'plugin-custom-' + item.pluginId + '-' + item.text"
               @click="showMobileMenu = !showMobileMenu"
               :to="item.route"
-              class="bg-stone-800 text-white flex items-center rounded px-3 py-2 font-medium"
+              class="bg-chrome-item text-white flex items-center rounded px-3 py-2 font-medium"
               aria-current="page"
           >
             <GIcon :name="item.icon" class="ml-1 shrink-0" />

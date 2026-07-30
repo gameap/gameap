@@ -32,7 +32,7 @@
         <div
             v-for="file in directFiles"
             :key="file.index"
-            class="grid grid-cols-12 items-center gap-2 py-1 px-2 rounded hover:bg-stone-50 dark:hover:bg-stone-800/40"
+            class="grid grid-cols-12 items-center gap-2 py-1 px-2 rounded hover:bg-stone-50 dark:hover:bg-[color:color-mix(in_srgb,var(--gameap-stone-800)_40%,transparent)]"
         >
             <div class="col-span-12 sm:col-span-5 flex items-center gap-2 min-w-0">
                 <GIcon :name="phaseIcon(file)" :class="phaseIconClass(file)" />

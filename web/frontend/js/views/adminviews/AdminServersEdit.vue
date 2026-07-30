@@ -40,7 +40,7 @@
               <n-form-item :label="trans('labels.blocked')" path="blocked">
                 <GSwitch
                     v-model:value="serverForm.blocked"
-                    :rail-style="({checked}) => { return checked ? {background: '#b91c1c'} : {}}"
+                    :rail-style="({checked}) => { return checked ? {background: readThemeVar('--gameap-red-700', '#b91c1c')} : {}}"
                 />
               </n-form-item>
             </div>
@@ -300,6 +300,7 @@ import {useServerStore} from "@/store/server"
 import {useGameListStore} from "@/store/gameList"
 import {useNodeListStore} from "@/store/nodeList"
 import {requiredValidator} from "@/parts/validators";
+import {readThemeVar} from "@/utils/theme";
 import SmartPortSelector from "@/components/servers/SmartPortSelector.vue";
 import DsIpSelector from "@/components/servers/DsIpSelector.vue";
 import GameModSelector from "@/components/servers/GameModSelector.vue";

@@ -5,6 +5,9 @@
  * allowing plugin testing in a realistic environment.
  */
 
+// Theme tokens must load before the frontend styles that consume them
+import '@gameap/ui/theme.css'
+
 // Import frontend styles (bundled in vendor directory)
 import '../vendor/frontend.css'
 
@@ -22,6 +25,8 @@ window.VueRouter = VueRouter
 window.Pinia = Pinia
 window.axios = axios
 window.naive = naive
+// The panel's plugin loader exposes naive-ui as `NaiveUI`
+window.NaiveUI = naive
 window.gameapUI = gameapUI
 
 import {
@@ -47,6 +52,7 @@ declare global {
         Pinia: typeof import('pinia')
         axios: typeof import('axios').default
         naive: typeof import('naive-ui')
+        NaiveUI: typeof import('naive-ui')
         gameapUI: typeof import('@gameap/ui')
         gameapLang: string
         i18n: Record<string, string>

@@ -166,7 +166,7 @@ function showModal(modalName) {
 }
 
 .fm-toolbar-group {
-    @apply inline-flex items-stretch overflow-hidden rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-sm;
+    @apply inline-flex items-stretch overflow-hidden rounded-md border bg-surface shadow-sm;
 }
 
 .fm-toolbar-spacer {
@@ -175,9 +175,9 @@ function showModal(modalName) {
 
 .fm-tool-btn {
     @apply inline-flex items-center justify-center px-2.5 py-1.5 text-sm
-        text-stone-600 dark:text-stone-300
+        text-secondary
         transition-colors duration-100
-        border-r border-stone-200 dark:border-stone-700;
+        border-r;
     min-width: 2.25rem;
 
     &:last-child {
@@ -185,7 +185,7 @@ function showModal(modalName) {
     }
 
     &:hover:not(:disabled) {
-        @apply bg-stone-100 dark:bg-stone-700/60 text-stone-900 dark:text-white;
+        @apply bg-stone-100 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-700)_60%,transparent)] text-body;
     }
 
     &:focus-visible {
@@ -207,6 +207,6 @@ function showModal(modalName) {
 }
 
 .fm-tool-btn--danger:hover:not(:disabled) {
-    @apply bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400;
+    @apply bg-red-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-red-900)_30%,transparent)] text-red-600 dark:text-red-400;
 }
 </style>

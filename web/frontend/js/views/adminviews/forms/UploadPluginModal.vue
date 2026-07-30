@@ -37,7 +37,7 @@
             <h3 class="text-lg font-bold">{{ uploadResult.name }}</h3>
             <span class="text-sm text-stone-500">v{{ uploadResult.version }}</span>
           </div>
-          <span v-if="uploadResult.is_valid" class="ml-auto px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <span v-if="uploadResult.is_valid" class="ml-auto px-2 py-1 text-xs rounded-full bg-success-soft text-success-soft-text">
             {{ trans('plugins.valid') }}
           </span>
           <span v-else class="ml-auto px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
@@ -72,7 +72,7 @@
           </div>
         </div>
 
-        <div v-if="uploadResult.errors?.length" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+        <div v-if="uploadResult.errors?.length" class="mb-4 p-3 bg-red-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-red-900)_20%,transparent)] rounded-lg">
           <p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">{{ trans('plugins.validation_errors') }}</p>
           <ul class="list-disc list-inside text-sm text-red-700 dark:text-red-400">
             <li v-for="error in uploadResult.errors" :key="error">{{ error }}</li>

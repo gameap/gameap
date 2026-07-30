@@ -835,9 +835,102 @@ registerIcons({
 
 ---
 
+## Theming
+
+The package ships the panel's design tokens in `theme.css` — a set of CSS custom
+properties with the `--gameap-` prefix. The panel serves this file verbatim at
+`/theme.css` (loaded before all other styles), and every color in the panel's
+compiled CSS resolves through these variables, so overriding a variable
+re-themes the whole panel at runtime — naive-ui components included.
+
+### Two tiers
+
+1. **Palette** — `--gameap-<family>-<shade>` raw color ramps for the families
+   `stone`, `red`, `orange`, `lime`, `sky` (shades `50`–`950`, Tailwind v3
+   default values). Palette variables do **not** change between light and dark
+   mode.
+2. **Semantic** — role tokens. Light values are declared on `:root`, dark
+   overrides on `html.dark`.
+
+### Semantic variables
+
+| Variable | Light | Dark | Purpose |
+|----------|-------|------|---------|
+| `--gameap-surface` | `#ffffff` | `stone-800` | page background |
+| `--gameap-surface-raised` | `#ffffff` | `stone-800` | cards (naive `cardColor`) |
+| `--gameap-surface-overlay` | `#ffffff` | `stone-800` | modals (naive `modalColor`) |
+| `--gameap-surface-hover` | `stone-100` | `#262322` | hovered/selected rows |
+| `--gameap-scrim` | `stone-900` 10% | `stone-100` 10% | drag & drop veil |
+| `--gameap-border` | `stone-200` | `stone-700` | default border (bare `border` utility) |
+| `--gameap-border-strong` | `stone-300` | `stone-600` | emphasized border |
+| `--gameap-text` | `stone-900` | `#ffffff` | main text |
+| `--gameap-text-secondary` | `stone-600` | `stone-300` | secondary text |
+| `--gameap-text-muted` | `stone-500` | `stone-400` | muted text |
+| `--gameap-text-faint` | `stone-400` | `stone-500` | faint text |
+| `--gameap-primary`, `-hover` | `lime-500` / `lime-600` | same | primary accent |
+| `--gameap-primary-soft`, `-soft-text` | `lime-50` / `lime-700` | `lime-950` 40% / `lime-300` | soft badges |
+| `--gameap-success*` (4) | mirrors primary | mirrors primary | success intent |
+| `--gameap-danger*` (4) | `red-500/600/50/700` | soft: `red-950` 40% / `red-300` | danger intent |
+| `--gameap-warning*` (4) | `orange-400/500/50/700` | soft: `orange-950` 40% / `orange-300` | warning intent |
+| `--gameap-info*` (4) | `sky-500/600/50/700` | soft: `sky-950` 40% / `sky-300` | info intent |
+| `--gameap-chrome`, `-item`, `-hover` | `stone-900/800/700` | same | navbar + sidebar (never flips) |
+| `--gameap-table-header` | `stone-100` | `stone-700` | naive `tableHeaderColor` |
+| `--gameap-tab-accent` | `stone-900` | `#737373` | naive Tabs active text/bar |
+| `--gameap-ring-subtle` | `stone-500` 10% | same | `.badge-light` ring |
+| `--gameap-selection-outline`, `-weak` | `stone-500` 70% / 30% | same | file manager selection |
+| `--gameap-terminal-bg`, `-text` | `stone-800` / `stone-100` | `stone-900` / `stone-100` | console terminal |
+| `--gameap-chart-1`…`-10` | fixed hexes | same | chart series palette |
+
+### Semantic utility classes
+
+The panel's Tailwind build guarantees these classes exist (safelisted), so
+plugin templates can use them; they need no `dark:` twin — the variable flips:
+
+`bg-surface`, `bg-surface-raised`, `bg-surface-overlay`, `bg-surface-hover`,
+`bg-scrim`, `bg-terminal`, `bg-chrome`, `bg-chrome-item`,
+`bg-{primary,success,danger,warning,info}` (+`-hover`, `-soft`),
+`text-{body,secondary,muted,faint}`,
+`text-{primary,success,danger,warning,info}` (+`-soft-text`),
+`border-strong`, `border-danger`, `border-warning`.
+The bare `border` utility resolves to `--gameap-border`.
+
+### Overriding
+
+```css
+:root {
+    --gameap-primary: #e11d48;
+    --gameap-primary-hover: #be123c;
+}
+
+html.dark {
+    --gameap-surface: #1e1b4b;
+}
+```
+
+Dark values **must** be overridden under `html.dark` — a plain `:root`
+declaration loses to the `html.dark` rules in `theme.css` on specificity.
+
+### Stability
+
+The variables are a public API covered by this package's semver: additions are
+a minor release, renames or removals are a major release.
+
+External consumers import the tokens with:
+
+```js
+import '@gameap/ui/theme.css'
+```
+
+Translucent tokens use `color-mix()`, which requires Chrome 111+/Firefox
+113+/Safari 16.2+.
+
+---
+
 ## CSS Utilities
 
-The package provides Tailwind CSS utility classes in `style.css`.
+The package provides Tailwind CSS utility classes in `style.css`. All colors
+resolve through the `--gameap-*` theme variables and can be re-themed (see
+[Theming](#theming)).
 
 ### Badge Classes
 

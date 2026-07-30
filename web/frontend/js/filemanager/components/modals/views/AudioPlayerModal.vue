@@ -16,7 +16,7 @@
                 <n-button quaternary circle @click="togglePlay()">
                     <template #icon>
                         <GIcon v-if="status === 'playing'" name="close" />
-                        <GIcon v-else name="play" class="text-blue-500" />
+                        <GIcon v-else name="play" class="text-info" />
                     </template>
                 </n-button>
             </template>

@@ -465,7 +465,7 @@ function onKeyDown(event) {
     outline: none;
 
     &:focus-visible {
-        box-shadow: inset 0 0 0 2px theme('colors.stone.500 / 30%');
+        box-shadow: inset 0 0 0 2px var(--gameap-selection-outline-weak);
     }
 }
 
@@ -473,27 +473,23 @@ function onKeyDown(event) {
     @apply w-full text-left text-sm;
     border-collapse: separate;
     border-spacing: 0;
-    --fm-accent: theme('colors.stone.800');
+    --fm-accent: var(--gameap-stone-800);
 
     thead th {
-        @apply text-left bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 font-medium;
+        @apply text-left bg-surface text-secondary font-medium;
         position: sticky;
         top: 0;
         z-index: 10;
         cursor: pointer;
         padding: 0.625rem 0.75rem;
         user-select: none;
-        border-bottom: 1px solid theme('colors.stone.200');
+        border-bottom: 1px solid var(--gameap-border);
         box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.04);
         transition: color 120ms ease, background-color 120ms ease;
 
         &:hover {
-            @apply bg-stone-100 dark:bg-stone-700/60;
+            @apply bg-stone-100 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-700)_60%,transparent)];
         }
-    }
-
-    .dark & thead th {
-        border-bottom-color: theme('colors.stone.700');
     }
 
     .fm-th--active {
@@ -552,11 +548,11 @@ function onKeyDown(event) {
         }
 
         &:hover {
-            @apply bg-stone-100 dark:bg-stone-800/60;
+            @apply bg-stone-100 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-800)_60%,transparent)];
         }
 
         &.fm-row--zebra:hover {
-            @apply bg-stone-100 dark:bg-stone-700/60;
+            @apply bg-stone-100 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-700)_60%,transparent)];
         }
 
         &.fm-row--selected,
@@ -571,13 +567,13 @@ function onKeyDown(event) {
         }
 
         &.fm-row--focused {
-            outline: 2px solid theme('colors.stone.500 / 70%');
+            outline: 2px solid var(--gameap-selection-outline);
             outline-offset: -2px;
         }
     }
 
     tr.fm-row--up {
-        @apply text-stone-500 dark:text-stone-400 italic;
+        @apply text-muted italic;
     }
 
     tr.fm-row--locked {
@@ -604,11 +600,11 @@ function onKeyDown(event) {
     }
 
     .fm-row-glyph--dir {
-        @apply text-stone-600 dark:text-stone-300;
+        @apply text-secondary;
     }
 
     .fm-row-glyph--file {
-        @apply text-stone-400 dark:text-stone-500;
+        @apply text-faint;
     }
 
     .fm-row-check {
@@ -624,14 +620,14 @@ function onKeyDown(event) {
     }
 
     .fm-cell-extension {
-        @apply text-stone-500 dark:text-stone-400 uppercase tracking-wide;
+        @apply text-muted uppercase tracking-wide;
         font-size: 0.78em;
     }
 
     .fm-permissions {
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         font-size: 0.8em;
-        @apply text-stone-500 dark:text-stone-400;
+        @apply text-muted;
     }
 
     .fm-content-item {
@@ -639,7 +635,7 @@ function onKeyDown(event) {
     }
 
     .fm-empty {
-        @apply flex flex-col items-center justify-center text-center py-12 px-4 text-stone-500 dark:text-stone-400;
+        @apply flex flex-col items-center justify-center text-center py-12 px-4 text-muted;
     }
 
     .fm-empty-icon {
@@ -651,11 +647,11 @@ function onKeyDown(event) {
     }
 
     .fm-empty-title {
-        @apply text-base font-medium text-stone-600 dark:text-stone-300 mb-1;
+        @apply text-base font-medium text-secondary mb-1;
     }
 
     .fm-empty-hint {
-        @apply text-xs text-stone-400 dark:text-stone-500;
+        @apply text-xs text-faint;
     }
 
     .fm-empty-retry {
@@ -669,7 +665,7 @@ function onKeyDown(event) {
     }
 
     .fm-empty-retry:focus-visible {
-        outline: 2px solid theme('colors.stone.500 / 70%');
+        outline: 2px solid var(--gameap-selection-outline);
         outline-offset: 2px;
     }
 
@@ -683,7 +679,7 @@ function onKeyDown(event) {
 
     .fm-skel {
         display: inline-block;
-        background: theme('colors.stone.200');
+        background: var(--gameap-stone-200);
         border-radius: 4px;
         vertical-align: middle;
         animation: fm-skel-pulse 1.4s ease-in-out infinite;
@@ -709,11 +705,11 @@ function onKeyDown(event) {
 }
 
 .dark .fm-table .fm-skel {
-    background: theme('colors.stone.700');
+    background: var(--gameap-stone-700);
 }
 
 .dark .fm-table {
-    --fm-accent: theme('colors.stone.200');
+    --fm-accent: var(--gameap-stone-200);
 }
 
 @keyframes fm-skel-pulse {

@@ -117,6 +117,7 @@ import VChart from 'vue-echarts'
 import { NAlert } from 'naive-ui'
 import { Loading, GCard } from '@gameap/ui'
 import { useNodeMetricsWebSocket } from '@/composables/useNodeMetricsWebSocket'
+import { useThemeVars } from '@/utils/theme'
 import { trans } from '@/i18n/i18n'
 import DiskUsageList from '@/components/blocks/DiskUsageList.vue'
 
@@ -133,23 +134,12 @@ const props = defineProps({
     nodeId: { type: [Number, String], required: true },
 })
 
-const PALETTE_LIME = '#84cc16'
-const PALETTE_CYAN = '#22d3ee'
-const PALETTE_MAGENTA = '#e879f9'
-const PALETTE_DANGER = '#ef4444'
+const { chartPalette } = useThemeVars()
 
-const PALETTE_MULTI = [
-    '#22d3ee',
-    '#84cc16',
-    '#e879f9',
-    '#f59e0b',
-    '#ef4444',
-    '#a78bfa',
-    '#0ea5e9',
-    '#facc15',
-    '#10b981',
-    '#fb7185',
-]
+const paletteCyan = computed(() => chartPalette.value[0])
+const paletteLime = computed(() => chartPalette.value[1])
+const paletteMagenta = computed(() => chartPalette.value[2])
+const paletteDanger = computed(() => chartPalette.value[4])
 
 const updateOptions = { replaceMerge: ['series'] }
 
@@ -307,7 +297,7 @@ const cpuOption = computed(() => {
     const opt = baseOption({
         yMax: 100,
         yFormatter: formatPercent,
-        palette: [PALETTE_LIME],
+        palette: [paletteLime.value],
     })
     opt.series = cpuSeries.value.map(s =>
         makeLineSeries(trans('servers.statistics_cpu'), s.points, { areaStyle: { opacity: 0.12 } }),
@@ -319,7 +309,7 @@ const memoryOption = computed(() => {
     const opt = baseOption({
         yMax: null,
         yFormatter: formatBytes,
-        palette: [PALETTE_CYAN],
+        palette: [paletteCyan.value],
     })
     opt.series = memoryBytesSeries.value.map(s =>
         makeLineSeries(trans('servers.statistics_memory'), s.points, { areaStyle: { opacity: 0.12 } }),
@@ -330,7 +320,7 @@ const memoryOption = computed(() => {
 const diskOption = computed(() => {
     const opt = baseOption({
         yFormatter: formatBitrate,
-        palette: [PALETTE_LIME, PALETTE_MAGENTA],
+        palette: [paletteLime.value, paletteMagenta.value],
         showLegend: true,
     })
     const seriesList = []
@@ -348,7 +338,7 @@ const diskOption = computed(() => {
 const networkInOption = computed(() => {
     const opt = baseOption({
         yFormatter: formatBitrate,
-        palette: PALETTE_MULTI,
+        palette: chartPalette.value,
         showLegend: true,
     })
     opt.series = networkInSeries.value
@@ -362,7 +352,7 @@ const networkInOption = computed(() => {
 const networkOutOption = computed(() => {
     const opt = baseOption({
         yFormatter: formatBitrate,
-        palette: PALETTE_MULTI,
+        palette: chartPalette.value,
         showLegend: true,
     })
     opt.series = networkOutSeries.value
@@ -376,7 +366,7 @@ const networkOutOption = computed(() => {
 const loadOption = computed(() => {
     const opt = baseOption({
         yFormatter: formatLoad,
-        palette: [PALETTE_LIME, PALETTE_CYAN, PALETTE_MAGENTA, PALETTE_DANGER],
+        palette: [paletteLime.value, paletteCyan.value, paletteMagenta.value, paletteDanger.value],
         showLegend: true,
     })
     const seriesList = []
