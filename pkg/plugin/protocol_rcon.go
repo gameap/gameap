@@ -8,6 +8,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ErrRconAlreadyOpen is returned when Open is called on a client that already
+// holds a connection. Overwriting the handle would strand the previous one in
+// the registry until its deadline expires.
+var ErrRconAlreadyOpen = errors.New("plugin rcon: connection is already open")
+
 // pluginRconClient implements rcon.Client for a plugin-implemented protocol.
 // The host owns the socket (dial + registry lifecycle); the plugin drives the
 // wire protocol (auth handshake, framing, parsing) over the handle.
@@ -21,6 +26,10 @@ type pluginRconClient struct {
 }
 
 func (c *pluginRconClient) Open(ctx context.Context) error {
+	if c.handle != 0 {
+		return ErrRconAlreadyOpen
+	}
+
 	handle, release, err := c.runner.openHandle(ctx, "tcp", c.cfg.Address, c.pluginID)
 	if err != nil {
 		return err

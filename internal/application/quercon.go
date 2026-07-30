@@ -31,22 +31,31 @@ func (c *Container) createQuerconResolver() *quercon.Resolver {
 		PlayerManagementCheck: players.IsPlayerManagementSupported,
 	}
 
-	if !c.config.Plugins.Disabled {
-		if manager := c.PluginManager(); manager != nil {
-			cfg.RconProvider = &pluginRconProvider{manager: manager}
-			cfg.QueryProvider = &pluginQueryProvider{manager: manager}
-
-			if c.config.Plugin.Net.Enabled {
-				runner := pkgplugin.NewProtocolRunner(manager, c.connRegistry(), pkgplugin.NetDialPolicy{
-					BlockPrivateIPs: c.config.Plugin.Net.BlockPrivateIPs,
-					AllowedHosts:    c.config.Plugin.Net.AllowedHosts,
-					MaxTimeout:      time.Duration(c.config.Plugin.Net.MaxTimeoutSeconds) * time.Second,
-				})
-				cfg.RconExecutor = runner
-				cfg.QueryExecutor = runner
-			}
-		}
+	if c.config.Plugins.Disabled {
+		return quercon.New(cfg)
 	}
+
+	manager := c.PluginManager()
+	if manager == nil {
+		return quercon.New(cfg)
+	}
+
+	if c.config.Plugin.Net.Enabled {
+		runner := pkgplugin.NewProtocolRunner(manager, c.connRegistry(), pkgplugin.NetDialPolicy{
+			BlockPrivateIPs: c.config.Plugin.Net.BlockPrivateIPs,
+			AllowedHosts:    c.config.Plugin.Net.AllowedHosts,
+			MaxTimeout:      time.Duration(c.config.Plugin.Net.MaxTimeoutSeconds) * time.Second,
+		})
+		cfg.RconExecutor = runner
+		cfg.QueryExecutor = runner
+	}
+
+	// Without an executor a *_TRANSPORT_PLUGIN registration can never be run, so
+	// it is dropped instead of shadowing the built-in tables with a registration
+	// that would only ever fail. Declarative built-in mappings from the same
+	// plugin keep working.
+	cfg.RconProvider = &pluginRconProvider{manager: manager, pluginTransport: cfg.RconExecutor != nil}
+	cfg.QueryProvider = &pluginQueryProvider{manager: manager, pluginTransport: cfg.QueryExecutor != nil}
 
 	return quercon.New(cfg)
 }
@@ -55,15 +64,30 @@ func (c *Container) createQuerconResolver() *quercon.Resolver {
 // resolver's provider interface.
 type pluginRconProvider struct {
 	manager *pkgplugin.Manager
+
+	// pluginTransport admits RCON_TRANSPORT_PLUGIN registrations. It is off
+	// when the plugin net library is disabled and such protocols cannot run.
+	pluginTransport bool
 }
 
 func (p *pluginRconProvider) RconRegistrations() []quercon.RconRegistration {
-	regs := p.manager.GetAllRconProtocols()
+	return mapRconRegistrations(p.manager.GetAllRconProtocols(), p.pluginTransport)
+}
+
+func mapRconRegistrations(
+	regs []pkgplugin.RconProtocolRegistration,
+	pluginTransport bool,
+) []quercon.RconRegistration {
 	out := make([]quercon.RconRegistration, 0, len(regs))
 
 	for _, reg := range regs {
 		pr := reg.Protocol
 		if pr == nil {
+			continue
+		}
+
+		transport := mapRconTransport(pr.Transport)
+		if transport == quercon.RconPlugin && !pluginTransport {
 			continue
 		}
 
@@ -73,7 +97,7 @@ func (p *pluginRconProvider) RconRegistrations() []quercon.RconRegistration {
 			Name:       pr.Name,
 			GameCodes:  pr.GameCodes,
 			Engines:    pr.Engines,
-			Transport:  mapRconTransport(pr.Transport),
+			Transport:  transport,
 			Players:    mapPlayerCapability(pr.Players),
 		})
 	}
@@ -84,15 +108,30 @@ func (p *pluginRconProvider) RconRegistrations() []quercon.RconRegistration {
 // pluginQueryProvider adapts the plugin manager's Query registrations.
 type pluginQueryProvider struct {
 	manager *pkgplugin.Manager
+
+	// pluginTransport admits QUERY_TRANSPORT_PLUGIN registrations, see
+	// pluginRconProvider.
+	pluginTransport bool
 }
 
 func (p *pluginQueryProvider) QueryRegistrations() []quercon.QueryRegistration {
-	regs := p.manager.GetAllQueryProtocols()
+	return mapQueryRegistrations(p.manager.GetAllQueryProtocols(), p.pluginTransport)
+}
+
+func mapQueryRegistrations(
+	regs []pkgplugin.QueryProtocolRegistration,
+	pluginTransport bool,
+) []quercon.QueryRegistration {
 	out := make([]quercon.QueryRegistration, 0, len(regs))
 
 	for _, reg := range regs {
 		pr := reg.Protocol
 		if pr == nil {
+			continue
+		}
+
+		transport := mapQueryTransport(pr.Transport)
+		if transport == quercon.QueryPlugin && !pluginTransport {
 			continue
 		}
 
@@ -102,7 +141,7 @@ func (p *pluginQueryProvider) QueryRegistrations() []quercon.QueryRegistration {
 			Name:            pr.Name,
 			GameCodes:       pr.GameCodes,
 			Engines:         pr.Engines,
-			Transport:       mapQueryTransport(pr.Transport),
+			Transport:       transport,
 			BuiltinProtocol: pr.BuiltinProtocol,
 		})
 	}

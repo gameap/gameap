@@ -23,10 +23,33 @@ const (
 type RconTransport int32
 
 const (
-	RconTransport_RCON_TRANSPORT_UNSPECIFIED        RconTransport = 0
-	RconTransport_RCON_TRANSPORT_BUILTIN_SOURCE     RconTransport = 1
+	// RCON_TRANSPORT_UNSPECIFIED is not a usable transport — it is the proto3
+	// zero value, present only to satisfy the enum-default rule. A registration
+	// left at this value still overrides the built-in mapping for its games,
+	// but every RCON attempt then fails with "unknown rcon transport" and the
+	// features endpoint reports RCON as unsupported. Always set a transport
+	// explicitly.
+	RconTransport_RCON_TRANSPORT_UNSPECIFIED RconTransport = 0
+	// RCON_TRANSPORT_BUILTIN_SOURCE maps the game onto the panel's own Source
+	// RCON implementation (the "source" protocol: TCP, SERVERDATA_AUTH
+	// handshake). Purely declarative — no plugin code runs at execute time, the
+	// gameap-net host library is not involved, and the registration keeps
+	// working with PLUGIN_NET_ENABLED=false. Use it to teach the panel about a
+	// new game that speaks an existing protocol.
+	RconTransport_RCON_TRANSPORT_BUILTIN_SOURCE RconTransport = 1
+	// RCON_TRANSPORT_BUILTIN_GOLDSOURCE maps the game onto the panel's
+	// GoldSource RCON implementation (the "goldsource" protocol: UDP challenge
+	// plus rcon command). Declarative, exactly like the Source variant.
 	RconTransport_RCON_TRANSPORT_BUILTIN_GOLDSOURCE RconTransport = 2
-	RconTransport_RCON_TRANSPORT_PLUGIN             RconTransport = 3
+	// RCON_TRANSPORT_PLUGIN means the plugin implements the wire protocol
+	// itself through RconOpen / RconExecute / RconClose, doing I/O over the
+	// host-opened conn_handle with the gameap-net host library.
+	//
+	// This requires that library: with PLUGIN_NET_ENABLED=false the host drops
+	// such registrations entirely rather than let an unrunnable protocol shadow
+	// the built-in tables, so games that also have a built-in mapping keep
+	// working while the plugin protocol is simply absent.
+	RconTransport_RCON_TRANSPORT_PLUGIN RconTransport = 3
 )
 
 // Enum value maps for RconTransport.
@@ -55,9 +78,21 @@ func (x RconTransport) Enum() *RconTransport {
 type QueryTransport int32
 
 const (
+	// QUERY_TRANSPORT_UNSPECIFIED is not a usable transport — see
+	// RCON_TRANSPORT_UNSPECIFIED. A registration left at this value shadows the
+	// built-in mapping and then fails every query with "unknown query
+	// transport".
 	QueryTransport_QUERY_TRANSPORT_UNSPECIFIED QueryTransport = 0
-	QueryTransport_QUERY_TRANSPORT_BUILTIN     QueryTransport = 1
-	QueryTransport_QUERY_TRANSPORT_PLUGIN      QueryTransport = 2
+	// QUERY_TRANSPORT_BUILTIN reuses one of the panel's own query engines,
+	// named by QueryProtocol.builtin_protocol. Purely declarative: no plugin
+	// code runs at query time and the registration works with
+	// PLUGIN_NET_ENABLED=false.
+	QueryTransport_QUERY_TRANSPORT_BUILTIN QueryTransport = 1
+	// QUERY_TRANSPORT_PLUGIN means the plugin implements the query wire
+	// protocol in QueryServer, over the UDP conn_handle the host opened for the
+	// call. Requires the gameap-net host library; with PLUGIN_NET_ENABLED=false
+	// the host drops such registrations, as for RCON_TRANSPORT_PLUGIN.
+	QueryTransport_QUERY_TRANSPORT_PLUGIN QueryTransport = 2
 )
 
 // Enum value maps for QueryTransport.
@@ -80,19 +115,53 @@ func (x QueryTransport) Enum() *QueryTransport {
 	return p
 }
 
-// PlayerCapability declares player-management support for an RCON protocol.
-// Command fields are templates; the host substitutes {id}, {name}, {uniqid},
-// {reason} and {duration} placeholders before executing them via RCON.
+// PlayerCapability declares player-management support for an RCON protocol:
+// listing players, and kicking or banning one of them.
+//
+// The commands are templates rendered by the host, which substitutes these
+// placeholders before sending the result over RCON:
+//
+//	{id}       player id as reported by the players list
+//	{name}     player nickname
+//	{uniqid}   stable player identity (SteamID, UUID, …)
+//	{ping}     player ping
+//	{score}    player score
+//	{addr}     player IP address
+//	{reason}   kick/ban reason supplied by the panel user (may be empty)
+//	{duration} ban duration in whole seconds; 0 for a kick
+//
+// Values are substituted verbatim, without quoting or escaping, so a template
+// must include whatever quoting its console needs. The host does reject any
+// request field containing CR, LF, ";" or NUL before rendering, so a panel user
+// cannot append a second console command through a reason or a nickname.
+//
+// A placeholder that names a player identity ({id}, {name} or {uniqid}) must
+// resolve to a non-empty value; otherwise the request is rejected before
+// anything is sent to the server.
 type PlayerCapability struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Supported      bool   `protobuf:"varint,1,opt,name=supported,proto3" json:"supported,omitempty"`
+	// supported turns player management on. When false the panel reports the
+	// feature as unavailable and refuses the players/kick/ban endpoints, even
+	// if the command templates below are filled in.
+	Supported bool `protobuf:"varint,1,opt,name=supported,proto3" json:"supported,omitempty"`
+	// players_command is sent verbatim over RCON to list players (for example
+	// "status" or "list uuids"). Its raw output is handed to the parser chosen
+	// by parse_via_plugin.
 	PlayersCommand string `protobuf:"bytes,2,opt,name=players_command,json=playersCommand,proto3" json:"players_command,omitempty"`
-	KickCommand    string `protobuf:"bytes,3,opt,name=kick_command,json=kickCommand,proto3" json:"kick_command,omitempty"`
-	BanCommand     string `protobuf:"bytes,4,opt,name=ban_command,json=banCommand,proto3" json:"ban_command,omitempty"`
-	ParseViaPlugin bool   `protobuf:"varint,5,opt,name=parse_via_plugin,json=parseViaPlugin,proto3" json:"parse_via_plugin,omitempty"`
+	// kick_command is the template rendered for a kick, for example
+	// "kickid {id} {reason}". {duration} renders as 0 here.
+	KickCommand string `protobuf:"bytes,3,opt,name=kick_command,json=kickCommand,proto3" json:"kick_command,omitempty"`
+	// ban_command is the template rendered for a ban, for example
+	// "banid {duration} {uniqid} {reason}".
+	BanCommand string `protobuf:"bytes,4,opt,name=ban_command,json=banCommand,proto3" json:"ban_command,omitempty"`
+	// parse_via_plugin routes the players_command output to the ParsePlayers
+	// RPC. When false the host parses it with the built-in parser selected by
+	// game code, and a game with no built-in parser then fails at request time —
+	// set this whenever the output is not in a format the panel already knows.
+	ParseViaPlugin bool `protobuf:"varint,5,opt,name=parse_via_plugin,json=parseViaPlugin,proto3" json:"parse_via_plugin,omitempty"`
 }
 
 func (x *PlayerCapability) ProtoReflect() protoreflect.Message {
@@ -134,17 +203,37 @@ func (x *PlayerCapability) GetParseViaPlugin() bool {
 	return false
 }
 
+// RconProtocol registers one RCON protocol: which games it applies to, how it
+// is executed, and whether it supports player management.
 type RconProtocol struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id        string            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name      string            `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	GameCodes []string          `protobuf:"bytes,3,rep,name=game_codes,json=gameCodes,proto3" json:"game_codes,omitempty"`
-	Engines   []string          `protobuf:"bytes,4,rep,name=engines,proto3" json:"engines,omitempty"`
-	Transport RconTransport     `protobuf:"varint,5,opt,name=transport,proto3,enum=gameap.plugin.sdk.protocol.RconTransport" json:"transport,omitempty"`
-	Players   *PlayerCapability `protobuf:"bytes,6,opt,name=players,proto3" json:"players,omitempty"`
+	// id identifies this protocol within the plugin. The host echoes it back as
+	// protocol_id in every execution RPC, so a plugin serving several protocols
+	// uses it to tell them apart. Must be unique within the plugin and stable
+	// across restarts.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// name is a human-readable label used for diagnostics only; it plays no
+	// part in resolution.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// game_codes lists the panel game codes (the "code" column of the games
+	// table, e.g. "cs", "minecraft") this protocol serves. Matched
+	// case-insensitively and checked before engines, so a game-code entry beats
+	// any engine-level registration.
+	GameCodes []string `protobuf:"bytes,3,rep,name=game_codes,json=gameCodes,proto3" json:"game_codes,omitempty"`
+	// engines lists the panel game engines (the "engine" column, e.g. "source",
+	// "goldsource") this protocol serves. Matched case-insensitively, and only
+	// when no registration matched by game code. Use it to claim a whole family
+	// of games at once.
+	Engines []string `protobuf:"bytes,4,rep,name=engines,proto3" json:"engines,omitempty"`
+	// transport picks the execution path; see RconTransport. Always set it
+	// explicitly — the unspecified default disables RCON for the claimed games.
+	Transport RconTransport `protobuf:"varint,5,opt,name=transport,proto3,enum=gameap.plugin.sdk.protocol.RconTransport" json:"transport,omitempty"`
+	// players declares kick/ban/list support. Leave unset (or unsupported) when
+	// the protocol only executes raw console commands.
+	Players *PlayerCapability `protobuf:"bytes,6,opt,name=players,proto3" json:"players,omitempty"`
 }
 
 func (x *RconProtocol) ProtoReflect() protoreflect.Message {
@@ -193,17 +282,31 @@ func (x *RconProtocol) GetPlayers() *PlayerCapability {
 	return nil
 }
 
+// QueryProtocol registers one Query (server status) protocol.
 type QueryProtocol struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id              string         `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name            string         `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Engines         []string       `protobuf:"bytes,3,rep,name=engines,proto3" json:"engines,omitempty"`
-	GameCodes       []string       `protobuf:"bytes,4,rep,name=game_codes,json=gameCodes,proto3" json:"game_codes,omitempty"`
-	Transport       QueryTransport `protobuf:"varint,5,opt,name=transport,proto3,enum=gameap.plugin.sdk.protocol.QueryTransport" json:"transport,omitempty"`
-	BuiltinProtocol string         `protobuf:"bytes,6,opt,name=builtin_protocol,json=builtinProtocol,proto3" json:"builtin_protocol,omitempty"`
+	// id identifies this protocol within the plugin and is echoed back as
+	// protocol_id in QueryServer. Must be unique within the plugin.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// name is a human-readable label used for diagnostics only.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// engines lists the panel game engines this protocol serves, matched
+	// case-insensitively and consulted only when no game_codes matched.
+	Engines []string `protobuf:"bytes,3,rep,name=engines,proto3" json:"engines,omitempty"`
+	// game_codes lists the panel game codes this protocol serves, matched
+	// case-insensitively and checked before engines.
+	GameCodes []string `protobuf:"bytes,4,rep,name=game_codes,json=gameCodes,proto3" json:"game_codes,omitempty"`
+	// transport picks the execution path; see QueryTransport.
+	Transport QueryTransport `protobuf:"varint,5,opt,name=transport,proto3,enum=gameap.plugin.sdk.protocol.QueryTransport" json:"transport,omitempty"`
+	// builtin_protocol names the panel query engine to reuse when transport is
+	// QUERY_TRANSPORT_BUILTIN: one of "source", "minecraft", "gamespy2",
+	// "gamespy3", "quake2", "quake3", "samp", "raknet". An unknown name is
+	// reported as an unsupported protocol when the query runs. Ignored for
+	// QUERY_TRANSPORT_PLUGIN.
+	BuiltinProtocol string `protobuf:"bytes,6,opt,name=builtin_protocol,json=builtinProtocol,proto3" json:"builtin_protocol,omitempty"`
 }
 
 func (x *QueryProtocol) ProtoReflect() protoreflect.Message {
@@ -267,6 +370,8 @@ type GetRconProtocolsResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// protocols is the plugin's complete RCON registration list. It is read once
+	// at load time, so later changes take effect only after a plugin reload.
 	Protocols []*RconProtocol `protobuf:"bytes,1,rep,name=protocols,proto3" json:"protocols,omitempty"`
 }
 
@@ -296,6 +401,8 @@ type GetQueryProtocolsResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// protocols is the plugin's complete Query registration list, read once at
+	// load time.
 	Protocols []*QueryProtocol `protobuf:"bytes,1,rep,name=protocols,proto3" json:"protocols,omitempty"`
 }
 
@@ -310,16 +417,32 @@ func (x *GetQueryProtocolsResponse) GetProtocols() []*QueryProtocol {
 	return nil
 }
 
+// RconPlayer is one entry of a parsed players list. Every field is a string,
+// mirroring the panel's built-in parsers, and unknown fields are left empty
+// rather than guessed.
+//
+// These values travel to the UI and come back in a later kick/ban request,
+// where the host rejects CR, LF, ";" and NUL — avoid emitting them, since a
+// player whose parsed identity carries one could not be kicked.
 type RconPlayer struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id     string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name   string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Ping   string `protobuf:"bytes,3,opt,name=ping,proto3" json:"ping,omitempty"`
-	Score  string `protobuf:"bytes,4,opt,name=score,proto3" json:"score,omitempty"`
-	Addr   string `protobuf:"bytes,5,opt,name=addr,proto3" json:"addr,omitempty"`
+	// id is the server-assigned player id (Valve userid, slot number, …), used
+	// by the {id} template placeholder.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// name is the player nickname, used by {name}.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// ping in milliseconds, used by {ping}. Informational.
+	Ping string `protobuf:"bytes,3,opt,name=ping,proto3" json:"ping,omitempty"`
+	// score, used by {score}. Informational.
+	Score string `protobuf:"bytes,4,opt,name=score,proto3" json:"score,omitempty"`
+	// addr is the player IP address without a port, used by {addr}.
+	Addr string `protobuf:"bytes,5,opt,name=addr,proto3" json:"addr,omitempty"`
+	// uniqid is the stable player identity (SteamID, Minecraft UUID, …), used by
+	// {uniqid}. Prefer it for kick/ban templates: unlike id it survives
+	// reconnects. When empty the panel falls back to id.
 	Uniqid string `protobuf:"bytes,6,opt,name=uniqid,proto3" json:"uniqid,omitempty"`
 }
 
@@ -369,15 +492,35 @@ func (x *RconPlayer) GetUniqid() string {
 	return ""
 }
 
+// RconOpenRequest asks the plugin to authenticate a connection the host has
+// already dialled and guarded.
 type RconOpenRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// protocol_id is the RconProtocol.id this call belongs to.
 	ProtocolId string `protobuf:"bytes,1,opt,name=protocol_id,json=protocolId,proto3" json:"protocol_id,omitempty"`
+	// conn_handle is an opaque, non-zero handle to the connection the host
+	// opened to the game server. Pass it to the gameap-net host library to send
+	// and receive; the plugin can neither dial nor reach any other target.
+	//
+	// RCON connections are always TCP — a UDP-based RCON protocol cannot be
+	// implemented through this transport, and a game that needs one is better
+	// served by a built-in transport.
+	//
+	// The handle belongs to this plugin, expires after
+	// PLUGIN_NET_MAX_TIMEOUT_SECONDS, and counts against the per-plugin open
+	// connection cap (PLUGIN_NET_MAX_CONNECTIONS). The same handle is reused by
+	// RconExecute and RconClose until the panel closes the client.
 	ConnHandle uint64 `protobuf:"varint,2,opt,name=conn_handle,json=connHandle,proto3" json:"conn_handle,omitempty"`
-	Password   string `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
-	Address    string `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
+	// password is the server's RCON password from the panel's server record.
+	// Treat it as a secret: use it for the handshake, never log or store it.
+	Password string `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
+	// address is the "host:port" the host dialled, for logging and for protocols
+	// that mix it into the handshake. Informational — the connection is already
+	// established.
+	Address string `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
 }
 
 func (x *RconOpenRequest) ProtoReflect() protoreflect.Message {
@@ -417,9 +560,18 @@ type RconOpenResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Ok         bool    `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	AuthFailed bool    `protobuf:"varint,2,opt,name=auth_failed,json=authFailed,proto3" json:"auth_failed,omitempty"`
-	Error      *string `protobuf:"bytes,3,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	// ok reports a successful handshake. When false and auth_failed is not set,
+	// the error field explains why.
+	Ok bool `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	// auth_failed marks a rejected password specifically. It is checked before
+	// ok and surfaces to the API caller as an authentication failure (HTTP 422)
+	// instead of a generic connection error, so set it whenever the server
+	// answered but refused the credentials.
+	AuthFailed bool `protobuf:"varint,2,opt,name=auth_failed,json=authFailed,proto3" json:"auth_failed,omitempty"`
+	// error describes a failure when ok is false. A missing or empty message
+	// becomes "plugin rcon open failed". The host closes and releases the
+	// connection on any failure, so the handle must not be used afterwards.
+	Error *string `protobuf:"bytes,3,opt,name=error,proto3,oneof" json:"error,omitempty"`
 }
 
 func (x *RconOpenResponse) ProtoReflect() protoreflect.Message {
@@ -447,14 +599,21 @@ func (x *RconOpenResponse) GetError() string {
 	return ""
 }
 
+// RconExecuteRequest carries one fully rendered console command.
 type RconExecuteRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// protocol_id is the RconProtocol.id this call belongs to.
 	ProtocolId string `protobuf:"bytes,1,opt,name=protocol_id,json=protocolId,proto3" json:"protocol_id,omitempty"`
+	// conn_handle is the handle from the preceding RconOpen, still owned by this
+	// plugin and still within its deadline.
 	ConnHandle uint64 `protobuf:"varint,2,opt,name=conn_handle,json=connHandle,proto3" json:"conn_handle,omitempty"`
-	Command    string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
+	// command is a single console command, already rendered from the kick/ban
+	// template or typed by the panel user. Send it as-is: the host has validated
+	// it and does not expect the plugin to split, rewrite or chain commands.
+	Command string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
 }
 
 func (x *RconExecuteRequest) ProtoReflect() protoreflect.Message {
@@ -487,8 +646,14 @@ type RconExecuteResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Output string  `protobuf:"bytes,1,opt,name=output,proto3" json:"output,omitempty"`
-	Error  *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	// output is the server's raw answer, returned to the panel user verbatim and
+	// fed to the players parser for a players_command. An empty output on a
+	// silent command is normal.
+	Output string `protobuf:"bytes,1,opt,name=output,proto3" json:"output,omitempty"`
+	// error marks the command as failed and replaces the output. Presence alone
+	// signals failure, so leave the field unset on success rather than setting
+	// it to an empty string.
+	Error *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
 }
 
 func (x *RconExecuteResponse) ProtoReflect() protoreflect.Message {
@@ -509,12 +674,17 @@ func (x *RconExecuteResponse) GetError() string {
 	return ""
 }
 
+// RconCloseRequest asks the plugin to end the session politely before the host
+// drops the connection.
 type RconCloseRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// protocol_id is the RconProtocol.id this call belongs to.
 	ProtocolId string `protobuf:"bytes,1,opt,name=protocol_id,json=protocolId,proto3" json:"protocol_id,omitempty"`
+	// conn_handle is the handle being torn down. It is released right after this
+	// call returns, whatever the outcome.
 	ConnHandle uint64 `protobuf:"varint,2,opt,name=conn_handle,json=connHandle,proto3" json:"conn_handle,omitempty"`
 }
 
@@ -541,6 +711,9 @@ type RconCloseResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// error is accepted for symmetry but ignored: the host closes and releases
+	// the connection regardless, and a failing close is not reported to the
+	// panel user.
 	Error *string `protobuf:"bytes,1,opt,name=error,proto3,oneof" json:"error,omitempty"`
 }
 
@@ -555,14 +728,22 @@ func (x *RconCloseResponse) GetError() string {
 	return ""
 }
 
+// QueryServerRequest asks the plugin to probe a game server for its status.
 type QueryServerRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// protocol_id is the QueryProtocol.id this call belongs to.
 	ProtocolId string `protobuf:"bytes,1,opt,name=protocol_id,json=protocolId,proto3" json:"protocol_id,omitempty"`
+	// conn_handle is an opaque, non-zero handle to a UDP connection the host
+	// opened to the game server. Unlike the RCON handles it lives only for this
+	// call — the host releases it as soon as QueryServer returns, so nothing may
+	// be cached across calls.
 	ConnHandle uint64 `protobuf:"varint,2,opt,name=conn_handle,json=connHandle,proto3" json:"conn_handle,omitempty"`
-	Address    string `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	// address is the "host:port" the host dialled, for logging and for protocols
+	// that echo it in the payload.
+	Address string `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
 }
 
 func (x *QueryServerRequest) ProtoReflect() protoreflect.Message {
@@ -590,13 +771,17 @@ func (x *QueryServerRequest) GetAddress() string {
 	return ""
 }
 
+// QueryResultPlayer is one player from a query response. Query protocols expose
+// far less than RCON, so this is deliberately narrower than RconPlayer.
 type QueryResultPlayer struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name  string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Score int64  `protobuf:"varint,2,opt,name=score,proto3" json:"score,omitempty"`
+	// name is the player nickname.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// score as reported by the server; 0 when the protocol carries no score.
+	Score int64 `protobuf:"varint,2,opt,name=score,proto3" json:"score,omitempty"`
 }
 
 func (x *QueryResultPlayer) ProtoReflect() protoreflect.Message {
@@ -617,17 +802,27 @@ func (x *QueryResultPlayer) GetScore() int64 {
 	return 0
 }
 
+// QueryResult is the status of a game server.
 type QueryResult struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Online        bool                 `protobuf:"varint,1,opt,name=online,proto3" json:"online,omitempty"`
-	Name          string               `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Map           string               `protobuf:"bytes,3,opt,name=map,proto3" json:"map,omitempty"`
-	PlayersNum    int64                `protobuf:"varint,4,opt,name=players_num,json=playersNum,proto3" json:"players_num,omitempty"`
-	MaxPlayersNum int64                `protobuf:"varint,5,opt,name=max_players_num,json=maxPlayersNum,proto3" json:"max_players_num,omitempty"`
-	Players       []*QueryResultPlayer `protobuf:"bytes,6,rep,name=players,proto3" json:"players,omitempty"`
+	// online reports that the server answered the probe. Everything else is
+	// meaningful only when it is true.
+	Online bool `protobuf:"varint,1,opt,name=online,proto3" json:"online,omitempty"`
+	// name is the server hostname as advertised.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// map is the current map name.
+	Map string `protobuf:"bytes,3,opt,name=map,proto3" json:"map,omitempty"`
+	// players_num is the current player count.
+	PlayersNum int64 `protobuf:"varint,4,opt,name=players_num,json=playersNum,proto3" json:"players_num,omitempty"`
+	// max_players_num is the slot limit.
+	MaxPlayersNum int64 `protobuf:"varint,5,opt,name=max_players_num,json=maxPlayersNum,proto3" json:"max_players_num,omitempty"`
+	// players is the player list, when the protocol carries one. It may be empty
+	// (or shorter than players_num) even on a healthy server — many protocols
+	// report only counts, and some cap the list.
+	Players []*QueryResultPlayer `protobuf:"bytes,6,rep,name=players,proto3" json:"players,omitempty"`
 }
 
 func (x *QueryResult) ProtoReflect() protoreflect.Message {
@@ -681,8 +876,13 @@ type QueryServerResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// result is the server status. A missing result is treated as an empty,
+	// offline one, so report a genuine probe failure through error instead.
 	Result *QueryResult `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
-	Error  *string      `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	// error marks the query as failed. As with RconExecuteResponse, presence
+	// alone signals failure — leave it unset on success. The query timestamp is
+	// stamped by the host, not the plugin.
+	Error *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
 }
 
 func (x *QueryServerResponse) ProtoReflect() protoreflect.Message {
@@ -703,13 +903,19 @@ func (x *QueryServerResponse) GetError() string {
 	return ""
 }
 
+// ParsePlayersRequest carries a players list for structuring. It is sent only
+// for protocols whose PlayerCapability.parse_via_plugin is set, and involves no
+// connection: the host has already run players_command over RCON.
 type ParsePlayersRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// protocol_id is the RconProtocol.id this call belongs to.
 	ProtocolId string `protobuf:"bytes,1,opt,name=protocol_id,json=protocolId,proto3" json:"protocol_id,omitempty"`
-	Raw        string `protobuf:"bytes,2,opt,name=raw,proto3" json:"raw,omitempty"`
+	// raw is the verbatim RCON output of players_command, including any header
+	// and trailer lines the server printed.
+	Raw string `protobuf:"bytes,2,opt,name=raw,proto3" json:"raw,omitempty"`
 }
 
 func (x *ParsePlayersRequest) ProtoReflect() protoreflect.Message {
@@ -735,8 +941,13 @@ type ParsePlayersResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// players is the parsed list. Return an empty list for an empty server;
+	// skipping unparsable lines is preferred over failing the whole call, since
+	// one malformed entry then does not hide every other player.
 	Players []*RconPlayer `protobuf:"bytes,1,rep,name=players,proto3" json:"players,omitempty"`
-	Error   *string       `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	// error marks parsing as failed. Presence alone signals failure — leave it
+	// unset on success.
+	Error *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
 }
 
 func (x *ParsePlayersResponse) ProtoReflect() protoreflect.Message {
@@ -766,13 +977,54 @@ func (x *ParsePlayersResponse) GetError() string {
 // server and hands the plugin a conn_handle; the plugin performs the wire I/O
 // over that handle with the gameap-net host library (it never dials).
 //
+// Lifecycle
+//
+//  1. The host loads the plugin and calls GetRconProtocols / GetQueryProtocols
+//     exactly once. A plugin that does not export them registers nothing —
+//     the failure is logged at debug level and is not fatal.
+//  2. Registrations from a disabled plugin are ignored; re-enabling or
+//     reloading the plugin re-polls them.
+//  3. On every RCON/Query operation the host resolves the game against the
+//     plugin registrations first, then against its built-in tables.
+//
+// # Resolution
+//
+// The host scans every registration from every enabled plugin for a game_codes
+// match, and only if none matched it scans for an engines match. Both are
+// compared case-insensitively. Within a pass the first match wins, and
+// registrations are pre-sorted by plugin ID, so the alphabetically-first plugin
+// deterministically wins a conflict. When nothing matches, the panel falls back
+// to its built-in tables.
+//
+// A registration therefore overrides the built-in mapping for the games it
+// claims — including for a broken or unrunnable registration, so declare only
+// what the plugin can actually serve.
+//
 // go:plugin type=plugin version=1
 type ProtocolService interface {
+	// GetRconProtocols is polled once when the plugin loads. Returning an empty
+	// list (or not exporting this RPC) means the plugin adds no RCON protocols.
 	GetRconProtocols(context.Context, *GetRconProtocolsRequest) (*GetRconProtocolsResponse, error)
+	// GetQueryProtocols is polled once when the plugin loads, like
+	// GetRconProtocols.
 	GetQueryProtocols(context.Context, *GetQueryProtocolsRequest) (*GetQueryProtocolsResponse, error)
+	// RconOpen authenticates a freshly dialled RCON connection. Called only for
+	// RCON_TRANSPORT_PLUGIN registrations, once per client, before RconExecute.
+	// The host closes and releases the connection if this fails.
 	RconOpen(context.Context, *RconOpenRequest) (*RconOpenResponse, error)
+	// RconExecute runs one console command on an opened connection and returns
+	// its raw output. Called any number of times between RconOpen and RconClose.
 	RconExecute(context.Context, *RconExecuteRequest) (*RconExecuteResponse, error)
+	// RconClose lets the plugin send a protocol-level goodbye before the host
+	// tears the connection down. Best-effort: the host ignores the outcome and
+	// releases the connection either way, so implementing it is optional.
 	RconClose(context.Context, *RconCloseRequest) (*RconCloseResponse, error)
+	// QueryServer probes a game server over a host-opened UDP connection and
+	// returns its status. Called for QUERY_TRANSPORT_PLUGIN registrations. The
+	// handle is released as soon as this call returns.
 	QueryServer(context.Context, *QueryServerRequest) (*QueryServerResponse, error)
+	// ParsePlayers turns the raw output of PlayerCapability.players_command into
+	// structured players. Called only when parse_via_plugin is set, and unlike
+	// the other execution RPCs it involves no connection at all.
 	ParsePlayers(context.Context, *ParsePlayersRequest) (*ParsePlayersResponse, error)
 }

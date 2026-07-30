@@ -93,6 +93,46 @@ func TestRunner_CheckIP(t *testing.T) {
 	assert.ErrorIs(t, strict.checkIP(metadata, true), ErrDialBlocked, "allowlist never bypasses metadata")
 }
 
+func TestRunner_CheckIP_MappedAddresses(t *testing.T) {
+	permissive := NewProtocolRunner(nil, nil, NetDialPolicy{})
+	strict := NewProtocolRunner(nil, nil, NetDialPolicy{BlockPrivateIPs: true})
+
+	tests := []struct {
+		name    string
+		addr    string
+		runner  *ProtocolRunner
+		blocked bool
+	}{
+		{"mapped_aws_metadata_permissive", "::ffff:169.254.169.254", permissive, true},
+		{"mapped_alibaba_metadata_permissive", "::ffff:100.100.100.200", permissive, true},
+		{"mapped_metadata_strict", "::ffff:169.254.169.254", strict, true},
+		{"mapped_cgnat_strict", "::ffff:100.64.1.1", strict, true},
+		{"mapped_private_strict", "::ffff:10.0.0.5", strict, true},
+		{"mapped_cgnat_permissive", "::ffff:100.64.1.1", permissive, false},
+		{"mapped_public", "::ffff:8.8.8.8", strict, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.runner.checkIP(netip.MustParseAddr(tt.addr), false)
+
+			if tt.blocked {
+				assert.ErrorIs(t, err, ErrDialBlocked)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestRunner_CheckIP_MappedMetadataNotBypassedByAllowlist(t *testing.T) {
+	strict := NewProtocolRunner(nil, nil, NetDialPolicy{BlockPrivateIPs: true})
+
+	err := strict.checkIP(netip.MustParseAddr("::ffff:169.254.169.254"), true)
+
+	assert.ErrorIs(t, err, ErrDialBlocked)
+}
+
 func TestPluginRconClient_OpenExecuteClose(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -129,6 +169,42 @@ func TestPluginRconClient_OpenExecuteClose(t *testing.T) {
 	require.NoError(t, client.Close())
 	assert.True(t, fake.closed)
 	assert.Equal(t, 0, registry.Len(), "connection released on close")
+}
+
+func TestPluginRconClient_SecondOpenRejected(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		for {
+			conn, acceptErr := ln.Accept()
+			if acceptErr != nil {
+				return
+			}
+			go func() { _, _ = conn.Read(make([]byte, 1)) }()
+		}
+	}()
+
+	fake := &fakeProtoPlugin{openResp: &protocol.RconOpenResponse{Ok: true}}
+	registry := NewConnRegistry(8)
+	runner := NewProtocolRunner(managerWithPlugin("plg", fake), registry, NetDialPolicy{MaxTimeout: 2 * time.Second})
+
+	client, err := runner.RconClient("plg", "myproto", rcon.Config{Address: ln.Addr().String(), Password: "pw"})
+	require.NoError(t, err)
+
+	require.NoError(t, client.Open(context.Background()))
+	firstHandle := fake.lastHandle
+	require.NotZero(t, firstHandle)
+
+	err = client.Open(context.Background())
+
+	assert.ErrorIs(t, err, ErrRconAlreadyOpen)
+	assert.Equal(t, 1, registry.Len(), "no extra connection registered")
+	assert.Equal(t, firstHandle, fake.lastHandle, "first connection kept")
+
+	require.NoError(t, client.Close())
+	assert.Equal(t, 0, registry.Len(), "first connection released on close")
 }
 
 func TestPluginRconClient_AuthFailed(t *testing.T) {

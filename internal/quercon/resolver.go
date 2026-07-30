@@ -213,7 +213,7 @@ func (r *Resolver) Query(ctx context.Context, game domain.Game, host string, por
 // game, powering the features endpoint.
 func (r *Resolver) RconFeatures(game domain.Game) (rconSupported, playersSupported bool) {
 	if reg, ok := r.resolveRcon(game); ok {
-		return true, reg.Players.Supported
+		return r.rconRegistrationExecutable(reg), reg.Players.Supported
 	}
 
 	protocol, err := r.cfg.BuiltinRconProtocol(game)
@@ -222,6 +222,23 @@ func (r *Resolver) RconFeatures(game domain.Game) (rconSupported, playersSupport
 	}
 
 	return rcon.IsProtocolSupported(protocol), r.cfg.PlayerManagementCheck(game.Code)
+}
+
+// rconRegistrationExecutable reports whether a matched plugin registration can
+// actually yield a client, applying the same transport rules as RconClient. An
+// unknown or plugin transport with no executor wired resolves to "no RCON"
+// rather than an advertised feature that fails on use.
+func (r *Resolver) rconRegistrationExecutable(reg RconRegistration) bool {
+	switch reg.Transport {
+	case RconBuiltinSource, RconBuiltinGoldSource:
+		return true
+	case RconPlugin:
+		return r.cfg.RconExecutor != nil
+	case RconTransportUnspecified:
+		return false
+	default:
+		return false
+	}
 }
 
 // resolveRcon finds the plugin RCON registration that applies to the game.

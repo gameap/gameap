@@ -215,6 +215,7 @@ func TestRconFeatures(t *testing.T) {
 		{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"}, Transport: RconPlugin,
 			Players: PlayerCapability{Supported: true}},
 	}}
+	cfg.RconExecutor = &fakeRconExecutor{}
 	r := New(cfg)
 
 	// Plugin-registered game.
@@ -231,6 +232,62 @@ func TestRconFeatures(t *testing.T) {
 	rconOK, playersOK = r.RconFeatures(domain.Game{Code: "unknown"})
 	assert.False(t, rconOK)
 	assert.False(t, playersOK)
+}
+
+func TestRconFeatures_UnrunnableRegistrations(t *testing.T) {
+	tests := []struct {
+		name        string
+		reg         RconRegistration
+		withExec    bool
+		wantRcon    bool
+		wantPlayers bool
+	}{
+		{
+			name: "plugin_transport_without_executor",
+			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
+				Transport: RconPlugin, Players: PlayerCapability{Supported: true}},
+			wantRcon:    false,
+			wantPlayers: true,
+		},
+		{
+			name: "plugin_transport_with_executor",
+			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
+				Transport: RconPlugin, Players: PlayerCapability{Supported: true}},
+			withExec:    true,
+			wantRcon:    true,
+			wantPlayers: true,
+		},
+		{
+			name: "unspecified_transport",
+			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
+				Transport: RconTransportUnspecified},
+			withExec:    true,
+			wantRcon:    false,
+			wantPlayers: false,
+		},
+		{
+			name: "builtin_transport_needs_no_executor",
+			reg: RconRegistration{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
+				Transport: RconBuiltinSource},
+			wantRcon:    true,
+			wantPlayers: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := baseConfig()
+			cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{tt.reg}}
+			if tt.withExec {
+				cfg.RconExecutor = &fakeRconExecutor{}
+			}
+
+			rconOK, playersOK := New(cfg).RconFeatures(domain.Game{Code: "newgame"})
+
+			assert.Equal(t, tt.wantRcon, rconOK)
+			assert.Equal(t, tt.wantPlayers, playersOK)
+		})
+	}
 }
 
 func TestPluginPlayerManager_TemplatesAndParse(t *testing.T) {

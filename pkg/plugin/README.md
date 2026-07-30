@@ -739,7 +739,11 @@ opts in by implementing `ProtocolService` (embed `protocol.EmptyProtocolService`
 for defaults) and registering it alongside the core service:
 
 ```go
-import "github.com/gameap/gameap/pkg/plugin/sdk/protocol"
+import (
+    "github.com/gameap/gameap/pkg/plugin/proto"
+    "github.com/gameap/gameap/pkg/plugin/sdk"
+    "github.com/gameap/gameap/pkg/plugin/sdk/protocol"
+)
 
 type MyPlugin struct {
     sdk.EmptyPluginService       // core lifecycle/events/http

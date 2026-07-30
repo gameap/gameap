@@ -743,6 +743,33 @@ func TestKickRequest_Validate(t *testing.T) {
 			wantErr:  true,
 			errorMsg: "player is required",
 		},
+		{
+			name: "reason_with_newline",
+			request: kickRequest{
+				Player: json.RawMessage(`"123"`),
+				Reason: "cheating\nrcon_password hacked",
+			},
+			wantErr:  true,
+			errorMsg: "reason",
+		},
+		{
+			name: "reason_with_semicolon",
+			request: kickRequest{
+				Player: json.RawMessage(`"123"`),
+				Reason: "cheating; sv_cheats 1",
+			},
+			wantErr:  true,
+			errorMsg: "reason",
+		},
+		{
+			name: "reason_with_carriage_return",
+			request: kickRequest{
+				Player: json.RawMessage(`"123"`),
+				Reason: "cheating\rquit",
+			},
+			wantErr:  true,
+			errorMsg: "reason",
+		},
 	}
 
 	for _, tt := range tests {
@@ -817,6 +844,38 @@ func TestKickRequest_ToPlayer(t *testing.T) {
 			},
 			wantErr:  true,
 			errorMsg: "player must be a string ID or player object",
+		},
+		{
+			name: "string_id_with_semicolon",
+			request: kickRequest{
+				Player: json.RawMessage(`"123; sv_cheats 1"`),
+			},
+			wantErr:  true,
+			errorMsg: "player id",
+		},
+		{
+			name: "player_name_with_newline",
+			request: kickRequest{
+				Player: json.RawMessage(`{"id":"1","name":"bob\nop hacker"}`),
+			},
+			wantErr:  true,
+			errorMsg: "player name",
+		},
+		{
+			name: "player_uniqid_with_newline",
+			request: kickRequest{
+				Player: json.RawMessage(`{"id":"1","uniqid":"STEAM_0:1:1\nquit"}`),
+			},
+			wantErr:  true,
+			errorMsg: "player uniqid",
+		},
+		{
+			name: "player_ip_with_semicolon",
+			request: kickRequest{
+				Player: json.RawMessage(`{"id":"1","ip":"1.2.3.4; quit"}`),
+			},
+			wantErr:  true,
+			errorMsg: "player ip",
 		},
 	}
 
