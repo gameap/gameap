@@ -352,7 +352,7 @@ rb.Allow(ctx, &rbac.AbilitiesRequest{
     EntityId:   roleID,
     Abilities: []*rbac.Ability{{
         Name:       "game-server-restart",
-        EntityType: entityTypeServer,   // *proto.EntityType
+        EntityType: proto.EntityType_ENTITY_TYPE_SERVER.Enum(),   // *proto.EntityType
         EntityId:   proto.Uint64(serverID),
     }},
 })
@@ -842,8 +842,9 @@ Implement `GetRconProtocols` / `GetQueryProtocols`. Each registration lists the
 
 - `RCON_TRANSPORT_BUILTIN` and `QUERY_TRANSPORT_BUILTIN`, both with a
   `builtin_protocol` name — reuse the panel's engine. Pure mapping: no plugin
-  code runs at execute time. Use this to add a new game that speaks a protocol
-  the panel already implements.
+  code runs at execute time, the one exception being `parse_via_plugin` below.
+  Use this to add a new game that speaks a protocol the panel already
+  implements.
   - RCON names: `source`, `goldsource`, `quake2`, `quake3`, `samp`, `battleye`.
   - Query names: `source`, `minecraft`, `gamespy2`, `gamespy3`, `quake2`,
     `quake3`, `samp`, `raknet`.
@@ -879,6 +880,14 @@ func (p MyPlugin) GetRconProtocols(ctx context.Context, req *protocol.GetRconPro
 Player management: kick/ban are command templates the host renders (`{duration}`
 is whole seconds). The players-list output is parsed by the built-in parser, or
 by your `ParsePlayers` RPC when `parse_via_plugin` is set.
+
+`parse_via_plugin` is the one case where a built-in transport calls back into
+the plugin, so a registration that sets it **must** implement `ParsePlayers`
+(see `examples/protocol-extension/main.go`). Leaving it on the embedded
+`protocol.EmptyProtocolService` default makes every players-list request fail
+with "not implemented"; there is no fallback to the built-in parser. Everything
+else keeps working — commands still execute over the built-in engine, and
+kick/ban still render from their templates.
 
 Leave `kick_command` or `ban_command` empty when your game has no such command:
 the panel then hides that button instead of offering one that fails. The

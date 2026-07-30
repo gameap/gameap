@@ -87,6 +87,7 @@ type InmemoryContainer struct {
 	daemonCommandsService   *daemon.CommandService
 	uploadSessionService    *upload.Service
 	auditLogger             audit.Logger
+	pluginScheduler         *pluginscheduler.Service
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -176,15 +177,23 @@ func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
 	return inmemory.NewPluginRepository()
 }
 func (c *InmemoryContainer) PluginLoader() *internalplugin.Loader { return nil }
+
+// PluginScheduler is cached so every caller shares one task store: a handler
+// registering tasks and one cleaning them up on uninstall must see the same
+// registrations.
 func (c *InmemoryContainer) PluginScheduler() *pluginscheduler.Service {
-	return pluginscheduler.New(
-		inmemory.NewPluginScheduledTaskRepository(),
-		nil,
-		nil,
-		locker.NewInMemoryLocker(),
-		pluginscheduler.Options{},
-		nil,
-	)
+	if c.pluginScheduler == nil {
+		c.pluginScheduler = pluginscheduler.New(
+			inmemory.NewPluginScheduledTaskRepository(),
+			nil,
+			nil,
+			locker.NewInMemoryLocker(),
+			pluginscheduler.Options{},
+			nil,
+		)
+	}
+
+	return c.pluginScheduler
 }
 func (c *InmemoryContainer) PluginStoreService() *pluginstore.Service         { return nil }
 func (c *InmemoryContainer) PluginsDir() string                               { return "plugins" }
