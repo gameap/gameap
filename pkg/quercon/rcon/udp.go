@@ -3,6 +3,7 @@ package rcon
 import (
 	"bytes"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -51,22 +52,37 @@ func readDatagram(conn net.Conn, timeout time.Duration) ([]byte, error) {
 }
 
 // readReassembledResponse collects a response that a server may split across several datagrams.
-// The first datagram gets the full timeout; the rest are read until the socket goes idle, which
-// is the only end-of-response signal these protocols provide.
+// The whole timeout is available until the first usable datagram arrives; after that the rest
+// are read until the socket goes idle, which is the only end-of-response signal these protocols
+// provide.
 //
-// A timeout error can therefore only originate from the first read: later timeouts end the loop
-// normally. Callers that treat server silence as an empty response rely on that.
+// Datagrams the protocol cannot use are skipped without consuming that budget: letting one
+// stray packet stand in for the answer would leave the real reply only the idle window to
+// arrive, and a lone stray packet would be reported as an empty success.
+//
+// A timeout error can therefore only originate from the phase before the first usable datagram:
+// later timeouts end the loop normally. Callers that treat server silence as an empty response
+// rely on that.
 func readReassembledResponse(conn net.Conn, timeout time.Duration, body datagramBody) (string, error) {
-	part, err := readDatagram(conn, timeout)
-	if err != nil {
-		return "", err
+	buffer := bytes.Buffer{}
+	deadline := time.Now().Add(timeout)
+
+	for buffer.Len() == 0 {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return "", os.ErrDeadlineExceeded
+		}
+
+		part, err := readDatagram(conn, remaining)
+		if err != nil {
+			return "", err
+		}
+
+		buffer.Write(body(part))
 	}
 
-	buffer := bytes.Buffer{}
-	buffer.Write(body(part))
-
 	for {
-		part, err = readDatagram(conn, responseIdleTimeout)
+		part, err := readDatagram(conn, responseIdleTimeout)
 		if err != nil {
 			if isTimeoutError(err) {
 				break

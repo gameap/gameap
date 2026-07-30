@@ -173,3 +173,30 @@ func TestMapQueryRegistrations_PluginTransportGate(t *testing.T) {
 		assert.Equal(t, "declarative", out[0].ProtocolID)
 	})
 }
+
+func TestMapQueryRegistrations_DropsUnknownBuiltinProtocol(t *testing.T) {
+	regs := []pkgplugin.QueryProtocolRegistration{
+		{PluginID: "a", Protocol: &protocol.QueryProtocol{
+			Id:              "typo",
+			Engines:         []string{"myengine"},
+			Transport:       protocol.QueryTransport_QUERY_TRANSPORT_BUILTIN,
+			BuiltinProtocol: "sourse",
+		}},
+		{PluginID: "b", Protocol: &protocol.QueryProtocol{
+			Id:        "empty",
+			Engines:   []string{"otherengine"},
+			Transport: protocol.QueryTransport_QUERY_TRANSPORT_BUILTIN,
+		}},
+		{PluginID: "c", Protocol: &protocol.QueryProtocol{
+			Id:              "good",
+			Engines:         []string{"thirdengine"},
+			Transport:       protocol.QueryTransport_QUERY_TRANSPORT_BUILTIN,
+			BuiltinProtocol: "gamespy3",
+		}},
+	}
+
+	out := mapQueryRegistrations(regs, true)
+
+	require.Len(t, out, 1, "a registration naming a protocol the panel lacks must not shadow the built-in tables")
+	assert.Equal(t, "good", out[0].ProtocolID)
+}

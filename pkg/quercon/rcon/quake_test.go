@@ -156,6 +156,46 @@ func TestQuake_ExecuteSkipsForeignDatagrams(t *testing.T) {
 	}
 }
 
+// A datagram the protocol cannot use must not stand in for the answer: the real reply still has
+// the whole timeout, not just the idle window that follows the first datagram.
+func TestQuake_ExecuteKeepsFullTimeoutUntilFirstUsableDatagram(t *testing.T) {
+	srv := newPacedScriptedUDPServer(t, responseIdleTimeout+300*time.Millisecond,
+		func(_ []byte, _ int) [][]byte {
+			return [][]byte{
+				[]byte(header + "statusResponse\n\\mapname\\q3dm17"),
+				quakePrintDatagram("delayed real output"),
+			}
+		})
+
+	client, err := NewQuake3(Config{Address: srv.addr, Password: "secret", Timeout: 3 * time.Second})
+	require.NoError(t, err)
+	require.NoError(t, client.Open(context.Background()))
+	defer func() { _ = client.Close() }()
+
+	got, err := client.Execute(context.Background(), "status")
+
+	require.NoError(t, err)
+	assert.Equal(t, "delayed real output", got,
+		"a stray datagram must not shrink the budget for the real reply to the idle window")
+}
+
+func TestQuake_ExecuteReportsTimeoutWhenOnlyUnusableDatagramsArrive(t *testing.T) {
+	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
+		return [][]byte{[]byte(header + "statusResponse\n\\mapname\\q3dm17")}
+	})
+
+	client, err := NewQuake3(Config{Address: srv.addr, Password: "secret", Timeout: 400 * time.Millisecond})
+	require.NoError(t, err)
+	require.NoError(t, client.Open(context.Background()))
+	defer func() { _ = client.Close() }()
+
+	got, err := client.Execute(context.Background(), "status")
+
+	require.Error(t, err, "a lone unusable datagram must not be reported as an empty success")
+	assert.True(t, isTimeoutError(err), "expected a timeout, got %v", err)
+	assert.Empty(t, got)
+}
+
 func TestQuake_ExecuteAcceptsPrintWithoutNewline(t *testing.T) {
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return [][]byte{[]byte(header + quakeResponseKeyword + "output without newline")}

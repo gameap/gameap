@@ -822,10 +822,30 @@ server the host opened for it.
 ```go
 func (p MyPlugin) QueryServer(ctx context.Context, req *protocol.QueryServerRequest) (*protocol.QueryServerResponse, error) {
     n := net.NewNetService() // github.com/gameap/gameap/pkg/plugin/sdk/net
-    n.Send(ctx, &net.NetSendRequest{Handle: req.ConnHandle, Data: probe})
-    resp, _ := n.Recv(ctx, &net.NetRecvRequest{Handle: req.ConnHandle, MaxBytes: 1400, TimeoutMs: 1000})
+    probe := []byte("\xFF\xFF\xFF\xFFping")
+
+    sent, err := n.Send(ctx, &net.NetSendRequest{Handle: req.ConnHandle, Data: probe})
+    if err != nil {
+        return queryError(err.Error()), nil
+    }
+    if sent.Error != nil {
+        return queryError(*sent.Error), nil
+    }
+
+    resp, err := n.Recv(ctx, &net.NetRecvRequest{Handle: req.ConnHandle, MaxBytes: 1400, TimeoutMs: 1000})
+    if err != nil {
+        return queryError(err.Error()), nil
+    }
+    if resp.Error != nil {
+        return queryError(*resp.Error), nil
+    }
+
     // parse resp.Data ...
     return &protocol.QueryServerResponse{Result: &protocol.QueryResult{Online: len(resp.Data) > 0}}, nil
+}
+
+func queryError(msg string) *protocol.QueryServerResponse {
+    return &protocol.QueryServerResponse{Error: &msg}
 }
 ```
 

@@ -721,6 +721,9 @@ func TestNewFeaturesResponse(t *testing.T) {
 			response := newFeaturesResponse(testResolver(), tt.game)
 			assert.Equal(t, tt.expectedRcon, response.Rcon)
 			assert.Equal(t, tt.expectedPlayersManage, response.PlayersManage)
+			assert.Equal(t, tt.expectedPlayersManage, response.PlayersList)
+			assert.Equal(t, tt.expectedPlayersKick, response.PlayersKick)
+			assert.Equal(t, tt.expectedPlayersBan, response.PlayersBan)
 		})
 	}
 }

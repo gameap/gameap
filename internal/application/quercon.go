@@ -9,6 +9,7 @@ import (
 	"github.com/gameap/gameap/internal/quercon"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/sdk/protocol"
+	"github.com/gameap/gameap/pkg/quercon/query"
 	"github.com/gameap/gameap/pkg/quercon/rcon"
 )
 
@@ -146,6 +147,18 @@ func mapQueryRegistrations(
 
 		transport := mapQueryTransport(pr.Transport)
 		if transport == quercon.QueryPlugin && !pluginTransport {
+			continue
+		}
+
+		// Same rule as the RCON side: a built-in name the panel does not implement would only
+		// shadow the built-in tables and then fail at query time.
+		if transport == quercon.QueryBuiltin && !query.IsProtocolSupported(query.Protocol(pr.BuiltinProtocol)) {
+			slog.Warn("plugin query registration declares an unknown built-in protocol, dropping it",
+				slog.String("plugin_id", reg.PluginID),
+				slog.String("protocol_id", pr.Id),
+				slog.String("builtin_protocol", pr.BuiltinProtocol),
+			)
+
 			continue
 		}
 
