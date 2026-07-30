@@ -21,6 +21,10 @@ func NewValvePlayers() PlayerManager {
 	return &ValvePlayerManager{}
 }
 
+func (mgr *ValvePlayerManager) Capabilities() Capability {
+	return Capability{List: true, Kick: true, Ban: true}
+}
+
 func (mgr *ValvePlayerManager) ParsePlayers(data string) ([]Player, error) {
 	lines := strings.Split(data, "\n")
 	players := make([]Player, 0, 32)

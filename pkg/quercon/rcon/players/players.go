@@ -37,7 +37,20 @@ func (p Player) ValidateUniqID() error {
 	return nil
 }
 
+// Capability reports which player operations a manager can actually perform. Listing players
+// and moderating them are separate: several engines expose a readable player list but have no
+// kick or ban command that is uniform across the games of that family.
+type Capability struct {
+	List bool
+	Kick bool
+	Ban  bool
+}
+
 type PlayerManager interface {
+	// Capabilities reports what this manager supports, so the panel can advertise only the
+	// actions that will work instead of offering ones that fail on use.
+	Capabilities() Capability
+
 	// ParsePlayers takes the raw response from the server and parses it into a slice of Player structs.
 	ParsePlayers(data string) ([]Player, error)
 

@@ -11,6 +11,10 @@ func NewMinecraftPlayers() PlayerManager {
 	return &MinecraftPlayerManager{}
 }
 
+func (mgr *MinecraftPlayerManager) Capabilities() Capability {
+	return Capability{List: true, Kick: true, Ban: true}
+}
+
 func (mgr *MinecraftPlayerManager) ParsePlayers(data string) ([]Player, error) {
 	colonIdx := strings.LastIndex(data, ":")
 	if colonIdx == -1 || colonIdx == len(data)-1 {

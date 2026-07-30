@@ -9,6 +9,9 @@ export const useServerRconStore = defineStore('serverRcon', () => {
     const rconSupportedFeatures = ref({
         rcon: false,
         playersManage: false,
+        playersList: false,
+        playersKick: false,
+        playersBan: false,
     })
     const output = ref('')
     const apiProcesses = ref(0)
@@ -51,7 +54,13 @@ export const useServerRconStore = defineStore('serverRcon', () => {
             if (error.__CANCEL__) {
                 return
             }
-            rconSupportedFeatures.value = { rcon: false, playersManage: false }
+            rconSupportedFeatures.value = {
+                rcon: false,
+                playersManage: false,
+                playersList: false,
+                playersKick: false,
+                playersBan: false,
+            }
         } finally {
             apiProcesses.value--
         }

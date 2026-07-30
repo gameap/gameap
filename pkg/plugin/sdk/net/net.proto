@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.net;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/net";
+
+// NetService provides host-managed socket I/O to plugins. The host opens and
+// guards the connection (address, timeouts, IP policy); a plugin only reads and
+// writes on a handle the host has already authorized for the current call.
+// There is deliberately no Dial: a plugin can never choose what to connect to.
+// go:plugin type=host module=gameap-net
+service NetService {
+  rpc Send(NetSendRequest) returns (NetSendResponse);
+  rpc Recv(NetRecvRequest) returns (NetRecvResponse);
+  rpc Close(NetCloseRequest) returns (NetCloseResponse);
+}
+
+message NetSendRequest {
+  uint64 handle = 1;
+  bytes data = 2;
+}
+
+message NetSendResponse {
+  int32 written = 1;
+  optional string error = 2;
+}
+
+message NetRecvRequest {
+  uint64 handle = 1;
+  // max_bytes caps a single read; the host also enforces its own ceiling.
+  uint32 max_bytes = 2;
+  // timeout_ms bounds this read; the host clamps it to its configured maximum.
+  uint32 timeout_ms = 3;
+}
+
+message NetRecvResponse {
+  bytes data = 1;
+  // timeout is true when the read deadline elapsed before any data arrived.
+  bool timeout = 2;
+  optional string error = 3;
+}
+
+message NetCloseRequest {
+  uint64 handle = 1;
+}
+
+message NetCloseResponse {
+  optional string error = 1;
+}

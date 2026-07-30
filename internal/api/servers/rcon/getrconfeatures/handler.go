@@ -7,6 +7,7 @@ import (
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
@@ -17,12 +18,14 @@ type Handler struct {
 	serverFinder   *serversbase.ServerFinder
 	abilityChecker *serversbase.AbilityChecker
 	gameRepo       repositories.GameRepository
+	resolver       *quercon.Resolver
 	responder      base.Responder
 }
 
 func NewHandler(
 	serverRepo repositories.ServerRepository,
 	gameRepo repositories.GameRepository,
+	resolver *quercon.Resolver,
 	rbac base.RBAC,
 	responder base.Responder,
 ) *Handler {
@@ -30,6 +33,7 @@ func NewHandler(
 		serverFinder:   serversbase.NewServerFinder(serverRepo, rbac),
 		abilityChecker: serversbase.NewAbilityChecker(rbac),
 		gameRepo:       gameRepo,
+		resolver:       resolver,
 		responder:      responder,
 	}
 }
@@ -97,5 +101,5 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	game := games[0]
 
-	h.responder.Write(ctx, rw, newFeaturesResponse(game))
+	h.responder.Write(ctx, rw, newFeaturesResponse(h.resolver, game))
 }
