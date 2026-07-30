@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	rconbase "github.com/gameap/gameap/internal/api/servers/rcon/base"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/internal/services"
@@ -19,6 +21,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func testResolver() *quercon.Resolver {
+	return quercon.New(quercon.Config{
+		BuiltinRconProtocol:  rconbase.DetermineProtocol,
+		BuiltinPlayerManager: rconbase.DeterminePlayerManager,
+	})
+}
 
 func allowUserAbilityForServer(
 	t *testing.T,
@@ -63,6 +72,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		expectFeatures        bool
 		expectedRcon          bool
 		expectedPlayersManage bool
+		expectedPlayersKick   bool
+		expectedPlayersBan    bool
 	}{
 		{
 			name:     "successful_features_retrieval__goldsource_engine",
@@ -113,6 +124,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectFeatures:        true,
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:     "successful_features_retrieval__source_engine",
@@ -213,6 +226,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectFeatures:        true,
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:     "successful_features_retrieval__hl_game",
@@ -263,6 +278,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectFeatures:        true,
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:     "players_management_only_user_can_read_features",
@@ -313,6 +330,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectFeatures:        true,
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:     "user_without_any_rcon_ability_is_forbidden",
@@ -560,7 +579,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			rbacRepo := inmemory.NewRBACRepository()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, gameRepo, rbacService, responder)
+			handler := NewHandler(serverRepo, gameRepo, testResolver(), rbacService, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(serverRepo, gameRepo, rbacRepo)
@@ -590,6 +609,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &features))
 				assert.Equal(t, tt.expectedRcon, features.Rcon)
 				assert.Equal(t, tt.expectedPlayersManage, features.PlayersManage)
+				assert.Equal(t, tt.expectedPlayersManage, features.PlayersList,
+					"playersManage must stay a faithful alias of playersList")
+				assert.Equal(t, tt.expectedPlayersKick, features.PlayersKick)
+				assert.Equal(t, tt.expectedPlayersBan, features.PlayersBan)
 			}
 		})
 	}
@@ -602,7 +625,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 	responder := api.NewResponder()
 
-	handler := NewHandler(serverRepo, gameRepo, rbacService, responder)
+	handler := NewHandler(serverRepo, gameRepo, testResolver(), rbacService, responder)
 
 	require.NotNil(t, handler)
 	assert.NotNil(t, handler.serverFinder)
@@ -616,24 +639,32 @@ func TestNewFeaturesResponse(t *testing.T) {
 		game                  domain.Game
 		expectedRcon          bool
 		expectedPlayersManage bool
+		expectedPlayersKick   bool
+		expectedPlayersBan    bool
 	}{
 		{
 			name:                  "goldsource_engine_with_cs_game",
 			game:                  domain.Game{Code: "cs", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:                  "goldsource_engine_with_hl_game",
 			game:                  domain.Game{Code: "hl", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:                  "goldsource_engine_with_tfc_game",
 			game:                  domain.Game{Code: "tfc", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:                  "goldsource_engine_with_unsupported_game",
@@ -652,6 +683,8 @@ func TestNewFeaturesResponse(t *testing.T) {
 			game:                  domain.Game{Code: "cs", Engine: "unreal"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:                  "unsupported_engine_with_unsupported_game",
@@ -670,20 +703,27 @@ func TestNewFeaturesResponse(t *testing.T) {
 			game:                  domain.Game{Code: "cstrike", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:                  "valve_game_code",
 			game:                  domain.Game{Code: "valve", Engine: "goldsource"},
 			expectedRcon:          true,
 			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response := newFeaturesResponse(tt.game)
+			response := newFeaturesResponse(testResolver(), tt.game)
 			assert.Equal(t, tt.expectedRcon, response.Rcon)
 			assert.Equal(t, tt.expectedPlayersManage, response.PlayersManage)
+			assert.Equal(t, tt.expectedPlayersManage, response.PlayersList)
+			assert.Equal(t, tt.expectedPlayersKick, response.PlayersKick)
+			assert.Equal(t, tt.expectedPlayersBan, response.PlayersBan)
 		})
 	}
 }

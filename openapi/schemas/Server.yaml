@@ -53,8 +53,18 @@ properties:
     example: "2024-12-31T23:59:59Z"
   server_ip:
     type: string
-    description: Server IP address
-    example: "192.168.1.100"
+    description: >-
+      Published server address, shown the same way to every viewer. Equals the `public_ip`
+      metadata value when one is set, so a node behind NAT does not expose its LAN address,
+      and falls back to the address the daemon connects to otherwise.
+    example: "203.0.113.10"
+  internal_server_ip:
+    type: string
+    description: >-
+      Address the daemon connects to, as stored on the server record. Returned to
+      administrators only; this is the value to send back in `server_ip` when updating
+      the server, since `server_ip` in responses may be the published address.
+    example: "10.0.0.5"
   server_port:
     type: integer
     description: Server port
@@ -154,6 +164,14 @@ properties:
     example:
       maxplayers: "32"
       hostname: "My Server"
+  metadata:
+    type:
+      - object
+      - "null"
+    additionalProperties: true
+    description: Server metadata (arbitrary key-value pairs)
+    example:
+      docker_image: "gameap/srcds:latest"
   created_at:
     type:
       - string

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/quercon/rcon"
+	"github.com/gameap/gameap/pkg/quercon/rcon/players"
 	"github.com/pkg/errors"
 )
 
@@ -33,6 +34,13 @@ var mapProtocolByGameCode = map[string]rcon.Protocol{
 	"tf2":       rcon.ProtocolSource,  // Team Fortress 2
 	"tfc":       rcon.ProtocolGoldSrc, // Team Fortress Classic
 	"valve":     rcon.ProtocolGoldSrc, // Half-Life
+	"q2":        rcon.ProtocolQuake2,  // Quake 2
+	"q3":        rcon.ProtocolQuake3,  // Quake 3
+	"cod4":      rcon.ProtocolQuake3,  // Call of Duty 4
+	"samp":      rcon.ProtocolSAMP,    // GTA: San Andreas Multiplayer
+	"arma2":     rcon.ProtocolBattlEye,
+	"arma2oa":   rcon.ProtocolBattlEye,
+	"arma3":     rcon.ProtocolBattlEye,
 }
 
 var mapProtocolByEngine = map[string]rcon.Protocol{
@@ -40,10 +48,48 @@ var mapProtocolByEngine = map[string]rcon.Protocol{
 	"goldsrc":    rcon.ProtocolGoldSrc,
 	"source":     rcon.ProtocolSource,
 	"minecraft":  rcon.ProtocolSource,
+	"q2":         rcon.ProtocolQuake2,
+	"q3":         rcon.ProtocolQuake3,
+	"cod4":       rcon.ProtocolQuake3,
+	"samp":       rcon.ProtocolSAMP,
+	"arma":       rcon.ProtocolBattlEye,
+	"arma3":      rcon.ProtocolBattlEye,
+
+	// Engine names used by panels seeded from an older catalogue snapshot. The current
+	// catalogue calls these arma/arma3, and a games upgrade rewrites them, but an installation
+	// that never ran one still carries the old spelling.
+	"armedassault2":   rcon.ProtocolBattlEye,
+	"armedassault2oa": rcon.ProtocolBattlEye,
+	"armedassault3":   rcon.ProtocolBattlEye,
+}
+
+// legacyIDTechEngine is the id Tech family name an older catalogue snapshot used for both
+// Quake 2 and Quake 3; only the engine version tells them apart. The current catalogue uses
+// q2 and q3 directly.
+const legacyIDTechEngine = "idtech"
+
+var mapIDTechVersionToEngine = map[string]string{
+	"2": "q2",
+	"3": "q3",
+}
+
+// canonicalEngine lower-cases the engine and resolves the one alias that cannot be expressed as
+// a plain lookup key, because it depends on the engine version as well.
+func canonicalEngine(game domain.Game) string {
+	engine := strings.ToLower(game.Engine)
+	if engine != legacyIDTechEngine {
+		return engine
+	}
+
+	if resolved, ok := mapIDTechVersionToEngine[strings.TrimSpace(game.EngineVersion)]; ok {
+		return resolved
+	}
+
+	return engine
 }
 
 func DetermineProtocol(game domain.Game) (rcon.Protocol, error) {
-	protocol, err := DetermineProtocolByEngine(game.Engine)
+	protocol, err := DetermineProtocolByEngine(canonicalEngine(game))
 	if err == nil {
 		return protocol, nil
 	}
@@ -67,4 +113,15 @@ func DetermineProtocolByGameCode(gameCode string) (rcon.Protocol, error) {
 	}
 
 	return "", errors.Errorf("unable to determine RCON protocol for game code: %s", gameCode)
+}
+
+// DeterminePlayerManager picks the players-list parser for a game. The engine family is tried
+// first so a custom game with its own code still resolves, then the game-code table, which is
+// where the Valve and Minecraft parsers live.
+func DeterminePlayerManager(game domain.Game) (players.PlayerManager, error) {
+	if manager, err := players.NewPlayerManagerByEngine(canonicalEngine(game)); err == nil {
+		return manager, nil
+	}
+
+	return players.NewPlayerManagerByGameCode(game.Code)
 }

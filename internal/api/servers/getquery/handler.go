@@ -2,33 +2,35 @@ package getquery
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
-	"github.com/gameap/gameap/pkg/quercon/query"
 	"github.com/pkg/errors"
 )
 
 type Handler struct {
 	serverFinder *serversbase.ServerFinder
 	gameRepo     repositories.GameRepository
+	resolver     *quercon.Resolver
 	responder    base.Responder
 }
 
 func NewHandler(
 	serverRepo repositories.ServerRepository,
 	gameRepo repositories.GameRepository,
+	resolver *quercon.Resolver,
 	rbac base.RBAC,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
 		serverFinder: serversbase.NewServerFinder(serverRepo, rbac),
 		gameRepo:     gameRepo,
+		resolver:     resolver,
 		responder:    responder,
 	}
 }
@@ -90,17 +92,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	game := games[0]
 
-	queryProtocol, ok := getQueryProtocolByEngine(strings.ToLower(game.Engine))
-	if !ok {
+	result, err := h.resolver.Query(ctx, game, server.ServerIP, port)
+	if errors.Is(err, quercon.ErrQueryProtocolUnsupported) {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.New("unsupported game engine for query"),
+			err,
 			http.StatusBadRequest,
 		))
 
 		return
 	}
 
-	result, err := query.Query(ctx, server.ServerIP, port, queryProtocol)
 	if err != nil && (result == nil || !result.Online) {
 		h.responder.Write(ctx, rw, newQueryResponse(nil, server))
 

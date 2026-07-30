@@ -47,6 +47,53 @@ func TestDetermineProtocolByEngine(t *testing.T) {
 			want:   rcon.ProtocolGoldSrc,
 		},
 		{
+			name:   "quake3_engine",
+			engine: "q3",
+			want:   rcon.ProtocolQuake3,
+		},
+		{
+			name:   "quake2_engine",
+			engine: "q2",
+			want:   rcon.ProtocolQuake2,
+		},
+		{
+			name:   "call_of_duty_engine",
+			engine: "cod4",
+			want:   rcon.ProtocolQuake3,
+		},
+		{
+			name:   "samp_engine",
+			engine: "samp",
+			want:   rcon.ProtocolSAMP,
+		},
+		{
+			name:   "arma_engine",
+			engine: "arma",
+			want:   rcon.ProtocolBattlEye,
+		},
+		{
+			name:   "arma3_engine",
+			engine: "arma3",
+			want:   rcon.ProtocolBattlEye,
+		},
+		{
+			name:   "legacy_armedassault2oa_engine",
+			engine: "armedassault2oa",
+			want:   rcon.ProtocolBattlEye,
+		},
+		{
+			name:   "legacy_armedassault3_engine",
+			engine: "ArmedAssault3",
+			want:   rcon.ProtocolBattlEye,
+		},
+		{
+			// idtech alone is ambiguous between Quake 2 and Quake 3; only DetermineProtocol,
+			// which sees the engine version, can resolve it.
+			name:      "bare_idtech_engine_is_ambiguous",
+			engine:    "idtech",
+			wantError: "unable to determine RCON protocol for engine",
+		},
+		{
 			name:      "unsupported_engine",
 			engine:    "unreal",
 			wantError: "unable to determine RCON protocol for engine",
@@ -124,6 +171,36 @@ func TestDetermineProtocolByGameCode(t *testing.T) {
 			want:     rcon.ProtocolGoldSrc,
 		},
 		{
+			name:     "quake3_code",
+			gameCode: "q3",
+			want:     rcon.ProtocolQuake3,
+		},
+		{
+			name:     "quake2_code",
+			gameCode: "q2",
+			want:     rcon.ProtocolQuake2,
+		},
+		{
+			name:     "cod4_code",
+			gameCode: "cod4",
+			want:     rcon.ProtocolQuake3,
+		},
+		{
+			name:     "samp_code",
+			gameCode: "samp",
+			want:     rcon.ProtocolSAMP,
+		},
+		{
+			name:     "arma2oa_code",
+			gameCode: "arma2oa",
+			want:     rcon.ProtocolBattlEye,
+		},
+		{
+			name:     "arma3_code",
+			gameCode: "arma3",
+			want:     rcon.ProtocolBattlEye,
+		},
+		{
 			name:      "unknown_game_code",
 			gameCode:  "doom",
 			wantError: "unable to determine RCON protocol for game code",
@@ -197,6 +274,43 @@ func TestDetermineProtocol(t *testing.T) {
 			name: "goldsource_engine_alias",
 			game: domain.Game{Engine: "goldsource", Code: ""},
 			want: rcon.ProtocolGoldSrc,
+		},
+		{
+			name: "current_catalogue_quake3",
+			game: domain.Game{Engine: "q3", EngineVersion: "3", Code: "q3"},
+			want: rcon.ProtocolQuake3,
+		},
+		{
+			name: "current_catalogue_arma2_shares_the_arma_engine",
+			game: domain.Game{Engine: "arma", EngineVersion: "2", Code: "arma2oa"},
+			want: rcon.ProtocolBattlEye,
+		},
+		{
+			// Panels seeded from an older catalogue snapshot carry idtech plus a version.
+			name: "legacy_idtech_version_2_is_quake2",
+			game: domain.Game{Engine: "idtech", EngineVersion: "2", Code: "q2"},
+			want: rcon.ProtocolQuake2,
+		},
+		{
+			name: "legacy_idtech_version_3_is_quake3",
+			game: domain.Game{Engine: "idtech", EngineVersion: "3", Code: "q3"},
+			want: rcon.ProtocolQuake3,
+		},
+		{
+			// An unusable version falls through to the game code rather than guessing.
+			name: "legacy_idtech_without_version_falls_back_to_code",
+			game: domain.Game{Engine: "idtech", Code: "q3"},
+			want: rcon.ProtocolQuake3,
+		},
+		{
+			name:      "legacy_idtech_with_unknown_version_and_code",
+			game:      domain.Game{Engine: "idtech", EngineVersion: "1", Code: "quake1"},
+			wantError: "unable to determine RCON protocol for game code",
+		},
+		{
+			name:      "multi_theft_auto_has_no_rcon",
+			game:      domain.Game{Engine: "mta", EngineVersion: "1.0", Code: "mta"},
+			wantError: "unable to determine RCON protocol for game code",
 		},
 	}
 

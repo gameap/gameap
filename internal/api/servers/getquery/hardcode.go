@@ -15,7 +15,9 @@ var queryProtocolsByEngine = map[string]query.Protocol{
 	"source":      query.ProtocolSource,
 }
 
-func getQueryProtocolByEngine(engine string) (query.Protocol, bool) {
+// QueryProtocolByEngine looks up the built-in query protocol for a (lowercased)
+// engine name. It is the built-in fallback wired into the quercon resolver.
+func QueryProtocolByEngine(engine string) (query.Protocol, bool) {
 	protocol, ok := queryProtocolsByEngine[engine]
 
 	return protocol, ok

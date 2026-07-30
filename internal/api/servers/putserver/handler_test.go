@@ -1390,6 +1390,93 @@ func TestHandler_ServerUpdatePersistence_WithVarsAndLimits(t *testing.T) {
 	assert.Equal(t, 4294967296, *server.RAMLimit)
 }
 
+func TestHandler_ServerUpdatePersistence_WithMetadata(t *testing.T) {
+	tests := []struct {
+		name         string
+		metadata     any
+		omitMetadata bool
+		wantMetadata domain.Metadata
+	}{
+		{
+			name:         "metadata_is_saved",
+			metadata:     map[string]any{"docker_image": "gameap/srcds:latest", "docker_privileged": "true"},
+			wantMetadata: domain.Metadata{"docker_image": "gameap/srcds:latest", "docker_privileged": "true"},
+		},
+		{
+			name:         "empty_metadata_clears_stored_keys",
+			metadata:     map[string]any{},
+			wantMetadata: domain.Metadata{},
+		},
+		{
+			name:         "omitted_metadata_keeps_stored_keys",
+			omitMetadata: true,
+			wantMetadata: domain.Metadata{"docker_image": "gameap/debian"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			serverRepo := inmemory.NewServerRepository()
+			nodeRepo := inmemory.NewNodeRepository()
+			gameRepo := inmemory.NewGameRepository()
+			gameModRepo := inmemory.NewGameModRepository()
+			responder := api.NewResponder()
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, nil, nil, nil, responder)
+
+			require.NoError(t, gameRepo.Save(context.Background(), &domain.Game{Code: "cstrike"}))
+			require.NoError(t, gameModRepo.Save(context.Background(), &domain.GameMod{ID: 1, GameCode: "cstrike"}))
+
+			require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{
+				ID:         1,
+				UID:        uuid.New(),
+				UUIDShort:  "12345678",
+				Name:       "Original Server",
+				GameID:     "cstrike",
+				DSID:       1,
+				GameModID:  1,
+				ServerIP:   "192.168.1.1",
+				ServerPort: 27015,
+				Metadata:   domain.Metadata{"docker_image": "gameap/debian"},
+			}))
+
+			updateData := map[string]any{
+				"name":        "Updated Server Name",
+				"game_id":     "cstrike",
+				"ds_id":       1,
+				"game_mod_id": 1,
+				"server_ip":   "192.168.1.1",
+				"server_port": 27015,
+			}
+
+			if !test.omitMetadata {
+				updateData["metadata"] = test.metadata
+			}
+
+			body, err := json.Marshal(updateData)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPut, "/servers/1", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req = mux.SetURLVars(req, map[string]string{"id": "1"})
+			req = req.WithContext(auth.ContextWithSession(req.Context(), &auth.Session{
+				User: &domain.User{ID: 1},
+			}))
+
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+			servers, err := serverRepo.FindAll(context.Background(), nil, nil)
+			require.NoError(t, err)
+			require.Len(t, servers, 1)
+
+			assert.Equal(t, test.wantMetadata, servers[0].Metadata)
+		})
+	}
+}
+
 func TestHandler_InvalidServerID(t *testing.T) {
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()

@@ -60,7 +60,7 @@ func newServerResponseFromServer(s *domain.Server, gamesByCode map[string]*domai
 		DSID:             s.DSID,
 		GameModID:        s.GameModID,
 		Expires:          s.Expires,
-		ServerIP:         s.ServerIP,
+		ServerIP:         s.VisibleServerIP(),
 		ServerPort:       s.ServerPort,
 		QueryPort:        s.QueryPort,
 		RconPort:         s.RconPort,

@@ -381,7 +381,11 @@ const showRconConsolePanel = computed(() => {
 })
 
 const showRconPlayersPanel = computed(() => {
-  return serverRconStore.canManageRconPlayers && rconSupportedFeatures.value.playersManage
+  // playersManage is the pre-split name of playersList; the fallback keeps a cached bundle
+  // working against a newer server.
+  const canList = rconSupportedFeatures.value.playersList ?? rconSupportedFeatures.value.playersManage
+
+  return serverRconStore.canManageRconPlayers && canList
 })
 
 const rconTabPossible = computed(() => {

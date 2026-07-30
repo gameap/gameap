@@ -242,6 +242,15 @@
           application/json:
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
+      '400':
+        description: >-
+          Invalid request body. Player identity and reason fields must not
+          contain line breaks, ";" or NUL, since those would split the RCON
+          command and smuggle an extra console command.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
         content:

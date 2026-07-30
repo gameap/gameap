@@ -386,6 +386,81 @@ func TestUpdateServerInput_Validate(t *testing.T) {
 			}(),
 			wantError: ErrInvalidDir.Error(),
 		},
+		{
+			name: "metadata_without_public_ip_accepted",
+			input: func() updateServerInput {
+				in := validInput()
+				in.Metadata = domain.Metadata{"docker_image": "gameap/debian"}
+
+				return in
+			}(),
+		},
+		{
+			name: "public_ip_address_accepted",
+			input: func() updateServerInput {
+				in := validInput()
+				in.Metadata = domain.Metadata{"public_ip": "203.0.113.10"}
+
+				return in
+			}(),
+		},
+		{
+			name: "public_ip_hostname_accepted",
+			input: func() updateServerInput {
+				in := validInput()
+				in.Metadata = domain.Metadata{"public_ip": "play.example.com"}
+
+				return in
+			}(),
+		},
+		{
+			name: "blank_public_ip_clears_the_override",
+			input: func() updateServerInput {
+				in := validInput()
+				in.Metadata = domain.Metadata{"public_ip": "   "}
+
+				return in
+			}(),
+		},
+		{
+			name: "null_public_ip_clears_the_override",
+			input: func() updateServerInput {
+				in := validInput()
+				in.Metadata = domain.Metadata{"public_ip": nil}
+
+				return in
+			}(),
+		},
+		{
+			name: "malformed_public_ip_rejected",
+			input: func() updateServerInput {
+				in := validInput()
+				in.Metadata = domain.Metadata{"public_ip": "203.0.113.999"}
+
+				return in
+			}(),
+			wantError: ErrInvalidPublicIP.Error(),
+		},
+		{
+			name: "public_ip_with_port_rejected",
+			input: func() updateServerInput {
+				in := validInput()
+				in.Metadata = domain.Metadata{"public_ip": "203.0.113.10:27015"}
+
+				return in
+			}(),
+			wantError: ErrInvalidPublicIP.Error(),
+		},
+		{
+			name: "non_string_public_ip_rejected",
+			input: func() updateServerInput {
+				in := validInput()
+				in.Metadata = domain.Metadata{"public_ip": 12345}
+
+				return in
+			}(),
+			wantError: ErrInvalidPublicIP.Error(),
+		},
 	}
 
 	for _, tt := range tests {

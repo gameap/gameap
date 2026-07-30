@@ -48,6 +48,7 @@ import (
 	pubsubpg "github.com/gameap/gameap/internal/pubsub/postgres"
 	pubsubredis "github.com/gameap/gameap/internal/pubsub/redis"
 	"github.com/gameap/gameap/internal/pubsub/retry"
+	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/base"
@@ -202,6 +203,8 @@ type Container struct {
 	pluginDispatcher *pkgplugin.Dispatcher
 	pluginRepository repositories.PluginRepository
 	pluginLoader     *internalplugin.Loader
+	querconResolver  *quercon.Resolver
+	netConnRegistry  *pkgplugin.ConnRegistry
 
 	// HTTP
 	router                    *http.ServeMux
@@ -1899,7 +1902,37 @@ func (c *Container) PluginManager() *pkgplugin.Manager {
 	return c.pluginManager
 }
 
+func (c *Container) connRegistry() *pkgplugin.ConnRegistry {
+	if c.netConnRegistry == nil {
+		c.netConnRegistry = pkgplugin.NewConnRegistry(c.config.Plugin.Net.MaxConnections)
+	}
+
+	return c.netConnRegistry
+}
+
 func (c *Container) createPluginManager() *pkgplugin.Manager {
+	factories := []pkgplugin.HostLibraryFactory{
+		hostlibrary.NewStorageHostLibraryFactory(c.PluginStorageRepository()),
+		hostlibrary.NewLogHostLibraryFactory(slog.Default()),
+		// Per-plugin: the module is gated on the plugin's own
+		// manage_rbac grant, so it needs to know which plugin it serves.
+		hostlibrary.NewRBACHostLibraryFactory(
+			c.RBAC(),
+			c.RBACRepository(),
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+		),
+	}
+
+	if c.config.Plugin.Net.Enabled {
+		factories = append(factories, hostlibrary.NewNetHostLibraryFactory(
+			c.connRegistry(),
+			hostlibrary.NetConfig{
+				MaxReadBytes: c.config.Plugin.Net.ReadBufferBytes,
+				MaxTimeout:   time.Duration(c.config.Plugin.Net.MaxTimeoutSeconds) * time.Second,
+			},
+		))
+	}
+
 	return pkgplugin.NewManager(pkgplugin.ManagerConfig{
 		Libraries: []pkgplugin.HostLibrary{
 			hostlibrary.NewServersHostLibrary(c.ServerRepository()),
@@ -1927,17 +1960,7 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			hostlibrary.NewCryptoHostLibrary(),
 			hostlibrary.NewAuthzHostLibrary(c.RBAC()),
 		},
-		LibraryFactories: []pkgplugin.HostLibraryFactory{
-			hostlibrary.NewStorageHostLibraryFactory(c.PluginStorageRepository()),
-			hostlibrary.NewLogHostLibraryFactory(slog.Default()),
-			// Per-plugin: the module is gated on the plugin's own
-			// manage_rbac grant, so it needs to know which plugin it serves.
-			hostlibrary.NewRBACHostLibraryFactory(
-				c.RBAC(),
-				c.RBACRepository(),
-				hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
-			),
-		},
+		LibraryFactories: factories,
 	})
 }
 

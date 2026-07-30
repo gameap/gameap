@@ -49,6 +49,15 @@ var queryProtocolFuncsMap = map[Protocol]func(ctx context.Context, host string, 
 	"raknet":    queryRakNet,
 }
 
+// IsProtocolSupported reports whether the package implements the named query protocol. It reads
+// the same registry Query dispatches on, so a caller validating a protocol name up front cannot
+// disagree with what Query would actually do.
+func IsProtocolSupported(protocol Protocol) bool {
+	_, ok := queryProtocolFuncsMap[protocol]
+
+	return ok
+}
+
 func Query(ctx context.Context, host string, port int, protocol Protocol) (*Result, error) {
 	queryFunc, ok := queryProtocolFuncsMap[protocol]
 	if !ok {

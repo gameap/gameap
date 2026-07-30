@@ -225,6 +225,7 @@
               :labels="[trans('labels.key'), trans('labels.the_value')]"
               :keys="['key', 'value']"
               :input-types="['text', 'text']"
+              :reference="metadataKeyGroups"
           />
         </n-tab-pane>
 
@@ -293,6 +294,7 @@ import {
 import GButton from "../../../components/GButton.vue";
 import GFixedBottomBar from "../../../components/GFixedBottomBar.vue";
 import InputManyList from "../../../components/input/InputManyList.vue";
+import {metadataKeyGroups} from "../../../parts/metadataKeys";
 
 const formRef = ref({})
 const form = defineModel({})
