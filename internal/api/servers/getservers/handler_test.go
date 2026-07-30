@@ -406,6 +406,54 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			wantError:      "invalid filter[enabled] value",
 		},
+		{
+			name: "user_gets_public_ip_when_set",
+			setupAuth: func() context.Context {
+				return sessionFor(&testUser1)
+			},
+			setupRepo: func(serverRepo *inmemory.ServerRepository, _ *inmemory.GameRepository, _ *inmemory.RBACRepository) {
+				saveServer(t, serverRepo, testUser1.ID, &domain.Server{
+					ID: 1, UID: uuid.New(), UUIDShort: "nat1", Enabled: true, Name: "Behind NAT",
+					GameID: "cs", DSID: 1, GameModID: 1, ServerIP: "10.0.0.5", ServerPort: 27015,
+					Metadata: domain.Metadata{"public_ip": "203.0.113.10"},
+				})
+				saveServer(t, serverRepo, testUser1.ID, &domain.Server{
+					ID: 2, UID: uuid.New(), UUIDShort: "pub2", Enabled: true, Name: "No metadata",
+					GameID: "cs", DSID: 1, GameModID: 1, ServerIP: "10.0.0.6", ServerPort: 27016,
+				})
+			},
+			expectedStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, resp *base.PaginatedResponse[serverResponse]) {
+				t.Helper()
+				require.Len(t, resp.Data, 2)
+				assert.Equal(t, "203.0.113.10", resp.Data[0].ServerIP)
+				assert.Equal(t, "10.0.0.6", resp.Data[1].ServerIP)
+			},
+		},
+		{
+			name: "admin_gets_public_ip_too",
+			setupAuth: func() context.Context {
+				return sessionFor(&testAdminUser)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				_ *inmemory.GameRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				setupAdminUser(t, rbacRepo, testAdminUser.ID)
+				saveServer(t, serverRepo, testUser1.ID, &domain.Server{
+					ID: 1, UID: uuid.New(), UUIDShort: "nat1", Enabled: true, Name: "Behind NAT",
+					GameID: "cs", DSID: 1, GameModID: 1, ServerIP: "10.0.0.5", ServerPort: 27015,
+					Metadata: domain.Metadata{"public_ip": "203.0.113.10"},
+				})
+			},
+			expectedStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, resp *base.PaginatedResponse[serverResponse]) {
+				t.Helper()
+				require.Len(t, resp.Data, 1)
+				assert.Equal(t, "203.0.113.10", resp.Data[0].ServerIP)
+			},
+		},
 	}
 
 	for _, tt := range tests {

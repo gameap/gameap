@@ -141,7 +141,7 @@
                 v-model:server-port="serverForm.serverPort"
                 v-model:rcon-port="serverForm.rconPort"
                 v-model:query-port="serverForm.queryPort"
-                :initial-server-ip="server.server_ip"
+                :initial-server-ip="server.internal_server_ip ?? server.server_ip"
                 :initial-server-port="server.server_port"
                 :initial-query-port="server.query_port"
                 :initial-rcon-port="server.rcon_port"
@@ -267,6 +267,7 @@
                 :labels="[trans('labels.key'), trans('labels.the_value')]"
                 :keys="['key', 'value']"
                 :input-types="['text', 'text']"
+                :reference="metadataKeyGroups"
             />
           </div>
         </n-card>
@@ -300,6 +301,7 @@ import {useServerStore} from "@/store/server"
 import {useGameListStore} from "@/store/gameList"
 import {useNodeListStore} from "@/store/nodeList"
 import {requiredValidator} from "@/parts/validators";
+import {metadataKeyGroups} from "@/parts/metadataKeys";
 import SmartPortSelector from "@/components/servers/SmartPortSelector.vue";
 import DsIpSelector from "@/components/servers/DsIpSelector.vue";
 import GameModSelector from "@/components/servers/GameModSelector.vue";
@@ -342,7 +344,9 @@ onMounted(() => {
 
   serverStore.fetchServer().then(() => {
     serverForm.value.name = server.value.name
-    serverForm.value.ip = server.value.server_ip
+    // server_ip carries the published address (public_ip metadata when set), which
+    // is what every viewer sees. The form edits the address the daemon connects to.
+    serverForm.value.ip = server.value.internal_server_ip ?? server.value.server_ip
     serverForm.value.serverPort = server.value.server_port
     serverForm.value.queryPort = server.value.query_port
     serverForm.value.rconPort = server.value.rcon_port

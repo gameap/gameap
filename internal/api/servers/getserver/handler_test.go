@@ -284,6 +284,115 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	}
 }
 
+func TestHandler_PublicIPVisibility(t *testing.T) {
+	tests := []struct {
+		name     string
+		metadata domain.Metadata
+		isAdmin  bool
+		wantIP   string
+	}{
+		{
+			name:     "user_gets_public_ip",
+			metadata: domain.Metadata{"public_ip": "203.0.113.10"},
+			isAdmin:  false,
+			wantIP:   "203.0.113.10",
+		},
+		{
+			name:     "user_gets_real_ip_without_public_ip",
+			metadata: domain.Metadata{"docker_image": "gameap/debian"},
+			isAdmin:  false,
+			wantIP:   "10.0.0.5",
+		},
+		{
+			name:     "user_gets_real_ip_when_public_ip_blank",
+			metadata: domain.Metadata{"public_ip": "  "},
+			isAdmin:  false,
+			wantIP:   "10.0.0.5",
+		},
+		{
+			name:     "admin_gets_public_ip_too",
+			metadata: domain.Metadata{"public_ip": "203.0.113.10"},
+			isAdmin:  true,
+			wantIP:   "203.0.113.10",
+		},
+		{
+			name:     "admin_gets_real_ip_without_public_ip",
+			metadata: nil,
+			isAdmin:  true,
+			wantIP:   "10.0.0.5",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			serverRepo := inmemory.NewServerRepository()
+			gameRepo := inmemory.NewGameRepository()
+			gameModRepo := inmemory.NewGameModRepository()
+			serverSettingRepo := inmemory.NewServerSettingRepository()
+			rbacRepo := inmemory.NewRBACRepository()
+			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+			responder := api.NewResponder()
+			handler := NewHandler(serverRepo, gameRepo, gameModRepo, serverSettingRepo, rbacService, responder)
+
+			user := testUser1
+			if test.isAdmin {
+				user = testUser2
+
+				adminAbility := &domain.Ability{ID: 1, Name: domain.AbilityNameAdminRolesPermissions}
+				require.NoError(t, rbacRepo.SaveAbility(context.Background(), adminAbility))
+				require.NoError(t, rbacRepo.AssignAbilityToUser(context.Background(), user.ID, adminAbility.ID))
+			}
+
+			require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{
+				ID:         1,
+				UID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+				UUIDShort:  "short1",
+				Enabled:    true,
+				Installed:  1,
+				Name:       "Test Server",
+				GameID:     "cs",
+				DSID:       1,
+				GameModID:  1,
+				ServerIP:   "10.0.0.5",
+				ServerPort: 27015,
+				Dir:        "/home/gameap/servers/test1",
+				Metadata:   test.metadata,
+			}))
+			serverRepo.AddUserServer(user.ID, 1)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/servers/1", nil)
+			req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+				Login: user.Login,
+				Email: user.Email,
+				User:  &user,
+			}))
+			req = mux.SetURLVars(req, map[string]string{"id": "1"})
+
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+			var response struct {
+				ServerIP         string         `json:"server_ip"`
+				InternalServerIP string         `json:"internal_server_ip"`
+				Aliases          map[string]any `json:"aliases"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+			assert.Equal(t, test.wantIP, response.ServerIP)
+
+			if test.isAdmin {
+				// The edit form round-trips internal_server_ip, and aliases feed the
+				// start command: both must keep the address the daemon connects to.
+				assert.Equal(t, "10.0.0.5", response.InternalServerIP)
+				assert.Equal(t, "10.0.0.5", response.Aliases["ip"])
+			}
+		})
+	}
+}
+
 func TestHandler_ServerResponseFields(t *testing.T) {
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
