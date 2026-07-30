@@ -458,7 +458,7 @@
     "example": "Example",
     "group_panel": "Control panel",
     "group_panel_hint": "The panel reads these keys from the game server metadata.",
-    "public_ip": "Public IP address shown to regular users in the server list instead of server_ip. Lets you hide the internal network address.",
+    "public_ip": "Public address shown instead of server_ip in the server list and on the server page, the same way for everyone including administrators. Use it when the node sits behind NAT and its internal network address must stay hidden. The address the daemon connects to is unchanged and stays editable on this page.",
     "group_container": "Containers (Docker / Podman)",
     "group_container_hint": "The daemon resolves these keys in order: server variables, then game mod metadata, then game metadata. Values must be strings.",
     "docker_image": "Image the game server runs in. If the tag is omitted, ':latest' is added. Default: docker.io/gameap/debian.",
