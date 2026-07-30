@@ -267,6 +267,7 @@
                 :labels="[trans('labels.key'), trans('labels.the_value')]"
                 :keys="['key', 'value']"
                 :input-types="['text', 'text']"
+                :reference="metadataKeyGroups"
             />
           </div>
         </n-card>
@@ -300,6 +301,7 @@ import {useServerStore} from "@/store/server"
 import {useGameListStore} from "@/store/gameList"
 import {useNodeListStore} from "@/store/nodeList"
 import {requiredValidator} from "@/parts/validators";
+import {metadataKeyGroups} from "@/parts/metadataKeys";
 import SmartPortSelector from "@/components/servers/SmartPortSelector.vue";
 import DsIpSelector from "@/components/servers/DsIpSelector.vue";
 import GameModSelector from "@/components/servers/GameModSelector.vue";

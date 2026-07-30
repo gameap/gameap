@@ -57,6 +57,7 @@ type updateServerInput struct {
 	Dir          *string           `json:"dir,omitempty"`
 	SuUser       *string           `json:"su_user,omitempty"`
 	Vars         map[string]string `json:"vars,omitempty"`
+	Metadata     domain.Metadata   `json:"metadata,omitempty"`
 	CPULimit     *flexible.Int     `json:"cpu_limit,omitempty"`
 	RAMLimit     *flexible.Int     `json:"ram_limit,omitempty"`
 }
@@ -170,6 +171,10 @@ func (in *updateServerInput) Apply(server *domain.Server) error {
 
 	if in.Vars != nil {
 		server.Vars = in.Vars
+	}
+
+	if in.Metadata != nil {
+		server.Metadata = in.Metadata
 	}
 
 	if in.CPULimit != nil {
