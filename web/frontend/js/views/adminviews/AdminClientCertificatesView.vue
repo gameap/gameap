@@ -91,7 +91,7 @@ const clientCertificatesStore = useClientCertificatesStore()
 
 const breadcrumbs = computed(() => {
   return [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'admin.nodes.index'}, 'text':trans('sidebar.dedicated_servers')},
     {'route':{name: 'admin.client_certificates.index'}, 'text':trans('client_certificates.client_certificates')},
   ]

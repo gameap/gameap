@@ -82,7 +82,7 @@ const pluginsStore = usePluginsStore()
 
 const breadcrumbs = computed(() => {
   return [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'admin.users.index'}, 'text':trans('users.users')},
   ]
 })

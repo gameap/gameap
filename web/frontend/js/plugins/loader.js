@@ -171,7 +171,7 @@ async function registerPluginDefinition(pluginDef, store) {
             store.registerSlotComponent('home-buttons', pluginId, btn.component || null, {
                 order: btn.order || 0,
                 label: btn.name,
-                icon: btn.icon || 'fas fa-puzzle-piece',
+                icon: btn.icon || 'puzzle-piece',
                 name: btn.name,
                 props: {
                     route: btn.route ? normalizeRoute(btn.route, pluginId) : { name: `plugin.${pluginId}.index` }

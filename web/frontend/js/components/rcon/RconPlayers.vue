@@ -23,7 +23,7 @@
                 <td v-if="ipRow">{{ value.ip }}</td>
                 <td v-if="showActions" class="grid grid-cols-2 gap-x-4">
                   <GButton v-if="canKick" color="black" size="small" class="mb-2" v-on:click="openDialog('kick', key)">
-                    <i class="gicon gicon-kick mr-1"></i>
+                    <GIcon name="kick" class="mr-1" />
                     <span class="hidden lg:inline">{{ trans('rcon.kick') }}</span>
                   </GButton>
 

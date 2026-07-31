@@ -20,6 +20,7 @@ export { default as GGameIcon } from './components/GGameIcon.vue'
 
 export { registerIcons, iconRegistry, getIcon, hasIcon } from './icons/registry.js'
 export { defaultIconMap } from './icons/iconMap.js'
+export { defineSvgIcon, isSvgIcon } from './icons/svgData.js'
 
 import GBreadcrumbs from './components/GBreadcrumbs.vue'
 import GDeletableList from './components/GDeletableList.vue'

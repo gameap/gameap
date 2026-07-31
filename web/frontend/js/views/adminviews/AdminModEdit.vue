@@ -13,12 +13,13 @@
 
 <script setup>
 import { GBreadcrumbs, Loading } from "@gameap/ui"
-import {computed, ref, onMounted} from "vue"
+import {computed, ref} from "vue"
 import { camelCase, snakeCase } from "lodash-es"
 import {trans} from "@/i18n/i18n"
 import UpdateModForm from "./forms/UpdateModForm.vue"
 import {useGameStore} from "@/store/game"
 import {useGameModStore} from "@/store/gameMod"
+import {useInitialLoad} from "@/composables/useInitialLoad"
 import {errorNotification, notification} from "@/parts/dialogs"
 import {storeToRefs} from "pinia"
 import {useRoute, useRouter} from "vue-router"
@@ -31,7 +32,7 @@ const gameModStore = useGameModStore()
 
 const breadcrumbs = computed(() => {
   let result = [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'admin.games.index'}, 'text':trans('games.games')},
   ]
 
@@ -59,32 +60,28 @@ const breadcrumbs = computed(() => {
 const {game} = storeToRefs(gameStore)
 const {mod} = storeToRefs(gameModStore)
 
-const loading = computed(() => {
-  return gameStore.loading || gameModStore.loading
-})
-
-onMounted(() => {
+const loading = useInitialLoad(async () => {
   gameStore.setGameCode(route.params.code)
-  gameStore.fetchGame().then(() => {
-    gameModStore.setModId(route.params.id)
-    gameModStore.fetchMod().then(() => {
+  gameModStore.setModId(route.params.id)
 
-      modUpdateModel.value = Object.fromEntries(
-          Object.entries(mod.value).map(([k, v]) => [camelCase(k), v])
-      );
-
-      modUpdateModel.value.metadata = Object.entries(mod.value.metadata || {})
-          .map(([key, value]) => ({
-            key,
-            value: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
-          }))
-    }).catch((error) => {
-      errorNotification(error)
-    })
-
-  }).catch((error) => {
+  try {
+    await gameStore.fetchGame()
+    await gameModStore.fetchMod()
+  } catch (error) {
     errorNotification(error)
-  })
+
+    return
+  }
+
+  modUpdateModel.value = Object.fromEntries(
+      Object.entries(mod.value).map(([k, v]) => [camelCase(k), v])
+  );
+
+  modUpdateModel.value.metadata = Object.entries(mod.value.metadata || {})
+      .map(([key, value]) => ({
+        key,
+        value: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
+      }))
 })
 
 const modUpdateModel = ref({})

@@ -25,9 +25,9 @@
     </n-form>
 
     <div class="flex justify-end mt-4">
-      <GButton color="green" data-testid="twofactor-verify-submit" v-on:click="onSubmit">
-        <GIcon name="sign-in" class="mr-0.5" />
-        <span class="inline">{{ trans('two_factor.verify') }}</span>
+      <GButton color="green" :loading="loading" data-testid="twofactor-verify-submit" v-on:click="onSubmit">
+        <GIcon v-if="!loading" name="sign-in" class="mr-0.5" />
+        <span class="inline">{{ loading ? trans('main.wait') : trans('two_factor.verify') }}</span>
       </GButton>
     </div>
   </div>
@@ -40,6 +40,13 @@ import { trans } from "@/i18n/i18n"
 import GButton from "@/components/GButton.vue"
 import { NForm, NFormItem, NInput } from "naive-ui"
 import { requiredValidator } from "@/parts/validators"
+
+const props = defineProps({
+  loading: {
+    type: Boolean,
+    default: false,
+  },
+})
 
 const formRef = ref({})
 const form = ref({
@@ -57,6 +64,10 @@ const rules = {
 const emits = defineEmits(['verify'])
 
 const onSubmit = () => {
+  if (props.loading) {
+    return
+  }
+
   formRef.value.validate().then(() => {
     emits('verify', form.value.code.trim())
   }).catch(() => {})

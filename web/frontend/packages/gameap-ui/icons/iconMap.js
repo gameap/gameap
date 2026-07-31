@@ -1,6 +1,7 @@
 import FileNetworkIcon from './svg/FileNetworkIcon.vue'
 import FolderDownloadIcon from './svg/FolderDownloadIcon.vue'
 import MaximizeIcon from './svg/MaximizeIcon.vue'
+import { svgAsset } from './svgAssets.js'
 
 export const defaultIconMap = {
   // ===== Action Icons =====
@@ -168,8 +169,40 @@ export const defaultIconMap = {
   "7": "fa-solid fa-7",
   "cat": "fa-solid fa-cat",
   "mods": "fa-solid fa-cat",
+  "kick": svgAsset('kick'),
+
+  // ===== Game Logos =====
+  "game-ark-survival-evolved": svgAsset('ark-survival-evolved'),
+  "game-arma-2": svgAsset('arma-2'),
+  "game-arma-3": svgAsset('arma-3'),
+  "game-black-mesa": svgAsset('black-mesa'),
+  "game-counter-strike": svgAsset('counter-strike'),
+  "game-counter-strike-1": svgAsset('counter-strike-1'),
+  "game-counter-strike-source": svgAsset('counter-strike-source'),
+  "game-day-of-defeat": svgAsset('day-of-defeat'),
+  "game-dont-starve": svgAsset('dont-starve'),
+  "game-enshrouded": svgAsset('enshrouded'),
+  "game-etlegacy": svgAsset('etlegacy'),
+  "game-factorio": svgAsset('factorio'),
+  "game-fivem": svgAsset('fivem'),
+  "game-garrys-mod": svgAsset('garrys-mod'),
+  "game-grand-theft-auto": svgAsset('grand-theft-auto'),
+  "game-half-life": svgAsset('half-life'),
+  "game-hurtworld": svgAsset('hurtworld'),
+  "game-left-4-dead": svgAsset('left-4-dead'),
+  "game-minecraft": svgAsset('minecraft'),
+  "game-minecraft-creeper": svgAsset('minecraft-creeper'),
+  "game-palworld": svgAsset('palworld'),
+  "game-quake": svgAsset('quake'),
+  "game-quake-2": svgAsset('quake-2'),
+  "game-quake-3": svgAsset('quake-3'),
+  "game-rockstar": svgAsset('rockstar'),
+  "game-rust": svgAsset('rust'),
+  "game-team-fortress-2": svgAsset('team-fortress-2'),
+  "game-zomboid": svgAsset('zomboid'),
 
   // ===== Brand Icons =====
+  "gameap": svgAsset('gameap'),
   "linux": "fa-brands fa-linux",
   "windows": "fa-brands fa-windows",
   "apple": "fa-brands fa-apple",

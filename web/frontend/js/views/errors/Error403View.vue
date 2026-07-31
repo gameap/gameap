@@ -21,7 +21,7 @@ import GButton from "../../components/GButton.vue";
 
 const breadcrumbs = computed(() => {
   return [
-    {route:'/', text:'GameAP', icon: 'gicon gicon-gameap'},
+    {route:'/', text:'GameAP', icon: 'gameap'},
     {text: 404},
   ]
 })

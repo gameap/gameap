@@ -189,7 +189,7 @@ const showAdditionSettings = ref(false)
 
 const breadcrumbs = computed(() => {
   return [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'admin.servers.index'}, 'text':trans('servers.game_servers')},
     {'route':{name: 'admin.servers.create'}, 'text':trans('servers.create')},
   ]

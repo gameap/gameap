@@ -1,73 +1,84 @@
 <template>
-  <i :class="[gameIconClass, $attrs.class]"></i>
+  <GIcon :name="iconName" />
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import GIcon from './GIcon.vue'
 
 const icons = {
-  '7d2d': 'fa-solid fa-7',
-  '7days2die': 'fa-solid fa-7',
-  ark: 'gicon gicon-ark-survival-evolved',
-  arma2: 'gicon gicon-arma-2',
-  arma2oa: 'gicon gicon-arma-2',
-  arma3: 'gicon gicon-arma-3',
-  blackmesasource: 'gicon gicon-black-mesa',
-  bms: 'gicon gicon-black-mesa',
-  counterstrike: 'gicon gicon-counter-strike1',
-  cs15: 'gicon gicon-counter-strike1',
-  cs2: 'gicon gicon-counter-strike',
-  csgo: 'gicon gicon-counter-strike',
-  css: 'gicon gicon-counter-strike-source',
-  cssource: 'gicon gicon-counter-strike-source',
-  cssv34: 'gicon gicon-counter-strike-source',
-  cstrike: 'gicon gicon-counter-strike1',
-  czero: 'gicon gicon-counter-strike1',
-  dod: 'gicon gicon-day-of-defeat',
-  dods: 'gicon gicon-day-of-defeat',
-  dontstarve: 'gicon gicon-dont-starve',
-  dontstarvetogether: 'gicon gicon-dont-starve',
-  dst: 'gicon gicon-dont-starve',
-  fivem: 'gicon gicon-fivem',
-  garrysmod: 'gicon gicon-garrys-mod',
-  grandtheftauto: 'gicon gicon-grand-theft-auto',
-  gta: 'gicon gicon-grand-theft-auto',
-  halflife: 'gicon gicon-half-life',
-  hurtworld: 'gicon gicon-hurtworld',
-  l4d2: 'gicon gicon-left-4-dead',
-  l4d: 'gicon gicon-left-4-dead',
-  minecraft: 'gicon gicon-minecraft',
-  mta: 'gicon gicon-grand-theft-auto',
-  op4: 'gicon gicon-half-life',
-  pmmp: 'gicon gicon-minecraft-creeper',
-  qw: 'gicon gicon-quake',
-  q1: 'gicon gicon-quake',
-  quake: 'gicon gicon-quake',
-  q2: 'gicon gicon-quake-2',
-  quake2: 'gicon gicon-quake-2',
-  q3: 'gicon gicon-quake-3',
-  quake3: 'gicon gicon-quake-3',
-  q4: 'gicon gicon-quake',
-  quake4: 'gicon gicon-quake',
-  rust: 'gicon gicon-rust',
-  samp: 'gicon gicon-rockstar',
-  teamfortress2: 'gicon gicon-team-fortress-2',
-  teamspeak3: 'fa-brands fa-teamspeak',
-  teamspeak: 'fa-brands fa-teamspeak',
-  tf2: 'gicon gicon-team-fortress-2',
-  valve: 'gicon gicon-half-life',
+  '7d2d': '7',
+  '7days2die': '7',
+  ark: 'game-ark-survival-evolved',
+  arma2: 'game-arma-2',
+  arma2oa: 'game-arma-2',
+  arma3: 'game-arma-3',
+  blackmesasource: 'game-black-mesa',
+  bms: 'game-black-mesa',
+  counterstrike: 'game-counter-strike-1',
+  cs15: 'game-counter-strike-1',
+  cs2: 'game-counter-strike',
+  csgo: 'game-counter-strike',
+  css: 'game-counter-strike-source',
+  cssource: 'game-counter-strike-source',
+  cssv34: 'game-counter-strike-source',
+  cstrike: 'game-counter-strike-1',
+  czero: 'game-counter-strike-1',
+  dod: 'game-day-of-defeat',
+  dods: 'game-day-of-defeat',
+  dontstarve: 'game-dont-starve',
+  dontstarvetogether: 'game-dont-starve',
+  dst: 'game-dont-starve',
+  enshrouded: 'game-enshrouded',
+  et: 'game-etlegacy',
+  etl: 'game-etlegacy',
+  etlegacy: 'game-etlegacy',
+  factorio: 'game-factorio',
+  fivem: 'game-fivem',
+  garrysmod: 'game-garrys-mod',
+  grandtheftauto: 'game-grand-theft-auto',
+  gta: 'game-grand-theft-auto',
+  halflife: 'game-half-life',
+  hurtworld: 'game-hurtworld',
+  l4d2: 'game-left-4-dead',
+  l4d: 'game-left-4-dead',
+  minecraft: 'game-minecraft',
+  mta: 'game-grand-theft-auto',
+  op4: 'game-half-life',
+  palworld: 'game-palworld',
+  pmmp: 'game-minecraft-creeper',
+  projectzomboid: 'game-zomboid',
+  pz: 'game-zomboid',
+  qw: 'game-quake',
+  q1: 'game-quake',
+  quake: 'game-quake',
+  q2: 'game-quake-2',
+  quake2: 'game-quake-2',
+  q3: 'game-quake-3',
+  quake3: 'game-quake-3',
+  q4: 'game-quake',
+  quake4: 'game-quake',
+  rust: 'game-rust',
+  samp: 'game-rockstar',
+  teamfortress2: 'game-team-fortress-2',
+  teamspeak3: 'teamspeak',
+  teamspeak: 'teamspeak',
+  tf2: 'game-team-fortress-2',
+  valve: 'game-half-life',
+  wolfet: 'game-etlegacy',
+  zomboid: 'game-zomboid',
 }
 
 const commonIcons = [
-  "fa-solid fa-gamepad",
-  "fa-solid fa-dice-one",
-  "fa-solid fa-dice-two",
-  "fa-solid fa-dice-three",
-  "fa-solid fa-dice-four",
-  "fa-solid fa-dice-five",
-  "fa-solid fa-dice-six",
-  "fa-solid fa-dice",
-  "fa-solid fa-puzzle-piece",
+  'gamepad',
+  'dice-one',
+  'dice-two',
+  'dice-three',
+  'dice-four',
+  'dice-five',
+  'dice-six',
+  'dice',
+  'puzzle-piece',
 ]
 
 const props = defineProps({
@@ -77,10 +88,11 @@ const props = defineProps({
   },
 })
 
-const gameIconClass = computed(() => {
+const iconName = computed(() => {
   if (icons[props.game] !== undefined) {
     return icons[props.game]
   }
+
   return defineCommonIcon(props.game)
 })
 
@@ -93,6 +105,7 @@ function checksum(data) {
   for (let i = 0; i < data.length; i++) {
     c += data.charCodeAt(i)
   }
+
   return c % commonIcons.length
 }
 </script>

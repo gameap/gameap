@@ -11,11 +11,12 @@
 
 <script setup>
 import { GBreadcrumbs } from "@gameap/ui"
-import {computed, ref, onMounted} from "vue"
+import {computed, ref} from "vue"
 import { camelCase, snakeCase } from "lodash-es"
 import {trans} from "@/i18n/i18n"
 import {useNodeStore} from "@/store/node"
 import {useClientCertificatesStore} from "@/store/clientCertificates";
+import {useInitialLoad} from "@/composables/useInitialLoad";
 import {errorNotification, notification} from "@/parts/dialogs"
 import {useRoute, useRouter} from "vue-router"
 import {storeToRefs} from "pinia"
@@ -29,32 +30,36 @@ const clientCertificatesStore = useClientCertificatesStore()
 
 const breadcrumbs = computed(() => {
   return [
-    {route:'/', text:'GameAP', icon: 'gicon gicon-gameap'},
+    {route:'/', text:'GameAP', icon: 'gameap'},
     {route:{name: 'admin.nodes.index'}, text:trans('dedicated_servers.dedicated_servers')},
     {text: trans('dedicated_servers.edit')},
   ]
 })
 
-onMounted(() => {
-  nodeStore.setNodeId(route.params.id)
-  nodeStore.fetchNode().then(() => {
-    nodeUpdateModel.value = Object.fromEntries(
-        Object.entries(node.value).map(([k, v]) => [camelCase(k), v])
-    );
-  }).catch((error) => {
-    errorNotification(error)
-  })
-
-  clientCertificatesStore.fetchClientCertificates().catch((error) => {
-    errorNotification(error)
-  })
-})
-
 const { node } = storeToRefs(nodeStore)
 const { certificates } = storeToRefs(clientCertificatesStore)
 
-const loading = computed(() => {
-  return nodeStore.loading.value || clientCertificatesStore.loading.value;
+const loading = useInitialLoad(async () => {
+  nodeStore.setNodeId(route.params.id)
+
+  const [nodeResult, certificatesResult] = await Promise.allSettled([
+    nodeStore.fetchNode(),
+    clientCertificatesStore.fetchClientCertificates(),
+  ])
+
+  if (certificatesResult.status === 'rejected') {
+    errorNotification(certificatesResult.reason)
+  }
+
+  if (nodeResult.status === 'rejected') {
+    errorNotification(nodeResult.reason)
+
+    return
+  }
+
+  nodeUpdateModel.value = Object.fromEntries(
+      Object.entries(node.value).map(([k, v]) => [camelCase(k), v])
+  );
 })
 
 const certificateOptions = computed(() => {
