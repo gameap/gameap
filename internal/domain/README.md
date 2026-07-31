@@ -63,3 +63,6 @@ Represents a WebAssembly plugin with metadata, event hooks, and HTTP route regis
 
 ### PluginStorageEntry (`plugin_storage.go`)
 Persistent key-value storage for plugins, allowing them to store and retrieve data associated with specific entities (servers, users, etc.).
+
+### PluginScheduledTask (`plugin_scheduled_task.go`)
+Definition of a periodic task registered by a plugin via the gameap-scheduler host module: interval, error policy (ignore/retry with delay and jitter) and per-run timeout. Run state is not persisted; panel instances coordinate runs through distributed locks.

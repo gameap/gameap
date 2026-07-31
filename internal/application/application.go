@@ -148,6 +148,15 @@ func Run(runParams RunParams) {
 	if cfg.Plugins.Disabled {
 		slog.InfoContext(ctx, "Plugins are disabled, skipping plugin loading")
 	} else {
+		// The scheduler starts before LoadAll so task registrations made
+		// during guest Initialize land on a running service.
+		err = container.PluginScheduler().Start(ctx)
+		if err != nil {
+			slog.ErrorContext(ctx, "Failed to start plugin scheduler", slog.String("error", err.Error()))
+
+			osExit(1)
+		}
+
 		err = container.PluginLoader().LoadAll(ctx)
 		if err != nil {
 			slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))

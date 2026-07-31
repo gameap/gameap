@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/pkg/plugin/sdk/gamemods"
 	"github.com/gameap/gameap/pkg/plugin/sdk/games"
 	"github.com/gameap/gameap/pkg/plugin/sdk/log"
+	"github.com/gameap/gameap/pkg/plugin/sdk/scheduler"
 	"github.com/gameap/gameap/pkg/plugin/sdk/servers"
 )
 
@@ -22,6 +23,7 @@ var (
 	gamesRepo    games.GamesService
 	gameModRepo  gamemods.GameModsService
 	serversRepo  servers.ServersService
+	schedulerSvc scheduler.SchedulerService
 	eventCounter atomic.Uint64
 )
 
@@ -30,7 +32,9 @@ func init() {
 	gamesRepo = games.NewGamesService()
 	gameModRepo = gamemods.NewGameModsService()
 	serversRepo = servers.NewServersService()
+	schedulerSvc = scheduler.NewSchedulerService()
 	pluginproto.RegisterPluginService(&ServerLoggerPlugin{})
+	scheduler.RegisterScheduledTaskHandler(&scheduledTaskHandler{})
 }
 
 type ServerLoggerPlugin struct {
@@ -52,9 +56,11 @@ func (p *ServerLoggerPlugin) GetInfo(
 }
 
 func (p *ServerLoggerPlugin) Initialize(
-	_ context.Context,
+	ctx context.Context,
 	_ *pluginproto.InitializeRequest,
 ) (*pluginproto.InitializeResponse, error) {
+	registerStatsReportTask(ctx)
+
 	return &pluginproto.InitializeResponse{
 		Result: &pluginproto.Result{Success: true},
 	}, nil

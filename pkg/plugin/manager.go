@@ -79,6 +79,14 @@ func (p *LoadedPlugin) IsEnabled() bool {
 	return p.Enabled && !p.disabled.Load()
 }
 
+// HasScheduledTaskHandler reports whether the module exports the scheduled
+// task handler; plugins compiled without the sdk/scheduler module do not.
+func (p *LoadedPlugin) HasScheduledTaskHandler() bool {
+	w, ok := p.Instance.(interface{ HasScheduledTaskHandler() bool })
+
+	return ok && w.HasScheduledTaskHandler()
+}
+
 // Disable permanently stops event and HTTP delivery to the plugin. Used when
 // its runtime is closed (unload) or misbehaving (call timeout); dispatchers
 // may still hold a pointer to it until their subscriptions are refreshed.
@@ -659,6 +667,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 	rconClose := module.ExportedFunction("protocol_service_rcon_close")
 	queryServer := module.ExportedFunction("protocol_service_query_server")
 	parsePlayers := module.ExportedFunction("protocol_service_parse_players")
+	handleScheduledTask := module.ExportedFunction("scheduled_task_handler_handle_scheduled_task")
 
 	return &pluginServiceWrapper{
 		gate:                make(chan struct{}, 1),
@@ -682,6 +691,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 		rconclose:           rconClose,
 		queryserver:         queryServer,
 		parseplayers:        parsePlayers,
+		handlescheduledtask: handleScheduledTask,
 	}, nil
 }
 

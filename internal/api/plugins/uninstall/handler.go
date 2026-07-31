@@ -2,6 +2,7 @@ package uninstall
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"path"
 	"strconv"
@@ -29,12 +30,18 @@ type ManagerIDResolver interface {
 	GetPluginManagerID(dbID domain.Uint64ID) (string, bool)
 }
 
+// TaskScheduler drops the plugin's scheduled task registrations on uninstall.
+type TaskScheduler interface {
+	RemovePluginTasks(ctx context.Context, pluginID domain.Uint64ID) (int, error)
+}
+
 type Handler struct {
 	pluginRepo    repositories.PluginRepository
 	fileManager   files.FileManager
 	manager       PluginManager
 	resolver      ManagerIDResolver
 	subscriptions plugininstall.SubscriptionRefresher
+	scheduler     TaskScheduler
 	pluginsDir    string
 	responder     base.Responder
 	audit         audit.Logger
@@ -46,6 +53,7 @@ func NewHandler(
 	manager PluginManager,
 	resolver ManagerIDResolver,
 	subscriptions plugininstall.SubscriptionRefresher,
+	scheduler TaskScheduler,
 	pluginsDir string,
 	responder base.Responder,
 	auditLogger audit.Logger,
@@ -60,6 +68,7 @@ func NewHandler(
 		manager:       manager,
 		resolver:      resolver,
 		subscriptions: subscriptions,
+		scheduler:     scheduler,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 		audit:         auditLogger,
@@ -121,6 +130,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to delete plugin record"))
 
 		return
+	}
+
+	// Task cleanup must not fail the uninstall: orphaned rows are harmless
+	// (their fires skip with a log) and other instances converge on refresh.
+	if h.scheduler != nil {
+		if _, err := h.scheduler.RemovePluginTasks(ctx, dbID); err != nil {
+			slog.WarnContext(ctx, "failed to remove plugin scheduled tasks",
+				slog.Uint64("plugin_id", uint64(dbID)),
+				slog.String("error", err.Error()))
+		}
 	}
 
 	audit.SensitiveOp(ctx, h.audit, audit.EventPluginUninstall, audit.CategoryPluginOp,

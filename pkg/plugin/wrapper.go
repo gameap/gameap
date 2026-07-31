@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/pkg/plugin/proto"
+	"github.com/gameap/gameap/pkg/plugin/sdk/scheduler"
 	"github.com/pkg/errors"
 	"github.com/tetratelabs/wazero/api"
 )
@@ -38,6 +39,7 @@ type pluginServiceWrapper struct {
 	rconclose           api.Function
 	queryserver         api.Function
 	parseplayers        api.Function
+	handlescheduledtask api.Function
 }
 
 func (p *pluginServiceWrapper) callFunction(
@@ -308,4 +310,33 @@ func (p *pluginServiceWrapper) GetAssets(
 	}
 
 	return response, nil
+}
+
+// HandleScheduledTask invokes the optional handler exported by plugins built
+// with the sdk/scheduler module. Unlike the optional load-time queries above,
+// a missing export is an error, not a benign empty response — silently
+// succeeding would swallow a scheduled run.
+func (p *pluginServiceWrapper) HandleScheduledTask(
+	ctx context.Context,
+	request *scheduler.HandleScheduledTaskRequest,
+) (*scheduler.HandleScheduledTaskResponse, error) {
+	if p.handlescheduledtask == nil {
+		return nil, errors.WithMessage(ErrExportNotFound, "scheduled_task_handler_handle_scheduled_task")
+	}
+
+	bytes, err := p.callFunction(ctx, p.handlescheduledtask, request)
+	if err != nil {
+		return nil, err
+	}
+
+	response := new(scheduler.HandleScheduledTaskResponse)
+	if err = response.UnmarshalVT(bytes); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (p *pluginServiceWrapper) HasScheduledTaskHandler() bool {
+	return p.handlescheduledtask != nil
 }

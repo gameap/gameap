@@ -39,6 +39,7 @@ import (
 	"github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
 	"github.com/gameap/gameap/internal/i18n"
+	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/plugin/hostlibrary"
@@ -64,6 +65,7 @@ import (
 	"github.com/gameap/gameap/internal/services/gameexporter"
 	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
+	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
@@ -147,6 +149,7 @@ type Container struct {
 	nodeRepository                repositories.NodeRepository
 	clientCertificateRepository   repositories.ClientCertificateRepository
 	pluginStorageRepository       repositories.PluginStorageRepository
+	pluginScheduledTaskRepository repositories.PluginScheduledTaskRepository
 	dlqRepository                 repositories.DLQRepository
 
 	// Services
@@ -205,6 +208,8 @@ type Container struct {
 	pluginLoader     *internalplugin.Loader
 	querconResolver  *quercon.Resolver
 	netConnRegistry  *pkgplugin.ConnRegistry
+	pluginScheduler  *pluginscheduler.Service
+	schedulerLocker  locker.Locker
 
 	// HTTP
 	router                    *http.ServeMux
@@ -283,6 +288,14 @@ func (c *Container) Shutdown() error {
 	}
 
 	c.shutdownGRPCServer()
+
+	// The scheduler must join its in-flight runs before the plugin manager's
+	// shutdown func (in shotdownFuncs below) closes the WASM runtimes; the
+	// append order of shutdown funcs is accessor-order dependent, so the stop
+	// is explicit here.
+	if c.pluginScheduler != nil {
+		c.pluginScheduler.Stop()
+	}
 
 	for _, fn := range c.shotdownFuncs {
 		if err := fn(); err != nil {
@@ -1279,6 +1292,29 @@ func (c *Container) createPluginStorageRepository() repositories.PluginStorageRe
 	}
 }
 
+func (c *Container) PluginScheduledTaskRepository() repositories.PluginScheduledTaskRepository {
+	if c.pluginScheduledTaskRepository == nil {
+		c.pluginScheduledTaskRepository = c.createPluginScheduledTaskRepository()
+	}
+
+	return c.pluginScheduledTaskRepository
+}
+
+func (c *Container) createPluginScheduledTaskRepository() repositories.PluginScheduledTaskRepository {
+	switch c.config.DatabaseDriver {
+	case databaseDriverMySQL:
+		return mysql.NewPluginScheduledTaskRepository(c.TransactionalDB())
+	case databaseDriverPostgres, databaseDriverPGX:
+		return postgres.NewPluginScheduledTaskRepository(c.TransactionalDB())
+	case databaseDriverSQLite:
+		return sqlite.NewPluginScheduledTaskRepository(c.TransactionalDB())
+	case databaseDriverInMemory:
+		return inmemory.NewPluginScheduledTaskRepository()
+	default:
+		return inmemory.NewPluginScheduledTaskRepository()
+	}
+}
+
 func (c *Container) DLQRepository() repositories.DLQRepository {
 	if c.dlqRepository == nil {
 		c.dlqRepository = c.createDLQRepository()
@@ -1902,6 +1938,62 @@ func (c *Container) PluginManager() *pkgplugin.Manager {
 	return c.pluginManager
 }
 
+func (c *Container) PluginScheduler() *pluginscheduler.Service {
+	if c.pluginScheduler == nil {
+		c.pluginScheduler = pluginscheduler.New(
+			c.PluginScheduledTaskRepository(),
+			c.PluginManager(),
+			c.PluginLoader(),
+			c.SchedulerLocker(),
+			pluginscheduler.Options{
+				MinInterval:        c.config.Plugin.Scheduler.MinInterval,
+				MaxTasksPerPlugin:  c.config.Plugin.Scheduler.MaxTasksPerPlugin,
+				DefaultCallTimeout: c.config.Plugin.Scheduler.CallTimeout,
+				MaxCallTimeout:     c.config.Plugin.Scheduler.MaxCallTimeout,
+				MaxRetries:         c.config.Plugin.Scheduler.MaxRetries,
+				MaxRetryDelay:      c.config.Plugin.Scheduler.MaxRetryDelay,
+				MaxJitter:          c.config.Plugin.Scheduler.MaxJitter,
+				RefreshInterval:    c.config.Plugin.Scheduler.RefreshInterval,
+			},
+			slog.Default(),
+		)
+	}
+
+	return c.pluginScheduler
+}
+
+// SchedulerLocker picks the strongest available coordination backend: Redis
+// when the cache runs on it, otherwise the shared database (kv_store table);
+// the in-memory database has no shared medium, so the lock stays local.
+func (c *Container) SchedulerLocker() locker.Locker {
+	if c.schedulerLocker == nil {
+		c.schedulerLocker = c.createSchedulerLocker()
+	}
+
+	return c.schedulerLocker
+}
+
+func (c *Container) createSchedulerLocker() locker.Locker {
+	if c.config.Cache.Driver == cacheDriverRedis {
+		if redisCache, ok := c.Cache().(*cache.Redis); ok {
+			return locker.NewRedisLocker(redisCache.Client(), "gameap:lock:")
+		}
+	}
+
+	switch c.config.DatabaseDriver {
+	case databaseDriverMySQL:
+		return locker.NewDBLocker(c.TransactionalDB(), locker.DBDialectMySQL)
+	case databaseDriverPostgres, databaseDriverPGX:
+		return locker.NewDBLocker(c.TransactionalDB(), locker.DBDialectPostgres)
+	case databaseDriverSQLite:
+		return locker.NewDBLocker(c.TransactionalDB(), locker.DBDialectSQLite)
+	case databaseDriverInMemory:
+		return locker.NewInMemoryLocker()
+	default:
+		return locker.NewInMemoryLocker()
+	}
+}
+
 func (c *Container) connRegistry() *pkgplugin.ConnRegistry {
 	if c.netConnRegistry == nil {
 		c.netConnRegistry = pkgplugin.NewConnRegistry(c.config.Plugin.Net.MaxConnections)
@@ -1921,6 +2013,7 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			c.RBACRepository(),
 			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
 		),
+		hostlibrary.NewSchedulerHostLibraryFactory(&lazyTaskScheduler{container: c}),
 	}
 
 	if c.config.Plugin.Net.Enabled {
@@ -1962,6 +2055,29 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		},
 		LibraryFactories: factories,
 	})
+}
+
+// lazyTaskScheduler defers PluginScheduler resolution to call time: the
+// scheduler needs PluginManager to invoke handlers, while the manager's host
+// libraries need the scheduler — resolving it during manager construction
+// would recurse.
+type lazyTaskScheduler struct {
+	container *Container
+}
+
+func (l *lazyTaskScheduler) AddTask(ctx context.Context, task domain.PluginScheduledTask) error {
+	return l.container.PluginScheduler().AddTask(ctx, task)
+}
+
+func (l *lazyTaskScheduler) RemoveTask(ctx context.Context, pluginID domain.Uint64ID, name string) error {
+	return l.container.PluginScheduler().RemoveTask(ctx, pluginID, name)
+}
+
+func (l *lazyTaskScheduler) ListTasks(
+	ctx context.Context,
+	pluginID domain.Uint64ID,
+) ([]domain.PluginScheduledTask, error) {
+	return l.container.PluginScheduler().ListTasks(ctx, pluginID)
 }
 
 // lazyPluginTaskEvents defers PluginDispatcher resolution to call time:

@@ -9,6 +9,7 @@ This plugin logs server lifecycle events and provides statistics via HTTP API an
 - Includes a Vue.js frontend with dashboard widget and server tab
 - Contributes static assets via `GetAssets` (see `assets/`): a Spanish translation served at
   `/lang/es.json` and a namespaced frontend file served at `/plugins/server-logger/meta.json`
+- Registers a periodic `stats-report` scheduled task (every 5 minutes, retry policy with jitter) via the gameap-scheduler module (`scheduled.go`)
 
 ## Building
 

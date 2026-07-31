@@ -22,6 +22,7 @@ import (
 	grpchandlers "github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
 	"github.com/gameap/gameap/internal/i18n"
+	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/pubsub"
@@ -37,6 +38,7 @@ import (
 	"github.com/gameap/gameap/internal/services/gameexporter"
 	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
+	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
@@ -85,6 +87,7 @@ type InmemoryContainer struct {
 	daemonCommandsService   *daemon.CommandService
 	uploadSessionService    *upload.Service
 	auditLogger             audit.Logger
+	pluginScheduler         *pluginscheduler.Service
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -173,7 +176,25 @@ func (c *InmemoryContainer) FrontendFS() fs.FS {
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
 	return inmemory.NewPluginRepository()
 }
-func (c *InmemoryContainer) PluginLoader() *internalplugin.Loader             { return nil }
+func (c *InmemoryContainer) PluginLoader() *internalplugin.Loader { return nil }
+
+// PluginScheduler is cached so every caller shares one task store: a handler
+// registering tasks and one cleaning them up on uninstall must see the same
+// registrations.
+func (c *InmemoryContainer) PluginScheduler() *pluginscheduler.Service {
+	if c.pluginScheduler == nil {
+		c.pluginScheduler = pluginscheduler.New(
+			inmemory.NewPluginScheduledTaskRepository(),
+			nil,
+			nil,
+			locker.NewInMemoryLocker(),
+			pluginscheduler.Options{},
+			nil,
+		)
+	}
+
+	return c.pluginScheduler
+}
 func (c *InmemoryContainer) PluginStoreService() *pluginstore.Service         { return nil }
 func (c *InmemoryContainer) PluginsDir() string                               { return "plugins" }
 func (c *InmemoryContainer) PelicanEggImporter() *pelicaneggimporter.Importer { return nil }

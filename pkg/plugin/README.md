@@ -194,6 +194,84 @@ if verifyResp.Match {
 }
 ```
 
+### gameap-scheduler
+
+Lets a plugin register periodic tasks the panel invokes on schedule. Tasks
+can be added and removed at any time (during `Initialize` or later), and
+registrations are persisted in the panel database, so they survive panel
+restarts and plugin reloads. `AddTask` is an upsert by task name — registering
+the same name again replaces the definition, so re-registering on every load
+is safe.
+
+A plugin that uses this module **must** register a task handler before
+calling `AddTask` (usually both in `init()`):
+
+```go
+func init() {
+    proto.RegisterPluginService(&MyPlugin{})
+    scheduler.RegisterScheduledTaskHandler(&myTaskHandler{})
+}
+
+type myTaskHandler struct{}
+
+func (h *myTaskHandler) HandleScheduledTask(
+    ctx context.Context,
+    req *scheduler.HandleScheduledTaskRequest,
+) (*scheduler.HandleScheduledTaskResponse, error) {
+    // req.TaskName    — which task fired
+    // req.ScheduledAt — unix milliseconds of the slot
+    // req.Attempt     — 1-based, incremented on retries
+    // Returning an error triggers the task's error policy.
+    return &scheduler.HandleScheduledTaskResponse{}, nil
+}
+```
+
+Registering and removing tasks:
+
+```go
+schedulerSvc := scheduler.NewSchedulerService()
+
+resp, err := schedulerSvc.AddTask(ctx, &scheduler.AddTaskRequest{
+    Name:       "stats-report",
+    IntervalMs: 300_000, // every 5 minutes
+    ErrorPolicy: &scheduler.ErrorPolicy{
+        Policy:       scheduler.ErrorPolicyType_ERROR_POLICY_TYPE_RETRY,
+        MaxRetries:   3,     // additional attempts after a failure
+        RetryDelayMs: 1_000, // fixed delay between attempts...
+        MaxJitterMs:  500,   // ...plus random 0..500ms
+    },
+    TimeoutMs: 5_000, // per-run handler budget; 0 = panel default
+})
+if err != nil {
+    return err // the host call itself failed
+}
+if !resp.Success {
+    // *resp.Error explains the rejection (bad interval, limits, ...)
+}
+
+schedulerSvc.RemoveTask(ctx, &scheduler.RemoveTaskRequest{Name: "stats-report"})
+listResp, _ := schedulerSvc.ListTasks(ctx, &scheduler.ListTasksRequest{})
+```
+
+Scheduling semantics:
+
+- Runs are aligned to Unix-epoch multiples of the interval, identically on
+  every panel instance; in multi-instance deployments each slot is executed
+  by exactly one instance (coordinated via Redis or database locks). NTP-level
+  clock synchronization between instances is assumed.
+- Missed slots are not backfilled: if the panel was down or a previous run
+  was still in progress, the slot is skipped with a log entry.
+- While a run (including its retries) is in progress, overlapping slots are
+  skipped on all instances.
+- With `ERROR_POLICY_TYPE_IGNORE` (default) a failed run is only logged; with
+  `ERROR_POLICY_TYPE_RETRY` it is retried up to `MaxRetries` times with
+  `RetryDelayMs` plus a random jitter up to `MaxJitterMs` between attempts.
+- Interval floor, per-plugin task count, timeout ceilings and retry caps are
+  panel-configured (`PLUGIN_SCHEDULER_*` environment variables).
+
+The handler export is optional: plugins compiled without the scheduler module
+keep loading and working unchanged.
+
 ### gameap-authz
 
 Read-only permission checks. Available to every plugin — answering "may this
@@ -274,7 +352,7 @@ rb.Allow(ctx, &rbac.AbilitiesRequest{
     EntityId:   roleID,
     Abilities: []*rbac.Ability{{
         Name:       "game-server-restart",
-        EntityType: entityTypeServer,   // *proto.EntityType
+        EntityType: proto.EntityType_ENTITY_TYPE_SERVER.Enum(),   // *proto.EntityType
         EntityId:   proto.Uint64(serverID),
     }},
 })
@@ -764,8 +842,9 @@ Implement `GetRconProtocols` / `GetQueryProtocols`. Each registration lists the
 
 - `RCON_TRANSPORT_BUILTIN` and `QUERY_TRANSPORT_BUILTIN`, both with a
   `builtin_protocol` name — reuse the panel's engine. Pure mapping: no plugin
-  code runs at execute time. Use this to add a new game that speaks a protocol
-  the panel already implements.
+  code runs at execute time, the one exception being `parse_via_plugin` below.
+  Use this to add a new game that speaks a protocol the panel already
+  implements.
   - RCON names: `source`, `goldsource`, `quake2`, `quake3`, `samp`, `battleye`.
   - Query names: `source`, `minecraft`, `gamespy2`, `gamespy3`, `quake2`,
     `quake3`, `samp`, `raknet`.
@@ -801,6 +880,14 @@ func (p MyPlugin) GetRconProtocols(ctx context.Context, req *protocol.GetRconPro
 Player management: kick/ban are command templates the host renders (`{duration}`
 is whole seconds). The players-list output is parsed by the built-in parser, or
 by your `ParsePlayers` RPC when `parse_via_plugin` is set.
+
+`parse_via_plugin` is the one case where a built-in transport calls back into
+the plugin, so a registration that sets it **must** implement `ParsePlayers`
+(see `examples/protocol-extension/main.go`). Leaving it on the embedded
+`protocol.EmptyProtocolService` default makes every players-list request fail
+with "not implemented"; there is no fallback to the built-in parser. Everything
+else keeps working — commands still execute over the built-in engine, and
+kick/ban still render from their templates.
 
 Leave `kick_command` or `ban_command` empty when your game has no such command:
 the panel then hides that button instead of offering one that fails. The
@@ -915,7 +1002,7 @@ func (p MyPlugin) Initialize(ctx context.Context, req *proto.InitializeRequest) 
 
 ## Example Plugin
 
-See `pkg/plugin/examples/server-logger/` for a complete example plugin that logs server lifecycle events.
+See `pkg/plugin/examples/server-logger/` for a complete example plugin that logs server lifecycle events and registers a periodic `stats-report` scheduled task.
 
 ```bash
 cd pkg/plugin/examples/server-logger
@@ -947,6 +1034,7 @@ pkg/plugin/
 │   ├── http/                 # gameap-http module
 │   ├── net/                  # gameap-net module (host-managed socket I/O)
 │   ├── protocol/             # ProtocolService (optional RCON/Query extension)
+│   ├── scheduler/            # gameap-scheduler module (periodic tasks)
 │   └── log/                  # gameap-log module
 ├── examples/
 │   ├── server-logger/        # Example plugin (lifecycle events)
