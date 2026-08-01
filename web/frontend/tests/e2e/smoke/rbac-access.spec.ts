@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { loginViaAPI, authHeader } from '../fixtures/auth';
 import { createUser, deleteUser } from '../fixtures/users';
-import { loginViaUI } from '../fixtures/ui';
+import { expectStatus, loginViaUI } from '../fixtures/ui';
 
 // A plain `user` must not reach admin data. The sidebar hides the admin
 // section (v-if="isAdmin" in MainSidebar.vue), and typing an admin route
@@ -93,9 +93,18 @@ test('a non-admin user gets no admin navigation and no admin data', async ({
   await expect(page.getByText(ADMIN_EMAIL_PATTERN)).toHaveCount(0);
 
   // 4. The session is still usable — the denial is per-request, not a logout.
-  expect(
-    await page.evaluate(() => localStorage.getItem('auth_token')),
-  ).toBeTruthy();
+  //    Proven by a permitted view actually loading its data, not merely by a
+  //    token still sitting in localStorage.
+  const permitted = page.waitForResponse(
+    (r) => r.url().includes('/api/servers') && r.request().method() === 'GET',
+  );
+  await page.goto('/servers');
+  await expectStatus(
+    await permitted,
+    200,
+    'the surviving session must still authenticate a permitted request',
+  );
+  await expect(page).toHaveURL(/\/servers$/, { timeout: 15_000 });
 });
 
 test('the admin API refuses a non-admin token and accepts an admin one', async ({

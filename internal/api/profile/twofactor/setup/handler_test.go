@@ -67,12 +67,16 @@ type stubTwoFactor struct {
 	encryptErr  error
 }
 
+// stubSecret is the secret stubTwoFactor mints, so tests can assert it never
+// reaches the client on a failed enrollment.
+const stubSecret = "STUBSECRET234567"
+
 func (s *stubTwoFactor) GenerateSecret(_ string) (string, string, error) {
 	if s.generateErr != nil {
 		return "", "", s.generateErr
 	}
 
-	return "SECRET", "otpauth://totp/gameap:alice?secret=SECRET", nil
+	return stubSecret, "otpauth://totp/gameap:alice?secret=" + stubSecret, nil
 }
 
 func (s *stubTwoFactor) EncryptSecret(secret string) (string, error) {
@@ -246,8 +250,10 @@ func TestSetup_StorageAndCryptoErrors(t *testing.T) {
 			require.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
 			assert.NotContains(t, w.Body.String(), tt.mustNotLeak,
 				"the internal cause must not reach the client")
-			assert.NotContains(t, w.Body.String(), "secret",
-				"a failed enrollment must not echo any secret material")
+			assert.NotContains(t, w.Body.String(), stubSecret,
+				"a failed enrollment must not echo the generated secret")
+			assert.NotContains(t, w.Body.String(), `"secret"`,
+				"a failed enrollment must not emit a setup response at all")
 
 			users, err := repo.UserRepository.Find(context.Background(), nil, nil, nil)
 			require.NoError(t, err)

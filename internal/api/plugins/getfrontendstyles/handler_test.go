@@ -142,5 +142,10 @@ func TestHandler_ServeHTTP_HeaderPrecedesPluginStyles(t *testing.T) {
 	body := rec.Body.String()
 	assert.True(t, strings.HasPrefix(body, "/* GameAP Frontend Plugin Styles */"),
 		"the generated banner must open the stylesheet")
-	assert.Less(t, strings.Index(body, "Do not edit manually"), strings.Index(body, ".widget {}"))
+
+	warningPos := strings.Index(body, "Do not edit manually")
+	stylesPos := strings.Index(body, ".widget {}")
+	require.NotEqual(t, -1, warningPos, "the banner must warn that the file is generated")
+	require.NotEqual(t, -1, stylesPos, "plugin styles must be present")
+	assert.Less(t, warningPos, stylesPos, "the warning must precede the plugin styles")
 }

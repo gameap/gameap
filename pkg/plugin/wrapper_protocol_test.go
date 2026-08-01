@@ -145,7 +145,16 @@ func TestPluginServiceWrapper_Protocol_MissingExports(t *testing.T) {
 			// ASSERT
 			if tt.optional {
 				require.NoError(t, err, "discovery must degrade to an empty response")
-				assert.NotNil(t, resp, "an empty response must still be returned")
+				require.NotNil(t, resp, "an empty response must still be returned")
+
+				switch r := resp.(type) {
+				case *protocol.GetRconProtocolsResponse:
+					assert.Empty(t, r.Protocols, "a plugin without the export declares no RCON protocols")
+				case *protocol.GetQueryProtocolsResponse:
+					assert.Empty(t, r.Protocols, "a plugin without the export declares no query protocols")
+				default:
+					t.Fatalf("unexpected discovery response type %T", resp)
+				}
 
 				return
 			}

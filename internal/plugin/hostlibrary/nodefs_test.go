@@ -473,6 +473,7 @@ func TestNodeFSService_Copy(t *testing.T) {
 		setupRepo   func(*inmemory.NodeRepository)
 		repoFails   bool
 		setupFS     func() *mockFileService
+		nodeID      uint64
 		wantError   string
 		wantSuccess bool
 	}{
@@ -480,6 +481,7 @@ func TestNodeFSService_Copy(t *testing.T) {
 			name:        "node_not_found_returns_error",
 			setupRepo:   func(_ *inmemory.NodeRepository) {},
 			setupFS:     func() *mockFileService { return &mockFileService{} },
+			nodeID:      999,
 			wantError:   "node not found",
 			wantSuccess: false,
 		},
@@ -488,6 +490,7 @@ func TestNodeFSService_Copy(t *testing.T) {
 			setupRepo:   seedTestNode,
 			repoFails:   true,
 			setupFS:     func() *mockFileService { return &mockFileService{} },
+			nodeID:      1,
 			wantError:   "node lookup unavailable",
 			wantSuccess: false,
 		},
@@ -501,6 +504,7 @@ func TestNodeFSService_Copy(t *testing.T) {
 					},
 				}
 			},
+			nodeID:      1,
 			wantSuccess: true,
 		},
 		{
@@ -513,6 +517,7 @@ func TestNodeFSService_Copy(t *testing.T) {
 					},
 				}
 			},
+			nodeID:      1,
 			wantError:   "permission denied",
 			wantSuccess: false,
 		},
@@ -523,14 +528,10 @@ func TestNodeFSService_Copy(t *testing.T) {
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
-			nodeID := uint64(1)
-			if tt.wantError == "node not found" {
-				nodeID = 999
-			}
 
 			// ACT
 			resp, err := svc.Copy(context.Background(), &nodefs.CopyRequest{
-				NodeId:      nodeID,
+				NodeId:      tt.nodeID,
 				Source:      "/home/a.txt",
 				Destination: "/home/b.txt",
 			})

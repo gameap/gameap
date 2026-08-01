@@ -29,7 +29,9 @@ async function pickRole(
   testId: string,
   label: RegExp,
 ): Promise<void> {
-  await page.getByTestId(testId).click();
+  // The test id sits on the n-form-item wrapper; clicking its root can land on
+  // the label, so target the select control itself.
+  await page.getByTestId(testId).locator('.n-base-selection').click();
   const option = page
     .locator('.n-base-select-option')
     .filter({ hasText: label })
@@ -85,10 +87,23 @@ async function getUserDetails(
 }
 
 test.afterEach(async ({ request }) => {
-  if (adminToken && createdUserId !== undefined) {
-    await deleteUser(request, adminToken, createdUserId);
-    createdUserId = undefined;
+  if (!adminToken) {
+    return;
   }
+
+  // The id may never have been captured — a failure between the successful
+  // POST and that assignment would otherwise leak the user, so fall back to
+  // resolving it by login.
+  let id = createdUserId;
+  if (id === undefined) {
+    id = (await findUserByLogin(request, adminToken, LOGIN))?.id;
+  }
+
+  if (id !== undefined) {
+    await deleteUser(request, adminToken, id);
+  }
+
+  createdUserId = undefined;
 });
 
 test('admin creates, edits and deletes a user through the UI', async ({
