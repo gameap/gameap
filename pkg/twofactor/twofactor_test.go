@@ -197,3 +197,199 @@ func mustCipher(t *testing.T, key string) *Cipher {
 
 	return c
 }
+
+func TestWithIssuer_OverridesOtpauthLabel(t *testing.T) {
+	tests := []struct {
+		name       string
+		issuer     string
+		wantIssuer string
+	}{
+		{
+			name:       "custom_issuer_is_used",
+			issuer:     "My Panel",
+			wantIssuer: "My%20Panel",
+		},
+		{
+			name:       "empty_issuer_keeps_the_default",
+			issuer:     "",
+			wantIssuer: DefaultIssuer,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			m, err := NewManager([]byte(testAppKey), WithIssuer(tt.issuer))
+			require.NoError(t, err)
+
+			// ACT
+			_, uri, err := m.GenerateSecret("alice")
+
+			// ASSERT
+			require.NoError(t, err)
+			assert.Contains(t, uri, "issuer="+tt.wantIssuer, "otpauth URI must carry the issuer label")
+		})
+	}
+}
+
+func TestNewManager_RejectsEmptyAppKey(t *testing.T) {
+	// ACT
+	m, err := NewManager(nil)
+
+	// ASSERT
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to initialise two-factor cipher")
+	assert.Nil(t, m)
+}
+
+// A challenge payload has to survive whichever shape the cache backend hands
+// back — the in-memory cache returns a string, Redis returns bytes.
+func TestChallengePayload_RoundTripAcrossCacheShapes(t *testing.T) {
+	// ARRANGE
+	want := ChallengePayload{
+		UserID:    7,
+		Login:     "alice",
+		Email:     "alice@example.com",
+		Remember:  true,
+		Attempts:  2,
+		ExpiresAt: 1_700_000_300,
+	}
+	encoded, err := MarshalChallengePayload(want)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		raw  any
+	}{
+		{name: "string_from_in_memory_cache", raw: encoded},
+		{name: "bytes_from_redis_cache", raw: []byte(encoded)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ACT
+			got, decodeErr := UnmarshalChallengePayload(tt.raw)
+
+			// ASSERT
+			require.NoError(t, decodeErr)
+			assert.Equal(t, want.UserID, got.UserID)
+			assert.Equal(t, want.Login, got.Login)
+			assert.Equal(t, want.Email, got.Email)
+			assert.Equal(t, want.Remember, got.Remember, "the remember-me choice must survive the round trip")
+			assert.Equal(t, want.Attempts, got.Attempts, "the attempt counter must survive the round trip")
+			assert.Equal(t, want.ExpiresAt, got.ExpiresAt,
+				"the deadline must stay an exact integer, not a float64")
+		})
+	}
+}
+
+func TestUnmarshalChallengePayload_Rejections(t *testing.T) {
+	tests := []struct {
+		name      string
+		raw       any
+		wantError string
+	}{
+		{
+			name:      "unsupported_type_is_refused",
+			raw:       42,
+			wantError: "unexpected 2fa challenge payload type",
+		},
+		{
+			name:      "corrupt_json_is_refused",
+			raw:       "{not-json",
+			wantError: "failed to unmarshal 2fa challenge payload",
+		},
+		{
+			name:      "nil_is_refused",
+			raw:       nil,
+			wantError: "unexpected 2fa challenge payload type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ACT
+			got, err := UnmarshalChallengePayload(tt.raw)
+
+			// ASSERT
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError, "error message mismatch")
+			assert.Equal(t, ChallengePayload{}, got, "no payload may be returned on a decode error")
+		})
+	}
+}
+
+func TestConsumeRecoveryCode_Rejections(t *testing.T) {
+	m := newTestManager(t, time.Unix(1_700_000_000, 0))
+	_, encoded, err := m.GenerateRecoveryCodes()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		encoded   string
+		input     string
+		wantError string
+		wantOK    bool
+	}{
+		{
+			name:    "blank_input_consumes_nothing",
+			encoded: encoded,
+			input:   "   ---   ",
+			wantOK:  false,
+		},
+		{
+			name:    "unknown_code_consumes_nothing",
+			encoded: encoded,
+			input:   "zzzz-zzzz",
+			wantOK:  false,
+		},
+		{
+			name:    "empty_code_set_consumes_nothing",
+			encoded: "",
+			input:   "abcd-efgh",
+			wantOK:  false,
+		},
+		{
+			name:      "corrupt_code_set_is_reported",
+			encoded:   "{not-json",
+			input:     "abcd-efgh",
+			wantError: "failed to unmarshal recovery codes",
+			wantOK:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ACT
+			updated, ok, consumeErr := m.ConsumeRecoveryCode(tt.encoded, tt.input)
+
+			// ASSERT
+			assert.Equal(t, tt.wantOK, ok)
+
+			if tt.wantError != "" {
+				require.Error(t, consumeErr)
+				assert.Contains(t, consumeErr.Error(), tt.wantError, "error message mismatch")
+			} else {
+				require.NoError(t, consumeErr)
+			}
+
+			assert.Equal(t, tt.encoded, updated,
+				"a rejected attempt must return the stored set unchanged")
+		})
+	}
+}
+
+// A secret that is not valid ciphertext must be reported, never treated as a
+// silently failing validation.
+func TestValidateTOTP_RejectsUndecryptableSecret(t *testing.T) {
+	// ARRANGE
+	m := newTestManager(t, time.Unix(1_700_000_000, 0))
+
+	// ACT
+	ok, step, err := m.ValidateTOTP("not-base64-ciphertext", "123456", nil)
+
+	// ASSERT
+	require.Error(t, err)
+	assert.False(t, ok)
+	assert.Zero(t, step)
+}

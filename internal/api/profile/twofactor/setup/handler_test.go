@@ -15,13 +15,84 @@ import (
 	"testing"
 
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/twofactor"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var (
+	errStorageUnavailable = errors.New("storage unavailable")
+	errSecretGeneration   = errors.New("entropy source unavailable")
+	errSecretEncryption   = errors.New("cipher unavailable")
+)
+
+// errUserRepository makes the user lookup or the write fail, so the handler's
+// storage-error branches become reachable.
+type errUserRepository struct {
+	*inmemory.UserRepository
+
+	findErr error
+	saveErr error
+}
+
+func (r *errUserRepository) Find(
+	ctx context.Context,
+	filter *filters.FindUser,
+	order []filters.Sorting,
+	pagination *filters.Pagination,
+) ([]domain.User, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+
+	return r.UserRepository.Find(ctx, filter, order, pagination)
+}
+
+func (r *errUserRepository) Save(ctx context.Context, user *domain.User) error {
+	if r.saveErr != nil {
+		return r.saveErr
+	}
+
+	return r.UserRepository.Save(ctx, user)
+}
+
+// stubTwoFactor lets a single manager step fail while the others behave.
+type stubTwoFactor struct {
+	generateErr error
+	encryptErr  error
+}
+
+func (s *stubTwoFactor) GenerateSecret(_ string) (string, string, error) {
+	if s.generateErr != nil {
+		return "", "", s.generateErr
+	}
+
+	return "SECRET", "otpauth://totp/gameap:alice?secret=SECRET", nil
+}
+
+func (s *stubTwoFactor) EncryptSecret(secret string) (string, error) {
+	if s.encryptErr != nil {
+		return "", s.encryptErr
+	}
+
+	return "enc:" + secret, nil
+}
+
+func seededRepo(t *testing.T) *inmemory.UserRepository {
+	t.Helper()
+
+	repo := inmemory.NewUserRepository()
+	require.NoError(t, repo.Save(context.Background(), &domain.User{
+		ID: 1, Login: "alice", Email: "alice@example.com",
+	}))
+
+	return repo
+}
 
 func newManager(t *testing.T) *twofactor.Manager {
 	t.Helper()
@@ -92,4 +163,129 @@ func TestSetup_RejectsUnauthenticated(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// A session whose user no longer exists must not enroll anything.
+func TestSetup_RejectsWhenSessionUserIsGone(t *testing.T) {
+	// ARRANGE
+	handler := NewHandler(inmemory.NewUserRepository(), newManager(t), api.NewResponder())
+
+	// ACT
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, authedRequest("ghost"))
+
+	// ASSERT
+	require.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "user not found")
+}
+
+// Any failure along the enrollment path must abort without leaving a usable
+// pending secret behind, and must not leak the internal cause to the client.
+func TestSetup_StorageAndCryptoErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		repo func(t *testing.T) *errUserRepository
+		// twoFactor is the manager slice the handler depends on.
+		twoFactor twoFactorManager
+		// mustNotLeak is internal detail that may never reach the response body.
+		mustNotLeak string
+	}{
+		{
+			name: "user_lookup_error_aborts_enrollment",
+			repo: func(t *testing.T) *errUserRepository {
+				t.Helper()
+
+				return &errUserRepository{UserRepository: seededRepo(t), findErr: errStorageUnavailable}
+			},
+			twoFactor:   &stubTwoFactor{},
+			mustNotLeak: "storage unavailable",
+		},
+		{
+			name: "secret_generation_error_aborts_enrollment",
+			repo: func(t *testing.T) *errUserRepository {
+				t.Helper()
+
+				return &errUserRepository{UserRepository: seededRepo(t)}
+			},
+			twoFactor:   &stubTwoFactor{generateErr: errSecretGeneration},
+			mustNotLeak: "entropy source unavailable",
+		},
+		{
+			name: "secret_encryption_error_aborts_enrollment",
+			repo: func(t *testing.T) *errUserRepository {
+				t.Helper()
+
+				return &errUserRepository{UserRepository: seededRepo(t)}
+			},
+			twoFactor:   &stubTwoFactor{encryptErr: errSecretEncryption},
+			mustNotLeak: "cipher unavailable",
+		},
+		{
+			name: "pending_secret_store_error_aborts_enrollment",
+			repo: func(t *testing.T) *errUserRepository {
+				t.Helper()
+
+				return &errUserRepository{UserRepository: seededRepo(t), saveErr: errStorageUnavailable}
+			},
+			twoFactor:   &stubTwoFactor{},
+			mustNotLeak: "storage unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			repo := tt.repo(t)
+			handler := NewHandler(repo, tt.twoFactor, api.NewResponder())
+
+			// ACT
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, authedRequest("alice"))
+
+			// ASSERT
+			require.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
+			assert.NotContains(t, w.Body.String(), tt.mustNotLeak,
+				"the internal cause must not reach the client")
+			assert.NotContains(t, w.Body.String(), "secret",
+				"a failed enrollment must not echo any secret material")
+
+			users, err := repo.UserRepository.Find(context.Background(), nil, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, users, 1)
+			assert.False(t, users[0].TwoFactorEnabled, "a failed enrollment must never enable 2FA")
+		})
+	}
+}
+
+// Restarting enrollment must invalidate whatever the previous attempt left
+// behind, so a half-finished attempt cannot be resumed with stale state.
+func TestSetup_RestartClearsPreviousEnrollmentState(t *testing.T) {
+	// ARRANGE
+	repo := inmemory.NewUserRepository()
+	staleSecret := "enc:stale"
+	staleCodes := "stale-codes"
+	staleStep := int64(42)
+	require.NoError(t, repo.Save(context.Background(), &domain.User{
+		ID:                     1,
+		Login:                  "alice",
+		TwoFactorSecret:        &staleSecret,
+		TwoFactorRecoveryCodes: &staleCodes,
+		TwoFactorLastUsedStep:  &staleStep,
+	}))
+	handler := NewHandler(repo, newManager(t), api.NewResponder())
+
+	// ACT
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, authedRequest("alice"))
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	users, err := repo.Find(context.Background(), nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	require.NotNil(t, users[0].TwoFactorSecret)
+	assert.NotEqual(t, staleSecret, *users[0].TwoFactorSecret, "a restart must mint a fresh secret")
+	assert.Nil(t, users[0].TwoFactorRecoveryCodes, "stale recovery codes must be discarded")
+	assert.Nil(t, users[0].TwoFactorLastUsedStep, "the stale replay guard must be reset")
 }

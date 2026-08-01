@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { loginViaAPI } from '../fixtures/auth';
 import { createUser, deleteUser } from '../fixtures/users';
-import { expectStatus, dismissTopDialog } from '../fixtures/ui';
+import { expectStatus, dismissTopDialog, loginViaUI } from '../fixtures/ui';
 import { getGame, deleteGame } from '../fixtures/games';
 
 const STAMP = Date.now();
@@ -10,7 +10,6 @@ const NAME0 = `Game ${STAMP}`;
 const NAME1 = `Game ${STAMP} upd`;
 
 // i18n-tolerant matchers (English | Russian | raw i18n key).
-const SIGN_IN = /sign.?in|login|вход|войти|auth\.sign_in/i;
 const METADATA_TAB = /metadata|метаданные|games\.metadata/i;
 const ADD_ROW = /add|добавить|main\.add/i;
 
@@ -48,19 +47,7 @@ test('admin creates a game, sees defaults, edits fields + metadata, and it persi
   userId = user.id;
 
   // 2. UI login as that admin.
-  await page.goto('/login');
-  await page.locator('#email').fill(login);
-  await page.locator('#password').fill(password);
-  const loginResp = page.waitForResponse(
-    (r) =>
-      r.url().includes('/api/auth/login') && r.request().method() === 'POST',
-  );
-  await page.getByRole('button', { name: SIGN_IN }).click();
-  await expectStatus(await loginResp, 200, 'admin login should be 200');
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 15_000 });
-  await expect
-    .poll(async () => page.evaluate(() => localStorage.getItem('auth_token')))
-    .toBeTruthy();
+  await loginViaUI(page, login, password);
 
   // 3. Left sidebar → Games (href is stable across minimized/full sidebar).
   await page.locator('.sidebar-menu a[href="/admin/games"]').first().click();

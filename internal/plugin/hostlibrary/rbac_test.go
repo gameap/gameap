@@ -373,3 +373,328 @@ func TestRepositoryPermissionChecker(t *testing.T) {
 		})
 	}
 }
+
+// Per-user grants bypass roles entirely, so the direct user-ability path must
+// grant and take away access on its own.
+func TestRBACService_user_abilities_for_entity_round_trip(t *testing.T) {
+	ctx := context.Background()
+	env := newAllowedRBACEnv(t)
+
+	const userID = uint64(700)
+	const serverID = uint64(21)
+
+	// ARRANGE / ACT — grant the ability directly to the user.
+	allowResp, err := env.service.AllowUserAbilitiesForEntity(ctx, &rbac.UserAbilitiesRequest{
+		UserId:     userID,
+		EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+		EntityId:   serverID,
+		Abilities:  []string{string(domain.AbilityNameGameServerRestart)},
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	require.True(t, allowResp.Success, allowResp.Error)
+
+	canResp, err := env.authz.CanForEntity(ctx, &authz.CanForEntityRequest{
+		UserId:     userID,
+		EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+		EntityId:   serverID,
+		Abilities:  []string{string(domain.AbilityNameGameServerRestart)},
+	})
+	require.NoError(t, err)
+	assert.True(t, canResp.Allowed, "a directly granted ability must be honoured")
+
+	// ACT — take it away again.
+	revokeResp, err := env.service.RevokeOrForbidUserAbilitiesForEntity(ctx, &rbac.UserAbilitiesRequest{
+		UserId:     userID,
+		EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+		EntityId:   serverID,
+		Abilities:  []string{string(domain.AbilityNameGameServerRestart)},
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	require.True(t, revokeResp.Success, revokeResp.Error)
+
+	canResp, err = env.authz.CanForEntity(ctx, &authz.CanForEntityRequest{
+		UserId:     userID,
+		EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+		EntityId:   serverID,
+		Abilities:  []string{string(domain.AbilityNameGameServerRestart)},
+	})
+	require.NoError(t, err)
+	assert.False(t, canResp.Allowed, "a revoked ability must stop being honoured")
+}
+
+func TestRBACService_user_abilities_rejections(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		env       func(t *testing.T) rbacTestEnv
+		call      func(context.Context, *RBACServiceImpl) (*rbac.Result, error)
+		wantError string
+	}{
+		{
+			name: "allow_without_the_grant_is_refused",
+			env: func(t *testing.T) rbacTestEnv {
+				t.Helper()
+
+				return newRBACTestEnv(t, stubPermissionChecker{allowed: false}, rbacTestPluginID)
+			},
+			call: func(ctx context.Context, s *RBACServiceImpl) (*rbac.Result, error) {
+				return s.AllowUserAbilitiesForEntity(ctx, &rbac.UserAbilitiesRequest{
+					UserId:     1,
+					EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+					EntityId:   1,
+					Abilities:  []string{string(domain.AbilityNameView)},
+				})
+			},
+			wantError: string(domain.PluginPermissionManageRBAC),
+		},
+		{
+			name: "revoke_without_the_grant_is_refused",
+			env: func(t *testing.T) rbacTestEnv {
+				t.Helper()
+
+				return newRBACTestEnv(t, stubPermissionChecker{allowed: false}, rbacTestPluginID)
+			},
+			call: func(ctx context.Context, s *RBACServiceImpl) (*rbac.Result, error) {
+				return s.RevokeOrForbidUserAbilitiesForEntity(ctx, &rbac.UserAbilitiesRequest{
+					UserId:     1,
+					EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+					EntityId:   1,
+					Abilities:  []string{string(domain.AbilityNameView)},
+				})
+			},
+			wantError: string(domain.PluginPermissionManageRBAC),
+		},
+		{
+			name: "allow_with_unspecified_entity_type_is_rejected",
+			env:  newAllowedRBACEnv,
+			call: func(ctx context.Context, s *RBACServiceImpl) (*rbac.Result, error) {
+				return s.AllowUserAbilitiesForEntity(ctx, &rbac.UserAbilitiesRequest{
+					UserId:     1,
+					EntityType: proto.EntityType_ENTITY_TYPE_UNSPECIFIED,
+					EntityId:   1,
+					Abilities:  []string{string(domain.AbilityNameView)},
+				})
+			},
+			wantError: "unknown entity type",
+		},
+		{
+			name: "revoke_with_unspecified_entity_type_is_rejected",
+			env:  newAllowedRBACEnv,
+			call: func(ctx context.Context, s *RBACServiceImpl) (*rbac.Result, error) {
+				return s.RevokeOrForbidUserAbilitiesForEntity(ctx, &rbac.UserAbilitiesRequest{
+					UserId:     1,
+					EntityType: proto.EntityType_ENTITY_TYPE_UNSPECIFIED,
+					EntityId:   1,
+					Abilities:  []string{string(domain.AbilityNameView)},
+				})
+			},
+			wantError: "unknown entity type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			env := tt.env(t)
+
+			// ACT
+			resp, err := tt.call(ctx, env.service)
+
+			// ASSERT
+			require.NoError(t, err)
+			assert.False(t, resp.Success)
+			require.NotNil(t, resp.Error)
+			assert.Contains(t, *resp.Error, tt.wantError, "error message mismatch")
+		})
+	}
+}
+
+// Forbid outranks a role grant; Revoke only drops the direct grant.
+func TestRBACService_Forbid_overrides_a_role_grant(t *testing.T) {
+	ctx := context.Background()
+	env := newAllowedRBACEnv(t)
+
+	const userID = uint64(710)
+	const serverID = uint64(22)
+
+	// ARRANGE — the user gets the ability through a role.
+	saved, err := env.service.SaveRole(ctx, &rbac.SaveRoleRequest{
+		Role: &rbac.Role{Name: "restarter"},
+	})
+	require.NoError(t, err)
+	require.True(t, saved.Success, saved.Error)
+
+	allowResp, err := env.service.Allow(ctx, &rbac.AbilitiesRequest{
+		EntityType: proto.EntityType_ENTITY_TYPE_ROLE,
+		EntityId:   saved.Role.Id,
+		Abilities: []*rbac.Ability{{
+			Name:       string(domain.AbilityNameGameServerRestart),
+			EntityType: new(proto.EntityType_ENTITY_TYPE_SERVER),
+			EntityId:   new(serverID),
+		}},
+	})
+	require.NoError(t, err)
+	require.True(t, allowResp.Success, allowResp.Error)
+
+	assignResp, err := env.service.AssignRolesForEntity(ctx, &rbac.AssignRolesRequest{
+		EntityType: proto.EntityType_ENTITY_TYPE_USER,
+		EntityId:   userID,
+		Roles:      []*rbac.RestrictedRole{{Role: saved.Role}},
+	})
+	require.NoError(t, err)
+	require.True(t, assignResp.Success, assignResp.Error)
+
+	canResp, err := env.authz.CanForEntity(ctx, &authz.CanForEntityRequest{
+		UserId:     userID,
+		EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+		EntityId:   serverID,
+		Abilities:  []string{string(domain.AbilityNameGameServerRestart)},
+	})
+	require.NoError(t, err)
+	require.True(t, canResp.Allowed, "the role grant must apply before the forbid")
+
+	// ACT — forbid it for the user specifically.
+	forbidResp, err := env.service.Forbid(ctx, &rbac.AbilitiesRequest{
+		EntityType: proto.EntityType_ENTITY_TYPE_USER,
+		EntityId:   userID,
+		Abilities: []*rbac.Ability{{
+			Name:       string(domain.AbilityNameGameServerRestart),
+			EntityType: new(proto.EntityType_ENTITY_TYPE_SERVER),
+			EntityId:   new(serverID),
+		}},
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	require.True(t, forbidResp.Success, forbidResp.Error)
+
+	canResp, err = env.authz.CanForEntity(ctx, &authz.CanForEntityRequest{
+		UserId:     userID,
+		EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+		EntityId:   serverID,
+		Abilities:  []string{string(domain.AbilityNameGameServerRestart)},
+	})
+	require.NoError(t, err)
+	assert.False(t, canResp.Allowed, "an explicit forbid must outrank the role grant")
+}
+
+func TestRBACService_Revoke_drops_a_direct_grant(t *testing.T) {
+	ctx := context.Background()
+	env := newAllowedRBACEnv(t)
+
+	const userID = uint64(720)
+	const serverID = uint64(23)
+
+	// ARRANGE
+	allowResp, err := env.service.Allow(ctx, &rbac.AbilitiesRequest{
+		EntityType: proto.EntityType_ENTITY_TYPE_USER,
+		EntityId:   userID,
+		Abilities: []*rbac.Ability{{
+			Name:       string(domain.AbilityNameGameServerRestart),
+			EntityType: new(proto.EntityType_ENTITY_TYPE_SERVER),
+			EntityId:   new(serverID),
+		}},
+	})
+	require.NoError(t, err)
+	require.True(t, allowResp.Success, allowResp.Error)
+
+	// ACT
+	revokeResp, err := env.service.Revoke(ctx, &rbac.AbilitiesRequest{
+		EntityType: proto.EntityType_ENTITY_TYPE_USER,
+		EntityId:   userID,
+		Abilities: []*rbac.Ability{{
+			Name:       string(domain.AbilityNameGameServerRestart),
+			EntityType: new(proto.EntityType_ENTITY_TYPE_SERVER),
+			EntityId:   new(serverID),
+		}},
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	require.True(t, revokeResp.Success, revokeResp.Error)
+
+	canResp, err := env.authz.CanForEntity(ctx, &authz.CanForEntityRequest{
+		UserId:     userID,
+		EntityType: proto.EntityType_ENTITY_TYPE_SERVER,
+		EntityId:   serverID,
+		Abilities:  []string{string(domain.AbilityNameGameServerRestart)},
+	})
+	require.NoError(t, err)
+	assert.False(t, canResp.Allowed, "a revoked direct grant must stop being honoured")
+}
+
+// GetRolesForEntity is the read side of AssignRolesForEntity; the role fields a
+// plugin needs must survive the domain → proto conversion.
+func TestRBACService_GetRolesForEntity_returns_assigned_roles(t *testing.T) {
+	ctx := context.Background()
+	env := newAllowedRBACEnv(t)
+
+	const userID = uint64(730)
+
+	// ARRANGE
+	saved, err := env.service.SaveRole(ctx, &rbac.SaveRoleRequest{
+		Role: &rbac.Role{Name: "auditor", Title: new("Auditor")},
+	})
+	require.NoError(t, err)
+	require.True(t, saved.Success, saved.Error)
+
+	assignResp, err := env.service.AssignRolesForEntity(ctx, &rbac.AssignRolesRequest{
+		EntityType: proto.EntityType_ENTITY_TYPE_USER,
+		EntityId:   userID,
+		Roles:      []*rbac.RestrictedRole{{Role: saved.Role}},
+	})
+	require.NoError(t, err)
+	require.True(t, assignResp.Success, assignResp.Error)
+
+	// ACT
+	resp, err := env.service.GetRolesForEntity(ctx, &rbac.EntityRequest{
+		EntityType: proto.EntityType_ENTITY_TYPE_USER,
+		EntityId:   userID,
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.Nil(t, resp.Error)
+	require.Len(t, resp.Roles, 1)
+	require.NotNil(t, resp.Roles[0].Role)
+	assert.Equal(t, "auditor", resp.Roles[0].Role.Name)
+	assert.Equal(t, saved.Role.Id, resp.Roles[0].Role.Id, "the role id must survive the round trip")
+}
+
+func TestRBACService_entity_reads_reject_unspecified_entity_type(t *testing.T) {
+	ctx := context.Background()
+	env := newAllowedRBACEnv(t)
+
+	t.Run("get_permissions", func(t *testing.T) {
+		// ACT
+		resp, err := env.service.GetPermissions(ctx, &rbac.EntityRequest{
+			EntityType: proto.EntityType_ENTITY_TYPE_UNSPECIFIED,
+			EntityId:   1,
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, resp.Error)
+		assert.Contains(t, *resp.Error, "unknown entity type")
+		assert.Empty(t, resp.Permissions)
+	})
+
+	t.Run("get_roles_for_entity", func(t *testing.T) {
+		// ACT
+		resp, err := env.service.GetRolesForEntity(ctx, &rbac.EntityRequest{
+			EntityType: proto.EntityType_ENTITY_TYPE_UNSPECIFIED,
+			EntityId:   1,
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, resp.Error)
+		assert.Contains(t, *resp.Error, "unknown entity type")
+		assert.Empty(t, resp.Roles)
+	})
+}

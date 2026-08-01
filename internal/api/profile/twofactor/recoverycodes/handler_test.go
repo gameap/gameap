@@ -17,13 +17,64 @@ import (
 	"testing"
 
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/twofactor"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 )
+
+var (
+	errStorageUnavailable = errors.New("storage unavailable")
+	errRecoveryGeneration = errors.New("entropy source unavailable")
+)
+
+// errUserRepository makes the user lookup or the write fail, so the handler's
+// storage-error branches become reachable.
+type errUserRepository struct {
+	*inmemory.UserRepository
+
+	findErr error
+	saveErr error
+}
+
+func (r *errUserRepository) Find(
+	ctx context.Context,
+	filter *filters.FindUser,
+	order []filters.Sorting,
+	pagination *filters.Pagination,
+) ([]domain.User, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+
+	return r.UserRepository.Find(ctx, filter, order, pagination)
+}
+
+func (r *errUserRepository) Save(ctx context.Context, user *domain.User) error {
+	if r.saveErr != nil {
+		return r.saveErr
+	}
+
+	return r.UserRepository.Save(ctx, user)
+}
+
+// stubTwoFactor lets recovery-code generation fail on demand.
+type stubTwoFactor struct {
+	recoveryErr error
+}
+
+func (s *stubTwoFactor) GenerateRecoveryCodes() ([]string, string, error) {
+	if s.recoveryErr != nil {
+		return nil, "", s.recoveryErr
+	}
+
+	return []string{"code-1"}, "encoded", nil
+}
 
 func newFixture(t *testing.T, enabled bool) (*Handler, *inmemory.UserRepository) {
 	t.Helper()
@@ -121,4 +172,169 @@ func TestRegenerate_Rejections(t *testing.T) {
 			assert.Contains(t, w.Body.String(), tt.wantError)
 		})
 	}
+}
+
+func TestRegenerate_RejectsUnauthenticated(t *testing.T) {
+	// ARRANGE
+	handler, _ := newFixture(t, true)
+	req := httptest.NewRequest(http.MethodPost, "/api/profile/2fa/recovery-codes",
+		bytes.NewBufferString(`{"password":"password123"}`))
+
+	// ACT
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusUnauthorized, w.Code, "body=%s", w.Body.String())
+}
+
+func TestRegenerate_MalformedBodyIsBadRequest(t *testing.T) {
+	// ARRANGE
+	handler, _ := newFixture(t, true)
+
+	// ACT
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, recoveryReq(t, `{"password":`))
+
+	// ASSERT
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "invalid request body")
+}
+
+func TestRegenerate_RejectsWhenSessionUserIsGone(t *testing.T) {
+	// ARRANGE
+	handler := NewHandler(inmemory.NewUserRepository(), &stubTwoFactor{}, api.NewResponder(), nil)
+
+	// ACT
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, recoveryReq(t, `{"password":"password123"}`))
+
+	// ASSERT
+	require.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "user not found")
+}
+
+// A failed rotation must keep the previously issued set usable — the owner
+// must not be locked out of their fallback by a transient backend error.
+func TestRegenerate_StorageAndCryptoErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		repo        func(t *testing.T) *errUserRepository
+		twoFactor   twoFactorManager
+		mustNotLeak string
+	}{
+		{
+			name: "user_lookup_error_aborts_rotation",
+			repo: func(t *testing.T) *errUserRepository {
+				t.Helper()
+
+				return &errUserRepository{UserRepository: enabledRepo(t), findErr: errStorageUnavailable}
+			},
+			twoFactor:   &stubTwoFactor{},
+			mustNotLeak: "storage unavailable",
+		},
+		{
+			name: "recovery_code_generation_error_aborts_rotation",
+			repo: func(t *testing.T) *errUserRepository {
+				t.Helper()
+
+				return &errUserRepository{UserRepository: enabledRepo(t)}
+			},
+			twoFactor:   &stubTwoFactor{recoveryErr: errRecoveryGeneration},
+			mustNotLeak: "entropy source unavailable",
+		},
+		{
+			name: "store_error_keeps_previous_codes",
+			repo: func(t *testing.T) *errUserRepository {
+				t.Helper()
+
+				return &errUserRepository{UserRepository: enabledRepo(t), saveErr: errStorageUnavailable}
+			},
+			twoFactor:   &stubTwoFactor{},
+			mustNotLeak: "storage unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			repo := tt.repo(t)
+			handler := NewHandler(repo, tt.twoFactor, api.NewResponder(), nil)
+
+			// ACT
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, recoveryReq(t, `{"password":"password123"}`))
+
+			// ASSERT
+			require.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
+			assert.NotContains(t, w.Body.String(), tt.mustNotLeak,
+				"the internal cause must not reach the client")
+			assert.NotContains(t, w.Body.String(), "recovery_codes",
+				"a failed rotation must not hand out codes it did not persist")
+
+			users, err := repo.UserRepository.Find(context.Background(), nil, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, users, 1)
+			require.NotNil(t, users[0].TwoFactorRecoveryCodes)
+			assert.Equal(t, "original-codes", *users[0].TwoFactorRecoveryCodes,
+				"the previously issued set must stay usable")
+		})
+	}
+}
+
+// A pre-§2.1.2 password hash (bare bcrypt, no SHA-256 pre-hash) still
+// authenticates, and the rotation piggybacks the hash upgrade onto its Save.
+func TestRegenerate_UpgradesLegacyPasswordHash(t *testing.T) {
+	// ARRANGE
+	legacyHash, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	repo := inmemory.NewUserRepository()
+	codes := "original-codes"
+	require.NoError(t, repo.Save(context.Background(), &domain.User{
+		ID:                     1,
+		Login:                  "alice",
+		Email:                  "alice@example.com",
+		Password:               string(legacyHash),
+		TwoFactorEnabled:       true,
+		TwoFactorRecoveryCodes: &codes,
+	}))
+	handler := NewHandler(repo, &stubTwoFactor{}, api.NewResponder(), nil)
+
+	// ACT
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, recoveryReq(t, `{"password":"password123"}`))
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	users, findErr := repo.Find(context.Background(), nil, nil, nil)
+	require.NoError(t, findErr)
+	require.Len(t, users, 1)
+	assert.NotEqual(t, string(legacyHash), users[0].Password,
+		"the legacy hash must be upgraded in place")
+
+	needsRehash, verifyErr := auth.VerifyPassword(users[0].Password, "password123")
+	require.NoError(t, verifyErr, "the upgraded hash must still verify the same password")
+	assert.False(t, needsRehash, "the upgraded hash must not ask for another rehash")
+}
+
+func enabledRepo(t *testing.T) *inmemory.UserRepository {
+	t.Helper()
+
+	hashedPassword, err := auth.HashPassword("password123")
+	require.NoError(t, err)
+
+	repo := inmemory.NewUserRepository()
+	codes := "original-codes"
+	require.NoError(t, repo.Save(context.Background(), &domain.User{
+		ID:                     1,
+		Login:                  "alice",
+		Email:                  "alice@example.com",
+		Password:               hashedPassword,
+		TwoFactorEnabled:       true,
+		TwoFactorRecoveryCodes: &codes,
+	}))
+
+	return repo
 }

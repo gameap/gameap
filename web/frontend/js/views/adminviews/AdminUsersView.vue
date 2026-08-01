@@ -1,13 +1,14 @@
 <template>
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
-  <GButton color="green" size="middle" class="mb-5" v-on:click="onClickCreate()">
+  <GButton color="green" size="middle" class="mb-5" v-on:click="onClickCreate()" data-testid="users-create-button">
     <GIcon name="add-square" class="mr-0.5" />
     <span>{{ trans('users.create')}}</span>
   </GButton>
 
   <GDataTable
       ref="tableRef"
+      data-testid="users-table"
       :columns="columns"
       :data="usersData"
       :loading="loading"
@@ -105,6 +106,7 @@ const createColumns = () => {
             color: 'green',
             size: 'small',
             class: 'mr-0.5',
+            'data-testid': `user-row-view-${row.id}`,
             onClick: () => {onClickShow(row.id)},
           }, { default: () => [
             h(GIcon, {name: 'view'}),
@@ -114,6 +116,7 @@ const createColumns = () => {
             color: 'blue',
             size: 'small',
             class: 'mr-0.5',
+            'data-testid': `user-row-edit-${row.id}`,
             route: {name: 'admin.users.edit', params: {id: row.id}},
           }, { default: () => [
             h(GIcon, {name: 'edit'}),
@@ -124,6 +127,7 @@ const createColumns = () => {
             size: 'small',
             disabled: authStore.user?.id === row.id,
             text: trans('main.delete'),
+            'data-testid': `user-row-delete-${row.id}`,
             onClick: () => {onClickDelete(row.id)},
           }, { default: () => [
             h(GIcon, {name: 'delete'}),
