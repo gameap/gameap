@@ -8,6 +8,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
+	wsbase "github.com/gameap/gameap/internal/api/ws/base"
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -18,6 +19,7 @@ import (
 	"github.com/gameap/gameap/internal/ws"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/secretmask"
 	"github.com/pkg/errors"
 )
 
@@ -164,22 +166,38 @@ func (h *Handler) runGRPCMode(
 	client := ws.NewClient(ctx, conn, h.hub, nil, h.logger)
 	msgHandler, cleanup := h.newGRPCMessageHandler(ctx, client, server, node, user, canSend)
 	client.SetMessageHandler(msgHandler)
+
+	// The game server start command embeds the RCON password, so it shows up in the console
+	// stream. Installed before Register so no broadcast can reach the peer unfiltered.
+	masker := secretmask.New(server.RconPassword())
+	client.SetOutboundFilter(wsbase.NewOutboundMaskFilter(masker))
+
 	defer cleanup()
 
 	h.hub.Register(client, consoleTopic)
 
-	h.sendConsoleHistory(ctx, client, server, node)
+	h.sendConsoleHistory(ctx, client, server, node, masker)
 
 	client.Run()
 }
 
-func (h *Handler) sendConsoleHistory(ctx context.Context, client *ws.Client, server *domain.Server, node *domain.Node) {
+func (h *Handler) sendConsoleHistory(
+	ctx context.Context,
+	client *ws.Client,
+	server *domain.Server,
+	node *domain.Node,
+	masker *secretmask.Masker,
+) {
 	output, err := h.getConsoleLog(ctx, server, node)
 	if err != nil {
 		h.logger.Warn("failed to load console history", "server_id", server.ID, "error", err)
 
 		return
 	}
+
+	// Masked here rather than left to the outbound filter: the filter works on the encoded
+	// frame, where a password carrying JSON-escaped characters would no longer match.
+	output = masker.String(output)
 
 	if output != "" {
 		client.SendMessage(ws.NewOutboundMessage(typeConsoleHistory, consoleHistoryPayload{

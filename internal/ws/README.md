@@ -34,8 +34,20 @@ All WebSocket messages use a JSON envelope:
 }
 ```
 
+## Outbound filter
+
+Frames delivered through `Hub.Broadcast` are already encoded by the time a `Client` sees
+them, so a handler cannot post-process them by wrapping `SendMessage`. `Client.SetOutboundFilter`
+installs a per-connection transform that runs on every outbound frame, whichever path it
+came from. It must be installed before `Hub.Register` and `Run`.
+
+The console endpoints use it to mask the server RCON password
+(`internal/api/ws/base.NewOutboundMaskFilter`), which the game server prints as part of its
+launch command line.
+
 ## Endpoints
 
 - `GET /api/ws/tasks/{id}?token=<bearer>` - Real-time task status and output
 - `GET /api/ws/servers/{server}/console?token=<bearer>` - Bidirectional server console
+- `GET /api/ws/servers/{server}/attach?token=<bearer>` - Interactive PTY session
 

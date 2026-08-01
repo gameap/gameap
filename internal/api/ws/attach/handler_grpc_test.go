@@ -135,6 +135,93 @@ func TestRunAttachSession_grpcMode_relaysOutputToWS(t *testing.T) {
 	assert.Equal(t, []byte("hello-from-daemon"), payload.Data, "output bytes must be relayed unchanged")
 }
 
+// TestRunAttachSession_grpcMode_masksRconPasswordInOutput verifies that the server's RCON
+// password — which the game server prints as part of its launch command line — never reaches
+// the WebSocket client, whichever instance published the output.
+func TestRunAttachSession_grpcMode_masksRconPasswordInOutput(t *testing.T) {
+	const rconPassword = "s3cr3tRc0n"
+
+	tests := []struct {
+		name         string
+		rconPassword string
+		data         string
+		wantData     string
+	}{
+		{
+			name:         "launch_line_is_masked",
+			rconPassword: rconPassword,
+			data:         "./hlds_run -game cs +rcon_password " + rconPassword + "\r\n",
+			wantData:     "./hlds_run -game cs +rcon_password ******\r\n",
+		},
+		{
+			name:         "every_occurrence_is_masked",
+			rconPassword: rconPassword,
+			data:         rconPassword + " and " + rconPassword,
+			wantData:     "****** and ******",
+		},
+		{
+			name:         "output_without_password_is_relayed_unchanged",
+			rconPassword: rconPassword,
+			data:         "L 01/02/2026 - 12:00:00: Started map \"de_dust2\"\r\n",
+			wantData:     "L 01/02/2026 - 12:00:00: Started map \"de_dust2\"\r\n",
+		},
+		{
+			name:     "server_without_rcon_password_is_relayed_unchanged",
+			data:     "./hlds_run -game cs +rcon_password " + rconPassword + "\r\n",
+			wantData: "./hlds_run -game cs +rcon_password " + rconPassword + "\r\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			var opts []attachEnvOption
+			if tt.rconPassword != "" {
+				opts = append(opts, withRconPassword(tt.rconPassword))
+			}
+
+			env := newAttachEnv(t, opts...)
+			conn := env.dial(t)
+
+			var sessionID string
+			require.Eventually(t, func() bool {
+				for _, m := range env.stream.sentMessages() {
+					if r := m.GetAttachRequest(); r != nil {
+						sessionID = r.SessionId
+
+						return true
+					}
+				}
+
+				return false
+			}, 2*time.Second, 10*time.Millisecond)
+			require.NotEmpty(t, sessionID, "session id must be discovered before publishing output")
+
+			// ACT
+			channel := channels.BuildRealtimeAttachOutputChannel(sessionID)
+			msg, err := messages.NewMessage(channel, messages.TypeAttachOutput, messages.AttachOutputPayload{
+				SessionID: sessionID,
+				Data:      []byte(tt.data),
+			})
+			require.NoError(t, err)
+			env.publishPubsub(t, channel, msg)
+
+			// ASSERT
+			frame, ok := readFrameOfType(t, conn, messages.TypeAttachOutput, 2*time.Second)
+			require.True(t, ok, "client must receive an attach.output frame")
+
+			var payload messages.AttachOutputPayload
+			require.NoError(t, json.Unmarshal(frame.Payload, &payload))
+			assert.Equal(t, sessionID, payload.SessionID, "session id must be carried through")
+			assert.Equal(t, tt.wantData, string(payload.Data))
+
+			if tt.rconPassword != "" {
+				assert.NotContains(t, string(payload.Data), tt.rconPassword)
+			}
+		})
+	}
+}
+
 // TestRunAttachSession_grpcMode_clientDetachClosesConnection verifies that an
 // attach.detach frame from the client triggers a detach gateway message and
 // closes the WebSocket connection.

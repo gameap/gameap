@@ -17,6 +17,7 @@ import (
 	"github.com/gameap/gameap/internal/services"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/quercon/rcon"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -626,6 +627,143 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	}
 }
 
+// stubRconClient answers Execute with a canned reply so the handler can be driven without a
+// live game server.
+type stubRconClient struct {
+	output string
+}
+
+func (c *stubRconClient) Open(_ context.Context) error { return nil }
+
+func (c *stubRconClient) Close() error { return nil }
+
+func (c *stubRconClient) Execute(_ context.Context, _ string) (string, error) {
+	return c.output, nil
+}
+
+func TestHandler_ServeHTTP_masksRconPassword(t *testing.T) {
+	tests := []struct {
+		name         string
+		rconPassword string
+		rconOutput   string
+		wantOutput   string
+	}{
+		{
+			name:         "cvar_dump_with_password_is_masked",
+			rconPassword: testRconPassword,
+			rconOutput:   "\"rcon_password\" is \"" + testRconPassword + "\"\n",
+			wantOutput:   "\"rcon_password\" is \"******\"\n",
+		},
+		{
+			name:         "every_occurrence_is_masked",
+			rconPassword: testRconPassword,
+			rconOutput:   testRconPassword + " middle " + testRconPassword,
+			wantOutput:   "****** middle ******",
+		},
+		{
+			name:         "two_character_password_is_masked",
+			rconPassword: "ab",
+			rconOutput:   "\"rcon_password\" is \"ab\"\n",
+			wantOutput:   "\"rcon_password\" is \"******\"\n",
+		},
+		{
+			name:         "single_character_password_is_masked",
+			rconPassword: "x",
+			rconOutput:   "\"rcon_password\" is \"x\"\n",
+			wantOutput:   "\"rcon_password\" is \"******\"\n",
+		},
+		{
+			name:         "output_without_password_returned_unchanged",
+			rconPassword: testRconPassword,
+			rconOutput:   "hostname: Test Server\nplayers : 0 (32 max)\n",
+			wantOutput:   "hostname: Test Server\nplayers : 0 (32 max)\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			serverRepo := inmemory.NewServerRepository()
+			gameRepo := inmemory.NewGameRepository()
+			rbacRepo := inmemory.NewRBACRepository()
+			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+			seedOnlineServer(t, serverRepo, gameRepo, rbacRepo, tt.rconPassword)
+
+			handler := NewHandler(serverRepo, gameRepo, testResolver(), rbacService, api.NewResponder())
+			handler.newRconClient = func(_ context.Context, _ domain.Game, _ rcon.Config) (rcon.Client, error) {
+				return &stubRconClient{output: tt.rconOutput}, nil
+			}
+
+			body, err := json.Marshal(map[string]string{"command": "cvarlist"})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/servers/1/rcon", bytes.NewReader(body))
+			req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+				Login: "testuser",
+				Email: "test@example.com",
+				User:  &testUser1,
+			}))
+			req = mux.SetURLVars(req, map[string]string{"server": "1"})
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+			var response commandResponse
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, tt.wantOutput, response.Output)
+			assert.NotContains(t, response.Output, tt.rconPassword)
+		})
+	}
+}
+
+// seedOnlineServer stores an online server owned by testUser1 with the RCON console ability
+// granted, plus the game its protocol is derived from.
+func seedOnlineServer(
+	t *testing.T,
+	serverRepo *inmemory.ServerRepository,
+	gameRepo *inmemory.GameRepository,
+	rbacRepo *inmemory.RBACRepository,
+	rconPassword string,
+) {
+	t.Helper()
+
+	now := time.Now()
+
+	server := &domain.Server{
+		ID:               1,
+		UID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		UUIDShort:        "short1",
+		Enabled:          true,
+		Installed:        1,
+		Name:             "Test Server 1",
+		GameID:           "cs",
+		DSID:             1,
+		GameModID:        1,
+		ServerIP:         "127.0.0.1",
+		ServerPort:       27015,
+		Rcon:             &rconPassword,
+		ProcessActive:    true,
+		LastProcessCheck: &now,
+		CreatedAt:        &now,
+		UpdatedAt:        &now,
+	}
+	require.NoError(t, serverRepo.Save(context.Background(), server))
+	serverRepo.AddUserServer(testUser1.ID, server.ID)
+
+	require.NoError(t, gameRepo.Save(context.Background(), &domain.Game{
+		Code:   "cs",
+		Name:   "Counter-Strike",
+		Engine: "goldsource",
+	}))
+
+	allowUserAbilityForServer(t, rbacRepo, testUser1.ID, server.ID, domain.AbilityNameGameServerRconConsole)
+}
+
 func TestHandler_NewHandler(t *testing.T) {
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
@@ -638,6 +776,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	require.NotNil(t, handler)
 	assert.NotNil(t, handler.serverFinder)
 	assert.NotNil(t, handler.gameRepo)
+	assert.NotNil(t, handler.newRconClient)
 	assert.Equal(t, responder, handler.responder)
 }
 

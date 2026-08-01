@@ -1,6 +1,6 @@
 <template>
   <n-card
-      class="node-card cursor-pointer transition-shadow hover:shadow-lg"
+      class="node-card cursor-pointer"
       :class="{ 'opacity-60 hover:opacity-90': !online }"
       size="small"
       :bordered="true"
