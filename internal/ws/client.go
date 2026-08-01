@@ -122,9 +122,9 @@ func (c *Client) SetMessageHandler(handler MessageHandler) {
 // on its way to the peer, including frames fanned out by the Hub.
 //
 // There is no synchronization with the write path, so it must be installed
-// before the Client is registered with the Hub and before Run, the same
-// ordering requirement SetMessageHandler carries. Passing nil clears the
-// filter.
+// before the Client is registered with the Hub and before Run — once either
+// has happened another goroutine may already be calling Send. Passing nil
+// clears the filter.
 func (c *Client) SetOutboundFilter(filter OutboundFilter) {
 	c.filter = filter
 }

@@ -9,18 +9,13 @@ package secretmask
 
 import (
 	"bytes"
+	"cmp"
 	"slices"
 	"strings"
 )
 
 // Placeholder is what every occurrence of a secret is replaced with.
 const Placeholder = "******"
-
-// minSecretLength keeps a very short secret from swallowing the whole output:
-// a one or two character value occurs constantly in ordinary console text, so
-// masking it would leave nothing readable. Panel generated RCON passwords are
-// 10 characters long.
-const minSecretLength = 3
 
 // Masker replaces a fixed set of secrets with Placeholder.
 //
@@ -33,14 +28,15 @@ type Masker struct {
 
 // New builds a Masker for the given secrets.
 //
-// Empty values, values shorter than minSecretLength, and duplicates are
-// dropped. When nothing is left the returned Masker is a no-op and reports
-// Empty.
+// Empty values and duplicates are dropped; when nothing is left the returned
+// Masker is a no-op and reports Empty. Every other value is masked however
+// short it is: a secret that leaks is worse than output a very short secret
+// over-matches in.
 func New(secrets ...string) *Masker {
 	filtered := make([]string, 0, len(secrets))
 
 	for _, secret := range secrets {
-		if len(secret) < minSecretLength {
+		if secret == "" {
 			continue
 		}
 
@@ -48,6 +44,12 @@ func New(secrets ...string) *Masker {
 			filtered = append(filtered, secret)
 		}
 	}
+
+	// Longest first, so a secret that contains another one is replaced whole rather than
+	// being broken up by the shorter match.
+	slices.SortStableFunc(filtered, func(a, b string) int {
+		return cmp.Compare(len(b), len(a))
+	})
 
 	return &Masker{secrets: filtered}
 }

@@ -28,16 +28,28 @@ func TestMasker_String(t *testing.T) {
 			want:    "console output",
 		},
 		{
-			name:    "secret_shorter_than_minimum_ignored",
+			name:    "two_character_secret_replaced",
 			secrets: []string{"ab"},
 			input:   "abcabc",
-			want:    "abcabc",
+			want:    "******c******c",
 		},
 		{
-			name:    "secret_of_minimum_length_replaced",
-			secrets: []string{"abc"},
-			input:   "value abc end",
+			name:    "single_character_secret_replaced",
+			secrets: []string{"x"},
+			input:   "axbxc",
+			want:    "a******b******c",
+		},
+		{
+			name:    "longer_secret_wins_over_contained_shorter_one",
+			secrets: []string{"ab", "abcd"},
+			input:   "value abcd end",
 			want:    "value ****** end",
+		},
+		{
+			name:    "shorter_secret_still_replaced_on_its_own",
+			secrets: []string{"abcd", "ab"},
+			input:   "abcd and ab",
+			want:    "****** and ******",
 		},
 		{
 			name:    "single_occurrence_replaced",
@@ -199,11 +211,18 @@ func TestMasker_Empty(t *testing.T) {
 			wantOut: "+rcon_password s3cr3tpass",
 		},
 		{
-			name:    "masker_with_only_short_secrets_is_empty",
-			masker:  secretmask.New("", "ab"),
+			name:    "masker_with_only_empty_secrets_is_empty",
+			masker:  secretmask.New("", ""),
 			want:    true,
 			input:   "ab cd",
 			wantOut: "ab cd",
+		},
+		{
+			name:    "masker_with_short_secret_is_not_empty",
+			masker:  secretmask.New("", "ab"),
+			want:    false,
+			input:   "ab cd",
+			wantOut: "****** cd",
 		},
 		{
 			name:    "masker_with_secret_is_not_empty",
@@ -227,6 +246,17 @@ func TestMasker_Empty(t *testing.T) {
 			assert.Equal(t, tt.wantOut, string(maskedBytes))
 		})
 	}
+}
+
+func TestMasker_Bytes_masksShortSecret(t *testing.T) {
+	// ARRANGE
+	masker := secretmask.New("ab")
+
+	// ACT
+	got := masker.Bytes([]byte("+rcon_password ab"))
+
+	// ASSERT
+	assert.Equal(t, "+rcon_password ******", string(got))
 }
 
 func TestPlaceholder_hides_secret_length(t *testing.T) {

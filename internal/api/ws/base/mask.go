@@ -23,11 +23,10 @@ type outboundFrame struct {
 // NewOutboundMaskFilter builds a ws.OutboundFilter that replaces every secret known to
 // masker with the placeholder before a frame reaches the browser.
 //
-// The two console-carrying payloads are masked on the decoded value, because their JSON
-// form can hide the secret from a plain text scan: attach.output holds raw PTY bytes,
-// which encode as base64, and a console.output chunk goes through JSON string escaping.
-// The encoded frame is then masked as well, which covers error messages and any frame
-// type added later.
+// Known payloads are masked on the decoded value, because their JSON form can hide the
+// secret from a plain text scan: attach.output holds raw PTY bytes, which encode as
+// base64, while console.output chunks and error messages go through JSON string escaping.
+// The encoded frame is then masked as well, which covers any frame type added later.
 //
 // Returns nil when there is nothing to mask, so callers can skip installing a filter
 // altogether.
@@ -37,38 +36,42 @@ func NewOutboundMaskFilter(masker *secretmask.Masker) ws.OutboundFilter {
 	}
 
 	return func(frame []byte) []byte {
-		return masker.Bytes(maskPayload(frame, masker))
+		return masker.Bytes(maskFrame(frame, masker))
 	}
 }
 
-// maskPayload rebuilds the frame around a masked payload. The frame is returned untouched
-// when it carries no known payload, cannot be decoded, or held no secret to begin with —
-// the caller still masks the encoded frame afterwards.
-func maskPayload(frame []byte, masker *secretmask.Masker) []byte {
+// maskFrame rebuilds the frame around a masked envelope and payload. The frame is returned
+// untouched when it cannot be decoded or held no secret to begin with — the caller still
+// masks the encoded frame afterwards.
+func maskFrame(frame []byte, masker *secretmask.Masker) []byte {
 	var decoded outboundFrame
 	if err := json.Unmarshal(frame, &decoded); err != nil {
 		return frame
 	}
 
-	var (
-		encodedPayload []byte
-		err            error
-	)
+	// The envelope's own error text is masked for every frame type, not just error frames.
+	maskedError := masker.String(decoded.Error)
+
+	var encodedPayload []byte
 
 	switch decoded.Type {
 	case messages.TypeAttachOutput:
-		encodedPayload, err = maskAttachOutput(decoded.Payload, masker)
+		encodedPayload = maskAttachOutput(decoded.Payload, masker)
 	case messages.TypeConsoleOutput:
-		encodedPayload, err = maskConsoleOutput(decoded.Payload, masker)
-	default:
+		encodedPayload = maskConsoleOutput(decoded.Payload, masker)
+	case ws.TypeError:
+		encodedPayload = maskErrorMessage(decoded.Payload, masker)
+	}
+
+	if encodedPayload == nil && maskedError == decoded.Error {
 		return frame
 	}
 
-	if err != nil || encodedPayload == nil {
-		return frame
+	if encodedPayload != nil {
+		decoded.Payload = encodedPayload
 	}
 
-	decoded.Payload = encodedPayload
+	decoded.Error = maskedError
 
 	encodedFrame, err := json.Marshal(decoded)
 	if err != nil {
@@ -78,38 +81,66 @@ func maskPayload(frame []byte, masker *secretmask.Masker) []byte {
 	return encodedFrame
 }
 
-// maskAttachOutput returns the re-encoded payload, or a nil payload when nothing was
-// masked.
-func maskAttachOutput(rawPayload json.RawMessage, masker *secretmask.Masker) ([]byte, error) {
+// maskAttachOutput returns the re-encoded payload, or nil when the payload could not be
+// decoded or carried no secret. A payload left alone is still covered by the caller's
+// mask over the encoded frame.
+func maskAttachOutput(rawPayload json.RawMessage, masker *secretmask.Masker) []byte {
 	var payload messages.AttachOutputPayload
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
-		return nil, err
+		return nil
 	}
 
 	masked := masker.Bytes(payload.Data)
 	if bytes.Equal(masked, payload.Data) {
-		return nil, nil //nolint:nilnil // "nothing to mask" is not an error here
+		return nil
 	}
 
 	payload.Data = masked
 
-	return json.Marshal(payload)
+	return marshalPayload(payload)
 }
 
-// maskConsoleOutput returns the re-encoded payload, or a nil payload when nothing was
-// masked.
-func maskConsoleOutput(rawPayload json.RawMessage, masker *secretmask.Masker) ([]byte, error) {
+// maskConsoleOutput returns the re-encoded payload, or nil when the payload could not be
+// decoded or carried no secret.
+func maskConsoleOutput(rawPayload json.RawMessage, masker *secretmask.Masker) []byte {
 	var payload messages.ConsoleOutputPayload
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
-		return nil, err
+		return nil
 	}
 
 	masked := masker.String(payload.Chunk)
 	if masked == payload.Chunk {
-		return nil, nil //nolint:nilnil // "nothing to mask" is not an error here
+		return nil
 	}
 
 	payload.Chunk = masked
 
-	return json.Marshal(payload)
+	return marshalPayload(payload)
+}
+
+// maskErrorMessage returns the re-encoded payload, or nil when the payload could not be
+// decoded or carried no secret.
+func maskErrorMessage(rawPayload json.RawMessage, masker *secretmask.Masker) []byte {
+	var payload ws.ErrorPayload
+	if err := json.Unmarshal(rawPayload, &payload); err != nil {
+		return nil
+	}
+
+	masked := masker.String(payload.Message)
+	if masked == payload.Message {
+		return nil
+	}
+
+	payload.Message = masked
+
+	return marshalPayload(payload)
+}
+
+func marshalPayload(payload any) []byte {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+
+	return encoded
 }

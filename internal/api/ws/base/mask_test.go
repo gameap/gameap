@@ -237,6 +237,61 @@ func TestNewOutboundMaskFilter_masksErrorFrames(t *testing.T) {
 	assert.Contains(t, string(masked), "rcon auth failed for ******")
 }
 
+func TestNewOutboundMaskFilter_masksJSONEscapedPasswordInErrorFrame(t *testing.T) {
+	const escapedPassword = `pa"ss\word`
+
+	// ARRANGE
+	filter := wsbase.NewOutboundMaskFilter(secretmask.New(escapedPassword))
+	require.NotNil(t, filter)
+
+	frame, err := json.Marshal(ws.NewErrorMessage("rcon auth failed for " + escapedPassword))
+	require.NoError(t, err)
+	require.NotContains(t, string(frame), escapedPassword,
+		"the escaped form is what makes this case interesting")
+
+	// ACT
+	masked := filter(frame)
+
+	// ASSERT
+	var decoded struct {
+		Type    string          `json:"type"`
+		Payload ws.ErrorPayload `json:"payload"`
+	}
+	require.NoError(t, json.Unmarshal(masked, &decoded))
+
+	assert.Equal(t, ws.TypeError, decoded.Type)
+	assert.Equal(t, "rcon auth failed for ******", decoded.Payload.Message)
+}
+
+func TestNewOutboundMaskFilter_masksEnvelopeErrorField(t *testing.T) {
+	const escapedPassword = `pa"ss\word`
+
+	// ARRANGE
+	filter := wsbase.NewOutboundMaskFilter(secretmask.New(escapedPassword))
+	require.NotNil(t, filter)
+
+	frame, err := json.Marshal(&ws.OutboundMessage{
+		Type:      messages.TypeConsoleOutput,
+		Timestamp: 1700000000,
+		Error:     "command rejected: " + escapedPassword,
+	})
+	require.NoError(t, err)
+
+	// ACT
+	masked := filter(frame)
+
+	// ASSERT
+	var decoded struct {
+		Type  string `json:"type"`
+		Error string `json:"error"`
+		Ts    int64  `json:"ts"`
+	}
+	require.NoError(t, json.Unmarshal(masked, &decoded))
+
+	assert.Equal(t, "command rejected: ******", decoded.Error)
+	assert.Equal(t, int64(1700000000), decoded.Ts)
+}
+
 func TestNewOutboundMaskFilter_masksMalformedFrames(t *testing.T) {
 	// ARRANGE
 	filter := wsbase.NewOutboundMaskFilter(secretmask.New(testRconPassword))

@@ -947,6 +947,30 @@ func TestHandler_ServeHTTP_masksRconPassword(t *testing.T) {
 			wantConsole: "rcon_password ******\n\"rcon_password\" = \"******\"\n",
 		},
 		{
+			name:         "two_character_password_is_masked",
+			rconPassword: "ab",
+			setupMockCLS: func() *mockConsoleLogService {
+				return &mockConsoleLogService{
+					getConsoleLogFunc: func(_ context.Context, _ uint64, _ uint64, _ int64) (string, error) {
+						return "+rcon_password ab\n", nil
+					},
+				}
+			},
+			wantConsole: "+rcon_password ******\n",
+		},
+		{
+			name:         "single_character_password_is_masked",
+			rconPassword: "x",
+			setupMockCLS: func() *mockConsoleLogService {
+				return &mockConsoleLogService{
+					getConsoleLogFunc: func(_ context.Context, _ uint64, _ uint64, _ int64) (string, error) {
+						return "+rcon_password x\n", nil
+					},
+				}
+			},
+			wantConsole: "+rcon_password ******\n",
+		},
+		{
 			name:         "server_without_rcon_password_returns_console_unchanged",
 			rconPassword: "",
 			setupMockCLS: func() *mockConsoleLogService {

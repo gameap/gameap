@@ -653,6 +653,18 @@ func TestHandler_ServeHTTP_masksRconPassword(t *testing.T) {
 			wantOutput:   "****** middle ******",
 		},
 		{
+			name:         "two_character_password_is_masked",
+			rconPassword: "ab",
+			rconOutput:   "\"rcon_password\" is \"ab\"\n",
+			wantOutput:   "\"rcon_password\" is \"******\"\n",
+		},
+		{
+			name:         "single_character_password_is_masked",
+			rconPassword: "x",
+			rconOutput:   "\"rcon_password\" is \"x\"\n",
+			wantOutput:   "\"rcon_password\" is \"******\"\n",
+		},
+		{
 			name:         "output_without_password_returned_unchanged",
 			rconPassword: testRconPassword,
 			rconOutput:   "hostname: Test Server\nplayers : 0 (32 max)\n",
