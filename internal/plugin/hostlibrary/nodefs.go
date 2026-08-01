@@ -14,12 +14,12 @@ import (
 )
 
 type NodeFSServiceImpl struct {
-	fileService *daemon.FileService
+	fileService NodeFileService
 	nodeRepo    repositories.NodeRepository
 }
 
 func NewNodeFSService(
-	fileService *daemon.FileService,
+	fileService NodeFileService,
 	nodeRepo repositories.NodeRepository,
 ) *NodeFSServiceImpl {
 	return &NodeFSServiceImpl{
@@ -286,7 +286,7 @@ type NodeFSHostLibrary struct {
 }
 
 func NewNodeFSHostLibrary(
-	fileService *daemon.FileService,
+	fileService NodeFileService,
 	nodeRepo repositories.NodeRepository,
 ) *NodeFSHostLibrary {
 	return &NodeFSHostLibrary{

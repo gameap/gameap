@@ -1,14 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { loginViaAPI, authHeader } from '../fixtures/auth';
 import { createUser, deleteUser } from '../fixtures/users';
-import { expectStatus, dismissTopDialog } from '../fixtures/ui';
+import { expectStatus, dismissTopDialog, loginViaUI } from '../fixtures/ui';
 
 const API_BASE = process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:8025';
 const STAMP = Date.now();
 
 // i18n-tolerant matchers (English | Russian | raw i18n key), same convention
 // as the other smoke specs.
-const SIGN_IN = /sign.?in|login|вход|войти|auth\.sign_in/i;
 const TOKENS_ITEM = /tokens|токены|tokens\.tokens/i;
 // The one-time "copy it now, you won't see it again" warning rendered in the
 // success dialog after a token is created.
@@ -66,19 +65,7 @@ for (const { role, adminAbilitiesVisible } of ROLE_CASES) {
     userId = user.id;
 
     // 2. Log in via the /login UI form as that user.
-    await page.goto('/login');
-    await page.locator('#email').fill(login);
-    await page.locator('#password').fill(password);
-    const loginResp = page.waitForResponse(
-      (r) =>
-        r.url().includes('/api/auth/login') && r.request().method() === 'POST',
-    );
-    await page.getByRole('button', { name: SIGN_IN }).click();
-    await expectStatus(await loginResp, 200, `${role} login should be 200`);
-    await expect(page).not.toHaveURL(/\/login/, { timeout: 15_000 });
-    await expect
-      .poll(async () => page.evaluate(() => localStorage.getItem('auth_token')))
-      .toBeTruthy();
+    await loginViaUI(page, login, password);
 
     // 3. Navbar user menu → Tokens.
     const nav = page.getByRole('navigation').first();

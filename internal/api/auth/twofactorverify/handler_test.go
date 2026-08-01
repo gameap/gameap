@@ -20,12 +20,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/api/auth/login"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/twofactor"
+	"github.com/pkg/errors"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,6 +44,10 @@ type verifyFixture struct {
 	userRepo  *inmemory.UserRepository
 	token     string
 	plainCode string
+	// secret is the decrypted TOTP secret, so tests can compute a live code.
+	secret string
+	// now is the fixed clock the manager validates TOTP against.
+	now time.Time
 }
 
 // newVerifyFixture builds a fully real handler: a 2FA-enabled user with an
@@ -98,7 +107,98 @@ func newVerifyFixture(t *testing.T) *verifyFixture {
 		userRepo:  userRepo,
 		token:     token,
 		plainCode: plainCodes[0],
+		secret:    secret,
+		now:       now,
 	}
+}
+
+var (
+	errCacheBackend       = errors.New("cache backend down")
+	errStorageUnavailable = errors.New("storage unavailable")
+)
+
+// errCache makes a single cache operation fail while the rest keep working.
+type errCache struct {
+	cache.Cache
+
+	getErr    error
+	deleteErr error
+}
+
+func (c *errCache) Get(ctx context.Context, key string) (any, error) {
+	if c.getErr != nil {
+		return nil, c.getErr
+	}
+
+	return c.Cache.Get(ctx, key)
+}
+
+func (c *errCache) Delete(ctx context.Context, key string) error {
+	if c.deleteErr != nil {
+		return c.deleteErr
+	}
+
+	return c.Cache.Delete(ctx, key)
+}
+
+// errUserRepository makes the user lookup or the write fail.
+type errUserRepository struct {
+	*inmemory.UserRepository
+
+	findErr error
+	saveErr error
+}
+
+func (r *errUserRepository) Find(
+	ctx context.Context,
+	filter *filters.FindUser,
+	order []filters.Sorting,
+	pagination *filters.Pagination,
+) ([]domain.User, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+
+	return r.UserRepository.Find(ctx, filter, order, pagination)
+}
+
+func (r *errUserRepository) Save(ctx context.Context, user *domain.User) error {
+	if r.saveErr != nil {
+		return r.saveErr
+	}
+
+	return r.UserRepository.Save(ctx, user)
+}
+
+// handlerWith rebuilds the handler around a substituted cache or repository,
+// keeping every other collaborator real.
+func (f *verifyFixture) handlerWith(c cache.Cache, repo repositories.UserRepository) *Handler {
+	return NewHandler(
+		auth.NewJWTService([]byte(testJWTSecret)),
+		repo,
+		f.manager,
+		c,
+		api.NewResponder(),
+		nil,
+	)
+}
+
+// seedChallenge writes a challenge with the given expiry for the fixture user.
+func (f *verifyFixture) seedChallenge(t *testing.T, token string, expiresAt time.Time) {
+	t.Helper()
+
+	users, err := f.userRepo.Find(context.Background(), nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+
+	encoded, err := twofactor.MarshalChallengePayload(twofactor.ChallengePayload{
+		UserID:    users[0].ID,
+		Login:     users[0].Login,
+		Email:     users[0].Email,
+		ExpiresAt: expiresAt.Unix(),
+	})
+	require.NoError(t, err)
+	require.NoError(t, f.cache.Set(context.Background(), twofactor.ChallengeCacheKey(token), encoded))
 }
 
 func doVerify(t *testing.T, h *Handler, body string) *httptest.ResponseRecorder {
@@ -279,4 +379,186 @@ func TestVerify_UserNoLongerEligible(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code, "body=%s", w.Body.String())
 	_, getErr := f.cache.Get(context.Background(), twofactor.ChallengeCacheKey(f.token))
 	assert.ErrorIs(t, getErr, cache.ErrNotFound, "a stale challenge must be destroyed")
+}
+
+// TestVerify_ValidTOTPCode_IssuesToken covers OWASP API2:2023: the primary
+// second factor (the authenticator code) completes the challenge and records
+// the consumed step so it cannot be replayed.
+func TestVerify_ValidTOTPCode_IssuesToken(t *testing.T) {
+	// ARRANGE
+	f := newVerifyFixture(t)
+	code, err := totp.GenerateCode(f.secret, f.now)
+	require.NoError(t, err)
+
+	// ACT
+	w := doVerify(t, f.handler, `{"challenge_token":"`+f.token+`","code":"`+code+`"}`)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	assert.NotEmpty(t, bodyJSON(t, w)["token"])
+
+	users, err := f.userRepo.Find(context.Background(), nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	require.NotNil(t, users[0].TwoFactorLastUsedStep,
+		"the consumed TOTP step must be persisted to block its replay")
+
+	require.NotNil(t, users[0].TwoFactorRecoveryCodes)
+	assert.NotEmpty(t, *users[0].TwoFactorRecoveryCodes,
+		"a TOTP login must not spend a recovery code")
+}
+
+// TestVerify_TOTPCodeIsSingleUse covers OWASP API2:2023: a TOTP code captured
+// inside its validity window must not authenticate a second challenge.
+func TestVerify_TOTPCodeIsSingleUse(t *testing.T) {
+	// ARRANGE
+	f := newVerifyFixture(t)
+	code, err := totp.GenerateCode(f.secret, f.now)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK,
+		doVerify(t, f.handler, `{"challenge_token":"`+f.token+`","code":"`+code+`"}`).Code)
+
+	replayToken := twofactor.ChallengeTokenPrefix + "replay-challenge-secret-0123456789abcdef"
+	f.seedChallenge(t, replayToken, time.Now().Add(5*time.Minute))
+
+	// ACT
+	w := doVerify(t, f.handler, `{"challenge_token":"`+replayToken+`","code":"`+code+`"}`)
+
+	// ASSERT
+	require.Equal(t, http.StatusUnauthorized, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "invalid verification code")
+	assert.NotContains(t, w.Body.String(), `"token"`)
+}
+
+// TestVerify_CorruptChallengeIsRefusedAndDestroyed covers OWASP API2:2023: a
+// cache entry that does not decode must never be trusted, and must be dropped
+// rather than left around for another attempt.
+func TestVerify_CorruptChallengeIsRefusedAndDestroyed(t *testing.T) {
+	// ARRANGE
+	f := newVerifyFixture(t)
+	key := twofactor.ChallengeCacheKey(f.token)
+	require.NoError(t, f.cache.Set(context.Background(), key, "not-a-valid-payload"))
+
+	// ACT
+	w := doVerify(t, f.handler, `{"challenge_token":"`+f.token+`","code":"`+f.plainCode+`"}`)
+
+	// ASSERT
+	require.Equal(t, http.StatusUnauthorized, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "invalid or expired challenge")
+	assert.NotContains(t, w.Body.String(), `"token"`)
+
+	_, err := f.cache.Get(context.Background(), key)
+	assert.ErrorIs(t, err, cache.ErrNotFound, "a corrupt challenge must be destroyed")
+}
+
+// TestVerify_ExpiredChallengeIsDestroyedOnWrongCode covers OWASP API2:2023: a
+// challenge past its deadline must be dropped on the next attempt instead of
+// having its TTL rewritten.
+func TestVerify_ExpiredChallengeIsDestroyedOnWrongCode(t *testing.T) {
+	// ARRANGE
+	f := newVerifyFixture(t)
+	expired := twofactor.ChallengeTokenPrefix + "expired-challenge-secret-abcdef9876543210"
+	f.seedChallenge(t, expired, time.Now().Add(-time.Minute))
+
+	// ACT
+	w := doVerify(t, f.handler, `{"challenge_token":"`+expired+`","code":"000000"}`)
+
+	// ASSERT
+	require.Equal(t, http.StatusUnauthorized, w.Code, "body=%s", w.Body.String())
+
+	_, err := f.cache.Get(context.Background(), twofactor.ChallengeCacheKey(expired))
+	assert.ErrorIs(t, err, cache.ErrNotFound, "an expired challenge must not survive an attempt")
+}
+
+// TestVerify_BackendErrors covers OWASP API2:2023: no infrastructure failure
+// may be turned into a session, and none may leak its cause to the client.
+func TestVerify_BackendErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		mutate      func(*verifyFixture) *Handler
+		mustNotLeak string
+	}{
+		{
+			name: "challenge_cache_error_denies_login",
+			mutate: func(f *verifyFixture) *Handler {
+				return f.handlerWith(&errCache{Cache: f.cache, getErr: errCacheBackend}, f.userRepo)
+			},
+			mustNotLeak: "cache backend down",
+		},
+		{
+			name: "challenge_consume_error_denies_login",
+			mutate: func(f *verifyFixture) *Handler {
+				return f.handlerWith(&errCache{Cache: f.cache, deleteErr: errCacheBackend}, f.userRepo)
+			},
+			mustNotLeak: "cache backend down",
+		},
+		{
+			name: "user_lookup_error_denies_login",
+			mutate: func(f *verifyFixture) *Handler {
+				return f.handlerWith(f.cache, &errUserRepository{
+					UserRepository: f.userRepo, findErr: errStorageUnavailable,
+				})
+			},
+			mustNotLeak: "storage unavailable",
+		},
+		{
+			name: "factor_state_persist_error_denies_login",
+			mutate: func(f *verifyFixture) *Handler {
+				return f.handlerWith(f.cache, &errUserRepository{
+					UserRepository: f.userRepo, saveErr: errStorageUnavailable,
+				})
+			},
+			mustNotLeak: "storage unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			f := newVerifyFixture(t)
+			handler := tt.mutate(f)
+
+			// ACT
+			w := doVerify(t, handler, `{"challenge_token":"`+f.token+`","code":"`+f.plainCode+`"}`)
+
+			// ASSERT
+			require.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
+			assert.NotContains(t, w.Body.String(), tt.mustNotLeak,
+				"the internal cause must not reach the client")
+			assert.NotContains(t, w.Body.String(), `"token"`,
+				"no session token may be issued when the backend fails")
+		})
+	}
+}
+
+// TestVerify_RememberMeCarriesThroughChallenge covers OWASP API2:2023: the
+// "remember me" choice made at password time must survive the 2FA step and
+// govern the lifetime of the issued session, not be silently downgraded.
+func TestVerify_RememberMeCarriesThroughChallenge(t *testing.T) {
+	// ARRANGE
+	f := newVerifyFixture(t)
+	rememberToken := twofactor.ChallengeTokenPrefix + "remember-challenge-secret-fedcba9876543210"
+
+	users, err := f.userRepo.Find(context.Background(), nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	encoded, err := twofactor.MarshalChallengePayload(twofactor.ChallengePayload{
+		UserID:    users[0].ID,
+		Login:     users[0].Login,
+		Email:     users[0].Email,
+		ExpiresAt: time.Now().Add(5 * time.Minute).Unix(),
+		Remember:  true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, f.cache.Set(
+		context.Background(), twofactor.ChallengeCacheKey(rememberToken), encoded,
+	))
+
+	// ACT
+	w := doVerify(t, f.handler, `{"challenge_token":"`+rememberToken+`","code":"`+f.plainCode+`"}`)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	assert.InDelta(t, login.RememberMeDuration.Seconds(), bodyJSON(t, w)["expires_in"], 0,
+		"a remembered challenge must issue the long-lived session")
 }

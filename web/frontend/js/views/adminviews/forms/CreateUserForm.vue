@@ -9,28 +9,28 @@
     >
       <Loading v-if="loading"></Loading>
       <div class="mb-4" :class="loading ? 'hidden' : ''">
-        <n-form-item :label="trans('labels.login')" path="login">
+        <n-form-item :label="trans('labels.login')" path="login" data-testid="create-user-login">
           <n-input
               v-model:value="form.login"
               type="text"
           />
         </n-form-item>
 
-        <n-form-item :label="trans('labels.email')" path="email">
+        <n-form-item :label="trans('labels.email')" path="email" data-testid="create-user-email">
           <n-input
               v-model:value="form.email"
               type="text"
           />
         </n-form-item>
 
-        <n-form-item :label="trans('labels.name')" path="name">
+        <n-form-item :label="trans('labels.name')" path="name" data-testid="create-user-name">
           <n-input
               v-model:value="form.name"
               type="text"
           />
         </n-form-item>
 
-        <n-form-item :label="trans('labels.roles')" path="roles">
+        <n-form-item :label="trans('labels.roles')" path="roles" data-testid="create-user-roles">
           <n-select
               v-model:value="form.roles"
               multiple
@@ -45,6 +45,7 @@
                 type="password"
                 show-password-on="click"
                 :input-props="{ autocomplete: 'one-time-code' }"
+                data-testid="create-user-password"
             />
 
             <n-input
@@ -53,13 +54,14 @@
                 show-password-on="click"
                 :input-props="{ autocomplete: 'one-time-code' }"
                 :placeholder="trans('labels.password_confirmation')"
+                data-testid="create-user-password-confirmation"
             />
           </div>
         </n-form-item>
       </div>
     </n-form>
 
-    <GButton color="green" v-on:click="onClickCreate">
+    <GButton color="green" v-on:click="onClickCreate" data-testid="create-user-submit">
       <GIcon name="add-square" />
       <span class="hidden lg:inline">&nbsp;{{ trans('main.create') }}</span>
     </GButton>

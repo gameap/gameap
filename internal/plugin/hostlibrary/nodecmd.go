@@ -12,12 +12,12 @@ import (
 )
 
 type NodeCmdServiceImpl struct {
-	commandService *daemon.CommandService
+	commandService NodeCommandService
 	nodeRepo       repositories.NodeRepository
 }
 
 func NewNodeCmdService(
-	commandService *daemon.CommandService,
+	commandService NodeCommandService,
 	nodeRepo repositories.NodeRepository,
 ) *NodeCmdServiceImpl {
 	return &NodeCmdServiceImpl{
@@ -73,7 +73,7 @@ type NodeCmdHostLibrary struct {
 }
 
 func NewNodeCmdHostLibrary(
-	commandService *daemon.CommandService,
+	commandService NodeCommandService,
 	nodeRepo repositories.NodeRepository,
 ) *NodeCmdHostLibrary {
 	return &NodeCmdHostLibrary{

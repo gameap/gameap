@@ -21,7 +21,7 @@
           >
             <Loading v-if="loading"></Loading>
             <div :class="loading ? 'hidden' : ''">
-              <n-form-item :label="trans('labels.login')" path="login">
+              <n-form-item :label="trans('labels.login')" path="login" data-testid="user-edit-login">
                 <n-input
                     disabled
                     v-model:value="form.login"
@@ -29,21 +29,21 @@
                 />
               </n-form-item>
 
-              <n-form-item :label="trans('labels.email')" path="email">
+              <n-form-item :label="trans('labels.email')" path="email" data-testid="user-edit-email">
                 <n-input
                     v-model:value="form.email"
                     type="text"
                 />
               </n-form-item>
 
-              <n-form-item :label="trans('labels.name')" path="name">
+              <n-form-item :label="trans('labels.name')" path="name" data-testid="user-edit-name">
                 <n-input
                     v-model:value="form.name"
                     type="text"
                 />
               </n-form-item>
 
-              <n-form-item :label="trans('labels.roles')" path="roles">
+              <n-form-item :label="trans('labels.roles')" path="roles" data-testid="user-edit-roles">
                 <n-select
                     v-model:value="form.roles"
                     multiple
@@ -115,7 +115,7 @@
     </n-form>
 
     <GFixedBottomBar>
-      <GButton color="green" v-on:click="onClickUpdate">
+      <GButton color="green" v-on:click="onClickUpdate" data-testid="user-edit-save">
         <GIcon name="save" class="mr-0.5" />
         <span class="inline">{{ trans('main.save') }}</span>
       </GButton>
