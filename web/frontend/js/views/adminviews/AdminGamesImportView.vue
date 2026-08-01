@@ -39,7 +39,7 @@ const gameapFormRef = ref(null)
 
 const breadcrumbs = computed(() => {
   return [
-    { route: '/', text: 'GameAP', icon: 'gicon gicon-gameap' },
+    { route: '/', text: 'GameAP', icon: 'gameap' },
     { route: { name: 'admin.games.index' }, text: trans('games.games') },
     { route: { name: 'admin.games.import' }, text: trans('games.title_import') },
   ]

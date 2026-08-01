@@ -1,17 +1,21 @@
 <template>
-  <a v-if="link" :class='classes' :href="link" :disabled="disabled">
+  <a v-if="link" :class='classes' :href="link" :disabled="isDisabled">
+    <GIcon v-if="loading" name="loading" class="mr-1" />
     <slot></slot>
   </a>
-  <router-link v-else-if="route" :to="route" :class='classes' :disabled="disabled">
+  <router-link v-else-if="route" :to="route" :class='classes' :disabled="isDisabled">
+    <GIcon v-if="loading" name="loading" class="mr-1" />
     <slot></slot>
   </router-link>
-  <button v-else :class='classes' v-on:click="buttonClick" :disabled="disabled">
+  <button v-else :class='classes' v-on:click="buttonClick" :disabled="isDisabled">
+    <GIcon v-if="loading" name="loading" class="mr-1" />
     <slot></slot>
   </button>
 </template>
 
 <script setup>
 import {computed} from 'vue'
+import {GIcon} from '@gameap/ui'
 
 const defaultClass = 'inline-block align-middle text-center select-none ' +
     'font-normal whitespace-nowrap rounded leading-normal no-underline'
@@ -49,10 +53,14 @@ const props = defineProps({
   route: { type: [String, Object], default: null },
   class: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
 })
 
+// A pending action must not be triggered twice, so loading implies disabled.
+const isDisabled = computed(() => props.disabled || props.loading)
+
 const classes = computed(() => {
-  const color = props.disabled
+  const color = isDisabled.value
       ? (disabledColors[props.color] || disabledColors.white)
       : (colors[props.color] || colors.white)
 
@@ -62,7 +70,7 @@ const classes = computed(() => {
 
   c.push(defaultClass)
 
-  if (props.disabled) {
+  if (isDisabled.value) {
     c.push(defaultDisabledClass)
   }
 

@@ -66,7 +66,7 @@ const { taskStatus, taskOutput } = useTaskWebSocket(route.params.id)
 
 const breadcrumbs = computed(() => {
   let result = [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'admin.gdaemon_tasks.index'}, 'text':trans('gdaemon_tasks.gdaemon_tasks')},
   ]
 

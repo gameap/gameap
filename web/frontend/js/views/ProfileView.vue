@@ -172,7 +172,7 @@ const currentLanguageLabel = computed(() => {
 
 const breadcrumbs = computed(() => {
   return [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'profile'}, 'text':trans('profile.profile')},
   ]
 })

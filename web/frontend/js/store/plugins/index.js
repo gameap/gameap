@@ -98,7 +98,7 @@ export const usePluginsStore = defineStore('plugins', () => {
 
         menuItems[targetSection].push({
             pluginId,
-            icon: item.icon || 'fas fa-puzzle-piece',
+            icon: item.icon || 'puzzle-piece',
             text: item.text,
             route: item.route,
             order: item.order || 100,

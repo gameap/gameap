@@ -373,7 +373,7 @@ Visual divider component wrapping Naive UI's NDivider.
 
 ### GIcon
 
-Flexible icon component supporting Font Awesome classes and Vue components.
+Flexible icon component supporting Font Awesome classes, inline SVG data and Vue components.
 
 **Props:**
 
@@ -424,7 +424,9 @@ Game-specific icon component that displays icons based on game codes.
 The component includes built-in icon mappings for popular games:
 - Counter-Strike series: `cs2`, `csgo`, `css`, `cstrike`, `cs15`, `czero`
 - Valve games: `halflife`, `tf2`, `l4d`, `l4d2`, `dod`, `dods`, `garrysmod`
-- Other popular games: `minecraft`, `rust`, `ark`, `arma2`, `arma3`, `7d2d`, `dst`, `fivem`, `gta`, `hurtworld`, `quake`, `quake2`, `quake3`, `samp`, `teamspeak`
+- Other popular games: `minecraft`, `rust`, `ark`, `arma2`, `arma3`, `7d2d`, `dst`, `enshrouded`, `etlegacy`, `factorio`, `fivem`, `gta`, `hurtworld`, `palworld`, `pz`, `quake`, `quake2`, `quake3`, `samp`, `teamspeak`
+
+Game logos resolve to `game-*` entries in the icon registry, rendered as inline SVG.
 
 For unknown game codes, the component automatically assigns a consistent fallback icon from a set of common gaming icons.
 
@@ -480,7 +482,7 @@ interface BreadcrumbItem {
   text: string           // Display text
   link?: string          // External URL
   route?: string         // Vue Router route
-  icon?: string          // Icon class name
+  icon?: string          // Icon name from the registry, or raw CSS classes
   render?: () => VNode   // Custom render function
 }
 ```
@@ -490,7 +492,7 @@ interface BreadcrumbItem {
 ```vue
 <script setup>
 const breadcrumbs = [
-  { text: 'Home', route: '/', icon: 'fa-solid fa-home' },
+  { text: 'Home', route: '/', icon: 'gameap' },
   { text: 'Servers', route: '/servers' },
   { text: 'Server 1' }
 ]
@@ -761,13 +763,18 @@ import {
   getIcon,
   hasIcon,
   iconRegistry,
-  defaultIconMap
+  defaultIconMap,
+  defineSvgIcon
 } from '@gameap/ui'
 
 // Register custom icons
 registerIcons({
   'my-icon': 'fa-solid fa-star',
-  'custom-component': MyIconComponent
+  'custom-component': MyIconComponent,
+  'custom-svg': defineSvgIcon({
+    viewBox: '0 0 24 24',
+    paths: ['M12 2 2 22h20L12 2z']
+  })
 })
 
 // Check if icon exists
@@ -808,10 +815,38 @@ The package includes 150+ predefined icon mappings:
 `linux`, `windows`, `apple`, `telegram`, `discord`, `vk`, `reddit`, `patreon`, `teamspeak`
 
 **Game Icons:**
-`dice`, `dice-one` through `dice-six`, `cat`, `mods`
+`dice`, `dice-one` through `dice-six`, `cat`, `mods`, `kick`
+
+**Game Logos** (inline SVG, used by `GGameIcon`):
+`game-ark-survival-evolved`, `game-arma-2`, `game-arma-3`, `game-black-mesa`, `game-counter-strike`,
+`game-counter-strike-1`, `game-counter-strike-source`, `game-day-of-defeat`, `game-dont-starve`,
+`game-enshrouded`, `game-etlegacy`, `game-factorio`, `game-fivem`, `game-garrys-mod`,
+`game-grand-theft-auto`, `game-half-life`, `game-hurtworld`, `game-left-4-dead`, `game-minecraft`,
+`game-minecraft-creeper`, `game-palworld`, `game-quake`, `game-quake-2`, `game-quake-3`,
+`game-rockstar`, `game-rust`, `game-team-fortress-2`, `game-zomboid`
 
 **Theme Icons:**
 `sun`, `moon`
+
+### Adding a Game Logo
+
+The SVG files in `icons/assets/` are the single source of truth — they are loaded
+directly, with no generation step and nothing to keep in sync. To add a logo:
+
+1. Drop the SVG into `icons/assets/<name>.svg`. It must have a `viewBox` and must not
+   set `fill`, so that the icon inherits `currentColor`. At most one wrapping
+   `<g transform="...">` is supported; it is carried over to the icon.
+2. Register it in `icons/iconMap.js` as `"game-<name>": svgAsset('<name>')` and map the
+   game codes to it in `components/GGameIcon.vue`.
+
+`svgAsset()` throws on a name with no matching file, so typos surface at startup rather
+than as a missing icon.
+
+Logos that came from the old `gicon` icon font carry a `translate(0 1024) scale(1 -1)`
+group, because SVG fonts store glyphs with the y axis pointing up.
+
+Loading uses Vite's `import.meta.glob(..., { query: '?raw' })`, so this package requires
+a Vite-based build.
 
 ### Custom Icon Registration
 
@@ -969,6 +1004,10 @@ All badge classes include dark mode support.
 ### Runtime Dependencies
 
 - **naive-ui** - Base UI component library
+
+### Build Requirements
+
+- **Vite** - `icons/svgAssets.js` loads `icons/assets/*.svg` via `import.meta.glob`
 
 ### Styling Requirements
 

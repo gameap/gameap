@@ -1,7 +1,7 @@
 <template>
   <div class="flex justify-center">
     <Transition
-        enter-active-class="transition-opacity duration-[2000ms]"
+        enter-active-class="transition-opacity duration-150"
         enter-from-class="opacity-0"
         enter-to-class="opacity-100"
         leave-active-class="transition-opacity duration-150"
@@ -16,13 +16,23 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue"
+import { onMounted, onUnmounted, ref } from "vue"
+
+// A response that arrives within the delay never gets a spinner, so a fast page
+// does not blink. Once the delay is over the spinner has to be readable right
+// away, hence the short fade.
+const SHOW_DELAY = 150
 
 const showTransition = ref(false)
+let showTimeout = null
 
 onMounted(() => {
-  setTimeout(() => {
+  showTimeout = setTimeout(() => {
     showTransition.value = true
-  }, 10)
+  }, SHOW_DELAY)
+})
+
+onUnmounted(() => {
+  clearTimeout(showTimeout)
 })
 </script>

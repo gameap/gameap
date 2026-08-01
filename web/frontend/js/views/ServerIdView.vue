@@ -394,7 +394,7 @@ const rconTabPossible = computed(() => {
 
 const breadcrumbs = computed(() => {
   const bc = [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'servers'}, 'text':trans('servers.game_servers')},
   ]
 

@@ -12,7 +12,7 @@ import {trans} from "@/i18n/i18n";
 
 const breadcrumbs = computed(() => {
   return [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'servers'}, 'text':trans('servers.game_servers')},
   ]
 })

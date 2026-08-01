@@ -48,11 +48,12 @@
 <script setup>
 import { GBreadcrumbs, GDeletableList, GIcon, Loading, GModal } from "@gameap/ui"
 import UpdateGameForm from "./forms/UpdateGameForm.vue"
-import {computed, ref, onMounted} from "vue"
+import {computed, ref} from "vue"
 import {trans} from "../../i18n/i18n";
 import GButton from "../../components/GButton.vue";
 import {useGameStore} from "../../store/game"
 import {useGameListStore} from "../../store/gameList";
+import {useInitialLoad} from "../../composables/useInitialLoad";
 import CreateModForm from "./forms/CreateModForm.vue";
 import {errorNotification, notification} from "../../parts/dialogs";
 import { NCard } from "naive-ui"
@@ -66,7 +67,7 @@ const gameListStore = useGameListStore()
 
 const breadcrumbs = computed(() => {
   return [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'admin.games.index'}, 'text':trans('games.games')},
     {'text': trans('games.title_edit')}
   ]
@@ -74,37 +75,44 @@ const breadcrumbs = computed(() => {
 
 const {gameCode, game, mods} = storeToRefs(gameStore)
 
-onMounted(() => {
+const loading = useInitialLoad(async () => {
   gameStore.setGameCode(route.params.code)
   gameUpdateModel.value.code = gameCode.value
 
-  gameStore.fetchGame().then(() => {
-    gameUpdateModel.value.name = game.value.name
-    gameUpdateModel.value.engine = game.value.engine
-    gameUpdateModel.value.engineVersion = game.value.engine_version
+  const [gameResult, modsResult] = await Promise.allSettled([
+    gameStore.fetchGame(),
+    gameStore.fetchMods(),
+  ])
 
-    gameUpdateModel.value.steamAppIdLinux = game.value.steam_app_id_linux
-    gameUpdateModel.value.steamAppIdWindows = game.value.steam_app_id_windows
-    gameUpdateModel.value.steamAppSetConfig = game.value.steam_app_set_config
+  if (modsResult.status === 'rejected') {
+    errorNotification(modsResult.reason)
+  }
 
-    gameUpdateModel.value.localRepositoryLinux = game.value.local_repository_linux
-    gameUpdateModel.value.localRepositoryWindows = game.value.local_repository_windows
+  if (gameResult.status === 'rejected') {
+    errorNotification(gameResult.reason)
 
-    gameUpdateModel.value.remoteRepositoryLinux = game.value.remote_repository_linux
-    gameUpdateModel.value.remoteRepositoryWindows = game.value.remote_repository_windows
+    return
+  }
 
-    gameUpdateModel.value.metadata = Object.entries(game.value.metadata || {})
-        .map(([key, value]) => ({
-          key,
-          value: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
-        }))
-  })
+  gameUpdateModel.value.name = game.value.name
+  gameUpdateModel.value.engine = game.value.engine
+  gameUpdateModel.value.engineVersion = game.value.engine_version
 
-  gameStore.fetchMods()
-})
+  gameUpdateModel.value.steamAppIdLinux = game.value.steam_app_id_linux
+  gameUpdateModel.value.steamAppIdWindows = game.value.steam_app_id_windows
+  gameUpdateModel.value.steamAppSetConfig = game.value.steam_app_set_config
 
-const loading = computed(() => {
-  return gameStore.loading || gameListStore.loading
+  gameUpdateModel.value.localRepositoryLinux = game.value.local_repository_linux
+  gameUpdateModel.value.localRepositoryWindows = game.value.local_repository_windows
+
+  gameUpdateModel.value.remoteRepositoryLinux = game.value.remote_repository_linux
+  gameUpdateModel.value.remoteRepositoryWindows = game.value.remote_repository_windows
+
+  gameUpdateModel.value.metadata = Object.entries(game.value.metadata || {})
+      .map(([key, value]) => ({
+        key,
+        value: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
+      }))
 })
 
 const modItems = computed(() => {

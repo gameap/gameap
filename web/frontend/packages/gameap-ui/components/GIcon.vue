@@ -1,6 +1,19 @@
 <template>
+  <svg
+    v-if="isSvgData"
+    :viewBox="resolvedIcon.viewBox"
+    :class="props.class"
+    :style="svgStyle"
+    fill="currentColor"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <g :transform="resolvedIcon.transform">
+      <path v-for="(path, index) in resolvedIcon.paths" :key="index" :d="path" />
+    </g>
+  </svg>
   <component
-    v-if="isComponent"
+    v-else-if="isComponent"
     :is="resolvedIcon"
     :class="props.class"
     :style="sizeStyle"
@@ -14,6 +27,7 @@
 <script setup>
 import { computed } from 'vue'
 import { getIcon, hasIcon } from '../icons/registry.js'
+import { isSvgIcon } from '../icons/svgData.js'
 
 const props = defineProps({
   name: {
@@ -38,6 +52,8 @@ const resolvedIcon = computed(() => {
   }
   return getIcon(props.name)
 })
+
+const isSvgData = computed(() => isSvgIcon(resolvedIcon.value))
 
 const isComponent = computed(() => {
   return typeof resolvedIcon.value === 'object' || typeof resolvedIcon.value === 'function'
@@ -65,4 +81,16 @@ const sizeStyle = computed(() => ({
   display: 'inline-block',
   verticalAlign: '-0.25em'
 }))
+
+// Width follows the viewBox ratio so that non-square logos are not squashed.
+const svgStyle = computed(() => {
+  const height = componentSizeMap[props.size] || componentSizeMap.md
+
+  return {
+    width: `calc(${height} * ${resolvedIcon.value.aspect})`,
+    height,
+    display: 'inline-block',
+    verticalAlign: '-0.25em'
+  }
+})
 </script>

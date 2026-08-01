@@ -83,7 +83,7 @@ const nodeListStore = useNodeListStore()
 const { nodes, loading } = storeToRefs(nodeListStore)
 
 const breadcrumbs = computed(() => [
-    { route: '/', text: 'GameAP', icon: 'gicon gicon-gameap' },
+    { route: '/', text: 'GameAP', icon: 'gameap' },
     { route: { name: 'admin.nodes.index' }, text: trans('sidebar.dedicated_servers') },
 ])
 

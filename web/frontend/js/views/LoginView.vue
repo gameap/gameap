@@ -40,14 +40,14 @@
           </div>
 
           <div class="w-full bg-stone-700 p-8 rounded-b">
-            <button @click="login" type="button" class="text-stone-900 bg-white border focus:outline-none hover:bg-stone-100 focus:ring-4 focus:ring-stone-100 font-medium rounded text-sm px-5 py-2.5 me-2 mb-2 dark:bg-stone-800 dark:text-white dark:border-stone-600 dark:hover:bg-stone-700 dark:hover:border-stone-600 dark:focus:ring-stone-700">
-              <GIcon name="sign-in" class="mr-1" />
-              <span>{{ trans('auth.sign_in')}}</span>
-            </button>
+            <GButton color="white" :loading="submitting" v-on:click="login">
+              <GIcon v-if="!submitting" name="sign-in" class="mr-1" />
+              <span>{{ submitting ? trans('main.wait') : trans('auth.sign_in') }}</span>
+            </GButton>
           </div>
         </template>
 
-        <TwoFactorVerifyForm v-else class="p-6 sm:p-8" @verify="onVerify" />
+        <TwoFactorVerifyForm v-else class="p-6 sm:p-8" :loading="submitting" @verify="onVerify" />
       </div>
     </div>
   </section>
@@ -61,6 +61,7 @@ import {trans} from "../i18n/i18n"
 import axios from "../config/axios"
 import {useAuthStore} from "../store/auth"
 import {errorNotification} from "../parts/dialogs";
+import GButton from "../components/GButton.vue";
 import TwoFactorVerifyForm from "./forms/TwoFactorVerifyForm.vue";
 import CaptchaWidget from "./forms/CaptchaWidget.vue";
 
@@ -130,42 +131,69 @@ const completeLogin = async () => {
   }
 }
 
+// Covers the whole flow: the captcha token, the login request and the
+// post-login navigation are all part of the wait the button has to show.
+// Cleared in a finally, so a rejected attempt — or the 2FA step taking over —
+// hands the form back; after a successful login the view is already gone.
+const submitting = ref(false)
+
 const login = async () => {
-  let captchaToken = ""
-
-  if (captcha.value.provider) {
-    captchaToken = await captchaRef.value.getToken()
-    if (!captchaToken) {
-      errorNotification(trans('auth.captcha_required'))
-
-      return
-    }
+  if (submitting.value) {
+    return
   }
 
-  authStore.login({
-    login: email.value,
-    password: password.value,
-    remember: remember.value ? "on" : null,
-    captcha: captchaToken,
-  }).then((result) => {
+  submitting.value = true
+
+  try {
+    let captchaToken = ""
+
+    if (captcha.value.provider) {
+      captchaToken = await captchaRef.value.getToken()
+      if (!captchaToken) {
+        errorNotification(trans('auth.captcha_required'))
+
+        return
+      }
+    }
+
+    const result = await authStore.login({
+      login: email.value,
+      password: password.value,
+      remember: remember.value ? "on" : null,
+      captcha: captchaToken,
+    })
+
     if (result && result.twoFactorRequired) {
       twoFactorRequired.value = true
 
       return
     }
 
-    return completeLogin()
-  }).catch((error) => {
+    await completeLogin()
+  } catch (error) {
     if (captchaRef.value) {
       captchaRef.value.reset()
     }
     showError(error)
-  })
+  } finally {
+    submitting.value = false
+  }
 }
 
-const onVerify = (code) => {
-  authStore.verifyTwoFactor(code).then(() => {
-    completeLogin()
-  }).catch(showError)
+const onVerify = async (code) => {
+  if (submitting.value) {
+    return
+  }
+
+  submitting.value = true
+
+  try {
+    await authStore.verifyTwoFactor(code)
+    await completeLogin()
+  } catch (error) {
+    showError(error)
+  } finally {
+    submitting.value = false
+  }
 }
 </script>

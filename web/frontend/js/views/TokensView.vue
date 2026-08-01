@@ -56,7 +56,7 @@ const tokensStore = useTokensStore()
 
 const breadcrumbs = computed(() => {
   return [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'tokens'}, 'text':trans('tokens.tokens')},
   ]
 })

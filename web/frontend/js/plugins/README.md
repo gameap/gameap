@@ -86,7 +86,7 @@ export const MyPlugin = {
     'server-tabs': [{
       component: ServerStatsTab,
       label: '@:tabs.stats',  // Translation reference
-      icon: 'chart-line',
+      icon: 'metrics',
       order: 10,
       name: 'stats',
       checkPermission: {
@@ -165,7 +165,7 @@ export const MyPlugin = {
   apiVersion: '1.0',
   homeButtons: [{
     name: 'Analytics',
-    icon: 'fas fa-chart-bar',
+    icon: 'metrics',
     route: { name: 'index' },  // Becomes plugin.my-plugin.index
     order: 10
   }]
@@ -254,7 +254,7 @@ When registering a component to a slot, the following options are available:
   component: VueComponent,     // Required: Vue component to render
   order: 0,                    // Sort order (lower = first)
   label: 'Tab Label',          // Display label (supports @:key translation refs)
-  icon: 'chart-line',          // Font Awesome icon name (without fa- prefix)
+  icon: 'metrics',             // Icon name from the @gameap/ui icon registry
   name: 'unique-name',         // Unique identifier within the slot
   props: {},                   // Default props to pass to the component
   checkPermission: {           // Optional permission check

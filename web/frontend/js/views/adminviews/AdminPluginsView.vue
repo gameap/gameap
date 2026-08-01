@@ -116,7 +116,7 @@ const {
 
 const breadcrumbs = computed(() => {
   return [
-    {'route':'/', 'text':'GameAP', 'icon': 'gicon gicon-gameap'},
+    {'route':'/', 'text':'GameAP', 'icon': 'gameap'},
     {'route':{name: 'admin.plugins.index'}, 'text':trans('plugins.plugins')},
   ]
 })
