@@ -3,7 +3,9 @@
     tags:
       - ServerConsole
     summary: Get console output
-    description: Returns the server console output
+    description: >
+      Returns the server console output. The server RCON password is masked
+      with `******` in the returned text.
     operationId: getConsole
     x-codeSamples:
       - lang: cURL

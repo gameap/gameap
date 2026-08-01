@@ -339,6 +339,43 @@ func TestServer_IsOnline(t *testing.T) {
 	}
 }
 
+func TestServer_RconPassword(t *testing.T) {
+	tests := []struct {
+		name string
+		rcon *string
+		want string
+	}{
+		{
+			name: "nil_rcon_returns_empty_string",
+			rcon: nil,
+			want: "",
+		},
+		{
+			name: "empty_rcon_returns_empty_string",
+			rcon: new(""),
+			want: "",
+		},
+		{
+			name: "configured_rcon_returns_password",
+			rcon: new("s3cr3tpass"),
+			want: "s3cr3tpass",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// ARRANGE
+			server := &Server{Rcon: test.rcon}
+
+			// ACT
+			got := server.RconPassword()
+
+			// ASSERT
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
 func TestServerInstalledStatusConstants(t *testing.T) {
 	assert.Equal(t, ServerInstalledStatus(0), ServerInstalledStatusNotInstalled)
 	assert.Equal(t, ServerInstalledStatus(1), ServerInstalledStatusInstalled)

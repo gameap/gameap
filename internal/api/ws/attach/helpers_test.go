@@ -216,9 +216,20 @@ type attachEnv struct {
 	nodeRepo   *inmemory.NodeRepository
 }
 
+// attachEnvOption tweaks the fixture's server before it is stored.
+type attachEnvOption func(*domain.Server)
+
+// withRconPassword configures the fixture server with an RCON password, which is what the
+// handler masks out of the attach stream.
+func withRconPassword(password string) attachEnvOption {
+	return func(s *domain.Server) {
+		s.Rcon = &password
+	}
+}
+
 // newAttachEnv builds the fixture and registers a real local session for the
 // node so IsConnectedAnywhere returns true.
-func newAttachEnv(t *testing.T) *attachEnv {
+func newAttachEnv(t *testing.T, opts ...attachEnvOption) *attachEnv {
 	t.Helper()
 
 	const (
@@ -246,6 +257,10 @@ func newAttachEnv(t *testing.T) *attachEnv {
 		UID:        uuid.New(),
 	}
 	server.Hydrate()
+
+	for _, opt := range opts {
+		opt(server)
+	}
 
 	serverRepo := inmemory.NewServerRepository()
 	require.NoError(t, serverRepo.Save(t.Context(), server))

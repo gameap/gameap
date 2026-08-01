@@ -133,6 +133,9 @@ info:
       `{ output: string }` with the buffered console contents (may be
       empty).
     - `console.output` — payload `{ chunk: string }` (streamed).
+
+    Occurrences of the server RCON password are replaced with `******`
+    in every outbound frame.
     - `error` — payload `{ message: string }` for authorization, daemon
       connectivity, or RPC failures. The envelope's top-level `error`
       field carries the same message. The server may close the socket
@@ -155,6 +158,9 @@ info:
       once after the daemon confirms attach.
     - `attach.output` — payload `{ data: bytes }`. PTY output, streamed.
     - `error` — same shape as the console endpoint.
+
+    Occurrences of the server RCON password are replaced with `******`
+    in every outbound frame.
 
     ### `MetricsWireResponse` shape
 

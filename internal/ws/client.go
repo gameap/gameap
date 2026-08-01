@@ -28,6 +28,17 @@ const (
 // is the Client's context and is cancelled when the connection is closed.
 type MessageHandler func(ctx context.Context, msg *InboundMessage)
 
+// OutboundFilter transforms an already-encoded outbound frame before it is
+// queued for delivery.
+//
+// It is the only place a Client can inspect traffic that reaches it through
+// Hub.Broadcast, which hands over frames that were encoded elsewhere (the
+// Bridge, from a PubSub payload). Returning the frame unchanged is the no-op
+// behaviour; returning a different slice replaces what the peer receives.
+// The filter runs on the caller's goroutine — the Hub fan-out or whoever
+// calls Send — so it must be cheap and safe for concurrent use.
+type OutboundFilter func(frame []byte) []byte
+
 // Client represents a single connected WebSocket peer on this API instance.
 //
 // Each Client owns its own bounded send channel and a context that is
@@ -50,6 +61,7 @@ type Client struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	handler MessageHandler
+	filter  OutboundFilter
 	logger  *slog.Logger
 }
 
@@ -106,6 +118,17 @@ func (c *Client) SetMessageHandler(handler MessageHandler) {
 	c.handler = handler
 }
 
+// SetOutboundFilter installs filter as the transform applied to every frame
+// on its way to the peer, including frames fanned out by the Hub.
+//
+// There is no synchronization with the write path, so it must be installed
+// before the Client is registered with the Hub and before Run, the same
+// ordering requirement SetMessageHandler carries. Passing nil clears the
+// filter.
+func (c *Client) SetOutboundFilter(filter OutboundFilter) {
+	c.filter = filter
+}
+
 // Run starts the write pump in a new goroutine and blocks on the read pump
 // in the calling goroutine.
 //
@@ -121,11 +144,16 @@ func (c *Client) Run() {
 
 // Send enqueues msg onto the Client's bounded send buffer.
 //
-// The call is non-blocking: if the buffer is full the message is dropped
-// and a warning is logged, so a slow WebSocket peer cannot back-pressure
-// the Hub. This is the entry point used by Hub.Broadcast for fan-out.
-// Safe for concurrent use.
+// The installed OutboundFilter, if any, is applied first. The call is
+// non-blocking: if the buffer is full the message is dropped and a warning
+// is logged, so a slow WebSocket peer cannot back-pressure the Hub. This is
+// the entry point used by Hub.Broadcast for fan-out. Safe for concurrent
+// use.
 func (c *Client) Send(msg []byte) {
+	if c.filter != nil {
+		msg = c.filter(msg)
+	}
+
 	select {
 	case c.send <- msg:
 	default:

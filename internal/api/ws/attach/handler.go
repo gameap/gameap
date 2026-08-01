@@ -9,6 +9,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
+	wsbase "github.com/gameap/gameap/internal/api/ws/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/grpc/handlers"
@@ -20,6 +21,7 @@ import (
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/gameap/gameap/pkg/proto"
+	"github.com/gameap/gameap/pkg/secretmask"
 	"github.com/pkg/errors"
 )
 
@@ -146,6 +148,10 @@ func (h *Handler) runAttachSession(
 	canSend bool,
 ) {
 	client := ws.NewClient(ctx, conn, h.hub, nil, h.logger)
+
+	// The game server prints its own launch line, RCON password included, into the PTY.
+	// Installed before Register so no broadcast can reach the peer unfiltered.
+	client.SetOutboundFilter(wsbase.NewOutboundMaskFilter(secretmask.New(server.RconPassword())))
 
 	startedTopic := ws.ChannelToTopic(channels.BuildRealtimeAttachStartedChannel(sessionID))
 	outputTopic := ws.ChannelToTopic(channels.BuildRealtimeAttachOutputChannel(sessionID))

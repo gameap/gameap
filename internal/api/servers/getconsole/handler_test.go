@@ -68,6 +68,23 @@ func (m *mockDaemonCommands) ExecuteCommand(
 	return &daemon.CommandResult{Output: ""}, nil
 }
 
+type mockConsoleLogService struct {
+	getConsoleLogFunc func(ctx context.Context, nodeID uint64, serverID uint64, maxBytes int64) (string, error)
+}
+
+func (m *mockConsoleLogService) GetConsoleLog(
+	ctx context.Context,
+	nodeID uint64,
+	serverID uint64,
+	maxBytes int64,
+) (string, error) {
+	if m.getConsoleLogFunc != nil {
+		return m.getConsoleLogFunc(ctx, nodeID, serverID, maxBytes)
+	}
+
+	return "", errors.New("console log service unavailable")
+}
+
 func TestHandler_ServeHTTP(t *testing.T) {
 	tests := []struct {
 		name                 string
@@ -786,6 +803,211 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				if tt.validateConsoleValue != nil {
 					tt.validateConsoleValue(t, resp.Console)
 				}
+			}
+		})
+	}
+}
+
+const testRconPassword = "s3cr3tRc0n"
+
+// seedServerWithRcon stores a node and a server whose RCON password is set, and grants the
+// console view ability to testUser1. scriptGetConsole may be empty to leave the node script
+// unset so the handler falls through to the output.txt download.
+func seedServerWithRcon(
+	t *testing.T,
+	serverRepo *inmemory.ServerRepository,
+	nodeRepo *inmemory.NodeRepository,
+	rbacRepo *inmemory.RBACRepository,
+	rconPassword string,
+	scriptGetConsole string,
+) {
+	t.Helper()
+
+	now := time.Now()
+
+	node := &domain.Node{
+		ID:            1,
+		Enabled:       true,
+		Name:          "test-node",
+		OS:            "linux",
+		WorkPath:      "/srv/gameap",
+		GdaemonHost:   "172.18.0.5",
+		GdaemonPort:   31717,
+		GdaemonAPIKey: "test-key",
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	if scriptGetConsole != "" {
+		node.ScriptGetConsole = &scriptGetConsole
+	}
+	require.NoError(t, nodeRepo.Save(context.Background(), node))
+
+	server := &domain.Server{
+		ID:         1,
+		UID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		UUIDShort:  "short1",
+		Enabled:    true,
+		Installed:  1,
+		Name:       "Test Server 1",
+		GameID:     "cs",
+		DSID:       1,
+		GameModID:  1,
+		ServerIP:   "127.0.0.1",
+		ServerPort: 27015,
+		Dir:        "/home/gameap/servers/test1",
+		CreatedAt:  &now,
+		UpdatedAt:  &now,
+	}
+	if rconPassword != "" {
+		server.Rcon = new(rconPassword)
+	}
+	require.NoError(t, serverRepo.Save(context.Background(), server))
+	serverRepo.AddUserServer(1, 1)
+
+	require.NoError(t, rbacRepo.Allow(
+		context.Background(),
+		testUser1.ID,
+		domain.EntityTypeUser,
+		[]domain.Ability{
+			{
+				Name:       domain.AbilityNameGameServerConsoleView,
+				EntityID:   new(uint(1)),
+				EntityType: lo.ToPtr(domain.EntityTypeServer),
+			},
+		},
+	))
+}
+
+func TestHandler_ServeHTTP_masksRconPassword(t *testing.T) {
+	const launchLine = "./hlds_run -game cs +ip 127.0.0.1 +port 27015 +rcon_password " +
+		testRconPassword + "\nServer running\n"
+
+	tests := []struct {
+		name             string
+		rconPassword     string
+		scriptGetConsole string
+		setupMockCLS     func() *mockConsoleLogService
+		setupMockDaemon  func() *mockDaemonCommands
+		setupMockFS      func() *mockFileService
+		wantConsole      string
+	}{
+		{
+			name:         "console_log_service_output_is_masked",
+			rconPassword: testRconPassword,
+			setupMockCLS: func() *mockConsoleLogService {
+				return &mockConsoleLogService{
+					getConsoleLogFunc: func(_ context.Context, _ uint64, _ uint64, _ int64) (string, error) {
+						return launchLine, nil
+					},
+				}
+			},
+			wantConsole: "./hlds_run -game cs +ip 127.0.0.1 +port 27015 +rcon_password ******\nServer running\n",
+		},
+		{
+			name:             "script_get_console_output_is_masked",
+			rconPassword:     testRconPassword,
+			scriptGetConsole: "cat {dir}/output.txt",
+			setupMockDaemon: func() *mockDaemonCommands {
+				return &mockDaemonCommands{
+					executeCommandFunc: func(
+						_ context.Context,
+						_ *domain.Node,
+						_ string,
+						_ ...daemon.CommandServiceOption,
+					) (*daemon.CommandResult, error) {
+						return &daemon.CommandResult{Output: launchLine}, nil
+					},
+				}
+			},
+			wantConsole: "./hlds_run -game cs +ip 127.0.0.1 +port 27015 +rcon_password ******\nServer running\n",
+		},
+		{
+			name:         "downloaded_output_file_is_masked",
+			rconPassword: testRconPassword,
+			setupMockFS: func() *mockFileService {
+				return &mockFileService{
+					downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
+						return []byte(launchLine), nil
+					},
+				}
+			},
+			wantConsole: "./hlds_run -game cs +ip 127.0.0.1 +port 27015 +rcon_password ******\nServer running\n",
+		},
+		{
+			name:         "every_occurrence_is_masked",
+			rconPassword: testRconPassword,
+			setupMockCLS: func() *mockConsoleLogService {
+				return &mockConsoleLogService{
+					getConsoleLogFunc: func(_ context.Context, _ uint64, _ uint64, _ int64) (string, error) {
+						return "rcon_password " + testRconPassword + "\n\"rcon_password\" = \"" +
+							testRconPassword + "\"\n", nil
+					},
+				}
+			},
+			wantConsole: "rcon_password ******\n\"rcon_password\" = \"******\"\n",
+		},
+		{
+			name:         "server_without_rcon_password_returns_console_unchanged",
+			rconPassword: "",
+			setupMockCLS: func() *mockConsoleLogService {
+				return &mockConsoleLogService{
+					getConsoleLogFunc: func(_ context.Context, _ uint64, _ uint64, _ int64) (string, error) {
+						return launchLine, nil
+					},
+				}
+			},
+			wantConsole: launchLine,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			serverRepo := inmemory.NewServerRepository()
+			nodeRepo := inmemory.NewNodeRepository()
+			rbacRepo := inmemory.NewRBACRepository()
+			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+			seedServerWithRcon(t, serverRepo, nodeRepo, rbacRepo, tt.rconPassword, tt.scriptGetConsole)
+
+			mockFS := &mockFileService{}
+			if tt.setupMockFS != nil {
+				mockFS = tt.setupMockFS()
+			}
+
+			mockDaemon := &mockDaemonCommands{}
+			if tt.setupMockDaemon != nil {
+				mockDaemon = tt.setupMockDaemon()
+			}
+
+			var cls consoleLogService
+			if tt.setupMockCLS != nil {
+				cls = tt.setupMockCLS()
+			}
+
+			handler := NewHandler(serverRepo, nodeRepo, rbacService, mockDaemon, mockFS, cls, api.NewResponder())
+
+			req := httptest.NewRequest(http.MethodGet, "/api/servers/1/console", nil)
+			req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+				Login: "testuser",
+				Email: "test@example.com",
+				User:  &testUser1,
+			}))
+			req = mux.SetURLVars(req, map[string]string{"server": "1"})
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusOK, w.Code)
+
+			var resp consoleResponse
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			assert.Equal(t, tt.wantConsole, resp.Console)
+
+			if tt.rconPassword != "" {
+				assert.NotContains(t, resp.Console, tt.rconPassword)
 			}
 		})
 	}
