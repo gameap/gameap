@@ -18,6 +18,7 @@ import (
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/quercon/rcon"
+	"github.com/gameap/gameap/pkg/secretmask"
 	"github.com/pkg/errors"
 )
 
@@ -25,7 +26,7 @@ type Handler struct {
 	serverFinder   *serversbase.ServerFinder
 	abilityChecker *serversbase.AbilityChecker
 	gameRepo       repositories.GameRepository
-	resolver       *quercon.Resolver
+	newRconClient  rconClientFactory
 	responder      base.Responder
 }
 
@@ -40,7 +41,7 @@ func NewHandler(
 		serverFinder:   serversbase.NewServerFinder(serverRepo, rbac),
 		abilityChecker: serversbase.NewAbilityChecker(rbac),
 		gameRepo:       gameRepo,
-		resolver:       resolver,
+		newRconClient:  resolver.RconClient,
 		responder:      responder,
 	}
 }
@@ -111,6 +112,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	// A game server happily echoes its own rcon_password cvar back (cvarlist, status and
+	// friends), so the reply is scrubbed before it reaches the RCON console.
+	output = secretmask.New(server.RconPassword()).String(output)
 
 	h.responder.Write(ctx, rw, newCommandResponse(output))
 }
@@ -194,7 +199,7 @@ func (h *Handler) executeRconCommand(
 		Timeout:  10 * time.Second,
 	}
 
-	client, err := h.resolver.RconClient(ctx, game, rconConfig)
+	client, err := h.newRconClient(ctx, game, rconConfig)
 	if err != nil {
 		if errors.Is(err, quercon.ErrRconProtocolUnsupported) {
 			return "", api.WrapHTTPError(

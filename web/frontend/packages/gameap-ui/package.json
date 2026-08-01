@@ -1,6 +1,6 @@
 {
   "name": "@gameap/ui",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "type": "module",
   "main": "./index.js",
   "module": "./index.js",

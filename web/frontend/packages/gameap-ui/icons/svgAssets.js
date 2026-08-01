@@ -16,19 +16,19 @@ const sources = import.meta.glob('./assets/*.svg', {
 })
 
 function parse(name, source) {
-  const viewBox = /<svg\b[^>]*\bviewBox="([^"]+)"/.exec(source)?.[1]
+  const viewBox = /<svg\b[^>]*\bviewBox=(["'])([^"']+)\1/.exec(source)?.[2]
 
   if (!viewBox) {
     throw new Error(`icon "${name}": no viewBox`)
   }
 
-  const paths = [...source.matchAll(/<path\b[^>]*\bd="([^"]+)"/g)].map(([, path]) => path)
+  const paths = [...source.matchAll(/<path\b[^>]*\bd=(["'])([^"']+)\1/g)].map(([, , path]) => path)
 
   if (paths.length === 0) {
     throw new Error(`icon "${name}": no paths`)
   }
 
-  const transforms = [...source.matchAll(/<g\b[^>]*\btransform="([^"]+)"/g)].map(([, value]) => value)
+  const transforms = [...source.matchAll(/<g\b[^>]*\btransform=(["'])([^"']+)\1/g)].map(([, , value]) => value)
 
   if (transforms.length > 1) {
     throw new Error(`icon "${name}": more than one transformed group`)
