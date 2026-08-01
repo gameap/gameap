@@ -17,6 +17,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/internal/ws"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/secretmask"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -420,9 +421,10 @@ func TestHandler_sendConsoleHistory(t *testing.T) {
 	tests := []struct {
 		name string
 
-		logSvc *fakeConsoleLogService
-		dc     *fakeDaemonCommands
-		node   *domain.Node
+		logSvc       *fakeConsoleLogService
+		dc           *fakeDaemonCommands
+		node         *domain.Node
+		rconPassword string
 
 		wantFrame      bool
 		wantOutput     string
@@ -467,6 +469,27 @@ func TestHandler_sendConsoleHistory(t *testing.T) {
 			wantDCCalls:    0,
 			wantLogSvcHits: 1,
 		},
+		{
+			name:           "masks_rcon_password_in_history",
+			logSvc:         &fakeConsoleLogService{result: "./hlds_run +rcon_password s3cr3tRc0n\n"},
+			dc:             &fakeDaemonCommands{},
+			node:           newTestNode(nil),
+			rconPassword:   "s3cr3tRc0n",
+			wantFrame:      true,
+			wantOutput:     "./hlds_run +rcon_password ******\n",
+			wantDCCalls:    0,
+			wantLogSvcHits: 1,
+		},
+		{
+			name:           "leaves_history_untouched_without_rcon_password",
+			logSvc:         &fakeConsoleLogService{result: "./hlds_run +rcon_password s3cr3tRc0n\n"},
+			dc:             &fakeDaemonCommands{},
+			node:           newTestNode(nil),
+			wantFrame:      true,
+			wantOutput:     "./hlds_run +rcon_password s3cr3tRc0n\n",
+			wantDCCalls:    0,
+			wantLogSvcHits: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -475,9 +498,14 @@ func TestHandler_sendConsoleHistory(t *testing.T) {
 			d := dialConsoleClient(t)
 			h := newConsoleLogTestHandler(tt.logSvc, tt.dc)
 			server := newTestServer()
+			if tt.rconPassword != "" {
+				server.Rcon = new(tt.rconPassword)
+			}
 
 			// ACT
-			h.sendConsoleHistory(context.Background(), d.srvClient, server, tt.node)
+			h.sendConsoleHistory(
+				context.Background(), d.srvClient, server, tt.node, secretmask.New(server.RconPassword()),
+			)
 
 			// ASSERT
 			assert.Equal(t, tt.wantLogSvcHits, tt.logSvc.calls.Load(),

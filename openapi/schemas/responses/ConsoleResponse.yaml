@@ -3,7 +3,9 @@ description: Console output response
 properties:
   console:
     type: string
-    description: Console output
+    description: >
+      Console output. Occurrences of the server RCON password are replaced
+      with `******` before the output leaves the panel.
     example: "Server started successfully"
 required:
   - console

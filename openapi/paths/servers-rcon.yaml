@@ -3,7 +3,9 @@
     tags:
       - ServerRcon
     summary: Send RCON command
-    description: Sends a RCON command to the server
+    description: >
+      Sends a RCON command to the server. The server RCON password is masked
+      with `******` in the returned output.
     operationId: sendRconCommand
     parameters:
       - name: server
@@ -28,7 +30,9 @@
               properties:
                 output:
                   type: string
-                  description: RCON command output
+                  description: >
+                    RCON command output. Occurrences of the server RCON
+                    password are replaced with `******`.
       '401':
         description: Unauthorized
         content:

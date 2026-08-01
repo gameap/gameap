@@ -16,6 +16,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	"github.com/gameap/gameap/pkg/secretmask"
 	"github.com/pkg/errors"
 )
 
@@ -119,6 +120,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	// Game mod start commands embed the RCON password (+rcon_password {rcon_password}), so the
+	// launch line sits in the console log. Masking here covers every source getConsoleLog uses.
+	consoleOutput = secretmask.New(server.RconPassword()).String(consoleOutput)
 
 	h.responder.Write(ctx, rw, newConsoleResponse(consoleOutput))
 }

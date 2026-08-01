@@ -87,6 +87,15 @@ func (s *Server) XID() xid.ID {
 	return idgen.UUIDToXID(s.UID)
 }
 
+// RconPassword returns the configured RCON password, or an empty string when the server has none.
+func (s *Server) RconPassword() string {
+	if s.Rcon == nil {
+		return ""
+	}
+
+	return *s.Rcon
+}
+
 // ReplaceServerShortcodes replaces shortcode placeholders in a command string with server-specific values.
 // It first replaces any extra data provided, then replaces standard server shortcodes.
 // Shortcodes are replaced in the format {key} with their corresponding values.

@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -67,6 +68,52 @@ func TestClient_Send_DropsOnFullBuffer(t *testing.T) {
 		assert.Equal(t, []byte("payload"), <-client.send)
 	}
 	assert.Empty(t, client.send, "no extra message should remain after draining")
+}
+
+func TestClient_Send_AppliesOutboundFilter(t *testing.T) {
+	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
+	client.SetOutboundFilter(func(frame []byte) []byte {
+		return bytes.ReplaceAll(frame, []byte("secret"), []byte("******"))
+	})
+
+	client.Send([]byte("password is secret"))
+
+	require.Len(t, client.send, 1)
+	assert.Equal(t, []byte("password is ******"), <-client.send)
+}
+
+func TestClient_SendMessage_AppliesOutboundFilter(t *testing.T) {
+	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
+	client.SetOutboundFilter(func(frame []byte) []byte {
+		return bytes.ReplaceAll(frame, []byte("secret"), []byte("******"))
+	})
+
+	client.SendMessage(NewOutboundMessage("console.output", map[string]any{"chunk": "secret"}))
+
+	require.Len(t, client.send, 1)
+	assert.Contains(t, string(<-client.send), `"chunk":"******"`)
+}
+
+func TestClient_Send_WithoutFilter_PassesThrough(t *testing.T) {
+	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
+
+	client.Send([]byte("password is secret"))
+
+	require.Len(t, client.send, 1)
+	assert.Equal(t, []byte("password is secret"), <-client.send)
+}
+
+func TestClient_SetOutboundFilter_NilClearsFilter(t *testing.T) {
+	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
+	client.SetOutboundFilter(func([]byte) []byte {
+		return []byte("filtered")
+	})
+	client.SetOutboundFilter(nil)
+
+	client.Send([]byte("original"))
+
+	require.Len(t, client.send, 1)
+	assert.Equal(t, []byte("original"), <-client.send)
 }
 
 func TestClient_SendMessage_MarshalsAndEnqueues(t *testing.T) {
