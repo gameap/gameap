@@ -67,6 +67,56 @@ func TestPingDBWithRetry_WindowExhausted(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestPingDBWithRetry_BlockedPing(t *testing.T) {
+	db, mock := newPingMonitoredDB(t)
+	mock.ExpectPing().WillDelayFor(10 * time.Second)
+
+	cfg := &config.Config{DatabaseConnectTimeout: 200 * time.Millisecond}
+	c := newMinimalContainer(cfg)
+
+	start := time.Now()
+	err := c.pingDBWithRetry(db)
+
+	require.Error(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second,
+		"a ping blocked longer than the window must be cut off by the deadline")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPingDBWithRetry_FinalPartialWait(t *testing.T) {
+	db, mock := newPingMonitoredDB(t)
+	mock.ExpectPing().WillReturnError(errDBShuttingDown)
+
+	cfg := &config.Config{DatabaseConnectTimeout: 300 * time.Millisecond}
+	c := newMinimalContainer(cfg)
+
+	start := time.Now()
+	err := c.pingDBWithRetry(db)
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errDBShuttingDown)
+	assert.GreaterOrEqual(t, elapsed, 250*time.Millisecond,
+		"the remaining window must be waited out even when shorter than the next delay")
+	assert.Less(t, elapsed, 5*time.Second)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPingDBWithRetry_RetriesDisabled(t *testing.T) {
+	db, mock := newPingMonitoredDB(t)
+	mock.ExpectPing().WillReturnError(errConnectionRefused)
+
+	c := newMinimalContainer(&config.Config{})
+
+	start := time.Now()
+	err := c.pingDBWithRetry(db)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errConnectionRefused)
+	assert.Less(t, time.Since(start), time.Second, "non-positive timeout must mean a single attempt")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestPingDBWithRetry_ContextCancelled(t *testing.T) {
 	db, mock := newPingMonitoredDB(t)
 	mock.ExpectPing().WillReturnError(errConnectionRefused)

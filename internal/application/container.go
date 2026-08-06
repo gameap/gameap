@@ -475,14 +475,21 @@ const (
 
 // Retries the initial ping within Config.DatabaseConnectTimeout so a database
 // that is briefly unavailable (restarting alongside the panel, still booting)
-// does not bring the process down.
+// does not bring the process down. The window bounds blocked ping attempts and
+// retry waits alike; a non-positive timeout means a single unbounded attempt.
 func (c *Container) pingDBWithRetry(db *sql.DB) error {
 	ctx := c.context
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	deadline := time.Now().Add(c.config.DatabaseConnectTimeout)
+	if c.config.DatabaseConnectTimeout <= 0 {
+		return db.PingContext(ctx)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.config.DatabaseConnectTimeout)
+	defer cancel()
+
 	delay := dbPingRetryInitialDelay
 
 	for {
@@ -491,7 +498,7 @@ func (c *Container) pingDBWithRetry(db *sql.DB) error {
 			return nil
 		}
 
-		if ctx.Err() != nil || time.Now().Add(delay).After(deadline) {
+		if ctx.Err() != nil {
 			return err
 		}
 
