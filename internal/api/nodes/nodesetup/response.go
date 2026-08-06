@@ -10,4 +10,6 @@ type setupResponse struct {
 	LinuxCmd    string `json:"linux_cmd,omitempty"`
 	WindowsCmd  string `json:"windows_cmd,omitempty"`
 	SetupLink   string `json:"setup_link,omitempty"`
+
+	Warnings []string `json:"warnings,omitempty"`
 }

@@ -233,6 +233,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				tt.grpcExtHost,
 				tt.grpcPort,
 				tt.grpcExtPort,
+				nil,
 			)
 
 			path := "/nodes/setup/" + tt.key
@@ -358,6 +359,7 @@ func TestHandler_ServeHTTP_ShellInjectionSafety(t *testing.T) {
 				"", // grpcExtHost unset so the header-derived host is used
 				31718,
 				0,
+				nil,
 			)
 
 			q := url.Values{}
@@ -401,7 +403,7 @@ func TestHandler_ServeHTTP_ShellInjectionSafety(t *testing.T) {
 
 func TestHandler_GRPCDisabled(t *testing.T) {
 	responder := api.NewResponder()
-	handler := NewHandler(nil, responder, "", "", 0, 0)
+	handler := NewHandler(nil, responder, "", "", 0, 0, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/nodes/setup/somekey", nil)
 	req = mux.SetURLVars(req, map[string]string{"key": "somekey"})
@@ -410,4 +412,31 @@ func TestHandler_GRPCDisabled(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+// The uncovered-host warning is log-only for this endpoint: the generated
+// script must stay byte-identical so existing installs are not disturbed.
+func TestHandler_ServeHTTP_uncoveredHostKeepsScriptUnchanged(t *testing.T) {
+	const key = "AbCdEfGh1234567890AbCdEfGh123456"
+
+	buildScript := func(certHostCovered func(string) bool) string {
+		keyManager := setupKeyManager(t, key)
+		enrollSvc := enrollment.NewService(keyManager, nil, nil, nil)
+		handler := NewHandler(enrollSvc, api.NewResponder(), "panel.example.com", "", 31718, 0, certHostCovered)
+
+		req := httptest.NewRequest(http.MethodGet, "/nodes/setup/"+key, nil)
+		req = mux.SetURLVars(req, map[string]string{"key": key})
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		return w.Body.String()
+	}
+
+	covered := buildScript(func(string) bool { return true })
+	uncovered := buildScript(func(string) bool { return false })
+
+	assert.Equal(t, covered, uncovered)
+	assert.Contains(t, uncovered, "grpc://panel.example.com:31718/"+key)
 }

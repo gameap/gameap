@@ -83,17 +83,36 @@ func TestResolveGRPCCertSANs(t *testing.T) {
 			},
 		},
 		{
-			name:         "specific_http_host_skips_auto_detect",
+			name:         "specific_http_host_appends_auto_detect",
 			httpHost:     "192.168.0.1",
 			httpBindIP:   "",
 			externalHost: "",
 			stubAuto: []sanSource{
 				{ip: net.ParseIP("10.0.0.99"), from: "auto:eth9"},
 			},
-			wantIPs: []string{"192.168.0.1", "127.0.0.1"},
+			wantIPs: []string{"192.168.0.1", "10.0.0.99", "127.0.0.1"},
 			wantDNS: []string{"localhost"},
 			wantSources: map[string]string{
 				"ip:192.168.0.1": "config:HTTP_HOST",
+				"ip:10.0.0.99":   "auto:eth9",
+				"ip:127.0.0.1":   "fallback",
+				"dns:localhost":  "fallback",
+			},
+		},
+		{
+			name:         "nat_local_http_host_keeps_config_source_and_appends_other_interfaces",
+			httpHost:     "10.73.43.20",
+			httpBindIP:   "",
+			externalHost: "",
+			stubAuto: []sanSource{
+				{ip: net.ParseIP("10.73.43.20"), from: "auto:eth0"},
+				{ip: net.ParseIP("192.168.1.5"), from: "auto:eth1"},
+			},
+			wantIPs: []string{"10.73.43.20", "192.168.1.5", "127.0.0.1"},
+			wantDNS: []string{"localhost"},
+			wantSources: map[string]string{
+				"ip:10.73.43.20": "config:HTTP_HOST",
+				"ip:192.168.1.5": "auto:eth1",
 				"ip:127.0.0.1":   "fallback",
 				"dns:localhost":  "fallback",
 			},

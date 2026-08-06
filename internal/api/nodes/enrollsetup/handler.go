@@ -2,6 +2,7 @@ package enrollsetup
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -13,12 +14,13 @@ import (
 )
 
 type Handler struct {
-	enrollmentSvc *enrollment.Service
-	responder     base.Responder
-	grpcExtHost   string
-	grpcPort      uint16
-	grpcExtPort   uint16
-	panelHost     string
+	enrollmentSvc   *enrollment.Service
+	responder       base.Responder
+	grpcExtHost     string
+	grpcPort        uint16
+	grpcExtPort     uint16
+	panelHost       string
+	certHostCovered func(host string) bool
 }
 
 func NewHandler(
@@ -28,14 +30,16 @@ func NewHandler(
 	grpcExtHost string,
 	grpcPort uint16,
 	grpcExtPort uint16,
+	certHostCovered func(host string) bool,
 ) *Handler {
 	return &Handler{
-		enrollmentSvc: enrollmentSvc,
-		responder:     responder,
-		panelHost:     panelHost,
-		grpcExtHost:   grpcExtHost,
-		grpcPort:      grpcPort,
-		grpcExtPort:   grpcExtPort,
+		enrollmentSvc:   enrollmentSvc,
+		responder:       responder,
+		panelHost:       panelHost,
+		grpcExtHost:     grpcExtHost,
+		grpcPort:        grpcPort,
+		grpcExtPort:     grpcExtPort,
+		certHostCovered: certHostCovered,
 	}
 }
 
@@ -80,6 +84,15 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	grpcPort := h.grpcPort
 	if h.grpcExtPort > 0 {
 		grpcPort = h.grpcExtPort
+	}
+
+	if h.certHostCovered != nil && !h.certHostCovered(grpcHost) {
+		slog.WarnContext(ctx, "resolved gRPC connect host is not covered by the panel gRPC TLS certificate; "+
+			"daemons will fail TLS verification when connecting via this address. "+
+			"Set GRPC_EXTERNAL_HOST to a stable address and restart the panel "+
+			"(its gRPC certificate is regenerated automatically)",
+			slog.String("grpc_host", grpcHost),
+		)
 	}
 
 	connectURL := enrollment.FormatConnectURL(grpcHost, grpcPort, key)

@@ -31,6 +31,13 @@ properties:
   setup_link:
     type: string
     description: Setup script URL for the gRPC enrollment flow; present when grpc_enabled=true
+  warnings:
+    type: array
+    items:
+      type: string
+    description: |
+      Configuration warnings detected while building the setup data, e.g. the
+      gRPC connect host is not covered by the panel gRPC TLS certificate.
 required:
   - host
   - grpc_enabled
