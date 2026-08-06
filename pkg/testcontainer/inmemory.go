@@ -255,6 +255,8 @@ func (c *InmemoryContainer) GRPCPort() uint16         { return 31718 }
 func (c *InmemoryContainer) GRPCExternalHost() string { return "" }
 func (c *InmemoryContainer) GRPCExternalPort() uint16 { return 0 }
 
+func (c *InmemoryContainer) GRPCCertHostCovered(_ string) bool { return true }
+
 type nopUploader struct{}
 
 func (nopUploader) UploadStreamPrepared(

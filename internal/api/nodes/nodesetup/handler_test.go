@@ -83,12 +83,13 @@ func (r *fakeResponder) lastResult() any {
 	return r.lastSuccess
 }
 
-// authedRequest returns a request whose context carries an authenticated
-// Session, mirroring what the auth middleware would inject in production.
-func authedRequest(t *testing.T, method, url string) *http.Request {
+// authedRequest returns a GET /api/nodes/setup request whose context carries
+// an authenticated Session, mirroring what the auth middleware would inject
+// in production.
+func authedRequest(t *testing.T) *http.Request {
 	t.Helper()
 
-	req := httptest.NewRequest(method, url, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/nodes/setup", nil)
 	req = req.WithContext(auth.ContextWithSession(req.Context(), &auth.Session{
 		User: &domain.User{ID: 1},
 	}))
@@ -139,7 +140,7 @@ func TestHandler_ServeHTTP_unauthenticated_returns401(t *testing.T) {
 	c := cache.NewInMemory()
 	svc := newEnrollmentService(t, c)
 	responder := &fakeResponder{}
-	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 0)
+	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 0, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/nodes/setup", nil)
 	rec := httptest.NewRecorder()
@@ -167,9 +168,9 @@ func TestHandler_ServeHTTP_keyManagerError_propagates(t *testing.T) {
 	// ARRANGE
 	svc := newEnrollmentService(t, &failingCache{setErr: errCacheUnavailable})
 	responder := &fakeResponder{}
-	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 0)
+	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 0, nil)
 
-	req := authedRequest(t, http.MethodGet, "/api/nodes/setup")
+	req := authedRequest(t)
 	rec := httptest.NewRecorder()
 
 	// ACT
@@ -190,9 +191,9 @@ func TestHandler_ServeHTTP_success_writesResponse(t *testing.T) {
 	c := cache.NewInMemory()
 	svc := newEnrollmentService(t, c)
 	responder := &fakeResponder{}
-	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 0)
+	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 0, nil)
 
-	req := authedRequest(t, http.MethodGet, "/api/nodes/setup")
+	req := authedRequest(t)
 	rec := httptest.NewRecorder()
 
 	// ACT
@@ -249,9 +250,9 @@ func TestHandler_ServeHTTP_usesGRPCExtPort_whenSet(t *testing.T) {
 	// ARRANGE
 	svc := newEnrollmentService(t, nil)
 	responder := &fakeResponder{}
-	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 9090)
+	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 9090, nil)
 
-	req := authedRequest(t, http.MethodGet, "/api/nodes/setup")
+	req := authedRequest(t)
 	rec := httptest.NewRecorder()
 
 	// ACT
@@ -265,6 +266,49 @@ func TestHandler_ServeHTTP_usesGRPCExtPort_whenSet(t *testing.T) {
 		"a non-zero grpcExtPort must take precedence over grpcPort")
 	assert.NotContains(t, resp.ConnectURL, ":31718/",
 		"the in-cluster grpcPort must not appear when extPort overrides it")
+}
+
+func TestHandler_ServeHTTP_warnsWhenHostNotCoveredByCert(t *testing.T) {
+	// ARRANGE
+	svc := newEnrollmentService(t, nil)
+	responder := &fakeResponder{}
+	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 0,
+		func(string) bool { return false })
+
+	req := authedRequest(t)
+	rec := httptest.NewRecorder()
+
+	// ACT
+	h.ServeHTTP(rec, req)
+
+	// ASSERT
+	require.Equal(t, 1, responder.successCalls())
+	resp, ok := responder.lastResult().(setupResponse)
+	require.True(t, ok)
+
+	require.Len(t, resp.Warnings, 1)
+	assert.Contains(t, resp.Warnings[0], "panel.example.com")
+	assert.Contains(t, resp.Warnings[0], "GRPC_EXTERNAL_HOST")
+}
+
+func TestHandler_ServeHTTP_noWarningsWhenHostCovered(t *testing.T) {
+	// ARRANGE
+	svc := newEnrollmentService(t, nil)
+	responder := &fakeResponder{}
+	h := NewHandler(responder, "panel.example.com", svc, 31718, "", 0,
+		func(string) bool { return true })
+
+	req := authedRequest(t)
+	rec := httptest.NewRecorder()
+
+	// ACT
+	h.ServeHTTP(rec, req)
+
+	// ASSERT
+	require.Equal(t, 1, responder.successCalls())
+	resp, ok := responder.lastResult().(setupResponse)
+	require.True(t, ok)
+	assert.Empty(t, resp.Warnings)
 }
 
 // -----------------------------------------------------------------------------
@@ -332,7 +376,7 @@ func TestHandler_resolveGRPCHost(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// ARRANGE
-			h := NewHandler(&fakeResponder{}, tt.panelHost, nil, 31718, tt.grpcExtHost, 0)
+			h := NewHandler(&fakeResponder{}, tt.panelHost, nil, 31718, tt.grpcExtHost, 0, nil)
 			req := httptest.NewRequest(http.MethodGet, "/api/nodes/setup", nil)
 			if tt.forwardedHost != "" {
 				req.Header.Set("X-Forwarded-Host", tt.forwardedHost)
@@ -400,7 +444,7 @@ func TestHandler_detectBaseURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// ARRANGE
-			h := NewHandler(&fakeResponder{}, tt.panelHost, nil, 31718, "", 0)
+			h := NewHandler(&fakeResponder{}, tt.panelHost, nil, 31718, "", 0, nil)
 			req := httptest.NewRequest(http.MethodGet, "/api/nodes/setup", nil)
 			if tt.forwardedHost != "" {
 				req.Header.Set("X-Forwarded-Host", tt.forwardedHost)
@@ -434,7 +478,7 @@ func TestNewHandler_assemblesDependencies(t *testing.T) {
 	svc := newEnrollmentService(t, nil)
 
 	// ACT
-	h := NewHandler(responder, "panel.example.com", svc, 31718, "grpc.example.com", 9090)
+	h := NewHandler(responder, "panel.example.com", svc, 31718, "grpc.example.com", 9090, nil)
 
 	// ASSERT
 	require.NotNil(t, h)

@@ -1,6 +1,7 @@
 package nodesetup
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -12,12 +13,13 @@ import (
 )
 
 type Handler struct {
-	responder     base.Responder
-	panelHost     string
-	enrollmentSvc *enrollment.Service
-	grpcPort      uint16
-	grpcExtHost   string
-	grpcExtPort   uint16
+	responder       base.Responder
+	panelHost       string
+	enrollmentSvc   *enrollment.Service
+	grpcPort        uint16
+	grpcExtHost     string
+	grpcExtPort     uint16
+	certHostCovered func(host string) bool
 }
 
 func NewHandler(
@@ -27,14 +29,16 @@ func NewHandler(
 	grpcPort uint16,
 	grpcExtHost string,
 	grpcExtPort uint16,
+	certHostCovered func(host string) bool,
 ) *Handler {
 	return &Handler{
-		responder:     responder,
-		panelHost:     panelHost,
-		enrollmentSvc: enrollmentSvc,
-		grpcPort:      grpcPort,
-		grpcExtHost:   grpcExtHost,
-		grpcExtPort:   grpcExtPort,
+		responder:       responder,
+		panelHost:       panelHost,
+		enrollmentSvc:   enrollmentSvc,
+		grpcPort:        grpcPort,
+		grpcExtHost:     grpcExtHost,
+		grpcExtPort:     grpcExtPort,
+		certHostCovered: certHostCovered,
 	}
 }
 
@@ -70,6 +74,21 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	linuxCmd := "bash <(curl -s '" + setupLink + "')"
 	windowsCmd := "gameapctl daemon install --connect=" + connectURL
 
+	var warnings []string
+	if h.certHostCovered != nil && !h.certHostCovered(grpcHost) {
+		slog.WarnContext(ctx, "resolved gRPC connect host is not covered by the panel gRPC TLS certificate; "+
+			"daemons will fail TLS verification when connecting via this address. "+
+			"Set GRPC_EXTERNAL_HOST to a stable address and restart the panel "+
+			"(its gRPC certificate is regenerated automatically)",
+			slog.String("grpc_host", grpcHost),
+		)
+		warnings = append(warnings,
+			"gRPC connect host \""+grpcHost+"\" is not covered by the panel gRPC TLS certificate. "+
+				"Daemons will fail TLS verification when connecting via this address. "+
+				"Set GRPC_EXTERNAL_HOST in the panel configuration and restart the panel "+
+				"to regenerate the certificate.")
+	}
+
 	h.responder.Write(ctx, rw, setupResponse{
 		Link:        setupLink,
 		Token:       setupKey,
@@ -79,6 +98,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		LinuxCmd:    linuxCmd,
 		WindowsCmd:  windowsCmd,
 		SetupLink:   setupLink,
+		Warnings:    warnings,
 	})
 }
 

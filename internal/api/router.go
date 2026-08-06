@@ -238,6 +238,7 @@ type container interface {
 	GRPCPort() uint16
 	GRPCExternalHost() string
 	GRPCExternalPort() uint16
+	GRPCCertHostCovered(host string) bool
 	WSHub() *ws.Hub
 	SessionRegistry() *session.Registry
 	CommandHandler() *grpchandlers.CommandHandler
@@ -1367,6 +1368,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.GRPCPort(),
 				c.GRPCExternalHost(),
 				c.GRPCExternalPort(),
+				c.GRPCCertHostCovered,
 			),
 			AdminOnly: true,
 		},
@@ -1381,6 +1383,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.GRPCPort(),
 				c.GRPCExternalHost(),
 				c.GRPCExternalPort(),
+				c.GRPCCertHostCovered,
 			),
 			AdminOnly: true,
 		},
@@ -2148,6 +2151,7 @@ func nodeEnrollRoutes(c container, router *mux.Router) *mux.Router {
 				c.GRPCExternalHost(),
 				c.GRPCPort(),
 				c.GRPCExternalPort(),
+				c.GRPCCertHostCovered,
 			),
 		},
 	}

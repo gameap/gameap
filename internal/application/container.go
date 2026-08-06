@@ -245,6 +245,7 @@ type Container struct {
 	metricsHub          metrics.Hub
 	taskReaper          *taskreaper.Reaper
 	grpcServer          *grpc.Server
+	grpcServerCertLeaf  *x509.Certificate
 	multiplexedServer   *MultiplexedServer
 
 	// Shutdown
@@ -1646,6 +1647,17 @@ func (c *Container) GRPCExternalPort() uint16 {
 	return c.config.GRPC.ExternalPort
 }
 
+// GRPCCertHostCovered reports whether the gRPC TLS server certificate of this
+// instance covers host. Returns true when gRPC TLS is disabled or the
+// certificate has not been loaded: there is nothing to warn about then.
+func (c *Container) GRPCCertHostCovered(host string) bool {
+	if c.grpcServerCertLeaf == nil {
+		return true
+	}
+
+	return c.grpcServerCertLeaf.VerifyHostname(host) == nil
+}
+
 func (c *Container) GlobalAPIService() *services.GlobalAPIService {
 	if c.globalAPIService == nil {
 		c.globalAPIService = c.createGlobalAPIService()
@@ -2473,6 +2485,7 @@ func (c *Container) buildGRPCTLSConfig() (*tls.Config, error) {
 	}
 
 	if leaf, parseErr := x509.ParseCertificate(cert.Certificate[0]); parseErr == nil {
+		c.grpcServerCertLeaf = leaf
 		slog.Info("gRPC TLS server certificate loaded",
 			"common_name", leaf.Subject.CommonName,
 			"dns_names", leaf.DNSNames,

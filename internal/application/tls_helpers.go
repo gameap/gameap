@@ -85,10 +85,11 @@ func resolveGRPCCertSANs(httpHost, httpBindIP, externalHost string) []sanSource 
 		}
 	}
 
-	if httpHost == "" || httpHost == "0.0.0.0" {
-		for _, s := range detectInterfaceSANs() {
-			addEntry(s)
-		}
+	// Interface IPs are always included so that a daemon on the same machine can
+	// reach the panel by a local address even when HTTP_HOST points elsewhere
+	// (e.g. a public address of a NAT in front of this machine).
+	for _, s := range detectInterfaceSANs() {
+		addEntry(s)
 	}
 
 	addEntry(sanSource{ip: net.IPv4(127, 0, 0, 1), from: "fallback"})
