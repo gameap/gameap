@@ -460,12 +460,62 @@ func (c *Container) createDB() (*sql.DB, error) {
 		return nil, errors.Wrap(err, "failed to connect to database")
 	}
 
-	err = db.PingContext(c.context)
+	err = c.pingDBWithRetry(db)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to ping database")
 	}
 
 	return db, nil
+}
+
+const (
+	dbPingRetryInitialDelay = 500 * time.Millisecond
+	dbPingRetryMaxDelay     = 5 * time.Second
+)
+
+// Retries the initial ping within Config.DatabaseConnectTimeout so a database
+// that is briefly unavailable (restarting alongside the panel, still booting)
+// does not bring the process down. The window bounds blocked ping attempts and
+// retry waits alike; a non-positive timeout means a single unbounded attempt.
+func (c *Container) pingDBWithRetry(db *sql.DB) error {
+	ctx := c.context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if c.config.DatabaseConnectTimeout <= 0 {
+		return db.PingContext(ctx)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.config.DatabaseConnectTimeout)
+	defer cancel()
+
+	delay := dbPingRetryInitialDelay
+
+	for {
+		err := db.PingContext(ctx)
+		if err == nil {
+			return nil
+		}
+
+		if ctx.Err() != nil {
+			return err
+		}
+
+		slog.Warn(
+			"database not ready, retrying",
+			slog.String("error", err.Error()),
+			slog.Duration("retry_in", delay),
+		)
+
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(delay):
+		}
+
+		delay = min(delay*2, dbPingRetryMaxDelay)
+	}
 }
 
 func (c *Container) TransactionalDB() base.DB {

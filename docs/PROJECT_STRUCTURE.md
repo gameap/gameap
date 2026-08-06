@@ -431,6 +431,7 @@ Key configuration:
 |----------|-------------|
 | `DATABASE_DRIVER` | mysql, postgres, sqlite, inmemory |
 | `DATABASE_URL` | Connection string |
+| `DATABASE_CONNECT_TIMEOUT` | Startup connect retry window; default `30s` |
 | `CACHE_DRIVER` | memory, redis |
 | `FILES_DRIVER` | local, s3 |
 | `AUTH_SERVICE` | paseto (default) |

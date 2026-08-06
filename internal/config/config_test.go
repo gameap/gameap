@@ -56,6 +56,7 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, uint16(8025), cfg.HTTPPort)
 		assert.Equal(t, uint16(443), cfg.HTTPSPort)
 		assert.Equal(t, "mysql", cfg.DatabaseDriver)
+		assert.Equal(t, 30*time.Second, cfg.DatabaseConnectTimeout)
 		assert.Equal(t, "paseto", cfg.AuthService)
 		assert.Equal(t, "30s", cfg.RBAC.CacheTTL)
 		assert.Equal(t, "memory", cfg.Cache.Driver)
@@ -63,6 +64,17 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "info", cfg.Logger.Level)
 		assert.False(t, cfg.Logger.LogDBQueries)
 		assert.Equal(t, "https://api.gameap.com", cfg.GlobalAPI.URL)
+	})
+
+	t.Run("database_connect_timeout_override", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+		t.Setenv("DATABASE_CONNECT_TIMEOUT", "5s")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.Equal(t, 5*time.Second, cfg.DatabaseConnectTimeout)
 	})
 
 	t.Run("default_archive_values", func(t *testing.T) {

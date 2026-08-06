@@ -46,6 +46,11 @@ type Config struct {
 	DatabaseDriver string `env:"DATABASE_DRIVER,required" envDefault:"mysql"`
 	DatabaseURL    string `env:"DATABASE_URL,required,notEmpty"`
 
+	// DatabaseConnectTimeout bounds the initial connect at startup: transient
+	// database unavailability (restart during upgrades, slow boot ordering) is
+	// retried with backoff within this window instead of crashing immediately.
+	DatabaseConnectTimeout time.Duration `env:"DATABASE_CONNECT_TIMEOUT" envDefault:"30s"`
+
 	EncryptionKey string `env:"ENCRYPTION_KEY" envDefault:""`
 	AuthSecret    string `env:"AUTH_SECRET,required,notEmpty" envDefault:""`
 	AuthService   string `env:"AUTH_SERVICE" envDefault:"paseto"`

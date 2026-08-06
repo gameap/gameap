@@ -275,6 +275,7 @@ state, useful for monitoring dashboards and the `gameapctl` polling logic:
 
 - `DATABASE_DRIVER` - Database driver (required, options: `mysql`, `postgres`, `sqlite`, `inmemory`)
 - `DATABASE_URL` - Database connection URL (required)
+- `DATABASE_CONNECT_TIMEOUT` - How long to retry the initial database connect at startup (default: `30s`)
   - MySQL: `username:password@tcp(host:port)/database?parseTime=true`
   - PostgreSQL: `postgres://username:password@host:port/database?sslmode=disable`
   - SQLite: `file:path/to/database.db?_busy_timeout=5000&_journal_mode=WAL&cache=shared` (parameters recommended for production)

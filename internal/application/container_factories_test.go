@@ -6,7 +6,8 @@
 // Deliberately NOT exercised here, and why:
 //   - DB() / createDB()      — open + PingContext require a live database handle;
 //     newWiredContainer injects c.db directly so these construction paths are
-//     never reached, and the ping cannot succeed against a closed/in-memory DSN.
+//     never reached. The startup ping retry (pingDBWithRetry) is covered in
+//     container_db_test.go via go-sqlmock ping monitoring.
 //   - Redis / Postgres cache + pub-sub branches — there is no miniredis or
 //     Postgres in the test environment (only go-sqlmock + modernc.org/sqlite).
 //   - ACMEService() / its Start — would dial a real ACME directory / open a
