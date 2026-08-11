@@ -62,6 +62,171 @@ func (x FileType) Enum() *FileType {
 	return p
 }
 
+type HashAlgorithm int32
+
+const (
+	// Unspecified is treated as SHA256.
+	HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED HashAlgorithm = 0
+	HashAlgorithm_HASH_ALGORITHM_MD5         HashAlgorithm = 1
+	HashAlgorithm_HASH_ALGORITHM_SHA1        HashAlgorithm = 2
+	HashAlgorithm_HASH_ALGORITHM_SHA256      HashAlgorithm = 3
+	HashAlgorithm_HASH_ALGORITHM_SHA512      HashAlgorithm = 4
+	HashAlgorithm_HASH_ALGORITHM_CRC32       HashAlgorithm = 5
+	HashAlgorithm_HASH_ALGORITHM_CRC64       HashAlgorithm = 6
+)
+
+// Enum value maps for HashAlgorithm.
+var (
+	HashAlgorithm_name = map[int32]string{
+		0: "HASH_ALGORITHM_UNSPECIFIED",
+		1: "HASH_ALGORITHM_MD5",
+		2: "HASH_ALGORITHM_SHA1",
+		3: "HASH_ALGORITHM_SHA256",
+		4: "HASH_ALGORITHM_SHA512",
+		5: "HASH_ALGORITHM_CRC32",
+		6: "HASH_ALGORITHM_CRC64",
+	}
+	HashAlgorithm_value = map[string]int32{
+		"HASH_ALGORITHM_UNSPECIFIED": 0,
+		"HASH_ALGORITHM_MD5":         1,
+		"HASH_ALGORITHM_SHA1":        2,
+		"HASH_ALGORITHM_SHA256":      3,
+		"HASH_ALGORITHM_SHA512":      4,
+		"HASH_ALGORITHM_CRC32":       5,
+		"HASH_ALGORITHM_CRC64":       6,
+	}
+)
+
+func (x HashAlgorithm) Enum() *HashAlgorithm {
+	p := new(HashAlgorithm)
+	*p = x
+	return p
+}
+
+type ArchiveFormat int32
+
+const (
+	// Unspecified: extraction resolves the format by magic bytes or
+	// extension, creation resolves it by the archive path extension.
+	ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED ArchiveFormat = 0
+	ArchiveFormat_ARCHIVE_FORMAT_ZIP         ArchiveFormat = 1
+	ArchiveFormat_ARCHIVE_FORMAT_TAR         ArchiveFormat = 2
+	ArchiveFormat_ARCHIVE_FORMAT_TAR_GZ      ArchiveFormat = 3
+	ArchiveFormat_ARCHIVE_FORMAT_TAR_BZ2     ArchiveFormat = 4
+	ArchiveFormat_ARCHIVE_FORMAT_TAR_XZ      ArchiveFormat = 5
+	ArchiveFormat_ARCHIVE_FORMAT_TAR_ZSTD    ArchiveFormat = 6
+	ArchiveFormat_ARCHIVE_FORMAT_GZ          ArchiveFormat = 7
+	ArchiveFormat_ARCHIVE_FORMAT_BZ2         ArchiveFormat = 8
+	ArchiveFormat_ARCHIVE_FORMAT_XZ          ArchiveFormat = 9
+	ArchiveFormat_ARCHIVE_FORMAT_ZSTD        ArchiveFormat = 10
+	// Extraction only: requesting these for creation is rejected.
+	ArchiveFormat_ARCHIVE_FORMAT_7Z  ArchiveFormat = 11
+	ArchiveFormat_ARCHIVE_FORMAT_RAR ArchiveFormat = 12
+)
+
+// Enum value maps for ArchiveFormat.
+var (
+	ArchiveFormat_name = map[int32]string{
+		0:  "ARCHIVE_FORMAT_UNSPECIFIED",
+		1:  "ARCHIVE_FORMAT_ZIP",
+		2:  "ARCHIVE_FORMAT_TAR",
+		3:  "ARCHIVE_FORMAT_TAR_GZ",
+		4:  "ARCHIVE_FORMAT_TAR_BZ2",
+		5:  "ARCHIVE_FORMAT_TAR_XZ",
+		6:  "ARCHIVE_FORMAT_TAR_ZSTD",
+		7:  "ARCHIVE_FORMAT_GZ",
+		8:  "ARCHIVE_FORMAT_BZ2",
+		9:  "ARCHIVE_FORMAT_XZ",
+		10: "ARCHIVE_FORMAT_ZSTD",
+		11: "ARCHIVE_FORMAT_7Z",
+		12: "ARCHIVE_FORMAT_RAR",
+	}
+	ArchiveFormat_value = map[string]int32{
+		"ARCHIVE_FORMAT_UNSPECIFIED": 0,
+		"ARCHIVE_FORMAT_ZIP":         1,
+		"ARCHIVE_FORMAT_TAR":         2,
+		"ARCHIVE_FORMAT_TAR_GZ":      3,
+		"ARCHIVE_FORMAT_TAR_BZ2":     4,
+		"ARCHIVE_FORMAT_TAR_XZ":      5,
+		"ARCHIVE_FORMAT_TAR_ZSTD":    6,
+		"ARCHIVE_FORMAT_GZ":          7,
+		"ARCHIVE_FORMAT_BZ2":         8,
+		"ARCHIVE_FORMAT_XZ":          9,
+		"ARCHIVE_FORMAT_ZSTD":        10,
+		"ARCHIVE_FORMAT_7Z":          11,
+		"ARCHIVE_FORMAT_RAR":         12,
+	}
+)
+
+func (x ArchiveFormat) Enum() *ArchiveFormat {
+	p := new(ArchiveFormat)
+	*p = x
+	return p
+}
+
+type ArchiveConflictPolicy int32
+
+const (
+	ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_UNSPECIFIED ArchiveConflictPolicy = 0 // same as ERROR
+	ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_ERROR       ArchiveConflictPolicy = 1
+	ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_SKIP        ArchiveConflictPolicy = 2
+	ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_OVERWRITE   ArchiveConflictPolicy = 3
+)
+
+// Enum value maps for ArchiveConflictPolicy.
+var (
+	ArchiveConflictPolicy_name = map[int32]string{
+		0: "ARCHIVE_CONFLICT_POLICY_UNSPECIFIED",
+		1: "ARCHIVE_CONFLICT_POLICY_ERROR",
+		2: "ARCHIVE_CONFLICT_POLICY_SKIP",
+		3: "ARCHIVE_CONFLICT_POLICY_OVERWRITE",
+	}
+	ArchiveConflictPolicy_value = map[string]int32{
+		"ARCHIVE_CONFLICT_POLICY_UNSPECIFIED": 0,
+		"ARCHIVE_CONFLICT_POLICY_ERROR":       1,
+		"ARCHIVE_CONFLICT_POLICY_SKIP":        2,
+		"ARCHIVE_CONFLICT_POLICY_OVERWRITE":   3,
+	}
+)
+
+func (x ArchiveConflictPolicy) Enum() *ArchiveConflictPolicy {
+	p := new(ArchiveConflictPolicy)
+	*p = x
+	return p
+}
+
+type ArchiveOperationStatus int32
+
+const (
+	ArchiveOperationStatus_ARCHIVE_OPERATION_STATUS_UNSPECIFIED ArchiveOperationStatus = 0
+	ArchiveOperationStatus_ARCHIVE_OPERATION_STATUS_RUNNING     ArchiveOperationStatus = 1
+	ArchiveOperationStatus_ARCHIVE_OPERATION_STATUS_COMPLETED   ArchiveOperationStatus = 2
+	// Includes canceled operations; op_error starts with "canceled" then.
+	ArchiveOperationStatus_ARCHIVE_OPERATION_STATUS_ERROR ArchiveOperationStatus = 3
+)
+
+// Enum value maps for ArchiveOperationStatus.
+var (
+	ArchiveOperationStatus_name = map[int32]string{
+		0: "ARCHIVE_OPERATION_STATUS_UNSPECIFIED",
+		1: "ARCHIVE_OPERATION_STATUS_RUNNING",
+		2: "ARCHIVE_OPERATION_STATUS_COMPLETED",
+		3: "ARCHIVE_OPERATION_STATUS_ERROR",
+	}
+	ArchiveOperationStatus_value = map[string]int32{
+		"ARCHIVE_OPERATION_STATUS_UNSPECIFIED": 0,
+		"ARCHIVE_OPERATION_STATUS_RUNNING":     1,
+		"ARCHIVE_OPERATION_STATUS_COMPLETED":   2,
+		"ARCHIVE_OPERATION_STATUS_ERROR":       3,
+	}
+)
+
+func (x ArchiveOperationStatus) Enum() *ArchiveOperationStatus {
+	p := new(ArchiveOperationStatus)
+	*p = x
+	return p
+}
+
 type FileInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -730,6 +895,839 @@ func (x *ChmodResponse) GetError() string {
 	return ""
 }
 
+type HashRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	NodeId    uint64        `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Paths     []string      `protobuf:"bytes,2,rep,name=paths,proto3" json:"paths,omitempty"`
+	Algorithm HashAlgorithm `protobuf:"varint,3,opt,name=algorithm,proto3,enum=gameap.plugin.sdk.nodefs.HashAlgorithm" json:"algorithm,omitempty"`
+}
+
+func (x *HashRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *HashRequest) GetNodeId() uint64 {
+	if x != nil {
+		return x.NodeId
+	}
+	return 0
+}
+
+func (x *HashRequest) GetPaths() []string {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+func (x *HashRequest) GetAlgorithm() HashAlgorithm {
+	if x != nil {
+		return x.Algorithm
+	}
+	return HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED
+}
+
+type FileHash struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// Lowercase hex, empty when error is set.
+	Hash  string  `protobuf:"bytes,2,opt,name=hash,proto3" json:"hash,omitempty"`
+	Size  uint64  `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
+	Error *string `protobuf:"bytes,4,opt,name=error,proto3,oneof" json:"error,omitempty"`
+}
+
+func (x *FileHash) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *FileHash) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *FileHash) GetHash() string {
+	if x != nil {
+		return x.Hash
+	}
+	return ""
+}
+
+func (x *FileHash) GetSize() uint64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *FileHash) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+type HashResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success   bool          `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error     *string       `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	Algorithm HashAlgorithm `protobuf:"varint,3,opt,name=algorithm,proto3,enum=gameap.plugin.sdk.nodefs.HashAlgorithm" json:"algorithm,omitempty"`
+	Results   []*FileHash   `protobuf:"bytes,4,rep,name=results,proto3" json:"results,omitempty"`
+}
+
+func (x *HashResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *HashResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *HashResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *HashResponse) GetAlgorithm() HashAlgorithm {
+	if x != nil {
+		return x.Algorithm
+	}
+	return HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED
+}
+
+func (x *HashResponse) GetResults() []*FileHash {
+	if x != nil {
+		return x.Results
+	}
+	return nil
+}
+
+type CreateArchiveRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	NodeId      uint64        `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	ArchivePath string        `protobuf:"bytes,2,opt,name=archive_path,json=archivePath,proto3" json:"archive_path,omitempty"`
+	Format      ArchiveFormat `protobuf:"varint,3,opt,name=format,proto3,enum=gameap.plugin.sdk.nodefs.ArchiveFormat" json:"format,omitempty"`
+	// Entry names are stored relative to base_path.
+	BasePath string   `protobuf:"bytes,4,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"`
+	Sources  []string `protobuf:"bytes,5,rep,name=sources,proto3" json:"sources,omitempty"`
+	// Unset = format default, 0 = store, 1..9.
+	CompressionLevel *int32 `protobuf:"varint,6,opt,name=compression_level,json=compressionLevel,proto3,oneof" json:"compression_level,omitempty"`
+	Overwrite        bool   `protobuf:"varint,7,opt,name=overwrite,proto3" json:"overwrite,omitempty"`
+	// 0 = panel default; both guard decompression/packing runaway.
+	MaxTotalBytes uint64 `protobuf:"varint,8,opt,name=max_total_bytes,json=maxTotalBytes,proto3" json:"max_total_bytes,omitempty"`
+	MaxFiles      uint32 `protobuf:"varint,9,opt,name=max_files,json=maxFiles,proto3" json:"max_files,omitempty"`
+	// 0 = panel default; for blocking calls this is also the wait budget and
+	// is additionally capped by the guest call deadline.
+	TimeoutSeconds uint32 `protobuf:"varint,10,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	// Opt into HandleArchiveProgress delivery (Start* variants only).
+	ReportProgress bool `protobuf:"varint,11,opt,name=report_progress,json=reportProgress,proto3" json:"report_progress,omitempty"`
+}
+
+func (x *CreateArchiveRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *CreateArchiveRequest) GetNodeId() uint64 {
+	if x != nil {
+		return x.NodeId
+	}
+	return 0
+}
+
+func (x *CreateArchiveRequest) GetArchivePath() string {
+	if x != nil {
+		return x.ArchivePath
+	}
+	return ""
+}
+
+func (x *CreateArchiveRequest) GetFormat() ArchiveFormat {
+	if x != nil {
+		return x.Format
+	}
+	return ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED
+}
+
+func (x *CreateArchiveRequest) GetBasePath() string {
+	if x != nil {
+		return x.BasePath
+	}
+	return ""
+}
+
+func (x *CreateArchiveRequest) GetSources() []string {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+func (x *CreateArchiveRequest) GetCompressionLevel() int32 {
+	if x != nil && x.CompressionLevel != nil {
+		return *x.CompressionLevel
+	}
+	return 0
+}
+
+func (x *CreateArchiveRequest) GetOverwrite() bool {
+	if x != nil {
+		return x.Overwrite
+	}
+	return false
+}
+
+func (x *CreateArchiveRequest) GetMaxTotalBytes() uint64 {
+	if x != nil {
+		return x.MaxTotalBytes
+	}
+	return 0
+}
+
+func (x *CreateArchiveRequest) GetMaxFiles() uint32 {
+	if x != nil {
+		return x.MaxFiles
+	}
+	return 0
+}
+
+func (x *CreateArchiveRequest) GetTimeoutSeconds() uint32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *CreateArchiveRequest) GetReportProgress() bool {
+	if x != nil {
+		return x.ReportProgress
+	}
+	return false
+}
+
+type ExtractArchiveRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	NodeId              uint64                `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	ArchivePath         string                `protobuf:"bytes,2,opt,name=archive_path,json=archivePath,proto3" json:"archive_path,omitempty"`
+	Destination         string                `protobuf:"bytes,3,opt,name=destination,proto3" json:"destination,omitempty"`
+	Format              ArchiveFormat         `protobuf:"varint,4,opt,name=format,proto3,enum=gameap.plugin.sdk.nodefs.ArchiveFormat" json:"format,omitempty"`
+	CreateDestination   bool                  `protobuf:"varint,5,opt,name=create_destination,json=createDestination,proto3" json:"create_destination,omitempty"`
+	ConflictPolicy      ArchiveConflictPolicy `protobuf:"varint,6,opt,name=conflict_policy,json=conflictPolicy,proto3,enum=gameap.plugin.sdk.nodefs.ArchiveConflictPolicy" json:"conflict_policy,omitempty"`
+	PreservePermissions bool                  `protobuf:"varint,7,opt,name=preserve_permissions,json=preservePermissions,proto3" json:"preserve_permissions,omitempty"`
+	MaxTotalBytes       uint64                `protobuf:"varint,8,opt,name=max_total_bytes,json=maxTotalBytes,proto3" json:"max_total_bytes,omitempty"`
+	MaxFiles            uint32                `protobuf:"varint,9,opt,name=max_files,json=maxFiles,proto3" json:"max_files,omitempty"`
+	TimeoutSeconds      uint32                `protobuf:"varint,10,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	ReportProgress      bool                  `protobuf:"varint,11,opt,name=report_progress,json=reportProgress,proto3" json:"report_progress,omitempty"`
+}
+
+func (x *ExtractArchiveRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *ExtractArchiveRequest) GetNodeId() uint64 {
+	if x != nil {
+		return x.NodeId
+	}
+	return 0
+}
+
+func (x *ExtractArchiveRequest) GetArchivePath() string {
+	if x != nil {
+		return x.ArchivePath
+	}
+	return ""
+}
+
+func (x *ExtractArchiveRequest) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
+func (x *ExtractArchiveRequest) GetFormat() ArchiveFormat {
+	if x != nil {
+		return x.Format
+	}
+	return ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED
+}
+
+func (x *ExtractArchiveRequest) GetCreateDestination() bool {
+	if x != nil {
+		return x.CreateDestination
+	}
+	return false
+}
+
+func (x *ExtractArchiveRequest) GetConflictPolicy() ArchiveConflictPolicy {
+	if x != nil {
+		return x.ConflictPolicy
+	}
+	return ArchiveConflictPolicy_ARCHIVE_CONFLICT_POLICY_UNSPECIFIED
+}
+
+func (x *ExtractArchiveRequest) GetPreservePermissions() bool {
+	if x != nil {
+		return x.PreservePermissions
+	}
+	return false
+}
+
+func (x *ExtractArchiveRequest) GetMaxTotalBytes() uint64 {
+	if x != nil {
+		return x.MaxTotalBytes
+	}
+	return 0
+}
+
+func (x *ExtractArchiveRequest) GetMaxFiles() uint32 {
+	if x != nil {
+		return x.MaxFiles
+	}
+	return 0
+}
+
+func (x *ExtractArchiveRequest) GetTimeoutSeconds() uint32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *ExtractArchiveRequest) GetReportProgress() bool {
+	if x != nil {
+		return x.ReportProgress
+	}
+	return false
+}
+
+type StartArchiveResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success     bool    `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error       *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	OperationId string  `protobuf:"bytes,3,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+}
+
+func (x *StartArchiveResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *StartArchiveResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *StartArchiveResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *StartArchiveResponse) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+// success=false: validation or start error. success=true, completed=false:
+// the operation started but the wait budget ran out — it keeps running,
+// poll GetArchiveOperation with operation_id. completed=true: op_success and
+// the final fields describe the outcome.
+type ArchiveSyncResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success        bool          `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error          *string       `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	OperationId    string        `protobuf:"bytes,3,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	Completed      bool          `protobuf:"varint,4,opt,name=completed,proto3" json:"completed,omitempty"`
+	OpSuccess      bool          `protobuf:"varint,5,opt,name=op_success,json=opSuccess,proto3" json:"op_success,omitempty"`
+	OpError        *string       `protobuf:"bytes,6,opt,name=op_error,json=opError,proto3,oneof" json:"op_error,omitempty"`
+	FilesProcessed uint32        `protobuf:"varint,7,opt,name=files_processed,json=filesProcessed,proto3" json:"files_processed,omitempty"`
+	BytesProcessed uint64        `protobuf:"varint,8,opt,name=bytes_processed,json=bytesProcessed,proto3" json:"bytes_processed,omitempty"`
+	ArchiveSize    uint64        `protobuf:"varint,9,opt,name=archive_size,json=archiveSize,proto3" json:"archive_size,omitempty"`
+	SkippedCount   uint32        `protobuf:"varint,10,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
+	Format         ArchiveFormat `protobuf:"varint,11,opt,name=format,proto3,enum=gameap.plugin.sdk.nodefs.ArchiveFormat" json:"format,omitempty"`
+}
+
+func (x *ArchiveSyncResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *ArchiveSyncResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ArchiveSyncResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *ArchiveSyncResponse) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *ArchiveSyncResponse) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+func (x *ArchiveSyncResponse) GetOpSuccess() bool {
+	if x != nil {
+		return x.OpSuccess
+	}
+	return false
+}
+
+func (x *ArchiveSyncResponse) GetOpError() string {
+	if x != nil && x.OpError != nil {
+		return *x.OpError
+	}
+	return ""
+}
+
+func (x *ArchiveSyncResponse) GetFilesProcessed() uint32 {
+	if x != nil {
+		return x.FilesProcessed
+	}
+	return 0
+}
+
+func (x *ArchiveSyncResponse) GetBytesProcessed() uint64 {
+	if x != nil {
+		return x.BytesProcessed
+	}
+	return 0
+}
+
+func (x *ArchiveSyncResponse) GetArchiveSize() uint64 {
+	if x != nil {
+		return x.ArchiveSize
+	}
+	return 0
+}
+
+func (x *ArchiveSyncResponse) GetSkippedCount() uint32 {
+	if x != nil {
+		return x.SkippedCount
+	}
+	return 0
+}
+
+func (x *ArchiveSyncResponse) GetFormat() ArchiveFormat {
+	if x != nil {
+		return x.Format
+	}
+	return ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED
+}
+
+type CancelArchiveRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	OperationId string `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	Reason      string `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+}
+
+func (x *CancelArchiveRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *CancelArchiveRequest) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *CancelArchiveRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type CancelArchiveResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success bool    `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+}
+
+func (x *CancelArchiveResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *CancelArchiveResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CancelArchiveResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+type GetArchiveOperationRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	OperationId string `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+}
+
+func (x *GetArchiveOperationRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *GetArchiveOperationRequest) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+type GetArchiveOperationResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success bool    `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	// found=false: unknown here — never started by this plugin on this panel
+	// instance, or already expired.
+	Found          bool                   `protobuf:"varint,3,opt,name=found,proto3" json:"found,omitempty"`
+	Status         ArchiveOperationStatus `protobuf:"varint,4,opt,name=status,proto3,enum=gameap.plugin.sdk.nodefs.ArchiveOperationStatus" json:"status,omitempty"`
+	FilesProcessed uint32                 `protobuf:"varint,5,opt,name=files_processed,json=filesProcessed,proto3" json:"files_processed,omitempty"`
+	FilesTotal     uint32                 `protobuf:"varint,6,opt,name=files_total,json=filesTotal,proto3" json:"files_total,omitempty"`
+	BytesProcessed uint64                 `protobuf:"varint,7,opt,name=bytes_processed,json=bytesProcessed,proto3" json:"bytes_processed,omitempty"`
+	BytesTotal     uint64                 `protobuf:"varint,8,opt,name=bytes_total,json=bytesTotal,proto3" json:"bytes_total,omitempty"`
+	CurrentEntry   string                 `protobuf:"bytes,9,opt,name=current_entry,json=currentEntry,proto3" json:"current_entry,omitempty"`
+	// Final fields, set when status is not RUNNING.
+	OpSuccess    bool          `protobuf:"varint,10,opt,name=op_success,json=opSuccess,proto3" json:"op_success,omitempty"`
+	OpError      *string       `protobuf:"bytes,11,opt,name=op_error,json=opError,proto3,oneof" json:"op_error,omitempty"`
+	ArchiveSize  uint64        `protobuf:"varint,12,opt,name=archive_size,json=archiveSize,proto3" json:"archive_size,omitempty"`
+	SkippedCount uint32        `protobuf:"varint,13,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
+	Format       ArchiveFormat `protobuf:"varint,14,opt,name=format,proto3,enum=gameap.plugin.sdk.nodefs.ArchiveFormat" json:"format,omitempty"`
+}
+
+func (x *GetArchiveOperationResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *GetArchiveOperationResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetArchiveOperationResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *GetArchiveOperationResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+func (x *GetArchiveOperationResponse) GetStatus() ArchiveOperationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ArchiveOperationStatus_ARCHIVE_OPERATION_STATUS_UNSPECIFIED
+}
+
+func (x *GetArchiveOperationResponse) GetFilesProcessed() uint32 {
+	if x != nil {
+		return x.FilesProcessed
+	}
+	return 0
+}
+
+func (x *GetArchiveOperationResponse) GetFilesTotal() uint32 {
+	if x != nil {
+		return x.FilesTotal
+	}
+	return 0
+}
+
+func (x *GetArchiveOperationResponse) GetBytesProcessed() uint64 {
+	if x != nil {
+		return x.BytesProcessed
+	}
+	return 0
+}
+
+func (x *GetArchiveOperationResponse) GetBytesTotal() uint64 {
+	if x != nil {
+		return x.BytesTotal
+	}
+	return 0
+}
+
+func (x *GetArchiveOperationResponse) GetCurrentEntry() string {
+	if x != nil {
+		return x.CurrentEntry
+	}
+	return ""
+}
+
+func (x *GetArchiveOperationResponse) GetOpSuccess() bool {
+	if x != nil {
+		return x.OpSuccess
+	}
+	return false
+}
+
+func (x *GetArchiveOperationResponse) GetOpError() string {
+	if x != nil && x.OpError != nil {
+		return *x.OpError
+	}
+	return ""
+}
+
+func (x *GetArchiveOperationResponse) GetArchiveSize() uint64 {
+	if x != nil {
+		return x.ArchiveSize
+	}
+	return 0
+}
+
+func (x *GetArchiveOperationResponse) GetSkippedCount() uint32 {
+	if x != nil {
+		return x.SkippedCount
+	}
+	return 0
+}
+
+func (x *GetArchiveOperationResponse) GetFormat() ArchiveFormat {
+	if x != nil {
+		return x.Format
+	}
+	return ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED
+}
+
+type HandleArchiveProgressRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	OperationId    string `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	NodeId         uint64 `protobuf:"varint,2,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	FilesProcessed uint32 `protobuf:"varint,3,opt,name=files_processed,json=filesProcessed,proto3" json:"files_processed,omitempty"`
+	FilesTotal     uint32 `protobuf:"varint,4,opt,name=files_total,json=filesTotal,proto3" json:"files_total,omitempty"`
+	BytesProcessed uint64 `protobuf:"varint,5,opt,name=bytes_processed,json=bytesProcessed,proto3" json:"bytes_processed,omitempty"`
+	BytesTotal     uint64 `protobuf:"varint,6,opt,name=bytes_total,json=bytesTotal,proto3" json:"bytes_total,omitempty"`
+	CurrentEntry   string `protobuf:"bytes,7,opt,name=current_entry,json=currentEntry,proto3" json:"current_entry,omitempty"`
+}
+
+func (x *HandleArchiveProgressRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *HandleArchiveProgressRequest) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *HandleArchiveProgressRequest) GetNodeId() uint64 {
+	if x != nil {
+		return x.NodeId
+	}
+	return 0
+}
+
+func (x *HandleArchiveProgressRequest) GetFilesProcessed() uint32 {
+	if x != nil {
+		return x.FilesProcessed
+	}
+	return 0
+}
+
+func (x *HandleArchiveProgressRequest) GetFilesTotal() uint32 {
+	if x != nil {
+		return x.FilesTotal
+	}
+	return 0
+}
+
+func (x *HandleArchiveProgressRequest) GetBytesProcessed() uint64 {
+	if x != nil {
+		return x.BytesProcessed
+	}
+	return 0
+}
+
+func (x *HandleArchiveProgressRequest) GetBytesTotal() uint64 {
+	if x != nil {
+		return x.BytesTotal
+	}
+	return 0
+}
+
+func (x *HandleArchiveProgressRequest) GetCurrentEntry() string {
+	if x != nil {
+		return x.CurrentEntry
+	}
+	return ""
+}
+
+type HandleArchiveProgressResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *HandleArchiveProgressResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+type HandleArchiveCompletedRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	OperationId    string        `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	NodeId         uint64        `protobuf:"varint,2,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	Success        bool          `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	Error          *string       `protobuf:"bytes,4,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	FilesProcessed uint32        `protobuf:"varint,5,opt,name=files_processed,json=filesProcessed,proto3" json:"files_processed,omitempty"`
+	BytesProcessed uint64        `protobuf:"varint,6,opt,name=bytes_processed,json=bytesProcessed,proto3" json:"bytes_processed,omitempty"`
+	ArchiveSize    uint64        `protobuf:"varint,7,opt,name=archive_size,json=archiveSize,proto3" json:"archive_size,omitempty"`
+	SkippedCount   uint32        `protobuf:"varint,8,opt,name=skipped_count,json=skippedCount,proto3" json:"skipped_count,omitempty"`
+	Format         ArchiveFormat `protobuf:"varint,9,opt,name=format,proto3,enum=gameap.plugin.sdk.nodefs.ArchiveFormat" json:"format,omitempty"`
+}
+
+func (x *HandleArchiveCompletedRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *HandleArchiveCompletedRequest) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *HandleArchiveCompletedRequest) GetNodeId() uint64 {
+	if x != nil {
+		return x.NodeId
+	}
+	return 0
+}
+
+func (x *HandleArchiveCompletedRequest) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *HandleArchiveCompletedRequest) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *HandleArchiveCompletedRequest) GetFilesProcessed() uint32 {
+	if x != nil {
+		return x.FilesProcessed
+	}
+	return 0
+}
+
+func (x *HandleArchiveCompletedRequest) GetBytesProcessed() uint64 {
+	if x != nil {
+		return x.BytesProcessed
+	}
+	return 0
+}
+
+func (x *HandleArchiveCompletedRequest) GetArchiveSize() uint64 {
+	if x != nil {
+		return x.ArchiveSize
+	}
+	return 0
+}
+
+func (x *HandleArchiveCompletedRequest) GetSkippedCount() uint32 {
+	if x != nil {
+		return x.SkippedCount
+	}
+	return 0
+}
+
+func (x *HandleArchiveCompletedRequest) GetFormat() ArchiveFormat {
+	if x != nil {
+		return x.Format
+	}
+	return ArchiveFormat_ARCHIVE_FORMAT_UNSPECIFIED
+}
+
+type HandleArchiveCompletedResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *HandleArchiveCompletedResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
 // NodeFSService provides file system operations on daemon nodes
 // go:plugin type=host module=gameap-nodefs
 type NodeFSService interface {
@@ -742,4 +1740,33 @@ type NodeFSService interface {
 	Remove(context.Context, *RemoveRequest) (*RemoveResponse, error)
 	GetFileInfo(context.Context, *GetFileInfoRequest) (*GetFileInfoResponse, error)
 	Chmod(context.Context, *ChmodRequest) (*ChmodResponse, error)
+	// Hash computes file digests. Blocking; directories yield per-file errors
+	// inside the result while the call itself succeeds.
+	Hash(context.Context, *HashRequest) (*HashResponse, error)
+	// CreateArchive/ExtractArchive block until the operation finishes or the
+	// wait budget runs out; a timed-out wait answers completed=false with the
+	// operation id so the plugin can keep polling GetArchiveOperation. No
+	// progress callbacks are delivered for blocking calls.
+	CreateArchive(context.Context, *CreateArchiveRequest) (*ArchiveSyncResponse, error)
+	ExtractArchive(context.Context, *ExtractArchiveRequest) (*ArchiveSyncResponse, error)
+	// StartCreateArchive/StartExtractArchive return an operation id
+	// immediately; progress and completion are delivered through the optional
+	// ArchiveEventsHandler service and observable via GetArchiveOperation.
+	StartCreateArchive(context.Context, *CreateArchiveRequest) (*StartArchiveResponse, error)
+	StartExtractArchive(context.Context, *ExtractArchiveRequest) (*StartArchiveResponse, error)
+	// CancelArchive is fire-and-forget: the canceled operation still finishes
+	// with an error starting with "canceled".
+	CancelArchive(context.Context, *CancelArchiveRequest) (*CancelArchiveResponse, error)
+	// GetArchiveOperation reports an operation started by this plugin on this
+	// panel instance; entries expire minutes after completion.
+	GetArchiveOperation(context.Context, *GetArchiveOperationRequest) (*GetArchiveOperationResponse, error)
+}
+
+// ArchiveEventsHandler is implemented by plugins that start archive
+// operations with report_progress; the panel invokes it as the operation
+// progresses and once when it finishes
+// go:plugin type=plugin version=1
+type ArchiveEventsHandler interface {
+	HandleArchiveProgress(context.Context, *HandleArchiveProgressRequest) (*HandleArchiveProgressResponse, error)
+	HandleArchiveCompleted(context.Context, *HandleArchiveCompletedRequest) (*HandleArchiveCompletedResponse, error)
 }

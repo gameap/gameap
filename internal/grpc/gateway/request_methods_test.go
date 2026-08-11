@@ -439,3 +439,125 @@ func TestService_RequestFileDownloadTask(t *testing.T) {
 		assert.Contains(t, err.Error(), "no source")
 	})
 }
+
+func TestService_RequestArchive(t *testing.T) {
+	t.Run("not_connected_returns_error", func(t *testing.T) {
+		svc, _ := newServiceWithDeps(t)
+
+		_, err := svc.RequestArchive(context.Background(), 999, &proto.ArchiveRequest{RequestId: "op-1"})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "node not connected")
+	})
+
+	t.Run("empty_request_id_rejected", func(t *testing.T) {
+		svc, deps := newServiceWithDeps(t)
+		connectAndRegisterSession(t, deps)
+
+		_, err := svc.RequestArchive(context.Background(), 1, &proto.ArchiveRequest{})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "archive request id is required")
+	})
+
+	t.Run("caller_supplied_request_id_goes_on_the_wire_and_resolves", func(t *testing.T) {
+		svc, deps := newServiceWithDeps(t)
+		stream := connectAndRegisterSession(t, deps)
+
+		go resolveOnSend(deps, stream, func(reqID string) *proto.DaemonMessage {
+			return &proto.DaemonMessage{
+				RequestId: reqID,
+				Payload: &proto.DaemonMessage_ArchiveResponse{
+					ArchiveResponse: &proto.ArchiveResponse{
+						RequestId:      reqID,
+						Success:        true,
+						FilesProcessed: 7,
+						ArchiveSize:    1024,
+					},
+				},
+			}
+		})
+
+		resp, err := svc.RequestArchive(context.Background(), 1, &proto.ArchiveRequest{
+			RequestId: "op-abc",
+			Operation: &proto.ArchiveRequest_Create{
+				Create: &proto.CreateArchiveParams{ArchivePath: "backup.zip", BasePath: "."},
+			},
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.True(t, resp.Success)
+		assert.Equal(t, uint32(7), resp.FilesProcessed)
+
+		sent := stream.Sent()
+		require.Len(t, sent, 1)
+		assert.Equal(t, "op-abc", sent[0].RequestId,
+			"envelope must carry the caller-supplied operation id")
+		require.NotNil(t, sent[0].GetArchive())
+		assert.Equal(t, "op-abc", sent[0].GetArchive().RequestId)
+		require.NotNil(t, sent[0].GetArchive().GetCreate())
+		assert.Equal(t, "backup.zip", sent[0].GetArchive().GetCreate().ArchivePath)
+	})
+
+	t.Run("unsuccessful_response_is_returned_not_converted_to_error", func(t *testing.T) {
+		svc, deps := newServiceWithDeps(t)
+		stream := connectAndRegisterSession(t, deps)
+
+		go resolveOnSend(deps, stream, func(reqID string) *proto.DaemonMessage {
+			return &proto.DaemonMessage{
+				RequestId: reqID,
+				Payload: &proto.DaemonMessage_ArchiveResponse{
+					ArchiveResponse: &proto.ArchiveResponse{RequestId: reqID, Success: false, Error: "canceled: by user"},
+				},
+			}
+		})
+
+		resp, err := svc.RequestArchive(context.Background(), 1, &proto.ArchiveRequest{RequestId: "op-c"})
+
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.False(t, resp.Success)
+		assert.Contains(t, resp.Error, "canceled")
+	})
+
+	t.Run("ctx_cancel_before_response_returns_ctx_err", func(t *testing.T) {
+		svc, deps := newServiceWithDeps(t)
+		connectAndRegisterSession(t, deps)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := svc.RequestArchive(ctx, 1, &proto.ArchiveRequest{RequestId: "op-x"})
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, context.Canceled), "ctx.Err must propagate")
+	})
+}
+
+func TestService_RequestArchiveCancel(t *testing.T) {
+	t.Run("not_connected_returns_error", func(t *testing.T) {
+		svc, _ := newServiceWithDeps(t)
+
+		err := svc.RequestArchiveCancel(999, "op-1", "test")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "node not connected")
+	})
+
+	t.Run("sends_cancel_with_operation_id_and_reason", func(t *testing.T) {
+		svc, deps := newServiceWithDeps(t)
+		stream := connectAndRegisterSession(t, deps)
+
+		err := svc.RequestArchiveCancel(1, "op-abc", "canceled by user")
+
+		require.NoError(t, err)
+		sent := stream.Sent()
+		require.Len(t, sent, 1)
+		require.NotNil(t, sent[0].GetArchiveCancel())
+		assert.Equal(t, "op-abc", sent[0].GetArchiveCancel().RequestId)
+		assert.Equal(t, "canceled by user", sent[0].GetArchiveCancel().Reason)
+		assert.NotEmpty(t, sent[0].RequestId)
+		assert.NotEqual(t, "op-abc", sent[0].RequestId,
+			"the envelope gets its own id: cancel must never resolve the operation's pending request")
+	})
+}

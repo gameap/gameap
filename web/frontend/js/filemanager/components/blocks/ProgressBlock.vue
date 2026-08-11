@@ -1,5 +1,49 @@
 <template>
     <div v-if="visible" class="fm-progress-block">
+        <div
+            v-for="op in operations"
+            :key="op.id"
+            class="flex items-center gap-3 px-3 py-2"
+        >
+            <GIcon :name="op.type === 'archive' ? 'file-zipper' : 'box-open'" class="text-sky-500 shrink-0" />
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs truncate" :title="op.currentEntry || op.label">
+                        {{ operationLabel(op) }}
+                    </span>
+                    <span v-if="operationDeterminate(op)" class="text-xs text-stone-500 shrink-0 ml-2">
+                        {{ operationPercent(op) }}%
+                    </span>
+                </div>
+                <n-progress
+                    type="line"
+                    :percentage="op.status === 'error' ? 100 : operationPercent(op)"
+                    :status="op.status === 'error' ? 'error' : 'default'"
+                    :show-indicator="false"
+                    :height="6"
+                    :border-radius="3"
+                    :processing="['pending', 'running', 'cancelling'].includes(op.status)"
+                    :indeterminate="!operationDeterminate(op) && ['pending', 'running', 'cancelling'].includes(op.status)"
+                />
+            </div>
+            <button
+                v-if="['pending', 'running', 'cancelling'].includes(op.status)"
+                type="button"
+                class="text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 px-2 py-1 shrink-0"
+                :disabled="op.status === 'cancelling'"
+                @click="ops.cancelOperation(op.id)"
+            >
+                {{ op.status === 'cancelling' ? lang.progress.operationCancelling : lang.btn.cancel }}
+            </button>
+            <button
+                v-else-if="op.status === 'error' || op.status === 'stale'"
+                type="button"
+                class="text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 px-2 py-1 shrink-0"
+                @click="ops.remove(op.id)"
+            >
+                {{ lang.btn.close }}
+            </button>
+        </div>
         <div v-if="archiveVisible" class="flex items-center gap-3 px-3 py-2">
             <GIcon :name="archiveIcon" class="text-sky-500 shrink-0" />
             <div class="flex-1 min-w-0">
@@ -62,11 +106,49 @@ import { computed } from 'vue'
 import { GIcon } from '@gameap/ui'
 import { useMessagesStore } from '../../stores/useMessagesStore.js'
 import { useFileManagerStore } from '../../stores/useFileManagerStore.js'
+import { useArchiveOperationsStore } from '../../stores/useArchiveOperationsStore.js'
 import { useTranslate } from '../../composables/useTranslate.js'
 
 const messages = useMessagesStore()
 const fm = useFileManagerStore()
+const ops = useArchiveOperationsStore()
 const { lang } = useTranslate()
+
+const operations = computed(() => ops.visibleOperations)
+
+function operationDeterminate(op) {
+    return op.bytesTotal > 0 || op.filesTotal > 0
+}
+
+function operationPercent(op) {
+    if (op.status === 'completed') return 100
+    if (op.bytesTotal > 0) return Math.min(100, Math.round((op.bytesProcessed / op.bytesTotal) * 100))
+    if (op.filesTotal > 0) return Math.min(100, Math.round((op.filesProcessed / op.filesTotal) * 100))
+
+    return 0
+}
+
+function operationLabel(op) {
+    const phrases = lang.value.progress
+
+    if (op.status === 'stale') {
+        return `${op.label} — ${phrases.operationConnectionLost}`
+    }
+    if (op.status === 'error') {
+        const message = lang.value.response[op.error] ?? op.error ?? phrases.operationFailed
+        return `${op.label} — ${message}`
+    }
+
+    const base = op.type === 'archive' ? phrases.archiveCreating : phrases.archiveExtracting
+    let label = `${base}: ${op.label}`
+    if (op.filesTotal > 0) {
+        label += ` — ${phrases.operationFiles
+            .replace('{processed}', String(op.filesProcessed))
+            .replace('{total}', String(op.filesTotal))}`
+    }
+
+    return label
+}
 
 const progressBar = computed(() => messages.actionProgress)
 const label = computed(() => messages.progressLabel)
@@ -145,7 +227,9 @@ const archiveLabel = computed(() => {
     return ad.filename ? `${base}: ${ad.filename}` : base
 })
 
-const visible = computed(() => archiveVisible.value || progressBar.value > 0 || label.value)
+const visible = computed(
+    () => archiveVisible.value || operations.value.length > 0 || progressBar.value > 0 || label.value,
+)
 
 const archiveTooltip = computed(() => {
     if (archive.value.status === 'error' && archiveErrorDetail.value) {

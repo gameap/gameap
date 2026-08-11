@@ -875,3 +875,435 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+
+/api/file-manager/{server}/hash:
+  post:
+    tags:
+      - FileManager
+    summary: Compute file checksums
+    description: |
+      Computes checksums of the given files on the daemon node and waits
+      for the result. Directories are not expanded: a directory path
+      yields a per-item error while the whole request still succeeds.
+      Per-item failures (missing file, permission denied) are reported in
+      the item's `error` field. The request is synchronous and may take
+      up to several minutes for large files.
+    operationId: hashFiles
+    parameters:
+      - name: server
+        in: path
+        required: true
+        description: Server ID
+        schema:
+          type: integer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              disk:
+                type: string
+                description: Disk name, only `server` is supported
+                enum:
+                  - server
+              paths:
+                type: array
+                description: >
+                  File paths relative to the server root directory. The
+                  server root itself is rejected.
+                minItems: 1
+                maxItems: 100
+                items:
+                  type: string
+              algorithm:
+                type: string
+                description: Hash algorithm
+                default: sha256
+                enum:
+                  - md5
+                  - sha1
+                  - sha256
+                  - sha512
+                  - crc32
+                  - crc64
+            required:
+              - disk
+              - paths
+    responses:
+      '200':
+        description: Checksums computed
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                algorithm:
+                  type: string
+                  description: Algorithm actually used
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      path:
+                        type: string
+                        description: Path as sent in the request
+                      hash:
+                        type: string
+                        description: Lowercase hex digest, empty when `error` is set
+                      size:
+                        type: integer
+                        format: int64
+                        description: File size in bytes
+                      error:
+                        type: string
+                        description: Per-item failure reason
+      '400':
+        description: Bad request (invalid path, unknown algorithm, or too many paths)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon is not connected
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/file-manager/{server}/archive:
+  post:
+    tags:
+      - FileManager
+    summary: Create archive on the server
+    description: |
+      Starts an asynchronous archive creation on the daemon node and
+      returns an operation ID. Progress and the final result are
+      delivered over the
+      `/api/ws/servers/{server}/file-manager/archive-operations`
+      WebSocket endpoint (frames `archive.progress` / `archive.complete`
+      correlated by `operation_id`). The archive is written as
+      `path`/`name`; every source must reside under `path` (entry names
+      inside the archive are stored relative to it). The daemon node must
+      announce the `archive` capability.
+    operationId: createFileManagerArchive
+    parameters:
+      - name: server
+        in: path
+        required: true
+        description: Server ID
+        schema:
+          type: integer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              disk:
+                type: string
+                description: Disk name, only `server` is supported
+                enum:
+                  - server
+              path:
+                type: string
+                description: >
+                  Base directory relative to the server root; empty string
+                  or `/` means the root itself. The archive is created in
+                  this directory and entry names are stored relative to it.
+              name:
+                type: string
+                description: >
+                  Archive file name. When `format` is omitted it is
+                  inferred from the extension (`.zip`, `.tar`, `.tar.gz`,
+                  `.tgz`, `.tar.bz2`, `.tar.xz`, `.txz`, `.tar.zst`,
+                  `.gz`, `.bz2`, `.xz`, `.zst`).
+              format:
+                type: string
+                description: >
+                  Explicit archive format; overrides the extension-based
+                  inference. `7z` and `rar` are extraction-only and are
+                  rejected here.
+                enum:
+                  - zip
+                  - tar
+                  - tar_gz
+                  - tar_bz2
+                  - tar_xz
+                  - tar_zstd
+                  - gz
+                  - bz2
+                  - xz
+                  - zstd
+              sources:
+                type: array
+                description: >
+                  Paths relative to the server root; every entry must
+                  reside under `path`. Single-file stream formats (`gz`,
+                  `bz2`, `xz`, `zstd`) accept exactly one file.
+                minItems: 1
+                items:
+                  type: string
+              compression_level:
+                type: integer
+                description: >
+                  Compression level; omitted = format default, `0` =
+                  store.
+                minimum: 0
+                maximum: 9
+              overwrite:
+                type: boolean
+                description: Overwrite an existing archive file
+                default: false
+            required:
+              - disk
+              - name
+              - sources
+    responses:
+      '202':
+        description: Archive operation accepted
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operation_id:
+                  type: string
+                  description: >
+                    Operation ID for WebSocket correlation and
+                    cancellation
+      '400':
+        description: >
+          Bad request (invalid path or name, unsupported or
+          extraction-only format, empty sources, source outside the base
+          path, or invalid compression level)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon is not connected or does not support archive operations
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/file-manager/{server}/extract:
+  post:
+    tags:
+      - FileManager
+    summary: Extract archive on the server
+    description: |
+      Starts an asynchronous archive extraction on the daemon node and
+      returns an operation ID. Progress and the final result are
+      delivered over the
+      `/api/ws/servers/{server}/file-manager/archive-operations`
+      WebSocket endpoint. The archive format is detected from magic bytes
+      or the file extension unless `format` is given. Entries resolving
+      outside `destination` are rejected by the daemon. The daemon node
+      must announce the `archive` capability.
+    operationId: extractFileManagerArchive
+    parameters:
+      - name: server
+        in: path
+        required: true
+        description: Server ID
+        schema:
+          type: integer
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              disk:
+                type: string
+                description: Disk name, only `server` is supported
+                enum:
+                  - server
+              path:
+                type: string
+                description: Archive file path relative to the server root
+              destination:
+                type: string
+                description: >
+                  Destination directory relative to the server root; empty
+                  string or `/` means the root itself
+              format:
+                type: string
+                description: Explicit archive format; omitted = auto-detect
+                enum:
+                  - zip
+                  - tar
+                  - tar_gz
+                  - tar_bz2
+                  - tar_xz
+                  - tar_zstd
+                  - gz
+                  - bz2
+                  - xz
+                  - zstd
+                  - 7z
+                  - rar
+              conflict_policy:
+                type: string
+                description: What to do when an entry already exists
+                default: error
+                enum:
+                  - error
+                  - skip
+                  - overwrite
+              create_destination:
+                type: boolean
+                description: Create the destination directory when missing
+                default: true
+            required:
+              - disk
+              - path
+              - destination
+    responses:
+      '202':
+        description: Extract operation accepted
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operation_id:
+                  type: string
+                  description: >
+                    Operation ID for WebSocket correlation and
+                    cancellation
+      '400':
+        description: Bad request (invalid path or destination, unknown format or policy)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon is not connected or does not support archive operations
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/file-manager/{server}/archive-operations/{operationID}/cancel:
+  post:
+    tags:
+      - FileManager
+    summary: Cancel a running archive operation
+    description: |
+      Requests cancellation of a running archive create/extract
+      operation. The request is fire-and-forget: the outcome arrives as
+      the operation's final `archive.complete` WebSocket frame with an
+      error starting with `canceled`. Canceling an unknown or already
+      finished operation is a no-op.
+    operationId: cancelFileManagerArchiveOperation
+    parameters:
+      - name: server
+        in: path
+        required: true
+        description: Server ID
+        schema:
+          type: integer
+      - name: operationID
+        in: path
+        required: true
+        description: Operation ID returned by the archive/extract endpoint
+        schema:
+          type: string
+    responses:
+      '202':
+        description: Cancellation requested
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/SuccessResponse.yaml'
+      '400':
+        description: Bad request (empty operation ID)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon is not connected
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'

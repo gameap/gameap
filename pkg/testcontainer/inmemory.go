@@ -26,6 +26,7 @@ import (
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/pubsub"
+	pubsubmemory "github.com/gameap/gameap/internal/pubsub/memory"
 	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories"
@@ -38,6 +39,7 @@ import (
 	"github.com/gameap/gameap/internal/services/gameexporter"
 	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
+	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
@@ -88,6 +90,7 @@ type InmemoryContainer struct {
 	uploadSessionService    *upload.Service
 	auditLogger             audit.Logger
 	pluginScheduler         *pluginscheduler.Service
+	pluginArchiveEvents     *pluginarchive.Service
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -145,6 +148,7 @@ func (c *InmemoryContainer) CaptchaVerifier() *captcha.Service {
 }
 func (c *InmemoryContainer) DaemonStatus() *daemon.StatusService     { return c.daemonStatusService }
 func (c *InmemoryContainer) DaemonFiles() *daemon.FileService        { return c.daemonFilesService }
+func (c *InmemoryContainer) DaemonArchive() *daemon.ArchiveService   { return nil }
 func (c *InmemoryContainer) UploadSessionService() *upload.Service   { return c.uploadSessionService }
 func (c *InmemoryContainer) FileManagerArchiver() *archiver.Archiver { return nil }
 func (c *InmemoryContainer) FileManagerArchiveGuard() *archiver.InMemoryConcurrencyGuard {
@@ -195,6 +199,14 @@ func (c *InmemoryContainer) PluginScheduler() *pluginscheduler.Service {
 
 	return c.pluginScheduler
 }
+func (c *InmemoryContainer) PluginArchiveEvents() *pluginarchive.Service {
+	if c.pluginArchiveEvents == nil {
+		c.pluginArchiveEvents = pluginarchive.New(nil, nil, pubsubmemory.New(), pluginarchive.Options{}, nil)
+	}
+
+	return c.pluginArchiveEvents
+}
+
 func (c *InmemoryContainer) PluginStoreService() *pluginstore.Service         { return nil }
 func (c *InmemoryContainer) PluginsDir() string                               { return "plugins" }
 func (c *InmemoryContainer) PelicanEggImporter() *pelicaneggimporter.Importer { return nil }

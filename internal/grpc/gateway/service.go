@@ -54,6 +54,8 @@ type Service struct {
 	serverTaskHandler ServerTaskHandler
 	enrollmentSvc     *enrollment.Service
 	shutdownCtx       context.Context
+
+	archiveProgressHandler ArchiveProgressHandler
 }
 
 type APIKeyVerifier interface {
@@ -93,6 +95,13 @@ type AttachHandler interface {
 
 type MetricsHandler interface {
 	HandleMetricsResponse(ctx context.Context, nodeID uint64, requestID string, resp *proto.MetricsResponse) error
+}
+
+// ArchiveProgressHandler consumes intermediate ArchiveProgress pushes of
+// still-running archive operations. The final ArchiveResponse resolves the
+// pending request instead and never reaches this handler.
+type ArchiveProgressHandler interface {
+	HandleArchiveProgress(ctx context.Context, nodeID uint64, progress *proto.ArchiveProgress) error
 }
 
 // ServerTaskHandler is the dispatcher facade the gateway needs for the
@@ -164,6 +173,13 @@ func (s *Service) SetShutdownContext(ctx context.Context) {
 		ctx = context.Background()
 	}
 	s.shutdownCtx = ctx
+}
+
+// SetArchiveProgressHandler wires the archive operations service. A setter
+// breaks the construction cycle: the service needs the gateway to send
+// requests, while the gateway needs the service to route progress pushes.
+func (s *Service) SetArchiveProgressHandler(h ArchiveProgressHandler) {
+	s.archiveProgressHandler = h
 }
 
 func (s *Service) Connect(stream proto.DaemonGateway_ConnectServer) error {
@@ -573,14 +589,7 @@ func (s *Service) processMessage(ctx context.Context, sess *session.Session, msg
 		return resolveResponse(sess, payload.ArchiveResponse.RequestId, msg)
 
 	case *proto.DaemonMessage_ArchiveProgress:
-		// Intermediate updates of a still-running archive operation: they must not
-		// resolve the pending request, which waits for the final ArchiveResponse.
-		s.logger.Debug("archive progress received",
-			"node_id", sess.NodeID,
-			"request_id", payload.ArchiveProgress.RequestId,
-			"files_processed", payload.ArchiveProgress.FilesProcessed,
-			"bytes_processed", payload.ArchiveProgress.BytesProcessed,
-		)
+		return s.processArchiveProgress(ctx, sess, payload.ArchiveProgress)
 
 	case *proto.DaemonMessage_StatusResponse:
 		return resolveResponse(sess, payload.StatusResponse.RequestId, msg)
@@ -643,6 +652,26 @@ func (s *Service) processMessage(ctx context.Context, sess *session.Session, msg
 
 func resolveResponse(sess *session.Session, requestID string, msg *proto.DaemonMessage) error {
 	sess.ResolvePendingRequest(requestID, msg)
+
+	return nil
+}
+
+// processArchiveProgress routes intermediate updates of a still-running
+// archive operation: they must not resolve the pending request, which waits
+// for the final ArchiveResponse.
+func (s *Service) processArchiveProgress(
+	ctx context.Context, sess *session.Session, progress *proto.ArchiveProgress,
+) error {
+	s.logger.Debug("archive progress received",
+		"node_id", sess.NodeID,
+		"request_id", progress.RequestId,
+		"files_processed", progress.FilesProcessed,
+		"bytes_processed", progress.BytesProcessed,
+	)
+
+	if s.archiveProgressHandler != nil {
+		return s.archiveProgressHandler.HandleArchiveProgress(ctx, sess.NodeID, progress)
+	}
 
 	return nil
 }
@@ -821,6 +850,78 @@ func (s *Service) RequestFileOperation(
 
 		return opResp, nil
 	}
+}
+
+// RequestArchive registers the pending request under the caller-supplied
+// req.RequestId (the operation id, so progress pushes and the final response
+// correlate across instances) and blocks until the daemon's single final
+// ArchiveResponse, ctx cancellation, or session loss. Archive operations run
+// for minutes or hours — the caller owns the deadline.
+func (s *Service) RequestArchive(
+	ctx context.Context,
+	nodeID uint64,
+	req *proto.ArchiveRequest,
+) (*proto.ArchiveResponse, error) {
+	if req.GetRequestId() == "" {
+		return nil, errors.New("archive request id is required")
+	}
+
+	sess, ok := s.registry.GetSession(nodeID)
+	if !ok {
+		return nil, errors.New("node not connected")
+	}
+
+	respCh := sess.RegisterPendingRequest(req.RequestId)
+	defer sess.CancelPendingRequest(req.RequestId)
+
+	if err := sess.Send(&proto.GatewayMessage{
+		RequestId: req.RequestId,
+		Payload: &proto.GatewayMessage_Archive{
+			Archive: req,
+		},
+	}); err != nil {
+		return nil, errors.Wrap(err, "send archive request")
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case resp := <-respCh:
+		if resp == nil {
+			return nil, errors.New("request cancelled")
+		}
+		archResp := resp.GetArchiveResponse()
+		if archResp == nil {
+			return nil, errors.New("unexpected response type")
+		}
+
+		return archResp, nil
+	}
+}
+
+// RequestArchiveCancel is fire-and-forget: the canceled operation still
+// answers with its final ArchiveResponse, which resolves the pending
+// RequestArchive call.
+func (s *Service) RequestArchiveCancel(nodeID uint64, operationID, reason string) error {
+	sess, ok := s.registry.GetSession(nodeID)
+	if !ok {
+		return errors.New("node not connected")
+	}
+
+	err := sess.Send(&proto.GatewayMessage{
+		RequestId: idgen.New(),
+		Payload: &proto.GatewayMessage_ArchiveCancel{
+			ArchiveCancel: &proto.ArchiveCancel{
+				RequestId: operationID,
+				Reason:    reason,
+			},
+		},
+	})
+	if err != nil {
+		return errors.Wrap(err, "send archive cancel")
+	}
+
+	return nil
 }
 
 func (s *Service) RequestCommand(

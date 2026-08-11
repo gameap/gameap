@@ -10,6 +10,7 @@ import (
 
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/pubsub"
+	"github.com/gameap/gameap/internal/pubsub/channels"
 	"github.com/gameap/gameap/internal/pubsub/memory"
 	"github.com/gameap/gameap/internal/pubsub/messages"
 	"github.com/pkg/errors"
@@ -662,6 +663,112 @@ func TestExec_GatewayErrorReturnsPayloadError(t *testing.T) {
 
 	// ASSERT
 	assert.Equal(t, "gw err", resp.Error)
+}
+
+func TestDispatchFileOperation_HashSetsExtendedTimeout(t *testing.T) {
+	// ARRANGE
+	s := setupDispatcher(t)
+	const nodeID uint64 = 15
+	s.registry.setConnected(nodeID, true)
+
+	captured := make(chan messages.DaemonFileRequestPayload, 1)
+	require.NoError(t, s.pubsub.Subscribe(
+		testContext(t),
+		channels.BuildDaemonFileRequestChannel(nodeID),
+		func(_ context.Context, msg *pubsub.Message) error {
+			payload, err := messages.ParsePayload[messages.DaemonFileRequestPayload](msg)
+			if err == nil {
+				select {
+				case captured <- payload:
+				default:
+				}
+			}
+
+			return nil
+		},
+	))
+
+	s.gateway.requestFileOp = func(_ context.Context, _ uint64, req *proto.FileOperationRequest) (*proto.FileOperationResponse, error) {
+		assert.Equal(t, proto.FileOperationType_FILE_OPERATION_TYPE_HASH, req.Operation)
+
+		return &proto.FileOperationResponse{
+			Success: true,
+			Result: &proto.FileOperationResponse_HashResult{
+				HashResult: &proto.HashResult{
+					Hashes: []*proto.FileHash{{Path: "a.bin", Hash: "cc", Size: 3}},
+				},
+			},
+		}, nil
+	}
+
+	req := &proto.FileOperationRequest{
+		Operation: proto.FileOperationType_FILE_OPERATION_TYPE_HASH,
+		Parameters: &proto.FileOperationRequest_HashParams{
+			HashParams: &proto.HashParams{
+				Paths:     []string{"a.bin"},
+				Algorithm: proto.HashAlgorithm_HASH_ALGORITHM_CRC32,
+			},
+		},
+	}
+
+	// ACT
+	resp, err := s.dispatcher.DispatchFileOperation(testContext(t), nodeID, req)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotNil(t, resp.GetHashResult())
+
+	select {
+	case payload := <-captured:
+		assert.Equal(t, int64(fileHashDispatchTimeout/time.Second), payload.TimeoutSeconds,
+			"hash dispatch must carry the extended execution timeout for the owning instance")
+	case <-time.After(2 * time.Second):
+		t.Fatal("request payload was not observed on the dispatch channel")
+	}
+}
+
+func TestExecuteFileRequest_TimeoutSecondsCappedByTransferTimeout(t *testing.T) {
+	// ARRANGE
+	s := setupDispatcher(t)
+	d := s.dispatcher.(*fileDispatcher)
+
+	blockedCtx := make(chan context.Context, 1)
+	s.gateway.requestFileOp = func(ctx context.Context, _ uint64, _ *proto.FileOperationRequest) (*proto.FileOperationResponse, error) {
+		blockedCtx <- ctx
+
+		return &proto.FileOperationResponse{Success: true}, nil
+	}
+
+	req := &proto.FileOperationRequest{Operation: proto.FileOperationType_FILE_OPERATION_TYPE_HASH}
+	data, err := req.MarshalVT()
+	require.NoError(t, err)
+
+	payload := messages.DaemonFileRequestPayload{
+		NodeID:         1,
+		RequestID:      "req-hash-cap",
+		InstanceID:     s.instanceID,
+		Operation:      "file_operation",
+		Data:           data,
+		TimeoutSeconds: int64((2 * fileTransferTimeout) / time.Second),
+	}
+
+	// ACT
+	d.executeAndRespond(payload)
+
+	// ASSERT
+	select {
+	case ctx := <-blockedCtx:
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok, "execution context must carry a deadline")
+		remaining := time.Until(deadline)
+		assert.LessOrEqual(t, remaining, fileTransferTimeout+time.Second,
+			"requested timeout must be capped by fileTransferTimeout")
+		assert.Greater(t, remaining, fileDispatchTimeout,
+			"requested timeout must extend past the default dispatch timeout")
+	default:
+		t.Fatal("gateway was not invoked")
+	}
 }
 
 func TestExecuteFileRequest_UnsupportedOperation(t *testing.T) {

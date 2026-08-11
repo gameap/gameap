@@ -140,6 +140,7 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		// Daemon-facing services
 		{"DaemonStatus", func(c *Container) any { return c.DaemonStatus() }},
 		{"DaemonFiles", func(c *Container) any { return c.DaemonFiles() }},
+		{"DaemonArchive", func(c *Container) any { return c.DaemonArchive() }},
 		{"DaemonCommands", func(c *Container) any { return c.DaemonCommands() }},
 		{"ConsoleLogService", func(c *Container) any { return c.ConsoleLogService() }},
 		{"HTTPProxyService", func(c *Container) any { return c.HTTPProxyService() }},

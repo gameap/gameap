@@ -162,6 +162,26 @@ info:
     Occurrences of the server RCON password are replaced with `******`
     in every outbound frame.
 
+    ### `/api/ws/servers/{server}/file-manager/archive-operations`
+
+    Live progress stream for daemon-side archive create/extract
+    operations of one server, multiplexed over a single socket. Requires
+    the `files` ability on the server. No replay is sent: connect the
+    socket **before** issuing the `POST .../archive` or `POST
+    .../extract` request and correlate frames by the `operation_id`
+    returned in the 202 response. The client only sends pings.
+
+    Outbound frames (server → client):
+    - `archive.progress` — payload `{ operation_id, node_id, server_id,
+      kind, files_processed, files_total, bytes_processed, bytes_total,
+      current_entry }`. `kind` is `create` or `extract`; `*_total` are
+      `0` when unknown.
+    - `archive.complete` — emitted once per operation. Payload
+      `{ operation_id, node_id, server_id, kind, success, error,
+      files_processed, bytes_processed, archive_size, skipped,
+      skipped_count, format }`. A canceled operation arrives with
+      `success: false` and an `error` starting with `canceled`.
+
     ### `MetricsWireResponse` shape
 
     ```json
@@ -443,6 +463,14 @@ paths:
     $ref: './paths/file-manager.yaml#/~1api~1file-manager~1{server}~1stream-file'
   /api/file-manager/{server}/paste:
     $ref: './paths/file-manager.yaml#/~1api~1file-manager~1{server}~1paste'
+  /api/file-manager/{server}/hash:
+    $ref: './paths/file-manager.yaml#/~1api~1file-manager~1{server}~1hash'
+  /api/file-manager/{server}/archive:
+    $ref: './paths/file-manager.yaml#/~1api~1file-manager~1{server}~1archive'
+  /api/file-manager/{server}/extract:
+    $ref: './paths/file-manager.yaml#/~1api~1file-manager~1{server}~1extract'
+  /api/file-manager/{server}/archive-operations/{operationID}/cancel:
+    $ref: './paths/file-manager.yaml#/~1api~1file-manager~1{server}~1archive-operations~1{operationID}~1cancel'
 
   # Users (Admin)
   /api/users:

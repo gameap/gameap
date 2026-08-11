@@ -15,6 +15,67 @@ import (
 	_ "unsafe"
 )
 
+const ArchiveEventsHandlerPluginAPIVersion = 1
+
+//go:wasmexport archive_events_handler_api_version
+func _archive_events_handler_api_version() uint64 {
+	return ArchiveEventsHandlerPluginAPIVersion
+}
+
+var archiveEventsHandler ArchiveEventsHandler
+
+func RegisterArchiveEventsHandler(p ArchiveEventsHandler) {
+	archiveEventsHandler = p
+}
+
+//go:wasmexport archive_events_handler_handle_archive_progress
+func _archive_events_handler_handle_archive_progress(ptr, size uint32) uint64 {
+	b := wasm.PtrToByte(ptr, size)
+	req := new(HandleArchiveProgressRequest)
+	if err := req.UnmarshalVT(b); err != nil {
+		return 0
+	}
+	response, err := archiveEventsHandler.HandleArchiveProgress(context.Background(), req)
+	if err != nil {
+		ptr, size = wasm.ByteToPtr([]byte(err.Error()))
+		return (uint64(ptr) << uint64(32)) | uint64(size) |
+			// Indicate that this is the error string by setting the 32-th bit, assuming that
+			// no data exceeds 31-bit size (2 GiB).
+			(1 << 31)
+	}
+
+	b, err = response.MarshalVT()
+	if err != nil {
+		return 0
+	}
+	ptr, size = wasm.ByteToPtr(b)
+	return (uint64(ptr) << uint64(32)) | uint64(size)
+}
+
+//go:wasmexport archive_events_handler_handle_archive_completed
+func _archive_events_handler_handle_archive_completed(ptr, size uint32) uint64 {
+	b := wasm.PtrToByte(ptr, size)
+	req := new(HandleArchiveCompletedRequest)
+	if err := req.UnmarshalVT(b); err != nil {
+		return 0
+	}
+	response, err := archiveEventsHandler.HandleArchiveCompleted(context.Background(), req)
+	if err != nil {
+		ptr, size = wasm.ByteToPtr([]byte(err.Error()))
+		return (uint64(ptr) << uint64(32)) | uint64(size) |
+			// Indicate that this is the error string by setting the 32-th bit, assuming that
+			// no data exceeds 31-bit size (2 GiB).
+			(1 << 31)
+	}
+
+	b, err = response.MarshalVT()
+	if err != nil {
+		return 0
+	}
+	ptr, size = wasm.ByteToPtr(b)
+	return (uint64(ptr) << uint64(32)) | uint64(size)
+}
+
 type nodeFSService struct{}
 
 func NewNodeFSService() NodeFSService {
@@ -254,6 +315,195 @@ func (h nodeFSService) Chmod(ctx context.Context, request *ChmodRequest) (*Chmod
 	buf = wasm.PtrToByte(ptr, size)
 
 	response := new(ChmodResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodefs hash
+func _hash(ptr uint32, size uint32) uint64
+
+func (h nodeFSService) Hash(ctx context.Context, request *HashRequest) (*HashResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _hash(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(HashResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodefs create_archive
+func _create_archive(ptr uint32, size uint32) uint64
+
+func (h nodeFSService) CreateArchive(ctx context.Context, request *CreateArchiveRequest) (*ArchiveSyncResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _create_archive(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(ArchiveSyncResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodefs extract_archive
+func _extract_archive(ptr uint32, size uint32) uint64
+
+func (h nodeFSService) ExtractArchive(ctx context.Context, request *ExtractArchiveRequest) (*ArchiveSyncResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _extract_archive(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(ArchiveSyncResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodefs start_create_archive
+func _start_create_archive(ptr uint32, size uint32) uint64
+
+func (h nodeFSService) StartCreateArchive(ctx context.Context, request *CreateArchiveRequest) (*StartArchiveResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _start_create_archive(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(StartArchiveResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodefs start_extract_archive
+func _start_extract_archive(ptr uint32, size uint32) uint64
+
+func (h nodeFSService) StartExtractArchive(ctx context.Context, request *ExtractArchiveRequest) (*StartArchiveResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _start_extract_archive(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(StartArchiveResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodefs cancel_archive
+func _cancel_archive(ptr uint32, size uint32) uint64
+
+func (h nodeFSService) CancelArchive(ctx context.Context, request *CancelArchiveRequest) (*CancelArchiveResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _cancel_archive(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(CancelArchiveResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodefs get_archive_operation
+func _get_archive_operation(ptr uint32, size uint32) uint64
+
+func (h nodeFSService) GetArchiveOperation(ctx context.Context, request *GetArchiveOperationRequest) (*GetArchiveOperationResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _get_archive_operation(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(GetArchiveOperationResponse)
 	err = response.UnmarshalVT(buf)
 	if ptr != 0 {
 		wasm.Free(ptr)

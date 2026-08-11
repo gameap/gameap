@@ -77,6 +77,15 @@
                 >
                     <GIcon name="paste" />
                 </button>
+                <button
+                    type="button"
+                    class="fm-tool-btn"
+                    v-bind:disabled="!isAnyItemSelected"
+                    v-bind:title="lang.modal.zip.title"
+                    v-on:click="showModal('ZipModal')"
+                >
+                    <GIcon name="file-zipper" />
+                </button>
             </div>
 
             <div class="fm-toolbar-spacer" />

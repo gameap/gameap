@@ -18,6 +18,9 @@ import (
 const (
 	fileDispatchTimeout = 30 * time.Second
 	fileTransferTimeout = 10 * time.Minute
+	// fileHashDispatchTimeout bounds cross-instance hash operations: hashing
+	// large files takes far longer than the ordinary 30s dispatch cycle.
+	fileHashDispatchTimeout = 5 * time.Minute
 )
 
 type fileDispatcher struct {
@@ -224,13 +227,20 @@ func (d *fileDispatcher) DispatchFileOperation(
 		return nil, errors.Wrap(err, "marshal file operation request")
 	}
 
-	resp, err := d.dispatchAndWait(ctx, nodeID, messages.DaemonFileRequestPayload{
+	timeout := fileDispatchTimeout
+	payload := messages.DaemonFileRequestPayload{
 		NodeID:     nodeID,
 		RequestID:  idgen.New(),
 		InstanceID: d.instanceID,
 		Operation:  "file_operation",
 		Data:       reqData,
-	}, fileDispatchTimeout)
+	}
+	if req.Operation == proto.FileOperationType_FILE_OPERATION_TYPE_HASH {
+		timeout = fileHashDispatchTimeout
+		payload.TimeoutSeconds = int64(fileHashDispatchTimeout / time.Second)
+	}
+
+	resp, err := d.dispatchAndWait(ctx, nodeID, payload, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -299,6 +309,9 @@ func (d *fileDispatcher) executeAndRespond(payload messages.DaemonFileRequestPay
 	timeout := fileDispatchTimeout
 	if payload.Operation == "upload_task" || payload.Operation == "download_task" {
 		timeout = fileTransferTimeout
+	}
+	if payload.TimeoutSeconds > 0 {
+		timeout = min(time.Duration(payload.TimeoutSeconds)*time.Second, fileTransferTimeout)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

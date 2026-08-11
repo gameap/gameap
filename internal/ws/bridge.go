@@ -61,6 +61,7 @@ func (b *Bridge) Start(ctx context.Context) error {
 		channels.RealtimeTaskAll,
 		channels.RealtimeConsoleAll,
 		channels.RealtimeAttachAll,
+		channels.RealtimeFMArchiveAll,
 	}
 
 	for _, pattern := range patterns {

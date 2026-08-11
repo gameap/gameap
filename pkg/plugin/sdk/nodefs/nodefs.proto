@@ -16,6 +16,35 @@ service NodeFSService {
   rpc Remove(RemoveRequest) returns (RemoveResponse);
   rpc GetFileInfo(GetFileInfoRequest) returns (GetFileInfoResponse);
   rpc Chmod(ChmodRequest) returns (ChmodResponse);
+  // Hash computes file digests. Blocking; directories yield per-file errors
+  // inside the result while the call itself succeeds.
+  rpc Hash(HashRequest) returns (HashResponse);
+  // CreateArchive/ExtractArchive block until the operation finishes or the
+  // wait budget runs out; a timed-out wait answers completed=false with the
+  // operation id so the plugin can keep polling GetArchiveOperation. No
+  // progress callbacks are delivered for blocking calls.
+  rpc CreateArchive(CreateArchiveRequest) returns (ArchiveSyncResponse);
+  rpc ExtractArchive(ExtractArchiveRequest) returns (ArchiveSyncResponse);
+  // StartCreateArchive/StartExtractArchive return an operation id
+  // immediately; progress and completion are delivered through the optional
+  // ArchiveEventsHandler service and observable via GetArchiveOperation.
+  rpc StartCreateArchive(CreateArchiveRequest) returns (StartArchiveResponse);
+  rpc StartExtractArchive(ExtractArchiveRequest) returns (StartArchiveResponse);
+  // CancelArchive is fire-and-forget: the canceled operation still finishes
+  // with an error starting with "canceled".
+  rpc CancelArchive(CancelArchiveRequest) returns (CancelArchiveResponse);
+  // GetArchiveOperation reports an operation started by this plugin on this
+  // panel instance; entries expire minutes after completion.
+  rpc GetArchiveOperation(GetArchiveOperationRequest) returns (GetArchiveOperationResponse);
+}
+
+// ArchiveEventsHandler is implemented by plugins that start archive
+// operations with report_progress; the panel invokes it as the operation
+// progresses and once when it finishes
+// go:plugin type=plugin version=1
+service ArchiveEventsHandler {
+  rpc HandleArchiveProgress(HandleArchiveProgressRequest) returns (HandleArchiveProgressResponse);
+  rpc HandleArchiveCompleted(HandleArchiveCompletedRequest) returns (HandleArchiveCompletedResponse);
 }
 
 enum FileType {
@@ -144,3 +173,187 @@ message ChmodResponse {
   bool success = 1;
   optional string error = 2;
 }
+
+enum HashAlgorithm {
+  // Unspecified is treated as SHA256.
+  HASH_ALGORITHM_UNSPECIFIED = 0;
+  HASH_ALGORITHM_MD5 = 1;
+  HASH_ALGORITHM_SHA1 = 2;
+  HASH_ALGORITHM_SHA256 = 3;
+  HASH_ALGORITHM_SHA512 = 4;
+  HASH_ALGORITHM_CRC32 = 5;
+  HASH_ALGORITHM_CRC64 = 6;
+}
+
+enum ArchiveFormat {
+  // Unspecified: extraction resolves the format by magic bytes or
+  // extension, creation resolves it by the archive path extension.
+  ARCHIVE_FORMAT_UNSPECIFIED = 0;
+  ARCHIVE_FORMAT_ZIP = 1;
+  ARCHIVE_FORMAT_TAR = 2;
+  ARCHIVE_FORMAT_TAR_GZ = 3;
+  ARCHIVE_FORMAT_TAR_BZ2 = 4;
+  ARCHIVE_FORMAT_TAR_XZ = 5;
+  ARCHIVE_FORMAT_TAR_ZSTD = 6;
+  ARCHIVE_FORMAT_GZ = 7;
+  ARCHIVE_FORMAT_BZ2 = 8;
+  ARCHIVE_FORMAT_XZ = 9;
+  ARCHIVE_FORMAT_ZSTD = 10;
+  // Extraction only: requesting these for creation is rejected.
+  ARCHIVE_FORMAT_7Z = 11;
+  ARCHIVE_FORMAT_RAR = 12;
+}
+
+enum ArchiveConflictPolicy {
+  ARCHIVE_CONFLICT_POLICY_UNSPECIFIED = 0;  // same as ERROR
+  ARCHIVE_CONFLICT_POLICY_ERROR = 1;
+  ARCHIVE_CONFLICT_POLICY_SKIP = 2;
+  ARCHIVE_CONFLICT_POLICY_OVERWRITE = 3;
+}
+
+enum ArchiveOperationStatus {
+  ARCHIVE_OPERATION_STATUS_UNSPECIFIED = 0;
+  ARCHIVE_OPERATION_STATUS_RUNNING = 1;
+  ARCHIVE_OPERATION_STATUS_COMPLETED = 2;
+  // Includes canceled operations; op_error starts with "canceled" then.
+  ARCHIVE_OPERATION_STATUS_ERROR = 3;
+}
+
+message HashRequest {
+  uint64 node_id = 1;
+  repeated string paths = 2;
+  HashAlgorithm algorithm = 3;
+}
+
+message FileHash {
+  string path = 1;
+  // Lowercase hex, empty when error is set.
+  string hash = 2;
+  uint64 size = 3;
+  optional string error = 4;
+}
+
+message HashResponse {
+  bool success = 1;
+  optional string error = 2;
+  HashAlgorithm algorithm = 3;
+  repeated FileHash results = 4;
+}
+
+message CreateArchiveRequest {
+  uint64 node_id = 1;
+  string archive_path = 2;
+  ArchiveFormat format = 3;
+  // Entry names are stored relative to base_path.
+  string base_path = 4;
+  repeated string sources = 5;
+  // Unset = format default, 0 = store, 1..9.
+  optional int32 compression_level = 6;
+  bool overwrite = 7;
+  // 0 = panel default; both guard decompression/packing runaway.
+  uint64 max_total_bytes = 8;
+  uint32 max_files = 9;
+  // 0 = panel default; for blocking calls this is also the wait budget and
+  // is additionally capped by the guest call deadline.
+  uint32 timeout_seconds = 10;
+  // Opt into HandleArchiveProgress delivery (Start* variants only).
+  bool report_progress = 11;
+}
+
+message ExtractArchiveRequest {
+  uint64 node_id = 1;
+  string archive_path = 2;
+  string destination = 3;
+  ArchiveFormat format = 4;
+  bool create_destination = 5;
+  ArchiveConflictPolicy conflict_policy = 6;
+  bool preserve_permissions = 7;
+  uint64 max_total_bytes = 8;
+  uint32 max_files = 9;
+  uint32 timeout_seconds = 10;
+  bool report_progress = 11;
+}
+
+message StartArchiveResponse {
+  bool success = 1;
+  optional string error = 2;
+  string operation_id = 3;
+}
+
+// success=false: validation or start error. success=true, completed=false:
+// the operation started but the wait budget ran out — it keeps running,
+// poll GetArchiveOperation with operation_id. completed=true: op_success and
+// the final fields describe the outcome.
+message ArchiveSyncResponse {
+  bool success = 1;
+  optional string error = 2;
+  string operation_id = 3;
+  bool completed = 4;
+  bool op_success = 5;
+  optional string op_error = 6;
+  uint32 files_processed = 7;
+  uint64 bytes_processed = 8;
+  uint64 archive_size = 9;
+  uint32 skipped_count = 10;
+  ArchiveFormat format = 11;
+}
+
+message CancelArchiveRequest {
+  string operation_id = 1;
+  string reason = 2;
+}
+
+message CancelArchiveResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message GetArchiveOperationRequest {
+  string operation_id = 1;
+}
+
+message GetArchiveOperationResponse {
+  bool success = 1;
+  optional string error = 2;
+  // found=false: unknown here — never started by this plugin on this panel
+  // instance, or already expired.
+  bool found = 3;
+  ArchiveOperationStatus status = 4;
+  uint32 files_processed = 5;
+  uint32 files_total = 6;
+  uint64 bytes_processed = 7;
+  uint64 bytes_total = 8;
+  string current_entry = 9;
+  // Final fields, set when status is not RUNNING.
+  bool op_success = 10;
+  optional string op_error = 11;
+  uint64 archive_size = 12;
+  uint32 skipped_count = 13;
+  ArchiveFormat format = 14;
+}
+
+message HandleArchiveProgressRequest {
+  string operation_id = 1;
+  uint64 node_id = 2;
+  uint32 files_processed = 3;
+  uint32 files_total = 4;
+  uint64 bytes_processed = 5;
+  uint64 bytes_total = 6;
+  string current_entry = 7;
+}
+
+message HandleArchiveProgressResponse {}
+
+message HandleArchiveCompletedRequest {
+  string operation_id = 1;
+  uint64 node_id = 2;
+  bool success = 3;
+  optional string error = 4;
+  uint32 files_processed = 5;
+  uint64 bytes_processed = 6;
+  uint64 archive_size = 7;
+  uint32 skipped_count = 8;
+  ArchiveFormat format = 9;
+}
+
+message HandleArchiveCompletedResponse {}
