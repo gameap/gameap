@@ -121,4 +121,44 @@ export default {
     chmod(data) {
         return HTTP.post('chmod', data);
     },
+
+    /**
+     * Compute file checksums (synchronous)
+     * @param data
+     * @param config
+     * @returns {*}
+     */
+    hash(data, config = {}) {
+        return HTTP.post('hash', data, config);
+    },
+
+    /**
+     * Start server-side archive creation, resolves to 202 {operation_id}
+     * @param data
+     * @param config
+     * @returns {*}
+     */
+    archive(data, config = {}) {
+        return HTTP.post('archive', data, config);
+    },
+
+    /**
+     * Start server-side archive extraction, resolves to 202 {operation_id}
+     * @param data
+     * @param config
+     * @returns {*}
+     */
+    extract(data, config = {}) {
+        return HTTP.post('extract', data, config);
+    },
+
+    /**
+     * Request cancellation of a running archive operation
+     * @param operationId
+     * @param config
+     * @returns {*}
+     */
+    cancelArchiveOperation(operationId, config = {}) {
+        return HTTP.post(`archive-operations/${operationId}/cancel`, null, config);
+    },
 };

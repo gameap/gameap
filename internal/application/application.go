@@ -148,21 +148,7 @@ func Run(runParams RunParams) {
 	if cfg.Plugins.Disabled {
 		slog.InfoContext(ctx, "Plugins are disabled, skipping plugin loading")
 	} else {
-		// The scheduler starts before LoadAll so task registrations made
-		// during guest Initialize land on a running service.
-		err = container.PluginScheduler().Start(ctx)
-		if err != nil {
-			slog.ErrorContext(ctx, "Failed to start plugin scheduler", slog.String("error", err.Error()))
-
-			osExit(1)
-		}
-
-		err = container.PluginLoader().LoadAll(ctx)
-		if err != nil {
-			slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))
-
-			osExit(1)
-		}
+		startPluginServices(ctx, container)
 
 		err = container.PluginDispatcher().RefreshSubscriptions(ctx)
 		if err != nil {
@@ -179,6 +165,34 @@ func Run(runParams RunParams) {
 	runWithGRPC(ctx, cfg, container)
 
 	<-shutdownDone
+}
+
+// startPluginServices brings up the services plugins register into and then
+// loads the plugins. The scheduler and the archive event dispatcher start
+// before LoadAll so registrations made during guest Initialize land on
+// running services.
+func startPluginServices(ctx context.Context, container *Container) {
+	if err := container.PluginScheduler().Start(ctx); err != nil {
+		slog.ErrorContext(ctx, "Failed to start plugin scheduler", slog.String("error", err.Error()))
+
+		osExit(1)
+
+		return
+	}
+
+	if err := container.PluginArchiveEvents().Start(ctx); err != nil {
+		slog.ErrorContext(ctx, "Failed to start plugin archive events", slog.String("error", err.Error()))
+
+		osExit(1)
+
+		return
+	}
+
+	if err := container.PluginLoader().LoadAll(ctx); err != nil {
+		slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))
+
+		osExit(1)
+	}
 }
 
 // startHTTPListener binds the plain-HTTP listener and starts serving on it
@@ -219,6 +233,10 @@ func runWithGRPC(ctx context.Context, cfg *config.Config, container *Container) 
 
 	if err := container.FileDispatcher().Start(ctx); err != nil {
 		slog.ErrorContext(ctx, "Failed to start file dispatcher", slog.String("error", err.Error()))
+	}
+
+	if err := container.DaemonArchive().Start(ctx); err != nil {
+		slog.ErrorContext(ctx, "Failed to start archive service", slog.String("error", err.Error()))
 	}
 
 	if err := container.CommandDispatcher().Start(ctx); err != nil {

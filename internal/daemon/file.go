@@ -703,6 +703,60 @@ func (s *FileService) GetFileInfo(
 	return protoFileStatToDetails(statResult.Stat), nil
 }
 
+// Hash computes checksums of the given files on the daemon node. Paths are
+// absolute panel-side paths; result entries carry daemon-relative paths.
+// Directories are not expanded: they yield per-file errors inside the result
+// while the call itself succeeds.
+func (s *FileService) Hash(
+	ctx context.Context,
+	node *domain.Node,
+	paths []string,
+	algorithm proto.HashAlgorithm,
+) (*proto.HashResult, error) {
+	nodeID := uint64(node.ID)
+
+	relPaths := make([]string, 0, len(paths))
+	for _, p := range paths {
+		relPaths = append(relPaths, stripWorkPath(node.WorkPath, p))
+	}
+
+	local, err := s.resolveRoute(nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &proto.FileOperationRequest{
+		Operation: proto.FileOperationType_FILE_OPERATION_TYPE_HASH,
+		Parameters: &proto.FileOperationRequest_HashParams{
+			HashParams: &proto.HashParams{
+				Paths:     relPaths,
+				Algorithm: algorithm,
+			},
+		},
+	}
+
+	var resp *proto.FileOperationResponse
+	if local {
+		resp, err = s.gateway.RequestFileOperation(ctx, nodeID, req)
+	} else {
+		resp, err = s.dispatcher.DispatchFileOperation(ctx, nodeID, req)
+	}
+	if err != nil {
+		return nil, errors.WithMessage(err, "hash request")
+	}
+
+	if !resp.Success {
+		return nil, errors.Errorf("hash failed: %s", resp.Error)
+	}
+
+	hashResult := resp.GetHashResult()
+	if hashResult == nil {
+		return nil, errors.New("hash returned no result")
+	}
+
+	return hashResult, nil
+}
+
 func (s *FileService) Chmod(ctx context.Context, node *domain.Node, path string, perm uint32) error {
 	return s.doFileOperation(ctx, node, &proto.FileOperationRequest{
 		Operation: proto.FileOperationType_FILE_OPERATION_TYPE_CHMOD,

@@ -18,6 +18,16 @@ import (
 const (
 	fileDispatchTimeout = 30 * time.Second
 	fileTransferTimeout = 10 * time.Minute
+	// fileHashDispatchTimeout bounds cross-instance hash operations: hashing
+	// large files takes far longer than the ordinary 30s dispatch cycle.
+	fileHashDispatchTimeout = 5 * time.Minute
+	// dispatchResponseGrace is how much longer the initiator waits than the
+	// owning side executes, so a response produced at the execution deadline
+	// still lands within the wait.
+	dispatchResponseGrace = 5 * time.Second
+	// dispatchPublishTimeout bounds publishing a response on its own context:
+	// the execution context may already be exhausted by the operation itself.
+	dispatchPublishTimeout = 10 * time.Second
 )
 
 type fileDispatcher struct {
@@ -224,13 +234,22 @@ func (d *fileDispatcher) DispatchFileOperation(
 		return nil, errors.Wrap(err, "marshal file operation request")
 	}
 
-	resp, err := d.dispatchAndWait(ctx, nodeID, messages.DaemonFileRequestPayload{
+	timeout := fileDispatchTimeout
+	payload := messages.DaemonFileRequestPayload{
 		NodeID:     nodeID,
 		RequestID:  idgen.New(),
 		InstanceID: d.instanceID,
 		Operation:  "file_operation",
 		Data:       reqData,
-	}, fileDispatchTimeout)
+	}
+	if req.Operation == proto.FileOperationType_FILE_OPERATION_TYPE_HASH {
+		// The owning side executes for at most TimeoutSeconds; waiting a
+		// grace longer keeps a deadline-produced response receivable.
+		timeout = fileHashDispatchTimeout + dispatchResponseGrace
+		payload.TimeoutSeconds = int64(fileHashDispatchTimeout / time.Second)
+	}
+
+	resp, err := d.dispatchAndWait(ctx, nodeID, payload, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -300,6 +319,9 @@ func (d *fileDispatcher) executeAndRespond(payload messages.DaemonFileRequestPay
 	if payload.Operation == "upload_task" || payload.Operation == "download_task" {
 		timeout = fileTransferTimeout
 	}
+	if payload.TimeoutSeconds > 0 {
+		timeout = min(time.Duration(payload.TimeoutSeconds)*time.Second, fileTransferTimeout)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -315,7 +337,13 @@ func (d *fileDispatcher) executeAndRespond(payload messages.DaemonFileRequestPay
 		return
 	}
 
-	if err := d.ps.Publish(ctx, channel, msg); err != nil {
+	// The execution context may be exhausted by the operation itself; the
+	// response must still reach the initiator, so it goes out on its own
+	// short-lived context.
+	pubCtx, pubCancel := context.WithTimeout(context.Background(), dispatchPublishTimeout)
+	defer pubCancel()
+
+	if err := d.ps.Publish(pubCtx, channel, msg); err != nil {
 		d.logger.Error("failed to publish file response",
 			"request_id", payload.RequestID,
 			"error", err,

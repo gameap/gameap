@@ -342,6 +342,38 @@ func TestService_processMessage(t *testing.T) {
 		require.NotNil(t, msg.GetArchiveResponse())
 	})
 
+	t.Run("archive_progress_routed_to_handler_without_resolving", func(t *testing.T) {
+		svc, _ := newServiceWithDeps(t)
+		handler := &fakeArchiveProgressHandler{}
+		svc.SetArchiveProgressHandler(handler)
+		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
+		ch := sess.RegisterPendingRequest("ar-3")
+
+		err := svc.processMessage(context.Background(), sess, &proto.DaemonMessage{
+			Payload: &proto.DaemonMessage_ArchiveProgress{
+				ArchiveProgress: &proto.ArchiveProgress{
+					RequestId:      "ar-3",
+					FilesProcessed: 5,
+					BytesProcessed: 2048,
+					CurrentEntry:   "maps/de_dust2.bsp",
+				},
+			},
+		})
+
+		require.NoError(t, err)
+		calls := handler.Calls()
+		require.Len(t, calls, 1)
+		assert.Equal(t, uint64(1), calls[0].nodeID)
+		assert.Equal(t, "ar-3", calls[0].progress.RequestId)
+		assert.Equal(t, uint32(5), calls[0].progress.FilesProcessed)
+
+		select {
+		case msg, ok := <-ch:
+			t.Fatalf("progress must not resolve the pending request, got msg=%v open=%v", msg, ok)
+		default:
+		}
+	})
+
 	t.Run("attach_started_routed_to_attach_handler", func(t *testing.T) {
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})

@@ -1713,6 +1713,163 @@ func TestFileService_GetFileInfo_routesToDispatcherWhenRemote(t *testing.T) {
 	assert.Equal(t, "x.txt", statParams.Path, "WorkPath must be stripped from Path")
 }
 
+func TestFileService_Hash(t *testing.T) {
+	t.Parallel()
+
+	type setup struct {
+		isConnected bool
+		gatewayResp *proto.FileOperationResponse
+		gatewayErr  error
+	}
+
+	tests := []struct {
+		name       string
+		setup      setup
+		wantHashes int
+		wantError  string
+	}{
+		{
+			name: "gateway_returns_hash_result",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileOperationResponse{
+					Success: true,
+					Result: &proto.FileOperationResponse_HashResult{
+						HashResult: &proto.HashResult{
+							Algorithm: proto.HashAlgorithm_HASH_ALGORITHM_SHA256,
+							Hashes: []*proto.FileHash{
+								{Path: "a.txt", Hash: "aa", Size: 1},
+								{Path: "missing.txt", Error: "no such file"},
+							},
+						},
+					},
+				},
+			},
+			wantHashes: 2,
+		},
+		{
+			name: "hash_returns_no_result_surfaces_error",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileOperationResponse{Success: true},
+			},
+			wantError: "hash returned no result",
+		},
+		{
+			name: "gateway_returns_unsuccessful_response_surfaces_error",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileOperationResponse{Success: false, Error: "unsupported operation"},
+			},
+			wantError: "hash failed: unsupported operation",
+		},
+		{
+			name: "gateway_transport_error_wrapped",
+			setup: setup{
+				isConnected: true,
+				gatewayErr:  errors.New("hash boom"),
+			},
+			wantError: "hash request: hash boom",
+		},
+		{
+			name:      "returns_ErrDaemonNotConnected_when_not_connected",
+			setup:     setup{},
+			wantError: "daemon not connected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			ctx := testContext(t)
+			s := setupFileService(t)
+			const nodeID uint64 = 63
+			s.registry.setConnected(nodeID, tt.setup.isConnected)
+
+			var capturedReq *proto.FileOperationRequest
+			s.gateway.requestFileOp = func(_ context.Context, _ uint64, req *proto.FileOperationRequest) (*proto.FileOperationResponse, error) {
+				capturedReq = req
+				if tt.setup.gatewayErr != nil {
+					return nil, tt.setup.gatewayErr
+				}
+
+				return tt.setup.gatewayResp, nil
+			}
+
+			// ACT
+			got, err := s.service.Hash(
+				ctx, testNode(63, "/srv"),
+				[]string{"/srv/a.txt", "/srv/missing.txt"},
+				proto.HashAlgorithm_HASH_ALGORITHM_SHA256,
+			)
+
+			// ASSERT
+			if tt.wantError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantError, "error message mismatch")
+				assert.Nil(t, got, "result must be nil on error")
+
+				if tt.name == notConnectedCaseName {
+					assert.ErrorIs(t, err, ErrDaemonNotConnected, "must be ErrDaemonNotConnected sentinel")
+				}
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			require.Len(t, got.Hashes, tt.wantHashes)
+			assert.Equal(t, "aa", got.Hashes[0].Hash)
+			assert.Equal(t, "no such file", got.Hashes[1].Error, "per-file error must survive")
+
+			require.NotNil(t, capturedReq, "gateway must receive the request")
+			assert.Equal(t, proto.FileOperationType_FILE_OPERATION_TYPE_HASH, capturedReq.Operation)
+			hashParams := capturedReq.GetHashParams()
+			require.NotNil(t, hashParams)
+			assert.Equal(t, []string{"a.txt", "missing.txt"}, hashParams.Paths,
+				"WorkPath must be stripped from every path")
+			assert.Equal(t, proto.HashAlgorithm_HASH_ALGORITHM_SHA256, hashParams.Algorithm)
+		})
+	}
+}
+
+func TestFileService_Hash_routesToDispatcherWhenRemote(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	ctx := testContext(t)
+	s := setupFileService(t)
+	const nodeID uint64 = 64
+	s.registry.connectedAnywhere[nodeID] = true
+
+	var capturedReq *proto.FileOperationRequest
+	s.dispatcher.dispatchFileOp = func(_ context.Context, _ uint64, req *proto.FileOperationRequest) (*proto.FileOperationResponse, error) {
+		capturedReq = req
+
+		return &proto.FileOperationResponse{
+			Success: true,
+			Result: &proto.FileOperationResponse_HashResult{
+				HashResult: &proto.HashResult{
+					Algorithm: proto.HashAlgorithm_HASH_ALGORITHM_MD5,
+					Hashes:    []*proto.FileHash{{Path: "x.bin", Hash: "bb", Size: 2}},
+				},
+			},
+		}, nil
+	}
+
+	// ACT
+	got, err := s.service.Hash(ctx, testNode(64, "/srv"), []string{"/srv/x.bin"}, proto.HashAlgorithm_HASH_ALGORITHM_MD5)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.NotNil(t, capturedReq, "dispatcher must receive operation request")
+	assert.Equal(t, proto.FileOperationType_FILE_OPERATION_TYPE_HASH, capturedReq.Operation)
+	assert.Equal(t, []string{"x.bin"}, capturedReq.GetHashParams().Paths)
+}
+
 func TestNewFileService_nilLoggerUsesDefault(t *testing.T) {
 	t.Parallel()
 

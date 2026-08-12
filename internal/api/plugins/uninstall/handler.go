@@ -35,6 +35,12 @@ type TaskScheduler interface {
 	RemovePluginTasks(ctx context.Context, pluginID domain.Uint64ID) (int, error)
 }
 
+// ArchiveEvents drops the plugin's archive event registrations on uninstall
+// so stale deliveries cannot reach a freshly reinstalled instance.
+type ArchiveEvents interface {
+	RemovePlugin(pluginID uint64)
+}
+
 type Handler struct {
 	pluginRepo    repositories.PluginRepository
 	fileManager   files.FileManager
@@ -42,6 +48,7 @@ type Handler struct {
 	resolver      ManagerIDResolver
 	subscriptions plugininstall.SubscriptionRefresher
 	scheduler     TaskScheduler
+	archiveEvents ArchiveEvents
 	pluginsDir    string
 	responder     base.Responder
 	audit         audit.Logger
@@ -54,6 +61,7 @@ func NewHandler(
 	resolver ManagerIDResolver,
 	subscriptions plugininstall.SubscriptionRefresher,
 	scheduler TaskScheduler,
+	archiveEvents ArchiveEvents,
 	pluginsDir string,
 	responder base.Responder,
 	auditLogger audit.Logger,
@@ -69,6 +77,7 @@ func NewHandler(
 		resolver:      resolver,
 		subscriptions: subscriptions,
 		scheduler:     scheduler,
+		archiveEvents: archiveEvents,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 		audit:         auditLogger,
@@ -140,6 +149,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				slog.Uint64("plugin_id", uint64(dbID)),
 				slog.String("error", err.Error()))
 		}
+	}
+
+	if h.archiveEvents != nil {
+		h.archiveEvents.RemovePlugin(uint64(dbID))
 	}
 
 	audit.SensitiveOp(ctx, h.audit, audit.EventPluginUninstall, audit.CategoryPluginOp,

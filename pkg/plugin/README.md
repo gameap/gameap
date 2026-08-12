@@ -416,7 +416,8 @@ if resp.Success {
 
 ### gameap-nodefs
 
-Provides file system operations on daemon nodes.
+Provides file system operations on daemon nodes. Every operation of this
+module requires the `files` permission (see [Plugin permissions](#plugin-permissions)).
 
 ```go
 fs := nodefs.NewNodeFSService()
@@ -480,7 +481,84 @@ fs.Chmod(ctx, &nodefs.ChmodRequest{
     Path:        "/home/servers/script.sh",
     Permissions: 0755,
 })
+
+// Compute checksums (blocking; directories yield per-file errors)
+hashResp, _ := fs.Hash(ctx, &nodefs.HashRequest{
+    NodeId:    1,
+    Paths:     []string{"/home/servers/map.bsp"},
+    Algorithm: nodefs.HashAlgorithm_HASH_ALGORITHM_SHA256,
+})
+for _, h := range hashResp.Results {
+    fmt.Printf("%s: %s\n", h.Path, h.Hash)
+}
 ```
+
+#### Archive operations
+
+Archives are created and extracted by the daemon; the node must announce the
+`archive` capability (gameap-daemon with archive support). Two API shapes are
+available:
+
+**Blocking** — `CreateArchive`/`ExtractArchive` wait for the final result.
+`timeout_seconds` is the combined operation-and-wait budget; it is also
+capped by the guest call deadline, so on a tight budget the call answers
+`completed=false` with the `operation_id` and the operation keeps running:
+
+```go
+resp, _ := fs.CreateArchive(ctx, &nodefs.CreateArchiveRequest{
+    NodeId:         1,
+    ArchivePath:    "/home/servers/backup.tar.gz",
+    BasePath:       "/home/servers",
+    Sources:        []string{"/home/servers/maps"},
+    TimeoutSeconds: 60,
+})
+switch {
+case !resp.Success:
+    // validation or start error in *resp.Error
+case !resp.Completed:
+    // still running; poll fs.GetArchiveOperation(resp.OperationId)
+case resp.OpSuccess:
+    // done, resp.ArchiveSize etc. describe the result
+}
+```
+
+**Asynchronous** — `StartCreateArchive`/`StartExtractArchive` return the
+`operation_id` immediately. With `report_progress: true` the panel pushes
+progress into the optional `ArchiveEventsHandler` service; completion is
+always pushed when the handler is registered, and remains observable via
+`GetArchiveOperation` polling either way. `CancelArchive` requests
+cancellation (the operation still finishes with an error starting with
+`canceled`).
+
+```go
+// In init():
+nodefs.RegisterArchiveEventsHandler(&myArchiveHandler{})
+
+type myArchiveHandler struct {
+    nodefs.EmptyArchiveEventsHandler // override only what you need
+}
+
+func (h *myArchiveHandler) HandleArchiveCompleted(
+    _ context.Context, req *nodefs.HandleArchiveCompletedRequest,
+) (*nodefs.HandleArchiveCompletedResponse, error) {
+    // req.Success, req.ArchiveSize, ...
+    return &nodefs.HandleArchiveCompletedResponse{}, nil
+}
+
+startResp, _ := fs.StartCreateArchive(ctx, &nodefs.CreateArchiveRequest{
+    NodeId:         1,
+    ArchivePath:    "/home/servers/backup.zip",
+    BasePath:       "/home/servers",
+    Sources:        []string{"/home/servers/maps"},
+    ReportProgress: true,
+})
+```
+
+Callbacks are delivered only on the panel instance where the operation was
+started, and only for operations started by this plugin. Progress pushes are
+coalesced: a slow handler sees fewer, fresher updates. Do not run a blocking
+`CreateArchive` from inside a callback-heavy flow — while the guest is parked
+in a host call, no callback can be delivered into it.
 
 ### gameap-nodecmd
 
@@ -957,6 +1035,7 @@ Privileged host modules are gated on the plugin's own grants, kept in the
 | Permission | Gates |
 |---|---|
 | `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
+| `files` | `gameap-nodefs` — every operation, including hash and archive create/extract (installations that existed before the gate were grandfathered the grant by a migration) |
 
 A plugin declares what it needs in `PluginInfo.RequiredPermissions`. The
 admin-only dry-run endpoint (`POST /api/admin/plugins/upload/dry-run`) reports

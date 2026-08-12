@@ -74,6 +74,9 @@ const (
 	EventFileChmod            EventType = "file.chmod"
 	EventFileWrite            EventType = "file.write"
 	EventFileUpload           EventType = "file.upload"
+	EventFileArchiveCreate    EventType = "file.archive.create"
+	EventFileArchiveExtract   EventType = "file.archive.extract"
+	EventFileArchiveCancel    EventType = "file.archive.cancel"
 	EventPluginInstall        EventType = "plugin.install"
 	EventPluginUninstall      EventType = "plugin.uninstall"
 )

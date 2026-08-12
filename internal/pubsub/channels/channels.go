@@ -90,6 +90,20 @@ const (
 	RealtimeServerTaskExecution = RealtimePrefix + "server_task:execution:"
 	RealtimeServerTaskLog       = RealtimePrefix + "server_task:log:"
 	RealtimeServerTaskAll       = RealtimePrefix + "server_task:*"
+
+	// RealtimeArchiveOp carries progress/final events of one daemon archive
+	// operation; consumed by the initiating instance (registry, plugin
+	// callbacks). Not bridged to WebSocket.
+	RealtimeArchiveOp    = RealtimePrefix + "archive:op:"
+	RealtimeArchiveOpAll = RealtimePrefix + "archive:op:*"
+	// RealtimeFMArchive duplicates archive events of server-scoped (file
+	// manager) operations, keyed by server ID; bridged to WebSocket.
+	RealtimeFMArchive    = RealtimePrefix + "fm:archive:"
+	RealtimeFMArchiveAll = RealtimePrefix + "fm:archive:*"
+
+	DaemonArchiveRequest    = DaemonPrefix + "archive:request:"
+	DaemonArchiveResponse   = DaemonPrefix + "archive:response:"
+	DaemonArchiveRequestAll = DaemonPrefix + "archive:request:*"
 )
 
 func BuildCacheInvalidateChannel(entityType string, entityID string) string {
@@ -218,4 +232,20 @@ func BuildRealtimeServerTaskExecutionChannel(taskID uint64) string {
 
 func BuildRealtimeServerTaskLogChannel(executionID string) string {
 	return RealtimeServerTaskLog + executionID
+}
+
+func BuildRealtimeArchiveOpChannel(operationID string) string {
+	return RealtimeArchiveOp + operationID
+}
+
+func BuildRealtimeFMArchiveChannel(serverID uint64) string {
+	return RealtimeFMArchive + strconv.FormatUint(serverID, 10)
+}
+
+func BuildDaemonArchiveRequestChannel(nodeID uint64) string {
+	return DaemonArchiveRequest + strconv.FormatUint(nodeID, 10)
+}
+
+func BuildDaemonArchiveResponseChannel(instanceID string) string {
+	return DaemonArchiveResponse + instanceID
 }

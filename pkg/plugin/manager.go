@@ -87,6 +87,15 @@ func (p *LoadedPlugin) HasScheduledTaskHandler() bool {
 	return ok && w.HasScheduledTaskHandler()
 }
 
+// HasArchiveEventsHandler reports whether the module exports the archive
+// event callbacks; plugins that never call nodefs.RegisterArchiveEventsHandler
+// do not.
+func (p *LoadedPlugin) HasArchiveEventsHandler() bool {
+	w, ok := p.Instance.(interface{ HasArchiveEventsHandler() bool })
+
+	return ok && w.HasArchiveEventsHandler()
+}
+
 // Disable permanently stops event and HTTP delivery to the plugin. Used when
 // its runtime is closed (unload) or misbehaving (call timeout); dispatchers
 // may still hold a pointer to it until their subscriptions are refreshed.
@@ -668,6 +677,8 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 	queryServer := module.ExportedFunction("protocol_service_query_server")
 	parsePlayers := module.ExportedFunction("protocol_service_parse_players")
 	handleScheduledTask := module.ExportedFunction("scheduled_task_handler_handle_scheduled_task")
+	handleArchiveProgress := module.ExportedFunction("archive_events_handler_handle_archive_progress")
+	handleArchiveCompleted := module.ExportedFunction("archive_events_handler_handle_archive_completed")
 
 	return &pluginServiceWrapper{
 		gate:                make(chan struct{}, 1),
@@ -692,6 +703,9 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 		queryserver:         queryServer,
 		parseplayers:        parsePlayers,
 		handlescheduledtask: handleScheduledTask,
+
+		handlearchiveprogress:  handleArchiveProgress,
+		handlearchivecompleted: handleArchiveCompleted,
 	}, nil
 }
 

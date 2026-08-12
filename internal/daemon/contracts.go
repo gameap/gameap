@@ -82,6 +82,13 @@ type FileReadResult struct {
 	StoragePath string
 }
 
+type ArchiveGateway interface {
+	RequestArchive(
+		ctx context.Context, nodeID uint64, req *proto.ArchiveRequest,
+	) (*proto.ArchiveResponse, error)
+	RequestArchiveCancel(nodeID uint64, operationID, reason string) error
+}
+
 type CommandGateway interface {
 	RequestCommand(
 		ctx context.Context, nodeID uint64, req *proto.CommandRequest,

@@ -34,6 +34,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { GIcon } from '@gameap/ui'
 import EventBus from '../../emitter.js'
+import { isExtractable } from '../../archive.js'
 import { useFileManagerStore } from '../../stores/useFileManagerStore.js'
 import { useSettingsStore } from '../../stores/useSettingsStore.js'
 import { useModalStore } from '../../stores/useModalStore.js'
@@ -80,11 +81,6 @@ function canAudioPlay(extension) {
 function canVideoPlay(extension) {
     if (!extension) return false
     return settings.videoExtensions.includes(extension.toLowerCase())
-}
-
-function isZip(extension) {
-    if (!extension) return false
-    return extension.toLowerCase() === 'zip'
 }
 
 // Rules
@@ -144,16 +140,19 @@ function pasteRule() {
 }
 
 function zipRule() {
-    return selectedDiskDriver.value === 'local'
+    return selectedItems.value.length > 0
 }
 
 function unzipRule() {
     return (
-        selectedDiskDriver.value === 'local' &&
         !multiSelect.value &&
         firstItemType.value === 'file' &&
-        isZip(selectedItems.value[0]?.extension)
+        isExtractable(selectedItems.value[0]?.basename)
     )
+}
+
+function hashRule() {
+    return selectedItems.value.length > 0 && selectedItems.value.every((elem) => elem.type === 'file')
 }
 
 function deleteRule() {
@@ -180,6 +179,7 @@ const rules = {
     paste: pasteRule,
     zip: zipRule,
     unzip: unzipRule,
+    hash: hashRule,
     delete: deleteRule,
     properties: propertiesRule,
 }
@@ -264,6 +264,10 @@ function unzipAction() {
     modal.setModalState({ modalName: 'UnzipModal', show: true })
 }
 
+function hashAction() {
+    modal.setModalState({ modalName: 'HashModal', show: true })
+}
+
 function deleteAction() {
     modal.setModalState({ modalName: 'DeleteModal', show: true })
 }
@@ -288,6 +292,7 @@ const actions = {
     paste: pasteAction,
     zip: zipAction,
     unzip: unzipAction,
+    hash: hashAction,
     delete: deleteAction,
     properties: propertiesAction,
 }

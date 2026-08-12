@@ -113,6 +113,7 @@ func TestUninstall_successful(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -140,6 +141,7 @@ func TestUninstall_not_installed(t *testing.T) {
 	h := uninstall.NewHandler(
 		pluginRepo,
 		fileManager,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -184,6 +186,7 @@ func TestUninstall_with_manager(t *testing.T) {
 		pluginRepo,
 		fileManager,
 		manager,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -236,6 +239,7 @@ func TestUninstall_manager_unload_error(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -279,6 +283,7 @@ func TestUninstall_plugin_not_loaded_in_manager(t *testing.T) {
 		pluginRepo,
 		fileManager,
 		manager,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -332,7 +337,7 @@ func TestUninstall_Audit_SuccessfulUninstallIsRecorded(t *testing.T) {
 
 	recorder := &auditCapture{}
 	h := uninstall.NewHandler(
-		pluginRepo, fileManager, nil, nil, nil, nil, "plugins", api.NewResponder(), recorder,
+		pluginRepo, fileManager, nil, nil, nil, nil, nil, "plugins", api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
 
@@ -366,7 +371,7 @@ func TestUninstall_Audit_NotInstalledIsNotRecorded(t *testing.T) {
 	// ARRANGE
 	recorder := &auditCapture{}
 	h := uninstall.NewHandler(
-		inmemory.NewPluginRepository(), files.NewInMemoryFileManager(), nil, nil, nil, nil, "plugins",
+		inmemory.NewPluginRepository(), files.NewInMemoryFileManager(), nil, nil, nil, nil, nil, "plugins",
 		api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
@@ -427,6 +432,7 @@ func TestUninstall_RemovesScheduledTasks(t *testing.T) {
 		nil,
 		nil,
 		scheduler,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -468,6 +474,7 @@ func TestUninstall_SchedulerErrorDoesNotBreakUninstall(t *testing.T) {
 		nil,
 		nil,
 		scheduler,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -486,4 +493,55 @@ func TestUninstall_SchedulerErrorDoesNotBreakUninstall(t *testing.T) {
 	remaining, err := pluginRepo.Find(context.Background(), nil, nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
+}
+
+// fakeArchiveEvents records archive-registration cleanup calls.
+type fakeArchiveEvents struct {
+	removed []uint64
+}
+
+func (f *fakeArchiveEvents) RemovePlugin(pluginID uint64) {
+	f.removed = append(f.removed, pluginID)
+}
+
+func TestUninstall_removes_archive_event_registrations(t *testing.T) {
+	pluginRepo := inmemory.NewPluginRepository()
+	fileManager := files.NewInMemoryFileManager()
+
+	existingPlugin := domain.Plugin{
+		ID:       pkgplugin.ParsePluginID("testplugin123"),
+		Name:     "Test Plugin",
+		Version:  "1.0.0",
+		Filename: new("testplugin123.wasm"),
+		Status:   domain.PluginStatusActive,
+	}
+	require.NoError(t, pluginRepo.Save(context.Background(), &existingPlugin))
+	require.NoError(t, fileManager.Write(context.Background(), "plugins/testplugin123.wasm", []byte("wasm content")))
+
+	archiveEvents := &fakeArchiveEvents{}
+	h := uninstall.NewHandler(
+		pluginRepo,
+		fileManager,
+		nil,
+		nil,
+		nil,
+		nil,
+		archiveEvents,
+		"plugins",
+		api.NewResponder(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/admin/plugins/testplugin123", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "testplugin123"})
+
+	// ACT
+	h.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Len(t, archiveEvents.removed, 1)
+	assert.Equal(t, uint64(existingPlugin.ID), archiveEvents.removed[0],
+		"the uninstalled plugin's registrations must be dropped")
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/pkg/plugin/proto"
+	"github.com/gameap/gameap/pkg/plugin/sdk/nodefs"
 	"github.com/gameap/gameap/pkg/plugin/sdk/scheduler"
 	"github.com/pkg/errors"
 	"github.com/tetratelabs/wazero/api"
@@ -40,6 +41,9 @@ type pluginServiceWrapper struct {
 	queryserver         api.Function
 	parseplayers        api.Function
 	handlescheduledtask api.Function
+
+	handlearchiveprogress  api.Function
+	handlearchivecompleted api.Function
 }
 
 func (p *pluginServiceWrapper) callFunction(
@@ -339,4 +343,54 @@ func (p *pluginServiceWrapper) HandleScheduledTask(
 
 func (p *pluginServiceWrapper) HasScheduledTaskHandler() bool {
 	return p.handlescheduledtask != nil
+}
+
+// HandleArchiveProgress invokes the optional handler exported by plugins
+// registering an ArchiveEventsHandler from the sdk/nodefs module. Like
+// HandleScheduledTask, a missing export is an error — callers gate on
+// HasArchiveEventsHandler and never deliver into a plugin without it.
+func (p *pluginServiceWrapper) HandleArchiveProgress(
+	ctx context.Context,
+	request *nodefs.HandleArchiveProgressRequest,
+) (*nodefs.HandleArchiveProgressResponse, error) {
+	if p.handlearchiveprogress == nil {
+		return nil, errors.WithMessage(ErrExportNotFound, "archive_events_handler_handle_archive_progress")
+	}
+
+	bytes, err := p.callFunction(ctx, p.handlearchiveprogress, request)
+	if err != nil {
+		return nil, err
+	}
+
+	response := new(nodefs.HandleArchiveProgressResponse)
+	if err = response.UnmarshalVT(bytes); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (p *pluginServiceWrapper) HandleArchiveCompleted(
+	ctx context.Context,
+	request *nodefs.HandleArchiveCompletedRequest,
+) (*nodefs.HandleArchiveCompletedResponse, error) {
+	if p.handlearchivecompleted == nil {
+		return nil, errors.WithMessage(ErrExportNotFound, "archive_events_handler_handle_archive_completed")
+	}
+
+	bytes, err := p.callFunction(ctx, p.handlearchivecompleted, request)
+	if err != nil {
+		return nil, err
+	}
+
+	response := new(nodefs.HandleArchiveCompletedResponse)
+	if err = response.UnmarshalVT(bytes); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (p *pluginServiceWrapper) HasArchiveEventsHandler() bool {
+	return p.handlearchiveprogress != nil && p.handlearchivecompleted != nil
 }

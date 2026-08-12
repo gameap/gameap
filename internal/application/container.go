@@ -46,6 +46,7 @@ import (
 	"github.com/gameap/gameap/internal/pubsub"
 	"github.com/gameap/gameap/internal/pubsub/dlq"
 	pubsubmemory "github.com/gameap/gameap/internal/pubsub/memory"
+	"github.com/gameap/gameap/internal/pubsub/messages"
 	pubsubpg "github.com/gameap/gameap/internal/pubsub/postgres"
 	pubsubredis "github.com/gameap/gameap/internal/pubsub/redis"
 	"github.com/gameap/gameap/internal/pubsub/retry"
@@ -65,6 +66,7 @@ import (
 	"github.com/gameap/gameap/internal/services/gameexporter"
 	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
+	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
@@ -185,6 +187,7 @@ type Container struct {
 	// Daemon Services
 	daemonStatus         *daemon.StatusService
 	daemonFiles          *daemon.FileService
+	daemonArchive        *daemon.ArchiveService
 	fileDispatcher       daemon.FileDispatcher
 	commandDispatcher    daemon.CommandDispatcher
 	statusDispatcher     daemon.StatusDispatcher
@@ -210,6 +213,8 @@ type Container struct {
 	netConnRegistry  *pkgplugin.ConnRegistry
 	pluginScheduler  *pluginscheduler.Service
 	schedulerLocker  locker.Locker
+
+	pluginArchiveEvents *pluginarchive.Service
 
 	// HTTP
 	router                    *http.ServeMux
@@ -296,6 +301,12 @@ func (c *Container) Shutdown() error {
 	// is explicit here.
 	if c.pluginScheduler != nil {
 		c.pluginScheduler.Stop()
+	}
+
+	// Same contract for archive event deliveries: an in-flight guest
+	// callback must finish before its runtime is closed.
+	if c.pluginArchiveEvents != nil {
+		c.pluginArchiveEvents.Stop()
 	}
 
 	for _, fn := range c.shotdownFuncs {
@@ -1798,6 +1809,30 @@ func (c *Container) DaemonFiles() *daemon.FileService {
 	return c.daemonFiles
 }
 
+func (c *Container) DaemonArchive() *daemon.ArchiveService {
+	if c.daemonArchive == nil {
+		instanceID := c.config.PubSub.InstanceID
+		if instanceID == "" {
+			instanceID = defaultInstanceID
+		}
+
+		c.daemonArchive = daemon.NewArchiveService(
+			c.PubSub(),
+			c.GatewayService(),
+			c.SessionRegistry(),
+			instanceID,
+			daemon.ArchiveLimits{
+				MaxTotalBytes: c.config.Files.Archive.MaxBytes.Uint64(),
+				MaxFiles:      c.config.Files.Archive.MaxFiles,
+			},
+			slog.Default(),
+		)
+		c.GatewayService().SetArchiveProgressHandler(c.daemonArchive)
+	}
+
+	return c.daemonArchive
+}
+
 func (c *Container) UploadSessionService() *upload.Service {
 	if c.uploadSessionService == nil {
 		c.uploadSessionService = upload.NewService(
@@ -2000,6 +2035,20 @@ func (c *Container) PluginManager() *pkgplugin.Manager {
 	return c.pluginManager
 }
 
+func (c *Container) PluginArchiveEvents() *pluginarchive.Service {
+	if c.pluginArchiveEvents == nil {
+		c.pluginArchiveEvents = pluginarchive.New(
+			c.PluginManager(),
+			c.PluginLoader(),
+			c.PubSub(),
+			pluginarchive.Options{},
+			slog.Default(),
+		)
+	}
+
+	return c.pluginArchiveEvents
+}
+
 func (c *Container) PluginScheduler() *pluginscheduler.Service {
 	if c.pluginScheduler == nil {
 		c.pluginScheduler = pluginscheduler.New(
@@ -2076,6 +2125,15 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
 		),
 		hostlibrary.NewSchedulerHostLibraryFactory(&lazyTaskScheduler{container: c}),
+		// Per-plugin: the module is gated on the plugin's own files grant
+		// and archive callbacks must reach the initiating plugin.
+		hostlibrary.NewNodeFSHostLibraryFactory(
+			c.DaemonFiles(),
+			c.NodeRepository(),
+			c.DaemonArchive(),
+			&lazyArchiveEvents{container: c},
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+		),
 	}
 
 	if c.config.Plugin.Net.Enabled {
@@ -2110,13 +2168,28 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 				MaxRedirects:            c.config.Plugin.HTTP.MaxRedirects,
 				ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
 			}),
-			hostlibrary.NewNodeFSHostLibrary(c.DaemonFiles(), c.NodeRepository()),
 			hostlibrary.NewNodeCmdHostLibrary(c.DaemonCommands(), c.NodeRepository()),
 			hostlibrary.NewCryptoHostLibrary(),
 			hostlibrary.NewAuthzHostLibrary(c.RBAC()),
 		},
 		LibraryFactories: factories,
 	})
+}
+
+// lazyArchiveEvents defers PluginArchiveEvents resolution to call time: the
+// dispatcher needs PluginManager to invoke callbacks, while the manager's
+// host libraries need the dispatcher — resolving it during manager
+// construction would recurse.
+type lazyArchiveEvents struct {
+	container *Container
+}
+
+func (l *lazyArchiveEvents) Register(pluginID uint64, operationID string, nodeID uint64, reportProgress bool) {
+	l.container.PluginArchiveEvents().Register(pluginID, operationID, nodeID, reportProgress)
+}
+
+func (l *lazyArchiveEvents) NotifyCompleted(operationID string, result messages.ArchiveCompleteEventPayload) {
+	l.container.PluginArchiveEvents().NotifyCompleted(operationID, result)
 }
 
 // lazyTaskScheduler defers PluginScheduler resolution to call time: the

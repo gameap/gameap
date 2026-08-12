@@ -20,14 +20,18 @@ import (
 	"github.com/gameap/gameap/internal/api/daemontasks/canceldaemontask"
 	"github.com/gameap/gameap/internal/api/daemontasks/getdaemontask"
 	"github.com/gameap/gameap/internal/api/daemontasks/getdaemontasks"
+	filemanagercancelarchive "github.com/gameap/gameap/internal/api/filemanager/cancelarchive"
 	filemanagerchmod "github.com/gameap/gameap/internal/api/filemanager/chmod"
 	"github.com/gameap/gameap/internal/api/filemanager/content"
+	filemanagercreatearchive "github.com/gameap/gameap/internal/api/filemanager/createarchive"
 	filemanagercreatedirectory "github.com/gameap/gameap/internal/api/filemanager/createdirectory"
 	filemanagercreatefile "github.com/gameap/gameap/internal/api/filemanager/createfile"
 	filemanagerdelete "github.com/gameap/gameap/internal/api/filemanager/delete"
 	filemanagerdownload "github.com/gameap/gameap/internal/api/filemanager/download"
 	filemanagerdownloadarchive "github.com/gameap/gameap/internal/api/filemanager/downloadarchive"
+	filemanagerextractarchive "github.com/gameap/gameap/internal/api/filemanager/extractarchive"
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagermime"
+	filemanagerhash "github.com/gameap/gameap/internal/api/filemanager/hash"
 	"github.com/gameap/gameap/internal/api/filemanager/initialize"
 	filemanagerpaste "github.com/gameap/gameap/internal/api/filemanager/paste"
 	filemanagerrename "github.com/gameap/gameap/internal/api/filemanager/rename"
@@ -138,6 +142,7 @@ import (
 	"github.com/gameap/gameap/internal/api/users/putuser"
 	wsattach "github.com/gameap/gameap/internal/api/ws/attach"
 	wsconsole "github.com/gameap/gameap/internal/api/ws/console"
+	wsfmarchive "github.com/gameap/gameap/internal/api/ws/fmarchive"
 	wsnodemetrics "github.com/gameap/gameap/internal/api/ws/nodemetrics"
 	wsnodesmetrics "github.com/gameap/gameap/internal/api/ws/nodesmetrics"
 	wsservermetrics "github.com/gameap/gameap/internal/api/ws/servermetrics"
@@ -166,6 +171,7 @@ import (
 	"github.com/gameap/gameap/internal/services/gameexporter"
 	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
+	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
@@ -218,6 +224,7 @@ type container interface {
 	CaptchaVerifier() *captcha.Service
 	DaemonStatus() *daemon.StatusService
 	DaemonFiles() *daemon.FileService
+	DaemonArchive() *daemon.ArchiveService
 	UploadSessionService() *uploadservice.Service
 	FileManagerArchiver() *archiver.Archiver
 	FileManagerArchiveGuard() *archiver.InMemoryConcurrencyGuard
@@ -229,6 +236,7 @@ type container interface {
 	PluginRepository() repositories.PluginRepository
 	PluginLoader() *internalplugin.Loader
 	PluginScheduler() *pluginscheduler.Service
+	PluginArchiveEvents() *pluginarchive.Service
 	PluginStoreService() *pluginstore.Service
 	PluginsDir() string
 	TaskDispatcher() *taskdispatcher.Dispatcher
@@ -1039,6 +1047,53 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.DaemonFiles(),
 				c.Responder(),
+			),
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/file-manager/{server}/hash",
+			Handler: filemanagerhash.NewHandler(
+				c.ServerRepository(),
+				c.NodeRepository(),
+				c.RBAC(),
+				c.DaemonFiles(),
+				c.Responder(),
+			),
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/file-manager/{server}/archive",
+			Handler: filemanagercreatearchive.NewHandler(
+				c.ServerRepository(),
+				c.NodeRepository(),
+				c.RBAC(),
+				c.DaemonArchive(),
+				c.Responder(),
+				c.AuditLogger(),
+			),
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/file-manager/{server}/extract",
+			Handler: filemanagerextractarchive.NewHandler(
+				c.ServerRepository(),
+				c.NodeRepository(),
+				c.RBAC(),
+				c.DaemonArchive(),
+				c.Responder(),
+				c.AuditLogger(),
+			),
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/file-manager/{server}/archive-operations/{operationID}/cancel",
+			Handler: filemanagercancelarchive.NewHandler(
+				c.ServerRepository(),
+				c.NodeRepository(),
+				c.RBAC(),
+				c.DaemonArchive(),
+				c.Responder(),
+				c.AuditLogger(),
 			),
 		},
 
@@ -1868,6 +1923,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginLoader(),
 				c.PluginDispatcher(),
 				c.PluginScheduler(),
+				c.PluginArchiveEvents(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -1918,6 +1974,18 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/ws/tasks/{id}",
 			Handler: wstaskstatus.NewHandler(
 				c.DaemonTaskRepository(),
+				c.ServerRepository(),
+				c.RBAC(),
+				c.WSHub(),
+				wsOriginPatterns(c.Config()),
+				c.Responder(),
+			),
+			AllowShortLivedToken: true,
+		},
+		{
+			Method: http.MethodGet,
+			Path:   "/api/ws/servers/{server}/file-manager/archive-operations",
+			Handler: wsfmarchive.NewHandler(
 				c.ServerRepository(),
 				c.RBAC(),
 				c.WSHub(),

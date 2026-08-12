@@ -58,6 +58,11 @@ const (
 	TypeServerTaskExecutionStarted  = "server_task.execution.started"
 	TypeServerTaskExecutionFinished = "server_task.execution.finished"
 	TypeServerTaskExecutionLog      = "server_task.execution.log"
+
+	TypeArchiveProgress       = "archive.progress"
+	TypeArchiveComplete       = "archive.complete"
+	TypeDaemonArchiveRequest  = "daemon.archive.request"
+	TypeDaemonArchiveResponse = "daemon.archive.response"
 )
 
 type CacheInvalidatePayload struct {
@@ -156,6 +161,9 @@ type DaemonFileRequestPayload struct {
 	OwnerUID    int32  `json:"owner_uid,omitempty"`
 	OwnerGID    int32  `json:"owner_gid,omitempty"`
 	Mode        int32  `json:"mode,omitempty"`
+	// TimeoutSeconds overrides the owning instance's execution timeout for
+	// slow operations (e.g. hashing); capped by the owning side. 0 = default.
+	TimeoutSeconds int64 `json:"timeout_seconds,omitempty"`
 }
 
 type DaemonFileResponsePayload struct {
@@ -313,6 +321,53 @@ type ServerTaskExecutionLogPayload struct {
 	Sequence    uint64 `json:"sequence"`
 	Chunk       []byte `json:"chunk"`
 	IsFinal     bool   `json:"is_final"`
+}
+
+type ArchiveProgressEventPayload struct {
+	OperationID    string `json:"operation_id"`
+	NodeID         uint64 `json:"node_id"`
+	ServerID       uint   `json:"server_id,omitempty"`
+	Kind           string `json:"kind"`
+	FilesProcessed uint32 `json:"files_processed"`
+	FilesTotal     uint32 `json:"files_total,omitempty"`
+	BytesProcessed uint64 `json:"bytes_processed"`
+	BytesTotal     uint64 `json:"bytes_total,omitempty"`
+	CurrentEntry   string `json:"current_entry,omitempty"`
+}
+
+type ArchiveCompleteEventPayload struct {
+	OperationID    string   `json:"operation_id"`
+	NodeID         uint64   `json:"node_id"`
+	ServerID       uint     `json:"server_id,omitempty"`
+	Kind           string   `json:"kind"`
+	Success        bool     `json:"success"`
+	Error          string   `json:"error,omitempty"`
+	FilesProcessed uint32   `json:"files_processed"`
+	BytesProcessed uint64   `json:"bytes_processed"`
+	ArchiveSize    uint64   `json:"archive_size,omitempty"`
+	Skipped        []string `json:"skipped,omitempty"`
+	SkippedCount   uint32   `json:"skipped_count,omitempty"`
+	Format         string   `json:"format,omitempty"`
+}
+
+type DaemonArchiveRequestPayload struct {
+	NodeID     uint64 `json:"node_id"`
+	RequestID  string `json:"request_id"`
+	InstanceID string `json:"instance_id"`
+	Action     string `json:"action"`
+	ServerID   uint   `json:"server_id,omitempty"`
+	Kind       string `json:"kind,omitempty"`
+	Initiator  string `json:"initiator,omitempty"`
+	Data       []byte `json:"data,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+}
+
+// DaemonArchiveResponsePayload acknowledges that the session-owning instance
+// accepted or rejected an archive start/cancel dispatch; it never carries the
+// operation result, which arrives as an ArchiveCompleteEventPayload.
+type DaemonArchiveResponsePayload struct {
+	RequestID string `json:"request_id"`
+	Error     string `json:"error,omitempty"`
 }
 
 func NewMessage(channel, msgType string, payload any) (*pubsub.Message, error) {

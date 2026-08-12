@@ -25,7 +25,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, provide } from 'vue'
 import { GIcon } from '@gameap/ui'
 import HTTP from './http/axios.js'
 import EventBus from './emitter.js'
@@ -34,8 +34,10 @@ import { useFileManagerStore } from './stores/useFileManagerStore.js'
 import { useSettingsStore } from './stores/useSettingsStore.js'
 import { useMessagesStore } from './stores/useMessagesStore.js'
 import { useModalStore } from './stores/useModalStore.js'
+import { useArchiveOperationsStore } from './stores/useArchiveOperationsStore.js'
 import { useTranslate } from './composables/useTranslate.js'
 import { useWindowDropZone } from './composables/useDropZone.js'
+import { useArchiveOperationsSocket } from './composables/useArchiveOperationsSocket.js'
 
 import NavbarBlock from './components/blocks/NavbarBlock.vue'
 import Manager from './components/manager/Manager.vue'
@@ -57,6 +59,9 @@ const fm = useFileManagerStore()
 const settings = useSettingsStore()
 const messages = useMessagesStore()
 const modal = useModalStore()
+const archiveOps = useArchiveOperationsStore()
+const archiveSocket = useArchiveOperationsSocket()
+provide('fm-archive-socket', archiveSocket)
 const { lang } = useTranslate()
 
 const { isOver: dropOver } = useWindowDropZone({
@@ -238,6 +243,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     document.removeEventListener('keydown', handleGlobalKey)
+    archiveOps.clear()
     fm.resetState()
     EventBus.all.clear()
     HTTP.interceptors.request.eject(interceptorIndex.value.request)

@@ -616,3 +616,30 @@ func connectAndRegisterSession(t *testing.T, deps *serviceDeps, capabilities ...
 
 // errSentinel is a typed sentinel for tests that need a non-nil err113-safe error.
 var errSentinel = errors.New("sentinel test error")
+
+type archiveProgressCall struct {
+	nodeID   uint64
+	progress *proto.ArchiveProgress
+}
+
+type fakeArchiveProgressHandler struct {
+	mu    sync.Mutex
+	calls []archiveProgressCall
+}
+
+func (f *fakeArchiveProgressHandler) HandleArchiveProgress(
+	_ context.Context, nodeID uint64, progress *proto.ArchiveProgress,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, archiveProgressCall{nodeID: nodeID, progress: progress})
+
+	return nil
+}
+
+func (f *fakeArchiveProgressHandler) Calls() []archiveProgressCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.calls)
+}

@@ -6,6 +6,8 @@ import (
 
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/pubsub/messages"
+	"github.com/gameap/gameap/pkg/proto"
 )
 
 // TaskScheduler is the scheduler surface the gameap-scheduler host library
@@ -37,6 +39,32 @@ type NodeFileService interface {
 	Remove(ctx context.Context, node *domain.Node, path string, recursive bool) error
 	GetFileInfo(ctx context.Context, node *domain.Node, path string) (*daemon.FileDetails, error)
 	Chmod(ctx context.Context, node *domain.Node, path string, perm uint32) error
+	Hash(
+		ctx context.Context, node *domain.Node, paths []string, algorithm proto.HashAlgorithm,
+	) (*proto.HashResult, error)
+}
+
+// NodeArchiveService is the async archive surface the gameap-nodefs host
+// library delegates to. Satisfied by *daemon.ArchiveService.
+type NodeArchiveService interface {
+	StartCreate(ctx context.Context, node *domain.Node, p daemon.CreateArchiveParams) (string, error)
+	StartExtract(ctx context.Context, node *domain.Node, p daemon.ExtractArchiveParams) (string, error)
+	Cancel(ctx context.Context, node *domain.Node, operationID, reason string) error
+	GetSnapshot(operationID string) (daemon.ArchiveOpSnapshot, bool)
+	WaitCompletion(ctx context.Context, operationID string) (*messages.ArchiveCompleteEventPayload, error)
+}
+
+// ArchiveEventRegistrar records a plugin's interest in an archive operation's
+// events so progress/completion callbacks reach the right guest. Called from
+// host functions, possibly while the plugin manager lock is held:
+// implementations must never call into pkg/plugin.Manager synchronously —
+// plugin resolution happens at dispatch time.
+type ArchiveEventRegistrar interface {
+	Register(pluginID uint64, operationID string, nodeID uint64, reportProgress bool)
+	// NotifyCompleted replays a completion the caller observed after
+	// Register: fast operations can publish their final event before the
+	// registration exists, and unmatched events are dropped.
+	NotifyCompleted(operationID string, result messages.ArchiveCompleteEventPayload)
 }
 
 // NodeCommandService is the remote-node command execution surface the

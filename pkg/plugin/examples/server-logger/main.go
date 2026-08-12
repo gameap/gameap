@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/pkg/plugin/sdk/gamemods"
 	"github.com/gameap/gameap/pkg/plugin/sdk/games"
 	"github.com/gameap/gameap/pkg/plugin/sdk/log"
+	"github.com/gameap/gameap/pkg/plugin/sdk/nodefs"
 	"github.com/gameap/gameap/pkg/plugin/sdk/scheduler"
 	"github.com/gameap/gameap/pkg/plugin/sdk/servers"
 )
@@ -35,6 +36,9 @@ func init() {
 	schedulerSvc = scheduler.NewSchedulerService()
 	pluginproto.RegisterPluginService(&ServerLoggerPlugin{})
 	scheduler.RegisterScheduledTaskHandler(&scheduledTaskHandler{})
+	// Registration alone adds the optional archive_events_handler_* exports;
+	// the panel delivers events only for operations this plugin starts.
+	nodefs.RegisterArchiveEventsHandler(&archiveEventsHandler{})
 }
 
 type ServerLoggerPlugin struct {

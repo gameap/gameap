@@ -171,6 +171,7 @@
                     'lang': pageLanguage(),
                     'baseUrl': '/api/file-manager/'+$route.params.id,
                     'serverName': server?.name || '',
+                    'serverId': $route.params.id,
                     'headers':{
                         'X-Requested-With': 'XMLHttpRequest'
                     }

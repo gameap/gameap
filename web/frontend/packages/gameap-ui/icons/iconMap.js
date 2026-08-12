@@ -121,6 +121,8 @@ export const defaultIconMap = {
   "file-audio": "fa-regular fa-file-audio",
   "file-archive": "fa-solid fa-file-zipper",
   "file-zipper": "fa-solid fa-file-zipper",
+  "box-open": "fa-solid fa-box-open",
+  "fingerprint": "fa-solid fa-fingerprint",
   "folder": "fa-regular fa-folder",
   "folder-solid": "fa-solid fa-folder",
   "folder-open": "fa-regular fa-folder-open",
