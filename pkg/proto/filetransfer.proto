@@ -7,6 +7,12 @@ option go_package = "github.com/gameap/gameap/pkg/proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
+// Path convention: the daemon resolves every filesystem path in this file
+// inside the node work directory via os.Root. Leading separators and volume
+// names are stripped, so absolute paths are reinterpreted as
+// work-directory-relative rather than rejected. The single exception is
+// CreateArchiveParams.sources, which resolves relative to base_path.
+
 service FileTransferService {
   rpc UploadFile(stream UploadChunk) returns (UploadResult);
   rpc DownloadFile(DownloadRequest) returns (stream DownloadChunk);
@@ -286,6 +292,9 @@ message CreateArchiveParams {
   // Extraction-only values (ARCHIVE_FORMAT_7Z, ARCHIVE_FORMAT_RAR) are rejected here.
   ArchiveFormat format = 2;
   string base_path = 3;
+  // Resolved relative to base_path, unlike every other path in this file; the
+  // source string itself becomes the entry name inside the archive. "." (or
+  // "") stores the children of base_path without a "." entry.
   repeated string sources = 4;
   optional int32 compression_level = 5;  // unset = format default, 0 = store, 1..9
   bool follow_symlinks = 6;

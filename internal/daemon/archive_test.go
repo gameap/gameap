@@ -213,7 +213,8 @@ func TestArchiveService_StartCreate_LocalHappyPath(t *testing.T) {
 	require.NotNil(t, create)
 	assert.Equal(t, "backups/maps.zip", create.ArchivePath, "WorkPath must be stripped")
 	assert.Equal(t, "backups", create.BasePath)
-	assert.Equal(t, []string{"backups/maps"}, create.Sources)
+	assert.Equal(t, []string{"maps"}, create.Sources,
+		"the daemon resolves sources relative to base_path, so they must be rebased")
 	assert.Equal(t, "gameap", create.OwnerUser)
 	assert.Equal(t, uint64(1<<30), create.MaxTotalBytes, "config limits must fill unset params")
 	assert.Equal(t, uint32(1000), create.MaxFiles)
@@ -232,6 +233,66 @@ func TestArchiveService_StartCreate_LocalHappyPath(t *testing.T) {
 	assert.Equal(t, serverID, progress.ServerID)
 	assert.Equal(t, "create", progress.Kind)
 	assert.Equal(t, "maps/de_dust2.bsp", progress.CurrentEntry)
+}
+
+func TestArchiveService_StartCreate_SourceOutsideBaseRejected(t *testing.T) {
+	ps := memory.New()
+	t.Cleanup(func() { _ = ps.Close() })
+	s := setupArchiveService(t, ps, "inst-a")
+
+	const nodeID uint64 = 12
+	s.registry.setConnected(nodeID, true)
+	s.registry.setArchiveCapability(nodeID)
+
+	opID, err := s.service.StartCreate(testContext(t), testNode(12, "/srv"), CreateArchiveParams{
+		ArchivePath: "/srv/backups/a.zip",
+		BasePath:    "/srv/backups",
+		Sources:     []string{"/srv/maps/de_dust2.bsp"},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `source "maps/de_dust2.bsp" is outside the base path "backups"`)
+	assert.Empty(t, opID)
+	assert.Empty(t, s.gateway.Requests(), "a rejected start must never reach the gateway")
+}
+
+func TestSourceRelToBase(t *testing.T) {
+	tests := []struct {
+		name      string
+		base      string
+		src       string
+		want      string
+		wantError string
+	}{
+		{name: "source_under_base", base: "servers/x", src: "servers/x/maps", want: "maps"},
+		{name: "nested_source", base: "servers/x", src: "servers/x/maps/de_dust2.bsp", want: "maps/de_dust2.bsp"},
+		{name: "base_is_work_root", base: ".", src: "servers/x/maps", want: "servers/x/maps"},
+		{name: "source_equals_base_contributes_children", base: "servers/x", src: "servers/x", want: "."},
+		{
+			name: "source_outside_base", base: "servers/x", src: "servers/y/maps",
+			wantError: `source "servers/y/maps" is outside the base path "servers/x"`,
+		},
+		{
+			name: "sibling_prefix_is_not_inside", base: "servers/x", src: "servers/xy",
+			wantError: "is outside the base path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sourceRelToBase(tt.base, tt.src)
+
+			if tt.wantError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantError)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestArchiveService_StartCreate_NoArchiveCapability(t *testing.T) {
