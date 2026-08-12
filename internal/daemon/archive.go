@@ -546,7 +546,11 @@ func (s *ArchiveService) startDispatched(payload messages.DaemonArchiveRequestPa
 		kind:      ArchiveKind(payload.Kind),
 		initiator: payload.Initiator,
 	}
-	s.addRelay(payload.RequestID, meta)
+	if !s.tryAddRelay(payload.RequestID, meta) {
+		// A redelivered start request: the operation is already running
+		// here, launching it twice would collide on the daemon's request id.
+		return ""
+	}
 	go s.runOwned(payload.RequestID, meta, req, timeout)
 
 	return ""
@@ -701,7 +705,7 @@ func (s *ArchiveService) publishEvent(msgType, opID string, serverID uint, paylo
 		if err != nil {
 			s.logger.Error("failed to create archive event message", "error", err)
 
-			return
+			continue
 		}
 
 		if err := s.ps.Publish(ctx, channel, msg); err != nil {
@@ -749,6 +753,20 @@ func (s *ArchiveService) addRelay(opID string, meta archiveRelayMeta) {
 	defer s.mu.Unlock()
 
 	s.relays[opID] = meta
+}
+
+// tryAddRelay inserts the relay entry unless one already exists, making
+// duplicate dispatch deliveries a no-op.
+func (s *ArchiveService) tryAddRelay(opID string, meta archiveRelayMeta) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.relays[opID]; exists {
+		return false
+	}
+	s.relays[opID] = meta
+
+	return true
 }
 
 func (s *ArchiveService) removeRelay(opID string) {

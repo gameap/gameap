@@ -260,6 +260,7 @@ const en = {
             overwrite: 'Overwrite existing archive',
             invalidExtension: 'Name must end with a supported archive extension',
             itemsToArchive: 'Items to archive:',
+            noSelected: 'Nothing selected to archive!',
         },
         unzip: {
             title: 'Unpack archive',
@@ -273,6 +274,7 @@ const en = {
             conflictError: 'Stop with error',
             conflictSkip: 'Skip existing',
             conflictOverwrite: 'Overwrite',
+            noSelected: 'No archive selected!',
         },
         hash: {
             title: 'File checksums',

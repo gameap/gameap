@@ -61,6 +61,10 @@ type NodeArchiveService interface {
 // plugin resolution happens at dispatch time.
 type ArchiveEventRegistrar interface {
 	Register(pluginID uint64, operationID string, nodeID uint64, reportProgress bool)
+	// NotifyCompleted replays a completion the caller observed after
+	// Register: fast operations can publish their final event before the
+	// registration exists, and unmatched events are dropped.
+	NotifyCompleted(operationID string, result messages.ArchiveCompleteEventPayload)
 }
 
 // NodeCommandService is the remote-node command execution surface the

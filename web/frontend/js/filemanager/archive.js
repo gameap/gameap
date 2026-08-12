@@ -10,7 +10,9 @@ export const CREATE_FORMATS = [
     { value: 'tar_zstd', suffix: '.tar.zst' },
 ]
 
-// Longest-first so "backup.tar.gz" matches ".tar.gz" before ".gz".
+// Ordering invariant: a compound suffix must precede every shorter suffix
+// it ends with ('.tar.gz' before '.gz'), so "backup.tar.gz" matches the
+// compound form; unrelated suffixes are not globally length-sorted.
 export const EXTRACT_SUFFIXES = [
     '.tar.bz2',
     '.tar.gz',

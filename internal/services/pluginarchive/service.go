@@ -25,6 +25,10 @@ const (
 	defaultCompletionCallTimeout = 30 * time.Second
 	defaultBusyRetryDelay        = 2 * time.Second
 	defaultBusyRetries           = 5
+
+	// deliverLoopMaxLifetime exceeds the daemon's 24h archive timeout cap
+	// plus generous slack for the panel-side completion grace.
+	deliverLoopMaxLifetime = 25 * time.Hour
 )
 
 type Options struct {
@@ -77,7 +81,10 @@ type Service struct {
 
 	mu      sync.Mutex
 	regs    map[string]*registration
+	stopped bool
 	baseCtx context.Context
+
+	deliveryWG sync.WaitGroup
 }
 
 func New(
@@ -132,10 +139,48 @@ func (s *Service) Register(pluginID uint64, operationID string, nodeID uint64, r
 	}
 
 	s.mu.Lock()
+	if s.stopped {
+		s.mu.Unlock()
+
+		return
+	}
 	s.regs[operationID] = reg
+	s.deliveryWG.Add(1)
 	s.mu.Unlock()
 
 	go s.deliverLoop(operationID, reg)
+}
+
+// NotifyCompleted replays a completion the caller observed right after
+// registering: a fast operation may publish its final event before Register
+// runs, and the pub/sub handler drops events of unknown operations. The
+// capacity-1 completion channel dedupes against a concurrently arriving
+// event; the delivery loop consumes at most one.
+func (s *Service) NotifyCompleted(operationID string, result messages.ArchiveCompleteEventPayload) {
+	reg, ok := s.lookup(operationID)
+	if !ok {
+		return
+	}
+
+	select {
+	case reg.completeCh <- result:
+	default:
+	}
+}
+
+// Stop prevents new registrations and waits for the in-flight delivery
+// goroutines (including a callback currently executing inside a guest) to
+// finish. Called during shutdown before the plugin manager closes the wasm
+// runtimes.
+func (s *Service) Stop() {
+	s.mu.Lock()
+	s.stopped = true
+	for _, reg := range s.regs {
+		reg.stop()
+	}
+	s.mu.Unlock()
+
+	s.deliveryWG.Wait()
 }
 
 // RemovePlugin drops every registration of the plugin; used on uninstall so
@@ -182,7 +227,10 @@ func (s *Service) onMessage(_ context.Context, msg *pubsub.Message) error {
 			return nil
 		}
 
-		for {
+		// Keep-latest with a bounded number of attempts: each retry may
+		// evict one queued event; losing this event to a concurrent
+		// publisher is fine — that publisher carried a fresher one.
+		for range 2 {
 			select {
 			case reg.progressCh <- payload:
 				return nil
@@ -193,6 +241,8 @@ func (s *Service) onMessage(_ context.Context, msg *pubsub.Message) error {
 			default:
 			}
 		}
+
+		return nil
 
 	case messages.TypeArchiveComplete:
 		payload, err := messages.ParsePayload[messages.ArchiveCompleteEventPayload](msg)
@@ -215,13 +265,26 @@ func (s *Service) onMessage(_ context.Context, msg *pubsub.Message) error {
 }
 
 func (s *Service) deliverLoop(operationID string, reg *registration) {
+	defer s.deliveryWG.Done()
 	defer s.drop(operationID)
+
+	// A hard lifetime bound: if the completion event never arrives (the
+	// session-owning panel instance died mid-operation), the registration
+	// must not leak until restart. Kept above the daemon's 24h operation cap.
+	lifetime := time.NewTimer(deliverLoopMaxLifetime)
+	defer lifetime.Stop()
 
 	for {
 		select {
 		case <-reg.stopCh:
 			return
 		case <-s.baseCtx.Done():
+			return
+		case <-lifetime.C:
+			s.logger.Warn("archive delivery expired without a completion event",
+				slog.Uint64("plugin_id", reg.pluginID),
+				slog.String("operation_id", operationID))
+
 			return
 		case payload := <-reg.progressCh:
 			s.deliverProgress(reg, payload)
@@ -261,7 +324,7 @@ func (s *Service) deliverProgress(reg *registration, payload messages.ArchivePro
 		return
 	}
 
-	s.handleGuestCallError(callCtx, reg, lp, err, "archive progress")
+	s.handleGuestCallError(callCtx.Err() != nil, reg, lp, err, "archive progress")
 }
 
 func (s *Service) deliverComplete(reg *registration, payload messages.ArchiveCompleteEventPayload) {
@@ -292,6 +355,10 @@ func (s *Service) deliverComplete(reg *registration, payload messages.ArchiveCom
 	for attempt := range attempts {
 		callCtx, cancel := context.WithTimeout(context.WithoutCancel(s.baseCtx), s.opts.CompletionCallTimeout)
 		_, err := handler.HandleArchiveCompleted(callCtx, request)
+		// The timeout state must be captured before cancel(): afterwards
+		// callCtx.Err() is always non-nil and an ordinary guest error would
+		// masquerade as a timeout.
+		timedOut := callCtx.Err() != nil
 		cancel()
 
 		if err == nil {
@@ -299,7 +366,7 @@ func (s *Service) deliverComplete(reg *registration, payload messages.ArchiveCom
 		}
 
 		if !errors.Is(err, pkgplugin.ErrPluginBusy) {
-			s.handleGuestCallError(callCtx, reg, lp, err, "archive completion")
+			s.handleGuestCallError(timedOut, reg, lp, err, "archive completion")
 
 			return
 		}
@@ -327,9 +394,9 @@ func (s *Service) deliverComplete(reg *registration, payload messages.ArchiveCom
 // the guest closes the module (WithCloseOnContextDone), so the plugin is
 // disabled until reload; any other guest error is only logged.
 func (s *Service) handleGuestCallError(
-	callCtx context.Context, reg *registration, lp *pkgplugin.LoadedPlugin, err error, kind string,
+	timedOut bool, reg *registration, lp *pkgplugin.LoadedPlugin, err error, kind string,
 ) {
-	if callCtx.Err() != nil && s.baseCtx.Err() == nil {
+	if timedOut && s.baseCtx.Err() == nil {
 		lp.Disable()
 		s.logger.Error(kind+" callback timed out, plugin disabled until reload",
 			slog.Uint64("plugin_id", reg.pluginID),

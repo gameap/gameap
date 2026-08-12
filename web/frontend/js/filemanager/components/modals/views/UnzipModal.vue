@@ -1,7 +1,7 @@
 <template>
     <div>
         <div v-if="!archiveItem" class="text-red-500 dark:text-red-400">
-            {{ lang.modal.hash.noSelected }}
+            {{ lang.modal.unzip.noSelected }}
         </div>
         <div v-else>
             <div class="mb-3">
@@ -92,15 +92,15 @@ async function submit() {
 
     submitting.value = true
 
-    if (archiveSocket) {
-        await archiveSocket.connectAndWait()
-    }
-
     const currentDir = fm.selectedDirectory || ''
     const toNew = target.value === 'new'
     const destination = toNew ? joinPath(currentDir, sanitizeName(folderName.value)) : currentDir
 
     try {
+        if (archiveSocket) {
+            await archiveSocket.connectAndWait()
+        }
+
         const response = await POST.extract({
             disk: fm.selectedDisk,
             path: archiveItem.value.path,

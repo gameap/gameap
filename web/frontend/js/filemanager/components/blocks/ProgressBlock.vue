@@ -81,7 +81,7 @@
                 {{ lang.btn.close }}
             </button>
         </div>
-        <div v-else class="flex items-center gap-3 px-3 py-2">
+        <div v-else-if="progressBar > 0 || label" class="flex items-center gap-3 px-3 py-2">
             <GIcon name="download" class="text-sky-500 shrink-0" />
             <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between mb-1">

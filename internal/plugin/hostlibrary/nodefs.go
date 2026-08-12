@@ -28,6 +28,11 @@ const filesPermissionDeniedMessage = "plugin permission " + string(domain.Plugin
 // completed=false.
 const syncWaitGuestDeadlineGrace = 2 * time.Second
 
+// defaultSyncWaitBudget applies when the request names no timeout and the
+// context carries no deadline (the wrapper always sets one in production);
+// without it such a call would answer completed=false immediately.
+const defaultSyncWaitBudget = 30 * time.Second
+
 type NodeFSServiceImpl struct {
 	pluginID    uint64
 	fileService NodeFileService
@@ -526,7 +531,7 @@ func (s *NodeFSServiceImpl) startCreate(
 		return "", err.Error()
 	}
 
-	s.events.Register(s.pluginID, operationID, req.NodeId, reportProgress)
+	s.registerEvents(operationID, req.NodeId, reportProgress)
 
 	return operationID, ""
 }
@@ -567,9 +572,20 @@ func (s *NodeFSServiceImpl) startExtract(
 		return "", err.Error()
 	}
 
-	s.events.Register(s.pluginID, operationID, req.NodeId, reportProgress)
+	s.registerEvents(operationID, req.NodeId, reportProgress)
 
 	return operationID, ""
+}
+
+// registerEvents records the callback interest and replays a completion that
+// beat the registration: the operation runs concurrently with this host call
+// and a small archive can publish its final event first.
+func (s *NodeFSServiceImpl) registerEvents(operationID string, nodeID uint64, reportProgress bool) {
+	s.events.Register(s.pluginID, operationID, nodeID, reportProgress)
+
+	if snapshot, ok := s.archive.GetSnapshot(operationID); ok && snapshot.Result != nil {
+		s.events.NotifyCompleted(operationID, *snapshot.Result)
+	}
 }
 
 // waitSync blocks until the operation completes or the wait budget runs out.
@@ -593,8 +609,12 @@ func (s *NodeFSServiceImpl) waitSync(
 		if budget <= 0 || remaining < budget {
 			budget = remaining
 		}
+	} else if budget <= 0 {
+		budget = defaultSyncWaitBudget
 	}
 
+	// A non-positive budget here means the guest call deadline is imminent:
+	// answering now (completed=false) beats being killed mid-wait.
 	if budget <= 0 {
 		return response
 	}

@@ -103,10 +103,14 @@ export function useArchiveOperationsSocket() {
         }
     }
 
+    // The socket lives while any operation is unresolved — including stale
+    // ones: a reconnect can still deliver their archive.complete and revive
+    // them via applyProgress. It closes only once every operation is
+    // terminal or dismissed.
     watch(
-        () => ops.hasActive,
-        (active) => {
-            if (active) {
+        () => ops.hasUnresolved,
+        (unresolved) => {
+            if (unresolved) {
                 if (ws.status.value === 'disconnected') {
                     ws.connect(archiveOpsWsPath(serverId()))
                 }

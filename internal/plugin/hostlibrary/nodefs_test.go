@@ -243,8 +243,9 @@ type registrarCall struct {
 }
 
 type mockRegistrar struct {
-	mu    sync.Mutex
-	calls []registrarCall
+	mu        sync.Mutex
+	calls     []registrarCall
+	completed []messages.ArchiveCompleteEventPayload
 }
 
 func (m *mockRegistrar) Register(pluginID uint64, operationID string, nodeID uint64, reportProgress bool) {
@@ -258,11 +259,24 @@ func (m *mockRegistrar) Register(pluginID uint64, operationID string, nodeID uin
 	})
 }
 
+func (m *mockRegistrar) NotifyCompleted(_ string, result messages.ArchiveCompleteEventPayload) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.completed = append(m.completed, result)
+}
+
 func (m *mockRegistrar) Calls() []registrarCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	return append([]registrarCall(nil), m.calls...)
+}
+
+func (m *mockRegistrar) Completed() []messages.ArchiveCompleteEventPayload {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return append([]messages.ArchiveCompleteEventPayload(nil), m.completed...)
 }
 
 // errNodeRepository makes the node lookup itself fail, which is otherwise
@@ -1678,6 +1692,44 @@ func TestNodeFSService_GetArchiveOperation(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.Success)
 	assert.False(t, resp.Found)
+}
+
+func TestNodeFSService_StartCreateArchive_ReplaysCompletionThatBeatRegistration(t *testing.T) {
+	// ARRANGE: the operation finished (snapshot carries a Result) before the
+	// host library could register — the completion must be replayed.
+	repo := setupNodeFSRepo(seedTestNode)
+	archive := newMockArchiveService()
+	archive.operationID = "op-fast"
+	archive.snapshots["op-fast"] = daemon.ArchiveOpSnapshot{
+		OperationID: "op-fast",
+		NodeID:      1,
+		Initiator:   "plugin:7",
+		Status:      daemon.ArchiveOpDone,
+		Result: &messages.ArchiveCompleteEventPayload{
+			OperationID: "op-fast",
+			Success:     true,
+			Format:      "zip",
+		},
+	}
+	registrar := &mockRegistrar{}
+	svc := newArchiveNodeFSService(archive, registrar, repo)
+
+	// ACT
+	resp, err := svc.StartCreateArchive(context.Background(), &nodefs.CreateArchiveRequest{
+		NodeId:      1,
+		ArchivePath: "/srv/a.zip",
+		BasePath:    "/srv",
+		Sources:     []string{"/srv/x"},
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.True(t, resp.Success)
+	require.Len(t, registrar.Calls(), 1)
+
+	completed := registrar.Completed()
+	require.Len(t, completed, 1, "an already-finished operation must be replayed to the registrar")
+	assert.True(t, completed[0].Success)
 }
 
 func TestNodeFSService_StartCreateArchive_DaemonErrorSurfacesAsMessage(t *testing.T) {

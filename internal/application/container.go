@@ -46,6 +46,7 @@ import (
 	"github.com/gameap/gameap/internal/pubsub"
 	"github.com/gameap/gameap/internal/pubsub/dlq"
 	pubsubmemory "github.com/gameap/gameap/internal/pubsub/memory"
+	"github.com/gameap/gameap/internal/pubsub/messages"
 	pubsubpg "github.com/gameap/gameap/internal/pubsub/postgres"
 	pubsubredis "github.com/gameap/gameap/internal/pubsub/redis"
 	"github.com/gameap/gameap/internal/pubsub/retry"
@@ -300,6 +301,12 @@ func (c *Container) Shutdown() error {
 	// is explicit here.
 	if c.pluginScheduler != nil {
 		c.pluginScheduler.Stop()
+	}
+
+	// Same contract for archive event deliveries: an in-flight guest
+	// callback must finish before its runtime is closed.
+	if c.pluginArchiveEvents != nil {
+		c.pluginArchiveEvents.Stop()
 	}
 
 	for _, fn := range c.shotdownFuncs {
@@ -2179,6 +2186,10 @@ type lazyArchiveEvents struct {
 
 func (l *lazyArchiveEvents) Register(pluginID uint64, operationID string, nodeID uint64, reportProgress bool) {
 	l.container.PluginArchiveEvents().Register(pluginID, operationID, nodeID, reportProgress)
+}
+
+func (l *lazyArchiveEvents) NotifyCompleted(operationID string, result messages.ArchiveCompleteEventPayload) {
+	l.container.PluginArchiveEvents().NotifyCompleted(operationID, result)
 }
 
 // lazyTaskScheduler defers PluginScheduler resolution to call time: the

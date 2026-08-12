@@ -111,6 +111,18 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Best-effort ownership check: the registry lives on the initiating
+	// instance, so an operation known here must belong to this server and
+	// node; one started on another instance cannot be verified and passes
+	// through (the daemon matches cancels by request id within the node).
+	if snapshot, ok := h.daemonArchive.GetSnapshot(operationID); ok {
+		if snapshot.ServerID != server.ID || snapshot.NodeID != uint64(node.ID) {
+			h.responder.WriteError(ctx, rw, api.NewNotFoundError("archive operation not found"))
+
+			return
+		}
+	}
+
 	if err = h.daemonArchive.Cancel(ctx, node, operationID, cancelReason); err != nil {
 		h.responder.WriteError(ctx, rw, err)
 

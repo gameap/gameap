@@ -176,12 +176,16 @@ func startPluginServices(ctx context.Context, container *Container) {
 		slog.ErrorContext(ctx, "Failed to start plugin scheduler", slog.String("error", err.Error()))
 
 		osExit(1)
+
+		return
 	}
 
 	if err := container.PluginArchiveEvents().Start(ctx); err != nil {
 		slog.ErrorContext(ctx, "Failed to start plugin archive events", slog.String("error", err.Error()))
 
 		osExit(1)
+
+		return
 	}
 
 	if err := container.PluginLoader().LoadAll(ctx); err != nil {

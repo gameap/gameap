@@ -257,19 +257,31 @@ func TestService_ProgressCoalescesToLatest(t *testing.T) {
 	}
 	env.service.Register(testPluginDBID, testOperationID, testNodeID, true)
 
-	// ACT: the first event occupies the guest; the rest pile up and only the
-	// newest survives the coalescing channel.
-	for i := uint32(1); i <= 5; i++ {
+	// ACT: the first event occupies the guest before the burst goes out, so
+	// events 2..5 provably pile up behind a busy handler and coalesce.
+	publishProgress(t, env.pubsub, messages.ArchiveProgressEventPayload{
+		OperationID:    testOperationID,
+		FilesProcessed: 1,
+	})
+	require.Eventually(t, func() bool {
+		return len(env.instance.recordedProgress()) == 1
+	}, 2*time.Second, 10*time.Millisecond, "the first event must reach the guest")
+
+	for i := uint32(2); i <= 5; i++ {
 		publishProgress(t, env.pubsub, messages.ArchiveProgressEventPayload{
 			OperationID:    testOperationID,
 			FilesProcessed: i,
 		})
 	}
-
-	require.Eventually(t, func() bool {
-		return len(env.instance.recordedProgress()) >= 1
-	}, 2*time.Second, 10*time.Millisecond)
 	close(release)
+
+	// The coalesced survivor must be delivered before the completion is
+	// published, otherwise the loop may pick the completion first.
+	require.Eventually(t, func() bool {
+		progress := env.instance.recordedProgress()
+
+		return progress[len(progress)-1].FilesProcessed == 5
+	}, 2*time.Second, 10*time.Millisecond, "the latest progress must win")
 
 	publishComplete(t, env.pubsub, messages.ArchiveCompleteEventPayload{
 		OperationID: testOperationID,
@@ -282,10 +294,7 @@ func TestService_ProgressCoalescesToLatest(t *testing.T) {
 
 	// ASSERT
 	progress := env.instance.recordedProgress()
-	require.NotEmpty(t, progress)
 	assert.LessOrEqual(t, len(progress), 3, "intermediate progress must be dropped, not queued")
-	assert.Equal(t, uint32(5), progress[len(progress)-1].FilesProcessed,
-		"the latest progress must win")
 }
 
 func TestService_CompletionRetriesWhenBusy(t *testing.T) {
@@ -400,6 +409,80 @@ func TestService_RemovePluginStopsDelivery(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	assert.Empty(t, env.instance.recordedCompleted(),
 		"deliveries must stop after the plugin is removed")
+}
+
+func TestService_NotifyCompletedReplaysMissedCompletion(t *testing.T) {
+	// ARRANGE: the completion event of a fast operation was published (and
+	// dropped) before Register; the host library replays it from the
+	// operation snapshot.
+	env := newServiceEnv(t, nil)
+	env.service.Register(testPluginDBID, testOperationID, testNodeID, false)
+
+	// ACT
+	env.service.NotifyCompleted(testOperationID, messages.ArchiveCompleteEventPayload{
+		OperationID: testOperationID,
+		Success:     true,
+		Format:      "zip",
+	})
+
+	// ASSERT
+	require.Eventually(t, func() bool {
+		return len(env.instance.recordedCompleted()) == 1
+	}, 2*time.Second, 10*time.Millisecond, "the replayed completion must reach the guest")
+	assert.True(t, env.instance.recordedCompleted()[0].Success)
+}
+
+func TestService_StopWaitsForInFlightDelivery(t *testing.T) {
+	// ARRANGE: a completion callback is executing inside the guest when
+	// Stop is called; Stop must wait for it instead of racing the runtime
+	// teardown.
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	env := newServiceEnv(t, nil)
+	env.instance.completeFunc = func(context.Context, *nodefs.HandleArchiveCompletedRequest) error {
+		close(entered)
+		<-release
+
+		return nil
+	}
+	env.service.Register(testPluginDBID, testOperationID, testNodeID, false)
+
+	publishComplete(t, env.pubsub, messages.ArchiveCompleteEventPayload{
+		OperationID: testOperationID,
+		Success:     true,
+	})
+	<-entered
+
+	stopDone := make(chan struct{})
+	go func() {
+		env.service.Stop()
+		close(stopDone)
+	}()
+
+	// ASSERT: Stop blocks while the guest call runs...
+	select {
+	case <-stopDone:
+		t.Fatal("Stop must wait for the in-flight delivery")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	// ...and returns once it finishes.
+	close(release)
+	select {
+	case <-stopDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop must return after the delivery finishes")
+	}
+
+	// New registrations are rejected after Stop.
+	env.service.Register(testPluginDBID, "op-after-stop", testNodeID, false)
+	env.service.NotifyCompleted("op-after-stop", messages.ArchiveCompleteEventPayload{
+		OperationID: "op-after-stop",
+		Success:     true,
+	})
+	time.Sleep(50 * time.Millisecond)
+	assert.Len(t, env.instance.recordedCompleted(), 1,
+		"registrations after Stop must not deliver")
 }
 
 func TestService_GuestDeadlineDisablesPlugin(t *testing.T) {

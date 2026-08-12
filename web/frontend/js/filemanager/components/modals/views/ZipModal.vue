@@ -1,7 +1,7 @@
 <template>
     <div>
         <div v-if="selectedItems.length === 0" class="text-red-500 dark:text-red-400">
-            {{ lang.modal.hash.noSelected }}
+            {{ lang.modal.zip.noSelected }}
         </div>
         <div v-else>
             <div class="mb-3">
@@ -135,15 +135,15 @@ async function submit() {
 
     submitting.value = true
 
-    // Subscribe before starting: small archives finish faster than a
-    // late-connecting socket would attach.
-    if (archiveSocket) {
-        await archiveSocket.connectAndWait()
-    }
-
     const archiveName = sanitizeName(name.value)
 
     try {
+        // Subscribe before starting: small archives finish faster than a
+        // late-connecting socket would attach.
+        if (archiveSocket) {
+            await archiveSocket.connectAndWait()
+        }
+
         const response = await POST.archive({
             disk: fm.selectedDisk,
             path: fm.selectedDirectory || '',

@@ -55,8 +55,12 @@
                             <span
                                 v-else
                                 class="fm-hash-value font-mono text-xs break-all cursor-pointer"
+                                role="button"
+                                tabindex="0"
                                 :title="lang.modal.hash.copyHint"
                                 @click="copyHash(item)"
+                                @keydown.enter.prevent="copyHash(item)"
+                                @keydown.space.prevent="copyHash(item)"
                             >
                                 {{ item.hash }}
                                 <span v-if="copiedPath === item.path" class="ml-1 text-green-600 dark:text-green-400">
@@ -185,7 +189,12 @@ defineExpose({
     }
 }
 
-.fm-hash-value:hover {
+.fm-hash-value:hover,
+.fm-hash-value:focus-visible {
     @apply text-sky-600 dark:text-sky-400;
+}
+
+.fm-hash-value:focus-visible {
+    @apply outline outline-1 outline-sky-500 rounded-sm;
 }
 </style>

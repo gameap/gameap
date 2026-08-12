@@ -1138,7 +1138,8 @@
       delivered over the
       `/api/ws/servers/{server}/file-manager/archive-operations`
       WebSocket endpoint. The archive format is detected from magic bytes
-      or the file extension unless `format` is given. Entries resolving
+      or the file extension unless `format` is given. Entry permission
+      modes stored in the archive are restored. Entries resolving
       outside `destination` are rejected by the daemon. The daemon node
       must announce the `archive` capability.
     operationId: extractFileManagerArchive

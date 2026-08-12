@@ -221,4 +221,14 @@ func TestHandler_SubscribedClientReceivesServerArchiveFrames(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "op-own", payload["operation_id"],
 		"frames of other servers must never reach this socket")
+
+	// The foreign broadcast preceded the own one; if it had been delivered
+	// it would already be queued — a second read must find nothing.
+	silenceCtx, silenceCancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer silenceCancel()
+
+	_, _, err = conn.Read(silenceCtx)
+	require.Error(t, err, "no further frame may arrive")
+	assert.ErrorIs(t, err, context.DeadlineExceeded,
+		"the read must fail by timing out, not by receiving a foreign frame")
 }

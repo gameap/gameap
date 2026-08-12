@@ -22,6 +22,12 @@ export const useArchiveOperationsStore = defineStore('fm-archive-ops', () => {
         operations.value.filter((op) => ACTIVE_STATUSES.includes(op.status)),
     )
     const hasActive = computed(() => activeOperations.value.length > 0)
+    // Stale operations may still resolve if the socket reconnects, so they
+    // keep the WebSocket lifecycle alive until dismissed.
+    const unresolvedOperations = computed(() =>
+        operations.value.filter((op) => ACTIVE_STATUSES.includes(op.status) || op.status === 'stale'),
+    )
+    const hasUnresolved = computed(() => unresolvedOperations.value.length > 0)
     const visibleOperations = computed(() => operations.value)
 
     function find(id) {
@@ -134,6 +140,8 @@ export const useArchiveOperationsStore = defineStore('fm-archive-ops', () => {
         operations,
         activeOperations,
         hasActive,
+        unresolvedOperations,
+        hasUnresolved,
         visibleOperations,
         add,
         applyProgress,

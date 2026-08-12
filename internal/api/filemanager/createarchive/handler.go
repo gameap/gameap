@@ -238,7 +238,7 @@ func (h *Handler) validateRequest(req *createArchiveRequest) (proto.ArchiveForma
 		)
 	}
 
-	base := normalizeRel(req.Path)
+	basePath := normalizeRel(req.Path)
 	for _, src := range req.Sources {
 		if err := filemanagerpath.ValidatePath(src); err != nil {
 			return 0, err
@@ -246,7 +246,7 @@ func (h *Handler) validateRequest(req *createArchiveRequest) (proto.ArchiveForma
 		if filemanagerpath.IsRoot(src) {
 			return 0, filemanagerpath.ErrPathIsRoot
 		}
-		if !isWithinBase(base, normalizeRel(src)) {
+		if !isWithinBase(basePath, normalizeRel(src)) {
 			return 0, errors.Errorf("source %q is outside the base path %q", src, req.Path)
 		}
 	}

@@ -21,6 +21,13 @@ const (
 	// fileHashDispatchTimeout bounds cross-instance hash operations: hashing
 	// large files takes far longer than the ordinary 30s dispatch cycle.
 	fileHashDispatchTimeout = 5 * time.Minute
+	// dispatchResponseGrace is how much longer the initiator waits than the
+	// owning side executes, so a response produced at the execution deadline
+	// still lands within the wait.
+	dispatchResponseGrace = 5 * time.Second
+	// dispatchPublishTimeout bounds publishing a response on its own context:
+	// the execution context may already be exhausted by the operation itself.
+	dispatchPublishTimeout = 10 * time.Second
 )
 
 type fileDispatcher struct {
@@ -236,7 +243,9 @@ func (d *fileDispatcher) DispatchFileOperation(
 		Data:       reqData,
 	}
 	if req.Operation == proto.FileOperationType_FILE_OPERATION_TYPE_HASH {
-		timeout = fileHashDispatchTimeout
+		// The owning side executes for at most TimeoutSeconds; waiting a
+		// grace longer keeps a deadline-produced response receivable.
+		timeout = fileHashDispatchTimeout + dispatchResponseGrace
 		payload.TimeoutSeconds = int64(fileHashDispatchTimeout / time.Second)
 	}
 
@@ -328,7 +337,13 @@ func (d *fileDispatcher) executeAndRespond(payload messages.DaemonFileRequestPay
 		return
 	}
 
-	if err := d.ps.Publish(ctx, channel, msg); err != nil {
+	// The execution context may be exhausted by the operation itself; the
+	// response must still reach the initiator, so it goes out on its own
+	// short-lived context.
+	pubCtx, pubCancel := context.WithTimeout(context.Background(), dispatchPublishTimeout)
+	defer pubCancel()
+
+	if err := d.ps.Publish(pubCtx, channel, msg); err != nil {
 		d.logger.Error("failed to publish file response",
 			"request_id", payload.RequestID,
 			"error", err,

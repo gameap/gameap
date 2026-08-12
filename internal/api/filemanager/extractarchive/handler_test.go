@@ -286,6 +286,17 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:      "path contains invalid directory traversal",
 		},
 		{
+			name: "traversal_in_archive_path_rejected",
+			requestBody: extractArchiveRequest{
+				Disk:        "server",
+				Path:        "../outside/a.zip",
+				Destination: "out",
+			},
+			setupStarter:   func() *mockArchiveStarter { return &mockArchiveStarter{} },
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "path contains invalid directory traversal",
+		},
+		{
 			name: "unknown_format_rejected",
 			requestBody: extractArchiveRequest{
 				Disk:        "server",

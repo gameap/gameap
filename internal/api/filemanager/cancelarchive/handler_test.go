@@ -63,17 +63,26 @@ var testNode = domain.Node{
 }
 
 type mockArchiveCanceler struct {
-	cancelFunc func(ctx context.Context, node *domain.Node, operationID, reason string) error
+	cancelFunc  func(ctx context.Context, node *domain.Node, operationID, reason string) error
+	snapshots   map[string]daemon.ArchiveOpSnapshot
+	cancelCalls int
 }
 
 func (m *mockArchiveCanceler) Cancel(
 	ctx context.Context, node *domain.Node, operationID, reason string,
 ) error {
+	m.cancelCalls++
 	if m.cancelFunc != nil {
 		return m.cancelFunc(ctx, node, operationID, reason)
 	}
 
 	return nil
+}
+
+func (m *mockArchiveCanceler) GetSnapshot(operationID string) (daemon.ArchiveOpSnapshot, bool) {
+	snapshot, ok := m.snapshots[operationID]
+
+	return snapshot, ok
 }
 
 func newTestServer(dsid uint) *domain.Server {
@@ -187,6 +196,39 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectedStatus: http.StatusBadGateway,
 			wantError:      "Bad Gateway",
 		},
+		{
+			name:        "operation_of_another_server_is_rejected",
+			operationID: "op-foreign",
+			setupCanceler: func() *mockArchiveCanceler {
+				return &mockArchiveCanceler{
+					snapshots: map[string]daemon.ArchiveOpSnapshot{
+						"op-foreign": {OperationID: "op-foreign", ServerID: 42, NodeID: 1},
+					},
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+			wantError:      "archive operation not found",
+		},
+		{
+			name:        "operation_of_this_server_passes_the_ownership_check",
+			operationID: "op-own",
+			setupCanceler: func() *mockArchiveCanceler {
+				return &mockArchiveCanceler{
+					snapshots: map[string]daemon.ArchiveOpSnapshot{
+						"op-own": {OperationID: "op-own", ServerID: 1, NodeID: 1},
+					},
+				}
+			},
+			expectedStatus: http.StatusAccepted,
+		},
+		{
+			name:        "operation_unknown_on_this_instance_passes_through",
+			operationID: "op-elsewhere",
+			setupCanceler: func() *mockArchiveCanceler {
+				return &mockArchiveCanceler{}
+			},
+			expectedStatus: http.StatusAccepted,
+		},
 	}
 
 	for _, tt := range tests {
@@ -195,7 +237,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
-			handler := NewHandler(serverRepo, nodeRepo, rbacService, tt.setupCanceler(), api.NewResponder(), nil)
+			canceler := tt.setupCanceler()
+			handler := NewHandler(serverRepo, nodeRepo, rbacService, canceler, api.NewResponder(), nil)
 
 			setupRepo(t, serverRepo, nodeRepo, rbacRepo)
 
@@ -216,6 +259,12 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 			assert.Equal(t, tt.expectedStatus, w.Code, "body=%s", w.Body.String())
 
+			// 4xx from validation or the ownership check happens before the
+			// daemon is contacted; a 502 comes from Cancel itself.
+			if tt.expectedStatus == http.StatusBadRequest || tt.expectedStatus == http.StatusNotFound {
+				assert.Zero(t, canceler.cancelCalls, "a rejected request must never reach Cancel")
+			}
+
 			if tt.wantError != "" {
 				var response map[string]any
 				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
@@ -226,6 +275,61 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandler_UserWithoutFilesAbility_Returns403(t *testing.T) {
+	// ARRANGE: server and node exist, but no files ability is granted.
+	serverRepo := inmemory.NewServerRepository()
+	nodeRepo := inmemory.NewNodeRepository()
+	rbacRepo := inmemory.NewRBACRepository()
+	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+	require.NoError(t, serverRepo.Save(context.Background(), newTestServer(1)))
+	serverRepo.AddUserServer(1, 1)
+	node := testNode
+	require.NoError(t, nodeRepo.Save(context.Background(), &node))
+
+	canceler := &mockArchiveCanceler{}
+	handler := NewHandler(serverRepo, nodeRepo, rbacService, canceler, api.NewResponder(), nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/file-manager/1/archive-operations/op-1/cancel", nil)
+	req = req.WithContext(authenticatedSession(&testUser1))
+	req = mux.SetURLVars(req, map[string]string{"server": "1", "operationID": "op-1"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	assert.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
+	assert.Zero(t, canceler.cancelCalls, "an unauthorized request must never reach Cancel")
+}
+
+func TestHandler_NodeNotFound_Returns404(t *testing.T) {
+	// ARRANGE: the server references a node that does not exist.
+	serverRepo := inmemory.NewServerRepository()
+	nodeRepo := inmemory.NewNodeRepository()
+	rbacRepo := inmemory.NewRBACRepository()
+	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+	require.NoError(t, serverRepo.Save(context.Background(), newTestServer(999)))
+	serverRepo.AddUserServer(1, 1)
+	allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+	canceler := &mockArchiveCanceler{}
+	handler := NewHandler(serverRepo, nodeRepo, rbacService, canceler, api.NewResponder(), nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/file-manager/1/archive-operations/op-1/cancel", nil)
+	req = req.WithContext(authenticatedSession(&testUser1))
+	req = mux.SetURLVars(req, map[string]string{"server": "1", "operationID": "op-1"})
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
+	assert.Zero(t, canceler.cancelCalls)
 }
 
 func TestHandler_Audit_SuccessfulCancelIsRecorded(t *testing.T) {
