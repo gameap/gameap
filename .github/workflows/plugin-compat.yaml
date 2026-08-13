@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ '*' ]
 
+# Least privilege: the workflow only checks out code and runs tests.
+permissions:
+  contents: read
+
 jobs:
   compat:
     name: compatrust @ ${{ matrix.panel-ref }}
@@ -28,6 +32,7 @@ jobs:
         with:
           ref: ${{ matrix.panel-ref == 'HEAD' && github.sha || matrix.panel-ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       # The compatrust test package (Go tests + wasm fixtures) always comes
       # from the commit that triggered this workflow, so it lives in the
@@ -41,6 +46,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           path: head-src
+          persist-credentials: false
 
       # Overlay: replace whatever the release tag has at
       # pkg/plugin/compatrust (normally nothing) with the package from HEAD.
