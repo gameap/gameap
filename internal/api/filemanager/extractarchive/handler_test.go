@@ -21,7 +21,6 @@ import (
 	"github.com/gameap/gameap/pkg/proto"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -108,7 +107,7 @@ func allowUserFilesAbility(t *testing.T, rbacRepo *inmemory.RBACRepository, user
 
 	ability := &domain.Ability{
 		Name:       domain.AbilityNameGameServerFiles,
-		EntityType: lo.ToPtr(domain.EntityTypeServer),
+		EntityType: new(domain.EntityTypeServer),
 		EntityID:   new(serverID),
 	}
 	require.NoError(t, rbacRepo.SaveAbility(context.Background(), ability))
@@ -116,7 +115,7 @@ func allowUserFilesAbility(t *testing.T, rbacRepo *inmemory.RBACRepository, user
 	permission := &domain.Permission{
 		AbilityID:  ability.ID,
 		EntityID:   new(userID),
-		EntityType: lo.ToPtr(domain.EntityTypeUser),
+		EntityType: new(domain.EntityTypeUser),
 		Forbidden:  false,
 	}
 	require.NoError(t, rbacRepo.SavePermission(context.Background(), permission))

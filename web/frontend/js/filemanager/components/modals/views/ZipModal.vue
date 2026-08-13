@@ -136,6 +136,17 @@ async function submit() {
     submitting.value = true
 
     const archiveName = sanitizeName(name.value)
+    // Snapshot the store-derived inputs before the socket await: the
+    // selection or directory can change underneath while it connects.
+    const disk = fm.selectedDisk
+    const path = fm.selectedDirectory || ''
+    const sources = selectedItems.value.map((item) => item.path)
+
+    if (sources.length === 0) {
+        submitting.value = false
+
+        return
+    }
 
     try {
         // Subscribe before starting: small archives finish faster than a
@@ -145,11 +156,11 @@ async function submit() {
         }
 
         const response = await POST.archive({
-            disk: fm.selectedDisk,
-            path: fm.selectedDirectory || '',
+            disk,
+            path,
             name: archiveName,
             format: derivedFormat.value,
-            sources: selectedItems.value.map((item) => item.path),
+            sources,
             ...(compressionLevel.value !== null ? { compression_level: compressionLevel.value } : {}),
             overwrite: overwrite.value,
         })
@@ -158,7 +169,7 @@ async function submit() {
             id: response.data.operation_id,
             type: 'archive',
             label: archiveName,
-            disk: fm.selectedDisk,
+            disk,
         })
         hideModal()
     } catch (e) {

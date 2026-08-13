@@ -37,7 +37,9 @@ const CREATE_SUFFIXES = [
     { suffix: '.tar.xz', value: 'tar_xz' },
     { suffix: '.tar.zst', value: 'tar_zstd' },
     { suffix: '.tgz', value: 'tar_gz' },
+    { suffix: '.tbz2', value: 'tar_bz2' },
     { suffix: '.txz', value: 'tar_xz' },
+    { suffix: '.tzst', value: 'tar_zstd' },
     { suffix: '.zip', value: 'zip' },
     { suffix: '.tar', value: 'tar' },
 ]

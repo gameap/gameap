@@ -290,6 +290,20 @@ func (s *ArchiveService) effectiveLimits(maxBytes uint64, maxFiles uint32) (uint
 	return maxBytes, maxFiles
 }
 
+// normalizeArchiveTimeout applies the daemon-mirroring default for
+// non-positive values and caps the rest, for both the local and the
+// dispatched start paths.
+func normalizeArchiveTimeout(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return archiveDefaultTimeout
+	}
+	if timeout > archiveMaxTimeout {
+		return archiveMaxTimeout
+	}
+
+	return timeout
+}
+
 func (s *ArchiveService) startOp(
 	ctx context.Context,
 	node *domain.Node,
@@ -300,13 +314,7 @@ func (s *ArchiveService) startOp(
 	nodeID := uint64(node.ID)
 	opID := idgen.New()
 
-	timeout := opts.Timeout
-	if timeout <= 0 {
-		timeout = archiveDefaultTimeout
-	}
-	if timeout > archiveMaxTimeout {
-		timeout = archiveMaxTimeout
-	}
+	timeout := normalizeArchiveTimeout(opts.Timeout)
 
 	req.RequestId = opID
 	req.Timeout = durationpb.New(timeout)
@@ -562,13 +570,7 @@ func (s *ArchiveService) startDispatched(payload messages.DaemonArchiveRequestPa
 		return "unmarshal archive request: " + err.Error()
 	}
 
-	timeout := req.GetTimeout().AsDuration()
-	if timeout <= 0 {
-		timeout = archiveDefaultTimeout
-	}
-	if timeout > archiveMaxTimeout {
-		timeout = archiveMaxTimeout
-	}
+	timeout := normalizeArchiveTimeout(req.GetTimeout().AsDuration())
 
 	meta := archiveRelayMeta{
 		nodeID:    payload.NodeID,

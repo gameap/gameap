@@ -9,9 +9,12 @@ UPDATE plugins
 SET allowed_permissions = ARRAY['files']
 WHERE allowed_permissions IS NULL;
 
+-- array_position instead of NOT ('files' = ANY(...)): with a NULL element in
+-- the array the ANY comparison yields NULL, NOT NULL stays NULL and the row
+-- would silently miss the grant.
 UPDATE plugins
 SET allowed_permissions = array_append(allowed_permissions, 'files')
-WHERE NOT ('files' = ANY(allowed_permissions));
+WHERE array_position(allowed_permissions, 'files') IS NULL;
 
 -- +goose Down
 

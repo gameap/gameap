@@ -3,3 +3,5 @@
 !/web/static/dist/.gitkeep
 /web/frontend/.env
 /web/frontend/.env.local
+/index.html
+

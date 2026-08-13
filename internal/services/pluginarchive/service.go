@@ -110,7 +110,9 @@ func New(
 }
 
 func (s *Service) Start(ctx context.Context) error {
+	s.mu.Lock()
 	s.baseCtx = ctx
+	s.mu.Unlock()
 
 	if err := s.sub.Subscribe(ctx, channels.RealtimeArchiveOpAll, s.onMessage); err != nil {
 		return errors.Wrap(err, "subscribe to archive operation events")
@@ -143,6 +145,11 @@ func (s *Service) Register(pluginID uint64, operationID string, nodeID uint64, r
 		s.mu.Unlock()
 
 		return
+	}
+	// Operation ids are fresh XIDs, so a live predecessor is not expected;
+	// stopping it anyway keeps the map single-owner even if an id recurs.
+	if old, ok := s.regs[operationID]; ok {
+		old.stop()
 	}
 	s.regs[operationID] = reg
 	s.deliveryWG.Add(1)
@@ -205,11 +212,24 @@ func (s *Service) lookup(operationID string) (*registration, bool) {
 	return reg, ok
 }
 
-func (s *Service) drop(operationID string) {
+// dropIf removes the map entry only while it still belongs to reg, so an
+// exiting superseded goroutine cannot delete its replacement's registration.
+func (s *Service) dropIf(operationID string, reg *registration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.regs, operationID)
+	if s.regs[operationID] == reg {
+		delete(s.regs, operationID)
+	}
+}
+
+// ctx returns the base context under the lock: Start may overlap with an
+// early Register whose delivery goroutine reads it.
+func (s *Service) ctx() context.Context {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.baseCtx
 }
 
 // onMessage feeds the per-operation channels; per the pubsub.Handler
@@ -266,7 +286,9 @@ func (s *Service) onMessage(_ context.Context, msg *pubsub.Message) error {
 
 func (s *Service) deliverLoop(operationID string, reg *registration) {
 	defer s.deliveryWG.Done()
-	defer s.drop(operationID)
+	defer s.dropIf(operationID, reg)
+
+	baseCtx := s.ctx()
 
 	// A hard lifetime bound: if the completion event never arrives (the
 	// session-owning panel instance died mid-operation), the registration
@@ -278,7 +300,7 @@ func (s *Service) deliverLoop(operationID string, reg *registration) {
 		select {
 		case <-reg.stopCh:
 			return
-		case <-s.baseCtx.Done():
+		case <-baseCtx.Done():
 			return
 		case <-lifetime.C:
 			s.logger.Warn("archive delivery expired without a completion event",
@@ -302,7 +324,7 @@ func (s *Service) deliverProgress(reg *registration, payload messages.ArchivePro
 		return
 	}
 
-	callCtx, cancel := context.WithTimeout(context.WithoutCancel(s.baseCtx), s.opts.ProgressCallTimeout)
+	callCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx()), s.opts.ProgressCallTimeout)
 	defer cancel()
 
 	_, err := handler.HandleArchiveProgress(callCtx, &nodefs.HandleArchiveProgressRequest{
@@ -351,9 +373,11 @@ func (s *Service) deliverComplete(reg *registration, payload messages.ArchiveCom
 		request.Error = new(payload.Error)
 	}
 
+	baseCtx := s.ctx()
+
 	attempts := 1 + s.opts.BusyRetries
 	for attempt := range attempts {
-		callCtx, cancel := context.WithTimeout(context.WithoutCancel(s.baseCtx), s.opts.CompletionCallTimeout)
+		callCtx, cancel := context.WithTimeout(context.WithoutCancel(baseCtx), s.opts.CompletionCallTimeout)
 		_, err := handler.HandleArchiveCompleted(callCtx, request)
 		// The timeout state must be captured before cancel(): afterwards
 		// callCtx.Err() is always non-nil and an ordinary guest error would
@@ -383,7 +407,7 @@ func (s *Service) deliverComplete(reg *registration, payload messages.ArchiveCom
 		select {
 		case <-reg.stopCh:
 			return
-		case <-s.baseCtx.Done():
+		case <-baseCtx.Done():
 			return
 		case <-time.After(s.opts.BusyRetryDelay):
 		}
@@ -396,7 +420,7 @@ func (s *Service) deliverComplete(reg *registration, payload messages.ArchiveCom
 func (s *Service) handleGuestCallError(
 	timedOut bool, reg *registration, lp *pkgplugin.LoadedPlugin, err error, kind string,
 ) {
-	if timedOut && s.baseCtx.Err() == nil {
+	if timedOut && s.ctx().Err() == nil {
 		lp.Disable()
 		s.logger.Error(kind+" callback timed out, plugin disabled until reload",
 			slog.Uint64("plugin_id", reg.pluginID),
