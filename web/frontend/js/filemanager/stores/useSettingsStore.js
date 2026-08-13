@@ -69,6 +69,8 @@ export const useSettingsStore = defineStore('fm-settings', () => {
             { name: 'select', icon: 'file' },
             { name: 'download', icon: 'download' },
             { name: 'downloadDir', icon: 'folder-download' },
+            { name: 'zip', icon: 'file-zipper' },
+            { name: 'unzip', icon: 'box-open' },
         ],
         [
             { name: 'copy', icon: 'copy' },
@@ -76,10 +78,6 @@ export const useSettingsStore = defineStore('fm-settings', () => {
             { name: 'rename', icon: 'edit' },
             { name: 'chmod', icon: 'lock' },
             { name: 'paste', icon: 'paste' },
-        ],
-        [
-            { name: 'zip', icon: 'file-zipper' },
-            { name: 'unzip', icon: 'box-open' },
         ],
         [
             { name: 'delete', icon: 'delete', iconClass: 'text-danger' },
