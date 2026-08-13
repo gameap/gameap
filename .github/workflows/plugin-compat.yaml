@@ -1,0 +1,88 @@
+name: Plugin Compatibility
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+  compat:
+    name: compatrust @ ${{ matrix.panel-ref }}
+    strategy:
+      # One failing panel version must not cancel the others — each leg
+      # answers a separate compatibility question.
+      fail-fast: false
+      matrix:
+        panel-ref: [ 'HEAD', 'v4.4.1', 'v4.3.5' ]
+    runs-on: ubuntu-latest
+
+    steps:
+      # The panel version under test goes into the workspace root.
+      # For HEAD this is the commit that triggered the workflow; on
+      # pull_request events github.sha is the synthetic merge commit, which
+      # the checkout action resolves the same way as its default checkout.
+      # fetch-depth: 0 keeps full history/tags available for the tag refs.
+      - name: Checkout panel (${{ matrix.panel-ref }})
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ matrix.panel-ref == 'HEAD' && github.sha || matrix.panel-ref }}
+          fetch-depth: 0
+
+      # The compatrust test package (Go tests + wasm fixtures) always comes
+      # from the commit that triggered this workflow, so it lives in the
+      # repository only on the main branch and release tags stay untouched.
+      # It is checked out into a side directory: the workspace root already
+      # holds the panel tree under test. Doing it in this order also matters —
+      # a later root checkout would `git clean` an untracked nested checkout
+      # away. github.sha is the action's default ref, so it is not repeated.
+      - name: Checkout HEAD snapshot (source of compatrust)
+        if: matrix.panel-ref != 'HEAD'
+        uses: actions/checkout@v5
+        with:
+          path: head-src
+
+      # Overlay: replace whatever the release tag has at
+      # pkg/plugin/compatrust (normally nothing) with the package from HEAD.
+      # This is the actual backward-compatibility check: current tests and
+      # current Rust plugin fixtures must compile and pass against the older
+      # panel codebase. A plain copy is used instead of
+      # `git checkout <sha> -- <path>` because on PR builds github.sha is the
+      # synthetic merge commit, which a tag checkout has not fetched.
+      - name: Overlay compatrust package from HEAD
+        if: matrix.panel-ref != 'HEAD'
+        run: |
+          rm -rf pkg/plugin/compatrust
+          cp -R head-src/pkg/plugin/compatrust pkg/plugin/compatrust
+
+      # Version-gated test files:
+      #   stubs_v44_test.go / compat_v44_test.go exercise host modules that
+      #     exist only in panel 4.4+, so they do not compile against v4.3.5.
+      #   compat_v43only_test.go asserts that plugins built with 4.4 modules
+      #     are REJECTED — an expectation that holds only on v4.3.5.
+      - name: Trim version-specific test files
+        run: |
+          if [ "${{ matrix.panel-ref }}" = "v4.3.5" ]; then
+            rm -f pkg/plugin/compatrust/stubs_v44_test.go \
+                  pkg/plugin/compatrust/compat_v44_test.go
+          else
+            rm -f pkg/plugin/compatrust/compat_v43only_test.go
+          fi
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          # go.mod of the panel version under test (root checkout), so each
+          # matrix leg gets the toolchain its panel release requires.
+          go-version-file: go.mod
+
+      - name: Set up dependencies
+        run: go mod download
+
+      # No `make frontend-stub` here (unlike test.yaml): pkg/plugin — where
+      # plugin.Manager lives — has no transitive dependency on web/static, so
+      # this package compiles against a bare checkout without the embedded
+      # frontend bundle. No services (mysql/redis/...) are needed either:
+      # the tests stub every host module in-process.
+      - name: Run plugin compatibility tests
+        run: go test -race -v -count=1 ./pkg/plugin/compatrust/...
