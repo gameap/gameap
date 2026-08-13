@@ -278,12 +278,10 @@ const en = {
         },
         hash: {
             title: 'File checksums',
-            algorithm: 'Algorithm',
             compute: 'Compute',
-            file: 'File',
-            hash: 'Checksum',
             copied: 'Copied!',
             copyHint: 'Click a checksum to copy it',
+            failed: 'Failed',
             noSelected: 'Nothing selected!',
         },
     },

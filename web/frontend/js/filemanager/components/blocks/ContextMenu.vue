@@ -152,7 +152,7 @@ function unzipRule() {
 }
 
 function hashRule() {
-    return selectedItems.value.length > 0 && selectedItems.value.every((elem) => elem.type === 'file')
+    return selectedItems.value.length === 1 && selectedItems.value[0].type === 'file'
 }
 
 function deleteRule() {
