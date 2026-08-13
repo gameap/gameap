@@ -107,6 +107,7 @@ async function setupCommonRoutes(page: Page) {
           fileEntry('config.txt'),
           fileEntry('notes.txt', 128),
           fileEntry('backup.tar.gz', 2048),
+          fileEntry('big.bin', 2 * 1024 * 1024),
         ],
       },
     }),
@@ -121,27 +122,131 @@ async function openContextMenuFor(page: Page, rowText: string, item: string) {
   await page.locator('.fm-context-menu li', { hasText: item }).click();
 }
 
-test('hash modal computes checksums for the selection', async ({ page, request }) => {
+type HashBody = { disk: string; algorithm: string; paths: string[] };
+
+// notes.txt + md5 is the designated per-item error case; everything else
+// returns a deterministic `${algorithm}-${path}-cafe` value.
+async function mockHashRoute(page: Page): Promise<HashBody[]> {
+  const hashBodies: HashBody[] = [];
+  await page.route('**/api/file-manager/1/hash', (route) => {
+    const body = route.request().postDataJSON() as HashBody;
+    hashBodies.push(body);
+    void route.fulfill({
+      json: {
+        algorithm: body.algorithm,
+        items: body.paths.map((p) =>
+          p === 'notes.txt' && body.algorithm === 'md5'
+            ? { path: p, error: 'fileNotFound', size: 0 }
+            : { path: p, hash: `${body.algorithm}-${p}-cafe`, size: 64 },
+        ),
+      },
+    });
+  });
+
+  return hashBodies;
+}
+
+test('hash modal auto-computes sha256 and md5 for a small file', async ({ page, request }) => {
   test.setTimeout(120_000);
 
   const token = await loginViaAPI(request);
   await page.addInitScript((t) => localStorage.setItem('auth_token', t), token);
 
   await setupCommonRoutes(page);
+  const hashBodies = await mockHashRoute(page);
 
-  const hashBodies: Array<Record<string, unknown>> = [];
-  await page.route('**/api/file-manager/1/hash', (route) => {
-    hashBodies.push(route.request().postDataJSON() as Record<string, unknown>);
-    void route.fulfill({
-      json: {
-        algorithm: 'md5',
-        items: [
-          { path: 'config.txt', hash: 'abc123ff', size: 64 },
-          { path: 'notes.txt', error: 'fileNotFound', size: 0 },
-        ],
-      },
-    });
-  });
+  await mountFileManager(page);
+
+  await page.locator('.fm-row--file', { hasText: 'config.txt' }).first().click();
+  await openContextMenuFor(page, 'config.txt', 'Checksums');
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('File checksums');
+
+  await expect.poll(() => hashBodies.length).toBe(2);
+  expect(hashBodies.map((b) => b.algorithm).sort()).toEqual(['md5', 'sha256']);
+  for (const body of hashBodies) {
+    expect(body.disk).toBe('server');
+    expect(body.paths).toEqual(['config.txt']);
+  }
+
+  await expect(dialog).toContainText('sha256-config.txt-cafe');
+  await expect(dialog).toContainText('md5-config.txt-cafe');
+
+  const sha1Row = dialog.locator('.fm-hash-row', { hasText: 'SHA1' });
+  await expect(sha1Row.getByRole('button', { name: 'Compute' })).toBeVisible();
+
+  const crc32Row = dialog.locator('.fm-hash-row', { hasText: 'CRC32' });
+  await crc32Row.getByRole('button', { name: 'Compute' }).click();
+
+  await expect.poll(() => hashBodies.length).toBe(3);
+  expect(hashBodies[2].algorithm).toBe('crc32');
+  expect(hashBodies[2].paths).toEqual(['config.txt']);
+  await expect(dialog).toContainText('crc32-config.txt-cafe');
+});
+
+test('hash modal computes only sha256 automatically for a large file', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+
+  const token = await loginViaAPI(request);
+  await page.addInitScript((t) => localStorage.setItem('auth_token', t), token);
+
+  await setupCommonRoutes(page);
+  const hashBodies = await mockHashRoute(page);
+
+  await mountFileManager(page);
+
+  await page.locator('.fm-row--file', { hasText: 'big.bin' }).first().click();
+  await openContextMenuFor(page, 'big.bin', 'Checksums');
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('sha256-big.bin-cafe');
+
+  expect(hashBodies.length).toBe(1);
+  expect(hashBodies[0].algorithm).toBe('sha256');
+  expect(hashBodies[0].paths).toEqual(['big.bin']);
+
+  const md5Row = dialog.locator('.fm-hash-row', { hasText: 'MD5' });
+  await expect(md5Row.getByRole('button', { name: 'Compute' })).toBeVisible();
+});
+
+test('hash modal shows a per-item error and retries on demand', async ({ page, request }) => {
+  test.setTimeout(120_000);
+
+  const token = await loginViaAPI(request);
+  await page.addInitScript((t) => localStorage.setItem('auth_token', t), token);
+
+  await setupCommonRoutes(page);
+  const hashBodies = await mockHashRoute(page);
+
+  await mountFileManager(page);
+
+  await page.locator('.fm-row--file', { hasText: 'notes.txt' }).first().click();
+  await openContextMenuFor(page, 'notes.txt', 'Checksums');
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('sha256-notes.txt-cafe');
+  await expect(dialog).toContainText('File not found!');
+  await expect.poll(() => hashBodies.length).toBe(2);
+
+  const md5Row = dialog.locator('.fm-hash-row', { hasText: 'MD5' });
+  await md5Row.getByRole('button', { name: 'Compute' }).click();
+
+  await expect.poll(() => hashBodies.length).toBe(3);
+  expect(hashBodies[2].algorithm).toBe('md5');
+  expect(hashBodies[2].paths).toEqual(['notes.txt']);
+});
+
+test('checksums menu entry requires a single file selection', async ({ page, request }) => {
+  test.setTimeout(120_000);
+
+  const token = await loginViaAPI(request);
+  await page.addInitScript((t) => localStorage.setItem('auth_token', t), token);
+
+  await setupCommonRoutes(page);
 
   await mountFileManager(page);
 
@@ -154,22 +259,11 @@ test('hash modal computes checksums for the selection', async ({ page, request }
     .locator('.fm-row--file', { hasText: 'notes.txt' })
     .first()
     .click({ button: 'right' });
-  await page.locator('.fm-context-menu li', { hasText: 'Checksums' }).click();
 
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('File checksums');
-
-  await dialog.locator('.n-select').click();
-  await page.locator('.n-base-select-option', { hasText: 'md5' }).click();
-  await dialog.getByRole('button', { name: 'Compute' }).click();
-
-  await expect.poll(() => hashBodies.length).toBe(1);
-  expect(hashBodies[0].disk).toBe('server');
-  expect(hashBodies[0].algorithm).toBe('md5');
-  expect(hashBodies[0].paths).toEqual(['config.txt', 'notes.txt']);
-
-  await expect(dialog).toContainText('abc123ff');
-  await expect(dialog).toContainText('File not found!');
+  const menu = page.locator('.fm-context-menu');
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('li', { hasText: 'Delete' })).toBeVisible();
+  await expect(menu.locator('li', { hasText: 'Checksums' })).toHaveCount(0);
 });
 
 test('create archive drives progress over WS and cancel posts the cancel endpoint', async ({

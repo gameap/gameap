@@ -2347,18 +2347,21 @@ type CreateArchiveParams struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	ArchivePath string                 `protobuf:"bytes,1,opt,name=archive_path,json=archivePath,proto3" json:"archive_path,omitempty"`
 	// Extraction-only values (ARCHIVE_FORMAT_7Z, ARCHIVE_FORMAT_RAR) are rejected here.
-	Format           ArchiveFormat `protobuf:"varint,2,opt,name=format,proto3,enum=gameap.ArchiveFormat" json:"format,omitempty"`
-	BasePath         string        `protobuf:"bytes,3,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"`
-	Sources          []string      `protobuf:"bytes,4,rep,name=sources,proto3" json:"sources,omitempty"`
-	CompressionLevel *int32        `protobuf:"varint,5,opt,name=compression_level,json=compressionLevel,proto3,oneof" json:"compression_level,omitempty"` // unset = format default, 0 = store, 1..9
-	FollowSymlinks   bool          `protobuf:"varint,6,opt,name=follow_symlinks,json=followSymlinks,proto3" json:"follow_symlinks,omitempty"`
-	Overwrite        bool          `protobuf:"varint,7,opt,name=overwrite,proto3" json:"overwrite,omitempty"`
-	Mode             int32         `protobuf:"varint,8,opt,name=mode,proto3" json:"mode,omitempty"`
-	OwnerUser        string        `protobuf:"bytes,9,opt,name=owner_user,json=ownerUser,proto3" json:"owner_user,omitempty"`
-	OwnerUid         int32         `protobuf:"varint,10,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
-	OwnerGid         int32         `protobuf:"varint,11,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
-	MaxTotalBytes    uint64        `protobuf:"varint,12,opt,name=max_total_bytes,json=maxTotalBytes,proto3" json:"max_total_bytes,omitempty"`
-	MaxFiles         uint32        `protobuf:"varint,13,opt,name=max_files,json=maxFiles,proto3" json:"max_files,omitempty"`
+	Format   ArchiveFormat `protobuf:"varint,2,opt,name=format,proto3,enum=gameap.ArchiveFormat" json:"format,omitempty"`
+	BasePath string        `protobuf:"bytes,3,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"`
+	// Resolved relative to base_path, unlike every other path in this file; the
+	// source string itself becomes the entry name inside the archive. "." (or
+	// "") stores the children of base_path without a "." entry.
+	Sources          []string `protobuf:"bytes,4,rep,name=sources,proto3" json:"sources,omitempty"`
+	CompressionLevel *int32   `protobuf:"varint,5,opt,name=compression_level,json=compressionLevel,proto3,oneof" json:"compression_level,omitempty"` // unset = format default, 0 = store, 1..9
+	FollowSymlinks   bool     `protobuf:"varint,6,opt,name=follow_symlinks,json=followSymlinks,proto3" json:"follow_symlinks,omitempty"`
+	Overwrite        bool     `protobuf:"varint,7,opt,name=overwrite,proto3" json:"overwrite,omitempty"`
+	Mode             int32    `protobuf:"varint,8,opt,name=mode,proto3" json:"mode,omitempty"`
+	OwnerUser        string   `protobuf:"bytes,9,opt,name=owner_user,json=ownerUser,proto3" json:"owner_user,omitempty"`
+	OwnerUid         int32    `protobuf:"varint,10,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
+	OwnerGid         int32    `protobuf:"varint,11,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
+	MaxTotalBytes    uint64   `protobuf:"varint,12,opt,name=max_total_bytes,json=maxTotalBytes,proto3" json:"max_total_bytes,omitempty"`
+	MaxFiles         uint32   `protobuf:"varint,13,opt,name=max_files,json=maxFiles,proto3" json:"max_files,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }

@@ -31,9 +31,16 @@ function legacyCopy(text) {
     textArea.style.boxShadow = 'none'
     textArea.style.background = 'transparent'
     textArea.style.opacity = '0'
-    document.body.appendChild(textArea)
 
     const previousActive = document.activeElement
+    // Mount next to the focused element, not on <body>: a modal focus trap
+    // (naive-ui) yanks focus back out of a body-mounted textarea before
+    // execCommand runs, which then "copies" an empty selection.
+    const host = previousActive instanceof HTMLElement && previousActive !== document.body
+        ? previousActive
+        : document.body
+    host.appendChild(textArea)
+
     const previousSelection = document.getSelection()
     const savedRange = previousSelection && previousSelection.rangeCount > 0
         ? previousSelection.getRangeAt(0)
@@ -48,7 +55,7 @@ function legacyCopy(text) {
     } catch {
         succeeded = false
     } finally {
-        document.body.removeChild(textArea)
+        textArea.remove()
         if (savedRange && previousSelection) {
             previousSelection.removeAllRanges()
             previousSelection.addRange(savedRange)

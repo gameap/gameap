@@ -1,83 +1,99 @@
 <template>
     <div>
-        <div v-if="files.length === 0" class="text-red-500 dark:text-red-400">
+        <div v-if="!file" class="text-red-500 dark:text-red-400">
             {{ lang.modal.hash.noSelected }}
         </div>
-        <div v-else-if="phase !== 'results'">
+        <div v-else>
             <div class="mb-3">
-                <div v-if="files.length === 1">
-                    <strong class="break-all">{{ files[0].basename }}</strong>
-                    <span class="ml-2 text-stone-500">{{ bytesToHuman(files[0].size) }}</span>
-                </div>
-                <div v-else>
-                    <ul class="fm-hash-file-list mb-1">
-                        <li v-for="file in files" :key="file.path" class="text-sm truncate" :title="file.path">
-                            {{ file.basename }}
-                            <span class="ml-1 text-stone-500">{{ bytesToHuman(file.size) }}</span>
-                        </li>
-                    </ul>
-                </div>
+                <strong class="break-all">{{ file.basename }}</strong>
+                <span v-if="file.size" class="ml-2 text-sm text-stone-500 dark:text-stone-400">
+                    {{ bytesToHuman(file.size) }}
+                </span>
             </div>
 
-            <div class="mb-2">
-                <label for="fm-hash-algorithm" class="block mb-1">{{ lang.modal.hash.algorithm }}</label>
-                <n-select
-                    id="fm-hash-algorithm"
-                    v-model:value="algorithm"
-                    :options="algorithmOptions"
-                    :disabled="phase === 'loading'"
-                />
+            <div
+                v-for="algo in ROW_ORDER"
+                :key="algo"
+                class="fm-hash-row grid grid-cols-[6rem_minmax(0,1fr)_auto] gap-3 items-center p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-800"
+            >
+                <strong class="text-sm">{{ algo.toUpperCase() }}</strong>
+
+                <div class="min-w-0 flex items-center">
+                    <GButton
+                        v-if="cells[algo].status === 'idle'"
+                        color="white"
+                        size="small"
+                        @click="computeAlgo(algo)"
+                    >
+                        <GIcon name="fingerprint" class="mr-1" />
+                        {{ lang.modal.hash.compute }}
+                    </GButton>
+
+                    <GIcon
+                        v-else-if="cells[algo].status === 'loading'"
+                        name="spinner"
+                        class="text-stone-500 dark:text-stone-400"
+                    />
+
+                    <template v-else-if="cells[algo].status === 'done'">
+                        <span
+                            :ref="(el) => setValueEl(algo, el)"
+                            class="fm-hash-value min-w-0 font-mono text-xs truncate cursor-pointer"
+                            role="button"
+                            tabindex="0"
+                            :title="cells[algo].value"
+                            @click="copyValue(algo)"
+                            @keydown.enter.prevent="copyValue(algo)"
+                            @keydown.space.prevent="copyValue(algo)"
+                        >
+                            {{ cells[algo].value }}
+                        </span>
+                        <span
+                            v-if="copiedAlgo === algo"
+                            class="ml-2 shrink-0 text-xs text-green-600 dark:text-green-400"
+                        >
+                            {{ lang.modal.hash.copied }}
+                        </span>
+                        <span
+                            v-else-if="manualAlgo === algo"
+                            class="ml-2 shrink-0 text-xs text-amber-600 dark:text-amber-400"
+                        >
+                            {{ lang.modal.hash.copyManual }}
+                        </span>
+                    </template>
+
+                    <template v-else>
+                        <span class="min-w-0 text-sm break-all text-red-500 dark:text-red-400">
+                            {{ errorText(algo) }}
+                        </span>
+                        <GButton
+                            color="white"
+                            size="small"
+                            class="ml-2 shrink-0"
+                            @click="computeAlgo(algo)"
+                        >
+                            {{ lang.modal.hash.compute }}
+                        </GButton>
+                    </template>
+                </div>
+
+                <div class="w-6 text-right cursor-pointer">
+                    <GIcon
+                        v-if="cells[algo].status === 'done'"
+                        name="copy"
+                        :title="lang.modal.hash.copyHint"
+                        @click="copyValue(algo)"
+                    />
+                </div>
             </div>
-        </div>
-        <div v-else>
-            <div class="mb-2 text-sm text-stone-500 dark:text-stone-400">
-                {{ lang.modal.hash.copyHint }}
-            </div>
-            <table class="fm-hash-table w-full">
-                <thead>
-                    <tr>
-                        <th class="text-left">{{ lang.modal.hash.file }}</th>
-                        <th class="text-left">{{ lang.modal.hash.hash }} ({{ resultAlgorithm }})</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="item in results" :key="item.path">
-                        <td class="align-top">
-                            <span class="break-all" :title="item.path">{{ basenameOf(item.path) }}</span>
-                            <span v-if="item.size" class="block text-xs text-stone-500">
-                                {{ bytesToHuman(item.size) }}
-                            </span>
-                        </td>
-                        <td class="align-top">
-                            <span v-if="item.error" class="text-red-500 dark:text-red-400 text-sm break-all">
-                                {{ lang.response[item.error] ?? item.error }}
-                            </span>
-                            <span
-                                v-else
-                                class="fm-hash-value font-mono text-xs break-all cursor-pointer"
-                                role="button"
-                                tabindex="0"
-                                :title="lang.modal.hash.copyHint"
-                                @click="copyHash(item)"
-                                @keydown.enter.prevent="copyHash(item)"
-                                @keydown.space.prevent="copyHash(item)"
-                            >
-                                {{ item.hash }}
-                                <span v-if="copiedPath === item.path" class="ml-1 text-green-600 dark:text-green-400">
-                                    {{ lang.modal.hash.copied }}
-                                </span>
-                            </span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { NSelect } from 'naive-ui'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { GIcon } from '@gameap/ui'
+import GButton from '@/components/GButton.vue'
 import { copyToClipboard } from '@/utils/clipboard.js'
 import POST from '../../../http/post.js'
 import { useFileManagerStore } from '../../../stores/useFileManagerStore.js'
@@ -85,110 +101,132 @@ import { useTranslate } from '../../../composables/useTranslate.js'
 import { useHelper } from '../../../composables/useHelper.js'
 import { useModal } from '../../../composables/useModal.js'
 
-const ALGORITHMS = ['md5', 'sha1', 'sha256', 'sha512', 'crc32', 'crc64']
+const ROW_ORDER = ['sha256', 'sha1', 'sha512', 'md5', 'crc32', 'crc64']
+const SMALL_FILE_BYTES = 1024 * 1024
+const AUTO_ALGOS_SMALL = ['sha256', 'md5']
+const AUTO_ALGOS_LARGE = ['sha256']
 
 const fm = useFileManagerStore()
 const { lang } = useTranslate()
 const { bytesToHuman } = useHelper()
 const { hideModal } = useModal()
 
-const phase = ref('form')
-const algorithm = ref('sha256')
-const results = ref([])
-const resultAlgorithm = ref('')
-const copiedPath = ref(null)
+// The selection is snapshotted at mount so listing refreshes cannot swap the
+// file under an open modal; the view unmounts on close, resetting everything.
+const selected = fm.selectedItems.find((item) => item.type === 'file')
+const file = selected
+    ? { path: selected.path, basename: selected.basename, size: Number(selected.size) || 0 }
+    : null
+const disk = fm.selectedDisk
 
-const files = computed(() => fm.selectedItems.filter((item) => item.type === 'file'))
+const cells = reactive(
+    Object.fromEntries(ROW_ORDER.map((algo) => [algo, { status: 'idle', value: '', error: '' }])),
+)
+const copiedAlgo = ref(null)
+const manualAlgo = ref(null)
+const abort = new AbortController()
+let copiedTimer = null
 
-const algorithmOptions = ALGORITHMS.map((value) => ({ value, label: value }))
+const valueEls = {}
 
-function basenameOf(p) {
-    return String(p || '').split('/').filter(Boolean).pop() || p
+function setValueEl(algo, el) {
+    valueEls[algo] = el
 }
 
-function compute() {
-    if (files.value.length === 0 || phase.value === 'loading') return
+function computeAlgo(algo) {
+    const cell = cells[algo]
+    if (!file || cell.status === 'loading' || cell.status === 'done') return
 
-    phase.value = 'loading'
+    cell.status = 'loading'
+    cell.value = ''
+    cell.error = ''
 
-    POST.hash({
-        disk: fm.selectedDisk,
-        paths: files.value.map((file) => file.path),
-        algorithm: algorithm.value,
-    })
+    POST.hash({ disk, paths: [file.path], algorithm: algo }, { signal: abort.signal })
         .then((response) => {
-            results.value = response.data.items || []
-            resultAlgorithm.value = response.data.algorithm || algorithm.value
-            phase.value = 'results'
+            const item = (response.data.items || []).find((it) => it.path === file.path)
+            if (!item) {
+                cell.status = 'error'
+                cell.error = 'notFound'
+            } else if (item.error) {
+                cell.status = 'error'
+                cell.error = item.error
+            } else {
+                cell.status = 'done'
+                cell.value = item.hash
+            }
         })
         .catch(() => {
             // The global interceptor already surfaced the error.
-            phase.value = 'form'
+            if (abort.signal.aborted) return
+
+            cell.status = 'error'
+            cell.error = ''
         })
 }
 
-let copiedTimer = null
+function errorText(algo) {
+    const error = cells[algo].error
+    if (!error) return lang.value.modal.hash.failed
 
-function copyHash(item) {
-    copyToClipboard(item.hash)
-    copiedPath.value = item.path
+    return lang.value.response[error] ?? error
+}
+
+async function copyValue(algo) {
+    if (cells[algo].status !== 'done') return
+
+    if (await copyToClipboard(cells[algo].value)) {
+        manualAlgo.value = null
+        copiedAlgo.value = algo
+        clearTimeout(copiedTimer)
+        copiedTimer = setTimeout(() => {
+            copiedAlgo.value = null
+        }, 1500)
+
+        return
+    }
+
+    // No clipboard access (e.g. blocked execCommand on a plain-http origin):
+    // select the value and let the user press Ctrl+C themselves.
+    selectValue(algo)
+    copiedAlgo.value = null
+    manualAlgo.value = algo
     clearTimeout(copiedTimer)
     copiedTimer = setTimeout(() => {
-        copiedPath.value = null
-    }, 1500)
+        manualAlgo.value = null
+    }, 3000)
 }
 
-function back() {
-    phase.value = 'form'
-    results.value = []
-    copiedPath.value = null
+function selectValue(algo) {
+    const el = valueEls[algo]
+    const selection = window.getSelection()
+    if (!el || !selection) return
+
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    selection.removeAllRanges()
+    selection.addRange(range)
 }
+
+onMounted(() => {
+    if (!file) return
+
+    const autoAlgos = file.size <= SMALL_FILE_BYTES ? AUTO_ALGOS_SMALL : AUTO_ALGOS_LARGE
+    autoAlgos.forEach(computeAlgo)
+})
+
+onUnmounted(() => {
+    abort.abort()
+    clearTimeout(copiedTimer)
+})
 
 defineExpose({
-    footerButtons: computed(() => {
-        if (phase.value === 'results') {
-            return [
-                { label: lang.value.btn.back, color: 'black', icon: 'chevron-left', action: back },
-                { label: lang.value.btn.close, color: 'black', icon: 'close', action: hideModal },
-            ]
-        }
-
-        return [
-            {
-                label: lang.value.modal.hash.compute,
-                color: 'green',
-                icon: 'fingerprint',
-                action: compute,
-                disabled: files.value.length === 0 || phase.value === 'loading',
-            },
-            { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
-        ]
-    }),
+    footerButtons: computed(() => [
+        { label: lang.value.btn.close, color: 'black', icon: 'close', action: hideModal },
+    ]),
 })
 </script>
 
 <style lang="scss">
-.fm-hash-file-list {
-    max-height: 10rem;
-    overflow-y: auto;
-}
-
-.fm-hash-table {
-    th,
-    td {
-        padding: 0.4rem 0.75rem;
-    }
-
-    thead th {
-        font-weight: 600;
-        @apply border-b;
-    }
-
-    tbody tr:hover {
-        @apply bg-stone-50 dark:bg-stone-800;
-    }
-}
-
 .fm-hash-value:hover,
 .fm-hash-value:focus-visible {
     @apply text-sky-600 dark:text-sky-400;

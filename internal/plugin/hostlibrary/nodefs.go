@@ -347,8 +347,11 @@ func (s *NodeFSServiceImpl) Hash(
 		return &nodefs.HashResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	// Membership check instead of comparing against UNSPECIFIED: any value
+	// outside the known set normalizes to SHA-256, and the response echoes
+	// the algorithm that actually produced the digests.
 	algorithm := req.Algorithm
-	if algorithm == nodefs.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED {
+	if _, known := hashAlgorithmsToProto[algorithm]; !known {
 		algorithm = nodefs.HashAlgorithm_HASH_ALGORITHM_SHA256
 	}
 
@@ -623,7 +626,7 @@ func (s *NodeFSServiceImpl) waitSync(
 	defer cancel()
 
 	result, err := s.archive.WaitCompletion(waitCtx, operationID)
-	if err != nil {
+	if err != nil || result == nil {
 		// Wait budget exhausted (or the registry entry vanished): the
 		// operation keeps running, the plugin polls with the operation id.
 		return response

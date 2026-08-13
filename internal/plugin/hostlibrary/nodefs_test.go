@@ -218,6 +218,10 @@ func (m *mockArchiveService) WaitCompletion(
 		return nil, m.waitErr
 	}
 
+	if m.waitResult == nil {
+		return &messages.ArchiveCompleteEventPayload{}, nil
+	}
+
 	return m.waitResult, nil
 }
 
@@ -1338,8 +1342,10 @@ func TestNodeFSHostLibraryFactory_Create(t *testing.T) {
 
 func TestNodeFSService_FilesPermissionGatesEveryOperation(t *testing.T) {
 	repo := setupNodeFSRepo(seedTestNode)
+	archive := newMockArchiveService()
+	registrar := &mockRegistrar{}
 	svc := NewNodeFSService(
-		testPluginID, &mockFileService{}, repo, newMockArchiveService(), &mockRegistrar{},
+		testPluginID, &mockFileService{}, repo, archive, registrar,
 		&stubPermissionChecker{allowed: false},
 	)
 	ctx := context.Background()
@@ -1438,6 +1444,10 @@ func TestNodeFSService_FilesPermissionGatesEveryOperation(t *testing.T) {
 			assert.Contains(t, *errMsg, "plugin permission files required")
 		})
 	}
+
+	assert.Empty(t, archive.StartCalls(), "denied operations must not reach the archive service")
+	assert.Empty(t, archive.CancelCalls(), "denied operations must not reach the archive service")
+	assert.Empty(t, registrar.Calls(), "denied operations must not register event interest")
 }
 
 func TestNodeFSService_Hash_MapsResults(t *testing.T) {

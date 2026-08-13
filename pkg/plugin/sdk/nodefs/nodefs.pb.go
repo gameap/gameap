@@ -1026,8 +1026,10 @@ type CreateArchiveRequest struct {
 	ArchivePath string        `protobuf:"bytes,2,opt,name=archive_path,json=archivePath,proto3" json:"archive_path,omitempty"`
 	Format      ArchiveFormat `protobuf:"varint,3,opt,name=format,proto3,enum=gameap.plugin.sdk.nodefs.ArchiveFormat" json:"format,omitempty"`
 	// Entry names are stored relative to base_path.
-	BasePath string   `protobuf:"bytes,4,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"`
-	Sources  []string `protobuf:"bytes,5,rep,name=sources,proto3" json:"sources,omitempty"`
+	BasePath string `protobuf:"bytes,4,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"`
+	// Absolute node paths, each must reside under base_path (the panel rebases
+	// them onto base_path for the daemon and rejects sources outside it).
+	Sources []string `protobuf:"bytes,5,rep,name=sources,proto3" json:"sources,omitempty"`
 	// Unset = format default, 0 = store, 1..9.
 	CompressionLevel *int32 `protobuf:"varint,6,opt,name=compression_level,json=compressionLevel,proto3,oneof" json:"compression_level,omitempty"`
 	Overwrite        bool   `protobuf:"varint,7,opt,name=overwrite,proto3" json:"overwrite,omitempty"`

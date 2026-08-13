@@ -499,6 +499,11 @@ Archives are created and extracted by the daemon; the node must announce the
 `archive` capability (gameap-daemon with archive support). Two API shapes are
 available:
 
+All archive paths (`archive_path`, `base_path`, `sources`, `destination`)
+are absolute node paths; every source must reside under `base_path` — entry
+names inside the archive are stored relative to it, so a source outside the
+base is rejected at start.
+
 **Blocking** — `CreateArchive`/`ExtractArchive` wait for the final result.
 `timeout_seconds` is the combined operation-and-wait budget; it is also
 capped by the guest call deadline, so on a tight budget the call answers

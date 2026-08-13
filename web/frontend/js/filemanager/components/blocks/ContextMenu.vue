@@ -15,14 +15,14 @@
               :title="editorItem.disabled ? lang.contextMenu.fileTooLarge : ''"
               @click="!editorItem.disabled && openPluginEditor(editorItem)"
           >
-            <GIcon :name="editorItem.editor.icon || 'edit'" />
+            <span class="fm-context-menu-icon"><GIcon :name="editorItem.editor.icon || 'edit'" /></span>
             {{ getEditorMenuLabel(editorItem) }}
           </li>
         </ul>
         <ul v-for="(group, index) in menu" v-bind:key="`g-${index}`" class="list-unstyled">
             <template v-for="(item, idx) in group">
                 <li v-if="showMenuItem(item.name)" v-on:click="menuAction(item.name)" v-bind:key="`i-${idx}`">
-                    <GIcon :name="item.icon" :class="item.iconClass" />
+                    <span class="fm-context-menu-icon"><GIcon :name="item.icon" :class="item.iconClass" /></span>
                     {{ lang.contextMenu[item.name] }}
                 </li>
             </template>
@@ -152,7 +152,7 @@ function unzipRule() {
 }
 
 function hashRule() {
-    return selectedItems.value.length > 0 && selectedItems.value.every((elem) => elem.type === 'file')
+    return selectedItems.value.length === 1 && selectedItems.value[0].type === 'file'
 }
 
 function deleteRule() {
@@ -410,19 +410,20 @@ onMounted(() => {
         &:hover {
           @apply bg-surface-hover;
         }
-
-        i, svg {
-            margin-right: 1.5rem;
-        }
     }
 
     ul > li.disabled {
         @apply text-stone-400 dark:text-stone-600;
         cursor: not-allowed;
+    }
 
-        i, svg {
-            margin-right: 1.5rem;
-        }
+    // Glyph widths vary between icons; a fixed-width slot keeps every label
+    // starting at the same offset.
+    .fm-context-menu-icon {
+        display: inline-block;
+        width: 1.25em;
+        margin-right: 1.5rem;
+        text-align: center;
     }
 }
 </style>

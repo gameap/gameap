@@ -103,56 +103,60 @@ func authorizedRequest(serverID string) *http.Request {
 	return req.WithContext(auth.ContextWithSession(req.Context(), &auth.Session{User: &testUser1}))
 }
 
-func TestHandler_RejectsUnauthenticated(t *testing.T) {
-	// ARRANGE
-	s := newHandlerSetup(t)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/ws/servers/1/file-manager/archive-operations", nil)
-	req = mux.SetURLVars(req, map[string]string{"server": "1"})
+func TestHandler_RejectsRequest(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, s *handlerSetup)
+		request    func() *http.Request
+		wantStatus int
+	}{
+		{
+			name: "unauthenticated_returns_401",
+			request: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/ws/servers/1/file-manager/archive-operations", nil)
 
-	// ACT
-	s.handler.ServeHTTP(rec, req)
+				return mux.SetURLVars(req, map[string]string{"server": "1"})
+			},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "invalid_server_id_returns_400",
+			request:    func() *http.Request { return authorizedRequest("abc") },
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "missing_server_returns_404",
+			request:    func() *http.Request { return authorizedRequest("999") },
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name: "user_without_files_ability_returns_403",
+			setup: func(t *testing.T, s *handlerSetup) {
+				t.Helper()
+				require.NoError(t, s.serverRepo.Save(context.Background(), newTestServer()))
+				s.serverRepo.AddUserServer(1, 1)
+			},
+			request:    func() *http.Request { return authorizedRequest("1") },
+			wantStatus: http.StatusForbidden,
+		},
+	}
 
-	// ASSERT
-	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			s := newHandlerSetup(t)
+			if tt.setup != nil {
+				tt.setup(t, s)
+			}
+			rec := httptest.NewRecorder()
 
-func TestHandler_InvalidServerID_Returns400(t *testing.T) {
-	// ARRANGE
-	s := newHandlerSetup(t)
-	rec := httptest.NewRecorder()
+			// ACT
+			s.handler.ServeHTTP(rec, tt.request())
 
-	// ACT
-	s.handler.ServeHTTP(rec, authorizedRequest("abc"))
-
-	// ASSERT
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-}
-
-func TestHandler_ServerNotFound_Returns404(t *testing.T) {
-	// ARRANGE
-	s := newHandlerSetup(t)
-	rec := httptest.NewRecorder()
-
-	// ACT
-	s.handler.ServeHTTP(rec, authorizedRequest("999"))
-
-	// ASSERT
-	assert.Equal(t, http.StatusNotFound, rec.Code)
-}
-
-func TestHandler_UserWithoutFilesAbility_Returns403(t *testing.T) {
-	// ARRANGE
-	s := newHandlerSetup(t)
-	require.NoError(t, s.serverRepo.Save(context.Background(), newTestServer()))
-	s.serverRepo.AddUserServer(1, 1)
-	rec := httptest.NewRecorder()
-
-	// ACT
-	s.handler.ServeHTTP(rec, authorizedRequest("1"))
-
-	// ASSERT
-	assert.Equal(t, http.StatusForbidden, rec.Code)
+			// ASSERT
+			assert.Equal(t, tt.wantStatus, rec.Code)
+		})
+	}
 }
 
 // TestHandler_SubscribedClientReceivesServerArchiveFrames performs a real

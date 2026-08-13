@@ -246,6 +246,8 @@ message CreateArchiveRequest {
   ArchiveFormat format = 3;
   // Entry names are stored relative to base_path.
   string base_path = 4;
+  // Absolute node paths, each must reside under base_path (the panel rebases
+  // them onto base_path for the daemon and rejects sources outside it).
   repeated string sources = 5;
   // Unset = format default, 0 = store, 1..9.
   optional int32 compression_level = 6;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -199,9 +200,18 @@ func (s *ArchiveService) Start(ctx context.Context) error {
 func (s *ArchiveService) StartCreate(
 	ctx context.Context, node *domain.Node, p CreateArchiveParams,
 ) (string, error) {
+	baseRel := stripWorkPath(node.WorkPath, p.BasePath)
+
+	// The daemon resolves sources relative to base_path and stores the source
+	// string as the archive entry name, so absolute panel-side paths must be
+	// rebased, not just stripped of the work path.
 	sources := make([]string, 0, len(p.Sources))
 	for _, src := range p.Sources {
-		sources = append(sources, stripWorkPath(node.WorkPath, src))
+		srcRel, err := sourceRelToBase(baseRel, stripWorkPath(node.WorkPath, src))
+		if err != nil {
+			return "", err
+		}
+		sources = append(sources, srcRel)
 	}
 
 	maxBytes, maxFiles := s.effectiveLimits(p.MaxTotalBytes, p.MaxFiles)
@@ -209,7 +219,7 @@ func (s *ArchiveService) StartCreate(
 	create := &proto.CreateArchiveParams{
 		ArchivePath:      stripWorkPath(node.WorkPath, p.ArchivePath),
 		Format:           p.Format,
-		BasePath:         stripWorkPath(node.WorkPath, p.BasePath),
+		BasePath:         baseRel,
 		Sources:          sources,
 		CompressionLevel: p.CompressionLevel,
 		Overwrite:        p.Overwrite,
@@ -223,6 +233,26 @@ func (s *ArchiveService) StartCreate(
 	return s.startOp(ctx, node, ArchiveKindCreate, &proto.ArchiveRequest{
 		Operation: &proto.ArchiveRequest_Create{Create: create},
 	}, p.Options)
+}
+
+// sourceRelToBase rebases a work-directory-relative source path onto the
+// base directory. A source equal to the base contributes the base's children
+// ("." to the daemon); one outside the base has no representable entry name
+// and is rejected.
+func sourceRelToBase(baseRel, srcRel string) (string, error) {
+	if baseRel == "." {
+		return srcRel, nil
+	}
+
+	if srcRel == baseRel {
+		return ".", nil
+	}
+
+	if rel, ok := strings.CutPrefix(srcRel, baseRel+"/"); ok {
+		return rel, nil
+	}
+
+	return "", errors.Errorf("source %q is outside the base path %q", srcRel, baseRel)
 }
 
 func (s *ArchiveService) StartExtract(
@@ -260,6 +290,20 @@ func (s *ArchiveService) effectiveLimits(maxBytes uint64, maxFiles uint32) (uint
 	return maxBytes, maxFiles
 }
 
+// normalizeArchiveTimeout applies the daemon-mirroring default for
+// non-positive values and caps the rest, for both the local and the
+// dispatched start paths.
+func normalizeArchiveTimeout(timeout time.Duration) time.Duration {
+	if timeout <= 0 {
+		return archiveDefaultTimeout
+	}
+	if timeout > archiveMaxTimeout {
+		return archiveMaxTimeout
+	}
+
+	return timeout
+}
+
 func (s *ArchiveService) startOp(
 	ctx context.Context,
 	node *domain.Node,
@@ -270,13 +314,7 @@ func (s *ArchiveService) startOp(
 	nodeID := uint64(node.ID)
 	opID := idgen.New()
 
-	timeout := opts.Timeout
-	if timeout <= 0 {
-		timeout = archiveDefaultTimeout
-	}
-	if timeout > archiveMaxTimeout {
-		timeout = archiveMaxTimeout
-	}
+	timeout := normalizeArchiveTimeout(opts.Timeout)
 
 	req.RequestId = opID
 	req.Timeout = durationpb.New(timeout)
@@ -532,13 +570,7 @@ func (s *ArchiveService) startDispatched(payload messages.DaemonArchiveRequestPa
 		return "unmarshal archive request: " + err.Error()
 	}
 
-	timeout := req.GetTimeout().AsDuration()
-	if timeout <= 0 {
-		timeout = archiveDefaultTimeout
-	}
-	if timeout > archiveMaxTimeout {
-		timeout = archiveMaxTimeout
-	}
+	timeout := normalizeArchiveTimeout(req.GetTimeout().AsDuration())
 
 	meta := archiveRelayMeta{
 		nodeID:    payload.NodeID,

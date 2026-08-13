@@ -57,9 +57,9 @@ export const useArchiveOperationsStore = defineStore('fm-archive-ops', () => {
         if (!op) return null
 
         op.filesProcessed = payload.files_processed ?? 0
-        op.filesTotal = payload.files_total ?? 0
+        op.filesTotal = payload.files_total ?? op.filesTotal
         op.bytesProcessed = payload.bytes_processed ?? 0
-        op.bytesTotal = payload.bytes_total ?? 0
+        op.bytesTotal = payload.bytes_total ?? op.bytesTotal
         op.currentEntry = payload.current_entry ?? ''
         op.lastEventAt = Date.now()
 

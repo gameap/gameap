@@ -95,6 +95,16 @@ async function submit() {
     const currentDir = fm.selectedDirectory || ''
     const toNew = target.value === 'new'
     const destination = toNew ? joinPath(currentDir, sanitizeName(folderName.value)) : currentDir
+    // Snapshot before the socket await: the selection can change underneath
+    // while it connects.
+    const disk = fm.selectedDisk
+    const archive = archiveItem.value
+
+    if (!archive) {
+        submitting.value = false
+
+        return
+    }
 
     try {
         if (archiveSocket) {
@@ -102,8 +112,8 @@ async function submit() {
         }
 
         const response = await POST.extract({
-            disk: fm.selectedDisk,
-            path: archiveItem.value.path,
+            disk,
+            path: archive.path,
             destination,
             conflict_policy: conflictPolicy.value,
             create_destination: true,
@@ -112,8 +122,8 @@ async function submit() {
         ops.add({
             id: response.data.operation_id,
             type: 'extract',
-            label: archiveItem.value.basename,
-            disk: fm.selectedDisk,
+            label: archive.basename,
+            disk,
         })
         hideModal()
     } catch (e) {
