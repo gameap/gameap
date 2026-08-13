@@ -179,6 +179,7 @@ func (s *stubRBACService) Revoke(_ context.Context, _ *rbac.AbilitiesRequest) (*
 // registered tasks in memory.
 type stubSchedulerService struct {
 	callRecorder
+
 	mu    sync.Mutex
 	tasks map[string]*scheduler.TaskInfo
 }

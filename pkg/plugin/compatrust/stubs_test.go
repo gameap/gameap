@@ -38,9 +38,6 @@ func (f hostLibFunc) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	return f(ctx, r)
 }
 
-// ptr returns a pointer to v.
-func ptr[T any](v T) *T { return &v }
-
 // callRecorder tracks which host functions the guest plugin invoked.
 type callRecorder struct {
 	mu    sync.Mutex
@@ -100,6 +97,7 @@ func (s *stubLogService) Entries() []logEntry {
 // stubCacheService satisfies cache.CacheService with an in-memory map.
 type stubCacheService struct {
 	callRecorder
+
 	mu   sync.Mutex
 	data map[string][]byte
 }
@@ -146,6 +144,7 @@ func (s *stubCacheService) Delete(
 // stubCryptoService satisfies crypto.CryptoService with deterministic output.
 type stubCryptoService struct {
 	callRecorder
+
 	mu      sync.Mutex
 	counter uint64
 }
@@ -179,9 +178,7 @@ func (s *stubCryptoService) RandomString(
 	}
 
 	length := int(req.Length)
-	if length < 0 {
-		length = 0
-	}
+	length = max(length, 0)
 
 	var b strings.Builder
 	for i := 0; i < length; i++ {
@@ -235,6 +232,7 @@ func (s *stubHTTPService) Fetch(_ context.Context, _ *http.HTTPFetchRequest) (*h
 // stubStorageService satisfies storage.StorageService with an in-memory map.
 type stubStorageService struct {
 	callRecorder
+
 	mu   sync.Mutex
 	data map[string][]byte
 }
@@ -515,7 +513,7 @@ type stubServerControlService struct {
 func (s *stubServerControlService) success(method string) *servercontrol.ServerControlResponse {
 	s.record(method)
 
-	return &servercontrol.ServerControlResponse{Success: true, TaskId: ptr[uint64](1)}
+	return &servercontrol.ServerControlResponse{Success: true, TaskId: new(uint64(1))}
 }
 
 func (s *stubServerControlService) StartServer(
