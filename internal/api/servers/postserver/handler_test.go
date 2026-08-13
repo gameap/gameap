@@ -55,6 +55,20 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectedStatus: http.StatusCreated,
 		},
 		{
+			name: "valid_server_creation_with_high_ports",
+			requestBody: `{
+				"name": "High Port Server",
+				"game_id": "cstrike",
+				"ds_id": 1,
+				"game_mod_id": 1,
+				"server_ip": "192.168.1.100",
+				"server_port": 47015,
+				"query_port": 47016,
+				"rcon_port": 65535
+			}`,
+			expectedStatus: http.StatusCreated,
+		},
+		{
 			name: "missing name",
 			requestBody: `{
 				"game_id": "cstrike",

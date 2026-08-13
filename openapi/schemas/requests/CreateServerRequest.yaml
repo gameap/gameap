@@ -29,18 +29,24 @@ properties:
   server_port:
     oneOf:
       - type: integer
+        minimum: 1
+        maximum: 65535
       - type: string
     description: Server port (1-65535)
     example: 27015
   query_port:
     oneOf:
       - type: integer
+        minimum: 1
+        maximum: 65535
       - type: string
     description: Query port (1-65535), optional
     example: 27016
   rcon_port:
     oneOf:
       - type: integer
+        minimum: 1
+        maximum: 65535
       - type: string
     description: RCON port (1-65535), optional
     example: 27017
