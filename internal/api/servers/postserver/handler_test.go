@@ -21,10 +21,13 @@ import (
 
 func TestHandler_ServeHTTP(t *testing.T) {
 	tests := []struct {
-		name           string
-		requestBody    string
-		expectedStatus int
-		wantError      string
+		name               string
+		requestBody        string
+		expectedStatus     int
+		wantError          string
+		expectedServerPort int
+		expectedQueryPort  int
+		expectedRconPort   int
 	}{
 		{
 			name: "valid server creation",
@@ -66,7 +69,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"query_port": 47016,
 				"rcon_port": 65535
 			}`,
-			expectedStatus: http.StatusCreated,
+			expectedStatus:     http.StatusCreated,
+			expectedServerPort: 47015,
+			expectedQueryPort:  47016,
+			expectedRconPort:   65535,
 		},
 		{
 			name: "missing name",
@@ -578,6 +584,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				// Verify response contains expected fields
 				assert.Equal(t, "success", response.Message)
 				assert.NotEmpty(t, response.Result.ServerID)
+
+				assertSavedServerPorts(t, servers[0], tt.expectedServerPort, tt.expectedQueryPort, tt.expectedRconPort)
 			}
 		})
 	}
@@ -1556,6 +1564,24 @@ func TestHandler_TaskDispatcher_Success(t *testing.T) {
 	tasks, err := daemonTaskRepo.FindAll(context.Background(), nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, tasks, "dispatcher path must bypass the repository")
+}
+
+func assertSavedServerPorts(t *testing.T, server domain.Server, serverPort, queryPort, rconPort int) {
+	t.Helper()
+
+	if serverPort != 0 {
+		assert.Equal(t, serverPort, server.ServerPort)
+	}
+
+	if queryPort != 0 {
+		require.NotNil(t, server.QueryPort)
+		assert.Equal(t, queryPort, *server.QueryPort)
+	}
+
+	if rconPort != 0 {
+		require.NotNil(t, server.RconPort)
+		assert.Equal(t, rconPort, *server.RconPort)
+	}
 }
 
 const stubDispatchedTaskID = 42
