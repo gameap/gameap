@@ -37,6 +37,7 @@
 
                     <template v-else-if="cells[algo].status === 'done'">
                         <span
+                            :ref="(el) => setValueEl(algo, el)"
                             class="fm-hash-value min-w-0 font-mono text-xs truncate cursor-pointer"
                             role="button"
                             tabindex="0"
@@ -52,6 +53,12 @@
                             class="ml-2 shrink-0 text-xs text-green-600 dark:text-green-400"
                         >
                             {{ lang.modal.hash.copied }}
+                        </span>
+                        <span
+                            v-else-if="manualAlgo === algo"
+                            class="ml-2 shrink-0 text-xs text-amber-600 dark:text-amber-400"
+                        >
+                            {{ lang.modal.hash.copyManual }}
                         </span>
                     </template>
 
@@ -116,8 +123,15 @@ const cells = reactive(
     Object.fromEntries(ROW_ORDER.map((algo) => [algo, { status: 'idle', value: '', error: '' }])),
 )
 const copiedAlgo = ref(null)
+const manualAlgo = ref(null)
 const abort = new AbortController()
 let copiedTimer = null
+
+const valueEls = {}
+
+function setValueEl(algo, el) {
+    valueEls[algo] = el
+}
 
 function computeAlgo(algo) {
     const cell = cells[algo]
@@ -159,13 +173,38 @@ function errorText(algo) {
 
 async function copyValue(algo) {
     if (cells[algo].status !== 'done') return
-    if (!(await copyToClipboard(cells[algo].value))) return
 
-    copiedAlgo.value = algo
+    if (await copyToClipboard(cells[algo].value)) {
+        manualAlgo.value = null
+        copiedAlgo.value = algo
+        clearTimeout(copiedTimer)
+        copiedTimer = setTimeout(() => {
+            copiedAlgo.value = null
+        }, 1500)
+
+        return
+    }
+
+    // No clipboard access (e.g. blocked execCommand on a plain-http origin):
+    // select the value and let the user press Ctrl+C themselves.
+    selectValue(algo)
+    copiedAlgo.value = null
+    manualAlgo.value = algo
     clearTimeout(copiedTimer)
     copiedTimer = setTimeout(() => {
-        copiedAlgo.value = null
-    }, 1500)
+        manualAlgo.value = null
+    }, 3000)
+}
+
+function selectValue(algo) {
+    const el = valueEls[algo]
+    const selection = window.getSelection()
+    if (!el || !selection) return
+
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    selection.removeAllRanges()
+    selection.addRange(range)
 }
 
 onMounted(() => {

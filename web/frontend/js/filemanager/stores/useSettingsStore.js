@@ -80,12 +80,12 @@ export const useSettingsStore = defineStore('fm-settings', () => {
         [
             { name: 'zip', icon: 'file-zipper' },
             { name: 'unzip', icon: 'box-open' },
-            { name: 'hash', icon: 'fingerprint' },
         ],
         [
             { name: 'delete', icon: 'delete', iconClass: 'text-danger' },
         ],
         [
+            { name: 'hash', icon: 'fingerprint' },
             { name: 'properties', icon: 'info' },
         ],
     ])

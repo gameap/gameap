@@ -281,6 +281,7 @@ const en = {
             compute: 'Compute',
             copied: 'Copied!',
             copyHint: 'Click a checksum to copy it',
+            copyManual: 'Press Ctrl+C to copy',
             failed: 'Failed',
             noSelected: 'Nothing selected!',
         },
