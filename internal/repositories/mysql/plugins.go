@@ -24,6 +24,7 @@ var pluginFields = []string{
 	"filename",
 	"source",
 	"homepage",
+	"checksum",
 	"required_permissions",
 	"allowed_permissions",
 	"status",
@@ -209,6 +210,7 @@ func (r *PluginRepository) insert(
 			plugin.Filename,
 			plugin.Source,
 			plugin.Homepage,
+			plugin.Checksum,
 			jsonFields.requiredPermissions,
 			jsonFields.allowedPermissions,
 			plugin.Status,
@@ -249,6 +251,7 @@ func (r *PluginRepository) update(
 		Set("filename", plugin.Filename).
 		Set("source", plugin.Source).
 		Set("homepage", plugin.Homepage).
+		Set("checksum", plugin.Checksum).
 		Set("required_permissions", jsonFields.requiredPermissions).
 		Set("allowed_permissions", jsonFields.allowedPermissions).
 		Set("status", plugin.Status).
@@ -260,6 +263,24 @@ func (r *PluginRepository) update(
 		Set("last_loaded_at", plugin.LastLoadedAt).
 		Set("updated_at", plugin.UpdatedAt).
 		Where(sq.Eq{"id": plugin.ID}).
+		PlaceholderFormat(sq.Question).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build query")
+	}
+
+	_, err = r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to execute query")
+	}
+
+	return nil
+}
+
+func (r *PluginRepository) TouchLastLoaded(ctx context.Context, id domain.Uint64ID, at time.Time) error {
+	query, args, err := sq.Update(base.PluginsTable).
+		Set("last_loaded_at", at).
+		Where(sq.Eq{"id": id}).
 		PlaceholderFormat(sq.Question).
 		ToSql()
 	if err != nil {
@@ -329,6 +350,7 @@ func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 		&plugin.Filename,
 		&plugin.Source,
 		&plugin.Homepage,
+		&plugin.Checksum,
 		&requiredPermissionsJSON,
 		&allowedPermissionsJSON,
 		&plugin.Status,

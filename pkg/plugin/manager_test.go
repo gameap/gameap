@@ -3,12 +3,28 @@ package plugin
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tetratelabs/wazero"
 )
+
+var errRuntimeClose = errors.New("runtime close refused")
+
+// closingRuntime lets a test make LoadedPlugin.Close fail. Only Close is ever
+// called on the runtime from that path, so the embedded nil interface is safe.
+type closingRuntime struct {
+	wazero.Runtime
+
+	err error
+}
+
+func (r closingRuntime) Close(_ context.Context) error {
+	return r.err
+}
 
 // mockPluginService implements proto.PluginService for testing.
 type mockPluginService struct {
@@ -341,7 +357,7 @@ func TestGetPlugin(t *testing.T) {
 			Info:    &proto.PluginInfo{Id: "test-plugin"},
 			Enabled: true,
 		}
-		manager.plugins[normalizePluginID("test-plugin")] = expectedPlugin
+		manager.plugins[NormalizePluginID("test-plugin")] = expectedPlugin
 
 		plugin, exists := manager.GetPlugin("test-plugin")
 
@@ -536,7 +552,7 @@ func TestUnload(t *testing.T) {
 
 	t.Run("removes_plugin_from_map", func(t *testing.T) {
 		manager := NewManager(ManagerConfig{})
-		manager.plugins[normalizePluginID("test-plugin")] = &LoadedPlugin{
+		manager.plugins[NormalizePluginID("test-plugin")] = &LoadedPlugin{
 			Info:     &proto.PluginInfo{Id: "test-plugin"},
 			Instance: &mockPluginService{},
 			runtime:  nil,
@@ -545,7 +561,7 @@ func TestUnload(t *testing.T) {
 		err := manager.Unload(context.Background(), "test-plugin")
 
 		require.NoError(t, err)
-		_, exists := manager.plugins[normalizePluginID("test-plugin")]
+		_, exists := manager.plugins[NormalizePluginID("test-plugin")]
 		assert.False(t, exists)
 	})
 
@@ -557,7 +573,7 @@ func TestUnload(t *testing.T) {
 			Instance: &mockPluginService{},
 			runtime:  nil,
 		}
-		manager.plugins[normalizePluginID("test-plugin")] = plugin
+		manager.plugins[NormalizePluginID("test-plugin")] = plugin
 
 		err := manager.Unload(context.Background(), "test-plugin")
 
@@ -567,7 +583,7 @@ func TestUnload(t *testing.T) {
 
 	t.Run("unloads_by_decimal_id_when_registered_under_compact_id", func(t *testing.T) {
 		manager := NewManager(ManagerConfig{})
-		manager.plugins[normalizePluginID("123")] = &LoadedPlugin{
+		manager.plugins[NormalizePluginID("123")] = &LoadedPlugin{
 			Info:     &proto.PluginInfo{Id: "123"},
 			Instance: &mockPluginService{},
 			runtime:  nil,
@@ -582,7 +598,7 @@ func TestUnload(t *testing.T) {
 	t.Run("calls_shutdown_on_plugin", func(t *testing.T) {
 		manager := NewManager(ManagerConfig{})
 		shutdownCalled := false
-		manager.plugins[normalizePluginID("test-plugin")] = &LoadedPlugin{
+		manager.plugins[NormalizePluginID("test-plugin")] = &LoadedPlugin{
 			Info: &proto.PluginInfo{Id: "test-plugin"},
 			Instance: &mockPluginService{
 				shutdownFunc: func(_ context.Context, req *proto.ShutdownRequest) (*proto.ShutdownResponse, error) {
@@ -599,6 +615,204 @@ func TestUnload(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.True(t, shutdownCalled)
+	})
+
+	t.Run("deletes_the_entry_even_when_close_errors", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		manager.plugins[NormalizePluginID("test-plugin")] = &LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: "test-plugin"},
+			Instance: &mockPluginService{},
+			runtime:  closingRuntime{err: errRuntimeClose},
+		}
+
+		err := manager.Unload(context.Background(), "test-plugin")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "runtime close refused")
+		assert.Empty(t, manager.plugins)
+	})
+
+	t.Run("does_not_hold_the_write_lock_during_guest_shutdown", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		inShutdown := make(chan struct{})
+		releaseShutdown := make(chan struct{})
+
+		manager.plugins[NormalizePluginID("test-plugin")] = &LoadedPlugin{
+			Info: &proto.PluginInfo{Id: "test-plugin"},
+			Instance: &mockPluginService{
+				shutdownFunc: func(_ context.Context, _ *proto.ShutdownRequest) (*proto.ShutdownResponse, error) {
+					close(inShutdown)
+					<-releaseShutdown
+
+					return &proto.ShutdownResponse{}, nil
+				},
+			},
+			runtime: nil,
+		}
+
+		unloaded := make(chan error, 1)
+		go func() {
+			unloaded <- manager.Unload(context.Background(), "test-plugin")
+		}()
+
+		<-inShutdown
+
+		readerDone := make(chan int, 1)
+		go func() {
+			readerDone <- len(manager.GetPlugins())
+		}()
+
+		select {
+		case count := <-readerDone:
+			assert.Equal(t, 0, count, "the entry must already be gone from the registry")
+		case <-time.After(2 * time.Second):
+			t.Error("GetPlugins blocked while the guest shutdown was in flight")
+		}
+
+		close(releaseShutdown)
+		require.NoError(t, <-unloaded)
+	})
+}
+
+func TestRegister(t *testing.T) {
+	t.Run("adopts_a_transient_plugin", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		plugin := &LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: "test-plugin"},
+			Instance: &mockPluginService{},
+		}
+
+		err := manager.Register(plugin)
+
+		require.NoError(t, err)
+		registered, exists := manager.GetPlugin("test-plugin")
+		require.True(t, exists)
+		assert.Same(t, plugin, registered)
+	})
+
+	t.Run("returns_already_loaded_for_a_duplicate_id", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		first := &LoadedPlugin{Info: &proto.PluginInfo{Id: "test-plugin"}, Instance: &mockPluginService{}}
+		second := &LoadedPlugin{Info: &proto.PluginInfo{Id: "test-plugin"}, Instance: &mockPluginService{}}
+		require.NoError(t, manager.Register(first))
+
+		err := manager.Register(second)
+
+		require.ErrorIs(t, err, ErrPluginAlreadyLoaded)
+		registered, exists := manager.GetPlugin("test-plugin")
+		require.True(t, exists)
+		assert.Same(t, first, registered, "the incumbent must stay registered")
+	})
+
+	t.Run("returns_manager_closed_after_shutdown", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		require.NoError(t, manager.Shutdown(context.Background()))
+
+		err := manager.Register(&LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: "test-plugin"},
+			Instance: &mockPluginService{},
+		})
+
+		require.ErrorIs(t, err, ErrManagerClosed)
+	})
+
+	t.Run("rejects_a_plugin_without_info", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+
+		err := manager.Register(&LoadedPlugin{Instance: &mockPluginService{}})
+
+		require.ErrorIs(t, err, ErrPluginNotInitialized)
+	})
+}
+
+func TestReplace(t *testing.T) {
+	t.Run("swaps_and_returns_the_previous_plugin", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		old := &LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: "test-plugin", Version: "1.0.0"},
+			Enabled:  true,
+			Instance: &mockPluginService{},
+		}
+		fresh := &LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: "test-plugin", Version: "2.0.0"},
+			Enabled:  true,
+			Instance: &mockPluginService{},
+		}
+		require.NoError(t, manager.Register(old))
+
+		previous, err := manager.Replace(fresh)
+
+		require.NoError(t, err)
+		assert.Same(t, old, previous)
+		assert.False(t, previous.IsEnabled(), "the displaced plugin must stop receiving deliveries")
+
+		registered, exists := manager.GetPlugin("test-plugin")
+		require.True(t, exists)
+		assert.Same(t, fresh, registered)
+		assert.True(t, registered.IsEnabled())
+	})
+
+	t.Run("returns_nil_previous_when_the_id_was_not_registered", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		fresh := &LoadedPlugin{Info: &proto.PluginInfo{Id: "test-plugin"}, Instance: &mockPluginService{}}
+
+		previous, err := manager.Replace(fresh)
+
+		require.NoError(t, err)
+		assert.Nil(t, previous)
+		require.Len(t, manager.GetPlugins(), 1)
+	})
+
+	t.Run("matches_the_incumbent_registered_under_another_id_form", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		old := &LoadedPlugin{Info: &proto.PluginInfo{Id: "123"}, Instance: &mockPluginService{}}
+		require.NoError(t, manager.Register(old))
+
+		previous, err := manager.Replace(&LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: CompactPluginID(ParsePluginID("123"))},
+			Instance: &mockPluginService{},
+		})
+
+		require.NoError(t, err)
+		assert.Same(t, old, previous)
+		require.Len(t, manager.GetPlugins(), 1)
+	})
+
+	t.Run("returns_manager_closed_after_shutdown", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		require.NoError(t, manager.Shutdown(context.Background()))
+
+		previous, err := manager.Replace(&LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: "test-plugin"},
+			Instance: &mockPluginService{},
+		})
+
+		require.ErrorIs(t, err, ErrManagerClosed)
+		assert.Nil(t, previous)
+	})
+}
+
+func TestShutdownPlugin(t *testing.T) {
+	t.Run("returns_nil_for_a_nil_plugin", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+
+		require.NoError(t, manager.ShutdownPlugin(context.Background(), nil))
+	})
+
+	t.Run("disables_the_plugin_and_reports_close_errors", func(t *testing.T) {
+		manager := NewManager(ManagerConfig{})
+		plugin := &LoadedPlugin{
+			Info:     &proto.PluginInfo{Id: "test-plugin"},
+			Enabled:  true,
+			Instance: &mockPluginService{},
+			runtime:  closingRuntime{err: errRuntimeClose},
+		}
+
+		err := manager.ShutdownPlugin(context.Background(), plugin)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "runtime close refused")
+		assert.False(t, plugin.IsEnabled())
 	})
 }
 
@@ -636,7 +850,7 @@ func TestShutdown(t *testing.T) {
 		gotPluginID := ""
 		// "my-custom-plugin" is not a canonical compact ID, so the map key
 		// (normalized) differs from the declared Info.Id.
-		manager.plugins[normalizePluginID("my-custom-plugin")] = &LoadedPlugin{
+		manager.plugins[NormalizePluginID("my-custom-plugin")] = &LoadedPlugin{
 			Info: &proto.PluginInfo{Id: "my-custom-plugin"},
 			Instance: &mockPluginService{
 				shutdownFunc: func(_ context.Context, req *proto.ShutdownRequest) (*proto.ShutdownResponse, error) {

@@ -140,9 +140,11 @@ func NewManager(cfg ManagerConfig) *Manager {
 	}
 }
 
-// normalizePluginID converts any accepted plugin ID form (compact, decimal,
+// NormalizePluginID converts any accepted plugin ID form (compact, decimal,
 // arbitrary string) to the canonical compact form used as the registry key.
-func normalizePluginID(pluginID string) string {
+// Anything that keys a map on a plugin ID must run it through this first,
+// otherwise a lookup by one form misses an entry stored under another.
+func NormalizePluginID(pluginID string) string {
 	return CompactPluginID(ParsePluginID(pluginID))
 }
 
@@ -155,6 +157,70 @@ func (m *Manager) Load(
 	config map[string]string,
 	pluginID uint64,
 ) (*LoadedPlugin, error) {
+	// Compiling the module and running its guest initialization happens under
+	// the read lock, so a load never blocks readers of the registry: the write
+	// lock is taken by Register for the map insert alone.
+	loadedPlugin, err := m.LoadTransient(ctx, wasmBytes, config, pluginID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := m.Register(loadedPlugin); err != nil {
+		if closeErr := loadedPlugin.Close(ctx); closeErr != nil {
+			slog.Warn("failed to close plugin runtime after failed registration",
+				slog.String("plugin_id", loadedPlugin.Info.Id),
+				slog.String("error", closeErr.Error()),
+			)
+		}
+
+		return nil, err
+	}
+
+	return loadedPlugin, nil
+}
+
+// Register adopts a plugin produced by LoadTransient into the registry so it
+// starts receiving events and HTTP requests. The expensive work already
+// happened under the read lock, so the write lock covers only the map insert.
+//
+// On error the caller keeps ownership of the plugin and must release it with
+// Close. This differs from Load, which closes the rejected instance itself.
+func (m *Manager) Register(loadedPlugin *LoadedPlugin) error {
+	if loadedPlugin == nil || loadedPlugin.Info == nil {
+		return ErrPluginNotInitialized
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return ErrManagerClosed
+	}
+
+	id := NormalizePluginID(loadedPlugin.Info.Id)
+	if _, exists := m.plugins[id]; exists {
+		return errors.Wrapf(ErrPluginAlreadyLoaded, "plugin: %s", loadedPlugin.Info.Id)
+	}
+
+	m.plugins[id] = loadedPlugin
+
+	return nil
+}
+
+// Replace swaps the registry entry for loadedPlugin and returns the instance it
+// displaced (nil when the ID was not registered). The displaced plugin is
+// disabled under the lock so readers still holding a pointer to it stop
+// delivering immediately, but its guest shutdown is left to the caller, which
+// must hand it to ShutdownPlugin with the manager lock released.
+//
+// Reloads go through Replace rather than Unload followed by Load because the
+// window in which the plugin is absent from the registry shrinks to a single
+// map assignment.
+func (m *Manager) Replace(loadedPlugin *LoadedPlugin) (*LoadedPlugin, error) {
+	if loadedPlugin == nil || loadedPlugin.Info == nil {
+		return nil, ErrPluginNotInitialized
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -162,26 +228,16 @@ func (m *Manager) Load(
 		return nil, ErrManagerClosed
 	}
 
-	loadedPlugin, err := m.load(ctx, wasmBytes, config, pluginID)
-	if err != nil {
-		return nil, err
-	}
+	id := NormalizePluginID(loadedPlugin.Info.Id)
 
-	id := normalizePluginID(loadedPlugin.Info.Id)
-	if _, exists := m.plugins[id]; exists {
-		if closeErr := loadedPlugin.Close(ctx); closeErr != nil {
-			slog.Warn("failed to close duplicate plugin runtime",
-				slog.String("plugin_id", loadedPlugin.Info.Id),
-				slog.String("error", closeErr.Error()),
-			)
-		}
-
-		return nil, errors.Wrapf(ErrPluginAlreadyLoaded, "plugin: %s", loadedPlugin.Info.Id)
+	previous := m.plugins[id]
+	if previous != nil {
+		previous.Disable()
 	}
 
 	m.plugins[id] = loadedPlugin
 
-	return loadedPlugin, nil
+	return previous, nil
 }
 
 // LoadTransient loads a plugin without registering it in the manager.
@@ -713,17 +769,42 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 // (compact, decimal, raw plugin info ID).
 func (m *Manager) Unload(ctx context.Context, pluginID string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
-	id := normalizePluginID(pluginID)
+	id := NormalizePluginID(pluginID)
 
 	plugin, exists := m.plugins[id]
 	if !exists {
+		m.mu.Unlock()
+
 		return errors.Wrapf(ErrPluginNotFound, "plugin: %s", pluginID)
+	}
+
+	// The entry leaves the registry before the guest is touched: a shutdown
+	// that fails or times out must not leave a half-torn-down plugin behind
+	// for callers to keep finding.
+	plugin.Disable()
+	delete(m.plugins, id)
+
+	m.mu.Unlock()
+
+	return m.ShutdownPlugin(ctx, plugin)
+}
+
+// ShutdownPlugin runs a plugin's guest shutdown and closes its runtime. It must
+// be called with the manager lock released: the guest call queues behind any
+// in-flight call on the plugin's gate and can take as long as the wrapper's
+// call timeout, during which every reader of the registry would block.
+//
+// Unload does this itself; callers of Replace must do it for the instance they
+// displaced.
+func (m *Manager) ShutdownPlugin(ctx context.Context, plugin *LoadedPlugin) error {
+	if plugin == nil {
+		return nil
 	}
 
 	plugin.Disable()
 
+	// The guest knows itself by its declared ID, not the normalized map key.
 	_, err := plugin.Instance.Shutdown(ctx, &proto.ShutdownRequest{
 		Context: &proto.PluginContext{PluginId: plugin.Info.Id},
 	})
@@ -738,8 +819,6 @@ func (m *Manager) Unload(ctx context.Context, pluginID string) error {
 		return errors.WithMessage(err, "failed to close plugin")
 	}
 
-	delete(m.plugins, id)
-
 	return nil
 }
 
@@ -748,7 +827,7 @@ func (m *Manager) GetPlugin(pluginID string) (*LoadedPlugin, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	plugin, exists := m.plugins[normalizePluginID(pluginID)]
+	plugin, exists := m.plugins[NormalizePluginID(pluginID)]
 
 	return plugin, exists
 }

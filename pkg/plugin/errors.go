@@ -19,6 +19,9 @@ var (
 	// ErrPluginBusy means the caller gave up waiting for the per-plugin call
 	// gate; the guest was never invoked and its module is untouched.
 	ErrPluginBusy = errors.New("plugin is busy")
+	// ErrPluginNotInitialized means Register or Replace was handed something
+	// that never came out of a successful load.
+	ErrPluginNotInitialized = errors.New("plugin is not initialized")
 )
 
 var knownErrors = []error{

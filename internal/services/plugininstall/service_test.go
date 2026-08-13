@@ -10,6 +10,7 @@ import (
 	"github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/internal/services/plugininstall"
+	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -117,7 +118,7 @@ func TestBuildPluginRecord(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			record := plugininstall.BuildPluginRecord(tt.dbID, tt.loaded, tt.filename, tt.source)
+			record := plugininstall.BuildPluginRecord(tt.dbID, tt.loaded, tt.filename, tt.source, []byte("wasm-bytes"))
 
 			assert.Equal(t, tt.dbID, record.ID)
 			assert.Equal(t, tt.loaded.Info.Name, record.Name)
@@ -131,6 +132,37 @@ func TestBuildPluginRecord(t *testing.T) {
 			assert.Equal(t, tt.source, *record.Source)
 			assert.Equal(t, domain.PluginStatusActive, record.Status)
 			require.NotNil(t, record.InstalledAt)
+			require.NotNil(t, record.Checksum)
+			assert.Equal(t, plugininstall.Checksum([]byte("wasm-bytes")), *record.Checksum)
+		})
+	}
+}
+
+func TestChecksum(t *testing.T) {
+	tests := []struct {
+		name  string
+		bytes []byte
+		want  string
+	}{
+		{
+			name:  "known_vector",
+			bytes: []byte("test data"),
+			want:  "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9",
+		},
+		{
+			name:  "empty_input",
+			bytes: nil,
+			want:  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := plugininstall.Checksum(tt.bytes)
+
+			assert.Equal(t, tt.want, got)
+			assert.True(t, pluginstore.VerifyHash(tt.bytes, got),
+				"the recorded checksum must satisfy the store's own verification")
 		})
 	}
 }
@@ -173,7 +205,7 @@ func TestBuildPluginRecord_permissions(t *testing.T) {
 					Name:                "Test Plugin",
 					RequiredPermissions: tt.declared,
 				},
-			}, "1.wasm", "file://1.wasm")
+			}, "1.wasm", "file://1.wasm", []byte("wasm-bytes"))
 
 			assert.Equal(t, tt.want, record.RequiredPermissions)
 			assert.Equal(t, tt.want, record.AllowedPermissions,
@@ -219,6 +251,16 @@ func (f *fakeLoaderManager) LoadTransient(
 	pluginID uint64,
 ) (*pkgplugin.LoadedPlugin, error) {
 	return f.Load(ctx, wasmBytes, config, pluginID)
+}
+
+func (f *fakeLoaderManager) Register(_ *pkgplugin.LoadedPlugin) error { return nil }
+
+func (f *fakeLoaderManager) Replace(_ *pkgplugin.LoadedPlugin) (*pkgplugin.LoadedPlugin, error) {
+	return nil, nil
+}
+
+func (f *fakeLoaderManager) ShutdownPlugin(_ context.Context, _ *pkgplugin.LoadedPlugin) error {
+	return nil
 }
 
 func (f *fakeLoaderManager) GetPlugin(_ string) (*pkgplugin.LoadedPlugin, bool) {
@@ -275,8 +317,9 @@ func TestTryLoadPlugin(t *testing.T) {
 				assert.Equal(t, uint64(rec.ID), mgr.gotPluginID, "plugin DB ID must be passed to manager.Load")
 
 				registered, ok := loader.GetPluginManagerID(rec.ID)
-				assert.True(t, ok, "RegisterPluginID must record the DB ID after successful load")
-				assert.Equal(t, "wasm-internal-id", registered, "registered manager ID must come from the loaded plugin info")
+				assert.True(t, ok, "the DB ID must be recorded after a successful load")
+				assert.Equal(t, pkgplugin.NormalizePluginID("wasm-internal-id"), registered,
+					"registered manager ID must come from the loaded plugin info, in its canonical form")
 
 				assert.Equal(t, domain.PluginStatusActive, rec.Status, "status must remain unchanged on successful load")
 			},

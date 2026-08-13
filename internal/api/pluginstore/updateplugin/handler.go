@@ -27,6 +27,7 @@ type Handler struct {
 	fileManager   files.FileManager
 	loader        *plugin.Loader
 	subscriptions plugininstall.SubscriptionRefresher
+	sync          plugininstall.SyncNotifier
 	pluginsDir    string
 	responder     base.Responder
 }
@@ -37,6 +38,7 @@ func NewHandler(
 	fileManager files.FileManager,
 	loader *plugin.Loader,
 	subscriptions plugininstall.SubscriptionRefresher,
+	sync plugininstall.SyncNotifier,
 	pluginsDir string,
 	responder base.Responder,
 ) *Handler {
@@ -46,6 +48,7 @@ func NewHandler(
 		fileManager:   fileManager,
 		loader:        loader,
 		subscriptions: subscriptions,
+		sync:          sync,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 	}
@@ -93,7 +96,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	defer plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
+	// The plugin is already unloaded, so every path from here has to rebuild
+	// the subscriptions. On the way out through an error that is all this
+	// instance can do — the database row still says active, and the reconciler
+	// brings the module back within a refresh interval.
+	applied := false
+	defer func() {
+		if !applied {
+			plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
+		}
+	}()
 
 	selectedVersion, err := h.selectVersion(ctx, storePluginID, inp.Version)
 	if err != nil {
@@ -118,7 +130,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.updatePluginRecord(pluginRecord, selectedVersion, filename)
+	h.updatePluginRecord(pluginRecord, selectedVersion, filename, wasmBytes)
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to update plugin record"))
@@ -134,6 +146,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	applied = true
+	plugininstall.AfterChange(ctx, h.subscriptions, h.sync, dbID, plugininstall.ReasonUpdate)
 
 	h.responder.Write(ctx, rw, newUpdateResponse(pluginRecord))
 }
@@ -243,9 +258,15 @@ func (h *Handler) downloadAndVerify(
 	return wasmBytes, nil
 }
 
-func (h *Handler) updatePluginRecord(record *domain.Plugin, version *pluginstore.PluginVersion, filename string) {
+func (h *Handler) updatePluginRecord(
+	record *domain.Plugin,
+	version *pluginstore.PluginVersion,
+	filename string,
+	wasmBytes []byte,
+) {
 	record.Version = version.Version
 	record.Filename = new(filename)
+	record.Checksum = new(plugininstall.Checksum(wasmBytes))
 	record.Status = domain.PluginStatusActive
 	record.UpdatedAt = new(time.Now())
 }

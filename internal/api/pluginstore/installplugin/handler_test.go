@@ -116,6 +116,7 @@ func TestInstallPlugin(t *testing.T) {
 				fileManager,
 				nil,
 				nil,
+				nil,
 				"plugins",
 				api.NewResponder(),
 			)
@@ -183,6 +184,7 @@ func TestInstallPlugin_already_installed(t *testing.T) {
 		storeService,
 		pluginRepo,
 		fileManager,
+		nil,
 		nil,
 		nil,
 		"plugins",
@@ -345,6 +347,10 @@ func (r *errPluginRepo) Save(ctx context.Context, p *domain.Plugin) error {
 	return r.inner.Save(ctx, p)
 }
 
+func (r *errPluginRepo) TouchLastLoaded(ctx context.Context, id domain.Uint64ID, at time.Time) error {
+	return r.inner.TouchLastLoaded(ctx, id, at)
+}
+
 func (r *errPluginRepo) Delete(ctx context.Context, id domain.Uint64ID) error {
 	return r.inner.Delete(ctx, id)
 }
@@ -387,6 +393,16 @@ func (m *errLoaderManager) Unload(_ context.Context, _ string) error           {
 func (m *errLoaderManager) GetPlugin(_ string) (*pkgplugin.LoadedPlugin, bool) { return nil, false }
 func (m *errLoaderManager) GetPlugins() []*pkgplugin.LoadedPlugin              { return nil }
 func (m *errLoaderManager) Shutdown(_ context.Context) error                   { return nil }
+
+func (m *errLoaderManager) Register(_ *pkgplugin.LoadedPlugin) error { return nil }
+
+func (m *errLoaderManager) Replace(_ *pkgplugin.LoadedPlugin) (*pkgplugin.LoadedPlugin, error) {
+	return nil, nil
+}
+
+func (m *errLoaderManager) ShutdownPlugin(_ context.Context, _ *pkgplugin.LoadedPlugin) error {
+	return nil
+}
 
 func defaultPluginDetails(requiresSubscription bool) *pluginstore.PluginDetails {
 	return &pluginstore.PluginDetails{
@@ -650,6 +666,7 @@ func TestInstallPlugin_errors(t *testing.T) {
 				fm,
 				loader,
 				nil,
+				nil,
 				"plugins",
 				api.NewResponder(),
 			)
@@ -711,7 +728,7 @@ func TestInstallPlugin_load_error_keeps_record_with_correct_timestamps(t *testin
 		"plugins",
 	)
 
-	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
+	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, nil, "plugins", api.NewResponder())
 
 	req := httptest.NewRequest(
 		http.MethodPost,

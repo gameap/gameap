@@ -59,7 +59,7 @@ Key-value configuration storage for individual game servers with type-flexible v
 ## Plugin System
 
 ### Plugin (`plugin.go`)
-Represents a WebAssembly plugin with metadata, event hooks, and HTTP route registrations for extending GameAP functionality.
+Represents a WebAssembly plugin with metadata, event hooks, and HTTP route registrations for extending GameAP functionality. The row is the desired state every panel instance reconciles its loaded modules against: `status` decides whether a plugin runs, while `version`, `filename` and `checksum` decide whether a running module still matches. `checksum` is the SHA-256 recorded at install time; it distinguishes a re-upload of an unchanged version number and is what a re-fetched plugin file is verified against.
 
 ### PluginStorageEntry (`plugin_storage.go`)
 Persistent key-value storage for plugins, allowing them to store and retrieve data associated with specific entities (servers, users, etc.).

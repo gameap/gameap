@@ -122,7 +122,13 @@
       - PluginStore
     summary: List loaded plugins
     description: |
-      Returns all currently loaded plugins with their runtime status.
+      Returns the plugins loaded by the instance that answers the request, plus
+      any plugin the database marks active that this instance could not load —
+      otherwise a replica with a broken plugin would look healthy.
+
+      Plugin state is reconciled per instance, so `sync_state`, `sync_error`,
+      `sync_failures`, `next_attempt_at` and `loaded_at` describe the answering
+      instance only and are not aggregated across the fleet.
       Admin only.
     operationId: listLoadedPlugins
     responses:

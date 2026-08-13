@@ -150,12 +150,20 @@ func Run(runParams RunParams) {
 	} else {
 		startPluginServices(ctx, container)
 
+		// A failure here is not fatal: the reconciler rebuilds the
+		// subscriptions on its first pass, and refusing to start the panel
+		// over one uncooperative plugin is worse than delivering its events
+		// late.
 		err = container.PluginDispatcher().RefreshSubscriptions(ctx)
 		if err != nil {
 			slog.ErrorContext(ctx, "Failed to refresh plugin subscriptions", slog.String("error", err.Error()))
-
-			osExit(1)
 		}
+
+		// Started after the bootstrap subscription rebuild above: that call
+		// clears the whole subscription map before repopulating it, and a
+		// reconcile running alongside it could leave dispatch looking at an
+		// empty map.
+		startPluginSync(ctx, container)
 	}
 
 	startPubSub(ctx, container)
@@ -188,10 +196,37 @@ func startPluginServices(ctx context.Context, container *Container) {
 		return
 	}
 
+	// Subscribing before the plugins are loaded means a change another
+	// instance makes during the load window still reaches this one. The
+	// pub-sub transport has not started yet, which is fine: every driver
+	// accepts subscriptions registered ahead of it.
+	if sync := container.PluginSync(); sync != nil {
+		if err := sync.Subscribe(ctx); err != nil {
+			slog.WarnContext(ctx, "Failed to subscribe to plugin sync hints, falling back to polling",
+				slog.String("error", err.Error()))
+		}
+	}
+
+	// LoadAll only reports failures it could not attribute to a single plugin
+	// (an unreadable plugin table); a plugin that refuses to load is logged
+	// and left to the reconciler. Neither case should keep the panel down —
+	// with shared plugin storage a replica that cannot reach the file yet
+	// would otherwise never come up at all.
 	if err := container.PluginLoader().LoadAll(ctx); err != nil {
 		slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))
+	}
+}
 
-		osExit(1)
+func startPluginSync(ctx context.Context, container *Container) {
+	sync := container.PluginSync()
+	if sync == nil {
+		slog.InfoContext(ctx, "Plugin sync is disabled, plugin changes will not propagate between instances")
+
+		return
+	}
+
+	if err := sync.Start(ctx); err != nil {
+		slog.ErrorContext(ctx, "Failed to start plugin sync", slog.String("error", err.Error()))
 	}
 }
 

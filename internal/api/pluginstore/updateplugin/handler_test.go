@@ -73,6 +73,18 @@ func (m *fakeLoaderManager) Unload(ctx context.Context, pluginID string) error {
 	return nil
 }
 
+func (m *fakeLoaderManager) Register(_ *pkgplugin.LoadedPlugin) error {
+	return nil
+}
+
+func (m *fakeLoaderManager) Replace(_ *pkgplugin.LoadedPlugin) (*pkgplugin.LoadedPlugin, error) {
+	return nil, nil
+}
+
+func (m *fakeLoaderManager) ShutdownPlugin(_ context.Context, _ *pkgplugin.LoadedPlugin) error {
+	return nil
+}
+
 func (m *fakeLoaderManager) GetPlugin(_ string) (*pkgplugin.LoadedPlugin, bool) {
 	return nil, false
 }
@@ -187,6 +199,7 @@ func executeUpdate(
 		pluginRepo,
 		fileManager,
 		loader,
+		nil,
 		nil,
 		"plugins",
 		api.NewResponder(),
@@ -337,7 +350,8 @@ func TestUpdatePlugin_with_loader_unloads_old_and_loads_new(t *testing.T) {
 
 	// ASSERT
 	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.Equal(t, "old-manager-id", unloadedID, "previous plugin instance must be unloaded")
+	assert.Equal(t, pkgplugin.NormalizePluginID("old-manager-id"), unloadedID,
+		"previous plugin instance must be unloaded")
 
 	updated, err := pluginRepo.Find(context.Background(), nil, nil, nil)
 	require.NoError(t, err)
@@ -388,6 +402,7 @@ func TestUpdatePlugin_not_installed(t *testing.T) {
 		storeService,
 		pluginRepo,
 		fileManager,
+		nil,
 		nil,
 		nil,
 		"plugins",
@@ -768,6 +783,7 @@ func TestUpdatePlugin_pipeline_failures(t *testing.T) {
 				repo,
 				fileManager,
 				loader,
+				nil,
 				nil,
 				"plugins",
 				api.NewResponder(),

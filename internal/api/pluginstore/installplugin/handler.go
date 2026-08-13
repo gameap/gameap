@@ -28,6 +28,7 @@ type Handler struct {
 	fileManager   files.FileManager
 	loader        *plugin.Loader
 	subscriptions plugininstall.SubscriptionRefresher
+	sync          plugininstall.SyncNotifier
 	pluginsDir    string
 	responder     base.Responder
 }
@@ -38,6 +39,7 @@ func NewHandler(
 	fileManager files.FileManager,
 	loader *plugin.Loader,
 	subscriptions plugininstall.SubscriptionRefresher,
+	sync plugininstall.SyncNotifier,
 	pluginsDir string,
 	responder base.Responder,
 ) *Handler {
@@ -47,6 +49,7 @@ func NewHandler(
 		fileManager:   fileManager,
 		loader:        loader,
 		subscriptions: subscriptions,
+		sync:          sync,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 	}
@@ -126,7 +129,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pluginRecord := h.buildPluginRecord(dbID, pluginDetails, selectedVersion, filename, storePluginID)
+	pluginRecord := h.buildPluginRecord(dbID, pluginDetails, selectedVersion, filename, storePluginID, wasmBytes)
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
 		_ = h.fileManager.Delete(ctx, pluginPath)
@@ -152,7 +155,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
+	plugininstall.AfterChange(ctx, h.subscriptions, h.sync, dbID, plugininstall.ReasonInstall)
 
 	h.responder.Write(ctx, rw, newInstallResponse(pluginRecord))
 }
@@ -273,6 +276,7 @@ func (h *Handler) buildPluginRecord(
 	version *pluginstore.PluginVersion,
 	filename string,
 	storePluginID string,
+	wasmBytes []byte,
 ) *domain.Plugin {
 	source := h.storeService.BaseURL() + "/plugins/" + storePluginID
 
@@ -284,6 +288,7 @@ func (h *Handler) buildPluginRecord(
 		Author:      details.Author.Username,
 		Filename:    new(filename),
 		Source:      new(source),
+		Checksum:    new(plugininstall.Checksum(wasmBytes)),
 		Status:      domain.PluginStatusActive,
 		InstalledAt: new(time.Now()),
 	}

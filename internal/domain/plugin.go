@@ -15,15 +15,20 @@ const (
 )
 
 type Plugin struct {
-	ID                  Uint64ID           `db:"id"`
-	Name                string             `db:"name"`
-	Version             string             `db:"version"`
-	Description         string             `db:"description"`
-	Author              string             `db:"author"`
-	APIVersion          string             `db:"api_version"`
-	Filename            *string            `db:"filename"`
-	Source              *string            `db:"source"`
-	Homepage            *string            `db:"homepage"`
+	ID          Uint64ID `db:"id"`
+	Name        string   `db:"name"`
+	Version     string   `db:"version"`
+	Description string   `db:"description"`
+	Author      string   `db:"author"`
+	APIVersion  string   `db:"api_version"`
+	Filename    *string  `db:"filename"`
+	Source      *string  `db:"source"`
+	Homepage    *string  `db:"homepage"`
+	// Checksum is the SHA-256 of the wasm file recorded at install time. It is
+	// what tells a re-upload of an unchanged version number apart from the
+	// module already running, and what a plugin file re-fetched from the store
+	// is verified against. Nil on rows installed before the column existed.
+	Checksum            *string            `db:"checksum"`
 	RequiredPermissions []PluginPermission `db:"-"`
 	AllowedPermissions  []PluginPermission `db:"-"`
 	Status              PluginStatus       `db:"status"`

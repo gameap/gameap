@@ -19,6 +19,9 @@ const (
 	PluginEvents       = PluginPrefix + "events"
 	PluginServerEvents = PluginPrefix + "events:server"
 	PluginTaskEvents   = PluginPrefix + "events:task"
+	// PluginSync nudges every instance to reconcile its loaded plugins against
+	// the database after an install, update, uninstall or status change.
+	PluginSync = PluginPrefix + "sync"
 
 	RealtimePrefix        = Prefix + "realtime:"
 	RealtimeServerStatus  = RealtimePrefix + "server:status"

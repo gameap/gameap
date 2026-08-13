@@ -42,6 +42,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
@@ -206,6 +207,10 @@ func (c *InmemoryContainer) PluginArchiveEvents() *pluginarchive.Service {
 
 	return c.pluginArchiveEvents
 }
+
+// PluginSync is nil here: the test container has no plugin manager, so there
+// is nothing to reconcile. Every call site tolerates a nil service.
+func (c *InmemoryContainer) PluginSync() *pluginsync.Service { return nil }
 
 func (c *InmemoryContainer) PluginStoreService() *pluginstore.Service         { return nil }
 func (c *InmemoryContainer) PluginsDir() string                               { return "plugins" }

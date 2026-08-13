@@ -83,7 +83,11 @@ Delivery semantics:
   backlog is full (wedged plugins), further async events are dropped with an
   error log instead of blocking callers.
 - Subscriptions are collected via `GetSubscribedEvents` at panel startup and
-  refreshed automatically after runtime plugin install/update/uninstall.
+  refreshed automatically after runtime plugin install/update/uninstall. In a
+  multi-instance deployment the instance that handled the request applies the
+  change immediately and the others follow within a refresh interval, when their
+  reconciler loads or unloads the module and rebuilds its own subscriptions
+  (`internal/services/pluginsync/README.md`).
 - `DAEMON_TASK_CREATED` fires only for tasks that go through the gRPC task
   dispatcher (the default); legacy repository-only saves do not emit it.
 

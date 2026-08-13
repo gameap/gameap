@@ -76,6 +76,7 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 			Filename:    new("full-plugin.wasm"),
 			Source:      new("https://github.com/example/plugin"),
 			Homepage:    new("https://example.com/plugin"),
+			Checksum:    new("916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9"),
 			RequiredPermissions: []domain.PluginPermission{
 				domain.PluginPermissionManageServers,
 				domain.PluginPermissionManageNodes,
@@ -117,6 +118,8 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 		assert.Equal(t, "https://github.com/example/plugin", *retrieved.Source)
 		require.NotNil(t, retrieved.Homepage)
 		assert.Equal(t, "https://example.com/plugin", *retrieved.Homepage)
+		require.NotNil(t, retrieved.Checksum)
+		assert.Equal(t, "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9", *retrieved.Checksum)
 		require.Len(t, retrieved.RequiredPermissions, 2)
 		assert.Contains(t, retrieved.RequiredPermissions, domain.PluginPermissionManageServers)
 		assert.Contains(t, retrieved.RequiredPermissions, domain.PluginPermissionManageNodes)
@@ -248,6 +251,7 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 		retrieved := result[0]
 		assert.Nil(t, retrieved.Source)
 		assert.Nil(t, retrieved.Homepage)
+		assert.Nil(t, retrieved.Checksum, "rows installed before the column existed stay NULL")
 		assert.Empty(t, retrieved.RequiredPermissions)
 		assert.Empty(t, retrieved.AllowedPermissions)
 		assert.Nil(t, retrieved.Category)
@@ -612,6 +616,51 @@ func (s *PluginRepositorySuite) TestPluginRepositoryDelete() {
 
 		err = s.repo.Delete(ctx, pluginID)
 		require.NoError(t, err)
+	})
+}
+
+func (s *PluginRepositorySuite) TestPluginRepositoryTouchLastLoaded() {
+	ctx := context.Background()
+
+	s.T().Run("stamps_last_loaded_at_without_touching_other_columns", func(t *testing.T) {
+		plugin := &domain.Plugin{
+			ID:          4101,
+			Name:        "touch-me-plugin",
+			Version:     "1.0.0",
+			Description: "Touch me",
+			Author:      "Author",
+			APIVersion:  "v1",
+			Status:      domain.PluginStatusActive,
+			Priority:    7,
+			Checksum:    new("916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9"),
+		}
+		require.NoError(t, s.repo.Save(ctx, plugin))
+
+		// Another instance disables the plugin while this one is still holding
+		// the snapshot above. A full-row write would resurrect it.
+		disabled := *plugin
+		disabled.Status = domain.PluginStatusDisabled
+		require.NoError(t, s.repo.Save(ctx, &disabled))
+
+		loadedAt := time.Now().Truncate(time.Second)
+		require.NoError(t, s.repo.TouchLastLoaded(ctx, plugin.ID, loadedAt))
+
+		result, err := s.repo.Find(ctx, &filters.FindPlugin{IDs: []domain.Uint64ID{plugin.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+
+		retrieved := result[0]
+		require.NotNil(t, retrieved.LastLoadedAt)
+		assert.InDelta(t, loadedAt.Unix(), retrieved.LastLoadedAt.Unix(), 1.0)
+		assert.Equal(t, domain.PluginStatusDisabled, retrieved.Status,
+			"stamping a load must not roll back another instance's status change")
+		assert.Equal(t, "1.0.0", retrieved.Version)
+		assert.Equal(t, 7, retrieved.Priority)
+		require.NotNil(t, retrieved.Checksum)
+	})
+
+	s.T().Run("unknown_plugin_is_a_no_op", func(t *testing.T) {
+		require.NoError(t, s.repo.TouchLastLoaded(ctx, 99999, time.Now()))
 	})
 }
 

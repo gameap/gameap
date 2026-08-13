@@ -362,6 +362,12 @@ type PluginRepository interface {
 
 	Save(ctx context.Context, plugin *domain.Plugin) error
 
+	// TouchLastLoaded stamps last_loaded_at without touching any other column.
+	// Save rewrites the whole row from the caller's snapshot, so using it to
+	// record a load would let one instance resurrect state another instance
+	// has just changed; every panel instance loads plugins independently.
+	TouchLastLoaded(ctx context.Context, id domain.Uint64ID, at time.Time) error
+
 	Delete(ctx context.Context, id domain.Uint64ID) error
 
 	Exists(ctx context.Context, filter *filters.FindPlugin) (bool, error)

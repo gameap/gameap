@@ -2,6 +2,8 @@ package plugininstall
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"time"
@@ -30,11 +32,22 @@ func CheckNotInstalled(ctx context.Context, repo repositories.PluginRepository, 
 	return nil
 }
 
+// Checksum returns the SHA-256 of a plugin file in the lowercase hex form the
+// store publishes and the plugins.checksum column stores. It is computed from
+// the bytes that were actually written rather than copied from store metadata,
+// so the recorded value always describes the file on disk.
+func Checksum(wasmBytes []byte) string {
+	sum := sha256.Sum256(wasmBytes)
+
+	return hex.EncodeToString(sum[:])
+}
+
 func BuildPluginRecord(
 	dbID domain.Uint64ID,
 	loaded *pkgplugin.LoadedPlugin,
 	filename string,
 	source string,
+	wasmBytes []byte,
 ) *domain.Plugin {
 	// Installing is an admin-only action and the dry-run endpoint shows the
 	// manifest's required_permissions beforehand, so confirming the install
@@ -51,6 +64,7 @@ func BuildPluginRecord(
 		APIVersion:          loaded.Info.ApiVersion,
 		Filename:            new(filename),
 		Source:              new(source),
+		Checksum:            new(Checksum(wasmBytes)),
 		RequiredPermissions: permissions,
 		AllowedPermissions:  permissions,
 		Status:              domain.PluginStatusActive,
@@ -73,6 +87,40 @@ func RefreshSubscriptions(ctx context.Context, refresher SubscriptionRefresher) 
 	}
 }
 
+// Change reasons carried on a sync hint. They only reach logs — the receiving
+// instance re-reads the database and decides for itself.
+const (
+	ReasonInstall   = "install"
+	ReasonUpdate    = "update"
+	ReasonUninstall = "uninstall"
+)
+
+// AfterChange is the tail of every plugin lifecycle handler: it refreshes this
+// instance's event subscriptions, drops what the reconciler recorded (so its
+// next pass adopts the handler's work instead of redoing it) and nudges the
+// other instances.
+//
+// Call it only once the database row and the plugin file are both final.
+// Publishing earlier lets a fast peer act on a row that is about to change —
+// on an uninstall it would re-download the file this handler is about to
+// delete.
+func AfterChange(
+	ctx context.Context,
+	refresher SubscriptionRefresher,
+	notifier SyncNotifier,
+	pluginID domain.Uint64ID,
+	reason string,
+) {
+	RefreshSubscriptions(ctx, refresher)
+
+	if notifier == nil {
+		return
+	}
+
+	notifier.Forget(pluginID)
+	notifier.Notify(context.WithoutCancel(ctx), pluginID, reason)
+}
+
 func TryLoadPlugin(
 	ctx context.Context,
 	loader *plugin.Loader,
@@ -84,7 +132,9 @@ func TryLoadPlugin(
 		return nil
 	}
 
-	loaded, err := loader.LoadWithID(ctx, filename, uint64(pluginRecord.ID))
+	// LoadWithID records the database ID to manager ID mapping itself, as one
+	// critical section with the load.
+	_, err := loader.LoadWithID(ctx, filename, uint64(pluginRecord.ID))
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to load plugin",
 			slog.String("filename", filename),
@@ -95,8 +145,6 @@ func TryLoadPlugin(
 
 		return errors.WithMessage(err, "failed to load plugin")
 	}
-
-	loader.RegisterPluginID(pluginRecord.ID, loaded.Info.Id)
 
 	return nil
 }

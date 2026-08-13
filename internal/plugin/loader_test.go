@@ -18,12 +18,36 @@ import (
 )
 
 type mockPluginManager struct {
-	loadFunc    func(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error)
-	unloadFunc  func(ctx context.Context, pluginID string) error
-	getPlugin   func(pluginID string) (*pkgplugin.LoadedPlugin, bool)
-	getPlugins  func() []*pkgplugin.LoadedPlugin
-	shutdownFn  func(ctx context.Context) error
-	loadedCount int
+	loadFunc      func(ctx context.Context, wasmBytes []byte, config map[string]string, pluginID uint64) (*pkgplugin.LoadedPlugin, error)
+	unloadFunc    func(ctx context.Context, pluginID string) error
+	replaceFunc   func(loadedPlugin *pkgplugin.LoadedPlugin) (*pkgplugin.LoadedPlugin, error)
+	shutdownPlug  func(ctx context.Context, loadedPlugin *pkgplugin.LoadedPlugin) error
+	getPlugin     func(pluginID string) (*pkgplugin.LoadedPlugin, bool)
+	getPlugins    func() []*pkgplugin.LoadedPlugin
+	shutdownFn    func(ctx context.Context) error
+	loadedCount   int
+	shutdownPlugs []*pkgplugin.LoadedPlugin
+}
+
+func (m *mockPluginManager) Register(_ *pkgplugin.LoadedPlugin) error {
+	return nil
+}
+
+func (m *mockPluginManager) Replace(loadedPlugin *pkgplugin.LoadedPlugin) (*pkgplugin.LoadedPlugin, error) {
+	if m.replaceFunc != nil {
+		return m.replaceFunc(loadedPlugin)
+	}
+
+	return nil, nil
+}
+
+func (m *mockPluginManager) ShutdownPlugin(ctx context.Context, loadedPlugin *pkgplugin.LoadedPlugin) error {
+	m.shutdownPlugs = append(m.shutdownPlugs, loadedPlugin)
+	if m.shutdownPlug != nil {
+		return m.shutdownPlug(ctx, loadedPlugin)
+	}
+
+	return nil
 }
 
 func (m *mockPluginManager) Load(
@@ -115,7 +139,7 @@ func TestLoader_LoadAll_FromRepository(t *testing.T) {
 
 	mgrID, ok := loader.GetPluginManagerID(plugin.ID)
 	assert.True(t, ok)
-	assert.Equal(t, "test-plugin-id", mgrID)
+	assert.Equal(t, pkgplugin.NormalizePluginID("test-plugin-id"), mgrID)
 }
 
 func TestLoader_LoadAll_WithAutoLoad(t *testing.T) {
@@ -174,8 +198,7 @@ func TestLoader_ProcessAutoLoad_AddsToDatabase(t *testing.T) {
 
 	loader := NewLoader(manager, fileManager, pluginRepo, []string{"new-plugin.wasm"}, "plugins")
 
-	err := loader.processAutoLoad(ctx)
-	require.NoError(t, err)
+	loader.processAutoLoad(ctx)
 
 	plugins, err := pluginRepo.FindAll(ctx, nil, nil)
 	require.NoError(t, err)
@@ -204,8 +227,7 @@ func TestLoader_ProcessAutoLoad_ActivatesExisting(t *testing.T) {
 
 	loader := NewLoader(manager, fileManager, pluginRepo, []string{"existing-plugin.wasm"}, "plugins")
 
-	err = loader.processAutoLoad(ctx)
-	require.NoError(t, err)
+	loader.processAutoLoad(ctx)
 
 	plugins, err := pluginRepo.FindAll(ctx, nil, nil)
 	require.NoError(t, err)
@@ -219,11 +241,17 @@ func TestLoader_ProcessAutoLoad_MissingFile(t *testing.T) {
 	fileManager := files.NewInMemoryFileManager()
 	pluginRepo := inmemory.NewPluginRepository()
 
-	loader := NewLoader(manager, fileManager, pluginRepo, []string{"missing-plugin.wasm"}, "plugins")
+	_ = fileManager.Write(ctx, "plugins/present-plugin.wasm", []byte("wasm-content"))
 
-	err := loader.processAutoLoad(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "autoload plugin file not found")
+	loader := NewLoader(manager, fileManager, pluginRepo,
+		[]string{"missing-plugin.wasm", "present-plugin.wasm"}, "plugins")
+
+	loader.processAutoLoad(ctx)
+
+	plugins, err := pluginRepo.FindAll(ctx, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, plugins, 1, "a missing autoload file must not hide the entries after it")
+	assert.Equal(t, "test-plugin", plugins[0].Name)
 }
 
 func TestLoader_GetPluginManagerID(t *testing.T) {
@@ -233,13 +261,11 @@ func TestLoader_GetPluginManagerID(t *testing.T) {
 
 	loader := NewLoader(manager, fileManager, pluginRepo, nil, "plugins")
 
-	loader.mu.Lock()
-	loader.pluginIDs[123] = "manager-id-123"
-	loader.mu.Unlock()
+	loader.RegisterPluginID(123, "manager-id-123")
 
 	mgrID, ok := loader.GetPluginManagerID(123)
 	assert.True(t, ok)
-	assert.Equal(t, "manager-id-123", mgrID)
+	assert.Equal(t, pkgplugin.NormalizePluginID("manager-id-123"), mgrID)
 
 	_, ok = loader.GetPluginManagerID(999)
 	assert.False(t, ok)
@@ -252,37 +278,133 @@ func TestLoader_GetDBPluginID(t *testing.T) {
 
 	loader := NewLoader(manager, fileManager, pluginRepo, nil, "plugins")
 
-	loader.mu.Lock()
-	loader.pluginIDs[456] = "manager-id-456"
-	loader.mu.Unlock()
+	loader.RegisterPluginID(456, "manager-id-456")
 
-	dbID, ok := loader.GetDBPluginID("manager-id-456")
-	assert.True(t, ok)
-	assert.Equal(t, domain.Uint64ID(456), dbID)
+	t.Run("resolves_the_raw_manifest_id", func(t *testing.T) {
+		dbID, ok := loader.GetDBPluginID("manager-id-456")
+		assert.True(t, ok)
+		assert.Equal(t, domain.Uint64ID(456), dbID)
+	})
 
-	_, ok = loader.GetDBPluginID("nonexistent-id")
-	assert.False(t, ok)
+	t.Run("resolves_the_compact_id_reported_by_the_manager", func(t *testing.T) {
+		dbID, ok := loader.GetDBPluginID(pkgplugin.NormalizePluginID("manager-id-456"))
+		assert.True(t, ok)
+		assert.Equal(t, domain.Uint64ID(456), dbID)
+	})
+
+	t.Run("misses_an_unknown_id", func(t *testing.T) {
+		_, ok := loader.GetDBPluginID("nonexistent-id")
+		assert.False(t, ok)
+	})
 }
 
 func TestLoader_Unload(t *testing.T) {
 	ctx := context.Background()
-	unloadCalled := false
-	manager := &mockPluginManager{
-		unloadFunc: func(_ context.Context, pluginID string) error {
-			unloadCalled = true
-			assert.Equal(t, "plugin-to-unload", pluginID)
 
-			return nil
-		},
-	}
+	t.Run("delegates_to_the_manager", func(t *testing.T) {
+		unloadCalled := false
+		manager := &mockPluginManager{
+			unloadFunc: func(_ context.Context, pluginID string) error {
+				unloadCalled = true
+				assert.Equal(t, "plugin-to-unload", pluginID)
+
+				return nil
+			},
+		}
+
+		loader := NewLoader(manager, files.NewInMemoryFileManager(), inmemory.NewPluginRepository(), nil, "plugins")
+
+		err := loader.Unload(ctx, "plugin-to-unload")
+		require.NoError(t, err)
+		assert.True(t, unloadCalled)
+	})
+
+	t.Run("removes_the_plugin_id_mapping", func(t *testing.T) {
+		loader := NewLoader(&mockPluginManager{},
+			files.NewInMemoryFileManager(), inmemory.NewPluginRepository(), nil, "plugins")
+		loader.RegisterPluginID(456, "manager-id-456")
+
+		require.NoError(t, loader.Unload(ctx, "manager-id-456"))
+
+		_, ok := loader.GetPluginManagerID(456)
+		assert.False(t, ok, "a stale mapping misroutes scheduled tasks after a reinstall")
+	})
+
+	t.Run("removes_the_mapping_even_when_the_manager_errors", func(t *testing.T) {
+		manager := &mockPluginManager{
+			unloadFunc: func(_ context.Context, _ string) error {
+				return pkgplugin.ErrPluginNotFound
+			},
+		}
+		loader := NewLoader(manager, files.NewInMemoryFileManager(), inmemory.NewPluginRepository(), nil, "plugins")
+		loader.RegisterPluginID(456, "manager-id-456")
+
+		err := loader.Unload(ctx, "manager-id-456")
+
+		require.ErrorIs(t, err, pkgplugin.ErrPluginNotFound)
+		_, ok := loader.GetPluginManagerID(456)
+		assert.False(t, ok)
+	})
+}
+
+func TestLoader_LoadWithID_RecordsTheManagerMapping(t *testing.T) {
+	ctx := context.Background()
+	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
-	pluginRepo := inmemory.NewPluginRepository()
 
-	loader := NewLoader(manager, fileManager, pluginRepo, nil, "plugins")
+	_ = fileManager.Write(ctx, "plugins/test-plugin.wasm", []byte("wasm-content"))
 
-	err := loader.Unload(ctx, "plugin-to-unload")
+	loader := NewLoader(manager, fileManager, inmemory.NewPluginRepository(), nil, "plugins")
+
+	_, err := loader.LoadWithID(ctx, "test-plugin.wasm", 321)
 	require.NoError(t, err)
-	assert.True(t, unloadCalled)
+
+	mgrID, ok := loader.GetPluginManagerID(321)
+	require.True(t, ok)
+	assert.Equal(t, pkgplugin.NormalizePluginID("test-plugin-id"), mgrID)
+
+	dbID, ok := loader.GetDBPluginID("test-plugin-id")
+	require.True(t, ok)
+	assert.Equal(t, domain.Uint64ID(321), dbID)
+}
+
+func TestLoader_Reload(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("shuts_down_the_displaced_plugin", func(t *testing.T) {
+		previous := &pkgplugin.LoadedPlugin{Info: &proto.PluginInfo{Id: "test-plugin-id"}}
+		manager := &mockPluginManager{
+			replaceFunc: func(_ *pkgplugin.LoadedPlugin) (*pkgplugin.LoadedPlugin, error) {
+				return previous, nil
+			},
+		}
+		fileManager := files.NewInMemoryFileManager()
+		_ = fileManager.Write(ctx, "plugins/test-plugin.wasm", []byte("wasm-content"))
+
+		loader := NewLoader(manager, fileManager, inmemory.NewPluginRepository(), nil, "plugins")
+
+		loaded, err := loader.Reload(ctx, "test-plugin.wasm", 321)
+
+		require.NoError(t, err)
+		require.NotNil(t, loaded)
+		require.Len(t, manager.shutdownPlugs, 1)
+		assert.Same(t, previous, manager.shutdownPlugs[0])
+
+		mgrID, ok := loader.GetPluginManagerID(321)
+		require.True(t, ok)
+		assert.Equal(t, pkgplugin.NormalizePluginID("test-plugin-id"), mgrID)
+	})
+
+	t.Run("reports_a_missing_file_without_touching_the_manager", func(t *testing.T) {
+		manager := &mockPluginManager{}
+		loader := NewLoader(manager, files.NewInMemoryFileManager(), inmemory.NewPluginRepository(), nil, "plugins")
+
+		_, err := loader.Reload(ctx, "missing.wasm", 321)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "plugin file not found")
+		assert.Empty(t, manager.shutdownPlugs)
+	})
 }
 
 func TestParsePluginID_Numeric(t *testing.T) {

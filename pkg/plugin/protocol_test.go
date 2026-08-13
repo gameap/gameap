@@ -67,7 +67,7 @@ func (f *fakeProtoPlugin) ParsePlayers(
 //nolint:unparam // id is fixed in tests but kept explicit for clarity
 func managerWithPlugin(id string, svc protocol.ProtocolService) *Manager {
 	m := NewManager(ManagerConfig{})
-	m.plugins[normalizePluginID(id)] = &LoadedPlugin{
+	m.plugins[NormalizePluginID(id)] = &LoadedPlugin{
 		Info:     &proto.PluginInfo{Id: id},
 		Protocol: svc,
 		Enabled:  true,

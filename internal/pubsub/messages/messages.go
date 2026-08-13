@@ -11,6 +11,7 @@ import (
 const (
 	TypeCacheInvalidate = "cache.invalidate"
 	TypePluginEvent     = "plugin.event"
+	TypePluginSync      = "plugin.sync"
 	TypeServerStatus    = "server.status"
 	TypeTaskProgress    = "task.progress"
 	TypeNotification    = "notification"
@@ -77,6 +78,15 @@ type PluginEventPayload struct {
 	TaskID    *uint             `json:"task_id,omitempty"`
 	NodeID    *uint             `json:"node_id,omitempty"`
 	ExtraData map[string]string `json:"extra_data,omitempty"`
+}
+
+// PluginSyncPayload is a hint, not state. The receiving instance always
+// re-reads the plugins table before it decides anything, so a message that is
+// lost, duplicated or delivered out of order costs at most one refresh
+// interval of staleness. The fields exist for logging.
+type PluginSyncPayload struct {
+	PluginID uint64 `json:"plugin_id,omitempty"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 type ServerStatusPayload struct {

@@ -361,6 +361,23 @@ type Config struct {
 		// Scheduler gates plugin-registered periodic tasks (the
 		// gameap-scheduler host library). Task definitions are stored in
 		// the database; instances deduplicate runs via distributed locks.
+		// Sync keeps every panel instance's loaded plugins in step with the
+		// plugins table. It is safe to leave on with a single instance: the
+		// periodic pass is one indexed query when nothing changed.
+		Sync struct {
+			Disabled bool `env:"PLUGIN_SYNC_DISABLED" envDefault:"false"`
+
+			// RefreshInterval bounds how long a lost pub-sub hint can leave an
+			// instance running the wrong plugins.
+			RefreshInterval time.Duration `env:"PLUGIN_SYNC_REFRESH_INTERVAL" envDefault:"60s"`
+
+			// MinBackoff and MaxBackoff bound the retry delay after a plugin
+			// fails to load. A plugin whose row changes is retried at once
+			// regardless, so fixing one never means waiting out the backoff.
+			MinBackoff time.Duration `env:"PLUGIN_SYNC_MIN_BACKOFF" envDefault:"15s"`
+			MaxBackoff time.Duration `env:"PLUGIN_SYNC_MAX_BACKOFF" envDefault:"15m"`
+		}
+
 		Scheduler struct {
 			// MinInterval is the floor for task intervals.
 			MinInterval time.Duration `env:"PLUGIN_SCHEDULER_MIN_INTERVAL" envDefault:"1s"`

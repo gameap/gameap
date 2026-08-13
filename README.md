@@ -365,6 +365,45 @@ Used by the resumable file-manager upload endpoints
 
 - `PLUGINS_DISABLED` - Disable plugins support (default: `false`)
 
+Installing, updating or removing a plugin changes the runtime of the instance
+that handled the request. Every other instance reconciles its own loaded plugins
+against the `plugins` table, prompted by a pub/sub hint and, failing that, by a
+periodic pass. See [Plugins across instances](#plugins-across-instances).
+
+- `PLUGIN_SYNC_DISABLED` - Turn the reconciler off; plugin changes then only
+  reach an instance when it restarts (default: `false`)
+- `PLUGIN_SYNC_REFRESH_INTERVAL` - How long a lost hint can leave an instance
+  stale (default: `60s`)
+- `PLUGIN_SYNC_MIN_BACKOFF` - First retry delay after a plugin fails to load
+  (default: `15s`)
+- `PLUGIN_SYNC_MAX_BACKOFF` - Retry delay ceiling (default: `15m`)
+
+#### Plugins across instances
+
+Set **`PUBSUB_INSTANCE_ID` to a distinct value on every replica.** It defaults to
+the literal `default`, so without it every instance answers to the same address
+and the per-instance reply channels used for daemon file, command and metrics
+requests deliver to the wrong process. Plugin sync itself is unaffected — a pass
+is idempotent, so an instance handling its own hint costs nothing — but the rest
+of the fleet's routing is not.
+
+Plugin *state* lives in the database and reaches every instance on its own. The
+plugin *file* does not: with `FILES_DRIVER=local` it is written to the disk of
+whichever instance handled the install. Pick one of:
+
+- **`FILES_DRIVER=s3`** — every replica reads the same object. This is the
+  supported path, and it is the same switch multi-instance ACME needs.
+- **Store-installed plugins only** — an instance that finds a plugin file missing
+  re-downloads it from the plugin store and verifies it against the checksum
+  recorded at install time. Plugins uploaded through
+  `POST /api/admin/plugins/upload/install` cannot be recovered this way, because
+  no other instance can obtain the file.
+
+`GET /api/admin/plugins/loaded` reports the answering instance's view, including
+plugins the database wants active that this instance failed to load, with the
+error and the next retry time. It is not aggregated across the fleet — query each
+instance to compare.
+
 ### Plugin Store Configuration
 
 - `PLUGIN_STORE_URL` - GameAP plugin store URL (default: `https://plugins.gameap.dev/api`)
@@ -493,6 +532,7 @@ LOGGER_LEVEL=info
 
 # Plugins
 # PLUGINS_DISABLED=false
+# PLUGIN_SYNC_REFRESH_INTERVAL=60s
 
 # Plugin Store
 # PLUGIN_STORE_URL=https://plugins.gameap.dev/api

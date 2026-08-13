@@ -52,6 +52,16 @@ func (m *recordingLoaderManager) GetPlugin(_ string) (*pkgplugin.LoadedPlugin, b
 func (m *recordingLoaderManager) GetPlugins() []*pkgplugin.LoadedPlugin { return nil }
 func (m *recordingLoaderManager) Shutdown(_ context.Context) error      { return nil }
 
+func (m *recordingLoaderManager) Register(_ *pkgplugin.LoadedPlugin) error { return nil }
+
+func (m *recordingLoaderManager) Replace(_ *pkgplugin.LoadedPlugin) (*pkgplugin.LoadedPlugin, error) {
+	return nil, nil
+}
+
+func (m *recordingLoaderManager) ShutdownPlugin(_ context.Context, _ *pkgplugin.LoadedPlugin) error {
+	return nil
+}
+
 func TestInstallPlugin_loader_receives_db_plugin_id(t *testing.T) {
 	// ARRANGE
 	mockServer := newUpstreamServer(t, upstreamConfig{
@@ -67,7 +77,7 @@ func TestInstallPlugin_loader_receives_db_plugin_id(t *testing.T) {
 	manager := &recordingLoaderManager{}
 	loader := plugin.NewLoader(manager, fm, repo, nil, "plugins")
 
-	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
+	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, nil, "plugins", api.NewResponder())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/plugin-store/plugins/"+testPluginID+"/install", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": testPluginID})

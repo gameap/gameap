@@ -69,6 +69,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
@@ -212,6 +213,7 @@ type Container struct {
 	querconResolver  *quercon.Resolver
 	netConnRegistry  *pkgplugin.ConnRegistry
 	pluginScheduler  *pluginscheduler.Service
+	pluginSync       *pluginsync.Service
 	schedulerLocker  locker.Locker
 
 	pluginArchiveEvents *pluginarchive.Service
@@ -294,6 +296,12 @@ func (c *Container) Shutdown() error {
 	}
 
 	c.shutdownGRPCServer()
+
+	// An in-flight reconcile must not be building a module while the manager
+	// closes runtimes underneath it, so it stops first.
+	if c.pluginSync != nil {
+		c.pluginSync.Stop()
+	}
 
 	// The scheduler must join its in-flight runs before the plugin manager's
 	// shutdown func (in shotdownFuncs below) closes the WASM runtimes; the
@@ -2071,6 +2079,41 @@ func (c *Container) PluginScheduler() *pluginscheduler.Service {
 	}
 
 	return c.pluginScheduler
+}
+
+// PluginSync reconciles this instance's loaded plugins against the plugins
+// table. It sits above the loader, the manager and the archive dispatcher, and
+// nothing below may reference it: a host library reaching back here would
+// invert the loader-then-manager lock order the reconciler relies on.
+func (c *Container) PluginSync() *pluginsync.Service {
+	if c.config.Plugin.Sync.Disabled {
+		return nil
+	}
+
+	if c.pluginSync == nil {
+		c.pluginSync = pluginsync.New(
+			pluginsync.Deps{
+				Repo:       c.PluginRepository(),
+				Loader:     c.PluginLoader(),
+				Plugins:    c.PluginManager(),
+				Subs:       c.PluginDispatcher(),
+				Archive:    c.PluginArchiveEvents(),
+				Files:      c.FileManager(),
+				Store:      c.PluginStoreService(),
+				Locks:      c.SchedulerLocker(),
+				Bus:        c.PubSub(),
+				PluginsDir: c.PluginsDir(),
+			},
+			pluginsync.Options{
+				RefreshInterval: c.config.Plugin.Sync.RefreshInterval,
+				MinBackoff:      c.config.Plugin.Sync.MinBackoff,
+				MaxBackoff:      c.config.Plugin.Sync.MaxBackoff,
+			},
+			slog.Default(),
+		)
+	}
+
+	return c.pluginSync
 }
 
 // SchedulerLocker picks the strongest available coordination backend: Redis

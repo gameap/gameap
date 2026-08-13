@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gameap/gameap/internal/api/plugins/getloaded"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -40,6 +42,7 @@ func TestLoaded_empty_list(t *testing.T) {
 		},
 		nil,
 		pluginRepo,
+		nil,
 		api.NewResponder(),
 	)
 
@@ -120,6 +123,7 @@ func TestLoaded_with_plugins(t *testing.T) {
 		},
 		nil,
 		pluginRepo,
+		nil,
 		api.NewResponder(),
 	)
 
@@ -186,6 +190,7 @@ func TestLoaded_plugin_not_in_db(t *testing.T) {
 		},
 		nil,
 		pluginRepo,
+		nil,
 		api.NewResponder(),
 	)
 
@@ -208,4 +213,157 @@ func TestLoaded_plugin_not_in_db(t *testing.T) {
 	assert.Equal(t, "Autoload Plugin", pluginData["name"])
 	assert.Equal(t, "1.0.0", pluginData["version"])
 	assert.Equal(t, "store", pluginData["source_type"])
+}
+
+type fakeSyncStatus struct {
+	statuses map[domain.Uint64ID]pluginsync.Status
+}
+
+func (f *fakeSyncStatus) Snapshot() map[domain.Uint64ID]pluginsync.Status {
+	return f.statuses
+}
+
+func TestLoaded_sync_state(t *testing.T) {
+	ctx := context.Background()
+	nextAttempt := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	t.Run("reports_the_state_of_a_healthy_plugin", func(t *testing.T) {
+		pluginRepo := inmemory.NewPluginRepository()
+		dbID := pkgplugin.ParsePluginID("healthyplugin")
+		require.NoError(t, pluginRepo.Save(ctx, &domain.Plugin{
+			ID:      dbID,
+			Name:    "Healthy Plugin",
+			Version: "1.0.0",
+			Status:  domain.PluginStatusActive,
+		}))
+
+		h := getloaded.NewHandler(
+			&mockLoaderManager{
+				getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
+					return []*pkgplugin.LoadedPlugin{
+						{
+							Info:    &proto.PluginInfo{Id: "healthyplugin", Name: "Healthy Plugin", Version: "1.0.0"},
+							Enabled: true,
+						},
+					}
+				},
+			},
+			nil,
+			pluginRepo,
+			&fakeSyncStatus{statuses: map[domain.Uint64ID]pluginsync.Status{
+				dbID: {PluginID: dbID, State: pluginsync.SyncStateInSync},
+			}},
+			api.NewResponder(),
+		)
+
+		recorder := httptest.NewRecorder()
+		h.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/admin/plugins/loaded", nil))
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+
+		data := decodeData(t, recorder)
+		require.Len(t, data, 1)
+		assert.Equal(t, "in_sync", data[0]["sync_state"])
+		assert.Equal(t, "active", data[0]["db_status"])
+		assert.Equal(t, true, data[0]["enabled"])
+	})
+
+	t.Run("lists_an_active_plugin_this_instance_could_not_load", func(t *testing.T) {
+		pluginRepo := inmemory.NewPluginRepository()
+		dbID := pkgplugin.ParsePluginID("brokenplugin")
+		require.NoError(t, pluginRepo.Save(ctx, &domain.Plugin{
+			ID:      dbID,
+			Name:    "Broken Plugin",
+			Version: "2.0.0",
+			Status:  domain.PluginStatusActive,
+		}))
+
+		h := getloaded.NewHandler(
+			&mockLoaderManager{},
+			nil,
+			pluginRepo,
+			&fakeSyncStatus{statuses: map[domain.Uint64ID]pluginsync.Status{
+				dbID: {
+					PluginID:    dbID,
+					State:       pluginsync.SyncStateRetrying,
+					Failures:    3,
+					LastError:   "plugin file not found",
+					NextAttempt: nextAttempt,
+				},
+			}},
+			api.NewResponder(),
+		)
+
+		recorder := httptest.NewRecorder()
+		h.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/admin/plugins/loaded", nil))
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+
+		data := decodeData(t, recorder)
+		require.Len(t, data, 1, "a broken plugin must not be invisible")
+		assert.Equal(t, "Broken Plugin", data[0]["name"])
+		assert.Equal(t, false, data[0]["enabled"])
+		assert.Equal(t, "retrying", data[0]["sync_state"])
+		assert.Equal(t, "plugin file not found", data[0]["sync_error"])
+		assert.InDelta(t, 3.0, data[0]["sync_failures"], 0.001)
+		assert.Equal(t, nextAttempt.Format(time.RFC3339), data[0]["next_attempt_at"])
+	})
+
+	t.Run("marks_a_module_without_a_row_as_an_orphan", func(t *testing.T) {
+		h := getloaded.NewHandler(
+			&mockLoaderManager{
+				getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
+					return []*pkgplugin.LoadedPlugin{
+						{
+							Info:    &proto.PluginInfo{Id: "orphanplugin", Name: "Orphan", Version: "1.0.0"},
+							Enabled: true,
+						},
+					}
+				},
+			},
+			nil,
+			inmemory.NewPluginRepository(),
+			&fakeSyncStatus{},
+			api.NewResponder(),
+		)
+
+		recorder := httptest.NewRecorder()
+		h.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/admin/plugins/loaded", nil))
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+
+		data := decodeData(t, recorder)
+		require.Len(t, data, 1)
+		assert.Equal(t, "orphan", data[0]["sync_state"])
+		assert.Empty(t, data[0]["db_status"])
+	})
+
+	t.Run("disabled_rows_are_not_listed", func(t *testing.T) {
+		pluginRepo := inmemory.NewPluginRepository()
+		require.NoError(t, pluginRepo.Save(ctx, &domain.Plugin{
+			ID:      pkgplugin.ParsePluginID("disabledplugin"),
+			Name:    "Disabled Plugin",
+			Version: "1.0.0",
+			Status:  domain.PluginStatusDisabled,
+		}))
+
+		h := getloaded.NewHandler(&mockLoaderManager{}, nil, pluginRepo, &fakeSyncStatus{}, api.NewResponder())
+
+		recorder := httptest.NewRecorder()
+		h.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/admin/plugins/loaded", nil))
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		assert.Empty(t, decodeData(t, recorder))
+	})
+}
+
+func decodeData(t *testing.T, recorder *httptest.ResponseRecorder) []map[string]any {
+	t.Helper()
+
+	var resp struct {
+		Data []map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+
+	return resp.Data
 }

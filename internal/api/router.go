@@ -174,6 +174,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
@@ -236,6 +237,7 @@ type container interface {
 	PluginRepository() repositories.PluginRepository
 	PluginLoader() *internalplugin.Loader
 	PluginScheduler() *pluginscheduler.Service
+	PluginSync() *pluginsync.Service
 	PluginArchiveEvents() *pluginarchive.Service
 	PluginStoreService() *pluginstore.Service
 	PluginsDir() string
@@ -1894,6 +1896,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 			),
@@ -1908,6 +1911,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 			),
@@ -1921,7 +1925,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginManager(),
 				c.PluginLoader(),
+				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginScheduler(),
 				c.PluginArchiveEvents(),
 				c.PluginsDir(),
@@ -1950,6 +1956,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -1963,6 +1970,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 				c.PluginLoader(),
 				c.PluginRepository(),
+				c.PluginSync(),
 				c.Responder(),
 			),
 			AdminOnly: true,

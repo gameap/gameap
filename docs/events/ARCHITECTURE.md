@@ -235,8 +235,14 @@ sequenceDiagram
 | Cache | `cache:invalidate:*` | Application | CacheInvalidator |
 | Session | `daemon:session:connected` | SessionRegistry | - |
 | Session | `daemon:session:closed` | SessionRegistry | - |
+| Plugin | `plugin:sync` | Plugin lifecycle handlers | PluginSync (every instance) |
 
 All channels are prefixed with `gameap:` (e.g., `gameap:realtime:task:status:{id}`). The WS Bridge strips this prefix when converting to WebSocket topics.
+
+`plugin:sync` is the one channel whose payload carries no state. It only wakes
+each instance's reconciler, which re-reads the `plugins` table and decides for
+itself, so a lost, duplicated or reordered message changes nothing —
+see `internal/services/pluginsync/README.md`.
 
 ## Key Components
 

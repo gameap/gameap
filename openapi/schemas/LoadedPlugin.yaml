@@ -62,6 +62,47 @@ properties:
     type: boolean
     description: Whether the plugin has a frontend bundle
     example: true
+  db_status:
+    type: string
+    description: >
+      Status recorded in the database, which is shared by every panel instance.
+      Absent when the module is loaded but no row explains it.
+    enum:
+      - active
+      - disabled
+      - error
+      - updating
+    example: "active"
+  sync_state:
+    type: string
+    description: >
+      How this instance's runtime compares with the database row. Reported per
+      instance and not aggregated: a plugin can be in_sync on one replica and
+      retrying on another. `orphan` means the module is loaded with no row to
+      explain it, and is left alone. `pending` means the row is active and this
+      instance has not attempted it yet.
+    enum:
+      - in_sync
+      - retrying
+      - orphan
+      - pending
+    example: "in_sync"
+  sync_error:
+    type: string
+    description: Why the last attempt on this instance failed
+    example: "plugin file is missing and the plugin was not installed from the store"
+  sync_failures:
+    type: integer
+    description: Consecutive failed attempts on this instance
+    example: 3
+  next_attempt_at:
+    type: string
+    format: date-time
+    description: When this instance will retry a failed plugin
+  loaded_at:
+    type: string
+    format: date-time
+    description: When this instance last loaded the plugin
 required:
   - id
   - name

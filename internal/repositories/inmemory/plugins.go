@@ -95,6 +95,7 @@ func (r *PluginRepository) Save(_ context.Context, plugin *domain.Plugin) error 
 		Filename:            plugin.Filename,
 		Source:              plugin.Source,
 		Homepage:            plugin.Homepage,
+		Checksum:            plugin.Checksum,
 		RequiredPermissions: copyPermissions(plugin.RequiredPermissions),
 		AllowedPermissions:  copyPermissions(plugin.AllowedPermissions),
 		Status:              plugin.Status,
@@ -107,6 +108,20 @@ func (r *PluginRepository) Save(_ context.Context, plugin *domain.Plugin) error 
 		CreatedAt:           plugin.CreatedAt,
 		UpdatedAt:           plugin.UpdatedAt,
 	}
+
+	return nil
+}
+
+func (r *PluginRepository) TouchLastLoaded(_ context.Context, id domain.Uint64ID, at time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	plugin, ok := r.plugins[id]
+	if !ok {
+		return nil
+	}
+
+	plugin.LastLoadedAt = &at
 
 	return nil
 }
@@ -232,6 +247,7 @@ func (r *PluginRepository) copyPlugin(plugin *domain.Plugin) domain.Plugin {
 		Filename:            plugin.Filename,
 		Source:              plugin.Source,
 		Homepage:            plugin.Homepage,
+		Checksum:            plugin.Checksum,
 		RequiredPermissions: copyPermissions(plugin.RequiredPermissions),
 		AllowedPermissions:  copyPermissions(plugin.AllowedPermissions),
 		Status:              plugin.Status,
