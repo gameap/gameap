@@ -16,7 +16,7 @@
 
       <li v-for="item in items.slice(1)">
         <div class="flex items-center">
-          <i class="fa-solid fa-chevron-right align-middle w-3 h-3 mx-2 text-stone-400"></i>
+          <GIcon name="chevron-right" class="align-middle w-3 h-3 mx-2 text-stone-400" />
           <a v-if="item.link" :href="item.link" class="ms-1 text-sm font-medium text-stone-700 hover:text-info md:ms-2 dark:text-stone-400 dark:hover:text-white">
             <BreadcrumbIcon :icon="item.icon" />
             <span class="align-middle">{{ item.text }}</span>
@@ -39,6 +39,7 @@
 
 <script setup>
 import BreadcrumbIcon from './BreadcrumbIcon.vue'
+import GIcon from './GIcon.vue'
 
 const props = defineProps({
   items: null,

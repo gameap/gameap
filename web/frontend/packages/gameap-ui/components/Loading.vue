@@ -9,7 +9,7 @@
         leave-to-class="opacity-0"
     >
       <div v-if="showTransition" class="fa-3x">
-        <i class="fa-solid fa-gear fa-spin"></i>
+        <GIcon name="loading" />
       </div>
     </Transition>
   </div>
@@ -17,6 +17,7 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref } from "vue"
+import GIcon from './GIcon.vue'
 
 // A response that arrives within the delay never gets a spinner, so a fast page
 // does not blink. Once the delay is over the spinner has to be readable right

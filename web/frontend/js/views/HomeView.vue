@@ -65,7 +65,8 @@
             :route="btn.props.route"
         >
           <div class="text-lg">
-            <i :class="btn.icon"></i>
+            <GIcon v-if="hasIcon(btn.icon)" :name="btn.icon" />
+            <i v-else :class="btn.icon"></i>
             {{ pluginsStore.resolvePluginText(btn.pluginId, btn.label) }}
           </div>
         </GButton>
@@ -86,7 +87,7 @@
             href="https://t.me/gameap"
             target="_blank"
         >
-          <i class="fa-brands fa-telegram mr-1"></i>
+          <GIcon name="telegram" class="mr-1" />
           Telegram
         </a>
 
@@ -96,7 +97,7 @@
             href="https://discord.gg/SqtHpZc"
             target="_blank"
         >
-          <i class="fa-brands fa-discord mr-1"></i>
+          <GIcon name="discord" class="mr-1" />
           Discord
         </a>
 
@@ -107,7 +108,7 @@
             href="https://vk.com/gameap"
             target="_blank"
         >
-          <i class="fa-brands fa-vk mr-1"></i>
+          <GIcon name="vk" class="mr-1" />
           VKontakte
         </a>
 
@@ -117,7 +118,7 @@
             href="https://www.reddit.com/r/gameap/"
             target="_blank"
         >
-          <i class="fa-brands fa-reddit mr-1"></i>
+          <GIcon name="reddit" class="mr-1" />
           Reddit
         </a>
 
@@ -140,7 +141,7 @@
                 href="https://www.patreon.com/gameap"
                 target="_blank"
             >
-              <i class="fa-brands fa-patreon mr-1"></i>
+              <GIcon name="patreon" class="mr-1" />
               Patreon
             </a>
           </div>
@@ -199,7 +200,7 @@
             href="https://discord.gg/SqtHpZc"
             target="_blank"
         >
-          <i class="fa-brands fa-discord mr-1"></i>
+          <GIcon name="discord" class="mr-1" />
           Discord
         </a>
       </div>
@@ -211,7 +212,7 @@
 
 <script setup>
 import {computed, onMounted} from "vue"
-import { GIcon } from "@gameap/ui"
+import { GIcon, hasIcon } from "@gameap/ui"
 import GButton from "../components/GButton.vue"
 import PluginSlot from "../plugins/components/PluginSlot.vue"
 import {useAuthStore} from "@/store/auth"
