@@ -45,7 +45,9 @@ properties:
     description: GDaemon hostname
   gdaemon_port:
     type: integer
-    description: GDaemon port
+    minimum: 1
+    maximum: 65535
+    description: GDaemon port (1-65535)
   client_certificate_id:
     type: integer
     description: Client certificate ID

@@ -42,7 +42,9 @@ properties:
     example: "192.168.1.100"
   gdaemon_port:
     type: integer
-    description: GDaemon port
+    minimum: 1
+    maximum: 65535
+    description: GDaemon port (1-65535)
     example: 31717
   client_certificate_id:
     type: integer

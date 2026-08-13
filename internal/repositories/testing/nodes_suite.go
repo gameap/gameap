@@ -170,6 +170,31 @@ func (s *NodeRepositorySuite) TestNodeRepositorySave() {
 		assert.Len(t, results[0].IPs, 2)
 	})
 
+	s.T().Run("insert_node_with_high_gdaemon_port", func(t *testing.T) {
+		node := &domain.Node{
+			Enabled:             true,
+			Name:                "High Port Node",
+			OS:                  domain.NodeOSLinux,
+			Location:            "EU-North",
+			IPs:                 domain.IPList{"192.168.3.1"},
+			WorkPath:            "/srv/gameap",
+			GdaemonHost:         "highport.example.com",
+			GdaemonPort:         40000,
+			GdaemonAPIKey:       "test-api-key-3",
+			GdaemonServerCert:   "cert-data-3",
+			ClientCertificateID: 3,
+			PreferInstallMethod: domain.NodePreferInstallMethodAuto,
+		}
+
+		err := s.repo.Save(ctx, node)
+		require.NoError(t, err)
+
+		nodes, err := s.repo.Find(ctx, filters.FindNodeByIDs(node.ID), nil, nil)
+		require.NoError(t, err)
+		require.Len(t, nodes, 1)
+		assert.Equal(t, 40000, nodes[0].GdaemonPort)
+	})
+
 	s.T().Run("auto_set_timestamps", func(t *testing.T) {
 		node := &domain.Node{
 			Name:                "Timestamp Node",

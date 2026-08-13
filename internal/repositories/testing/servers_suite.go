@@ -87,6 +87,34 @@ func (s *ServerRepositorySuite) TestServerRepositorySave() {
 		assert.Equal(t, domain.ServerInstalledStatusInstalled, server.Installed)
 		assert.True(t, server.UpdatedAt.After(*originalUpdatedAt))
 	})
+
+	s.T().Run("insert_server_with_high_ports", func(t *testing.T) {
+		server := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "test3",
+			Enabled:    true,
+			Installed:  domain.ServerInstalledStatusInstalled,
+			Name:       "High Port Server",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "127.0.0.1",
+			ServerPort: 47015,
+			QueryPort:  new(47016),
+			RconPort:   new(65535),
+		}
+
+		err := s.repo.Save(ctx, server)
+		require.NoError(t, err)
+
+		results, err := s.repo.Find(ctx, &filters.FindServer{IDs: []uint{server.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, 47015, results[0].ServerPort)
+		require.NotNil(t, results[0].QueryPort)
+		assert.Equal(t, 47016, *results[0].QueryPort)
+		require.NotNil(t, results[0].RconPort)
+		assert.Equal(t, 65535, *results[0].RconPort)
+	})
 }
 
 func (s *ServerRepositorySuite) TestServerRepositoryDelete() {
