@@ -36,6 +36,7 @@ interface StubRequest {
 interface ArchiveStub {
   url: string;
   requests: StubRequest[];
+  request: (mode: StubMode) => StubRequest | undefined;
   close: () => Promise<void>;
 }
 
@@ -113,6 +114,7 @@ async function startArchiveStub(): Promise<ArchiveStub> {
   return {
     url: `http://127.0.0.1:${port}`,
     requests,
+    request: (mode) => requests.find((r) => r.mode === mode),
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.closeAllConnections();
@@ -252,7 +254,7 @@ test.describe('file manager: download directory as ZIP', () => {
       await expect(progressBlock(page)).toContainText(ARCHIVE_NAME, { timeout: 20_000 });
       await expect(progressBlock(page)).not.toContainText('Downloading archive');
       await expect(progressBlock(page).getByRole('button', { name: /cancel/i })).toHaveCount(0);
-      expect(stub.requests[0]?.ended).toBe(true);
+      expect(stub.request('complete')?.ended).toBe(true);
     });
 
     test(`${ctxLabel}: cancel mid-stream saves nothing`, async ({ page, request }) => {
@@ -264,7 +266,7 @@ test.describe('file manager: download directory as ZIP', () => {
       page.on('download', (d) => downloads.push(d));
 
       await startArchiveDownload(page);
-      await expect.poll(() => stub.requests[0]?.sent ?? 0, { timeout: 20_000 }).toBeGreaterThan(2);
+      await expect.poll(() => stub.request('slow')?.sent ?? 0, { timeout: 20_000 }).toBeGreaterThan(2);
 
       await progressBlock(page).getByRole('button', { name: /cancel/i }).click();
 
@@ -275,7 +277,7 @@ test.describe('file manager: download directory as ZIP', () => {
       await expect(page.getByText('Archive download failed')).toHaveCount(0);
 
       // The server sees the disconnect (that is what cancels archive generation).
-      await expect.poll(() => stub.requests[0]?.closedEarly, { timeout: 20_000 }).toBe(true);
+      await expect.poll(() => stub.request('slow')?.closedEarly, { timeout: 20_000 }).toBe(true);
 
       if (secure) {
         // StreamSaver had already handed the stream to the browser: the browser-side

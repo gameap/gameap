@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/api/middlewares"
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/rbac"
@@ -506,6 +507,59 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Empty(t, w.Body.String())
 				assert.True(t, g.released.Load(), "concurrency slot must be released after a client cancel")
 			},
+		},
+		{
+			name:      "write_failure_before_first_byte_returns_json_error",
+			serverID:  "1",
+			queryDisk: "server",
+			queryPath: "data",
+			setupCtx:  authedCtx,
+			setupRepo: saveServerWithFilesAbility,
+			setupArchiver: func() *stubArchiver {
+				return &stubArchiver{
+					manifest: &archiver.Manifest{
+						RootName:   "data",
+						TotalSize:  10,
+						TotalFiles: 1,
+						Entries:    []archiver.Entry{{RelPath: "data/a.txt", Size: 10}},
+					},
+					writeErr: errDaemonUnavailable,
+				}
+			},
+			setupGuard:     func() *fakeGuard { return &fakeGuard{} },
+			expectedStatus: http.StatusInternalServerError,
+			wantError:      `"status":"error"`,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder, _ *stubArchiver, g *fakeGuard) {
+				t.Helper()
+				assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+				assert.Empty(t, w.Header().Get("Content-Disposition"), "archive headers must not leak into the error")
+				assert.Empty(t, w.Header().Get("X-Archive-Total-Bytes"))
+				assert.Empty(t, w.Header().Get("X-Archive-Total-Files"))
+				assert.Empty(t, w.Header().Get("X-Archive-Skipped-Count"))
+				assert.True(t, g.released.Load(), "concurrency slot must be released")
+			},
+		},
+		{
+			name:      "write_failure_before_first_byte_keeps_daemon_status",
+			serverID:  "1",
+			queryDisk: "server",
+			queryPath: "data",
+			setupCtx:  authedCtx,
+			setupRepo: saveServerWithFilesAbility,
+			setupArchiver: func() *stubArchiver {
+				return &stubArchiver{
+					manifest: &archiver.Manifest{
+						RootName:   "data",
+						TotalSize:  10,
+						TotalFiles: 1,
+						Entries:    []archiver.Entry{{RelPath: "data/a.txt", Size: 10}},
+					},
+					writeErr: daemon.ErrDaemonNotConnected,
+				}
+			},
+			setupGuard:     func() *fakeGuard { return &fakeGuard{} },
+			expectedStatus: http.StatusBadGateway,
+			wantError:      "Bad Gateway",
 		},
 		{
 			name:          "success_compress_zero_produces_store_zip",

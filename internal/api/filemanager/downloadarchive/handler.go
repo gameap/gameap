@@ -217,20 +217,41 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("X-Archive-Skipped-Count", strconv.Itoa(len(manifest.Skipped)))
 	rw.Header().Set("Cache-Control", "no-store")
 
-	_, err = h.archiver.WriteArchive(ctx, rw, node, manifest, archiver.Options{
+	tracked := &responseTracker{ResponseWriter: rw}
+
+	_, err = h.archiver.WriteArchive(ctx, tracked, node, manifest, archiver.Options{
 		CompressLevel: compressLevel,
 	})
-	if err == nil {
-		return
+	if err != nil {
+		h.handleWriteError(ctx, rw, tracked.started, server.ID, err)
 	}
+}
 
+func (h *Handler) handleWriteError(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	responseStarted bool,
+	serverID uint,
+	err error,
+) {
 	if ctx.Err() != nil {
 		slog.InfoContext(
 			ctx,
 			"archive download cancelled by client",
 			slog.String("error", err.Error()),
-			slog.Uint64("server_id", uint64(server.ID)),
+			slog.Uint64("server_id", uint64(serverID)),
 		)
+
+		return
+	}
+
+	// The archiver buffers its first bytes, so a failure on the first entry usually happens
+	// before anything reached net/http and can still be reported as a regular error response.
+	if !responseStarted {
+		for _, name := range archiveHeaders {
+			rw.Header().Del(name)
+		}
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "write archive"))
 
 		return
 	}
@@ -239,13 +260,49 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		ctx,
 		"failed to write archive",
 		slog.String("error", err.Error()),
-		slog.Uint64("server_id", uint64(server.ID)),
+		slog.Uint64("server_id", uint64(serverID)),
 	)
 
 	// The 200 and part of the body are already on the wire, so the only way to tell the client
 	// the archive is unusable is to abort the response (truncated chunked body / RST_STREAM)
 	// instead of ending it cleanly and letting the browser keep a truncated zip as complete.
 	panic(http.ErrAbortHandler)
+}
+
+var archiveHeaders = []string{
+	"Content-Disposition",
+	"X-Archive-Total-Bytes",
+	"X-Archive-Total-Files",
+	"X-Archive-Skipped-Count",
+}
+
+// responseTracker records whether the status line, headers or any body bytes were already
+// handed to net/http, which decides how a later failure can still be reported.
+type responseTracker struct {
+	http.ResponseWriter
+
+	started bool
+}
+
+func (t *responseTracker) WriteHeader(code int) {
+	t.started = true
+	t.ResponseWriter.WriteHeader(code)
+}
+
+func (t *responseTracker) Write(p []byte) (int, error) {
+	t.started = true
+
+	return t.ResponseWriter.Write(p)
+}
+
+func (t *responseTracker) FlushError() error {
+	t.started = true
+
+	return http.NewResponseController(t.ResponseWriter).Flush()
+}
+
+func (t *responseTracker) Unwrap() http.ResponseWriter {
+	return t.ResponseWriter
 }
 
 func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error) {
