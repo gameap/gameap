@@ -804,6 +804,134 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:      "user does not have required permissions",
 		},
 		{
+			name:     "directory_not_found_on_daemon",
+			serverID: "1",
+			disk:     "server",
+			path:     "baseq3",
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "q2",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27910,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					readDirFunc: func(_ context.Context, _ *domain.Node, _ string) ([]*daemon.FileInfo, error) {
+						return nil, &daemon.FileError{
+							Op:     "file list",
+							Err:    daemon.ErrFileNotFound,
+							Detail: "openat servers/test1/baseq3: no such file or directory",
+						}
+					},
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+			wantError:      "failed to read directory: baseq3: file not found",
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				assert.NotContains(t, string(body), "/srv/gameap", "response must not leak the node work path")
+				assert.NotContains(t, string(body), "servers/test1", "response must not leak the server directory")
+			},
+		},
+		{
+			name:     "listing_a_file_is_bad_request",
+			serverID: "1",
+			disk:     "server",
+			path:     "baseq2/pak0.pak",
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "q2",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27910,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					readDirFunc: func(_ context.Context, _ *domain.Node, _ string) ([]*daemon.FileInfo, error) {
+						return nil, &daemon.FileError{
+							Op:     "file list",
+							Err:    daemon.ErrNotDirectory,
+							Detail: `path "servers/test1/baseq2/pak0.pak" is not a directory`,
+						}
+					},
+				}
+			},
+			expectedStatus: http.StatusBadRequest,
+			wantError:      "failed to read directory: baseq2/pak0.pak: path is not a directory",
+		},
+		{
 			name:     "admin_bypasses_files_permission",
 			serverID: "1",
 			disk:     "server",

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/audit"
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
@@ -209,6 +210,76 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.NoError(t, json.Unmarshal(body, &response))
 				assert.Equal(t, "success", response.Result.Status)
 				assert.Equal(t, "Deleted!", response.Result.Message)
+			},
+		},
+		{
+			name:     "already_deleted_item_is_not_found",
+			serverID: "1",
+			requestBody: deleteRequest{
+				Disk: "server",
+				Items: []deleteItem{
+					{Path: "baseq2/old.cfg", Type: "file"},
+				},
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "q2",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27910,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					removeFunc: func(_ context.Context, _ *domain.Node, _ string, _ bool) error {
+						return &daemon.FileError{
+							Op:     "delete",
+							Err:    daemon.ErrFileNotFound,
+							Detail: "unlinkat servers/test1/baseq2/old.cfg: no such file or directory",
+						}
+					},
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+			wantError:      "failed to delete file or directory: file not found",
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				assert.NotContains(t, string(body), "servers/test1", "response must not leak node paths")
 			},
 		},
 		{

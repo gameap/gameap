@@ -1,6 +1,6 @@
 <template>
     <div class="fm-modal-video-player">
-        <div class="text-sm text-stone-500 mb-2">{{ videoFile?.basename }}</div>
+        <div class="text-sm text-muted mb-2">{{ videoFile?.basename }}</div>
         <video controls :src="videoSrc" class="w-full max-h-[70vh]" />
     </div>
 </template>

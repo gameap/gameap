@@ -123,13 +123,13 @@ function selectMainDirectory() {
 }
 
 .fm-breadcrumb--active .fm-breadcrumb-nav {
-    @apply border-stone-400 dark:border-stone-500;
+    @apply border-strong;
 }
 
 .fm-breadcrumb-disk {
     @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded
-        text-stone-700 dark:text-stone-200 text-sm font-medium
-        hover:bg-white dark:hover:bg-[color:color-mix(in_srgb,var(--gameap-stone-700)_50%,transparent)]
+        text-secondary text-sm font-medium
+        hover:bg-white dark:hover:bg-stone-700
         transition-colors duration-100;
     flex: 0 0 auto;
 }
@@ -150,7 +150,7 @@ function selectMainDirectory() {
 }
 
 .fm-breadcrumb-divider {
-    @apply mx-1 text-stone-400 dark:text-stone-600 text-sm select-none;
+    @apply mx-1 text-faint text-sm select-none;
 }
 
 .fm-breadcrumb-text {
@@ -164,11 +164,11 @@ function selectMainDirectory() {
 }
 
 .fm-breadcrumb-item:not(.fm-breadcrumb-item--active) .fm-breadcrumb-text:hover {
-    @apply bg-white dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-700)_50%,transparent)] text-body;
+    @apply bg-white dark:bg-stone-700 text-body;
 }
 
 .fm-breadcrumb-item--active .fm-breadcrumb-text {
-    @apply font-semibold text-stone-900 dark:text-stone-100;
+    @apply font-semibold text-body;
     cursor: default;
 }
 

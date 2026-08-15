@@ -4,12 +4,12 @@
         <GDivider />
         <div
             class="flex justify-between items-center py-2 px-2 rounded cursor-pointer"
-            :class="playingIndex === index ? 'bg-stone-100 dark:bg-stone-800' : 'hover:bg-stone-50 dark:hover:bg-stone-900'"
+            :class="playingIndex === index ? 'bg-surface-hover' : 'hover:bg-surface-hover'"
             v-for="(item, index) in audioFiles"
             :key="index"
         >
             <div class="truncate flex-1">
-                <span class="text-stone-400 mr-2">{{ index }}.</span>
+                <span class="text-faint mr-2">{{ index }}.</span>
                 {{ item.basename }}
             </div>
             <template v-if="playingIndex === index">

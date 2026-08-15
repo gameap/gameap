@@ -9,7 +9,7 @@
             @keyup="validateFileName"
             @keyup.enter="submitActive && addFile()"
         />
-        <div v-if="fileExist" class="text-red-500 text-sm mt-1">
+        <div v-if="fileExist" class="text-danger text-sm mt-1">
             {{ lang.modal.newFile.fieldFeedback }}
         </div>
     </div>
@@ -53,8 +53,8 @@ function addFile() {
 
 defineExpose({
     footerButtons: computed(() => [
-        { label: lang.value.btn.submit, color: 'green', icon: 'file', action: addFile, disabled: !submitActive.value },
         { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
+        { label: lang.value.btn.submit, color: 'green', icon: 'file', action: addFile, disabled: !submitActive.value },
     ]),
 })
 </script>

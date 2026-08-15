@@ -113,7 +113,12 @@ onMounted(() => {
 
 defineExpose({
     footerButtons: computed(() => {
-        const buttons = []
+        const buttons = [{
+            label: lang.value.btn.cancel,
+            color: 'black',
+            icon: 'close',
+            action: handleClose
+        }]
 
         if (!isReadOnly.value) {
             buttons.push({
@@ -123,13 +128,6 @@ defineExpose({
                 action: triggerSave
             })
         }
-
-        buttons.push({
-            label: lang.value.btn.cancel,
-            color: 'black',
-            icon: 'close',
-            action: handleClose
-        })
 
         return buttons
     }),

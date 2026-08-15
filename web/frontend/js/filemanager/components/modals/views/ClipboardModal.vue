@@ -10,7 +10,7 @@
                         {{ clipboard.disk }}
                     </n-tag>
                 </div>
-                <div class="text-stone-500">
+                <div class="text-muted">
                     <span :title="`${lang.clipboard.actionType} - ${lang.clipboard[clipboard.type]}`">
                         <GIcon v-if="clipboard.type === 'copy'" name="copy" />
                         <GIcon v-else name="cut" />
@@ -108,8 +108,8 @@ function resetClipboardAction() {
 
 defineExpose({
     footerButtons: computed(() => [
-        { label: lang.value.btn.clear, color: 'red', icon: 'clear', action: resetClipboardAction, disabled: !clipboard.value.type },
         { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
+        { label: lang.value.btn.clear, color: 'red', icon: 'clear', action: resetClipboardAction, disabled: !clipboard.value.type },
     ]),
 })
 </script>

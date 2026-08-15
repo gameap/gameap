@@ -756,6 +756,48 @@ func TestService_Complete(t *testing.T) {
 		assert.True(t, storage.Exists(context.Background(), "transfers/"+uploadID+"/chunks/000000"))
 	})
 
+	t.Run("hides_status_of_node_filesystem_failure", func(t *testing.T) {
+		// ARRANGE
+		svc, storage, fakeD, _ := newTestSetup(t)
+		fakeD.returnErr = &daemon.FileError{
+			Op:     "upload task",
+			Err:    daemon.ErrFileNotFound,
+			Detail: "openat servers/q2/missing/big.pak: no such file or directory",
+		}
+		uploadID := uploadAllChunks(t, svc, payload, checksum)
+
+		// ACT
+		err := svc.Complete(context.Background(), uploadID, testUserID, makeNode())
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "dispatch upload to daemon: file not found")
+
+		var statusErr interface{ HTTPStatus() int }
+		require.ErrorAs(t, err, &statusErr)
+		assert.Equal(t, http.StatusInternalServerError, statusErr.HTTPStatus(),
+			"404 means 'session not found' on this endpoint, a missing target directory must not look like it")
+		assert.ErrorIs(t, err, daemon.ErrFileNotFound, "cause must stay inspectable")
+		assert.False(t, storage.Exists(context.Background(), "transfers/"+uploadID+"/done"))
+	})
+
+	t.Run("keeps_status_of_daemon_not_connected", func(t *testing.T) {
+		// ARRANGE
+		svc, _, fakeD, _ := newTestSetup(t)
+		fakeD.returnErr = daemon.ErrDaemonNotConnected
+		uploadID := uploadAllChunks(t, svc, payload, checksum)
+
+		// ACT
+		err := svc.Complete(context.Background(), uploadID, testUserID, makeNode())
+
+		// ASSERT
+		require.Error(t, err)
+
+		var statusErr interface{ HTTPStatus() int }
+		require.ErrorAs(t, err, &statusErr)
+		assert.Equal(t, http.StatusBadGateway, statusErr.HTTPStatus())
+	})
+
 	t.Run("returns_when_daemon_dispatch_times_out", func(t *testing.T) {
 		// ARRANGE
 		cfg := defaultConfig()

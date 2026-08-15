@@ -66,7 +66,7 @@
                 <tr v-if="!isRootPath" class="fm-row fm-row--up" v-on:click="levelUp">
                     <td colspan="5" class="fm-content-item">
                         <GIcon name="arrow-turn-up" />
-                        <span class="ml-2 text-stone-500 dark:text-stone-400">..</span>
+                        <span class="ml-2 text-muted">..</span>
                     </td>
                 </tr>
                 <tr
@@ -493,7 +493,7 @@ function onKeyDown(event) {
     }
 
     .fm-th--active {
-        @apply text-stone-900 dark:text-stone-100 font-semibold;
+        @apply text-body font-semibold;
     }
 
     .fm-th-sort {
@@ -577,7 +577,7 @@ function onKeyDown(event) {
     }
 
     tr.fm-row--locked {
-        @apply text-stone-400 dark:text-stone-600;
+        @apply text-faint;
     }
 
     tr.fm-row--empty {
@@ -608,7 +608,7 @@ function onKeyDown(event) {
     }
 
     .fm-row-check {
-        @apply text-stone-800 dark:text-stone-100;
+        @apply text-body;
     }
 
     .fm-row-name {
@@ -616,7 +616,7 @@ function onKeyDown(event) {
     }
 
     .fm-cell-muted {
-        @apply text-stone-400 dark:text-stone-600;
+        @apply text-faint;
     }
 
     .fm-cell-extension {
@@ -639,11 +639,11 @@ function onKeyDown(event) {
     }
 
     .fm-empty-icon {
-        @apply text-5xl text-stone-300 dark:text-stone-600 mb-4;
+        @apply text-5xl text-faint mb-4;
     }
 
     .fm-empty-icon--error {
-        @apply text-red-400 dark:text-red-500;
+        @apply text-danger;
     }
 
     .fm-empty-title {

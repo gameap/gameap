@@ -163,8 +163,7 @@
       <div class="flex flex-wrap mt-2 h-[calc(100vh-14rem)]">
         <div class="md:w-full h-full">
           <div
-              class="flex flex-col min-w-0 rounded break-words border bg-white
-              dark:bg-stone-800 border-1 border-stone-300 dark:border-stone-700 h-full"
+              class="flex flex-col min-w-0 h-full rounded break-words border bg-surface-raised"
           >
             <FileManager
                 :settings="{

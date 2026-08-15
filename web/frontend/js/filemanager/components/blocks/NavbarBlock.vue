@@ -161,12 +161,14 @@ function showModal(modalName) {
     margin-bottom: 0.6rem;
 }
 
+/* Groups are separated by whitespace only, so the gap between them has to be
+   noticeably wider than the gap inside a group. */
 .fm-toolbar {
-    @apply flex flex-wrap items-center gap-2;
+    @apply flex flex-wrap items-center gap-x-4 gap-y-2;
 }
 
 .fm-toolbar-group {
-    @apply inline-flex items-stretch overflow-hidden rounded-md border bg-surface shadow-sm;
+    @apply inline-flex items-stretch gap-0.5;
 }
 
 .fm-toolbar-spacer {
@@ -174,18 +176,13 @@ function showModal(modalName) {
 }
 
 .fm-tool-btn {
-    @apply inline-flex items-center justify-center px-2.5 py-1.5 text-sm
+    @apply inline-flex items-center justify-center px-2.5 py-1.5 rounded text-sm
         text-secondary
-        transition-colors duration-100
-        border-r;
+        transition-colors duration-100;
     min-width: 2.25rem;
 
-    &:last-child {
-        border-right: none;
-    }
-
     &:hover:not(:disabled) {
-        @apply bg-stone-100 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-700)_60%,transparent)] text-body;
+        @apply bg-stone-100 dark:bg-stone-700 text-body;
     }
 
     &:focus-visible {
@@ -194,7 +191,7 @@ function showModal(modalName) {
     }
 
     &:disabled {
-        @apply text-stone-300 dark:text-stone-600 cursor-not-allowed;
+        @apply text-faint cursor-not-allowed;
     }
 }
 
@@ -207,6 +204,6 @@ function showModal(modalName) {
 }
 
 .fm-tool-btn--danger:hover:not(:disabled) {
-    @apply bg-red-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-red-900)_30%,transparent)] text-red-600 dark:text-red-400;
+    @apply bg-danger-soft text-danger;
 }
 </style>

@@ -898,6 +898,152 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:      "Internal Server Error",
 		},
 		{
+			name:     "file_not_found_on_daemon",
+			serverID: "1",
+			disk:     "server",
+			path:     "/baseq2/server.cfg",
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "q2",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27910,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					getFileInfoFunc: func(_ context.Context, _ *domain.Node, path string) (*daemon.FileDetails, error) {
+						assert.Equal(t, "/srv/gameap/servers/test1/baseq2/server.cfg", path)
+
+						return nil, &daemon.FileError{
+							Op:     "stat",
+							Err:    daemon.ErrFileNotFound,
+							Detail: "lstatat servers/test1/baseq2/server.cfg: no such file or directory",
+						}
+					},
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+			wantError:      "failed to get file info: file not found",
+			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
+
+				body := w.Body.String()
+				assert.NotContains(t, body, "servers/test1", "response must not leak node paths")
+				assert.NotContains(t, body, "lstatat", "response must not leak raw daemon text")
+				assert.Contains(t, body, `"http_code":404`)
+			},
+		},
+		{
+			name:     "download_stream_permission_denied_on_daemon",
+			serverID: "1",
+			disk:     "server",
+			path:     "video.mp4",
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "cs",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27015,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					getFileInfoFunc: func(_ context.Context, _ *domain.Node, _ string) (*daemon.FileDetails, error) {
+						return &daemon.FileDetails{
+							Name:             "video.mp4",
+							Mime:             "video/mp4",
+							Size:             uint64(len(fakeVideoContent)),
+							ModificationTime: 1609459200,
+							Type:             daemon.FileTypeFile,
+						}, nil
+					},
+					downloadStreamFunc: func(_ context.Context, _ *domain.Node, _ string) (io.ReadCloser, error) {
+						return nil, errors.WithMessage(&daemon.FileError{
+							Op:     "download task",
+							Err:    daemon.ErrPermissionDenied,
+							Detail: "openat servers/test1/video.mp4: permission denied",
+						}, "gateway download task")
+					},
+				}
+			},
+			expectedStatus: http.StatusForbidden,
+			wantError:      "failed to download file: gateway download task: permission denied",
+			validateResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
+				t.Helper()
+
+				assert.NotContains(t, w.Body.String(), "servers/test1", "response must not leak node paths")
+			},
+		},
+		{
 			name:     "daemon_download_fails",
 			serverID: "1",
 			disk:     "server",

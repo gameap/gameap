@@ -8,12 +8,14 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/pkg/errors"
 )
@@ -292,7 +294,7 @@ func (s *Service) Complete(
 
 		_ = s.storage.Delete(context.Background(), dp)
 
-		return errors.WithMessage(dispatchErr, "dispatch upload to daemon")
+		return wrapDispatchError(dispatchErr)
 	}
 
 	doneInfo, marshalErr := json.Marshal(DoneInfo{Success: true, Checksum: actualChecksum})
@@ -404,4 +406,20 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	c.count += int64(n)
 
 	return n, err
+}
+
+// wrapDispatchError hides the HTTP status of a node-side filesystem failure.
+// On the complete endpoint 404/409/410 describe the upload session itself
+// (not found / chunks missing / expired) and the client acts on them, so a
+// classified daemon.FileError must not surface with its own status here.
+// Other errors (e.g. daemon not connected) keep theirs.
+func wrapDispatchError(dispatchErr error) error {
+	wrapped := errors.WithMessage(dispatchErr, "dispatch upload to daemon")
+
+	var fileErr *daemon.FileError
+	if errors.As(dispatchErr, &fileErr) {
+		return api.WrapHTTPError(wrapped, http.StatusInternalServerError)
+	}
+
+	return wrapped
 }

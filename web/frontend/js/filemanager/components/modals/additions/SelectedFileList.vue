@@ -1,13 +1,13 @@
 <template>
     <div class="fm-additions-file-list">
-        <div class="d-flex justify-content-between" v-for="(item, index) in selectedItems" v-bind:key="index">
-            <div class="w-75 text-truncate">
+        <div class="flex items-center justify-between gap-3" v-for="(item, index) in selectedItems" v-bind:key="index">
+            <div class="min-w-0 truncate">
                 <span v-if="item.type === 'dir'"> <GIcon name="folder" />{{ item.basename }} </span>
                 <span v-else>
                     <GIcon :name="extensionToIcon(item.extension)" /> {{ item.basename }}
                 </span>
             </div>
-            <div class="text-end" v-if="item.type === 'file'">
+            <div class="shrink-0 text-muted" v-if="item.type === 'file'">
                 {{ bytesToHuman(item.size) }}
             </div>
         </div>

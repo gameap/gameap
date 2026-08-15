@@ -336,8 +336,31 @@ func TestDispatchFileRead_FailureFromDaemon(t *testing.T) {
 	// ASSERT
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "file read failed", "error must surface daemon-side failure")
+	assert.ErrorIs(t, err, ErrPermissionDenied, "daemon-side failure must be classified")
 	assert.Contains(t, err.Error(), "permission denied")
+}
+
+func TestDispatchFileRead_UnknownFailureFromDaemon(t *testing.T) {
+	// ARRANGE
+	s := setupDispatcher(t)
+	const nodeID uint64 = 8
+	s.registry.setConnected(nodeID, true)
+
+	s.gateway.requestFileRead = func(_ context.Context, _ uint64, _ string, _ int64, _ int64) (*proto.FileReadResponse, error) {
+		return &proto.FileReadResponse{Success: false, Error: "daemon exploded"}, nil
+	}
+
+	// ACT
+	result, err := s.dispatcher.DispatchFileRead(testContext(t), nodeID, "/srv/file.txt", 0, 0)
+
+	// ASSERT
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "file read failed", "error must surface daemon-side failure")
+	assert.Contains(t, err.Error(), "daemon exploded")
+
+	var fileErr *FileError
+	assert.False(t, errors.As(err, &fileErr), "unrecognised daemon text must stay an opaque error")
 }
 
 func TestDispatchFileWrite_Success(t *testing.T) {
