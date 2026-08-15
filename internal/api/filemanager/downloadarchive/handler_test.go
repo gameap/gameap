@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/api/middlewares"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/rbac"
@@ -114,6 +115,7 @@ type stubArchiver struct {
 	manifestErr   error
 	writeErr      error
 	writeContent  []byte
+	onWrite       func(w io.Writer)
 	writeRecorded *archiver.Manifest
 	recordedOpts  archiver.Options
 }
@@ -129,16 +131,22 @@ func (s *stubArchiver) WriteArchive(
 ) (*archiver.Result, error) {
 	s.recordedOpts = opts
 	s.writeRecorded = m
-	if s.writeErr != nil {
-		return nil, s.writeErr
+	if s.onWrite != nil {
+		s.onWrite(w)
 	}
 	if len(s.writeContent) > 0 {
 		n, err := w.Write(s.writeContent)
 		if err != nil {
 			return nil, err
 		}
+		if s.writeErr != nil {
+			return nil, s.writeErr
+		}
 
 		return &archiver.Result{BytesWritten: uint64(n)}, nil
+	}
+	if s.writeErr != nil {
+		return nil, s.writeErr
 	}
 
 	zw := zip.NewWriter(w)
@@ -165,6 +173,9 @@ func (f *fakeGuard) Acquire(_ context.Context, _ uint) (func(), error) {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	cancelledDuringWriteCtx, cancelDuringWrite := context.WithCancel(authedCtx())
+	t.Cleanup(cancelDuringWrite)
+
 	tests := []struct {
 		name           string
 		serverID       string
@@ -177,6 +188,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		setupGuard     func() *fakeGuard
 		limits         Limits
 		expectedStatus int
+		expectAbort    bool
 		wantError      string
 		validate       func(*testing.T, *httptest.ResponseRecorder, *stubArchiver, *fakeGuard)
 	}{
@@ -433,6 +445,68 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 		},
 		{
+			name:      "write_failure_after_headers_aborts_response",
+			serverID:  "1",
+			queryDisk: "server",
+			queryPath: "data",
+			setupCtx:  authedCtx,
+			setupRepo: saveServerWithFilesAbility,
+			setupArchiver: func() *stubArchiver {
+				return &stubArchiver{
+					manifest: &archiver.Manifest{
+						RootName:   "data",
+						TotalSize:  500,
+						TotalFiles: 2,
+						Entries: []archiver.Entry{
+							{RelPath: "data/a.txt", Size: 250},
+							{RelPath: "data/b.txt", Size: 250},
+						},
+					},
+					writeContent: []byte("PK\x03\x04partial-local-header"),
+					writeErr:     errDaemonUnavailable,
+				}
+			},
+			setupGuard:     func() *fakeGuard { return &fakeGuard{} },
+			expectedStatus: http.StatusOK,
+			expectAbort:    true,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder, _ *stubArchiver, g *fakeGuard) {
+				t.Helper()
+				assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+				assert.Equal(t, "500", w.Header().Get("X-Archive-Total-Bytes"))
+				assert.Equal(t, "PK\x03\x04partial-local-header", w.Body.String(),
+					"nothing may be appended after the partial archive bytes")
+				assert.True(t, g.released, "concurrency slot must be released while the panic unwinds")
+			},
+		},
+		{
+			name:      "client_cancel_during_write_returns_without_abort",
+			serverID:  "1",
+			queryDisk: "server",
+			queryPath: "data",
+			setupCtx:  func() context.Context { return cancelledDuringWriteCtx },
+			setupRepo: saveServerWithFilesAbility,
+			setupArchiver: func() *stubArchiver {
+				return &stubArchiver{
+					manifest: &archiver.Manifest{
+						RootName:   "data",
+						TotalSize:  10,
+						TotalFiles: 1,
+						Entries:    []archiver.Entry{{RelPath: "data/a.txt", Size: 10}},
+					},
+					onWrite:  func(_ io.Writer) { cancelDuringWrite() },
+					writeErr: context.Canceled,
+				}
+			},
+			setupGuard:     func() *fakeGuard { return &fakeGuard{} },
+			expectedStatus: http.StatusOK,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder, _ *stubArchiver, g *fakeGuard) {
+				t.Helper()
+				assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+				assert.Empty(t, w.Body.String())
+				assert.True(t, g.released, "concurrency slot must be released after a client cancel")
+			},
+		},
+		{
 			name:          "success_compress_zero_produces_store_zip",
 			serverID:      "1",
 			queryDisk:     "server",
@@ -637,7 +711,13 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			req = mux.SetURLVars(req, map[string]string{"server": tt.serverID})
 			w := httptest.NewRecorder()
 
-			handler.ServeHTTP(w, req)
+			if tt.expectAbort {
+				require.PanicsWithValue(t, http.ErrAbortHandler, func() {
+					handler.ServeHTTP(w, req)
+				}, "mid-stream failure must abort the response via http.ErrAbortHandler")
+			} else {
+				handler.ServeHTTP(w, req)
+			}
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
 
@@ -650,6 +730,78 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Runs the handler behind a real net/http server (through the recovery middleware, like the
+// router does) and checks the wire-level contract: a mid-stream failure leaves the client with a
+// transport error while reading the body instead of a cleanly terminated, truncated archive.
+func TestHandler_ServeHTTP_WriteFailureTruncatesResponseBody(t *testing.T) {
+	serverRepo := inmemory.NewServerRepository()
+	nodeRepo := inmemory.NewNodeRepository()
+	rbacRepo := inmemory.NewRBACRepository()
+	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+	responder := api.NewResponder()
+	saveServerWithFilesAbility(t, serverRepo, nodeRepo, rbacRepo)
+
+	partial := bytes.Repeat([]byte("PK-partial-"), 8*1024)
+	arch := &stubArchiver{
+		manifest: &archiver.Manifest{
+			RootName:   "data",
+			TotalSize:  500,
+			TotalFiles: 1,
+			Entries:    []archiver.Entry{{RelPath: "data/a.txt", Size: 500}},
+		},
+		onWrite: func(w io.Writer) {
+			// Push the headers and the first bytes to the client before the failure,
+			// the way the archiver's periodic flush does for a real archive.
+			if _, err := w.Write(partial); err == nil {
+				if rw, ok := w.(http.ResponseWriter); ok {
+					_ = http.NewResponseController(rw).Flush()
+				}
+			}
+		},
+		writeErr: errDaemonUnavailable,
+	}
+	guard := &fakeGuard{}
+	handler := NewHandler(serverRepo, nodeRepo, rbacService, arch, guard, Limits{}, responder)
+
+	router := mux.NewRouter()
+	router.Handle(
+		"/api/file-manager/{server}/download-archive",
+		middlewares.NewRecoveryMiddleware(responder).Middleware(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := auth.ContextWithSession(r.Context(), &auth.Session{
+					Login: testUser.Login,
+					Email: testUser.Email,
+					User:  &testUser,
+				})
+				handler.ServeHTTP(w, r.WithContext(ctx))
+			}),
+		),
+	)
+	srv := httptest.NewServer(router)
+	t.Cleanup(srv.Close)
+
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		srv.URL+"/api/file-manager/1/download-archive?disk=server&path=data",
+		nil,
+	)
+	require.NoError(t, err)
+
+	resp, err := srv.Client().Do(req)
+	require.NoError(t, err, "headers were sent before the failure, so the request itself succeeds")
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "application/zip", resp.Header.Get("Content-Type"))
+
+	body, err := io.ReadAll(resp.Body)
+	require.Error(t, err, "client must observe a transport error instead of a complete body")
+	assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	assert.LessOrEqual(t, len(body), len(partial), "nothing may be appended after the failure")
+	assert.True(t, guard.released, "concurrency slot must be released")
 }
 
 func TestArchiveFilename(t *testing.T) {

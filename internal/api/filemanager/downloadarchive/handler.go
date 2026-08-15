@@ -220,14 +220,32 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	_, err = h.archiver.WriteArchive(ctx, rw, node, manifest, archiver.Options{
 		CompressLevel: compressLevel,
 	})
-	if err != nil {
-		slog.ErrorContext(
+	if err == nil {
+		return
+	}
+
+	if ctx.Err() != nil {
+		slog.InfoContext(
 			ctx,
-			"failed to write archive",
+			"archive download cancelled by client",
 			slog.String("error", err.Error()),
 			slog.Uint64("server_id", uint64(server.ID)),
 		)
+
+		return
 	}
+
+	slog.ErrorContext(
+		ctx,
+		"failed to write archive",
+		slog.String("error", err.Error()),
+		slog.Uint64("server_id", uint64(server.ID)),
+	)
+
+	// The 200 and part of the body are already on the wire, so the only way to tell the client
+	// the archive is unusable is to abort the response (truncated chunked body / RST_STREAM)
+	// instead of ending it cleanly and letting the browser keep a truncated zip as complete.
+	panic(http.ErrAbortHandler)
 }
 
 func (h *Handler) getNode(ctx context.Context, nodeID uint) (*domain.Node, error) {

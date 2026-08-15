@@ -503,6 +503,12 @@
       Symlinks are preserved as Unix-symlink entries inside the zip.
       Special files (sockets, FIFOs, devices) are skipped and listed in
       a trailing `_SKIPPED.txt` entry.
+
+      The body is streamed without `Content-Length`. If archive generation
+      fails after the response has started, the server aborts the connection
+      (truncated chunked body on HTTP/1.1, `RST_STREAM` on HTTP/2) instead of
+      ending the body cleanly, so a transport error while reading the body
+      means the archive is incomplete and must be discarded.
     operationId: downloadFileManagerArchive
     parameters:
       - name: server

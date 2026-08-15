@@ -128,13 +128,19 @@ export async function streamSaveResponse({
         onProgress({ loaded: 0, total: effectiveTotal })
     }
 
+    if (signal && signal.aborted) {
+        throw new StreamDownloadError('aborted', 'Aborted')
+    }
+
     if (!window.isSecureContext) {
         return blobSaveResponse({ response, filename, effectiveTotal, signal, onProgress })
     }
 
+    // Size hints such as X-Archive-Total-Bytes describe the uncompressed payload, not the stream,
+    // so only a real Content-Length may become the browser download's Content-Length.
     const writable = streamSaver.createWriteStream(
         filename,
-        effectiveTotal > 0 ? { size: effectiveTotal } : undefined,
+        contentLength > 0 ? { size: contentLength } : undefined,
     )
 
     let loaded = 0
@@ -148,17 +154,8 @@ export async function streamSaveResponse({
         },
     })
 
-    const onAbort = () => {
-        try {
-            writable.abort?.('aborted by user')
-        } catch {
-            /* no-op */
-        }
-    }
-    if (signal) {
-        signal.addEventListener('abort', onAbort, { once: true })
-    }
-
+    // pipeTo owns cancellation: on abort it aborts the StreamSaver writable (the browser then
+    // discards the download as cancelled) and cancels the response body.
     try {
         await response.body.pipeThrough(progressTransform).pipeTo(writable, { signal })
     } catch (err) {
@@ -166,10 +163,6 @@ export async function streamSaveResponse({
             throw new StreamDownloadError('aborted', 'Aborted', err)
         }
         throw new StreamDownloadError('stream', err.message || 'Stream error', err)
-    } finally {
-        if (signal) {
-            signal.removeEventListener('abort', onAbort)
-        }
     }
 
     return { total: effectiveTotal, response }
@@ -180,12 +173,12 @@ async function blobSaveResponse({ response, filename, effectiveTotal, signal, on
     const chunks = []
     let loaded = 0
 
+    // Cancelling the reader unblocks a pending read() with done=true instead of an error,
+    // so the aborted check below the loop is what keeps a partial file from being saved.
     const onAbort = () => {
-        try {
-            reader.cancel('aborted by user')
-        } catch {
-            /* no-op */
-        }
+        reader.cancel('aborted by user').catch(() => {
+            /* the fetch abort may already have errored the stream */
+        })
     }
     if (signal) {
         signal.addEventListener('abort', onAbort, { once: true })
@@ -210,6 +203,10 @@ async function blobSaveResponse({ response, filename, effectiveTotal, signal, on
         if (signal) {
             signal.removeEventListener('abort', onAbort)
         }
+    }
+
+    if (signal && signal.aborted) {
+        throw new StreamDownloadError('aborted', 'Aborted')
     }
 
     const contentType = response.headers.get('Content-Type') || 'application/octet-stream'
