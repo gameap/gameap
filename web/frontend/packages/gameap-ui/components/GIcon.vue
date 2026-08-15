@@ -28,6 +28,7 @@
 import { computed } from 'vue'
 import { getIcon, hasIcon } from '../icons/registry.js'
 import { isSvgIcon } from '../icons/svgData.js'
+import { isLegacyFontAwesomeClass, warnLegacyFontAwesomeIcon } from '../icons/legacy.js'
 
 const props = defineProps({
   name: {
@@ -46,11 +47,19 @@ const props = defineProps({
 })
 
 const resolvedIcon = computed(() => {
-  if (!hasIcon(props.name)) {
-    console.warn(`GIcon: Unknown icon "${props.name}"`)
-    return 'fa-solid fa-circle-question'
+  if (hasIcon(props.name)) {
+    return getIcon(props.name)
   }
-  return getIcon(props.name)
+
+  if (isLegacyFontAwesomeClass(props.name)) {
+    warnLegacyFontAwesomeIcon(props.name)
+
+    return props.name
+  }
+
+  console.warn(`GIcon: Unknown icon "${props.name}"`)
+
+  return 'fa-solid fa-circle-question'
 })
 
 const isSvgData = computed(() => isSvgIcon(resolvedIcon.value))
