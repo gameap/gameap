@@ -21,7 +21,7 @@ const fr = {
         grid: 'Grille',
         paste: 'Coller',
         refresh: 'Rafraîchir',
-        retryFailed: 'Réessayer les échecs',
+        retryFailed: 'Réessayer les fichiers échoués',
         submit: 'Envoyer',
         table: 'Tableau',
         upload: 'Télécharger',

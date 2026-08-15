@@ -1205,7 +1205,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:      "Internal Server Error",
 		},
 		{
-			name:     "existing_directory_is_conflict",
+			name:     "existing_file_with_same_name_is_conflict",
 			serverID: "1",
 			requestBody: createDirectoryRequest{
 				Disk: "server",

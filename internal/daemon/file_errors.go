@@ -90,6 +90,7 @@ var fileErrorPatterns = []struct {
 	{"directory not empty", ErrDirectoryNotEmpty},
 	{"directory is not empty", ErrDirectoryNotEmpty},
 	{"text file busy", ErrFileBusy},
+	{"being used by another process", ErrFileBusy},
 	{"file too large", ErrFileTooLarge},
 	{"no space left on device", ErrNoSpaceLeft},
 	{"not enough space on the disk", ErrNoSpaceLeft},
@@ -122,10 +123,17 @@ func daemonFileError(op, msg string) error {
 
 // classifyFileError is daemonFileError for error values coming back from the
 // gateway or the dispatcher, whose text is the daemon message verbatim.
-// Unrecognised errors are returned unchanged.
+// An error that already carries a FileError (possibly wrapped) is returned as
+// is, so its original Op and Detail survive; unrecognised errors are returned
+// unchanged as well.
 func classifyFileError(op string, err error) error {
 	if err == nil {
 		return nil
+	}
+
+	var fileErr *FileError
+	if errors.As(err, &fileErr) {
+		return err
 	}
 
 	if ferr := daemonFileError(op, err.Error()); ferr != nil {

@@ -24,7 +24,7 @@ const nl = {
         grid: 'Raster',
         paste: 'Plakken',
         refresh: 'Ververs',
-        retryFailed: 'Mislukte opnieuw proberen',
+        retryFailed: 'Mislukte bestanden opnieuw proberen',
         submit: 'Indienen',
         table: 'Tabel',
         upload: 'Uploaden',

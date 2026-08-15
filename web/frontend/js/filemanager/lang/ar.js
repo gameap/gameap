@@ -21,7 +21,7 @@ const ar = {
         grid: 'شبكة',
         paste: 'لصق',
         refresh: 'تحديث',
-        retryFailed: 'إعادة محاولة الفاشلة',
+        retryFailed: 'إعادة محاولة الملفات الفاشلة',
         submit: 'ارسال',
         table: 'جدول',
         upload: 'رفع',

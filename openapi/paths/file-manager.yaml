@@ -460,7 +460,7 @@
               type: string
               format: binary
       '400':
-        description: Invalid path (absolute, NUL byte, backslash or directory traversal), or the path is a directory
+        description: Invalid path (NUL byte, backslash or directory traversal), or the path is a directory
         content:
           application/json:
             schema:
@@ -823,7 +823,7 @@
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
       '400':
-        description: Bad request (invalid path or name, unsupported disk, or a file with this name already exists)
+        description: Bad request (invalid path or name, unsupported disk)
         content:
           application/json:
             schema:
@@ -842,6 +842,12 @@
               $ref: '../schemas/ErrorResponse.yaml'
       '404':
         description: Server or node not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: A file with this name already exists
         content:
           application/json:
             schema:
@@ -972,7 +978,7 @@
               type: string
               format: binary
       '400':
-        description: Invalid path (absolute, NUL byte, backslash or directory traversal), or the path is a directory
+        description: Invalid path (NUL byte, backslash or directory traversal), or the path is a directory
         content:
           application/json:
             schema:

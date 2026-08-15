@@ -22,7 +22,7 @@ const it = {
         grid: 'Griglia',
         paste: 'Incolla',
         refresh: 'Ricarica',
-        retryFailed: 'Riprova i falliti',
+        retryFailed: 'Riprova i file falliti',
         submit: 'Conferma',
         table: 'Tabella',
         upload: 'Upload',

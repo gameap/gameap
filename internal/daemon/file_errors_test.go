@@ -115,6 +115,13 @@ func TestDaemonFileError_classification(t *testing.T) {
 			wantStatus: http.StatusConflict,
 		},
 		{
+			name: "windows_sharing_violation",
+			msg: `openat servers\q2\q2ded.exe: The process cannot access the file ` +
+				`because it is being used by another process.`,
+			wantErr:    ErrFileBusy,
+			wantStatus: http.StatusConflict,
+		},
+		{
 			name:       "daemon_file_too_large",
 			msg:        "file too large",
 			wantErr:    ErrFileTooLarge,
@@ -273,6 +280,39 @@ func TestClassifyFileError(t *testing.T) {
 		require.ErrorAs(t, err, &fileErr)
 		assert.Equal(t, http.StatusForbidden, fileErr.HTTPStatus())
 		assert.Equal(t, "file write", fileErr.Op)
+	})
+
+	t.Run("FileError_is_returned_unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		orig := &FileError{
+			Op:     "file read",
+			Err:    ErrPermissionDenied,
+			Detail: "openat servers/q2/x.cfg: permission denied",
+		}
+
+		err := classifyFileError("upload task", orig)
+
+		assert.Same(t, orig, err, "an already classified error must keep its Op and Detail")
+	})
+
+	t.Run("wrapped_FileError_is_returned_unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		orig := errors.WithMessage(&FileError{
+			Op:     "file read",
+			Err:    ErrPermissionDenied,
+			Detail: "openat servers/q2/x.cfg: permission denied",
+		}, "dispatched file read")
+
+		err := classifyFileError("upload task", orig)
+
+		assert.Same(t, orig, err, "wrapping must not be replaced by a fresh classification")
+
+		var fileErr *FileError
+		require.ErrorAs(t, err, &fileErr)
+		assert.Equal(t, "file read", fileErr.Op)
+		assert.Equal(t, "openat servers/q2/x.cfg: permission denied", fileErr.Detail)
 	})
 
 	t.Run("unrecognised_error_is_returned_unchanged", func(t *testing.T) {

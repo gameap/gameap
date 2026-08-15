@@ -22,7 +22,7 @@ const sr = {
         grid: 'Mrežasti prikaz',
         paste: 'Nalepi',
         refresh: 'Osveži',
-        retryFailed: 'Pokušaj ponovo neuspele',
+        retryFailed: 'Pokušaj ponovo neuspele datoteke',
         submit: 'Potvrdi',
         table: 'Tabela',
         upload: 'Upload',
