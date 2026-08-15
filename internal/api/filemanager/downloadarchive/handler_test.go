@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -161,7 +162,7 @@ func (s *stubArchiver) WriteArchive(
 
 type fakeGuard struct {
 	acquireErr error
-	released   bool
+	released   atomic.Bool
 }
 
 func (f *fakeGuard) Acquire(_ context.Context, _ uint) (func(), error) {
@@ -169,7 +170,7 @@ func (f *fakeGuard) Acquire(_ context.Context, _ uint) (func(), error) {
 		return nil, f.acquireErr
 	}
 
-	return func() { f.released = true }, nil
+	return func() { f.released.Store(true) }, nil
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
@@ -222,7 +223,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, "500", w.Header().Get("X-Archive-Total-Bytes"))
 				assert.Equal(t, "2", w.Header().Get("X-Archive-Total-Files"))
 				assert.Equal(t, "1", w.Header().Get("X-Archive-Skipped-Count"))
-				assert.True(t, g.released, "concurrency slot must be released")
+				assert.True(t, g.released.Load(), "concurrency slot must be released")
 
 				zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
 				require.NoError(t, err)
@@ -475,7 +476,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, "500", w.Header().Get("X-Archive-Total-Bytes"))
 				assert.Equal(t, "PK\x03\x04partial-local-header", w.Body.String(),
 					"nothing may be appended after the partial archive bytes")
-				assert.True(t, g.released, "concurrency slot must be released while the panic unwinds")
+				assert.True(t, g.released.Load(), "concurrency slot must be released while the panic unwinds")
 			},
 		},
 		{
@@ -503,7 +504,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				t.Helper()
 				assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
 				assert.Empty(t, w.Body.String())
-				assert.True(t, g.released, "concurrency slot must be released after a client cancel")
+				assert.True(t, g.released.Load(), "concurrency slot must be released after a client cancel")
 			},
 		},
 		{
@@ -801,7 +802,8 @@ func TestHandler_ServeHTTP_WriteFailureTruncatesResponseBody(t *testing.T) {
 	require.Error(t, err, "client must observe a transport error instead of a complete body")
 	assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	assert.LessOrEqual(t, len(body), len(partial), "nothing may be appended after the failure")
-	assert.True(t, guard.released, "concurrency slot must be released")
+	assert.Eventually(t, guard.released.Load, time.Second, 10*time.Millisecond,
+		"concurrency slot must be released")
 }
 
 func TestArchiveFilename(t *testing.T) {
