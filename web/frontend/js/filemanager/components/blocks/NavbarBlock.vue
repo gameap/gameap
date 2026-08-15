@@ -161,14 +161,14 @@ function showModal(modalName) {
     margin-bottom: 0.6rem;
 }
 
-/* Groups are separated by whitespace only, so the gap between them has to be
-   noticeably wider than the gap inside a group. */
 .fm-toolbar {
-    @apply flex flex-wrap items-center gap-x-4 gap-y-2;
+    @apply flex flex-wrap items-center gap-2;
 }
 
+/* Segmented button group: shared border + dividers, same shell as GBreadcrumbs
+   (border token, stone surface) so the toolbar reads as controls, not icons. */
 .fm-toolbar-group {
-    @apply inline-flex items-stretch gap-0.5;
+    @apply inline-flex items-stretch overflow-hidden rounded-lg border bg-surface shadow-sm;
 }
 
 .fm-toolbar-spacer {
@@ -176,10 +176,15 @@ function showModal(modalName) {
 }
 
 .fm-tool-btn {
-    @apply inline-flex items-center justify-center px-2.5 py-1.5 rounded text-sm
+    @apply inline-flex items-center justify-center px-2.5 py-1.5 text-sm
         text-secondary
-        transition-colors duration-100;
+        transition-colors duration-100
+        border-r;
     min-width: 2.25rem;
+
+    &:last-child {
+        border-right: none;
+    }
 
     &:hover:not(:disabled) {
         @apply bg-stone-100 dark:bg-stone-700 text-body;
