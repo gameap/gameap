@@ -1,6 +1,6 @@
 <template>
     <div>
-        <div v-if="selectedItems.length === 0" class="text-red-500 dark:text-red-400">
+        <div v-if="selectedItems.length === 0" class="text-danger">
             {{ lang.modal.chmod.noSelected }}
         </div>
         <div v-else>
@@ -10,7 +10,7 @@
                 </div>
                 <div v-else>
                     <strong>{{ selectedItems.length }} {{ lang.modal.chmod.itemsSelected }}</strong>
-                    <span v-if="mixedSource" class="ml-2 text-orange-500 dark:text-orange-400">
+                    <span v-if="mixedSource" class="ml-2 text-warning">
                         ({{ lang.modal.chmod.mixedSource }})
                     </span>
                 </div>
@@ -50,12 +50,12 @@
                     :maxlength="3"
                     @update:value="syncCheckboxes"
                 />
-                <div v-if="invalidMode" class="text-red-500 text-sm mt-1">
+                <div v-if="invalidMode" class="text-danger text-sm mt-1">
                     {{ lang.modal.chmod.invalidMode }}
                 </div>
             </div>
 
-            <div class="text-sm text-stone-500 dark:text-stone-400">
+            <div class="text-sm text-muted">
                 {{ lang.modal.chmod.preview }}: <code>{{ symbolicString }}</code>
             </div>
         </div>
@@ -202,6 +202,7 @@ onMounted(() => {
 
 defineExpose({
     footerButtons: computed(() => [
+        { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
         {
             label: lang.value.btn.submit,
             color: 'green',
@@ -209,7 +210,6 @@ defineExpose({
             action: submit,
             disabled: submitDisabled.value,
         },
-        { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
     ]),
 })
 </script>
@@ -227,7 +227,7 @@ defineExpose({
     }
 
     tbody tr:hover {
-        @apply bg-stone-50 dark:bg-stone-800;
+        @apply bg-surface-hover;
     }
 }
 </style>

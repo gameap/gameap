@@ -181,6 +181,10 @@ func (d *fileDispatcher) DispatchFileRead(
 	}
 
 	if !readResp.Success {
+		if ferr := daemonFileError("file read", readResp.Error); ferr != nil {
+			return nil, ferr
+		}
+
 		return nil, errors.Errorf("file read failed: %s", readResp.Error)
 	}
 

@@ -6,11 +6,11 @@
             class="my-1"
         >
             <div
-                class="flex items-center gap-2 cursor-pointer select-none py-1 px-2 rounded hover:bg-stone-100 dark:hover:bg-stone-800"
+                class="flex items-center gap-2 cursor-pointer select-none py-1 px-2 rounded hover:bg-surface-hover"
                 @click="messages.toggleDirExpanded(dir.relPath)"
             >
-                <GIcon :name="dir.expanded ? 'chevron-down' : 'chevron-right'" class="text-xs text-stone-500 w-3" />
-                <GIcon :name="dir.expanded ? 'folder-open' : 'folder'" class="text-stone-500 dark:text-stone-400" />
+                <GIcon :name="dir.expanded ? 'chevron-down' : 'chevron-right'" class="text-xs text-muted w-3" />
+                <GIcon :name="dir.expanded ? 'folder-open' : 'folder'" class="text-muted" />
                 <span class="font-medium truncate flex-1" :title="dir.name">{{ dir.name }}</span>
                 <n-tag v-if="dir.conflict === 'merge'" size="tiny" type="warning" round>
                     {{ lang.modal.upload.review.merge }}
@@ -18,27 +18,27 @@
                 <n-tag v-else-if="dir.conflict === 'file-vs-dir'" size="tiny" type="error" round>
                     {{ lang.modal.upload.errors.dir_vs_file }}
                 </n-tag>
-                <span class="text-xs text-stone-500 shrink-0">
+                <span class="text-xs text-muted shrink-0">
                     {{ dir.completed }}/{{ dir.files }}
                 </span>
-                <span class="text-xs text-stone-500 shrink-0 w-16 text-right">
+                <span class="text-xs text-muted shrink-0 w-16 text-right">
                     {{ bytesToHuman(dir.size) }}
                 </span>
             </div>
-            <div v-if="dir.expanded" class="pl-5 border-l border-stone-200 dark:border-stone-700 ml-3">
+            <div v-if="dir.expanded" class="pl-5 border-l ml-3">
                 <UploadTreeNode :dir-path="dir.relPath" :is-review="isReview" />
             </div>
         </div>
         <div
             v-for="file in directFiles"
             :key="file.index"
-            class="grid grid-cols-12 items-center gap-2 py-1 px-2 rounded hover:bg-stone-50 dark:hover:bg-[color:color-mix(in_srgb,var(--gameap-stone-800)_40%,transparent)]"
+            class="grid grid-cols-12 items-center gap-2 py-1 px-2 rounded hover:bg-surface-hover"
         >
             <div class="col-span-12 sm:col-span-5 flex items-center gap-2 min-w-0">
                 <GIcon :name="phaseIcon(file)" :class="phaseIconClass(file)" />
                 <span class="truncate text-sm" :title="file.name">{{ effectiveName(file) }}</span>
             </div>
-            <div class="col-span-4 sm:col-span-2 text-xs text-stone-500 truncate text-right">
+            <div class="col-span-4 sm:col-span-2 text-xs text-muted truncate text-right">
                 {{ bytesToHuman(file.size) }}
             </div>
             <div class="col-span-5 sm:col-span-3">
@@ -168,13 +168,13 @@ function phaseIcon(file) {
 }
 
 function phaseIconClass(file) {
-    if (file.phase === 'error') return 'text-red-500'
-    if (file.phase === 'done') return 'text-lime-500'
-    if (file.phase === 'skipped') return 'text-stone-400'
-    if (file.phase === 'hashing' || file.phase === 'completing') return 'text-sky-500'
-    if (file.phase === 'uploading') return 'text-sky-500'
+    if (file.phase === 'error') return 'text-danger'
+    if (file.phase === 'done') return 'text-success'
+    if (file.phase === 'skipped') return 'text-faint'
+    if (file.phase === 'hashing' || file.phase === 'completing') return 'text-info'
+    if (file.phase === 'uploading') return 'text-info'
 
-    return 'text-stone-500'
+    return 'text-muted'
 }
 
 function phaseTagType(file) {

@@ -11,11 +11,11 @@
             >
                 <n-upload-dragger>
                     <div class="flex flex-col items-center gap-2 py-6">
-                        <GIcon name="upload" class="text-4xl text-stone-400" />
-                        <p class="text-stone-700 dark:text-stone-300 font-medium">
+                        <GIcon name="upload" class="text-4xl text-faint" />
+                        <p class="text-secondary font-medium">
                             {{ lang.modal.upload.dragger.text }}
                         </p>
-                        <p class="text-sm text-stone-500 dark:text-stone-500">
+                        <p class="text-sm text-muted">
                             {{ lang.modal.upload.dragger.hint }}
                         </p>
                     </div>
@@ -35,18 +35,18 @@
                     @change="onFolderInputChange"
                 />
             </div>
-            <p v-if="!hasPending" class="text-stone-500 text-center text-sm pt-2">
+            <p v-if="!hasPending" class="text-muted text-center text-sm pt-2">
                 {{ lang.modal.upload.noSelected }}
             </p>
         </div>
 
-        <div v-if="status === 'preflight'" class="py-8 flex flex-col items-center gap-3 text-stone-500">
-            <GIcon name="loading" class="text-3xl text-sky-500" />
+        <div v-if="status === 'preflight'" class="py-8 flex flex-col items-center gap-3 text-muted">
+            <GIcon name="loading" class="text-3xl text-info" />
             <p>{{ lang.modal.upload.detecting }}</p>
         </div>
 
         <div v-if="status === 'review'" class="space-y-3">
-            <div v-if="!isSingleFile" class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm bg-stone-50 dark:bg-stone-800 rounded p-3">
+            <div v-if="!isSingleFile" class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm bg-surface-hover rounded p-3">
                 <div>
                     <strong>{{ lang.modal.upload.summaryFiles }}</strong>
                     {{ totals.files }}
@@ -60,10 +60,10 @@
                     {{ bytesToHuman(totals.bytes) }}
                 </div>
             </div>
-            <div v-if="hasConflicts" class="border border-orange-300 dark:border-orange-800 rounded p-3 bg-warning-soft">
+            <div v-if="hasConflicts" class="border border-warning rounded p-3 bg-warning-soft">
                 <div class="flex items-center gap-2 mb-2">
-                    <GIcon name="warning" class="text-orange-500" />
-                    <strong class="text-orange-700 dark:text-orange-300">
+                    <GIcon name="warning" class="text-warning" />
+                    <strong class="text-warning-soft-text">
                         {{ lang.modal.upload.review.conflictsHeader }}
                     </strong>
                 </div>
@@ -78,18 +78,18 @@
                     />
                 </div>
             </div>
-            <div class="max-h-96 overflow-auto border border-stone-200 dark:border-stone-700 rounded">
+            <div class="max-h-96 overflow-auto border rounded">
                 <UploadTreeNode :is-review="true" />
             </div>
         </div>
 
         <div v-if="status === 'mkdir' || status === 'uploading'" class="space-y-3">
-            <div v-if="!isSingleFile" class="bg-stone-50 dark:bg-stone-800 rounded p-3">
+            <div v-if="!isSingleFile" class="bg-surface-hover rounded p-3">
                 <div class="flex items-center justify-between mb-2">
                     <strong class="text-sm">
                         {{ status === 'mkdir' ? lang.modal.upload.creatingDirs : lang.modal.upload.phase.uploading }}
                     </strong>
-                    <span class="text-xs text-stone-500">
+                    <span class="text-xs text-muted">
                         {{ totals.completedFiles }}/{{ totals.files }}
                         ·
                         {{ bytesToHuman(totals.loadedBytes) }} / {{ bytesToHuman(totals.bytes) }}
@@ -104,7 +104,7 @@
                     processing
                 />
             </div>
-            <div class="max-h-96 overflow-auto border border-stone-200 dark:border-stone-700 rounded">
+            <div class="max-h-96 overflow-auto border rounded">
                 <UploadTreeNode :is-review="false" />
             </div>
         </div>
@@ -122,7 +122,7 @@
                     {{ resultMessage }}
                 </p>
             </div>
-            <div class="max-h-96 overflow-auto border border-stone-200 dark:border-stone-700 rounded">
+            <div class="max-h-96 overflow-auto border rounded">
                 <UploadTreeNode :is-review="false" />
             </div>
         </div>
@@ -208,10 +208,10 @@ const resultMessage = computed(() => {
 })
 
 const resultBoxClass = computed(() => {
-    if (status.value === 'completed') return 'bg-success-soft text-success-soft-text border border-lime-300 dark:border-lime-800'
-    if (status.value === 'cancelled') return 'bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-300 dark:border-stone-700'
+    if (status.value === 'completed') return 'bg-success-soft text-success-soft-text border border-success'
+    if (status.value === 'cancelled') return 'bg-surface-hover text-secondary border'
 
-    return 'bg-warning-soft text-warning-soft-text border border-orange-300 dark:border-orange-800'
+    return 'bg-warning-soft text-warning-soft-text border border-warning'
 })
 
 function openFolderPicker() {
@@ -330,17 +330,17 @@ defineExpose({
         if (status.value === 'review') {
             return [
                 {
+                    label: lang.value.btn.cancel,
+                    color: 'black',
+                    icon: 'close',
+                    action: close,
+                },
+                {
                     label: lang.value.btn.submit,
                     color: 'green',
                     icon: 'upload',
                     action: onSubmitReview,
                     disabled: totals.value.files === 0,
-                },
-                {
-                    label: lang.value.btn.cancel,
-                    color: 'black',
-                    icon: 'close',
-                    action: close,
                 },
             ]
         }
@@ -355,7 +355,13 @@ defineExpose({
                 },
             ]
         }
-        const buttons = []
+        const buttons = [{
+            label: lang.value.btn.close,
+            color: 'black',
+            icon: 'close',
+            action: close,
+        }]
+
         if (totals.value.failedFiles > 0) {
             buttons.push({
                 label: lang.value.btn.retryFailed,
@@ -364,12 +370,6 @@ defineExpose({
                 action: onRetryFailed,
             })
         }
-        buttons.push({
-            label: lang.value.btn.close,
-            color: 'black',
-            icon: 'close',
-            action: close,
-        })
 
         return buttons
     }),

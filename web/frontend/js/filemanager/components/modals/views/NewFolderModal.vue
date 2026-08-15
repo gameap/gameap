@@ -9,7 +9,7 @@
             @keyup="validateDirName"
             @keyup.enter="submitActive && addFolder()"
         />
-        <div v-if="directoryExist" class="text-red-500 text-sm mt-1">
+        <div v-if="directoryExist" class="text-danger text-sm mt-1">
             {{ lang.modal.newFolder.fieldFeedback }}
         </div>
     </div>
@@ -53,8 +53,8 @@ function addFolder() {
 
 defineExpose({
     footerButtons: computed(() => [
-        { label: lang.value.btn.submit, color: 'green', icon: 'add-folder', action: addFolder, disabled: !submitActive.value },
         { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
+        { label: lang.value.btn.submit, color: 'green', icon: 'add-folder', action: addFolder, disabled: !submitActive.value },
     ]),
 })
 </script>

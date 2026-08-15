@@ -4,7 +4,7 @@
             <selected-file-list />
         </div>
         <div v-else>
-            <span class="text-red-500">{{ lang.modal.delete.noSelected }}</span>
+            <span class="text-danger">{{ lang.modal.delete.noSelected }}</span>
         </div>
     </div>
 </template>
@@ -35,8 +35,8 @@ function deleteItems() {
 
 defineExpose({
     footerButtons: computed(() => [
-        { label: lang.value.modal.delete.title, color: 'red', icon: 'delete', action: deleteItems, disabled: !selectedItems.value.length },
         { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
+        { label: lang.value.modal.delete.title, color: 'red', icon: 'delete', action: deleteItems, disabled: !selectedItems.value.length },
     ]),
 })
 </script>

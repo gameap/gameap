@@ -1205,6 +1205,75 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:      "Internal Server Error",
 		},
 		{
+			name:     "existing_file_with_same_name_is_conflict",
+			serverID: "1",
+			requestBody: createDirectoryRequest{
+				Disk: "server",
+				Path: "",
+				Name: "baseq2",
+			},
+			setupAuth: func() context.Context {
+				session := &auth.Session{
+					Login: "testuser",
+					Email: "test@example.com",
+					User:  &testUser1,
+				}
+
+				return auth.ContextWithSession(context.Background(), session)
+			},
+			setupRepo: func(
+				serverRepo *inmemory.ServerRepository,
+				nodeRepo *inmemory.NodeRepository,
+				rbacRepo *inmemory.RBACRepository,
+			) {
+				now := time.Now()
+
+				server := &domain.Server{
+					ID:            1,
+					UID:           uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+					UUIDShort:     "short1",
+					Enabled:       true,
+					Installed:     1,
+					Blocked:       false,
+					Name:          "Test Server 1",
+					GameID:        "q2",
+					DSID:          1,
+					GameModID:     1,
+					ServerIP:      "127.0.0.1",
+					ServerPort:    27910,
+					Dir:           "servers/test1",
+					ProcessActive: false,
+					CreatedAt:     &now,
+					UpdatedAt:     &now,
+				}
+
+				require.NoError(t, serverRepo.Save(context.Background(), server))
+				serverRepo.AddUserServer(1, 1)
+				allowUserFilesAbility(t, rbacRepo, 1, 1)
+
+				node := testNode
+				require.NoError(t, nodeRepo.Save(context.Background(), &node))
+			},
+			setupFileService: func() *mockFileService {
+				return &mockFileService{
+					mkdirFunc: func(_ context.Context, _ *domain.Node, _ string) error {
+						return &daemon.FileError{
+							Op:     "mkdir",
+							Err:    daemon.ErrFileExists,
+							Detail: "mkdirat servers/test1/baseq2: file exists",
+						}
+					},
+				}
+			},
+			expectedStatus: http.StatusConflict,
+			wantError:      "failed to create directory: file already exists",
+			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				assert.NotContains(t, string(body), "servers/test1", "response must not leak node paths")
+			},
+		},
+		{
 			name:     "get_file_info_service_error",
 			serverID: "1",
 			requestBody: createDirectoryRequest{

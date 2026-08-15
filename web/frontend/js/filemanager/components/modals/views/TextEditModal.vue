@@ -1,6 +1,6 @@
 <template>
     <div class="flex flex-col">
-        <div class="text-sm text-stone-500 mb-2">{{ selectedItem?.basename }}</div>
+        <div class="text-sm text-muted mb-2">{{ selectedItem?.basename }}</div>
         <div v-if="codeLoaded" class="code-editor" :style="{ height: editorHeight + 'px' }">
             <div class="line-numbers" ref="lineNumbersRef">
                 <span v-for="n in lineCount" :key="n">{{ n }}</span>
@@ -95,8 +95,8 @@ onMounted(() => {
 
 defineExpose({
     footerButtons: computed(() => [
-        { label: lang.value.btn.submit, color: 'green', icon: 'save', action: updateFile },
         { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
+        { label: lang.value.btn.submit, color: 'green', icon: 'save', action: updateFile },
     ]),
 })
 </script>

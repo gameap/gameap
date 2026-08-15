@@ -177,7 +177,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func (h *Handler) checkHasSubdirectories(ctx context.Context, node *domain.Node, directory string) (bool, error) {
 	fileInfoList, err := h.daemonFiles.ReadDir(ctx, node, directory)
 	if err != nil {
-		return false, errors.WithMessagef(err, "failed to read directory %s", directory)
+		return false, errors.WithMessagef(err, "failed to read directory %s", filepath.Base(directory))
 	}
 
 	for _, fileInfo := range fileInfoList {

@@ -380,19 +380,23 @@ onMounted(() => {
 
 <style lang="scss">
 .fm-context-menu {
-    @apply bg-white dark:bg-stone-900;
+    @apply bg-white dark:bg-stone-900 rounded border shadow-lg;
 
     position: absolute;
     z-index: 9997;
-    border-radius: 5px;
+    overflow: hidden;
 
     &:focus {
         outline: none;
     }
 
     .list-unstyled {
+        @apply border-b;
         margin-bottom: 0;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+
+        &:last-child {
+            border-bottom: none;
+        }
     }
 
     ul > li {
@@ -412,7 +416,7 @@ onMounted(() => {
     }
 
     ul > li.disabled {
-        @apply text-stone-400 dark:text-stone-600;
+        @apply text-faint;
         cursor: not-allowed;
 
         i, svg {
