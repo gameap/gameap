@@ -40,7 +40,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
-          goversion: 1.26.5
+          goversion: 1.26.6
           md5sum: false
           sha256sum: true
           overwrite: true
