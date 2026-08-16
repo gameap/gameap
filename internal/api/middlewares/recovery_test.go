@@ -163,3 +163,26 @@ func TestRecoveryMiddleware_MultipleRequests(t *testing.T) {
 	wrappedPanicHandler.ServeHTTP(rec3, req3)
 	assert.Equal(t, http.StatusInternalServerError, rec3.Code)
 }
+
+func TestRecoveryMiddleware_RepanicsErrAbortHandler(t *testing.T) {
+	responder := api.NewResponder()
+	recoveryMiddleware := NewRecoveryMiddleware(responder)
+
+	abortingHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("partial-body"))
+		panic(http.ErrAbortHandler)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/stream", nil)
+	rec := httptest.NewRecorder()
+
+	handler := recoveryMiddleware.Middleware(abortingHandler)
+
+	require.PanicsWithValue(t, http.ErrAbortHandler, func() {
+		handler.ServeHTTP(rec, req)
+	}, "http.ErrAbortHandler must propagate to net/http so the connection is dropped")
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "partial-body", rec.Body.String(), "no JSON error may be appended to the streamed body")
+}
