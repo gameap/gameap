@@ -25,5 +25,14 @@ export default {
         'week': ['semana', 'semanas'],
         'month': ['mes', 'meses'],
         'year': ['año', 'años'],
+    },
+    de: {
+        'second': ['Sekunde', 'Sekunden'],
+        'minute': ['Minute', 'Minuten'],
+        'hour': ['Stunde', 'Stunden'],
+        'day': ['Tag', 'Tage'],
+        'week': ['Woche', 'Wochen'],
+        'month': ['Monat', 'Monate'],
+        'year': ['Jahr', 'Jahre'],
     }
 };
