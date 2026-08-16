@@ -16,5 +16,14 @@ export default {
         'week': ['неделя', 'недели', 'недель'],
         'month': ['месяц', 'месяца', 'месяцев'],
         'year': ['год', 'года', 'лет'],
+    },
+    es: {
+        'second': ['segundo', 'segundos'],
+        'minute': ['minuto', 'minutos'],
+        'hour': ['hora', 'horas'],
+        'day': ['día', 'días'],
+        'week': ['semana', 'semanas'],
+        'month': ['mes', 'meses'],
+        'year': ['año', 'años'],
     }
 };
