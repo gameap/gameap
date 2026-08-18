@@ -53,6 +53,9 @@ const (
 	EventMFAEnrollmentRequired  EventType = "auth.mfa.enrollment.required"
 	EventMFAEnrollmentCompleted EventType = "auth.mfa.enrollment.completed"
 
+	EventSSOTicketIssue  EventType = "auth.sso.ticket.issue"
+	EventSSOTicketRedeem EventType = "auth.sso.ticket.redeem"
+
 	EventTwoFactorChallenge          EventType = "auth.2fa.challenge"
 	EventTwoFactorVerifySuccess      EventType = "auth.2fa.verify.success"
 	EventTwoFactorVerifyFailure      EventType = "auth.2fa.verify.failure"

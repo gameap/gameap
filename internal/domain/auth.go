@@ -21,6 +21,12 @@ const (
 	PATAbilityUserManage PATAbility = "admin:user:manage"
 	PATAbilityNodeRead   PATAbility = "admin:node:read"
 	PATAbilityGameRead   PATAbility = "admin:game:read"
+
+	// PATAbilitySSOIssue allows minting a single-use ticket that logs another
+	// user into the panel. Separate from user management on purpose: handing
+	// out logins is a different power from editing accounts, and an
+	// integration that only provisions servers should not carry it.
+	PATAbilitySSOIssue PATAbility = "admin:user:sso"
 )
 
 const (
@@ -112,6 +118,7 @@ func GetAdminAbilities() []PATAbility {
 		PATAbilityUserManage,
 		PATAbilityNodeRead,
 		PATAbilityGameRead,
+		PATAbilitySSOIssue,
 	}
 }
 
@@ -130,6 +137,7 @@ func GetAbilityDescriptions() map[PATAbility]string {
 		PATAbilityUserManage:           "Create and update users, assign servers and server permissions",
 		PATAbilityNodeRead:             "Read nodes, their IP addresses and busy ports",
 		PATAbilityGameRead:             "Read games and game mods",
+		PATAbilitySSOIssue:             "Issue single sign-on tickets for other users",
 		PATAbilityServerList:           "List game servers",
 		PATAbilityServerStart:          "Start game server",
 		PATAbilityServerStop:           "Stop game server",
@@ -172,6 +180,7 @@ func GetGroupedAbilities(includeAdmin bool) GroupedAbilities {
 		grouped[PATAbilityGroupUser] = []AbilityDescription{
 			{PATAbilityUserRead, descriptions[PATAbilityUserRead]},
 			{PATAbilityUserManage, descriptions[PATAbilityUserManage]},
+			{PATAbilitySSOIssue, descriptions[PATAbilitySSOIssue]},
 		}
 
 		grouped[PATAbilityGroupNode] = []AbilityDescription{

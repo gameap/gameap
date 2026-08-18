@@ -118,6 +118,13 @@ type Config struct {
 		// enough to scan the QR code, enter a TOTP code and store the
 		// recovery codes. Default 15m.
 		MFAEnrollmentTokenTTL time.Duration `env:"AUTH_MFA_ENROLLMENT_TOKEN_TTL" envDefault:"15m"`
+
+		// SSOTicketTTL bounds the lifetime of a single-use ticket minted for
+		// another user, used by external systems (a billing panel) to hand a
+		// customer a logged-in session. It must survive a redirect chain and
+		// an SPA cold boot, so it is longer than ShortLivedTokenTTL, and it is
+		// hard-capped at 120s by the issuing handler. Default 60s.
+		SSOTicketTTL time.Duration `env:"AUTH_SSO_TICKET_TTL" envDefault:"60s"`
 	}
 
 	RBAC struct {

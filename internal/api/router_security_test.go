@@ -210,6 +210,93 @@ func TestRouterSecurity_TokenAccess(t *testing.T) {
 			expectedStatusCode: http.StatusForbidden,
 		},
 
+		// Provisioning scopes. A billing integration drives these routes with
+		// a token, so each one must be reachable with its ability and closed
+		// without it.
+		{
+			name:               "admin_with_user_read_can_list_users",
+			request:            "GET /api/users",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_without_user_read_cannot_list_users",
+			request:            "GET /api/users",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "regular_user_with_user_read_cannot_list_users",
+			request:            "GET /api/users",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_user_manage_reaches_user_creation",
+			request:            "POST /api/users",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserManage},
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:               "admin_with_only_user_read_cannot_create_user",
+			request:            "POST /api/users",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// Account deletion is deliberately left out of the token scopes:
+			// a leaked billing token must not be able to erase accounts.
+			name:    "admin_with_every_provisioning_ability_cannot_delete_user",
+			request: "DELETE /api/users/2",
+			isAdmin: true,
+			tokenAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+				domain.PATAbilityUserManage,
+				domain.PATAbilityNodeRead,
+				domain.PATAbilityGameRead,
+			},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_node_read_can_list_nodes",
+			request:            "GET /api/nodes",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_without_node_read_cannot_list_nodes",
+			request:            "GET /api/nodes",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_node_read_can_read_busy_ports",
+			request:            "GET /api/nodes/1/busy_ports",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_with_game_read_can_list_games",
+			request:            "GET /api/games",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_without_game_read_cannot_list_games",
+			request:            "GET /api/games",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+
 		// "POST /api/tokens" endpoint tests
 		{
 			// Creating tokens is forbidden even for admin tokens.

@@ -241,6 +241,7 @@ func TestGetAdminAbilities(t *testing.T) {
 		PATAbilityUserManage,
 		PATAbilityNodeRead,
 		PATAbilityGameRead,
+		PATAbilitySSOIssue,
 	}, abilities)
 
 	assert.NotContains(t, abilities, PATAbilityServerStart)
@@ -288,6 +289,9 @@ func TestGetGroupedAbilities(t *testing.T) {
 
 		require.Contains(t, grouped, PATAbilityGroupServer)
 		assert.NotContains(t, grouped, PATAbilityGroupGDaemonTask)
+		assert.NotContains(t, grouped, PATAbilityGroupUser)
+		assert.NotContains(t, grouped, PATAbilityGroupNode)
+		assert.NotContains(t, grouped, PATAbilityGroupGame)
 
 		serverAbilities := grouped[PATAbilityGroupServer]
 		assert.Len(t, serverAbilities, 10, "should have 10 server abilities without admin")
@@ -327,6 +331,26 @@ func TestGetGroupedAbilities(t *testing.T) {
 		require.Len(t, gdaemonAbilities, 1)
 		assert.Equal(t, PATAbilityGDaemonTaskRead, gdaemonAbilities[0].Ability)
 		assert.NotEmpty(t, gdaemonAbilities[0].Description)
+
+		// Provisioning scopes: a billing integration drives the panel with a
+		// token, so these have to be pickable in the token creation UI.
+		require.Contains(t, grouped, PATAbilityGroupUser)
+		assert.ElementsMatch(t,
+			[]PATAbility{PATAbilityUserRead, PATAbilityUserManage, PATAbilitySSOIssue},
+			abilityNames(grouped[PATAbilityGroupUser]),
+		)
+
+		require.Contains(t, grouped, PATAbilityGroupNode)
+		assert.ElementsMatch(t,
+			[]PATAbility{PATAbilityNodeRead},
+			abilityNames(grouped[PATAbilityGroupNode]),
+		)
+
+		require.Contains(t, grouped, PATAbilityGroupGame)
+		assert.ElementsMatch(t,
+			[]PATAbility{PATAbilityGameRead},
+			abilityNames(grouped[PATAbilityGroupGame]),
+		)
 	})
 
 	t.Run("all_abilities_have_descriptions", func(t *testing.T) {
@@ -550,4 +574,13 @@ func TestPATAbilityConstants(t *testing.T) {
 func TestPATAbilityGroupConstants(t *testing.T) {
 	assert.Equal(t, PATAbilityGroup("server"), PATAbilityGroupServer)
 	assert.Equal(t, PATAbilityGroup("gdaemon-task"), PATAbilityGroupGDaemonTask)
+}
+
+func abilityNames(descriptions []AbilityDescription) []PATAbility {
+	names := make([]PATAbility, 0, len(descriptions))
+	for _, description := range descriptions {
+		names = append(names, description.Ability)
+	}
+
+	return names
 }
