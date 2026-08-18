@@ -173,6 +173,98 @@ func (s *PluginStorageRepositorySuite) TestPluginStorageRepositorySave() {
 	})
 }
 
+// A plugin's storage_set for a key it already holds is a fresh entry (no ID)
+// each time: the second save must land on the same row, for a global key
+// (NULL entity, which no unique index can guard) as much as for a scoped one.
+func (s *PluginStorageRepositorySuite) TestPluginStorageRepositorySaveAgain() {
+	ctx := context.Background()
+
+	s.T().Run("global_key_is_updated_in_place", func(t *testing.T) {
+		pluginID := uint64(900)
+
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{
+			PluginID: pluginID,
+			Key:      "rsp:account",
+			Payload:  []byte(`{"state":"registering"}`),
+		}))
+		second := &domain.PluginStorageEntry{
+			PluginID: pluginID,
+			Key:      "rsp:account",
+			Payload:  []byte(`{"state":"active"}`),
+		}
+		require.NoError(t, s.repo.Save(ctx, second))
+		assert.NotZero(t, second.ID, "the save reports the row it landed on")
+
+		filter := &filters.FindPluginStorage{
+			PluginIDs: []uint64{pluginID},
+			Keys:      []string{"rsp:account"},
+			EntityPairs: []domain.PluginStorageEntityPair{
+				{EntityType: nil, EntityID: nil},
+			},
+		}
+		results, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1, "a second save must not add a second row")
+		assert.Equal(t, []byte(`{"state":"active"}`), results[0].Payload)
+		assert.Equal(t, second.ID, results[0].ID)
+	})
+
+	s.T().Run("scoped_key_is_updated_in_place", func(t *testing.T) {
+		pluginID := uint64(901)
+
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{
+			PluginID:   pluginID,
+			Key:        "rsp:node",
+			EntityType: new("node"),
+			EntityID:   new(uint(1)),
+			Payload:    []byte(`{"cli":"missing"}`),
+		}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{
+			PluginID:   pluginID,
+			Key:        "rsp:node",
+			EntityType: new("node"),
+			EntityID:   new(uint(1)),
+			Payload:    []byte(`{"cli":"installed"}`),
+		}))
+
+		filter := &filters.FindPluginStorage{
+			PluginIDs: []uint64{pluginID},
+			Keys:      []string{"rsp:node"},
+			EntityPairs: []domain.PluginStorageEntityPair{
+				{EntityType: new("node"), EntityID: new(uint(1))},
+			},
+		}
+		results, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, []byte(`{"cli":"installed"}`), results[0].Payload)
+	})
+
+	s.T().Run("global_keys_stay_apart", func(t *testing.T) {
+		pluginID := uint64(902)
+
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: pluginID, Key: "a", Payload: []byte(`1`)}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: pluginID, Key: "b", Payload: []byte(`2`)}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: pluginID + 1, Key: "a", Payload: []byte(`3`)}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: pluginID, Key: "a", Payload: []byte(`4`)}))
+
+		results, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{pluginID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+		byKey := map[string][]byte{}
+		for _, r := range results {
+			byKey[r.Key] = r.Payload
+		}
+		assert.Equal(t, []byte(`4`), byKey["a"])
+		assert.Equal(t, []byte(`2`), byKey["b"])
+
+		other, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{pluginID + 1}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, other, 1)
+		assert.Equal(t, []byte(`3`), other[0].Payload)
+	})
+}
+
 func (s *PluginStorageRepositorySuite) TestPluginStorageRepositoryFind() {
 	ctx := context.Background()
 
