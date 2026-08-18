@@ -1,34 +1,31 @@
 <template>
-    <n-modal
+    <GModal
         v-model:show="showModal"
-        class="custom-card"
-        preset="card"
         :title="currentModalConfig?.title"
-        :bordered="false"
         :style="{ width: currentModalConfig?.width || '600px' }"
-        :segmented="{ content: 'soft', footer: 'soft' }"
         transform-origin="center"
     >
         <component :is="modalComponents[modalName]" ref="modalRef" />
         <template #footer v-if="footerButtons.length">
-            <GButton
-                v-for="(btn, i) in footerButtons"
-                :key="i"
-                :color="btn.color"
-                :disabled="btn.disabled"
-                :class="{ 'mr-1': i < footerButtons.length - 1 }"
-                @click="btn.action"
-            >
-                <GIcon v-if="btn.icon" :name="btn.icon" class="mr-1" />
-                {{ btn.label }}
-            </GButton>
+            <div class="flex justify-end gap-2">
+                <GButton
+                    v-for="(btn, i) in footerButtons"
+                    :key="i"
+                    :color="btn.color"
+                    :disabled="btn.disabled"
+                    @click="btn.action"
+                >
+                    <GIcon v-if="btn.icon" :name="btn.icon" class="mr-1" />
+                    {{ btn.label }}
+                </GButton>
+            </div>
         </template>
-    </n-modal>
+    </GModal>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { GIcon } from '@gameap/ui'
+import { GIcon, GModal } from '@gameap/ui'
 import { useModalStore } from '@/filemanager/stores'
 import { useTranslate } from '@/filemanager/composables'
 import { usePluginsStore } from '@/store/plugins'

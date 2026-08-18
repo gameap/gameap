@@ -174,8 +174,10 @@ function showModal(modalName) {
     @apply flex flex-wrap items-center gap-2;
 }
 
+/* Segmented button group: shared border + dividers, same shell as GBreadcrumbs
+   (border token, stone surface) so the toolbar reads as controls, not icons. */
 .fm-toolbar-group {
-    @apply inline-flex items-stretch overflow-hidden rounded-md border bg-surface shadow-sm;
+    @apply inline-flex items-stretch overflow-hidden rounded-lg border bg-surface shadow-sm;
 }
 
 .fm-toolbar-spacer {
@@ -194,7 +196,7 @@ function showModal(modalName) {
     }
 
     &:hover:not(:disabled) {
-        @apply bg-stone-100 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-700)_60%,transparent)] text-body;
+        @apply bg-stone-100 dark:bg-stone-700 text-body;
     }
 
     &:focus-visible {
@@ -203,7 +205,7 @@ function showModal(modalName) {
     }
 
     &:disabled {
-        @apply text-stone-300 dark:text-stone-600 cursor-not-allowed;
+        @apply text-faint cursor-not-allowed;
     }
 }
 
@@ -216,6 +218,6 @@ function showModal(modalName) {
 }
 
 .fm-tool-btn--danger:hover:not(:disabled) {
-    @apply bg-red-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-red-900)_30%,transparent)] text-red-600 dark:text-red-400;
+    @apply bg-danger-soft text-danger;
 }
 </style>

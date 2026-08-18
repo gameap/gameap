@@ -2,7 +2,7 @@ module github.com/gameap/gameap
 
 go 1.26
 
-toolchain go1.26.5
+toolchain go1.26.6
 
 require (
 	aidanwoods.dev/go-paseto v1.6.0

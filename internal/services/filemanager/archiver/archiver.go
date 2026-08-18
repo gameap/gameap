@@ -71,16 +71,14 @@ func (a *Archiver) WriteArchive(
 
 	flusher := flusherFor(w)
 
+	// On error paths the zip writer is deliberately left unclosed: closing it would append a valid
+	// central directory and turn a partial stream into an archive that opens but silently lacks files.
 	for _, entry := range manifest.Entries {
 		if err := ctx.Err(); err != nil {
-			_ = zw.Close()
-
 			return nil, err
 		}
 
 		if err := a.writeEntry(ctx, zw, node, entry, opts); err != nil {
-			_ = zw.Close()
-
 			return nil, errors.WithMessage(err, "write entry "+entry.RelPath)
 		}
 
@@ -92,8 +90,6 @@ func (a *Archiver) WriteArchive(
 
 	if len(manifest.Skipped) > 0 {
 		if err := writeSkippedReport(zw, manifest.Skipped); err != nil {
-			_ = zw.Close()
-
 			return nil, errors.WithMessage(err, "write skipped report")
 		}
 	}

@@ -11,11 +11,11 @@
         <transition name="fade">
             <div
                 v-if="dropOver"
-                class="absolute inset-0 z-50 flex items-center justify-center pointer-events-none bg-scrim border-4 border-dashed border-stone-700 dark:border-stone-300 rounded-md"
+                class="absolute inset-0 z-50 flex items-center justify-center pointer-events-none bg-scrim border-4 border-dashed border-strong rounded-md"
             >
-                <div class="bg-white dark:bg-stone-800 px-8 py-6 rounded-lg shadow-2xl flex flex-col items-center gap-3">
-                    <GIcon name="upload" class="text-5xl text-stone-700 dark:text-stone-200" />
-                    <p class="text-lg font-semibold text-stone-700 dark:text-stone-200">
+                <div class="bg-surface-raised px-8 py-6 rounded-lg shadow-2xl flex flex-col items-center gap-3">
+                    <GIcon name="upload" class="text-5xl text-secondary" />
+                    <p class="text-lg font-semibold text-secondary">
                         {{ lang.modal.upload.dropOverlay }}
                     </p>
                 </div>
@@ -267,26 +267,6 @@ onUnmounted(() => {
     .unselectable {
         user-select: none;
     }
-}
-
-.fm-error {
-    @apply text-red-500 dark:text-red-400 bg-red-100 dark:bg-red-900 border-red-500 dark:border-red-400;
-}
-
-.fm-danger {
-    @apply text-white bg-red-100 dark:bg-red-900 border-red-500 dark:border-red-400;
-}
-
-.fm-warning {
-  @apply text-orange-500 dark:text-orange-400 bg-orange-100 dark:bg-orange-900 border-orange-500 dark:border-orange-400;
-}
-
-.fm-success {
-  @apply text-white bg-success dark:bg-lime-800 border-success dark:border-lime-400;
-}
-
-.fm-info {
-  @apply text-white bg-stone-600 dark:bg-stone-700 border-stone-500 dark:border-stone-400;
 }
 
 .fm.fm-full-screen {

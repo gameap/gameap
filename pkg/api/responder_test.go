@@ -169,9 +169,10 @@ func TestResponder_WriteError(t *testing.T) {
 }
 
 type capturedLogRecord struct {
-	level   slog.Level
-	message string
-	status  int64
+	level     slog.Level
+	message   string
+	status    int64
+	errorAttr string
 }
 
 type capturingLogHandler struct {
@@ -184,8 +185,11 @@ func (h *capturingLogHandler) Enabled(context.Context, slog.Level) bool { return
 func (h *capturingLogHandler) Handle(_ context.Context, r slog.Record) error {
 	captured := capturedLogRecord{level: r.Level, message: r.Message, status: -1}
 	r.Attrs(func(a slog.Attr) bool {
-		if a.Key == "status" {
+		switch a.Key {
+		case "status":
 			captured.status = a.Value.Int64()
+		case "error":
+			captured.errorAttr = a.Value.String()
 		}
 
 		return true
@@ -280,6 +284,49 @@ func TestResponder_WriteError_WithDescription(t *testing.T) {
 	responder.WriteError(context.Background(), rec, err)
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+// statusDescriptionError mirrors daemon.FileError: a client-safe Error(), an
+// HTTP status and a verbose Description meant for the log line only.
+type statusDescriptionError struct {
+	descriptionError
+
+	status int
+}
+
+func (e *statusDescriptionError) HTTPStatus() int { return e.status }
+
+func TestResponder_WriteError_DescriptionStaysOutOfBody(t *testing.T) {
+	handler := &capturingLogHandler{}
+	prev := slog.Default()
+	slog.SetDefault(slog.New(handler))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	responder := NewResponder()
+	rec := httptest.NewRecorder()
+	err := errors.WithMessage(&statusDescriptionError{
+		descriptionError: descriptionError{
+			msg:         "file not found",
+			description: "stat: lstatat servers/q2/server.cfg: no such file or directory",
+		},
+		status: http.StatusNotFound,
+	}, "failed to get file info")
+
+	responder.WriteError(context.Background(), rec, err)
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, "failed to get file info: file not found", body["error"])
+	assert.NotContains(t, rec.Body.String(), "servers/q2", "description must never reach the client")
+
+	require.Len(t, handler.records, 1)
+	logged := handler.records[0]
+	assert.Equal(t, slog.LevelWarn, logged.level)
+	assert.Equal(t, "stat: lstatat servers/q2/server.cfg: no such file or directory", logged.message)
+	assert.Equal(t, "failed to get file info: file not found", logged.errorAttr)
+	assert.Equal(t, int64(http.StatusNotFound), logged.status)
 }
 
 func TestWriteJSON(t *testing.T) {

@@ -123,6 +123,10 @@ func (s *FileService) readDir(
 	}
 
 	if !resp.Success {
+		if ferr := daemonFileError("file list", resp.Error); ferr != nil {
+			return nil, ferr
+		}
+
 		return nil, errors.Errorf("file list failed: %s", resp.Error)
 	}
 
@@ -150,6 +154,10 @@ func (s *FileService) Download(ctx context.Context, node *domain.Node, filePath 
 		}
 
 		if !resp.Success {
+			if ferr := daemonFileError("file read", resp.Error); ferr != nil {
+				return nil, ferr
+			}
+
 			return nil, errors.Errorf("file read failed: %s", resp.Error)
 		}
 
@@ -204,7 +212,7 @@ func (s *FileService) downloadStreamLocal(ctx context.Context, nodeID uint64, pa
 
 	go func() {
 		if err := s.gateway.RequestFileDownloadTask(ctx, nodeID, transferID, path); err != nil {
-			state.SetError(errors.WithMessage(err, "daemon file download task"))
+			state.SetError(errors.WithMessage(classifyFileError("download task", err), "daemon file download task"))
 
 			return
 		}
@@ -306,7 +314,11 @@ func (s *FileService) downloadStreamLocalChunked(
 			}
 
 			if !resp.Success {
-				pw.CloseWithError(errors.Errorf("gateway chunked read: %s", resp.Error))
+				readErr := daemonFileError("file read", resp.Error)
+				if readErr == nil {
+					readErr = errors.Errorf("gateway chunked read: %s", resp.Error)
+				}
+				pw.CloseWithError(readErr)
 
 				return
 			}
@@ -336,7 +348,7 @@ func (s *FileService) downloadStreamRemote(ctx context.Context, nodeID uint64, p
 	errCh := make(chan error, 1)
 	go func() {
 		if err := s.dispatcher.DispatchDownloadTask(ctx, nodeID, transferID, path); err != nil {
-			errCh <- errors.WithMessage(err, "dispatched download task")
+			errCh <- errors.WithMessage(classifyFileError("download task", err), "dispatched download task")
 
 			return
 		}
@@ -432,6 +444,10 @@ func (s *FileService) waitForPartS3(
 				return false, errors.WithMessage(err, "reading transfer sentinel")
 			}
 			if !doneInfo.Success {
+				if ferr := daemonFileError("remote transfer", doneInfo.Error); ferr != nil {
+					return false, ferr
+				}
+
 				return false, errors.Errorf("transfer failed on remote: %s", doneInfo.Error)
 			}
 
@@ -500,10 +516,14 @@ func (s *FileService) Upload(
 	}
 
 	if local {
-		return s.gateway.RequestFileWrite(ctx, nodeID, relPath, content, mode, true, owner)
+		return classifyFileError(
+			"file write", s.gateway.RequestFileWrite(ctx, nodeID, relPath, content, mode, true, owner),
+		)
 	}
 
-	return s.dispatcher.DispatchFileWrite(ctx, nodeID, relPath, content, mode, true, owner)
+	return classifyFileError(
+		"file write", s.dispatcher.DispatchFileWrite(ctx, nodeID, relPath, content, mode, true, owner),
+	)
 }
 
 func (s *FileService) UploadStreamPrepared(
@@ -527,7 +547,7 @@ func (s *FileService) UploadStreamPrepared(
 		if reqErr := s.gateway.RequestFileUploadTask(
 			ctx, nodeID, transferID, relPath, checksum, safeUint64ToInt64(totalSize), 0, owner,
 		); reqErr != nil {
-			return errors.WithMessage(reqErr, "upload task")
+			return errors.WithMessage(classifyFileError("upload task", reqErr), "upload task")
 		}
 
 		return nil
@@ -536,7 +556,7 @@ func (s *FileService) UploadStreamPrepared(
 	if dispatchErr := s.dispatcher.DispatchUploadTask(
 		ctx, nodeID, transferID, relPath, 0, owner,
 	); dispatchErr != nil {
-		return errors.WithMessage(dispatchErr, "dispatched upload task")
+		return errors.WithMessage(classifyFileError("upload task", dispatchErr), "dispatched upload task")
 	}
 
 	return nil
@@ -566,7 +586,9 @@ func (s *FileService) UploadStream(
 			return errors.Wrap(readErr, "reading upload content")
 		}
 
-		return s.gateway.RequestFileWrite(ctx, nodeID, relPath, content, mode, true, owner)
+		return classifyFileError(
+			"file write", s.gateway.RequestFileWrite(ctx, nodeID, relPath, content, mode, true, owner),
+		)
 	}
 
 	transferID := idgen.New()
@@ -588,7 +610,7 @@ func (s *FileService) UploadStream(
 		_ = s.storage.Delete(context.Background(), storagePath)
 
 		if err != nil {
-			return errors.WithMessage(err, "upload task")
+			return errors.WithMessage(classifyFileError("upload task", err), "upload task")
 		}
 
 		return nil
@@ -599,7 +621,7 @@ func (s *FileService) UploadStream(
 	); err != nil {
 		_ = s.storage.Delete(context.Background(), storagePath)
 
-		return errors.WithMessage(err, "dispatched upload task")
+		return errors.WithMessage(classifyFileError("upload task", err), "dispatched upload task")
 	}
 
 	return nil
@@ -692,6 +714,10 @@ func (s *FileService) GetFileInfo(
 	}
 
 	if !resp.Success {
+		if ferr := daemonFileError("stat", resp.Error); ferr != nil {
+			return nil, ferr
+		}
+
 		return nil, errors.Errorf("stat failed: %s", resp.Error)
 	}
 
@@ -792,10 +818,19 @@ func (s *FileService) doFileOperation(
 	}
 
 	if !resp.Success {
+		if ferr := daemonFileError(fileOperationName(req.Operation), resp.Error); ferr != nil {
+			return ferr
+		}
+
 		return errors.Errorf("file operation failed: %s", resp.Error)
 	}
 
 	return nil
+}
+
+// fileOperationName turns FILE_OPERATION_TYPE_DELETE into "delete" for FileError.Op.
+func fileOperationName(op proto.FileOperationType) string {
+	return strings.ToLower(strings.TrimPrefix(op.String(), "FILE_OPERATION_TYPE_"))
 }
 
 type chunkedCleanupReadCloser struct {

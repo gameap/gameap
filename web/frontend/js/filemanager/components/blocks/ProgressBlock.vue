@@ -250,7 +250,7 @@ function dismissArchive() {
 
 <style lang="scss">
 .fm-progress-block {
-    @apply border-t bg-stone-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-800)_50%,transparent)];
+    @apply border-t bg-surface-hover;
     flex: 0 0 auto;
 }
 </style>

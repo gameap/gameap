@@ -65,7 +65,7 @@
             :route="btn.props.route"
         >
           <div class="text-lg">
-            <GIcon v-if="hasIcon(btn.icon)" :name="btn.icon" />
+            <GIcon v-if="hasIcon(btn.icon)" :name="btn.icon" class="mr-1" />
             <i v-else :class="btn.icon"></i>
             {{ pluginsStore.resolvePluginText(btn.pluginId, btn.label) }}
           </div>

@@ -9,7 +9,7 @@
             @keyup="validateName"
             @keyup.enter="!submitDisable && rename()"
         />
-        <div v-if="checkName && name" class="text-red-500 text-sm mt-1">
+        <div v-if="checkName && name" class="text-danger text-sm mt-1">
             {{ lang.modal.rename.fieldFeedback }}
             {{ directoryExist ? ` - ${lang.modal.rename.directoryExist}` : '' }}
             {{ fileExist ? ` - ${lang.modal.rename.fileExist}` : '' }}
@@ -67,8 +67,8 @@ function rename() {
 
 defineExpose({
     footerButtons: computed(() => [
-        { label: lang.value.btn.submit, color: 'green', icon: 'edit', action: rename, disabled: submitDisable.value },
         { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
+        { label: lang.value.btn.submit, color: 'green', icon: 'edit', action: rename, disabled: submitDisable.value },
     ]),
 })
 </script>

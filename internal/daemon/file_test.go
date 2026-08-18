@@ -288,6 +288,7 @@ func TestFileService_ReadDir(t *testing.T) {
 		wantDispatchCalls int32
 		wantFiles         int
 		wantError         string
+		wantErrIs         error
 	}{
 		{
 			name: "gateway_path_returns_files",
@@ -356,6 +357,48 @@ func TestFileService_ReadDir(t *testing.T) {
 			workPath:         "/srv",
 			wantGatewayCalls: 1,
 			wantError:        "permission denied",
+			wantErrIs:        ErrPermissionDenied,
+		},
+		{
+			name: "gateway_unknown_daemon_text_stays_opaque",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileListResponse{Success: false, Error: "daemon exploded"},
+			},
+			directory:        "/srv",
+			workPath:         "/srv",
+			wantGatewayCalls: 1,
+			wantError:        "file list failed: daemon exploded",
+		},
+		{
+			name: "gateway_missing_directory_maps_to_ErrFileNotFound",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileListResponse{
+					Success: false,
+					Error:   "openat servers/q2/missing: no such file or directory",
+				},
+			},
+			directory:        "/srv/servers/q2/missing",
+			workPath:         "/srv",
+			wantGatewayCalls: 1,
+			wantError:        "file not found",
+			wantErrIs:        ErrFileNotFound,
+		},
+		{
+			name: "dispatcher_missing_directory_maps_to_ErrFileNotFound",
+			setup: setup{
+				isConnectedAnywhere: true,
+				dispatcherResp: &proto.FileListResponse{
+					Success: false,
+					Error:   "openat servers/q2/missing: no such file or directory",
+				},
+			},
+			directory:         "/srv/servers/q2/missing",
+			workPath:          "/srv",
+			wantDispatchCalls: 1,
+			wantError:         "file not found",
+			wantErrIs:         ErrFileNotFound,
 		},
 		{
 			name: "returns_ErrDaemonNotConnected_when_not_connected",
@@ -419,6 +462,11 @@ func TestFileService_ReadDir(t *testing.T) {
 
 				if tt.name == notConnectedCaseName {
 					assert.ErrorIs(t, err, ErrDaemonNotConnected, "must be ErrDaemonNotConnected sentinel")
+				}
+
+				if tt.wantErrIs != nil {
+					assert.ErrorIs(t, err, tt.wantErrIs, "daemon failure must be classified")
+					assert.NotContains(t, err.Error(), "servers/", "client-facing text must not carry node paths")
 				}
 
 				return
@@ -532,6 +580,7 @@ func TestFileService_Download(t *testing.T) {
 		wantGatewayCalls  bool
 		wantDispatchCalls bool
 		wantError         string
+		wantErrIs         error
 	}{
 		{
 			name: "gateway_returns_inline_content",
@@ -569,6 +618,41 @@ func TestFileService_Download(t *testing.T) {
 			},
 			wantGatewayCalls: true,
 			wantError:        "no such file",
+		},
+		{
+			name: "gateway_missing_file_maps_to_ErrFileNotFound",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileReadResponse{
+					Success: false,
+					Error:   "openat servers/q2/file.txt: no such file or directory",
+				},
+			},
+			wantGatewayCalls: true,
+			wantError:        "file not found",
+			wantErrIs:        ErrFileNotFound,
+		},
+		{
+			name: "gateway_directory_read_maps_to_ErrIsDirectory",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileReadResponse{Success: false, Error: "path is a directory"},
+			},
+			wantGatewayCalls: true,
+			wantError:        "path is a directory",
+			wantErrIs:        ErrIsDirectory,
+		},
+		{
+			name: "dispatcher_classified_error_propagates",
+			setup: setup{
+				isConnectedAnywhere: true,
+				dispatcherErr: &FileError{
+					Op: "file read", Err: ErrPermissionDenied, Detail: "openat servers/q2/file.txt: permission denied",
+				},
+			},
+			wantDispatchCalls: true,
+			wantError:         "dispatched file read: permission denied",
+			wantErrIs:         ErrPermissionDenied,
 		},
 		{
 			name: "gateway_error_wrapped_with_message",
@@ -639,6 +723,11 @@ func TestFileService_Download(t *testing.T) {
 
 				if tt.name == notConnectedCaseName {
 					assert.ErrorIs(t, err, ErrDaemonNotConnected, "must be ErrDaemonNotConnected sentinel")
+				}
+
+				if tt.wantErrIs != nil {
+					assert.ErrorIs(t, err, tt.wantErrIs, "daemon failure must be classified")
+					assert.NotContains(t, err.Error(), "servers/", "client-facing text must not carry node paths")
 				}
 
 				return
@@ -780,6 +869,7 @@ func TestFileService_Upload(t *testing.T) {
 		wantDispatchCalls bool
 		wantWriteOwner    OwnerOptions
 		wantError         string
+		wantErrIs         error
 	}{
 		{
 			name:             "gateway_path_writes_small_content",
@@ -828,6 +918,26 @@ func TestFileService_Upload(t *testing.T) {
 			wantError:         "dispatched boom",
 		},
 		{
+			name: "gateway_no_space_maps_to_ErrNoSpaceLeft",
+			setup: setup{
+				isConnected: true,
+				gatewayErr:  errors.New("write servers/q2/out.txt: no space left on device"),
+			},
+			wantGatewayCalls: true,
+			wantError:        "no space left on device",
+			wantErrIs:        ErrNoSpaceLeft,
+		},
+		{
+			name: "dispatcher_permission_denied_maps_to_ErrPermissionDenied",
+			setup: setup{
+				isConnectedAnywhere: true,
+				dispatcherErr:       errors.New("openat servers/q2/out.txt: permission denied"),
+			},
+			wantDispatchCalls: true,
+			wantError:         "permission denied",
+			wantErrIs:         ErrPermissionDenied,
+		},
+		{
 			name:      "returns_ErrDaemonNotConnected_when_not_connected",
 			setup:     setup{},
 			wantError: "daemon not connected",
@@ -862,6 +972,11 @@ func TestFileService_Upload(t *testing.T) {
 
 				if tt.name == notConnectedCaseName {
 					assert.ErrorIs(t, err, ErrDaemonNotConnected, "must be ErrDaemonNotConnected sentinel")
+				}
+
+				if tt.wantErrIs != nil {
+					assert.ErrorIs(t, err, tt.wantErrIs, "daemon failure must be classified")
+					assert.NotContains(t, err.Error(), "servers/", "client-facing text must not carry node paths")
 				}
 
 				return
@@ -1581,6 +1696,7 @@ func TestFileService_GetFileInfo(t *testing.T) {
 		setup     setup
 		wantName  string
 		wantError string
+		wantErrIs error
 	}{
 		{
 			name: "gateway_returns_file_details_when_stat_succeeds",
@@ -1616,7 +1732,42 @@ func TestFileService_GetFileInfo(t *testing.T) {
 				isConnected: true,
 				gatewayResp: &proto.FileOperationResponse{Success: false, Error: "no such file"},
 			},
-			wantError: "no such file",
+			wantError: "stat failed: no such file",
+		},
+		{
+			name: "missing_file_maps_to_ErrFileNotFound",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileOperationResponse{
+					Success: false,
+					Error:   "lstatat servers/q2/baseq2/server.cfg: no such file or directory",
+				},
+			},
+			wantError: "file not found",
+			wantErrIs: ErrFileNotFound,
+		},
+		{
+			name: "windows_missing_file_maps_to_ErrFileNotFound",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileOperationResponse{
+					Success: false,
+					Error:   `lstatat servers\q2\baseq2\server.cfg: The system cannot find the file specified.`,
+				},
+			},
+			wantError: "file not found",
+			wantErrIs: ErrFileNotFound,
+		},
+		{
+			name: "unavailable_work_directory_stays_opaque",
+			setup: setup{
+				isConnected: true,
+				gatewayResp: &proto.FileOperationResponse{
+					Success: false,
+					Error:   "work directory unavailable: open /srv/gameap: no such file or directory",
+				},
+			},
+			wantError: "stat failed: work directory unavailable",
 		},
 		{
 			name: "gateway_transport_error_wrapped",
@@ -1663,6 +1814,19 @@ func TestFileService_GetFileInfo(t *testing.T) {
 
 				if tt.name == notConnectedCaseName {
 					assert.ErrorIs(t, err, ErrDaemonNotConnected, "must be ErrDaemonNotConnected sentinel")
+				}
+
+				if tt.wantErrIs != nil {
+					assert.ErrorIs(t, err, tt.wantErrIs, "daemon failure must be classified")
+					assert.NotContains(t, err.Error(), "servers", "client-facing text must not carry node paths")
+
+					var fileErr *FileError
+					require.ErrorAs(t, err, &fileErr)
+					assert.Equal(t, "stat", fileErr.Op)
+					assert.Equal(t, tt.setup.gatewayResp.Error, fileErr.Detail, "raw daemon text must be kept for logs")
+				} else {
+					var fileErr *FileError
+					assert.False(t, errors.As(err, &fileErr), "unrecognised daemon text must stay opaque")
 				}
 
 				return
@@ -1886,4 +2050,112 @@ func TestNewFileService_nilLoggerUsesDefault(t *testing.T) {
 	// ASSERT
 	require.NotNil(t, svc, "service must be constructed")
 	assert.NotNil(t, svc.logger, "logger must default to a non-nil instance when nil is passed")
+}
+
+func TestFileService_doFileOperation_classifiesDaemonFailure(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		daemonError string
+		act         func(ctx context.Context, s *FileService, node *domain.Node) error
+		wantOp      string
+		wantErrIs   error
+		wantError   string
+	}{
+		{
+			name:        "remove_missing_path_maps_to_ErrFileNotFound",
+			daemonError: "unlinkat servers/q2/old.cfg: no such file or directory",
+			act: func(ctx context.Context, s *FileService, node *domain.Node) error {
+				return s.Remove(ctx, node, "/srv/servers/q2/old.cfg", false)
+			},
+			wantOp:    "delete",
+			wantErrIs: ErrFileNotFound,
+			wantError: "file not found",
+		},
+		{
+			name:        "remove_non_empty_directory_maps_to_ErrDirectoryNotEmpty",
+			daemonError: "unlinkat servers/q2/baseq2: directory not empty",
+			act: func(ctx context.Context, s *FileService, node *domain.Node) error {
+				return s.Remove(ctx, node, "/srv/servers/q2/baseq2", false)
+			},
+			wantOp:    "delete",
+			wantErrIs: ErrDirectoryNotEmpty,
+			wantError: "directory is not empty",
+		},
+		{
+			name:        "mkdir_over_existing_path_maps_to_ErrFileExists",
+			daemonError: "mkdirat servers/q2/baseq2: file exists",
+			act: func(ctx context.Context, s *FileService, node *domain.Node) error {
+				return s.MkDir(ctx, node, "/srv/servers/q2/baseq2", OwnerOptions{})
+			},
+			wantOp:    "mkdir",
+			wantErrIs: ErrFileExists,
+			wantError: "file already exists",
+		},
+		{
+			name:        "move_missing_source_maps_to_ErrFileNotFound",
+			daemonError: "renameat servers/q2/a.cfg servers/q2/b.cfg: no such file or directory",
+			act: func(ctx context.Context, s *FileService, node *domain.Node) error {
+				return s.Move(ctx, node, "/srv/servers/q2/a.cfg", "/srv/servers/q2/b.cfg")
+			},
+			wantOp:    "move",
+			wantErrIs: ErrFileNotFound,
+			wantError: "file not found",
+		},
+		{
+			name:        "chmod_permission_denied_maps_to_ErrPermissionDenied",
+			daemonError: "chmod servers/q2/q2ded: operation not permitted",
+			act: func(ctx context.Context, s *FileService, node *domain.Node) error {
+				return s.Chmod(ctx, node, "/srv/servers/q2/q2ded", 0o755)
+			},
+			wantOp:    "chmod",
+			wantErrIs: ErrPermissionDenied,
+			wantError: "permission denied",
+		},
+		{
+			name:        "unknown_daemon_text_stays_opaque",
+			daemonError: "daemon exploded",
+			act: func(ctx context.Context, s *FileService, node *domain.Node) error {
+				return s.Remove(ctx, node, "/srv/servers/q2/old.cfg", false)
+			},
+			wantError: "file operation failed: daemon exploded",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			ctx := testContext(t)
+			s := setupFileService(t)
+			const nodeID uint64 = 44
+			s.registry.setConnected(nodeID, true)
+
+			s.gateway.requestFileOp = func(_ context.Context, _ uint64, _ *proto.FileOperationRequest) (*proto.FileOperationResponse, error) {
+				return &proto.FileOperationResponse{Success: false, Error: tt.daemonError}, nil
+			}
+
+			// ACT
+			err := tt.act(ctx, s.service, testNode(44, "/srv"))
+
+			// ASSERT
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError, "error message mismatch")
+
+			var fileErr *FileError
+			if tt.wantErrIs == nil {
+				assert.False(t, errors.As(err, &fileErr), "unrecognised daemon text must stay opaque")
+
+				return
+			}
+
+			assert.ErrorIs(t, err, tt.wantErrIs, "daemon failure must be classified")
+			require.ErrorAs(t, err, &fileErr)
+			assert.Equal(t, tt.wantOp, fileErr.Op, "Op must name the daemon operation")
+			assert.Equal(t, tt.daemonError, fileErr.Detail, "raw daemon text must be kept for logs")
+			assert.NotContains(t, err.Error(), "servers/", "client-facing text must not carry node paths")
+		})
+	}
 }

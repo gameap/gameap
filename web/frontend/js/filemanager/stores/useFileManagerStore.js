@@ -3,8 +3,9 @@ import { ref, computed, reactive } from 'vue'
 import GET from '../http/get.js'
 import POST from '../http/post.js'
 import { uploadFileChunked } from '../http/upload-session.js'
-import { downloadDirectoryArchive, ArchiveDownloadError } from '../http/download-archive.js'
-import { downloadSingleFile, FileDownloadError } from '../http/download-file.js'
+import { downloadDirectoryArchive } from '../http/download-archive.js'
+import { downloadSingleFile } from '../http/download-file.js'
+import { StreamDownloadError } from '../http/download-stream.js'
 import { detectConflicts, joinPath, dirOf } from '../http/upload-conflicts.js'
 import { useSettingsStore } from './useSettingsStore.js'
 import { useMessagesStore } from './useMessagesStore.js'
@@ -855,66 +856,90 @@ export const useFileManagerStore = defineStore('fm', () => {
         messages.clearUploadProgress()
     }
 
-    async function download({ disk, path, filename }) {
+    // Shared progress/cancel bookkeeping for single-file and archive downloads. Every store update
+    // is gated on isCurrent(): a cancelled or finished download must never touch the state of a
+    // download the user started afterwards, and a user cancel just clears the bar (no error flash).
+    async function trackDownload({ kind, filename, label, run }) {
         const messages = useMessagesStore()
-        const settings = useSettingsStore()
-
-        const fileName = filename || (path || '').split('/').filter(Boolean).pop() || 'file'
         const abortController = new AbortController()
-        messages.startArchiveDownload({ filename: fileName, abortController, kind: 'file' })
+        const { signal } = abortController
+        messages.startArchiveDownload({ filename, abortController, kind })
+
+        const isCurrent = () => messages.archiveDownload.abortController === abortController
+        const clearLater = (ms) => {
+            setTimeout(() => {
+                if (isCurrent()) messages.clearArchiveDownload()
+            }, ms)
+        }
 
         try {
-            await downloadSingleFile({
+            await run({
+                signal,
+                onPhase: (phase) => {
+                    if (isCurrent()) messages.setArchivePhase(phase)
+                },
+                onProgress: (progress) => {
+                    if (isCurrent()) messages.setArchiveProgress(progress)
+                },
+            })
+            clearLater(5000)
+        } catch (err) {
+            const code = err instanceof StreamDownloadError ? err.code : 'unknown'
+            if (code === 'aborted' || signal.aborted) {
+                if (isCurrent()) messages.clearArchiveDownload()
+                throw err
+            }
+            console.error(`[${label}] failed`, err)
+            const message = err && err.message ? err.message : 'unknown'
+            if (isCurrent()) messages.setArchiveError({ code, message })
+            clearLater(8000)
+            throw err
+        }
+    }
+
+    async function download({ disk, path, filename }) {
+        const settings = useSettingsStore()
+        const fileName = filename || (path || '').split('/').filter(Boolean).pop() || 'file'
+
+        await trackDownload({
+            kind: 'file',
+            filename: fileName,
+            label: 'download',
+            run: ({ signal, onPhase, onProgress }) => downloadSingleFile({
                 baseUrl: settings.baseUrl,
                 disk,
                 path,
                 filename: fileName,
                 headers: settings.headers,
-                onPhase: (phase) => messages.setArchivePhase(phase),
-                onProgress: (progress) => messages.setArchiveProgress(progress),
-                signal: abortController.signal,
-            })
-            setTimeout(() => messages.clearArchiveDownload(), 5000)
-        } catch (err) {
-            console.error('[download] failed', err)
-            const code = err instanceof FileDownloadError ? err.code : 'unknown'
-            const message = err && err.message ? err.message : 'unknown'
-            messages.setArchiveError({ code, message })
-            const dismissAfter = code === 'aborted' ? 1500 : 8000
-            setTimeout(() => messages.clearArchiveDownload(), dismissAfter)
-        }
+                onPhase,
+                onProgress,
+                signal,
+            }),
+        }).catch(() => {
+            /* errors are surfaced via the messages store */
+        })
     }
 
     async function downloadDirectory({ disk, path, filename, compress = 0 }) {
-        const messages = useMessagesStore()
         const settings = useSettingsStore()
-
         const archiveName = filename || `${(path || '').split('/').filter(Boolean).pop() || 'archive'}.zip`
-        const abortController = new AbortController()
-        messages.startArchiveDownload({ filename: archiveName, abortController })
 
-        try {
-            await downloadDirectoryArchive({
+        await trackDownload({
+            kind: 'archive',
+            filename: archiveName,
+            label: 'downloadDirectory',
+            run: ({ signal, onPhase, onProgress }) => downloadDirectoryArchive({
                 baseUrl: settings.baseUrl,
                 disk,
                 path,
                 filename: archiveName,
                 compress,
                 headers: settings.headers,
-                onPhase: (phase) => messages.setArchivePhase(phase),
-                onProgress: (progress) => messages.setArchiveProgress(progress),
-                signal: abortController.signal,
-            })
-            setTimeout(() => messages.clearArchiveDownload(), 5000)
-        } catch (err) {
-            console.error('[downloadDirectory] failed', err)
-            const code = err instanceof ArchiveDownloadError ? err.code : 'unknown'
-            const message = err && err.message ? err.message : 'unknown'
-            messages.setArchiveError({ code, message })
-            const dismissAfter = code === 'aborted' ? 1500 : 8000
-            setTimeout(() => messages.clearArchiveDownload(), dismissAfter)
-            throw err
-        }
+                onPhase,
+                onProgress,
+                signal,
+            }),
+        })
     }
 
     function sanitizeArchiveName(raw) {

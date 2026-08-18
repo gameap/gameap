@@ -116,7 +116,7 @@ function clearSelection() {
 <style lang="scss">
 .fm-info-block {
     @apply flex items-center justify-between gap-4 pt-2 pb-1 px-1
-        border-t text-xs text-stone-600 dark:text-stone-400;
+        border-t text-xs text-secondary;
     flex: 0 0 auto;
 }
 
@@ -129,12 +129,12 @@ function clearSelection() {
 }
 
 .fm-info-left--selected {
-    @apply text-stone-800 dark:text-stone-100;
+    @apply text-body;
 }
 
 .fm-info-pill {
     @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded
-        bg-stone-100 dark:bg-[color:color-mix(in_srgb,var(--gameap-stone-800)_60%,transparent)] text-secondary;
+        bg-surface-hover text-secondary;
     font-variant-numeric: tabular-nums;
 }
 
@@ -148,7 +148,7 @@ function clearSelection() {
 }
 
 .fm-info-pill--accent .fm-info-pill-icon {
-    @apply text-stone-700 dark:text-stone-200;
+    @apply text-secondary;
 }
 
 .fm-info-pill-label {
@@ -158,7 +158,7 @@ function clearSelection() {
 .fm-info-clear {
     @apply inline-flex items-center gap-1 px-2 py-0.5 rounded
         text-muted
-        hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-800 dark:hover:text-stone-200
+        hover:bg-stone-100 dark:hover:bg-stone-700 hover:text-body
         transition-colors duration-100;
     cursor: pointer;
 }
@@ -170,7 +170,7 @@ function clearSelection() {
 .fm-info-icon-btn {
     @apply inline-flex items-center justify-center w-6 h-6 rounded
         text-muted
-        hover:bg-stone-100 dark:hover:bg-stone-700 hover:text-stone-700 dark:hover:text-stone-200
+        hover:bg-stone-100 dark:hover:bg-stone-700 hover:text-body
         transition-colors duration-100;
     cursor: pointer;
 }
@@ -180,7 +180,7 @@ function clearSelection() {
 }
 
 .fm-info-icon-btn--error {
-    @apply text-red-500 dark:text-red-400;
+    @apply text-danger;
 }
 
 .fm-info-icon-btn--passive {

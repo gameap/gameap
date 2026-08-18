@@ -1,6 +1,6 @@
 <template>
     <div class="flex flex-col">
-        <div class="text-sm text-stone-500 mb-2">{{ selectedItem?.basename }}</div>
+        <div class="text-sm text-muted mb-2">{{ selectedItem?.basename }}</div>
         <div class="flex text-center justify-center items-center min-h-[200px]">
             <n-spin v-if="!imgSrc" size="large" />
             <img

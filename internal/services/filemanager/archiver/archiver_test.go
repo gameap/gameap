@@ -190,6 +190,8 @@ func TestArchiver_WriteArchive(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "open file stream", "wrap layer must surface")
 		assert.Contains(t, err.Error(), "daemon down", "underlying error message must propagate")
+		_, zipErr := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+		require.Error(t, zipErr, "partial output must not be finalized into a valid archive")
 	})
 
 	t.Run("close_stream_error_logged_archive_succeeds", func(t *testing.T) {
@@ -370,7 +372,8 @@ func TestArchiver_WriteArchive(t *testing.T) {
 			},
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		streamer := &cancellingStreamer{cancel: cancel, body: "x"}
+		// Larger than zip.Writer's internal bufio buffer so part of the entry reaches the output.
+		streamer := &cancellingStreamer{cancel: cancel, body: strings.Repeat("x", 16*1024)}
 		a := archiver.NewArchiver(lister, streamer, nil)
 		manifest, err := a.BuildManifest(ctx, node, "/work/server-1/data", archiver.Limits{})
 		require.NoError(t, err)
@@ -387,6 +390,9 @@ func TestArchiver_WriteArchive(t *testing.T) {
 			errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "context canceled"),
 			"context cancellation must surface as ctx.Err: %v", err,
 		)
+		assert.Positive(t, buf.Len(), "the first entry was streamed before the cancellation")
+		_, zipErr := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+		require.Error(t, zipErr, "cancelled output must not be finalized into a valid archive")
 	})
 }
 

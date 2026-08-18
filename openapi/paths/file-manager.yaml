@@ -93,8 +93,32 @@
                       enum: [file]
                     content:
                       type: string
+      '400':
+        description: Bad request (unsupported disk, invalid path, or the path is not a directory)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server, or the node denied access to the path
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found, or the directory does not exist on the node
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
         content:
           application/json:
             schema:
@@ -139,8 +163,32 @@
                   children:
                     type: array
                     items: {}
+      '400':
+        description: Bad request (unsupported disk, invalid path, or the path is not a directory)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server, or the node denied access to the path
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found, or the directory does not exist on the node
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
         content:
           application/json:
             schema:
@@ -181,8 +229,38 @@
           application/json:
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
+      '400':
+        description: Bad request (invalid path, unsupported disk, or empty items list)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server, or the node denied access to the path
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found, or the item does not exist on the node
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: Item declared as a file is a non-empty directory
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
         content:
           application/json:
             schema:
@@ -226,8 +304,38 @@
           application/json:
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
+      '400':
+        description: Bad request (invalid path, unsupported disk, or the destination is a directory)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server, or the node denied access to the path
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '507':
+        description: No space left on the node
         content:
           application/json:
             schema:
@@ -270,8 +378,38 @@
           application/json:
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
+      '400':
+        description: Bad request (invalid path, unsupported disk, or the path is a directory)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server, or the node denied access to the path
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '507':
+        description: No space left on the node
         content:
           application/json:
             schema:
@@ -322,13 +460,31 @@
               type: string
               format: binary
       '400':
-        description: Invalid path (absolute, NUL byte, backslash or directory traversal)
+        description: Invalid path (NUL byte, backslash or directory traversal), or the path is a directory
         content:
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server, or the node denied access to the path
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found, or the file does not exist on the node
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
         content:
           application/json:
             schema:
@@ -347,6 +503,14 @@
       Symlinks are preserved as Unix-symlink entries inside the zip.
       Special files (sockets, FIFOs, devices) are skipped and listed in
       a trailing `_SKIPPED.txt` entry.
+
+      The body is streamed without `Content-Length`. A failure before the
+      first byte is sent is reported as a regular JSON error response. If
+      archive generation fails after the response has started, the server
+      aborts the connection (truncated chunked body on HTTP/1.1, `RST_STREAM`
+      on HTTP/2) instead of ending the body cleanly, so a transport error
+      while reading the body means the archive is incomplete and must be
+      discarded.
     operationId: downloadFileManagerArchive
     parameters:
       - name: server
@@ -440,6 +604,12 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
 
 /api/file-manager/{server}/rename:
   post:
@@ -511,13 +681,25 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '403':
-        description: User does not have files permission for this server
+        description: User does not have files permission for this server, or the node denied access to the path
         content:
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '404':
-        description: Server or node not found
+        description: Server or node not found, or the source does not exist on the node
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: Destination already exists as a non-empty directory
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
         content:
           application/json:
             schema:
@@ -597,19 +779,19 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '403':
-        description: User does not have files permission for this server
+        description: User does not have files permission for this server, or the node denied access to the path
         content:
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '404':
-        description: Server or node not found
+        description: Server or node not found, or the path does not exist on the node
         content:
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
-      '500':
-        description: Daemon failed to change permissions
+      '502':
+        description: Daemon of the node hosting this server is not connected
         content:
           application/json:
             schema:
@@ -648,8 +830,38 @@
           application/json:
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
+      '400':
+        description: Bad request (invalid path or name, unsupported disk)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server, or the node denied access to the path
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: A file with this name already exists
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
         content:
           application/json:
             schema:
@@ -691,8 +903,38 @@
           application/json:
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
+      '400':
+        description: Bad request (invalid path or name, unsupported disk, or the path is a directory)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server, or the node denied access to the path
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '507':
+        description: No space left on the node
         content:
           application/json:
             schema:
@@ -744,13 +986,31 @@
               type: string
               format: binary
       '400':
-        description: Invalid path (absolute, NUL byte, backslash or directory traversal)
+        description: Invalid path (NUL byte, backslash or directory traversal), or the path is a directory
         content:
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: User does not have files permission for this server, or the node denied access to the path
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server or node not found, or the file does not exist on the node
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
         content:
           application/json:
             schema:
@@ -864,13 +1124,25 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '403':
-        description: User does not have files permission for this server
+        description: User does not have files permission for this server, or the node denied access to the path
         content:
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '404':
-        description: Server or node not found
+        description: Server or node not found, or a clipboard item does not exist on the node
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: Destination already exists as a non-empty directory
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '502':
+        description: Daemon of the node hosting this server is not connected
         content:
           application/json:
             schema:
