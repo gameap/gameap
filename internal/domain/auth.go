@@ -11,6 +11,16 @@ type PATAbility string
 const (
 	PATAbilityServerCreate    PATAbility = "admin:server:create"
 	PATAbilityGDaemonTaskRead PATAbility = "admin:gdaemon-task:read"
+
+	// Read-only and management scopes for provisioning integrations
+	// (billing panels and similar) that drive the panel through a token
+	// instead of an interactive admin session. Deliberately narrow:
+	// user deletion and every write to nodes, games and game mods stay
+	// session-only.
+	PATAbilityUserRead   PATAbility = "admin:user:read"
+	PATAbilityUserManage PATAbility = "admin:user:manage"
+	PATAbilityNodeRead   PATAbility = "admin:node:read"
+	PATAbilityGameRead   PATAbility = "admin:game:read"
 )
 
 const (
@@ -31,6 +41,9 @@ type PATAbilityGroup string
 const (
 	PATAbilityGroupServer      PATAbilityGroup = "server"
 	PATAbilityGroupGDaemonTask PATAbilityGroup = "gdaemon-task"
+	PATAbilityGroupUser        PATAbilityGroup = "user"
+	PATAbilityGroupNode        PATAbilityGroup = "node"
+	PATAbilityGroupGame        PATAbilityGroup = "game"
 )
 
 type PersonalAccessToken struct {
@@ -95,6 +108,10 @@ func GetAdminAbilities() []PATAbility {
 	return []PATAbility{
 		PATAbilityServerCreate,
 		PATAbilityGDaemonTaskRead,
+		PATAbilityUserRead,
+		PATAbilityUserManage,
+		PATAbilityNodeRead,
+		PATAbilityGameRead,
 	}
 }
 
@@ -109,6 +126,10 @@ func GetAbilityDescriptions() map[PATAbility]string {
 	return map[PATAbility]string{
 		PATAbilityServerCreate:         "Create game server",
 		PATAbilityGDaemonTaskRead:      "Read GameAP Daemon task",
+		PATAbilityUserRead:             "Read users and their server assignments",
+		PATAbilityUserManage:           "Create and update users, assign servers and server permissions",
+		PATAbilityNodeRead:             "Read nodes, their IP addresses and busy ports",
+		PATAbilityGameRead:             "Read games and game mods",
 		PATAbilityServerList:           "List game servers",
 		PATAbilityServerStart:          "Start game server",
 		PATAbilityServerStop:           "Stop game server",
@@ -146,6 +167,19 @@ func GetGroupedAbilities(includeAdmin bool) GroupedAbilities {
 
 		grouped[PATAbilityGroupGDaemonTask] = []AbilityDescription{
 			{PATAbilityGDaemonTaskRead, descriptions[PATAbilityGDaemonTaskRead]},
+		}
+
+		grouped[PATAbilityGroupUser] = []AbilityDescription{
+			{PATAbilityUserRead, descriptions[PATAbilityUserRead]},
+			{PATAbilityUserManage, descriptions[PATAbilityUserManage]},
+		}
+
+		grouped[PATAbilityGroupNode] = []AbilityDescription{
+			{PATAbilityNodeRead, descriptions[PATAbilityNodeRead]},
+		}
+
+		grouped[PATAbilityGroupGame] = []AbilityDescription{
+			{PATAbilityGameRead, descriptions[PATAbilityGameRead]},
 		}
 	}
 

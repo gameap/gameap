@@ -29,6 +29,10 @@ type RBAC interface {
 
 	SetRolesToUser(ctx context.Context, userID uint, roleNames []string) error
 
+	// AdministrativeRoles lists the roles that grant panel-wide admin rights,
+	// so callers can refuse to hand them out.
+	AdministrativeRoles(ctx context.Context) ([]string, error)
+
 	AllowUserAbilitiesForEntity(
 		ctx context.Context,
 		userID uint,

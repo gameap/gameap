@@ -234,9 +234,14 @@ func TestGetUserAbilities(t *testing.T) {
 func TestGetAdminAbilities(t *testing.T) {
 	abilities := GetAdminAbilities()
 
-	assert.Len(t, abilities, 2, "should return 2 admin abilities")
-	assert.Contains(t, abilities, PATAbilityServerCreate)
-	assert.Contains(t, abilities, PATAbilityGDaemonTaskRead)
+	assert.ElementsMatch(t, []PATAbility{
+		PATAbilityServerCreate,
+		PATAbilityGDaemonTaskRead,
+		PATAbilityUserRead,
+		PATAbilityUserManage,
+		PATAbilityNodeRead,
+		PATAbilityGameRead,
+	}, abilities)
 
 	assert.NotContains(t, abilities, PATAbilityServerStart)
 	assert.NotContains(t, abilities, PATAbilityServerStop)

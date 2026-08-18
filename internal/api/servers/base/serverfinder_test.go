@@ -87,6 +87,10 @@ func (r *errRBAC) SetRolesToUser(_ context.Context, _ uint, _ []string) error {
 	return nil
 }
 
+func (r *errRBAC) AdministrativeRoles(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+
 func (r *errRBAC) AllowUserAbilitiesForEntity(
 	_ context.Context,
 	_ uint,

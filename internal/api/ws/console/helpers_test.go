@@ -30,6 +30,10 @@ func (allowAllRBAC) GetRoles(_ context.Context, _ uint) ([]string, error) { retu
 
 func (allowAllRBAC) SetRolesToUser(_ context.Context, _ uint, _ []string) error { return nil }
 
+func (allowAllRBAC) AdministrativeRoles(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+
 func (allowAllRBAC) AllowUserAbilitiesForEntity(
 	_ context.Context, _ uint, _ uint, _ domain.EntityType, _ []domain.AbilityName,
 ) error {
@@ -63,6 +67,10 @@ func (denyAllRBAC) CanForEntity(
 func (denyAllRBAC) GetRoles(_ context.Context, _ uint) ([]string, error) { return nil, nil }
 
 func (denyAllRBAC) SetRolesToUser(_ context.Context, _ uint, _ []string) error { return nil }
+
+func (denyAllRBAC) AdministrativeRoles(_ context.Context) ([]string, error) {
+	return nil, nil
+}
 
 func (denyAllRBAC) AllowUserAbilitiesForEntity(
 	_ context.Context, _ uint, _ uint, _ domain.EntityType, _ []domain.AbilityName,

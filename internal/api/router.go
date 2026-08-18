@@ -1311,6 +1311,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/users",
 			Handler:   getusers.NewHandler(c.UserService(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1323,6 +1326,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserManage,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1333,6 +1339,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+			},
 		},
 		{
 			Method: http.MethodPut,
@@ -1346,6 +1355,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.AuditLogger(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserManage,
+			},
 		},
 		{
 			Method: http.MethodDelete,
@@ -1366,6 +1378,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1378,6 +1393,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+			},
 		},
 		{
 			Method: http.MethodPut,
@@ -1390,6 +1408,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserManage,
+			},
 		},
 
 		// Nodes / Dedicated Servers
@@ -1468,6 +1489,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1478,6 +1502,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method:    http.MethodGet,
@@ -1500,6 +1527,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1510,6 +1540,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodPut,
@@ -1567,6 +1600,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1577,6 +1613,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1586,6 +1625,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1596,6 +1638,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1648,6 +1693,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/games",
 			Handler:   getgames.NewHandler(c.GameRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method:    http.MethodGet,
@@ -1683,6 +1731,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/games/{code}/mods",
 			Handler:   gamesgetgamemods.NewHandler(c.GameModRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1783,6 +1834,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/game_mods/get_list_for_game/{game}",
 			Handler:   getlistforgame.NewHandler(c.GameModRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method:    http.MethodGet,

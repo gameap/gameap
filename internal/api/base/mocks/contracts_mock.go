@@ -90,6 +90,21 @@ func (m *MockRBAC) EXPECT() *MockRBACMockRecorder {
 	return m.recorder
 }
 
+// AdministrativeRoles mocks base method.
+func (m *MockRBAC) AdministrativeRoles(ctx context.Context) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdministrativeRoles", ctx)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AdministrativeRoles indicates an expected call of AdministrativeRoles.
+func (mr *MockRBACMockRecorder) AdministrativeRoles(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdministrativeRoles", reflect.TypeOf((*MockRBAC)(nil).AdministrativeRoles), ctx)
+}
+
 // AllowUserAbilitiesForEntity mocks base method.
 func (m *MockRBAC) AllowUserAbilitiesForEntity(ctx context.Context, userID, entityID uint, entityType domain.EntityType, abilityNames []domain.AbilityName) error {
 	m.ctrl.T.Helper()

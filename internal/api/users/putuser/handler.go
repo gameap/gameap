@@ -97,6 +97,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := base.EnsureRolesAllowedForSession(ctx, h.rbac, updateInput.Roles); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	users, err := h.usersRepo.Find(ctx, &filters.FindUser{
 		IDs: []uint{userID},
 	}, nil, &filters.Pagination{

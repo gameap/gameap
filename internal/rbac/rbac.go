@@ -223,6 +223,45 @@ func (r *RBAC) GetRoles(ctx context.Context, userID uint) ([]string, error) {
 	return roleNames, nil
 }
 
+// AdministrativeRoles returns the names of every role that grants the
+// panel-wide administrative ability.
+//
+// It exists so a non-interactive caller — a personal access token driving the
+// panel from a billing system — can be stopped from creating or promoting an
+// administrator. Without that check the narrow "manage users" token scope
+// would be equivalent to full panel access, because assigning the admin role
+// is one request away. Role names are not hardcoded on purpose: an operator
+// may grant the ability through a role of any name.
+func (r *RBAC) AdministrativeRoles(ctx context.Context) ([]string, error) {
+	roles, err := r.repo.GetRoles(ctx)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to get roles")
+	}
+
+	names := make([]string, 0, len(roles))
+
+	for _, role := range roles {
+		permissions, err := r.repo.GetPermissions(ctx, role.ID, domain.EntityTypeRole)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to get role permissions")
+		}
+
+		for _, permission := range permissions {
+			if permission.Forbidden || permission.Ability == nil {
+				continue
+			}
+
+			if permission.Ability.Name == domain.AbilityNameAdminRolesPermissions {
+				names = append(names, role.Name)
+
+				break
+			}
+		}
+	}
+
+	return names, nil
+}
+
 func (r *RBAC) SetRolesToUser(ctx context.Context, userID uint, roleNames []string) error {
 	err := r.tm.Do(ctx, func(ctx context.Context) error {
 		return r.setRolesToUser(ctx, userID, roleNames)
