@@ -60,7 +60,9 @@
     "throttle": "Too many login attempts. Please try again in :seconds seconds.",
     "registration_not_allowed": "Registration not allowed.",
     "captcha_required": "Please complete the CAPTCHA verification.",
-    "captcha_failed": "CAPTCHA verification failed. Please try again."
+    "captcha_failed": "CAPTCHA verification failed. Please try again.",
+    "sso_signing_in": "Signing you in\u2026",
+    "sso_failed": "This sign-in link is no longer valid. Please log in with your password."
   },
   "client_certificates": {
     "title_create": "Create Certificate",

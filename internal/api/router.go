@@ -13,6 +13,8 @@ import (
 	"github.com/gameap/gameap/internal/api/auth/login"
 	"github.com/gameap/gameap/internal/api/auth/logout"
 	"github.com/gameap/gameap/internal/api/auth/shorttoken"
+	"github.com/gameap/gameap/internal/api/auth/ssoexchange"
+	"github.com/gameap/gameap/internal/api/auth/ssomint"
 	"github.com/gameap/gameap/internal/api/auth/twofactorverify"
 	"github.com/gameap/gameap/internal/api/clientcertificates/deleteclientcertificates"
 	"github.com/gameap/gameap/internal/api/clientcertificates/getclientcertificates"
@@ -479,6 +481,49 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+		},
+		{
+			// Mints a single-use ticket that logs one specific user into the
+			// panel, for external systems that already own the customer
+			// relationship (a billing panel's "open my game panel" button).
+			// Neither a PAT nor a short-lived token can do this: both are
+			// always issued for their own owner.
+			Method: http.MethodPost,
+			Path:   "/api/auth/sso/tickets",
+			Handler: ssomint.NewHandler(
+				c.UserService(),
+				c.RBAC(),
+				c.Cache(),
+				c.Config().Auth.SSOTicketTTL,
+				c.Responder(),
+				c.AuditLogger(),
+			),
+			AdminOnly:         true,
+			CheckPATAbilities: []domain.PATAbility{domain.PATAbilitySSOIssue},
+		},
+		{
+			// Guest by necessity: the browser arrives with no session. Wrapped
+			// in the same limiter as password login, and the ticket is
+			// consumed before it is validated so replays lose the race.
+			Method: http.MethodPost,
+			Path:   "/api/auth/sso/exchange",
+			Handler: middlewares.NewLoginRateLimitMiddleware(
+				c.Cache(),
+				c.Responder(),
+				middlewares.WithLoginRateLimitAuditLogger(c.AuditLogger()),
+				middlewares.WithLoginRateLimitClientIPHeader(c.Config().Audit.ClientIPHeader),
+			).Middleware(
+				ssoexchange.NewHandler(
+					c.AuthService(),
+					c.UserService(),
+					c.RBAC(),
+					c.Cache(),
+					c.Config().Audit.ClientIPHeader,
+					c.Responder(),
+					c.AuditLogger(),
+				),
+			),
+			AllowGuestAccess: true,
 		},
 
 		// User

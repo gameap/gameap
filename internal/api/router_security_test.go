@@ -11,6 +11,7 @@ import (
 
 	"github.com/gameap/gameap/internal/api"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/pkg/auth"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gameap/gameap/pkg/testcontainer"
 	"github.com/stretchr/testify/assert"
@@ -297,6 +298,29 @@ func TestRouterSecurity_TokenAccess(t *testing.T) {
 			expectedStatusCode: http.StatusForbidden,
 		},
 
+		// "POST /api/auth/sso/tickets" endpoint tests
+		{
+			name:               "admin_with_sso_issue_can_reach_ticket_minting",
+			request:            "POST /api/auth/sso/tickets",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilitySSOIssue},
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			// Managing users must not silently include handing out logins.
+			name:               "admin_with_user_manage_alone_cannot_mint_tickets",
+			request:            "POST /api/auth/sso/tickets",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserManage},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "regular_user_with_sso_issue_cannot_mint_tickets",
+			request:            "POST /api/auth/sso/tickets",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilitySSOIssue},
+			expectedStatusCode: http.StatusForbidden,
+		},
+
 		// "POST /api/tokens" endpoint tests
 		{
 			// Creating tokens is forbidden even for admin tokens.
@@ -519,6 +543,63 @@ func TestRouterSecurity_UserAccess(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, test.expectedStatusCode, w.Code, "Expected status code %d, got %d", test.expectedStatusCode, w.Code)
+		})
+	}
+}
+
+// An SSO ticket travels in a URL, so it must be worthless as a credential
+// anywhere except the exchange endpoint. The auth middleware does not know its
+// prefix, which is what makes every other presentation a 401.
+func TestRouterSecurity_SSOTicketIsNotACredential(t *testing.T) {
+	ticket := auth.SSOTicketPrefix + "0123456789abcdef0123456789abcdef0123456789abcdef"
+
+	tests := []struct {
+		name    string
+		prepare func(req *http.Request)
+	}{
+		{
+			name: "as_bearer_header",
+			prepare: func(req *http.Request) {
+				req.Header.Set("Authorization", "Bearer "+ticket)
+			},
+		},
+		{
+			name: "as_query_parameter",
+			prepare: func(req *http.Request) {
+				query := req.URL.Query()
+				query.Set("token", ticket)
+				req.URL.RawQuery = query.Encode()
+			},
+		},
+		{
+			name: "as_cookie",
+			prepare: func(req *http.Request) {
+				req.AddCookie(&http.Cookie{Name: "token", Value: ticket})
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// ARRANGE
+			c, err := testcontainer.LoadInmemoryContainer()
+			require.NoError(t, err)
+
+			_, err = testcontainer.SetupFixtures(context.Background(), c)
+			require.NoError(t, err)
+
+			router := api.CreateRouter(c)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/servers", nil)
+			test.prepare(req)
+
+			w := httptest.NewRecorder()
+
+			// ACT
+			router.ServeHTTP(w, req)
+
+			// ASSERT
+			assert.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
 		})
 	}
 }

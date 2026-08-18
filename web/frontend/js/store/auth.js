@@ -108,6 +108,35 @@ export const useAuthStore = defineStore('auth', {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
             this.profile = user
         },
+        // consumeSsoTicket exchanges a single-use ticket, minted by an
+        // external system for one specific user, for a real session. The
+        // ticket is not a credential anywhere else: the auth middleware does
+        // not recognise its prefix, so it only works here.
+        async consumeSsoTicket(ticket) {
+            this.apiProcesses++
+            try {
+                const response = await axios.post(
+                    '/api/auth/sso/exchange',
+                    {ticket},
+                    {withCredentials: true},
+                )
+
+                if (response.data.two_factor_required) {
+                    this.twoFactorChallengeToken = response.data.challenge_token
+
+                    return {twoFactorRequired: true}
+                }
+
+                this.applyAuthResponse(response.data)
+
+                return {
+                    twoFactorRequired: false,
+                    redirectTo: response.data.redirect_to,
+                }
+            } finally {
+                this.apiProcesses--
+            }
+        },
         async login(credentials) {
             this.apiProcesses++
             try {
