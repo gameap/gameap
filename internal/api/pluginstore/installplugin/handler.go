@@ -135,7 +135,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
+	loaded, err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename)
+	if err != nil {
 		wasmHash := sha256.Sum256(wasmBytes)
 
 		slog.WarnContext(
@@ -152,9 +153,43 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.recordPermissions(ctx, pluginRecord, loaded)
+
 	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
 
 	h.responder.Write(ctx, rw, newInstallResponse(pluginRecord))
+}
+
+// recordPermissions persists the grants the module asks for. The store API
+// carries no manifest, so required_permissions is only known once the wasm is
+// loaded — without this step a store-installed plugin holds no grants at all
+// and every gated host module (secrets, files, manage_rbac) denies it.
+// Installing is an admin action, so confirming the install is the grant, same
+// rule as the upload path (plugininstall.BuildPluginRecord).
+func (h *Handler) recordPermissions(
+	ctx context.Context,
+	pluginRecord *domain.Plugin,
+	loaded *pkgplugin.LoadedPlugin,
+) {
+	if loaded == nil || loaded.Info == nil {
+		return
+	}
+
+	permissions := domain.ParsePluginPermissions(loaded.Info.RequiredPermissions)
+	if len(permissions) == 0 {
+		return
+	}
+
+	pluginRecord.RequiredPermissions = permissions
+	pluginRecord.AllowedPermissions = permissions
+
+	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
+		// The plugin is installed and loaded; failing the request now would
+		// be misleading. It runs without grants until it is reinstalled.
+		slog.WarnContext(ctx, "failed to record plugin permissions",
+			slog.Uint64("plugin_id", uint64(pluginRecord.ID)),
+			slog.String("error", err.Error()))
+	}
 }
 
 func (h *Handler) parseInput(r *http.Request) (input, error) {

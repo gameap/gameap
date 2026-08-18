@@ -36,6 +36,7 @@ Plugins can:
 - **Access repositories** (servers, users, nodes, games, tasks, settings)
 - **Control servers** (start, stop, restart, update, install)
 - **Use caching** (get, set, delete)
+- **Store credentials encrypted at rest** (gameap-secrets, under the `secrets` grant)
 - **Make HTTP requests** (external API calls)
 - **Log messages** (debug, info, warn, error)
 - **Register custom HTTP endpoints** (extend the API)
@@ -193,6 +194,53 @@ if verifyResp.Match {
     // Password is correct
 }
 ```
+
+### gameap-secrets
+
+Stores the plugin's own credentials (API keys, bot tokens) encrypted at rest,
+which the plaintext `gameap-storage` payloads are not suited for. Requires the
+`secrets` grant; without it every method answers `success = false` with the
+missing permission, so the module stays importable.
+
+```go
+secretsSvc := secrets.NewSecretsService()
+
+// Store or replace a secret
+setResp, _ := secretsSvc.Set(ctx, &secrets.SecretSetRequest{
+    Key:   "steam_api_key",
+    Value: "sk-live-0123456789",
+})
+if !setResp.Success {
+    // setResp.Error names the reason: missing grant, invalid key, quota,
+    // oversized value, or encryption not configured on the panel
+}
+
+// Read it back
+getResp, _ := secretsSvc.Get(ctx, &secrets.SecretGetRequest{Key: "steam_api_key"})
+if getResp.Found {
+    apiKey := getResp.Value
+}
+
+// List the keys the plugin owns (never the values)
+listResp, _ := secretsSvc.ListKeys(ctx, &secrets.SecretListKeysRequest{
+    KeyPrefix: proto.String("steam_"), // optional
+})
+
+secretsSvc.Delete(ctx, &secrets.SecretDeleteRequest{Key: "steam_api_key"})
+```
+
+Rules the panel enforces:
+
+- Values are encrypted with the panel's `ENCRYPTION_KEY` (AES-256-GCM) and the
+  ciphertext is bound to the owning plugin and key, so a row copied elsewhere
+  in the database no longer decrypts.
+- With no `ENCRYPTION_KEY` configured a write is **refused** rather than stored
+  in plaintext (`PLUGIN_SECRETS_REQUIRE_ENCRYPTION=false` opts out).
+- Keys must match `^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`.
+- Quotas: `PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN` (64 by default) and
+  `PLUGIN_SECRETS_MAX_VALUE_BYTES` (8 KiB by default).
+- Secrets are private to the plugin that wrote them and survive a plugin
+  reload; a `Get` from another plugin answers `found = false`.
 
 ### gameap-scheduler
 
@@ -1041,6 +1089,7 @@ Privileged host modules are gated on the plugin's own grants, kept in the
 |---|---|
 | `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
 | `files` | `gameap-nodefs` — every operation, including hash and archive create/extract (installations that existed before the gate were grandfathered the grant by a migration) |
+| `secrets` | `gameap-secrets` — reading, writing, listing and deleting the plugin's encrypted credentials |
 
 A plugin declares what it needs in `PluginInfo.RequiredPermissions`. The
 admin-only dry-run endpoint (`POST /api/admin/plugins/upload/dry-run`) reports
@@ -1119,6 +1168,7 @@ pkg/plugin/
 │   ├── net/                  # gameap-net module (host-managed socket I/O)
 │   ├── protocol/             # ProtocolService (optional RCON/Query extension)
 │   ├── scheduler/            # gameap-scheduler module (periodic tasks)
+│   ├── secrets/              # gameap-secrets module (encrypted credentials)
 │   └── log/                  # gameap-log module
 ├── examples/
 │   ├── server-logger/        # Example plugin (lifecycle events)

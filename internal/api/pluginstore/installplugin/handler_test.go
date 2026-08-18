@@ -743,3 +743,120 @@ func TestInstallPlugin_load_error_keeps_record_with_correct_timestamps(t *testin
 	require.NotNil(t, got.Source)
 	assert.Equal(t, mockServer.URL+"/plugins/"+testPluginID, *got.Source)
 }
+
+// manifestLoaderManager loads successfully and reports the manifest of the
+// installed module, including the permissions it asks for.
+type manifestLoaderManager struct {
+	requiredPermissions []string
+}
+
+func (m *manifestLoaderManager) Load(
+	_ context.Context,
+	_ []byte,
+	_ map[string]string,
+	_ uint64,
+) (*pkgplugin.LoadedPlugin, error) {
+	return &pkgplugin.LoadedPlugin{
+		Info: &proto.PluginInfo{
+			Id:                  testPluginID,
+			Name:                "Test Plugin",
+			Version:             "1.0.0",
+			RequiredPermissions: m.requiredPermissions,
+		},
+	}, nil
+}
+
+func (m *manifestLoaderManager) LoadTransient(
+	ctx context.Context,
+	wasmBytes []byte,
+	config map[string]string,
+	pluginID uint64,
+) (*pkgplugin.LoadedPlugin, error) {
+	return m.Load(ctx, wasmBytes, config, pluginID)
+}
+
+func (m *manifestLoaderManager) Unload(_ context.Context, _ string) error { return nil }
+func (m *manifestLoaderManager) GetPlugin(_ string) (*pkgplugin.LoadedPlugin, bool) {
+	return nil, false
+}
+func (m *manifestLoaderManager) GetPlugins() []*pkgplugin.LoadedPlugin { return nil }
+func (m *manifestLoaderManager) Shutdown(_ context.Context) error      { return nil }
+
+// TestInstallPlugin_records_manifest_permissions covers the store install
+// path, which builds its record from store metadata: without reading the
+// manifest after the load the plugin would hold no grants at all and every
+// gated host module would deny it.
+func TestInstallPlugin_records_manifest_permissions(t *testing.T) {
+	tests := []struct {
+		name                string
+		requiredPermissions []string
+		wantPermissions     []domain.PluginPermission
+	}{
+		{
+			name:                "records_declared_permissions",
+			requiredPermissions: []string{"secrets", "files"},
+			wantPermissions: []domain.PluginPermission{
+				domain.PluginPermissionSecrets,
+				domain.PluginPermissionFiles,
+			},
+		},
+		{
+			name:                "drops_unknown_permission_names",
+			requiredPermissions: []string{"secrets", "take_over_the_panel"},
+			wantPermissions:     []domain.PluginPermission{domain.PluginPermissionSecrets},
+		},
+		{
+			name:                "manifest_without_permissions_grants_nothing",
+			requiredPermissions: nil,
+			wantPermissions:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			mockServer := newUpstreamServer(t, upstreamConfig{
+				pluginDetails: defaultPluginDetails(false),
+				versions:      defaultVersions(),
+				downloadBody:  testWasmContent,
+			})
+			defer mockServer.Close()
+
+			storeService := pluginstore.NewService(mockServer.URL, "", cache.NewInMemory())
+			fm := newFakeFileManager()
+			repo := inmemory.NewPluginRepository()
+			loader := plugin.NewLoader(
+				&manifestLoaderManager{requiredPermissions: tt.requiredPermissions},
+				fm,
+				repo,
+				nil,
+				"plugins",
+			)
+
+			h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
+
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/api/admin/plugins/store/plugins/"+testPluginID+"/install",
+				bytes.NewReader([]byte{}),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			req = mux.SetURLVars(req, map[string]string{"id": testPluginID})
+
+			// ACT
+			recorder := httptest.NewRecorder()
+			h.ServeHTTP(recorder, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+			stored, err := repo.Find(context.Background(), nil, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, stored, 1)
+
+			assert.Equal(t, tt.wantPermissions, stored[0].AllowedPermissions)
+			assert.Equal(t, tt.wantPermissions, stored[0].RequiredPermissions)
+			assert.Equal(t, domain.PluginStatusActive, stored[0].Status)
+		})
+	}
+}

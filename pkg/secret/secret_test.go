@@ -216,3 +216,143 @@ func TestCipher_Enabled(t *testing.T) {
 
 	assert.False(t, secret.Disabled().Enabled(), "Disabled() must report not enabled")
 }
+
+// TestCipher_EncryptDecryptWithAAD_RoundTrip — OWASP API8:2023: a ciphertext
+// bound to additional authenticated data decrypts only when the very same
+// context is supplied, so a value cannot be silently reused elsewhere.
+func TestCipher_EncryptDecryptWithAAD_RoundTrip(t *testing.T) {
+	tests := []struct {
+		name      string
+		plaintext string
+		aad       string
+	}{
+		{name: "api_key", plaintext: "sk-live-0123456789", aad: "plugin-secret:7:steam_api_key"},
+		{name: "unicode_value", plaintext: "токен-🔑", aad: "plugin-secret:7:telegram"},
+		{name: "empty_aad", plaintext: "value", aad: ""},
+		{name: "value_that_looks_encrypted", plaintext: secret.EncPrefix + "not-really", aad: "plugin-secret:1:k"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			c, err := secret.NewCipher("encryption-key")
+			require.NoError(t, err)
+
+			// ACT
+			enc, err := c.EncryptWithAAD(tt.plaintext, tt.aad)
+			require.NoError(t, err)
+
+			dec, err := c.DecryptWithAAD(enc, tt.aad)
+			require.NoError(t, err)
+
+			// ASSERT
+			assert.True(t, strings.HasPrefix(enc, secret.EncPrefix),
+				"ciphertext must carry the enc: prefix like the plain Encrypt output")
+			assert.NotContains(t, strings.TrimPrefix(enc, secret.EncPrefix), tt.plaintext,
+				"the plaintext must never appear in the stored value")
+			assert.Equal(t, tt.plaintext, dec, "decrypt must recover the exact plaintext")
+		})
+	}
+}
+
+// TestCipher_DecryptWithAAD_RejectsForeignContext — OWASP API1:2023 Broken
+// Object Level Authorization: a ciphertext copied into another row (another
+// owner, another key) or produced without AAD must not open under a different
+// context, which is what keeps a plugin from reading a value that is not its
+// own.
+func TestCipher_DecryptWithAAD_RejectsForeignContext(t *testing.T) {
+	tests := []struct {
+		name      string
+		sealAAD   string
+		openAAD   string
+		wantError string
+	}{
+		{
+			name:      "other_plugin",
+			sealAAD:   "plugin-secret:1:api_key",
+			openAAD:   "plugin-secret:2:api_key",
+			wantError: "failed to decrypt value",
+		},
+		{
+			name:      "other_key",
+			sealAAD:   "plugin-secret:1:api_key",
+			openAAD:   "plugin-secret:1:webhook_url",
+			wantError: "failed to decrypt value",
+		},
+		{
+			name:      "no_context_at_all",
+			sealAAD:   "plugin-secret:1:api_key",
+			openAAD:   "",
+			wantError: "failed to decrypt value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ARRANGE
+			c, err := secret.NewCipher("encryption-key")
+			require.NoError(t, err)
+
+			enc, err := c.EncryptWithAAD("s3cret", tt.sealAAD)
+			require.NoError(t, err)
+
+			// ACT
+			dec, err := c.DecryptWithAAD(enc, tt.openAAD)
+
+			// ASSERT
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+			assert.Empty(t, dec, "no plaintext may be returned when authentication fails")
+		})
+	}
+}
+
+// TestCipher_DecryptWithAAD_RejectsCiphertextSealedWithoutAAD — a value
+// written by the context-free Encrypt (e.g. gdaemon_password) must not be
+// readable through the AAD-bound API, and vice versa.
+func TestCipher_DecryptWithAAD_RejectsCiphertextSealedWithoutAAD(t *testing.T) {
+	// ARRANGE
+	c, err := secret.NewCipher("encryption-key")
+	require.NoError(t, err)
+
+	sealedWithoutAAD, err := c.Encrypt("node-ssh-password")
+	require.NoError(t, err)
+
+	sealedWithAAD, err := c.EncryptWithAAD("plugin-token", "plugin-secret:1:token")
+	require.NoError(t, err)
+
+	// ACT
+	_, errAcrossIn := c.DecryptWithAAD(sealedWithoutAAD, "plugin-secret:1:token")
+	_, errAcrossOut := c.Decrypt(sealedWithAAD)
+
+	// ASSERT
+	require.Error(t, errAcrossIn, "a context-free ciphertext must not open under a plugin context")
+	assert.Contains(t, errAcrossIn.Error(), "failed to decrypt value")
+	require.Error(t, errAcrossOut, "a context-bound ciphertext must not open without its context")
+	assert.Contains(t, errAcrossOut.Error(), "failed to decrypt value")
+}
+
+// TestCipher_EncryptWithAAD_DisabledAndEmpty — a disabled cipher is a
+// passthrough (callers gate on Enabled themselves) and empty input stays
+// empty; stored plaintext keeps reading back unchanged.
+func TestCipher_EncryptWithAAD_DisabledAndEmpty(t *testing.T) {
+	// ARRANGE
+	disabled := secret.Disabled()
+	enabled, err := secret.NewCipher("encryption-key")
+	require.NoError(t, err)
+
+	// ACT
+	passthrough, err := disabled.EncryptWithAAD("plain-value", "plugin-secret:1:k")
+	require.NoError(t, err)
+
+	empty, err := enabled.EncryptWithAAD("", "plugin-secret:1:k")
+	require.NoError(t, err)
+
+	legacy, err := enabled.DecryptWithAAD("plain-value", "plugin-secret:1:k")
+	require.NoError(t, err)
+
+	// ASSERT
+	assert.Equal(t, "plain-value", passthrough, "a disabled cipher must not alter the value")
+	assert.Empty(t, empty, "empty input stays empty")
+	assert.Equal(t, "plain-value", legacy, "a value without the enc: prefix is legacy plaintext")
+}
