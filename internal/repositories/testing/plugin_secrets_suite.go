@@ -199,6 +199,82 @@ func (s *PluginSecretRepositorySuite) TestPluginSecretRepositoryFind() {
 	})
 }
 
+func (s *PluginSecretRepositorySuite) TestPluginSecretRepositoryFindOrdering() {
+	ctx := context.Background()
+
+	setupRepo := func(t *testing.T) {
+		t.Helper()
+
+		// Inserted out of order so a backend that returns insertion order
+		// cannot pass by accident.
+		inserts := []*domain.PluginSecret{
+			newPluginSecret(50, "beta", "enc:b"),
+			newPluginSecret(51, "alpha", "enc:d"),
+			newPluginSecret(50, "gamma", "enc:c"),
+			newPluginSecret(50, "alpha", "enc:a"),
+		}
+
+		for _, entry := range inserts {
+			require.NoError(t, s.repo.Upsert(ctx, entry))
+		}
+	}
+
+	keysOf := func(secrets []domain.PluginSecret) []string {
+		keys := make([]string, 0, len(secrets))
+		for _, entry := range secrets {
+			keys = append(keys, entry.Key)
+		}
+
+		return keys
+	}
+
+	s.T().Run("without_order_sorts_by_key", func(t *testing.T) {
+		setupRepo(t)
+
+		found, err := s.repo.Find(ctx, &filters.FindPluginSecret{
+			PluginIDs: []domain.Uint64ID{50},
+		}, nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"alpha", "beta", "gamma"}, keysOf(found))
+	})
+
+	s.T().Run("descending_key", func(t *testing.T) {
+		setupRepo(t)
+
+		found, err := s.repo.Find(ctx, &filters.FindPluginSecret{
+			PluginIDs: []domain.Uint64ID{50},
+		}, []filters.Sorting{{Field: "key", Direction: filters.SortDirectionDesc}}, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"gamma", "beta", "alpha"}, keysOf(found))
+	})
+
+	s.T().Run("descending_id_is_reverse_insertion_order", func(t *testing.T) {
+		setupRepo(t)
+
+		found, err := s.repo.Find(ctx, &filters.FindPluginSecret{
+			PluginIDs: []domain.Uint64ID{50},
+		}, []filters.Sorting{{Field: "id", Direction: filters.SortDirectionDesc}}, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"alpha", "gamma", "beta"}, keysOf(found))
+	})
+
+	s.T().Run("every_sort_term_is_applied", func(t *testing.T) {
+		setupRepo(t)
+
+		found, err := s.repo.Find(ctx, &filters.FindPluginSecret{
+			PluginIDs: []domain.Uint64ID{50, 51},
+		}, []filters.Sorting{
+			{Field: "plugin_id", Direction: filters.SortDirectionDesc},
+			{Field: "key", Direction: filters.SortDirectionAsc},
+		}, nil)
+		require.NoError(t, err)
+		require.Len(t, found, 4)
+		assert.Equal(t, []string{"alpha", "alpha", "beta", "gamma"}, keysOf(found))
+		assert.Equal(t, domain.Uint64ID(51), found[0].PluginID,
+			"the first term decides, the second only breaks ties")
+	})
+}
+
 func (s *PluginSecretRepositorySuite) TestPluginSecretRepositoryDelete() {
 	ctx := context.Background()
 

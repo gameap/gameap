@@ -199,8 +199,9 @@ if verifyResp.Match {
 
 Stores the plugin's own credentials (API keys, bot tokens) encrypted at rest,
 which the plaintext `gameap-storage` payloads are not suited for. Requires the
-`secrets` grant; without it every method answers `success = false` with the
-missing permission, so the module stays importable.
+`secrets` grant; without it every method fails with the missing permission in
+`error` — `Set`/`Delete` answer `success = false`, `Get` answers
+`found = false` and `ListKeys` an empty list — so the module stays importable.
 
 ```go
 secretsSvc := secrets.NewSecretsService()

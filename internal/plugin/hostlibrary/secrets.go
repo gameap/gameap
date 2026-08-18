@@ -26,6 +26,16 @@ const secretsPermissionDeniedMessage = "plugin permission " + string(domain.Plug
 // one that refuses to accept the value.
 const encryptionDisabledMessage = "gameap-secrets requires ENCRYPTION_KEY to be configured"
 
+// Storage failures are reported to the guest as fixed messages: the plugin can
+// act on none of them, and a raw driver error would hand it details about the
+// panel's database. The cause is logged instead.
+const (
+	secretReadFailureMessage   = "failed to read secret"
+	secretWriteFailureMessage  = "failed to store secret"
+	secretDeleteFailureMessage = "failed to delete secret"
+	secretListFailureMessage   = "failed to list secrets"
+)
+
 var secretKeyRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`)
 
 const (
@@ -107,11 +117,9 @@ func (s *SecretsServiceImpl) Get(
 
 	stored, err := s.findByKey(ctx, req.Key)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to read plugin secret",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("error", err.Error()))
+		s.logStorageFailure(ctx, "failed to read plugin secret", err)
 
-		return &secrets.SecretGetResponse{Error: new("failed to read secret")}, nil
+		return &secrets.SecretGetResponse{Error: new(secretReadFailureMessage)}, nil
 	}
 
 	if stored == nil {
@@ -162,13 +170,17 @@ func (s *SecretsServiceImpl) Set(
 
 	stored, err := s.findByKey(ctx, req.Key)
 	if err != nil {
-		return secretSetFailure(err.Error()), nil
+		s.logStorageFailure(ctx, "failed to read plugin secret", err)
+
+		return secretSetFailure(secretReadFailureMessage), nil
 	}
 
 	if stored == nil {
 		count, countErr := s.repo.CountByPlugin(ctx, domain.Uint64ID(s.pluginID))
 		if countErr != nil {
-			return secretSetFailure(countErr.Error()), nil
+			s.logStorageFailure(ctx, "failed to count plugin secrets", countErr)
+
+			return secretSetFailure(secretReadFailureMessage), nil
 		}
 
 		if count >= s.cfg.MaxKeysPerPlugin {
@@ -193,7 +205,9 @@ func (s *SecretsServiceImpl) Set(
 	}
 
 	if err := s.repo.Upsert(ctx, entry); err != nil {
-		return secretSetFailure(err.Error()), nil
+		s.logStorageFailure(ctx, "failed to store plugin secret", err)
+
+		return secretSetFailure(secretWriteFailureMessage), nil
 	}
 
 	return &secrets.SecretSetResponse{Success: true}, nil
@@ -208,7 +222,9 @@ func (s *SecretsServiceImpl) Delete(
 	}
 
 	if err := s.repo.Delete(ctx, domain.Uint64ID(s.pluginID), req.Key); err != nil {
-		return &secrets.SecretDeleteResponse{Error: new(err.Error())}, nil
+		s.logStorageFailure(ctx, "failed to delete plugin secret", err)
+
+		return &secrets.SecretDeleteResponse{Error: new(secretDeleteFailureMessage)}, nil
 	}
 
 	return &secrets.SecretDeleteResponse{Success: true}, nil
@@ -226,7 +242,9 @@ func (s *SecretsServiceImpl) ListKeys(
 		PluginIDs: []domain.Uint64ID{domain.Uint64ID(s.pluginID)},
 	}, nil, nil)
 	if err != nil {
-		return &secrets.SecretListKeysResponse{Error: new(err.Error())}, nil
+		s.logStorageFailure(ctx, "failed to list plugin secrets", err)
+
+		return &secrets.SecretListKeysResponse{Error: new(secretListFailureMessage)}, nil
 	}
 
 	keys := make([]string, 0, len(stored))
@@ -258,6 +276,12 @@ func (s *SecretsServiceImpl) findByKey(ctx context.Context, key string) (*domain
 	}
 
 	return &stored[0], nil
+}
+
+func (s *SecretsServiceImpl) logStorageFailure(ctx context.Context, message string, err error) {
+	slog.ErrorContext(ctx, message,
+		slog.Uint64("plugin_id", s.pluginID),
+		slog.String("error", err.Error()))
 }
 
 func secretSetFailure(message string) *secrets.SecretSetResponse {

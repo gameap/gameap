@@ -134,35 +134,63 @@ func matchPluginSecret(filter *filters.FindPluginSecret, key pluginSecretKey) bo
 	return true
 }
 
+// sortPluginSecrets mirrors the SQL backends: without an explicit order the
+// rows come back by key ascending, and every requested term is applied in
+// turn, each with its own direction.
 func sortPluginSecrets(secrets []domain.PluginSecret, order []filters.Sorting) {
-	field := "key"
-	direction := filters.SortDirectionAsc
-
-	if len(order) > 0 {
-		field = order[0].Field
-		direction = order[0].Direction
+	if len(order) == 0 {
+		order = []filters.Sorting{{Field: "key", Direction: filters.SortDirectionAsc}}
 	}
 
-	slices.SortFunc(secrets, func(a, b domain.PluginSecret) int {
-		result := comparePluginSecrets(a, b, field)
-		if direction == filters.SortDirectionDesc {
-			return -result
+	slices.SortStableFunc(secrets, func(a, b domain.PluginSecret) int {
+		for _, sorting := range order {
+			result := comparePluginSecrets(a, b, sorting.Field)
+			if result == 0 {
+				continue
+			}
+
+			if sorting.Direction == filters.SortDirectionDesc {
+				return -result
+			}
+
+			return result
 		}
 
-		return result
+		return 0
 	})
 }
 
+// comparePluginSecrets orders by one column. An unknown column keeps the rows
+// as they are, matching how the SQL backends leave the order of rows that tie.
 func comparePluginSecrets(a, b domain.PluginSecret, field string) int {
-	if field == "id" {
+	switch field {
+	case "id":
 		return cmp.Compare(a.ID, b.ID)
-	}
-
-	if a.PluginID != b.PluginID {
+	case "plugin_id":
 		return cmp.Compare(a.PluginID, b.PluginID)
+	case "key":
+		return cmp.Compare(a.Key, b.Key)
+	case "created_at":
+		return compareTimePointers(a.CreatedAt, b.CreatedAt)
+	case "updated_at":
+		return compareTimePointers(a.UpdatedAt, b.UpdatedAt)
+	default:
+		return 0
 	}
+}
 
-	return cmp.Compare(a.Key, b.Key)
+// compareTimePointers sorts a missing timestamp before a present one.
+func compareTimePointers(a, b *time.Time) int {
+	switch {
+	case a == nil && b == nil:
+		return 0
+	case a == nil:
+		return -1
+	case b == nil:
+		return 1
+	default:
+		return a.Compare(*b)
+	}
 }
 
 func paginatePluginSecrets(secrets []domain.PluginSecret, pagination *filters.Pagination) []domain.PluginSecret {

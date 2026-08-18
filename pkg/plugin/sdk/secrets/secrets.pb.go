@@ -221,9 +221,10 @@ func (x *SecretListKeysResponse) GetError() string {
 
 // SecretsService stores plugin credentials encrypted at rest, unlike the
 // plaintext gameap-storage payloads. Every method requires the "secrets"
-// grant; without it the call answers success = false with an explanatory
-// error, so the module stays importable and a plugin can degrade gracefully
-// instead of failing to load.
+// grant; without it the call reports the missing permission in "error" — Set
+// and Delete answer success = false, Get answers found = false and ListKeys
+// an empty list. The module stays importable either way, so a plugin can
+// degrade gracefully instead of failing to load.
 // go:plugin type=host module=gameap-secrets
 type SecretsService interface {
 	Get(context.Context, *SecretGetRequest) (*SecretGetResponse, error)

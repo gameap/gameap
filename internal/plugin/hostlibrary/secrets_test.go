@@ -14,6 +14,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/plugin/sdk/secrets"
 	"github.com/gameap/gameap/pkg/secret"
@@ -592,4 +593,102 @@ func TestSecretsHostLibrary_Instantiate(t *testing.T) {
 	}
 
 	assert.Len(t, definitions, 4, "an extra export would be an undocumented ABI addition")
+}
+
+// brokenSecretRepo fails every storage call so the responses handed to the
+// guest can be inspected.
+type brokenSecretRepo struct {
+	repositories.PluginSecretRepository
+
+	err error
+}
+
+func (r *brokenSecretRepo) Find(
+	context.Context,
+	*filters.FindPluginSecret,
+	[]filters.Sorting,
+	*filters.Pagination,
+) ([]domain.PluginSecret, error) {
+	return nil, r.err
+}
+
+func (r *brokenSecretRepo) Upsert(context.Context, *domain.PluginSecret) error {
+	return r.err
+}
+
+func (r *brokenSecretRepo) Delete(context.Context, domain.Uint64ID, string) error {
+	return r.err
+}
+
+// TestSecretsService_StorageErrorsAreNotLeaked — OWASP API8:2023: the driver's
+// error text can name tables, hosts or credentials, and the plugin can act on
+// none of it, so responses carry a fixed message instead.
+func TestSecretsService_StorageErrorsAreNotLeaked(t *testing.T) {
+	const driverDetail = "pq: relation \"plugin_secrets\" does not exist (host=db.internal)"
+
+	cipher, err := secret.NewCipher("test-encryption-key")
+	require.NoError(t, err)
+
+	repo := &brokenSecretRepo{
+		PluginSecretRepository: inmemory.NewPluginSecretRepository(),
+		err:                    errors.New(driverDetail),
+	}
+
+	service := NewSecretsService(secretsTestPluginID, repo, cipher,
+		stubPermissionChecker{allowed: true}, SecretsConfig{RequireEncryption: true})
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		call        func() (*string, error)
+		wantMessage string
+	}{
+		{
+			name: "set",
+			call: func() (*string, error) {
+				resp, err := service.Set(ctx, &secrets.SecretSetRequest{Key: "token", Value: "v"})
+
+				return resp.Error, err
+			},
+			wantMessage: secretReadFailureMessage,
+		},
+		{
+			name: "get",
+			call: func() (*string, error) {
+				resp, err := service.Get(ctx, &secrets.SecretGetRequest{Key: "token"})
+
+				return resp.Error, err
+			},
+			wantMessage: secretReadFailureMessage,
+		},
+		{
+			name: "delete",
+			call: func() (*string, error) {
+				resp, err := service.Delete(ctx, &secrets.SecretDeleteRequest{Key: "token"})
+
+				return resp.Error, err
+			},
+			wantMessage: secretDeleteFailureMessage,
+		},
+		{
+			name: "list_keys",
+			call: func() (*string, error) {
+				resp, err := service.ListKeys(ctx, &secrets.SecretListKeysRequest{})
+
+				return resp.Error, err
+			},
+			wantMessage: secretListFailureMessage,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			respError, err := tt.call()
+
+			require.NoError(t, err)
+			require.NotNil(t, respError)
+			assert.Equal(t, tt.wantMessage, *respError)
+			assert.NotContains(t, *respError, driverDetail)
+		})
+	}
 }

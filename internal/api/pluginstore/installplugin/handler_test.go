@@ -860,3 +860,74 @@ func TestInstallPlugin_records_manifest_permissions(t *testing.T) {
 		})
 	}
 }
+
+// failAfterNSavesPluginRepo lets the install record be written and then breaks,
+// which is the window where the manifest permissions are persisted.
+type failAfterNSavesPluginRepo struct {
+	repositories.PluginRepository
+
+	saves   int
+	failAt  int
+	saveErr error
+}
+
+func (r *failAfterNSavesPluginRepo) Save(ctx context.Context, p *domain.Plugin) error {
+	r.saves++
+	if r.saves >= r.failAt {
+		return r.saveErr
+	}
+
+	return r.PluginRepository.Save(ctx, p)
+}
+
+// TestInstallPlugin_permission_save_error_fails_install — reporting success
+// while the grants were not written would leave a plugin that is denied by
+// every gated host library with no sign of what went wrong.
+func TestInstallPlugin_permission_save_error_fails_install(t *testing.T) {
+	// ARRANGE
+	mockServer := newUpstreamServer(t, upstreamConfig{
+		pluginDetails: defaultPluginDetails(false),
+		versions:      defaultVersions(),
+		downloadBody:  testWasmContent,
+	})
+	defer mockServer.Close()
+
+	storeService := pluginstore.NewService(mockServer.URL, "", cache.NewInMemory())
+	fm := newFakeFileManager()
+	inner := inmemory.NewPluginRepository()
+	repo := &failAfterNSavesPluginRepo{
+		PluginRepository: inner,
+		failAt:           2,
+		saveErr:          errors.New("database is gone"),
+	}
+	loader := plugin.NewLoader(
+		&manifestLoaderManager{requiredPermissions: []string{"secrets"}},
+		fm,
+		repo,
+		nil,
+		"plugins",
+	)
+
+	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/admin/plugins/store/plugins/"+testPluginID+"/install",
+		bytes.NewReader([]byte{}),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": testPluginID})
+
+	// ACT
+	recorder := httptest.NewRecorder()
+	h.ServeHTTP(recorder, req)
+
+	// ASSERT
+	assert.Equal(t, http.StatusUnprocessableEntity, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "permissions were not recorded")
+
+	stored, err := inner.Find(context.Background(), nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	assert.Empty(t, stored[0].AllowedPermissions, "the grant write is what failed")
+}
