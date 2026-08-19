@@ -39,7 +39,11 @@ func (s *StorageServiceImpl) Get(
 		},
 	}
 
-	entries, err := s.repo.Find(ctx, filter, nil, &filters.Pagination{Limit: 1})
+	// Newest first: a scope that was duplicated before saves became
+	// scope-aware reads back its latest write, not its first.
+	newestFirst := []filters.Sorting{{Field: "id", Direction: filters.SortDirectionDesc}}
+
+	entries, err := s.repo.Find(ctx, filter, newestFirst, &filters.Pagination{Limit: 1})
 	if err != nil {
 		return nil, err
 	}

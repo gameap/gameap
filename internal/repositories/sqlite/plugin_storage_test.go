@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/repositories/base"
 	repotesting "github.com/gameap/gameap/internal/repositories/testing"
 	"github.com/stretchr/testify/suite"
 
@@ -18,4 +19,12 @@ func TestPluginStorageRepository(t *testing.T) {
 			return sqlite.NewPluginStorageRepository(SetupTestDB(t))
 		},
 	))
+}
+
+func TestPluginStorageRepositoryScopeCollapse(t *testing.T) {
+	db := SetupTestDB(t)
+
+	repotesting.RunPluginStorageScopeCollapseTests(t, db, func(db base.DB) repositories.PluginStorageRepository {
+		return sqlite.NewPluginStorageRepository(db)
+	})
 }
