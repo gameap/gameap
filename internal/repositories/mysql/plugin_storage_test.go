@@ -26,7 +26,7 @@ func TestPluginStorageRepository(t *testing.T) {
 	))
 }
 
-func TestPluginStorageRepositoryConcurrentInsert(t *testing.T) {
+func TestPluginStorageRepositoryScopeCollapse(t *testing.T) {
 	testMySQLDSN := os.Getenv("TEST_MYSQL_DSN")
 	if testMySQLDSN == "" {
 		t.Skip("Skipping MySQL tests because TEST_MYSQL_DSN is not set")
@@ -34,7 +34,7 @@ func TestPluginStorageRepositoryConcurrentInsert(t *testing.T) {
 
 	db := SetupTestDB(t, testMySQLDSN)
 
-	repotesting.RunPluginStorageConcurrentInsertTest(t, db, func(db base.DB) repositories.PluginStorageRepository {
+	repotesting.RunPluginStorageScopeCollapseTests(t, db, func(db base.DB) repositories.PluginStorageRepository {
 		return mysql.NewPluginStorageRepository(db)
 	})
 }

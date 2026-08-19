@@ -123,7 +123,16 @@ func (r *PluginStorageRepository) Save(ctx context.Context, entry *domain.Plugin
 	if existingID != 0 {
 		entry.ID = existingID
 
-		return r.updateScope(ctx, entry)
+		err = r.updateScope(ctx, entry)
+		if err != nil {
+			return err
+		}
+
+		// Retry the cleanup an earlier save never reached — a cancelled context,
+		// a crash between its two statements. Once a scope holds duplicates
+		// every later save lands here, so this is the only path left to
+		// collapse them.
+		return r.deleteScopeBefore(ctx, entry)
 	}
 
 	query := `INSERT INTO ` + base.PluginStorageTable +

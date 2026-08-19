@@ -26,7 +26,7 @@ func TestPluginStorageRepository(t *testing.T) {
 	))
 }
 
-func TestPluginStorageRepositoryConcurrentInsert(t *testing.T) {
+func TestPluginStorageRepositoryScopeCollapse(t *testing.T) {
 	testPostgresDSN := os.Getenv("TEST_POSTGRES_DSN")
 	if testPostgresDSN == "" {
 		t.Skip("Skipping PostgreSQL tests because TEST_POSTGRES_DSN is not set")
@@ -34,7 +34,7 @@ func TestPluginStorageRepositoryConcurrentInsert(t *testing.T) {
 
 	db := SetupTestDB(t, testPostgresDSN)
 
-	repotesting.RunPluginStorageConcurrentInsertTest(t, db, func(db base.DB) repositories.PluginStorageRepository {
+	repotesting.RunPluginStorageScopeCollapseTests(t, db, func(db base.DB) repositories.PluginStorageRepository {
 		return postgres.NewPluginStorageRepository(db)
 	})
 }
