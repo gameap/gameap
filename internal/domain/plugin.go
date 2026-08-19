@@ -48,6 +48,7 @@ const (
 	PluginPermissionManageRBAC     PluginPermission = "manage_rbac"
 	PluginPermissionFiles          PluginPermission = "files"
 	PluginPermissionListenEvents   PluginPermission = "listen_events"
+	PluginPermissionSecrets        PluginPermission = "secrets"
 )
 
 // PluginPermissions lists every permission the panel understands. A plugin
@@ -62,6 +63,7 @@ var PluginPermissions = []PluginPermission{
 	PluginPermissionManageRBAC,
 	PluginPermissionFiles,
 	PluginPermissionListenEvents,
+	PluginPermissionSecrets,
 }
 
 // ParsePluginPermission converts a manifest string into a known permission.

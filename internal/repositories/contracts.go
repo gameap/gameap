@@ -346,6 +346,26 @@ type PluginStorageRepository interface {
 	DeleteByFilter(ctx context.Context, filter *filters.FindPluginStorage) error
 }
 
+type PluginSecretRepository interface {
+	Find(
+		ctx context.Context,
+		filter *filters.FindPluginSecret,
+		order []filters.Sorting,
+		pagination *filters.Pagination,
+	) ([]domain.PluginSecret, error)
+
+	// Upsert replaces the row with the same (plugin_id, key). created_at is
+	// preserved on update; the surrogate row ID is written back to secret.ID.
+	Upsert(ctx context.Context, secret *domain.PluginSecret) error
+
+	Delete(ctx context.Context, pluginID domain.Uint64ID, key string) error
+
+	DeleteByPlugin(ctx context.Context, pluginID domain.Uint64ID) (int, error)
+
+	// CountByPlugin backs the per-plugin key quota without reading values.
+	CountByPlugin(ctx context.Context, pluginID domain.Uint64ID) (int, error)
+}
+
 type PluginRepository interface {
 	FindAll(
 		ctx context.Context,

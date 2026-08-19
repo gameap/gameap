@@ -91,6 +91,7 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"NodeRepository", func(c *Container) any { return c.NodeRepository() }},
 		{"ClientCertificateRepository", func(c *Container) any { return c.ClientCertificateRepository() }},
 		{"PluginStorageRepository", func(c *Container) any { return c.PluginStorageRepository() }},
+		{"PluginSecretRepository", func(c *Container) any { return c.PluginSecretRepository() }},
 		{"DLQRepository", func(c *Container) any { return c.DLQRepository() }},
 		{"PluginRepository", func(c *Container) any { return c.PluginRepository() }},
 

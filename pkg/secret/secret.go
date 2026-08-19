@@ -69,7 +69,45 @@ func (c *Cipher) Enabled() bool {
 // Encrypt returns an "enc:"-prefixed, base64 nonce||ciphertext string. It is a
 // no-op for empty input, an already-encrypted value, or a disabled cipher.
 func (c *Cipher) Encrypt(plaintext string) (string, error) {
-	if !c.Enabled() || plaintext == "" || strings.HasPrefix(plaintext, EncPrefix) {
+	if plaintext == "" || strings.HasPrefix(plaintext, EncPrefix) {
+		return plaintext, nil
+	}
+
+	return c.seal(plaintext, nil)
+}
+
+// EncryptWithAAD binds the ciphertext to aad (additional authenticated data):
+// DecryptWithAAD only opens it when given the very same value, so a ciphertext
+// copied into another row — another plugin, another key, or a column encrypted
+// with the same process key — no longer decrypts.
+//
+// The aad itself is not stored; the caller reconstructs it from the record.
+// Unlike Encrypt, input that already looks encrypted is sealed as well: a
+// caller-supplied secret may legitimately start with "enc:", and skipping it
+// would store that value in plaintext.
+func (c *Cipher) EncryptWithAAD(plaintext, aad string) (string, error) {
+	if plaintext == "" {
+		return plaintext, nil
+	}
+
+	return c.seal(plaintext, []byte(aad))
+}
+
+// Decrypt reverses Encrypt. A value without the "enc:" prefix is returned
+// unchanged (legacy plaintext). An encrypted value with no key configured is
+// an error so a misconfiguration is loud rather than silently leaking nothing.
+func (c *Cipher) Decrypt(stored string) (string, error) {
+	return c.open(stored, nil)
+}
+
+// DecryptWithAAD reverses EncryptWithAAD. A mismatching aad fails the GCM
+// authentication and is reported as a decryption error.
+func (c *Cipher) DecryptWithAAD(stored, aad string) (string, error) {
+	return c.open(stored, []byte(aad))
+}
+
+func (c *Cipher) seal(plaintext string, aad []byte) (string, error) {
+	if !c.Enabled() {
 		return plaintext, nil
 	}
 
@@ -78,15 +116,12 @@ func (c *Cipher) Encrypt(plaintext string) (string, error) {
 		return "", errors.Wrap(err, "failed to generate nonce")
 	}
 
-	sealed := c.aead.Seal(nonce, nonce, []byte(plaintext), nil)
+	sealed := c.aead.Seal(nonce, nonce, []byte(plaintext), aad)
 
 	return EncPrefix + base64.StdEncoding.EncodeToString(sealed), nil
 }
 
-// Decrypt reverses Encrypt. A value without the "enc:" prefix is returned
-// unchanged (legacy plaintext). An encrypted value with no key configured is
-// an error so a misconfiguration is loud rather than silently leaking nothing.
-func (c *Cipher) Decrypt(stored string) (string, error) {
+func (c *Cipher) open(stored string, aad []byte) (string, error) {
 	if !strings.HasPrefix(stored, EncPrefix) {
 		return stored, nil
 	}
@@ -107,7 +142,7 @@ func (c *Cipher) Decrypt(stored string) (string, error) {
 
 	nonce, ciphertext := raw[:nonceSize], raw[nonceSize:]
 
-	plaintext, err := c.aead.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := c.aead.Open(nil, nonce, ciphertext, aad)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to decrypt value")
 	}

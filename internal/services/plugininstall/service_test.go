@@ -393,11 +393,18 @@ func TestTryLoadPlugin(t *testing.T) {
 				loader = plugin.NewLoader(mgr, fileManager, repo, nil, pluginsDir)
 			}
 
-			err := plugininstall.TryLoadPlugin(ctx, loader, repo, tt.pluginRecord, wasmFilename)
+			loaded, err := plugininstall.TryLoadPlugin(ctx, loader, repo, tt.pluginRecord, wasmFilename)
 
 			if tt.wantError == "" {
 				require.NoError(t, err)
+
+				if tt.nilLoader {
+					assert.Nil(t, loaded, "a nil loader must not report a loaded plugin")
+				} else {
+					require.NotNil(t, loaded, "a successful load must return the plugin so callers can read PluginInfo")
+				}
 			} else {
+				assert.Nil(t, loaded)
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantError, "error message must wrap the underlying loader error")
 			}

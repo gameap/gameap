@@ -22,6 +22,7 @@ const ClientCertificatesTable = "client_certificates"
 const PluginStorageTable = "plugin_storage"
 const PluginsTable = "plugins"
 const PluginScheduledTasksTable = "plugin_scheduled_tasks"
+const PluginSecretsTable = "plugin_secrets"
 const DLQTable = "pubsub_dlq"
 
 var (
@@ -42,4 +43,5 @@ var (
 	ClientCertificateFields   = allFields(domain.ClientCertificate{})
 	PluginStorageFields       = allFields(domain.PluginStorageEntry{})
 	PluginScheduledTaskFields = allFields(domain.PluginScheduledTask{})
+	PluginSecretFields        = allFields(domain.PluginSecret{})
 )

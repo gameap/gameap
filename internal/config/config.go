@@ -387,6 +387,22 @@ type Config struct {
 			RefreshInterval time.Duration `env:"PLUGIN_SCHEDULER_REFRESH_INTERVAL" envDefault:"30s"`
 		}
 
+		// Secrets gates the gameap-secrets host library: per-plugin
+		// credentials encrypted at rest with ENCRYPTION_KEY. The module is
+		// additionally gated on the plugin's own secrets grant.
+		Secrets struct {
+			// MaxKeysPerPlugin caps how many secrets one plugin may keep.
+			MaxKeysPerPlugin int `env:"PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN" envDefault:"64"`
+
+			// MaxValueBytes caps the plaintext size of a single secret.
+			MaxValueBytes int `env:"PLUGIN_SECRETS_MAX_VALUE_BYTES" envDefault:"8192"`
+
+			// RequireEncryption refuses writes while ENCRYPTION_KEY is unset
+			// instead of storing the credential in plaintext. Turning it off
+			// makes gameap-secrets no safer than gameap-storage.
+			RequireEncryption bool `env:"PLUGIN_SECRETS_REQUIRE_ENCRYPTION" envDefault:"true"`
+		}
+
 		// Net gates the plugin socket host library
 		// (internal/plugin/hostlibrary/net.go), which lets plugins implement
 		// custom RCON/Query wire protocols over connections the host opens and
