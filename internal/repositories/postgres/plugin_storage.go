@@ -144,7 +144,7 @@ func (r *PluginStorageRepository) Save(ctx context.Context, entry *domain.Plugin
 
 	entry.ID = returnedID
 
-	return nil
+	return r.deleteScopeBefore(ctx, entry)
 }
 
 // findScopeID returns the newest row id of the entry's scope
@@ -189,6 +189,29 @@ func (r *PluginStorageRepository) updateScope(ctx context.Context, entry *domain
 	_, err = r.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return errors.WithMessage(err, "failed to execute scope update query")
+	}
+
+	return nil
+}
+
+// deleteScopeBefore drops the rows a save racing this one left in the same
+// scope. The lookup and the insert above are two statements, and the unique
+// index does not close the gap between them for a global entry — NULLs never
+// conflict there — so both saves insert. The newest row carries the newest
+// payload and stays.
+func (r *PluginStorageRepository) deleteScopeBefore(ctx context.Context, entry *domain.PluginStorageEntry) error {
+	query, args, err := sq.Delete(base.PluginStorageTable).
+		Where(scopeEq(entry)).
+		Where(sq.Lt{"id": entry.ID}).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build scope cleanup query")
+	}
+
+	_, err = r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to execute scope cleanup query")
 	}
 
 	return nil

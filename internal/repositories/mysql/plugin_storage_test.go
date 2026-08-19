@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/repositories/base"
 	"github.com/gameap/gameap/internal/repositories/mysql"
 	repotesting "github.com/gameap/gameap/internal/repositories/testing"
 	"github.com/stretchr/testify/suite"
@@ -23,4 +24,17 @@ func TestPluginStorageRepository(t *testing.T) {
 			return mysql.NewPluginStorageRepository(SetupTestDB(t, testMySQLDSN))
 		},
 	))
+}
+
+func TestPluginStorageRepositoryConcurrentInsert(t *testing.T) {
+	testMySQLDSN := os.Getenv("TEST_MYSQL_DSN")
+	if testMySQLDSN == "" {
+		t.Skip("Skipping MySQL tests because TEST_MYSQL_DSN is not set")
+	}
+
+	db := SetupTestDB(t, testMySQLDSN)
+
+	repotesting.RunPluginStorageConcurrentInsertTest(t, db, func(db base.DB) repositories.PluginStorageRepository {
+		return mysql.NewPluginStorageRepository(db)
+	})
 }
