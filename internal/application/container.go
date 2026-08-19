@@ -153,6 +153,7 @@ type Container struct {
 	clientCertificateRepository   repositories.ClientCertificateRepository
 	pluginStorageRepository       repositories.PluginStorageRepository
 	pluginScheduledTaskRepository repositories.PluginScheduledTaskRepository
+	pluginSecretRepository        repositories.PluginSecretRepository
 	dlqRepository                 repositories.DLQRepository
 
 	// Services
@@ -1365,6 +1366,29 @@ func (c *Container) createPluginStorageRepository() repositories.PluginStorageRe
 	}
 }
 
+func (c *Container) PluginSecretRepository() repositories.PluginSecretRepository {
+	if c.pluginSecretRepository == nil {
+		c.pluginSecretRepository = c.createPluginSecretRepository()
+	}
+
+	return c.pluginSecretRepository
+}
+
+func (c *Container) createPluginSecretRepository() repositories.PluginSecretRepository {
+	switch c.config.DatabaseDriver {
+	case databaseDriverMySQL:
+		return mysql.NewPluginSecretRepository(c.TransactionalDB())
+	case databaseDriverPostgres, databaseDriverPGX:
+		return postgres.NewPluginSecretRepository(c.TransactionalDB())
+	case databaseDriverSQLite:
+		return sqlite.NewPluginSecretRepository(c.TransactionalDB())
+	case databaseDriverInMemory:
+		return inmemory.NewPluginSecretRepository()
+	default:
+		return inmemory.NewPluginSecretRepository()
+	}
+}
+
 func (c *Container) PluginScheduledTaskRepository() repositories.PluginScheduledTaskRepository {
 	if c.pluginScheduledTaskRepository == nil {
 		c.pluginScheduledTaskRepository = c.createPluginScheduledTaskRepository()
@@ -2185,6 +2209,18 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
 		),
 		hostlibrary.NewSchedulerHostLibraryFactory(&lazyTaskScheduler{container: c}),
+		// Per-plugin: secrets are scoped to the owning plugin and the module
+		// is gated on its own secrets grant.
+		hostlibrary.NewSecretsHostLibraryFactory(
+			c.PluginSecretRepository(),
+			c.SecretCipher(),
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			hostlibrary.SecretsConfig{
+				MaxKeysPerPlugin:  c.config.Plugin.Secrets.MaxKeysPerPlugin,
+				MaxValueBytes:     c.config.Plugin.Secrets.MaxValueBytes,
+				RequireEncryption: c.config.Plugin.Secrets.RequireEncryption,
+			},
+		),
 		// Per-plugin: node writes and enrollment tickets are gated on the
 		// plugin's own manage_nodes grant, and a ticket belongs to the plugin
 		// that issued it.

@@ -16,5 +16,23 @@ export default {
         'week': ['неделя', 'недели', 'недель'],
         'month': ['месяц', 'месяца', 'месяцев'],
         'year': ['год', 'года', 'лет'],
+    },
+    es: {
+        'second': ['segundo', 'segundos'],
+        'minute': ['minuto', 'minutos'],
+        'hour': ['hora', 'horas'],
+        'day': ['día', 'días'],
+        'week': ['semana', 'semanas'],
+        'month': ['mes', 'meses'],
+        'year': ['año', 'años'],
+    },
+    de: {
+        'second': ['Sekunde', 'Sekunden'],
+        'minute': ['Minute', 'Minuten'],
+        'hour': ['Stunde', 'Stunden'],
+        'day': ['Tag', 'Tage'],
+        'week': ['Woche', 'Wochen'],
+        'month': ['Monat', 'Monate'],
+        'year': ['Jahr', 'Jahre'],
     }
 };

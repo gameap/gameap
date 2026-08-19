@@ -73,15 +73,18 @@ func RefreshSubscriptions(ctx context.Context, refresher SubscriptionRefresher) 
 	}
 }
 
+// TryLoadPlugin loads the freshly installed module. The loaded plugin is
+// returned so callers that built the database record without a manifest (the
+// store install path) can read PluginInfo from it.
 func TryLoadPlugin(
 	ctx context.Context,
 	loader *plugin.Loader,
 	repo repositories.PluginRepository,
 	pluginRecord *domain.Plugin,
 	filename string,
-) error {
+) (*pkgplugin.LoadedPlugin, error) {
 	if loader == nil {
-		return nil
+		return nil, nil
 	}
 
 	loaded, err := loader.LoadWithID(ctx, filename, uint64(pluginRecord.ID))
@@ -93,10 +96,10 @@ func TryLoadPlugin(
 		pluginRecord.Status = domain.PluginStatusError
 		_ = repo.Save(ctx, pluginRecord)
 
-		return errors.WithMessage(err, "failed to load plugin")
+		return nil, errors.WithMessage(err, "failed to load plugin")
 	}
 
 	loader.RegisterPluginID(pluginRecord.ID, loaded.Info.Id)
 
-	return nil
+	return loaded, nil
 }

@@ -129,7 +129,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		"plugin", strconv.FormatUint(uint64(dbID), 10), "install",
 		slog.String("plugin", loaded.Info.Id))
 
-	if err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
+	if _, err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "plugin installed but failed to load"),
 			http.StatusUnprocessableEntity,

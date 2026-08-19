@@ -91,6 +91,7 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"NodeRepository", func(c *Container) any { return c.NodeRepository() }},
 		{"ClientCertificateRepository", func(c *Container) any { return c.ClientCertificateRepository() }},
 		{"PluginStorageRepository", func(c *Container) any { return c.PluginStorageRepository() }},
+		{"PluginSecretRepository", func(c *Container) any { return c.PluginSecretRepository() }},
 		{"DLQRepository", func(c *Container) any { return c.DLQRepository() }},
 		{"PluginRepository", func(c *Container) any { return c.PluginRepository() }},
 
@@ -112,6 +113,8 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"ServerControlService", func(c *Container) any { return c.ServerControlService() }},
 		{"CertificatesService", func(c *Container) any { return c.CertificatesService() }},
 		{"EnrollmentService", func(c *Container) any { return c.EnrollmentService() }},
+		{"EnrollmentConnectResolver", func(c *Container) any { return c.EnrollmentConnectResolver() }},
+		{"NodeService", func(c *Container) any { return c.NodeService() }},
 		{"GlobalAPIService", func(c *Container) any { return c.GlobalAPIService() }},
 		{"CDNGamesService", func(c *Container) any { return c.CDNGamesService() }},
 		{"CaptchaVerifier", func(c *Container) any { return c.CaptchaVerifier() }},
@@ -126,6 +129,7 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"PluginDispatcher", func(c *Container) any { return c.PluginDispatcher() }},
 		{"PluginLoader", func(c *Container) any { return c.PluginLoader() }},
 		{"PluginStoreService", func(c *Container) any { return c.PluginStoreService() }},
+		{"PluginSSH", func(c *Container) any { return c.PluginSSH() }},
 
 		// Dispatchers
 		{"TaskDispatcher", func(c *Container) any { return c.TaskDispatcher() }},

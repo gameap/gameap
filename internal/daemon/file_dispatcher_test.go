@@ -575,9 +575,14 @@ func TestDispatch_ContextCancelled(t *testing.T) {
 	s := setupDispatcher(t)
 	const nodeID uint64 = 100
 
-	// Block in the gateway so dispatcher waits for response.
+	// Block in the gateway so dispatcher waits for response. The gateway must
+	// stay blocked until the assertion is done: releasing it earlier lets a
+	// successful response reach the dispatcher and win the select against the
+	// cancelled context.
 	startedCh := make(chan struct{}, 1)
 	releaseCh := make(chan struct{})
+	defer close(releaseCh)
+
 	s.registry.setConnected(nodeID, true)
 	s.gateway.requestFileList = func(ctx context.Context, _ uint64, _ string, _ bool, _ string) (*proto.FileListResponse, error) {
 		startedCh <- struct{}{}
@@ -590,6 +595,7 @@ func TestDispatch_ContextCancelled(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	resultCh := make(chan error, 1)
 	go func() {
@@ -601,14 +607,11 @@ func TestDispatch_ContextCancelled(t *testing.T) {
 	select {
 	case <-startedCh:
 	case <-time.After(2 * time.Second):
-		cancel()
-		close(releaseCh)
 		t.Fatal("gateway was not invoked within 2s")
 	}
 
 	// ACT
 	cancel()
-	close(releaseCh)
 
 	// ASSERT
 	select {

@@ -135,7 +135,28 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
+	if err := h.loadAndGrant(ctx, pluginRecord, filename, wasmBytes); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
+	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
+
+	h.responder.Write(ctx, rw, newInstallResponse(pluginRecord))
+}
+
+// loadAndGrant starts the installed module and records the grants its manifest
+// asks for. Both failures leave the plugin installed but unusable, so the
+// returned error is already HTTP-wrapped for the caller to report.
+func (h *Handler) loadAndGrant(
+	ctx context.Context,
+	pluginRecord *domain.Plugin,
+	filename string,
+	wasmBytes []byte,
+) error {
+	loaded, err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename)
+	if err != nil {
 		wasmHash := sha256.Sum256(wasmBytes)
 
 		slog.WarnContext(
@@ -144,17 +165,75 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			slog.String("wasm_hash", hex.EncodeToString(wasmHash[:])),
 			slog.String("error", err.Error()),
 		)
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
+
+		return api.WrapHTTPError(
 			errors.WithMessage(err, "plugin installed but failed to load"),
 			http.StatusUnprocessableEntity,
-		))
-
-		return
+		)
 	}
 
-	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
+	if err := h.recordPermissions(ctx, pluginRecord, loaded); err != nil {
+		h.disableUngrantedPlugin(ctx, pluginRecord, loaded)
 
-	h.responder.Write(ctx, rw, newInstallResponse(pluginRecord))
+		return api.WrapHTTPError(
+			errors.WithMessage(err, "plugin installed but its permissions were not recorded"),
+			http.StatusUnprocessableEntity,
+		)
+	}
+
+	return nil
+}
+
+// recordPermissions persists the grants the module asks for. The store API
+// carries no manifest, so required_permissions is only known once the wasm is
+// loaded — without this step a store-installed plugin holds no grants at all
+// and every gated host module (secrets, files, manage_rbac) denies it.
+// Installing is an admin action, so confirming the install is the grant, same
+// rule as the upload path (plugininstall.BuildPluginRecord).
+func (h *Handler) recordPermissions(
+	ctx context.Context,
+	pluginRecord *domain.Plugin,
+	loaded *pkgplugin.LoadedPlugin,
+) error {
+	if loaded == nil || loaded.Info == nil {
+		return nil
+	}
+
+	permissions := domain.ParsePluginPermissions(loaded.Info.RequiredPermissions)
+	if len(permissions) == 0 {
+		return nil
+	}
+
+	pluginRecord.RequiredPermissions = permissions
+	pluginRecord.AllowedPermissions = permissions
+
+	return h.pluginRepo.Save(ctx, pluginRecord)
+}
+
+// disableUngrantedPlugin stops a module whose grants could not be persisted.
+// Left running it would hit a denial in every gated host library, and the
+// still-active database record would load it that way again after a restart.
+// Both steps are best effort: the install itself is already reported as failed.
+func (h *Handler) disableUngrantedPlugin(
+	ctx context.Context,
+	pluginRecord *domain.Plugin,
+	loaded *pkgplugin.LoadedPlugin,
+) {
+	if h.loader != nil && loaded != nil && loaded.Info != nil {
+		if err := h.loader.Unload(ctx, loaded.Info.Id); err != nil {
+			slog.WarnContext(ctx, "failed to unload plugin without recorded permissions",
+				slog.String("plugin", loaded.Info.Id),
+				slog.String("error", err.Error()))
+		}
+	}
+
+	pluginRecord.Status = domain.PluginStatusError
+
+	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
+		slog.WarnContext(ctx, "failed to mark plugin as errored",
+			slog.Uint64("plugin_id", uint64(pluginRecord.ID)),
+			slog.String("error", err.Error()))
+	}
 }
 
 func (h *Handler) parseInput(r *http.Request) (input, error) {
