@@ -101,6 +101,10 @@ func TestListLanguages_RealEmbeddedFiles(t *testing.T) {
 
 	require.Contains(t, byCode, "en")
 	require.Contains(t, byCode, "ru")
+	require.Contains(t, byCode, "es")
+	require.Contains(t, byCode, "de")
 	assert.Equal(t, i18n.Language{Code: "en", Name: "English", NativeName: "English"}, byCode["en"])
 	assert.Equal(t, i18n.Language{Code: "ru", Name: "Russian", NativeName: "Русский"}, byCode["ru"])
+	assert.Equal(t, i18n.Language{Code: "es", Name: "Spanish", NativeName: "Español"}, byCode["es"])
+	assert.Equal(t, i18n.Language{Code: "de", Name: "German", NativeName: "Deutsch"}, byCode["de"])
 }
