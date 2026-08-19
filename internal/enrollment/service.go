@@ -40,6 +40,7 @@ type EnrollInput struct {
 
 type Service struct {
 	setupKeyManager *SetupKeyManager
+	tickets         *TicketStore
 	nodesRepo       repositories.NodeRepository
 	clientCertRepo  repositories.ClientCertificateRepository
 	certificatesSvc *certificates.Service
@@ -53,6 +54,7 @@ func NewService(
 ) *Service {
 	return &Service{
 		setupKeyManager: setupKeyManager,
+		tickets:         NewTicketStore(setupKeyManager.cache),
 		nodesRepo:       nodesRepo,
 		clientCertRepo:  clientCertRepo,
 		certificatesSvc: certificatesSvc,
@@ -63,8 +65,23 @@ func (s *Service) SetupKeyManager() *SetupKeyManager {
 	return s.setupKeyManager
 }
 
+// Tickets exposes the enrollment ticket store used by the plugin host library.
+func (s *Service) Tickets() *TicketStore {
+	return s.tickets
+}
+
+// ValidateSetupKey accepts either the global admin setup key or a pending
+// enrollment ticket key, without consuming anything. Used by the public setup
+// script endpoint, which must serve a script for both kinds of key.
+func (s *Service) ValidateSetupKey(ctx context.Context, key string) error {
+	_, err := s.resolveSetupKey(ctx, key)
+
+	return err
+}
+
 func (s *Service) Enroll(ctx context.Context, setupKey string, input *EnrollInput) (*EnrollResult, error) {
-	if err := s.setupKeyManager.Validate(ctx, setupKey); err != nil {
+	ticket, err := s.resolveSetupKey(ctx, setupKey)
+	if err != nil {
 		return nil, err
 	}
 
@@ -114,13 +131,15 @@ func (s *Service) Enroll(ctx context.Context, setupKey string, input *EnrollInpu
 	node.CreatedAt = &now
 	node.UpdatedAt = &now
 
+	if ticket != nil {
+		ticket.Presets.ApplyTo(node)
+	}
+
 	if err := s.nodesRepo.Save(ctx, node); err != nil {
 		return nil, errors.WithMessage(err, "failed to save node")
 	}
 
-	if err := s.setupKeyManager.Invalidate(ctx); err != nil {
-		slog.WarnContext(ctx, "failed to invalidate setup key", slog.String("error", err.Error()))
-	}
+	s.consumeSetupKey(ctx, ticket, node.ID)
 
 	return &EnrollResult{
 		NodeID:            node.ID,
@@ -167,4 +186,53 @@ func (s *Service) getOrCreateClientCertificateID(ctx context.Context) (uint, err
 	}
 
 	return clientCertificate.ID, nil
+}
+
+// resolveSetupKey authenticates an enrollment credential. The global admin key
+// is checked first so its behaviour is untouched; only a key shaped like a
+// ticket is looked up in the ticket store. A ticket miss reports the original
+// global-key error, keeping the gateway's status mapping and the "no setup key
+// configured" message intact.
+func (s *Service) resolveSetupKey(ctx context.Context, setupKey string) (*Ticket, error) {
+	globalErr := s.setupKeyManager.Validate(ctx, setupKey)
+	if globalErr == nil {
+		return nil, nil //nolint:nilnil // no ticket means the global key was used
+	}
+
+	if !errors.Is(globalErr, ErrInvalidSetupKey) && !errors.Is(globalErr, ErrSetupKeyNotConfigured) {
+		return nil, globalErr
+	}
+
+	if !IsTicketKey(setupKey) {
+		return nil, globalErr
+	}
+
+	ticket, err := s.tickets.Resolve(ctx, setupKey)
+	if err != nil {
+		if errors.Is(err, ErrTicketNotFound) {
+			return nil, globalErr
+		}
+
+		return nil, err
+	}
+
+	return ticket, nil
+}
+
+// consumeSetupKey retires the credential that was just used: the global key is
+// invalidated as before, a ticket is marked consumed and records its node.
+func (s *Service) consumeSetupKey(ctx context.Context, ticket *Ticket, nodeID uint) {
+	if ticket == nil {
+		if err := s.setupKeyManager.Invalidate(ctx); err != nil {
+			slog.WarnContext(ctx, "failed to invalidate setup key", slog.String("error", err.Error()))
+		}
+
+		return
+	}
+
+	if err := s.tickets.Consume(ctx, ticket, nodeID); err != nil {
+		slog.WarnContext(ctx, "failed to consume enrollment ticket",
+			slog.String("ticket_id", ticket.ID),
+			slog.String("error", err.Error()))
+	}
 }

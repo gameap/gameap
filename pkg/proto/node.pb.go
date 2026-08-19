@@ -22,19 +22,24 @@ const (
 )
 
 type Node struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Enabled       bool                   `protobuf:"varint,2,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Os            string                 `protobuf:"bytes,4,opt,name=os,proto3" json:"os,omitempty"`
-	Location      string                 `protobuf:"bytes,5,opt,name=location,proto3" json:"location,omitempty"`
-	Provider      *string                `protobuf:"bytes,6,opt,name=provider,proto3,oneof" json:"provider,omitempty"`
-	Ips           []string               `protobuf:"bytes,7,rep,name=ips,proto3" json:"ips,omitempty"`
-	WorkPath      string                 `protobuf:"bytes,8,opt,name=work_path,json=workPath,proto3" json:"work_path,omitempty"`
-	GdaemonHost   string                 `protobuf:"bytes,9,opt,name=gdaemon_host,json=gdaemonHost,proto3" json:"gdaemon_host,omitempty"`
-	GdaemonPort   int32                  `protobuf:"varint,10,opt,name=gdaemon_port,json=gdaemonPort,proto3" json:"gdaemon_port,omitempty"`
-	CreatedAt     *int64                 `protobuf:"varint,11,opt,name=created_at,json=createdAt,proto3,oneof" json:"created_at,omitempty"`
-	UpdatedAt     *int64                 `protobuf:"varint,12,opt,name=updated_at,json=updatedAt,proto3,oneof" json:"updated_at,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Id          uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Enabled     bool                   `protobuf:"varint,2,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Name        string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Os          string                 `protobuf:"bytes,4,opt,name=os,proto3" json:"os,omitempty"`
+	Location    string                 `protobuf:"bytes,5,opt,name=location,proto3" json:"location,omitempty"`
+	Provider    *string                `protobuf:"bytes,6,opt,name=provider,proto3,oneof" json:"provider,omitempty"`
+	Ips         []string               `protobuf:"bytes,7,rep,name=ips,proto3" json:"ips,omitempty"`
+	WorkPath    string                 `protobuf:"bytes,8,opt,name=work_path,json=workPath,proto3" json:"work_path,omitempty"`
+	GdaemonHost string                 `protobuf:"bytes,9,opt,name=gdaemon_host,json=gdaemonHost,proto3" json:"gdaemon_host,omitempty"`
+	GdaemonPort int32                  `protobuf:"varint,10,opt,name=gdaemon_port,json=gdaemonPort,proto3" json:"gdaemon_port,omitempty"`
+	// Unix seconds.
+	CreatedAt *int64 `protobuf:"varint,11,opt,name=created_at,json=createdAt,proto3,oneof" json:"created_at,omitempty"`
+	UpdatedAt *int64 `protobuf:"varint,12,opt,name=updated_at,json=updatedAt,proto3,oneof" json:"updated_at,omitempty"`
+	// Free-form node tags. Values are always strings here: the panel stores the
+	// bag as arbitrary JSON, and non-string entries written through the HTTP API
+	// are rendered (numbers and booleans via strconv, anything else as JSON).
+	Metadata      map[string]string `protobuf:"bytes,13,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -153,11 +158,18 @@ func (x *Node) GetUpdatedAt() int64 {
 	return 0
 }
 
+func (x *Node) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
 var File_pkg_proto_node_proto protoreflect.FileDescriptor
 
 const file_pkg_proto_node_proto_rawDesc = "" +
 	"\n" +
-	"\x14pkg/proto/node.proto\x12\x06gameap\"\xf9\x02\n" +
+	"\x14pkg/proto/node.proto\x12\x06gameap\"\xee\x03\n" +
 	"\x04Node\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x18\n" +
 	"\aenabled\x18\x02 \x01(\bR\aenabled\x12\x12\n" +
@@ -173,7 +185,11 @@ const file_pkg_proto_node_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\v \x01(\x03H\x01R\tcreatedAt\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"updated_at\x18\f \x01(\x03H\x02R\tupdatedAt\x88\x01\x01B\v\n" +
+	"updated_at\x18\f \x01(\x03H\x02R\tupdatedAt\x88\x01\x01\x126\n" +
+	"\bmetadata\x18\r \x03(\v2\x1a.gameap.Node.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\v\n" +
 	"\t_providerB\r\n" +
 	"\v_created_atB\r\n" +
 	"\v_updated_atB$Z\"github.com/gameap/gameap/pkg/protob\x06proto3"
@@ -190,16 +206,18 @@ func file_pkg_proto_node_proto_rawDescGZIP() []byte {
 	return file_pkg_proto_node_proto_rawDescData
 }
 
-var file_pkg_proto_node_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_pkg_proto_node_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_pkg_proto_node_proto_goTypes = []any{
 	(*Node)(nil), // 0: gameap.Node
+	nil,          // 1: gameap.Node.MetadataEntry
 }
 var file_pkg_proto_node_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: gameap.Node.metadata:type_name -> gameap.Node.MetadataEntry
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_pkg_proto_node_proto_init() }
@@ -214,7 +232,7 @@ func file_pkg_proto_node_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_proto_node_proto_rawDesc), len(file_pkg_proto_node_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

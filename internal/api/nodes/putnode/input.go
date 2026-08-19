@@ -92,6 +92,8 @@ type updateNodeInput struct {
 	ScriptGetConsole    *string        `json:"script_get_console,omitempty"`
 	ScriptSendCommand   *string        `json:"script_send_command,omitempty"`
 	ScriptDelete        *string        `json:"script_delete,omitempty"`
+	// Metadata replaces the stored bag when present; omitting the field keeps it.
+	Metadata domain.Metadata `json:"metadata,omitempty"`
 }
 
 func (in *updateNodeInput) Validate() error {
@@ -276,6 +278,9 @@ func (in *updateNodeInput) applyBasicFields(node *domain.Node) {
 	}
 	if in.SteamcmdPath != nil {
 		node.SteamcmdPath = in.SteamcmdPath
+	}
+	if in.Metadata != nil {
+		node.Metadata = in.Metadata
 	}
 }
 

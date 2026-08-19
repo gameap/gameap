@@ -11,7 +11,7 @@ Represents system users who can manage game servers and access the GameAP platfo
 Represents a game server instance with its configuration, network settings, resource limits, and lifecycle commands.
 
 ### Node (`node.go`)
-Represents a dedicated server (physical or virtual machine) that hosts game servers. Contains connection settings for GameAP Daemon and server management scripts.
+Represents a dedicated server (physical or virtual machine) that hosts game servers. Contains connection settings for GameAP Daemon and server management scripts. `Metadata` is a free-form JSON bag (`metadata` column) that plugins use to tag the nodes they provision — for example to correlate a node with the cloud instance it runs on. It is readable by every plugin, so it must never hold secrets. Partial updates from outside the admin API go through `NodePatch` (`node_patch.go`), which structurally cannot express daemon credentials, certificates or the management scripts.
 
 > **Security — `ScriptSendCommand` quoting.** The user-supplied `{command}`
 > placeholder is now shell-escaped (wrapped in single quotes via

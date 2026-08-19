@@ -68,6 +68,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
+	"github.com/gameap/gameap/internal/services/pluginssh"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
@@ -177,7 +178,9 @@ type Container struct {
 	certificatesService  *certificates.Service
 
 	// Enrollment
-	enrollmentService *enrollment.Service
+	enrollmentService         *enrollment.Service
+	enrollmentConnectResolver *enrollment.ConnectResolver
+	nodeService               *services.NodeService
 
 	secretCipher *secret.Cipher
 
@@ -215,6 +218,8 @@ type Container struct {
 	schedulerLocker  locker.Locker
 
 	pluginArchiveEvents *pluginarchive.Service
+
+	pluginSSH *pluginssh.Service
 
 	// HTTP
 	router                    *http.ServeMux
@@ -307,6 +312,12 @@ func (c *Container) Shutdown() error {
 	// callback must finish before its runtime is closed.
 	if c.pluginArchiveEvents != nil {
 		c.pluginArchiveEvents.Stop()
+	}
+
+	// Same contract for ssh completion callbacks, and it also closes the
+	// plugins' open SSH connections.
+	if c.pluginSSH != nil {
+		c.pluginSSH.Stop()
 	}
 
 	for _, fn := range c.shotdownFuncs {
@@ -1661,6 +1672,30 @@ func (c *Container) GRPCExternalPort() uint16 {
 // GRPCCertHostCovered reports whether the gRPC TLS server certificate of this
 // instance covers host. Returns true when gRPC TLS is disabled or the
 // certificate has not been loaded: there is nothing to warn about then.
+// EnrollmentConnectResolver names the gRPC address daemons dial to reach this
+// panel. Shared by the admin setup endpoints and the plugin host library so a
+// generated connect URL is identical whichever path produced it.
+func (c *Container) EnrollmentConnectResolver() *enrollment.ConnectResolver {
+	if c.enrollmentConnectResolver == nil {
+		c.enrollmentConnectResolver = enrollment.NewConnectResolver(
+			c.GRPCExternalHost(),
+			c.GRPCPort(),
+			c.GRPCExternalPort(),
+			c.GRPCCertHostCovered,
+		)
+	}
+
+	return c.enrollmentConnectResolver
+}
+
+func (c *Container) NodeService() *services.NodeService {
+	if c.nodeService == nil {
+		c.nodeService = services.NewNodeService(c.NodeRepository(), c.ServerRepository())
+	}
+
+	return c.nodeService
+}
+
 func (c *Container) GRPCCertHostCovered(host string) bool {
 	if c.grpcServerCertLeaf == nil {
 		return true
@@ -2035,6 +2070,31 @@ func (c *Container) PluginManager() *pkgplugin.Manager {
 	return c.pluginManager
 }
 
+// PluginSSH is the SSH engine behind the gameap-ssh host library: it owns the
+// dial policy, the per-plugin limits and the delivery of completion callbacks.
+func (c *Container) PluginSSH() *pluginssh.Service {
+	if c.pluginSSH == nil {
+		c.pluginSSH = pluginssh.New(
+			c.PluginManager(),
+			c.PluginLoader(),
+			pluginssh.Config{
+				BlockPrivateIPs: c.config.Plugin.SSH.BlockPrivateIPs,
+				AllowedHosts:    c.config.Plugin.SSH.AllowedHosts,
+				MaxConnections:  c.config.Plugin.SSH.MaxConnections,
+				MaxOperations:   c.config.Plugin.SSH.MaxOperations,
+				ConnectTimeout:  c.config.Plugin.SSH.ConnectTimeout,
+				MaxExecTimeout:  c.config.Plugin.SSH.MaxExecTimeout,
+				IdleTimeout:     c.config.Plugin.SSH.IdleTimeout,
+				MaxOutputBytes:  c.config.Plugin.SSH.MaxOutputBytes,
+				MaxStdinBytes:   c.config.Plugin.SSH.MaxStdinBytes,
+			},
+			slog.Default(),
+		)
+	}
+
+	return c.pluginSSH
+}
+
 func (c *Container) PluginArchiveEvents() *pluginarchive.Service {
 	if c.pluginArchiveEvents == nil {
 		c.pluginArchiveEvents = pluginarchive.New(
@@ -2125,6 +2185,17 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
 		),
 		hostlibrary.NewSchedulerHostLibraryFactory(&lazyTaskScheduler{container: c}),
+		// Per-plugin: node writes and enrollment tickets are gated on the
+		// plugin's own manage_nodes grant, and a ticket belongs to the plugin
+		// that issued it.
+		hostlibrary.NewNodesHostLibraryFactory(
+			c.NodeRepository(),
+			c.NodeService(),
+			c.EnrollmentService().Tickets(),
+			c.EnrollmentConnectResolver(),
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			c.AuditLogger(),
+		),
 		// Per-plugin: the module is gated on the plugin's own files grant
 		// and archive callbacks must reach the initiating plugin.
 		hostlibrary.NewNodeFSHostLibraryFactory(
@@ -2134,6 +2205,15 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			&lazyArchiveEvents{container: c},
 			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
 		),
+	}
+
+	if c.config.Plugin.SSH.Enabled {
+		// Per-plugin: the module is gated on the plugin's own ssh grant and
+		// its connections are released when that plugin is unloaded.
+		factories = append(factories, hostlibrary.NewSSHHostLibraryFactory(
+			&lazySSHSessions{container: c},
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+		))
 	}
 
 	if c.config.Plugin.Net.Enabled {
@@ -2150,7 +2230,6 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		Libraries: []pkgplugin.HostLibrary{
 			hostlibrary.NewServersHostLibrary(c.ServerRepository()),
 			hostlibrary.NewUsersHostLibrary(c.UserRepository()),
-			hostlibrary.NewNodesHostLibrary(c.NodeRepository()),
 			hostlibrary.NewGamesHostLibrary(c.GameRepository()),
 			hostlibrary.NewGameModsHostLibrary(c.GameModRepository()),
 			hostlibrary.NewDaemonTasksHostLibrary(c.DaemonTaskRepository(), c.TaskDispatcher()),
@@ -2190,6 +2269,17 @@ func (l *lazyArchiveEvents) Register(pluginID uint64, operationID string, nodeID
 
 func (l *lazyArchiveEvents) NotifyCompleted(operationID string, result messages.ArchiveCompleteEventPayload) {
 	l.container.PluginArchiveEvents().NotifyCompleted(operationID, result)
+}
+
+// lazySSHSessions defers PluginSSH resolution to call time: callback delivery
+// needs PluginManager, while the manager's host libraries need the SSH
+// service — resolving it during manager construction would recurse.
+type lazySSHSessions struct {
+	container *Container
+}
+
+func (l *lazySSHSessions) NewSessions(pluginID uint64) hostlibrary.SSHSessionManager {
+	return l.container.PluginSSH().NewSessions(pluginID)
 }
 
 // lazyTaskScheduler defers PluginScheduler resolution to call time: the

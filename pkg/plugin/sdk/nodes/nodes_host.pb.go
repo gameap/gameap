@@ -39,6 +39,31 @@ func Instantiate(ctx context.Context, r wazero.Runtime, hostFunctions NodesServi
 		WithParameterNames("offset", "size").
 		Export("get_node")
 
+	envBuilder.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(h._UpdateNode), []api.ValueType{i32, i32}, []api.ValueType{i64}).
+		WithParameterNames("offset", "size").
+		Export("update_node")
+
+	envBuilder.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(h._DeleteNode), []api.ValueType{i32, i32}, []api.ValueType{i64}).
+		WithParameterNames("offset", "size").
+		Export("delete_node")
+
+	envBuilder.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(h._CreateSetupKey), []api.ValueType{i32, i32}, []api.ValueType{i64}).
+		WithParameterNames("offset", "size").
+		Export("create_setup_key")
+
+	envBuilder.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(h._GetSetupKey), []api.ValueType{i32, i32}, []api.ValueType{i64}).
+		WithParameterNames("offset", "size").
+		Export("get_setup_key")
+
+	envBuilder.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(h._RevokeSetupKey), []api.ValueType{i32, i32}, []api.ValueType{i64}).
+		WithParameterNames("offset", "size").
+		Export("revoke_setup_key")
+
 	_, err := envBuilder.Instantiate(ctx)
 	return err
 }
@@ -82,6 +107,156 @@ func (h _nodesService) _GetNode(ctx context.Context, m api.Module, stack []uint6
 		panic(err)
 	}
 	resp, err := h.GetNode(ctx, request)
+	if err != nil {
+		panic(err)
+	}
+	buf, err = resp.MarshalVT()
+	if err != nil {
+		panic(err)
+	}
+	ptr, err := wasm.WriteMemory(ctx, m, buf)
+	if err != nil {
+		panic(err)
+	}
+	ptrLen := (ptr << uint64(32)) | uint64(len(buf))
+	stack[0] = ptrLen
+}
+
+func (h _nodesService) _UpdateNode(ctx context.Context, m api.Module, stack []uint64) {
+	offset, size := uint32(stack[0]), uint32(stack[1])
+	buf, err := wasm.ReadMemory(m.Memory(), offset, size)
+	if err != nil {
+		panic(err)
+	}
+	request := new(UpdateNodeRequest)
+	err = request.UnmarshalVT(buf)
+	if err != nil {
+		panic(err)
+	}
+	resp, err := h.UpdateNode(ctx, request)
+	if err != nil {
+		panic(err)
+	}
+	buf, err = resp.MarshalVT()
+	if err != nil {
+		panic(err)
+	}
+	ptr, err := wasm.WriteMemory(ctx, m, buf)
+	if err != nil {
+		panic(err)
+	}
+	ptrLen := (ptr << uint64(32)) | uint64(len(buf))
+	stack[0] = ptrLen
+}
+
+// DeleteNode is a soft delete; it is refused while game servers are still
+// assigned to the node.
+
+func (h _nodesService) _DeleteNode(ctx context.Context, m api.Module, stack []uint64) {
+	offset, size := uint32(stack[0]), uint32(stack[1])
+	buf, err := wasm.ReadMemory(m.Memory(), offset, size)
+	if err != nil {
+		panic(err)
+	}
+	request := new(DeleteNodeRequest)
+	err = request.UnmarshalVT(buf)
+	if err != nil {
+		panic(err)
+	}
+	resp, err := h.DeleteNode(ctx, request)
+	if err != nil {
+		panic(err)
+	}
+	buf, err = resp.MarshalVT()
+	if err != nil {
+		panic(err)
+	}
+	ptr, err := wasm.WriteMemory(ctx, m, buf)
+	if err != nil {
+		panic(err)
+	}
+	ptrLen := (ptr << uint64(32)) | uint64(len(buf))
+	stack[0] = ptrLen
+}
+
+// CreateSetupKey mints a single-use daemon enrollment key together with the
+// install script to run on the target machine. The presets are applied to
+// the node the panel creates when a daemon enrolls with this key, which is
+// how a plugin correlates the machine it provisioned with the node record
+// that appears.
+
+func (h _nodesService) _CreateSetupKey(ctx context.Context, m api.Module, stack []uint64) {
+	offset, size := uint32(stack[0]), uint32(stack[1])
+	buf, err := wasm.ReadMemory(m.Memory(), offset, size)
+	if err != nil {
+		panic(err)
+	}
+	request := new(CreateSetupKeyRequest)
+	err = request.UnmarshalVT(buf)
+	if err != nil {
+		panic(err)
+	}
+	resp, err := h.CreateSetupKey(ctx, request)
+	if err != nil {
+		panic(err)
+	}
+	buf, err = resp.MarshalVT()
+	if err != nil {
+		panic(err)
+	}
+	ptr, err := wasm.WriteMemory(ctx, m, buf)
+	if err != nil {
+		panic(err)
+	}
+	ptrLen := (ptr << uint64(32)) | uint64(len(buf))
+	stack[0] = ptrLen
+}
+
+// GetSetupKey reports whether a key this plugin issued is still pending or
+// has been used, and which node it produced. Keys issued by anyone else —
+// including the panel's own admin setup key — answer found = false.
+
+func (h _nodesService) _GetSetupKey(ctx context.Context, m api.Module, stack []uint64) {
+	offset, size := uint32(stack[0]), uint32(stack[1])
+	buf, err := wasm.ReadMemory(m.Memory(), offset, size)
+	if err != nil {
+		panic(err)
+	}
+	request := new(GetSetupKeyRequest)
+	err = request.UnmarshalVT(buf)
+	if err != nil {
+		panic(err)
+	}
+	resp, err := h.GetSetupKey(ctx, request)
+	if err != nil {
+		panic(err)
+	}
+	buf, err = resp.MarshalVT()
+	if err != nil {
+		panic(err)
+	}
+	ptr, err := wasm.WriteMemory(ctx, m, buf)
+	if err != nil {
+		panic(err)
+	}
+	ptrLen := (ptr << uint64(32)) | uint64(len(buf))
+	stack[0] = ptrLen
+}
+
+// RevokeSetupKey invalidates a pending key of this plugin.
+
+func (h _nodesService) _RevokeSetupKey(ctx context.Context, m api.Module, stack []uint64) {
+	offset, size := uint32(stack[0]), uint32(stack[1])
+	buf, err := wasm.ReadMemory(m.Memory(), offset, size)
+	if err != nil {
+		panic(err)
+	}
+	request := new(RevokeSetupKeyRequest)
+	err = request.UnmarshalVT(buf)
+	if err != nil {
+		panic(err)
+	}
+	resp, err := h.RevokeSetupKey(ctx, request)
 	if err != nil {
 		panic(err)
 	}

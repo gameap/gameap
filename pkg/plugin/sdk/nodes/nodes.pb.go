@@ -21,6 +21,34 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type SetupKeyStatus int32
+
+const (
+	SetupKeyStatus_SETUP_KEY_STATUS_UNSPECIFIED SetupKeyStatus = 0
+	SetupKeyStatus_SETUP_KEY_STATUS_PENDING     SetupKeyStatus = 1
+	SetupKeyStatus_SETUP_KEY_STATUS_ENROLLED    SetupKeyStatus = 2
+)
+
+// Enum value maps for SetupKeyStatus.
+var (
+	SetupKeyStatus_name = map[int32]string{
+		0: "SETUP_KEY_STATUS_UNSPECIFIED",
+		1: "SETUP_KEY_STATUS_PENDING",
+		2: "SETUP_KEY_STATUS_ENROLLED",
+	}
+	SetupKeyStatus_value = map[string]int32{
+		"SETUP_KEY_STATUS_UNSPECIFIED": 0,
+		"SETUP_KEY_STATUS_PENDING":     1,
+		"SETUP_KEY_STATUS_ENROLLED":    2,
+	}
+)
+
+func (x SetupKeyStatus) Enum() *SetupKeyStatus {
+	p := new(SetupKeyStatus)
+	*p = x
+	return p
+}
+
 type FindNodesRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -63,7 +91,9 @@ type NodeFilter struct {
 
 	Ids     []uint64 `protobuf:"varint,1,rep,packed,name=ids,proto3" json:"ids,omitempty"`
 	Enabled *bool    `protobuf:"varint,2,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
-	Os      *string  `protobuf:"bytes,3,opt,name=os,proto3,oneof" json:"os,omitempty"`
+	// os is normalized the way the panel normalizes it elsewhere, so "ubuntu"
+	// and "debian" both select linux nodes.
+	Os *string `protobuf:"bytes,3,opt,name=os,proto3,oneof" json:"os,omitempty"`
 }
 
 func (x *NodeFilter) ProtoReflect() protoreflect.Message {
@@ -164,9 +194,594 @@ func (x *GetNodeResponse) GetFound() bool {
 	return false
 }
 
-// NodesService provides node repository access to plugins
+type UpdateNodeRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id       uint64  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Enabled  *bool   `protobuf:"varint,2,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	Name     *string `protobuf:"bytes,3,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Location *string `protobuf:"bytes,4,opt,name=location,proto3,oneof" json:"location,omitempty"`
+	// An empty provider clears the field.
+	Provider     *string `protobuf:"bytes,5,opt,name=provider,proto3,oneof" json:"provider,omitempty"`
+	WorkPath     *string `protobuf:"bytes,6,opt,name=work_path,json=workPath,proto3,oneof" json:"work_path,omitempty"`
+	SteamcmdPath *string `protobuf:"bytes,7,opt,name=steamcmd_path,json=steamcmdPath,proto3,oneof" json:"steamcmd_path,omitempty"`
+	// ips replaces the stored address list when non-empty.
+	Ips []string `protobuf:"bytes,8,rep,name=ips,proto3" json:"ips,omitempty"`
+	// metadata is merged into the stored bag: listed keys are overwritten,
+	// unlisted ones survive. The bag is shared with the admin UI and other
+	// plugins, so there is no wholesale replace.
+	Metadata map[string]string `protobuf:"bytes,9,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// remove_metadata_keys is applied after the merge.
+	RemoveMetadataKeys []string `protobuf:"bytes,10,rep,name=remove_metadata_keys,json=removeMetadataKeys,proto3" json:"remove_metadata_keys,omitempty"`
+}
+
+func (x *UpdateNodeRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *UpdateNodeRequest) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *UpdateNodeRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *UpdateNodeRequest) GetName() string {
+	if x != nil && x.Name != nil {
+		return *x.Name
+	}
+	return ""
+}
+
+func (x *UpdateNodeRequest) GetLocation() string {
+	if x != nil && x.Location != nil {
+		return *x.Location
+	}
+	return ""
+}
+
+func (x *UpdateNodeRequest) GetProvider() string {
+	if x != nil && x.Provider != nil {
+		return *x.Provider
+	}
+	return ""
+}
+
+func (x *UpdateNodeRequest) GetWorkPath() string {
+	if x != nil && x.WorkPath != nil {
+		return *x.WorkPath
+	}
+	return ""
+}
+
+func (x *UpdateNodeRequest) GetSteamcmdPath() string {
+	if x != nil && x.SteamcmdPath != nil {
+		return *x.SteamcmdPath
+	}
+	return ""
+}
+
+func (x *UpdateNodeRequest) GetIps() []string {
+	if x != nil {
+		return x.Ips
+	}
+	return nil
+}
+
+func (x *UpdateNodeRequest) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *UpdateNodeRequest) GetRemoveMetadataKeys() []string {
+	if x != nil {
+		return x.RemoveMetadataKeys
+	}
+	return nil
+}
+
+type UpdateNodeResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success bool        `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   *string     `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	Node    *proto.Node `protobuf:"bytes,3,opt,name=node,proto3,oneof" json:"node,omitempty"`
+}
+
+func (x *UpdateNodeResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *UpdateNodeResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *UpdateNodeResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *UpdateNodeResponse) GetNode() *proto.Node {
+	if x != nil {
+		return x.Node
+	}
+	return nil
+}
+
+type DeleteNodeRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id uint64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+}
+
+func (x *DeleteNodeRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *DeleteNodeRequest) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type DeleteNodeResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success bool    `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+}
+
+func (x *DeleteNodeResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *DeleteNodeResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DeleteNodeResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+// NodePresets are applied to the node created when a daemon enrolls with the
+// setup key; unset fields keep the enrollment defaults.
+type NodePresets struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Enabled      *bool             `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	Name         *string           `protobuf:"bytes,2,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Location     *string           `protobuf:"bytes,3,opt,name=location,proto3,oneof" json:"location,omitempty"`
+	Provider     *string           `protobuf:"bytes,4,opt,name=provider,proto3,oneof" json:"provider,omitempty"`
+	WorkPath     *string           `protobuf:"bytes,5,opt,name=work_path,json=workPath,proto3,oneof" json:"work_path,omitempty"`
+	SteamcmdPath *string           `protobuf:"bytes,6,opt,name=steamcmd_path,json=steamcmdPath,proto3,oneof" json:"steamcmd_path,omitempty"`
+	Metadata     map[string]string `protobuf:"bytes,7,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *NodePresets) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *NodePresets) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *NodePresets) GetName() string {
+	if x != nil && x.Name != nil {
+		return *x.Name
+	}
+	return ""
+}
+
+func (x *NodePresets) GetLocation() string {
+	if x != nil && x.Location != nil {
+		return *x.Location
+	}
+	return ""
+}
+
+func (x *NodePresets) GetProvider() string {
+	if x != nil && x.Provider != nil {
+		return *x.Provider
+	}
+	return ""
+}
+
+func (x *NodePresets) GetWorkPath() string {
+	if x != nil && x.WorkPath != nil {
+		return *x.WorkPath
+	}
+	return ""
+}
+
+func (x *NodePresets) GetSteamcmdPath() string {
+	if x != nil && x.SteamcmdPath != nil {
+		return *x.SteamcmdPath
+	}
+	return ""
+}
+
+func (x *NodePresets) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// InstallScriptOptions tune the generated install script the same way the
+// admin-facing setup endpoint does.
+type InstallScriptOptions struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Config *string `protobuf:"bytes,1,opt,name=config,proto3,oneof" json:"config,omitempty"`
+	Github bool    `protobuf:"varint,2,opt,name=github,proto3" json:"github,omitempty"`
+	Branch *string `protobuf:"bytes,3,opt,name=branch,proto3,oneof" json:"branch,omitempty"`
+}
+
+func (x *InstallScriptOptions) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *InstallScriptOptions) GetConfig() string {
+	if x != nil && x.Config != nil {
+		return *x.Config
+	}
+	return ""
+}
+
+func (x *InstallScriptOptions) GetGithub() bool {
+	if x != nil {
+		return x.Github
+	}
+	return false
+}
+
+func (x *InstallScriptOptions) GetBranch() string {
+	if x != nil && x.Branch != nil {
+		return *x.Branch
+	}
+	return ""
+}
+
+type CreateSetupKeyRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Presets *NodePresets `protobuf:"bytes,1,opt,name=presets,proto3,oneof" json:"presets,omitempty"`
+	// 0 selects the panel default (1 hour); the panel caps the value.
+	TtlSeconds uint32 `protobuf:"varint,2,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
+	// connect_host is used only when the panel has no GRPC_EXTERNAL_HOST
+	// configured; without either, the call fails rather than emitting a script
+	// the machine cannot use.
+	ConnectHost   *string               `protobuf:"bytes,3,opt,name=connect_host,json=connectHost,proto3,oneof" json:"connect_host,omitempty"`
+	ConnectPort   *uint32               `protobuf:"varint,4,opt,name=connect_port,json=connectPort,proto3,oneof" json:"connect_port,omitempty"`
+	InstallScript *InstallScriptOptions `protobuf:"bytes,5,opt,name=install_script,json=installScript,proto3,oneof" json:"install_script,omitempty"`
+}
+
+func (x *CreateSetupKeyRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *CreateSetupKeyRequest) GetPresets() *NodePresets {
+	if x != nil {
+		return x.Presets
+	}
+	return nil
+}
+
+func (x *CreateSetupKeyRequest) GetTtlSeconds() uint32 {
+	if x != nil {
+		return x.TtlSeconds
+	}
+	return 0
+}
+
+func (x *CreateSetupKeyRequest) GetConnectHost() string {
+	if x != nil && x.ConnectHost != nil {
+		return *x.ConnectHost
+	}
+	return ""
+}
+
+func (x *CreateSetupKeyRequest) GetConnectPort() uint32 {
+	if x != nil && x.ConnectPort != nil {
+		return *x.ConnectPort
+	}
+	return 0
+}
+
+func (x *CreateSetupKeyRequest) GetInstallScript() *InstallScriptOptions {
+	if x != nil {
+		return x.InstallScript
+	}
+	return nil
+}
+
+type CreateSetupKeyResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success bool    `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	// setup_key is returned once; the panel keeps only its hash.
+	SetupKey string `protobuf:"bytes,3,opt,name=setup_key,json=setupKey,proto3" json:"setup_key,omitempty"`
+	// ticket_id identifies the key in GetSetupKey/RevokeSetupKey and is not a
+	// secret.
+	TicketId   string `protobuf:"bytes,4,opt,name=ticket_id,json=ticketId,proto3" json:"ticket_id,omitempty"`
+	ConnectUrl string `protobuf:"bytes,5,opt,name=connect_url,json=connectUrl,proto3" json:"connect_url,omitempty"`
+	// install_script is the same script the admin setup link serves; pipe it
+	// into a root shell on the target, e.g. `bash -s`.
+	InstallScript  string `protobuf:"bytes,6,opt,name=install_script,json=installScript,proto3" json:"install_script,omitempty"`
+	InstallCommand string `protobuf:"bytes,7,opt,name=install_command,json=installCommand,proto3" json:"install_command,omitempty"`
+	// Unix seconds.
+	ExpiresAt int64    `protobuf:"varint,8,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	Warnings  []string `protobuf:"bytes,9,rep,name=warnings,proto3" json:"warnings,omitempty"`
+}
+
+func (x *CreateSetupKeyResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *CreateSetupKeyResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CreateSetupKeyResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *CreateSetupKeyResponse) GetSetupKey() string {
+	if x != nil {
+		return x.SetupKey
+	}
+	return ""
+}
+
+func (x *CreateSetupKeyResponse) GetTicketId() string {
+	if x != nil {
+		return x.TicketId
+	}
+	return ""
+}
+
+func (x *CreateSetupKeyResponse) GetConnectUrl() string {
+	if x != nil {
+		return x.ConnectUrl
+	}
+	return ""
+}
+
+func (x *CreateSetupKeyResponse) GetInstallScript() string {
+	if x != nil {
+		return x.InstallScript
+	}
+	return ""
+}
+
+func (x *CreateSetupKeyResponse) GetInstallCommand() string {
+	if x != nil {
+		return x.InstallCommand
+	}
+	return ""
+}
+
+func (x *CreateSetupKeyResponse) GetExpiresAt() int64 {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return 0
+}
+
+func (x *CreateSetupKeyResponse) GetWarnings() []string {
+	if x != nil {
+		return x.Warnings
+	}
+	return nil
+}
+
+type GetSetupKeyRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TicketId string `protobuf:"bytes,1,opt,name=ticket_id,json=ticketId,proto3" json:"ticket_id,omitempty"`
+}
+
+func (x *GetSetupKeyRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *GetSetupKeyRequest) GetTicketId() string {
+	if x != nil {
+		return x.TicketId
+	}
+	return ""
+}
+
+type GetSetupKeyResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success bool    `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	// found = false: unknown here — never issued by this plugin, or expired.
+	Found      bool           `protobuf:"varint,3,opt,name=found,proto3" json:"found,omitempty"`
+	Status     SetupKeyStatus `protobuf:"varint,4,opt,name=status,proto3,enum=gameap.plugin.sdk.nodes.SetupKeyStatus" json:"status,omitempty"`
+	NodeId     *uint64        `protobuf:"varint,5,opt,name=node_id,json=nodeId,proto3,oneof" json:"node_id,omitempty"`
+	ExpiresAt  int64          `protobuf:"varint,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	EnrolledAt int64          `protobuf:"varint,7,opt,name=enrolled_at,json=enrolledAt,proto3" json:"enrolled_at,omitempty"`
+}
+
+func (x *GetSetupKeyResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *GetSetupKeyResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *GetSetupKeyResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *GetSetupKeyResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+func (x *GetSetupKeyResponse) GetStatus() SetupKeyStatus {
+	if x != nil {
+		return x.Status
+	}
+	return SetupKeyStatus_SETUP_KEY_STATUS_UNSPECIFIED
+}
+
+func (x *GetSetupKeyResponse) GetNodeId() uint64 {
+	if x != nil && x.NodeId != nil {
+		return *x.NodeId
+	}
+	return 0
+}
+
+func (x *GetSetupKeyResponse) GetExpiresAt() int64 {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return 0
+}
+
+func (x *GetSetupKeyResponse) GetEnrolledAt() int64 {
+	if x != nil {
+		return x.EnrolledAt
+	}
+	return 0
+}
+
+type RevokeSetupKeyRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	TicketId string `protobuf:"bytes,1,opt,name=ticket_id,json=ticketId,proto3" json:"ticket_id,omitempty"`
+}
+
+func (x *RevokeSetupKeyRequest) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *RevokeSetupKeyRequest) GetTicketId() string {
+	if x != nil {
+		return x.TicketId
+	}
+	return ""
+}
+
+type RevokeSetupKeyResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Success bool    `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+}
+
+func (x *RevokeSetupKeyResponse) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *RevokeSetupKeyResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RevokeSetupKeyResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+// NodesService provides node repository access to plugins.
+//
+// Reads are open to every plugin. The mutating calls (UpdateNode, DeleteNode
+// and the setup-key family) require the manage_nodes permission; without it
+// they answer success = false and name the missing grant in "error".
+//
+// Daemon credentials, certificates, the daemon address and the management
+// scripts are deliberately not writable here: a plugin may relabel a node and
+// retire it, not take over how the panel talks to its daemon.
 // go:plugin type=host module=gameap-nodes
 type NodesService interface {
 	FindNodes(context.Context, *FindNodesRequest) (*FindNodesResponse, error)
 	GetNode(context.Context, *GetNodeRequest) (*GetNodeResponse, error)
+	UpdateNode(context.Context, *UpdateNodeRequest) (*UpdateNodeResponse, error)
+	// DeleteNode is a soft delete; it is refused while game servers are still
+	// assigned to the node.
+	DeleteNode(context.Context, *DeleteNodeRequest) (*DeleteNodeResponse, error)
+	// CreateSetupKey mints a single-use daemon enrollment key together with the
+	// install script to run on the target machine. The presets are applied to
+	// the node the panel creates when a daemon enrolls with this key, which is
+	// how a plugin correlates the machine it provisioned with the node record
+	// that appears.
+	CreateSetupKey(context.Context, *CreateSetupKeyRequest) (*CreateSetupKeyResponse, error)
+	// GetSetupKey reports whether a key this plugin issued is still pending or
+	// has been used, and which node it produced. Keys issued by anyone else —
+	// including the panel's own admin setup key — answer found = false.
+	GetSetupKey(context.Context, *GetSetupKeyRequest) (*GetSetupKeyResponse, error)
+	// RevokeSetupKey invalidates a pending key of this plugin.
+	RevokeSetupKey(context.Context, *RevokeSetupKeyRequest) (*RevokeSetupKeyResponse, error)
 }

@@ -8,6 +8,7 @@ package enrollment
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/certificates"
@@ -227,4 +228,93 @@ func TestService_Enroll_env_key_invalidated_after_use(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrSetupKeyNotConfigured)
+}
+
+// TestService_Enroll_WithTicket covers the plugin-driven path: a ticket key
+// enrolls a daemon exactly like the global key does, applies the presets the
+// issuer chose, records which node it produced, and cannot be replayed.
+func TestService_Enroll_WithTicket(t *testing.T) {
+	svc, _ := setupService(t)
+	ctx := context.Background()
+
+	ticket, setupKey, err := svc.Tickets().Create(ctx, CreateTicketInput{
+		Owner: "plugin:7",
+		Presets: NodePresets{
+			Name:     new("hz-fsn1-1"),
+			Location: new("fsn1"),
+			Provider: new("Hetzner"),
+			Metadata: domain.Metadata{"hetzner.server_id": "42"},
+		},
+		TTL: time.Hour,
+	})
+	require.NoError(t, err)
+
+	result, err := svc.Enroll(ctx, setupKey, &EnrollInput{
+		Host: "203.0.113.10",
+		Port: 31717,
+		OS:   "ubuntu",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	nodes, err := svc.nodesRepo.FindAll(ctx, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+
+	assert.Equal(t, "hz-fsn1-1", nodes[0].Name, "the preset name must win over the daemon host")
+	assert.Equal(t, "fsn1", nodes[0].Location)
+	require.NotNil(t, nodes[0].Provider)
+	assert.Equal(t, "Hetzner", *nodes[0].Provider)
+	assert.Equal(t, "42", nodes[0].Metadata["hetzner.server_id"],
+		"metadata presets are how a plugin correlates the VM it created with the node")
+	assert.Equal(t, "203.0.113.10", nodes[0].GdaemonHost, "the daemon address stays daemon-reported")
+
+	stored, err := svc.Tickets().Get(ctx, ticket.ID)
+	require.NoError(t, err)
+	assert.Equal(t, TicketStatusConsumed, stored.Status)
+	assert.Equal(t, result.NodeID, stored.NodeID)
+
+	_, err = svc.Enroll(ctx, setupKey, &EnrollInput{Host: "203.0.113.11", Port: 31717, OS: "linux"})
+	require.Error(t, err, "a ticket must enroll exactly one daemon")
+	assert.ErrorIs(t, err, ErrInvalidSetupKey)
+}
+
+// TestService_Enroll_TicketDoesNotDisturbTheGlobalKey: an admin key in flight
+// must survive plugin enrollments, otherwise an auto-scaler would break the
+// operator's own node setup.
+func TestService_Enroll_TicketDoesNotDisturbTheGlobalKey(t *testing.T) {
+	svc, cacheInstance := setupService(t)
+	ctx := context.Background()
+
+	const globalKey = "admin-setup-key-32-chars-long123"
+	require.NoError(t, cacheInstance.Set(ctx, SetupKeyCacheKey, globalKey))
+
+	_, ticketKey, err := svc.Tickets().Create(ctx, CreateTicketInput{Owner: "plugin:7", TTL: time.Hour})
+	require.NoError(t, err)
+
+	_, err = svc.Enroll(ctx, ticketKey, &EnrollInput{Host: "203.0.113.10", Port: 31717, OS: "linux"})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.ValidateSetupKey(ctx, globalKey), "the admin key must still be usable")
+
+	_, err = svc.Enroll(ctx, globalKey, &EnrollInput{Host: "203.0.113.20", Port: 31717, OS: "linux"})
+	require.NoError(t, err)
+}
+
+// TestService_Enroll_UnknownTicketKeepsTheGlobalKeyError: a bogus key must not
+// reveal whether tickets exist, and the gateway's status mapping relies on the
+// error identity staying ErrInvalidSetupKey.
+func TestService_Enroll_UnknownTicketKeepsTheGlobalKeyError(t *testing.T) {
+	svc, cacheInstance := setupService(t)
+	ctx := context.Background()
+
+	require.NoError(t, cacheInstance.Set(ctx, SetupKeyCacheKey, "admin-setup-key-32-chars-long123"))
+
+	_, err := svc.Enroll(ctx, "cvhkq00000000000000000000000000000000000000000000000", &EnrollInput{
+		Host: "203.0.113.10", Port: 31717, OS: "linux",
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidSetupKey)
 }

@@ -93,3 +93,13 @@ properties:
       - string
       - "null"
     description: Custom delete script
+  metadata:
+    type:
+      - object
+      - "null"
+    additionalProperties: true
+    description: >-
+      Node metadata (arbitrary key-value pairs). Omit the field to keep the stored
+      metadata; sending an object replaces it entirely.
+    example:
+      hetzner.server_id: "123456"

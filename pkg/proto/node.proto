@@ -15,6 +15,11 @@ message Node {
   string work_path = 8;
   string gdaemon_host = 9;
   int32 gdaemon_port = 10;
+  // Unix seconds.
   optional int64 created_at = 11;
   optional int64 updated_at = 12;
+  // Free-form node tags. Values are always strings here: the panel stores the
+  // bag as arbitrary JSON, and non-string entries written through the HTTP API
+  // are rendered (numbers and booleans via strconv, anything else as JSON).
+  map<string, string> metadata = 13;
 }

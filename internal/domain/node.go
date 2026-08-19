@@ -42,6 +42,7 @@ type Node struct {
 	ScriptGetConsole    *string                 `db:"script_get_console"`
 	ScriptSendCommand   *string                 `db:"script_send_command"`
 	ScriptDelete        *string                 `db:"script_delete"`
+	Metadata            Metadata                `db:"metadata"`
 	CreatedAt           *time.Time              `db:"created_at"`
 	UpdatedAt           *time.Time              `db:"updated_at"`
 	DeletedAt           *time.Time              `db:"deleted_at"`

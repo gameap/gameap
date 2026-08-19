@@ -6,7 +6,9 @@ import (
 
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/enrollment"
 	"github.com/gameap/gameap/internal/pubsub/messages"
+	"github.com/gameap/gameap/internal/services/pluginssh"
 	"github.com/gameap/gameap/pkg/proto"
 )
 
@@ -76,4 +78,48 @@ type NodeCommandService interface {
 		command string,
 		opts ...daemon.CommandServiceOption,
 	) (*daemon.CommandResult, error)
+}
+
+// NodeWriter is the node write surface the gameap-nodes host library
+// delegates to; it holds the rules shared with the admin API (validation,
+// the delete guard). Satisfied by *services.NodeService.
+type NodeWriter interface {
+	Patch(ctx context.Context, id uint, patch domain.NodePatch) (*domain.Node, error)
+	SoftDelete(ctx context.Context, id uint) error
+}
+
+// NodeEnrollment is the enrollment-ticket surface the gameap-nodes host
+// library exposes to plugins. Satisfied by *enrollment.TicketStore.
+type NodeEnrollment interface {
+	Create(ctx context.Context, in enrollment.CreateTicketInput) (*enrollment.Ticket, string, error)
+	Get(ctx context.Context, id string) (*enrollment.Ticket, error)
+	Revoke(ctx context.Context, id string) error
+}
+
+// ConnectTargetResolver names the address daemons dial to reach this panel.
+// Satisfied by *enrollment.ConnectResolver.
+type ConnectTargetResolver interface {
+	Resolve(fallbackHost string) (enrollment.ConnectTarget, error)
+}
+
+// SSHSessionOpener hands out the per-plugin SSH session set backing one
+// gameap-ssh module instance. Satisfied by a shim over *pluginssh.Service.
+type SSHSessionOpener interface {
+	NewSessions(pluginID uint64) SSHSessionManager
+}
+
+// SSHSessionManager is the per-plugin SSH surface the gameap-ssh host library
+// delegates to. Satisfied by *pluginssh.Sessions. Called from host functions
+// that may run while the plugin manager lock is held, so implementations must
+// never call back into pkg/plugin.Manager: completion callbacks resolve the
+// plugin at delivery time instead.
+type SSHSessionManager interface {
+	Connect(ctx context.Context, params pluginssh.ConnectParams) (*pluginssh.ConnectResult, error)
+	Disconnect(handle uint64) error
+	StartExec(ctx context.Context, params pluginssh.ExecParams) (string, error)
+	Cancel(operationID, reason string) error
+	Snapshot(operationID string, stdoutOffset, stderrOffset uint64) (pluginssh.ExecSnapshot, bool)
+	WaitCompletion(ctx context.Context, operationID string) error
+	SubscribeCompletion(operationID string) error
+	Close()
 }

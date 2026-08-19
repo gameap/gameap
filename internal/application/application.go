@@ -188,6 +188,12 @@ func startPluginServices(ctx context.Context, container *Container) {
 		return
 	}
 
+	if container.config.Plugin.SSH.Enabled {
+		// Records the lifetime context before any guest Initialize can open a
+		// connection, so completion callbacks outlive the calls that start them.
+		container.PluginSSH().Start(ctx)
+	}
+
 	if err := container.PluginLoader().LoadAll(ctx); err != nil {
 		slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))
 

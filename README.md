@@ -365,6 +365,38 @@ Used by the resumable file-manager upload endpoints
 
 - `PLUGINS_DISABLED` - Disable plugins support (default: `false`)
 
+### Plugin Capabilities Configuration
+
+Bounds on what installed plugins may do through the host libraries. Defaults
+are strict: a compromised plugin must not be able to pivot from the panel into
+private networks or cloud metadata endpoints.
+
+- `PLUGIN_HTTP_BLOCK_PRIVATE_IPS` - Refuse plugin HTTP requests to loopback/private/link-local addresses (default: `true`)
+- `PLUGIN_HTTP_ALLOWED_SCHEMES` - Comma-separated URL schemes plugins may fetch (default: `https`)
+- `PLUGIN_HTTP_ALLOWED_HOSTS` - Hosts exempt from the private-IP block; empty leaves the blocklist as the only gate
+- `PLUGIN_HTTP_MAX_TIMEOUT_SECONDS` - Ceiling for a plugin's own request timeout (default: `30`)
+- `PLUGIN_HTTP_MAX_REDIRECTS` - Redirect limit (default: `5`)
+- `PLUGIN_NET_ENABLED` - Enable the plugin socket library used by custom RCON/Query protocols (default: `true`)
+- `PLUGIN_NET_BLOCK_PRIVATE_IPS` - Refuse game-server connections to private addresses (default: `false`; self-hosted servers commonly live on private networks)
+- `PLUGIN_NET_ALLOWED_HOSTS` - Hosts exempt from that block
+- `PLUGIN_NET_MAX_TIMEOUT_SECONDS` - Ceiling for a single read/write (default: `10`)
+- `PLUGIN_NET_READ_BUFFER_BYTES` - Cap on a single read (default: `65536`)
+- `PLUGIN_NET_MAX_CONNECTIONS` - Open connections per plugin (default: `8`)
+
+SSH is the one capability where a plugin names its own target, so a machine can
+be reached before it has a daemon. It is off until an operator turns it on:
+
+- `PLUGIN_SSH_ENABLED` - Enable the gameap-ssh host library (default: `false`)
+- `PLUGIN_SSH_BLOCK_PRIVATE_IPS` - Refuse SSH to loopback/private/link-local addresses (default: `true`). Cloud-metadata addresses are blocked regardless
+- `PLUGIN_SSH_ALLOWED_HOSTS` - Hosts exempt from that block, for panels whose dedicated servers live on a private network
+- `PLUGIN_SSH_MAX_CONNECTIONS` - Open SSH connections per plugin (default: `8`)
+- `PLUGIN_SSH_MAX_OPERATIONS` - Concurrently running commands per plugin (default: `16`)
+- `PLUGIN_SSH_CONNECT_TIMEOUT` - Budget for dial, handshake and authentication (default: `30s`)
+- `PLUGIN_SSH_MAX_EXEC_TIMEOUT` - Ceiling for one remote command (default: `30m`)
+- `PLUGIN_SSH_IDLE_TIMEOUT` - Close a connection nothing has run on for this long (default: `10m`)
+- `PLUGIN_SSH_MAX_OUTPUT_BYTES` - Captured stdout/stderr per command; the head is kept (default: `1048576`)
+- `PLUGIN_SSH_MAX_STDIN_BYTES` - Cap on what a plugin may pipe into a command (default: `1048576`)
+
 ### Plugin Store Configuration
 
 - `PLUGIN_STORE_URL` - GameAP plugin store URL (default: `https://plugins.gameap.dev/api`)
@@ -493,6 +525,12 @@ LOGGER_LEVEL=info
 
 # Plugins
 # PLUGINS_DISABLED=false
+
+# Plugin capabilities — defaults are strict; SSH is off until enabled
+# PLUGIN_SSH_ENABLED=false
+# PLUGIN_SSH_BLOCK_PRIVATE_IPS=true     # cloud metadata is blocked either way
+# PLUGIN_SSH_ALLOWED_HOSTS=node1.internal,node2.internal
+# PLUGIN_SSH_MAX_EXEC_TIMEOUT=30m
 
 # Plugin Store
 # PLUGIN_STORE_URL=https://plugins.gameap.dev/api

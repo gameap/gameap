@@ -175,25 +175,7 @@ func loadSharedServerLoggerWASM(t *testing.T) *LoadedPlugin {
 			return
 		}
 
-		cfg := ManagerConfig{
-			Libraries: []HostLibrary{
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return log.Instantiate(ctx, r, &stubLogService{})
-				}),
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return games.Instantiate(ctx, r, &stubGamesService{})
-				}),
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return gamemods.Instantiate(ctx, r, &stubGameModsService{})
-				}),
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return servers.Instantiate(ctx, r, &stubServersService{})
-				}),
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return scheduler.Instantiate(ctx, r, &stubSchedulerService{})
-				}),
-			},
-		}
+		cfg := ManagerConfig{Libraries: sharedTestHostLibraries()}
 		sharedManager = NewManager(cfg)
 		sharedPlugin, errSharedLoad = sharedManager.Load(
 			context.Background(), wasmBytes, map[string]string{}, 0,
@@ -457,4 +439,26 @@ func TestPluginServiceWrapper_GetServerAbilities_NilFunctionReturnsEmpty(t *test
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.Nil(t, resp.Abilities, "wrapper must report nil abilities when export is missing")
+}
+
+// sharedTestHostLibraries are the host modules the embedded example plugin
+// imports; a runtime missing any of them fails to instantiate the module.
+func sharedTestHostLibraries() []HostLibrary {
+	return []HostLibrary{
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return log.Instantiate(ctx, r, &stubLogService{})
+		}),
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return games.Instantiate(ctx, r, &stubGamesService{})
+		}),
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return gamemods.Instantiate(ctx, r, &stubGameModsService{})
+		}),
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return servers.Instantiate(ctx, r, &stubServersService{})
+		}),
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return scheduler.Instantiate(ctx, r, &stubSchedulerService{})
+		}),
+	}
 }

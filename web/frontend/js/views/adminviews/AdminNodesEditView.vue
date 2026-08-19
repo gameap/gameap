@@ -60,6 +60,14 @@ const loading = useInitialLoad(async () => {
   nodeUpdateModel.value = Object.fromEntries(
       Object.entries(node.value).map(([k, v]) => [camelCase(k), v])
   );
+
+  // The metadata bag is edited as a list of {key, value} rows; values are
+  // rendered as text, so non-string entries are stringified for display.
+  nodeUpdateModel.value.metadata = Object.entries(node.value.metadata || {})
+      .map(([key, value]) => ({
+        key,
+        value: typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value),
+      }))
 })
 
 const certificateOptions = computed(() => {
@@ -75,6 +83,7 @@ const nodeUpdateModel = ref({
   name: '',
   description: '',
   location: '',
+  metadata: [],
 })
 
 const onUpdate = async () => {
@@ -87,6 +96,14 @@ const onUpdate = async () => {
   const fields = Object.fromEntries(
       Object.entries(nodeUpdateModel.value).map(([k, v]) => [snakeCase(k), v])
   );
+
+  const metadataObj = {}
+  for (const {key, value} of nodeUpdateModel.value.metadata || []) {
+    if (key) {
+      metadataObj[key] = value
+    }
+  }
+  fields.metadata = metadataObj
 
   nodeStore.saveNode(fields).then(() => {
     notification({

@@ -1,0 +1,326 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.ssh;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/ssh";
+
+// SSHService lets a plugin open SSH connections to hosts it names itself and
+// run commands there — typically to bootstrap the GameAP daemon on a machine
+// it has just provisioned, which is the one job gameap-nodecmd cannot do
+// because no daemon exists yet.
+//
+// This is a deliberate exception to the gameap-net rule that the host picks
+// the target. It is therefore gated twice: on the plugin's own "ssh"
+// permission and on the operator's PLUGIN_SSH_ENABLED switch. Targets go
+// through the same address policy as gameap-http, and cloud-metadata
+// addresses are never reachable.
+//
+// Connection handles and operations live in the memory of the panel instance
+// that created them: they are not shared between instances and do not survive
+// a plugin reload.
+// go:plugin type=host module=gameap-ssh
+service SSHService {
+  // GenerateKeyPair creates a key pair the plugin installs on the target
+  // (through a provider API or cloud-init) and later passes to Connect. The
+  // private key is returned once and the panel does not keep it.
+  rpc GenerateKeyPair(GenerateKeyPairRequest) returns (GenerateKeyPairResponse);
+  // Connect dials, verifies the host key against the requested policy,
+  // authenticates and returns a connection handle. Blocking; the budget is
+  // capped by the panel and by the guest call deadline.
+  rpc Connect(ConnectRequest) returns (ConnectResponse);
+  // Disconnect closes a handle; operations still running on it finish as
+  // EXEC_STATUS_CANCELED.
+  rpc Disconnect(DisconnectRequest) returns (DisconnectResponse);
+
+  // Exec runs a command and blocks until it finishes or the wait budget
+  // (timeout_seconds, additionally capped by the guest call deadline) runs
+  // out. A timed-out wait answers completed=false with the operation id: the
+  // command keeps running, poll GetExecOperation. Completion callbacks are
+  // delivered only for a blocking call that returned completed=false, so a
+  // short command does not push a redundant event into the plugin.
+  rpc Exec(ExecRequest) returns (ExecSyncResponse);
+  // StartExec returns an operation id immediately; completion is delivered
+  // through the optional SSHExecEventsHandler service and observable via
+  // GetExecOperation.
+  rpc StartExec(ExecRequest) returns (StartExecResponse);
+  // GetExecOperation reports an operation started by this plugin on this
+  // panel instance; finished entries expire minutes after completion. With
+  // wait_ms > 0 the call waits for the operation to finish, bounded by the
+  // guest call deadline.
+  rpc GetExecOperation(GetExecOperationRequest) returns (GetExecOperationResponse);
+  // CancelExec is fire-and-forget: the operation finishes as
+  // EXEC_STATUS_CANCELED once the remote command is torn down.
+  rpc CancelExec(CancelExecRequest) returns (CancelExecResponse);
+
+  // WriteFile and ReadFile stream through a remote `cat`, so the target needs
+  // no SFTP subsystem. Both are bounded by the same output and stdin caps as
+  // Exec.
+  rpc WriteFile(WriteFileRequest) returns (WriteFileResponse);
+  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse);
+}
+
+// SSHExecEventsHandler is implemented by plugins that want the result of a
+// long-running command pushed instead of polled. The panel calls it once per
+// operation; the plugin then fetches the output with GetExecOperation.
+//
+// The callback runs on the panel instance that owns the operation. Plugin
+// state is per-instance, so a handler that must survive a restart should
+// persist what it learns (gameap-storage) rather than keep it in memory.
+// go:plugin type=plugin version=1
+service SSHExecEventsHandler {
+  rpc HandleExecCompleted(HandleExecCompletedRequest) returns (HandleExecCompletedResponse);
+}
+
+enum KeyType {
+  // Unspecified is treated as ED25519.
+  KEY_TYPE_UNSPECIFIED = 0;
+  KEY_TYPE_ED25519 = 1;
+  KEY_TYPE_RSA_4096 = 2;
+  KEY_TYPE_ECDSA_P256 = 3;
+}
+
+message GenerateKeyPairRequest {
+  KeyType type = 1;
+  // Optional comment appended to the authorized_keys line.
+  string comment = 2;
+}
+
+message GenerateKeyPairResponse {
+  bool success = 1;
+  optional string error = 2;
+  // Unencrypted OpenSSH PEM.
+  string private_key_pem = 3;
+  // authorized_keys line, e.g. "ssh-ed25519 AAAA... comment".
+  string public_key = 4;
+  // "SHA256:" digest as printed by ssh-keygen -l.
+  string fingerprint_sha256 = 5;
+  // Key type on the wire, e.g. "ssh-ed25519".
+  string key_type = 6;
+}
+
+message SSHAuth {
+  // Password authentication; also answered for keyboard-interactive prompts.
+  string password = 1;
+  // PEM-encoded private key (OpenSSH, PKCS#1, PKCS#8 or SEC1). Tried before
+  // the password when both are given.
+  string private_key_pem = 2;
+  // Passphrase of an encrypted private_key_pem.
+  string passphrase = 3;
+}
+
+// HostKeyPolicy decides whether the server's host key is accepted. One
+// strategy is required: accept_any (first contact with a machine the plugin
+// has just created) or a pin list. A request with neither is refused — an
+// unauthenticated SSH connection is never the safe default. The observed key
+// is always reported in ConnectResponse, so a plugin using accept_any can pin
+// it for subsequent connections.
+message HostKeyPolicy {
+  bool accept_any = 1;
+  // "SHA256:..." fingerprints as printed by ssh-keygen -l; the prefix and the
+  // base64 padding are optional.
+  repeated string fingerprints_sha256 = 2;
+  // Full public keys in authorized_keys / known_hosts key format.
+  repeated string public_keys = 3;
+}
+
+message ConnectRequest {
+  string host = 1;
+  // 0 selects 22.
+  uint32 port = 2;
+  string user = 3;
+  SSHAuth auth = 4;
+  HostKeyPolicy host_key = 5;
+  // Budget for the TCP connect, the handshake and authentication together;
+  // 0 selects the panel default and the panel caps the value.
+  uint32 connect_timeout_ms = 6;
+  // Close the connection after this long without a running operation;
+  // 0 selects the panel default and the panel caps the value.
+  uint32 idle_timeout_ms = 7;
+}
+
+message ConnectResponse {
+  bool success = 1;
+  optional string error = 2;
+  // Opaque and non-zero. Valid on this panel instance until Disconnect, the
+  // idle timeout, connection loss or a plugin reload.
+  uint64 handle = 3;
+  // The observed host key: set on success and also when the key was rejected,
+  // so a plugin can report or pin what it saw.
+  string host_key_fingerprint_sha256 = 4;
+  string host_key_type = 5;
+  // Server identification, e.g. "SSH-2.0-OpenSSH_9.6".
+  string server_version = 6;
+}
+
+message DisconnectRequest {
+  uint64 handle = 1;
+}
+
+message DisconnectResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message ExecRequest {
+  uint64 handle = 1;
+  // Passed to the remote user's login shell verbatim.
+  string command = 2;
+  // Written to the remote stdin, followed by EOF. Capped by the panel; this
+  // is how an install script is piped into `bash -s`.
+  bytes stdin = 3;
+  // Sent as SSH "env" requests before the command starts. Most sshd
+  // configurations accept only the names listed in AcceptEnv and reject the
+  // rest, which fails the start — prefer `env K=V cmd` inside the command for
+  // arbitrary variables.
+  map<string, string> env = 4;
+  // Kills the remote command after this long; 0 selects the panel default.
+  // For the blocking Exec this is also the wait budget.
+  uint32 timeout_seconds = 5;
+  // Per-stream capture cap; 0 selects the panel default and never exceeds it.
+  // Output past the cap is dropped (the head is kept) and the stream is
+  // flagged truncated.
+  uint32 max_output_bytes = 6;
+}
+
+enum ExecStatus {
+  EXEC_STATUS_UNSPECIFIED = 0;
+  EXEC_STATUS_RUNNING = 1;
+  // The command ran to completion; a non-zero exit_code is still COMPLETED.
+  EXEC_STATUS_COMPLETED = 2;
+  // Transport failure, connection closed, or no exit status reported.
+  EXEC_STATUS_FAILED = 3;
+  EXEC_STATUS_TIMED_OUT = 4;
+  // CancelExec, Disconnect, plugin reload or panel shutdown.
+  EXEC_STATUS_CANCELED = 5;
+}
+
+message StartExecResponse {
+  bool success = 1;
+  optional string error = 2;
+  string operation_id = 3;
+}
+
+// success=false: validation or start error. success=true, completed=false:
+// the command started but the wait budget ran out — it keeps running, poll
+// GetExecOperation with operation_id. completed=true: status, exit_code and
+// the captured output describe the outcome.
+message ExecSyncResponse {
+  bool success = 1;
+  optional string error = 2;
+  string operation_id = 3;
+  bool completed = 4;
+  // completed && status == COMPLETED && exit_code == 0.
+  bool op_success = 5;
+  optional string op_error = 6;
+  ExecStatus status = 7;
+  // -1 unless the status is COMPLETED.
+  int32 exit_code = 8;
+  // Signal name when the command was killed by one; exit_code is then -1.
+  string exit_signal = 9;
+  bytes stdout = 10;
+  bytes stderr = 11;
+  bool stdout_truncated = 12;
+  bool stderr_truncated = 13;
+  // Unix milliseconds.
+  int64 started_at = 14;
+  int64 finished_at = 15;
+}
+
+message GetExecOperationRequest {
+  string operation_id = 1;
+  // Return captured bytes from these offsets; 0 reads from the beginning.
+  uint64 stdout_offset = 2;
+  uint64 stderr_offset = 3;
+  // Wait up to this long for the operation to finish before answering,
+  // bounded by the guest call deadline. 0 answers immediately.
+  uint32 wait_ms = 4;
+}
+
+message GetExecOperationResponse {
+  bool success = 1;
+  optional string error = 2;
+  // found=false: unknown here — never started by this plugin on this panel
+  // instance, or already expired.
+  bool found = 3;
+  ExecStatus status = 4;
+  uint64 handle = 5;
+  bytes stdout = 6;
+  bytes stderr = 7;
+  // Pass these back as the next offsets.
+  uint64 stdout_next_offset = 8;
+  uint64 stderr_next_offset = 9;
+  bool stdout_truncated = 10;
+  bool stderr_truncated = 11;
+  // Bytes the command produced so far, including the dropped ones.
+  uint64 stdout_total_bytes = 12;
+  uint64 stderr_total_bytes = 13;
+  // Final fields, set once the status is not RUNNING.
+  bool op_success = 14;
+  optional string op_error = 15;
+  int32 exit_code = 16;
+  string exit_signal = 17;
+  int64 started_at = 18;
+  int64 finished_at = 19;
+}
+
+message CancelExecRequest {
+  string operation_id = 1;
+  string reason = 2;
+}
+
+message CancelExecResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message WriteFileRequest {
+  uint64 handle = 1;
+  // Absolute path on the target; it is passed to the remote shell quoted.
+  string path = 2;
+  bytes content = 3;
+  // Octal mode applied after the write, e.g. 0755. 0 leaves the default.
+  uint32 mode = 4;
+  uint32 timeout_seconds = 5;
+}
+
+message WriteFileResponse {
+  bool success = 1;
+  optional string error = 2;
+  // Stderr of the remote command, useful when the write was refused.
+  string stderr = 3;
+}
+
+message ReadFileRequest {
+  uint64 handle = 1;
+  string path = 2;
+  // Caps the returned content; 0 selects the panel default and never exceeds
+  // it. A larger file answers truncated=true.
+  uint32 max_bytes = 3;
+  uint32 timeout_seconds = 4;
+}
+
+message ReadFileResponse {
+  bool success = 1;
+  optional string error = 2;
+  bytes content = 3;
+  bool truncated = 4;
+  string stderr = 5;
+}
+
+message HandleExecCompletedRequest {
+  string operation_id = 1;
+  uint64 handle = 2;
+  ExecStatus status = 3;
+  bool success = 4;
+  optional string error = 5;
+  int32 exit_code = 6;
+  string exit_signal = 7;
+  bool stdout_truncated = 8;
+  bool stderr_truncated = 9;
+  uint64 stdout_total_bytes = 10;
+  uint64 stderr_total_bytes = 11;
+  int64 started_at = 12;
+  int64 finished_at = 13;
+}
+
+message HandleExecCompletedResponse {}

@@ -107,6 +107,7 @@
     "name": "Name",
     "location": "Location",
     "provider": "Provider",
+    "metadata": "Metadata",
     "ip": "IP",
     "os": "OS",
     "servers_count": "Servers count",

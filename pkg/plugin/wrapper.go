@@ -7,6 +7,7 @@ import (
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk/nodefs"
 	"github.com/gameap/gameap/pkg/plugin/sdk/scheduler"
+	sshsdk "github.com/gameap/gameap/pkg/plugin/sdk/ssh"
 	"github.com/pkg/errors"
 	"github.com/tetratelabs/wazero/api"
 )
@@ -44,6 +45,8 @@ type pluginServiceWrapper struct {
 
 	handlearchiveprogress  api.Function
 	handlearchivecompleted api.Function
+
+	handleexeccompleted api.Function
 }
 
 func (p *pluginServiceWrapper) callFunction(
@@ -393,4 +396,33 @@ func (p *pluginServiceWrapper) HandleArchiveCompleted(
 
 func (p *pluginServiceWrapper) HasArchiveEventsHandler() bool {
 	return p.handlearchiveprogress != nil && p.handlearchivecompleted != nil
+}
+
+// HandleExecCompleted invokes the optional handler exported by plugins built
+// with the sdk/ssh module. A missing export is an error rather than a benign
+// empty response: silently succeeding would swallow the result of a command
+// the plugin explicitly asked to be notified about.
+func (p *pluginServiceWrapper) HandleExecCompleted(
+	ctx context.Context,
+	request *sshsdk.HandleExecCompletedRequest,
+) (*sshsdk.HandleExecCompletedResponse, error) {
+	if p.handleexeccompleted == nil {
+		return nil, errors.WithMessage(ErrExportNotFound, "ssh_exec_events_handler_handle_exec_completed")
+	}
+
+	bytes, err := p.callFunction(ctx, p.handleexeccompleted, request)
+	if err != nil {
+		return nil, err
+	}
+
+	response := new(sshsdk.HandleExecCompletedResponse)
+	if err = response.UnmarshalVT(bytes); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (p *pluginServiceWrapper) HasSSHExecEventsHandler() bool {
+	return p.handleexeccompleted != nil
 }

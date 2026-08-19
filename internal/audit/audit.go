@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"log/slog"
+	"strconv"
 
 	"github.com/gameap/gameap/pkg/auth"
 )
@@ -178,6 +179,31 @@ func SensitiveOp(
 		Type:         eventType,
 		Category:     category,
 		Outcome:      OutcomeSuccess,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Action:       action,
+		Extra:        extra,
+	})
+}
+
+// PluginOp records a sensitive operation a plugin performed through a host
+// library. Plugins run without a request session, so the actor is set here
+// explicitly — leaving it to actorFrom would file the event as anonymous.
+func PluginOp(
+	ctx context.Context,
+	l Logger,
+	pluginID uint64,
+	eventType EventType,
+	category Category,
+	resourceType, resourceID, action string,
+	extra ...slog.Attr,
+) {
+	emit(ctx, l, Event{
+		Type:         eventType,
+		Category:     category,
+		Outcome:      OutcomeSuccess,
+		ActorLogin:   "plugin:" + strconv.FormatUint(pluginID, 10),
+		AuthMethod:   AuthMethodPlugin,
 		ResourceType: resourceType,
 		ResourceID:   resourceID,
 		Action:       action,

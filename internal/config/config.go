@@ -387,6 +387,53 @@ type Config struct {
 			RefreshInterval time.Duration `env:"PLUGIN_SCHEDULER_REFRESH_INTERVAL" envDefault:"30s"`
 		}
 
+		// SSH gates the gameap-ssh host library
+		// (internal/plugin/hostlibrary/ssh.go, internal/services/pluginssh):
+		// plugins holding the ssh grant open SSH connections to hosts they
+		// name and run commands there, which is how a machine gets its daemon
+		// before it has one. Connections and operations live in the memory of
+		// the panel instance that opened them.
+		SSH struct {
+			// Enabled turns on the gameap-ssh host library. It is off by
+			// default: installing a plugin currently grants everything the
+			// plugin asked for, so this switch is the operator's only
+			// deliberate consent to outbound SSH from the panel.
+			Enabled bool `env:"PLUGIN_SSH_ENABLED" envDefault:"false"`
+
+			// BlockPrivateIPs refuses to dial a target whose post-DNS address
+			// is loopback / RFC1918 / link-local / CGNAT. Cloud-metadata
+			// addresses are blocked even when this switch is off.
+			BlockPrivateIPs bool `env:"PLUGIN_SSH_BLOCK_PRIVATE_IPS" envDefault:"true"`
+
+			// AllowedHosts bypasses the private-IP block for these hostnames,
+			// for panels whose dedicated servers live on a private network.
+			AllowedHosts []string `env:"PLUGIN_SSH_ALLOWED_HOSTS" envSeparator:"," envDefault:""`
+
+			// MaxConnections caps concurrent SSH connections per plugin.
+			MaxConnections int `env:"PLUGIN_SSH_MAX_CONNECTIONS" envDefault:"8"`
+
+			// MaxOperations caps concurrently running commands per plugin.
+			MaxOperations int `env:"PLUGIN_SSH_MAX_OPERATIONS" envDefault:"16"`
+
+			// ConnectTimeout bounds the dial, handshake and authentication
+			// together, and is also the ceiling for a plugin's own value.
+			ConnectTimeout time.Duration `env:"PLUGIN_SSH_CONNECT_TIMEOUT" envDefault:"30s"`
+
+			// MaxExecTimeout is the ceiling for a single remote command.
+			MaxExecTimeout time.Duration `env:"PLUGIN_SSH_MAX_EXEC_TIMEOUT" envDefault:"30m"`
+
+			// IdleTimeout closes a connection nothing has run on for this long.
+			IdleTimeout time.Duration `env:"PLUGIN_SSH_IDLE_TIMEOUT" envDefault:"10m"`
+
+			// MaxOutputBytes caps captured stdout and stderr per command; the
+			// head is kept and the stream is reported as truncated.
+			MaxOutputBytes int `env:"PLUGIN_SSH_MAX_OUTPUT_BYTES" envDefault:"1048576"`
+
+			// MaxStdinBytes caps what a plugin may pipe into a command, which
+			// is how install scripts are delivered.
+			MaxStdinBytes int `env:"PLUGIN_SSH_MAX_STDIN_BYTES" envDefault:"1048576"`
+		}
+
 		// Net gates the plugin socket host library
 		// (internal/plugin/hostlibrary/net.go), which lets plugins implement
 		// custom RCON/Query wire protocols over connections the host opens and

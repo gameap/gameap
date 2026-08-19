@@ -69,6 +69,8 @@ const (
 	EventNodeCreate           EventType = "node.create"
 	EventNodeUpdate           EventType = "node.update"
 	EventNodeDelete           EventType = "node.delete"
+	EventNodeSetupKeyCreate   EventType = "node.setup_key.create"
+	EventNodeSetupKeyRevoke   EventType = "node.setup_key.revoke"
 	EventFileDelete           EventType = "file.delete"
 	EventFileRename           EventType = "file.rename"
 	EventFileChmod            EventType = "file.chmod"
@@ -89,6 +91,10 @@ const (
 	AuthMethodPAT        AuthMethod = "pat"
 	AuthMethodShortLived AuthMethod = "shortlived"
 	AuthMethodAnonymous  AuthMethod = "anonymous"
+	// AuthMethodPlugin marks an action a WASM plugin performed through a host
+	// library. There is no request session behind it, so the helpers cannot
+	// derive the actor — PluginOp sets it explicitly.
+	AuthMethodPlugin AuthMethod = "plugin"
 )
 
 // Event is the stable audit-record schema. Zero-valued fields are omitted
