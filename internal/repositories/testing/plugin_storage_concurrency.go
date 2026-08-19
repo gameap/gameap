@@ -84,20 +84,76 @@ func RunPluginStorageScopeCollapseTests(
 		assert.Equal(t, []byte(`{"state":"suspended"}`), results[0].Payload)
 		assert.Equal(t, retried.ID, results[0].ID)
 	})
+
+	t.Run("save_that_loses_the_race_keeps_the_winning_row", func(t *testing.T) {
+		pluginID := uint64(922)
+
+		lookedUp := make(chan struct{})
+		released := make(chan struct{})
+		competingDone := make(chan struct{})
+
+		var releaseOnce sync.Once
+		release := func() {
+			releaseOnce.Do(func() {
+				close(released)
+			})
+		}
+		t.Cleanup(release)
+
+		var competingErr error
+
+		// The competing save reads the same empty scope and then holds off
+		// until our row is in, so it inserts second and collapses the scope
+		// while our own cleanup is still pending.
+		competing := &scriptedDB{DB: db, beforeInsert: func() {
+			close(lookedUp)
+			<-released
+		}}
+
+		ours := &scriptedDB{
+			DB: db,
+			beforeInsert: func() {
+				go func() {
+					defer close(competingDone)
+
+					competingErr = newRepo(competing).Save(ctx, newEntry(pluginID, `{"state":"suspended"}`))
+				}()
+
+				<-lookedUp
+			},
+			beforeDelete: func() {
+				release()
+				<-competingDone
+			},
+		}
+
+		losing := newEntry(pluginID, `{"state":"active"}`)
+		require.NoError(t, newRepo(ours).Save(ctx, losing))
+
+		release()
+		<-competingDone
+		require.NoError(t, competingErr)
+
+		results := scopeOf(pluginID)
+		require.Len(t, results, 1, "our cleanup runs last and must leave the winning row alone")
+		assert.Equal(t, []byte(`{"state":"suspended"}`), results[0].Payload)
+		assert.NotEqual(t, losing.ID, results[0].ID, "the row we inserted lost the race and is gone")
+	})
 }
 
 // scriptedDB drives the windows a save has to survive: beforeInsert runs once
 // right before the first insert reaches the database — where a save from
-// another instance slips in — and deleteErr replaces the first cleanup delete
-// with the error it holds.
+// another instance slips in — beforeDelete runs once right before the cleanup
+// that follows it, and deleteErr replaces that cleanup with the error it holds.
 type scriptedDB struct {
 	base.DB
 
 	insertOnce   sync.Once
 	beforeInsert func()
 
-	deleteOnce sync.Once
-	deleteErr  error
+	deleteOnce   sync.Once
+	beforeDelete func()
+	deleteErr    error
 }
 
 func (d *scriptedDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
@@ -125,12 +181,20 @@ func (d *scriptedDB) race(query string) {
 }
 
 func (d *scriptedDB) interceptDelete(query string) error {
-	if d.deleteErr == nil || !strings.Contains(query, "DELETE FROM") {
+	if d.beforeDelete == nil && d.deleteErr == nil {
+		return nil
+	}
+
+	if !strings.Contains(query, "DELETE FROM") {
 		return nil
 	}
 
 	var err error
 	d.deleteOnce.Do(func() {
+		if d.beforeDelete != nil {
+			d.beforeDelete()
+		}
+
 		err = d.deleteErr
 	})
 
