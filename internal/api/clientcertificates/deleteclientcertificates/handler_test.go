@@ -18,6 +18,8 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                 string
 		certID               string
@@ -118,6 +120,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewClientCertificateRepository()
 			fileManager := &files.MockFileManager{}
 			responder := api.NewResponder()
@@ -160,6 +164,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_CertificateDeletion(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewClientCertificateRepository()
 	deletedFiles := make([]string, 0)
 	fileManager := &files.MockFileManager{
@@ -221,6 +227,8 @@ func TestHandler_CertificateDeletion(t *testing.T) {
 }
 
 func TestHandler_IdempotentDeletion(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewClientCertificateRepository()
 	deletedFiles := make([]string, 0)
 	fileManager := &files.MockFileManager{
@@ -268,6 +276,8 @@ func TestHandler_IdempotentDeletion(t *testing.T) {
 }
 
 func TestHandler_FileManagerPartialFailure(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewClientCertificateRepository()
 	deletedFiles := make([]string, 0)
 	fileManager := &files.MockFileManager{
@@ -313,6 +323,8 @@ func TestHandler_FileManagerPartialFailure(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewClientCertificateRepository()
 	fileManager := &files.MockFileManager{}
 	responder := api.NewResponder()

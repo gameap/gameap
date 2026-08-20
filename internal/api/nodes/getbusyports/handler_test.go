@@ -27,6 +27,7 @@ var testUser = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		nodeID     string
@@ -220,6 +221,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			responder := api.NewResponder()
 			handler := NewHandler(serverRepo, responder)
@@ -261,6 +263,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_CollectBusyPorts(t *testing.T) {
+	t.Parallel()
 	handler := &Handler{}
 
 	now := time.Now()
@@ -306,6 +309,7 @@ func TestHandler_CollectBusyPorts(t *testing.T) {
 }
 
 func TestUniqueAndSort(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    []int
@@ -340,6 +344,7 @@ func TestUniqueAndSort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := lo.Uniq(tt.input)
 			sort.Ints(result)
 
@@ -349,6 +354,7 @@ func TestUniqueAndSort(t *testing.T) {
 }
 
 func TestNewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	responder := api.NewResponder()
 
@@ -360,6 +366,7 @@ func TestNewHandler(t *testing.T) {
 }
 
 func TestNewBusyPortsResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    map[string][]int
@@ -390,6 +397,7 @@ func TestNewBusyPortsResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := newBusyPortsResponse(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})

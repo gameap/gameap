@@ -9,6 +9,8 @@ import (
 )
 
 func TestParseTime(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -107,6 +109,8 @@ func TestParseTime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := ParseTime(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)

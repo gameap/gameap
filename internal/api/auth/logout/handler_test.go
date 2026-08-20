@@ -70,6 +70,8 @@ func (e *errRevocation) IsRevoked(_ context.Context, _ string) (bool, error) {
 // OWASP API Security Top 10:2023 — API2:2023 (Broken Authentication). Each
 // case verifies an aspect of post-authentication token invalidation.
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	user := newTestUser()
 	jwtSvc := auth.NewJWTService([]byte(testJWTSecret))
 
@@ -269,6 +271,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			revocation := auth.NewCacheRevocation(cache.NewInMemory())
 			responder := api.NewResponder()
@@ -330,6 +334,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 // failed revocation must not be reported as success, otherwise the operator
 // would believe the token was invalidated when it was not.
 func TestHandler_ServeHTTP_RevocationBackendError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	user := newTestUser()
 	jwtSvc := auth.NewJWTService([]byte(testJWTSecret))
@@ -370,6 +376,8 @@ func TestHandler_ServeHTTP_RevocationBackendError(t *testing.T) {
 // passed and confirming the revocation is gone — this is an observable,
 // non-fragile assertion over the public TokenRevocation contract.
 func TestHandler_ServeHTTP_TTLDerivedFromExp(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("skipping timing-sensitive test in -short mode")
 	}
@@ -417,6 +425,8 @@ func TestHandler_ServeHTTP_TTLDerivedFromExp(t *testing.T) {
 // — we assert the observable consequence: the entry is still present after
 // well past any plausible JWT exp window.
 func TestHandler_ServeHTTP_NoExpUsesDefaultTTL(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	user := newTestUser()
 	jwtSvc := auth.NewJWTService([]byte(testJWTSecret))

@@ -16,6 +16,7 @@ import (
 )
 
 func TestParseMinecraftChallenge(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		input         []byte
@@ -66,6 +67,7 @@ func TestParseMinecraftChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			challenge, err := parseMinecraftChallenge(tt.input)
 
 			if tt.wantError != "" {
@@ -83,6 +85,7 @@ func TestParseMinecraftChallenge(t *testing.T) {
 }
 
 func TestParseMinecraftServerDetails(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		input         []byte
@@ -151,6 +154,7 @@ func TestParseMinecraftServerDetails(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 
 			parseMinecraftServerDetails(tt.input, result)
@@ -164,6 +168,7 @@ func TestParseMinecraftServerDetails(t *testing.T) {
 }
 
 func TestParseMinecraftPlayers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		input       []byte
@@ -219,6 +224,7 @@ func TestParseMinecraftPlayers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 
 			parseMinecraftPlayers(tt.input, result)
@@ -239,6 +245,7 @@ func TestParseMinecraftPlayers(t *testing.T) {
 }
 
 func TestReadNullTerminatedString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		input     []byte
@@ -279,6 +286,7 @@ func TestReadNullTerminatedString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			reader := bytes.NewReader(tt.input)
 
 			got, err := readNullTerminatedString(reader)
@@ -295,6 +303,7 @@ func TestReadNullTerminatedString(t *testing.T) {
 }
 
 func TestParseMinecraftResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		input         []byte
@@ -338,6 +347,7 @@ func TestParseMinecraftResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 
 			err := parseMinecraftResponse(tt.input, result)
@@ -353,6 +363,7 @@ func TestParseMinecraftResponse(t *testing.T) {
 }
 
 func TestQueryMinecraft_HappyPath(t *testing.T) {
+	t.Parallel()
 	host, port, stop := startMinecraftEchoServer(t, minecraftEchoConfig{
 		challengeNumber: 9513307,
 		details:         map[string]string{"hostname": "E2E Server", "mapname": "test_world", "numplayers": "3", "maxplayers": "16"},
@@ -380,6 +391,7 @@ func TestQueryMinecraft_HappyPath(t *testing.T) {
 }
 
 func TestQueryMinecraft_Errors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		config    minecraftEchoConfig
@@ -420,6 +432,7 @@ func TestQueryMinecraft_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			host, port, stop := startMinecraftEchoServer(t, tt.config)
 			defer stop()
 
@@ -602,6 +615,7 @@ func buildMinecraftQueryResponse(details map[string]string, players []string) []
 // Smoke check that the test fixtures themselves are valid, helping isolate
 // failures between the helpers and the production parser.
 func TestMinecraftFixtureSanity(t *testing.T) {
+	t.Parallel()
 	resp := buildMinecraftQueryResponse(
 		map[string]string{"hostname": "Sanity", "mapname": "x", "numplayers": "0", "maxplayers": "1"},
 		[]string{"Solo"},

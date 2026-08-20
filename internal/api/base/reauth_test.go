@@ -49,6 +49,8 @@ func authenticatedSession() *auth.Session {
 // sensitive operation. An audit event with the success type must be
 // recorded.
 func TestVerifyCurrentPassword_AcceptsCorrectPassword(t *testing.T) {
+	t.Parallel()
+
 	recorder := newAuditCapture()
 	err := base.VerifyCurrentPassword(
 		context.Background(),
@@ -72,6 +74,8 @@ func TestVerifyCurrentPassword_AcceptsCorrectPassword(t *testing.T) {
 // empty current_password is a 400 (the client failed to supply a required
 // field) and the failure is audited with a stable reason token.
 func TestVerifyCurrentPassword_RejectsMissingPassword(t *testing.T) {
+	t.Parallel()
+
 	recorder := newAuditCapture()
 	err := base.VerifyCurrentPassword(
 		context.Background(),
@@ -99,6 +103,8 @@ func TestVerifyCurrentPassword_RejectsMissingPassword(t *testing.T) {
 // invalid_current_password reason. The stub verifier guarantees the
 // audit fires before any sensitive op executes.
 func TestVerifyCurrentPassword_RejectsWrongPassword(t *testing.T) {
+	t.Parallel()
+
 	recorder := newAuditCapture()
 	err := base.VerifyCurrentPassword(
 		context.Background(),
@@ -126,6 +132,8 @@ func TestVerifyCurrentPassword_RejectsWrongPassword(t *testing.T) {
 // helper refuses with 403 + ErrReauthNotAvailable so the handler can
 // distinguish "PAT cannot do this" from "wrong password".
 func TestVerifyCurrentPassword_RejectsPATSession(t *testing.T) {
+	t.Parallel()
+
 	session := authenticatedSession()
 	session.Token = &domain.PersonalAccessToken{ID: 1}
 
@@ -155,6 +163,8 @@ func TestVerifyCurrentPassword_RejectsPATSession(t *testing.T) {
 // — a nil or unauthenticated session yields 401 outright. The helper does
 // NOT call the verifier and does NOT audit (it would have no actor).
 func TestVerifyCurrentPassword_RejectsUnauthenticatedSession(t *testing.T) {
+	t.Parallel()
+
 	recorder := newAuditCapture()
 	err := base.VerifyCurrentPassword(
 		context.Background(),
@@ -177,6 +187,8 @@ func TestVerifyCurrentPassword_RejectsUnauthenticatedSession(t *testing.T) {
 // cannot be re-auth'd; the helper refuses defensively rather than passing
 // an empty string to the verifier (which a careless verifier could match).
 func TestVerifyCurrentPassword_RejectsSessionWithoutPasswordHash(t *testing.T) {
+	t.Parallel()
+
 	session := authenticatedSession()
 	session.User.Password = ""
 

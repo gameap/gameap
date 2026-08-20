@@ -66,9 +66,11 @@ func closedUDPPort(t *testing.T) int {
 }
 
 func TestQueryQuake2(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("queries_server_over_udp", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{
@@ -87,6 +89,7 @@ func TestQueryQuake2(t *testing.T) {
 	})
 
 	t.Run("read_timeout_when_nobody_answers", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := closedUDPPort(t)
 		shortCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
@@ -102,6 +105,7 @@ func TestQueryQuake2(t *testing.T) {
 	})
 
 	t.Run("malformed_response", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{[]byte("garbage")}
@@ -118,9 +122,11 @@ func TestQueryQuake2(t *testing.T) {
 }
 
 func TestQueryQuake3(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("queries_server_over_udp", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{
@@ -145,6 +151,7 @@ func TestQueryQuake3(t *testing.T) {
 	})
 
 	t.Run("read_timeout_when_nobody_answers", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := closedUDPPort(t)
 		shortCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
@@ -160,6 +167,7 @@ func TestQueryQuake3(t *testing.T) {
 	})
 
 	t.Run("malformed_response", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{[]byte("garbage")}
@@ -176,9 +184,11 @@ func TestQueryQuake3(t *testing.T) {
 }
 
 func TestQueryGameSpy2(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("queries_server_over_udp", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{
@@ -202,6 +212,7 @@ func TestQueryGameSpy2(t *testing.T) {
 	})
 
 	t.Run("read_timeout_when_nobody_answers", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := closedUDPPort(t)
 		shortCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
@@ -217,6 +228,7 @@ func TestQueryGameSpy2(t *testing.T) {
 	})
 
 	t.Run("malformed_response", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{{0x01, 0x02, 0x03, 0x04, 0x05}}
@@ -233,9 +245,11 @@ func TestQueryGameSpy2(t *testing.T) {
 }
 
 func TestQueryGameSpy3(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("queries_server_over_udp_with_challenge", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE — the fake server implements the challenge-response handshake.
 		port := fakeUDPServer(t, func(request []byte) [][]byte {
 			if len(request) >= 3 && request[0] == 0xFE && request[1] == 0xFD && request[2] == 0x09 {
@@ -266,6 +280,7 @@ func TestQueryGameSpy3(t *testing.T) {
 	})
 
 	t.Run("read_timeout_when_nobody_answers", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := closedUDPPort(t)
 		shortCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
@@ -281,6 +296,7 @@ func TestQueryGameSpy3(t *testing.T) {
 	})
 
 	t.Run("malformed_challenge_response", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{{0x01, 0x02}}
@@ -296,6 +312,7 @@ func TestQueryGameSpy3(t *testing.T) {
 	})
 
 	t.Run("assembles_split_packets", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE — the payload is split into two packets carrying the splitnum marker.
 		payload := buildGameSpy3ResponseWithPlayers("GS3 Split", "karkand", 1, 64, []string{"Player1"})
 		half := len(payload) / 2
@@ -338,9 +355,11 @@ func TestQueryGameSpy3(t *testing.T) {
 }
 
 func TestQueryRakNet(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("queries_server_over_udp", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{
@@ -361,6 +380,7 @@ func TestQueryRakNet(t *testing.T) {
 	})
 
 	t.Run("read_timeout_when_nobody_answers", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := closedUDPPort(t)
 		shortCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
@@ -376,6 +396,7 @@ func TestQueryRakNet(t *testing.T) {
 	})
 
 	t.Run("malformed_response", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{make([]byte, 40)}
@@ -392,9 +413,11 @@ func TestQueryRakNet(t *testing.T) {
 }
 
 func TestQuerySAMP(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("queries_server_over_udp", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE — the response must echo the query header (SAMP + ip + port + opcode).
 		port := fakeUDPServer(t, func(request []byte) [][]byte {
 			response := make([]byte, 0, 64)
@@ -422,6 +445,7 @@ func TestQuerySAMP(t *testing.T) {
 	})
 
 	t.Run("read_timeout_when_nobody_answers", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := closedUDPPort(t)
 		shortCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
@@ -437,6 +461,7 @@ func TestQuerySAMP(t *testing.T) {
 	})
 
 	t.Run("malformed_response", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{[]byte("this is not a valid SAMP info response at all!!!!!")}
@@ -497,9 +522,11 @@ func buildA2SPlayerResponse(players []ResultPlayer) []byte {
 }
 
 func TestQuerySource(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("queries_server_over_udp", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE — the fake server implements enough of the A2S protocol for
 		// QueryInfo and QueryPlayer (immediate replies without a challenge round-trip).
 		port := fakeUDPServer(t, func(request []byte) [][]byte {
@@ -538,6 +565,7 @@ func TestQuerySource(t *testing.T) {
 	})
 
 	t.Run("player_query_timeout_keeps_info", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE — info query is answered, player query is not; the a2s client
 		// gives up after its built-in 1s timeout.
 		port := fakeUDPServer(t, func(request []byte) [][]byte {
@@ -565,9 +593,11 @@ func TestQuerySource(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("unsupported_protocol", func(t *testing.T) {
+		t.Parallel()
 		// ACT
 		result, err := Query(ctx, "127.0.0.1", 27015, Protocol("bogus"))
 
@@ -578,6 +608,7 @@ func TestQuery(t *testing.T) {
 	})
 
 	t.Run("delegates_to_protocol_query_func", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		port := fakeUDPServer(t, func(_ []byte) [][]byte {
 			return [][]byte{

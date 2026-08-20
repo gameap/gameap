@@ -35,6 +35,8 @@ type testRepos struct {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	type wantOutput struct {
 		expected bool
 		check    bool
@@ -209,6 +211,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repos := newTestRepos()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), repos.rbac, 0)
 			responder := api.NewResponder()
@@ -295,6 +299,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestNewExecutionsResponse_HidesOutputFieldsForNonAdmin(t *testing.T) {
+	t.Parallel()
+
 	inline := "stdout chunk"
 	storagePath := "s3://bucket/exec.log"
 	now := time.Now()
@@ -319,6 +325,8 @@ func TestNewExecutionsResponse_HidesOutputFieldsForNonAdmin(t *testing.T) {
 	}
 
 	t.Run("admin_keeps_output_fields", func(t *testing.T) {
+		t.Parallel()
+
 		resp := newExecutionsResponse(execs, true)
 		require.Len(t, resp.Data, 1)
 		require.NotNil(t, resp.Data[0].OutputInline)
@@ -328,6 +336,8 @@ func TestNewExecutionsResponse_HidesOutputFieldsForNonAdmin(t *testing.T) {
 	})
 
 	t.Run("non_admin_loses_output_fields", func(t *testing.T) {
+		t.Parallel()
+
 		resp := newExecutionsResponse(execs, false)
 		require.Len(t, resp.Data, 1)
 		assert.Nil(t, resp.Data[0].OutputInline)

@@ -8,6 +8,7 @@ import (
 )
 
 func TestParseQuake3Response(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      []byte
@@ -71,6 +72,7 @@ func TestParseQuake3Response(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			err := parseQuake3Response(tt.input, result)
 
@@ -99,6 +101,7 @@ func TestParseQuake3Response(t *testing.T) {
 }
 
 func TestParseQuake3ServerVars(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      []byte
@@ -144,6 +147,7 @@ func TestParseQuake3ServerVars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			parseQuake3ServerVars(tt.input, result)
 
@@ -155,6 +159,7 @@ func TestParseQuake3ServerVars(t *testing.T) {
 }
 
 func TestParseQuake3Players(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      [][]byte
@@ -220,6 +225,7 @@ func TestParseQuake3Players(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			parseQuake3Players(tt.input, result)
 

@@ -19,6 +19,8 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		setupAuth      func() context.Context
@@ -145,6 +147,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			rbac := inmemory.NewRBACRepository()
 			responder := api.NewResponder()
 			handler := NewHandler(rbac, nil, nil, responder)
@@ -183,6 +187,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ProfileResponseFields(t *testing.T) {
+	t.Parallel()
+
 	rbac := inmemory.NewRBACRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(rbac, nil, nil, responder)
@@ -239,6 +245,8 @@ func TestHandler_ProfileResponseFields(t *testing.T) {
 }
 
 func TestHandler_ProfileResponseWithNilFields(t *testing.T) {
+	t.Parallel()
+
 	rbac := inmemory.NewRBACRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(rbac, nil, nil, responder)
@@ -278,6 +286,8 @@ func TestHandler_ProfileResponseWithNilFields(t *testing.T) {
 }
 
 func TestHandler_ProfileWithMultipleRoles(t *testing.T) {
+	t.Parallel()
+
 	rbac := inmemory.NewRBACRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(rbac, nil, nil, responder)
@@ -348,6 +358,8 @@ func TestHandler_ProfileWithMultipleRoles(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
+
 	rbac := inmemory.NewRBACRepository()
 	responder := api.NewResponder()
 
@@ -359,6 +371,8 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestNewProfileResponseFromUser(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	userName := "Test User"
 	user := &domain.User{
@@ -388,6 +402,8 @@ func TestNewProfileResponseFromUser(t *testing.T) {
 }
 
 func TestNewProfileResponseFromUserWithNilFields(t *testing.T) {
+	t.Parallel()
+
 	user := &domain.User{
 		ID:        1,
 		Login:     "testuser",
@@ -417,6 +433,8 @@ func (s stubAdminChecker) Can(_ context.Context, _ uint, _ []domain.AbilityName)
 // AUTH_REQUIRE_MFA_FOR_ADMINS, so the frontend can surface the enforcement
 // modal on every page load. A non-admin gets no nudge.
 func TestHandler_MFANudgeInProfile(t *testing.T) {
+	t.Parallel()
+
 	var cfg config.Config
 	cfg.Auth.RequireMFAForAdmins = true
 	cfg.Auth.MFAHardFailDays = 30
@@ -443,6 +461,8 @@ func TestHandler_MFANudgeInProfile(t *testing.T) {
 	}
 
 	t.Run("admin_without_2fa_receives_nudge", func(t *testing.T) {
+		t.Parallel()
+
 		resp := serve(t, stubAdminChecker{isAdmin: true})
 		require.NotNil(t, resp.MFANudge)
 		assert.True(t, resp.MFANudge.Required)
@@ -450,6 +470,8 @@ func TestHandler_MFANudgeInProfile(t *testing.T) {
 	})
 
 	t.Run("non_admin_has_no_nudge", func(t *testing.T) {
+		t.Parallel()
+
 		resp := serve(t, stubAdminChecker{isAdmin: false})
 		assert.Nil(t, resp.MFANudge)
 	})
@@ -461,6 +483,8 @@ func TestHandler_MFANudgeInProfile(t *testing.T) {
 // suppressing the modal, and — critically — that the GET never persists the
 // first-shown timestamp (the login flow owns that write).
 func TestHandler_MFANudgeInProfile_States(t *testing.T) {
+	t.Parallel()
+
 	clock := func() time.Time { return time.Date(2026, 1, 10, 12, 0, 0, 0, time.UTC) }
 
 	// serveUser runs the profile read for the given user under cfg and returns
@@ -491,6 +515,8 @@ func TestHandler_MFANudgeInProfile_States(t *testing.T) {
 	}
 
 	t.Run("feature_disabled_no_nudge", func(t *testing.T) {
+		t.Parallel()
+
 		var cfg config.Config // RequireMFAForAdmins defaults to false
 		cfg.Auth.MFAHardFailDays = 30
 
@@ -500,6 +526,8 @@ func TestHandler_MFANudgeInProfile_States(t *testing.T) {
 	})
 
 	t.Run("two_factor_enabled_no_nudge", func(t *testing.T) {
+		t.Parallel()
+
 		user := &domain.User{ID: 7, Login: "admin", TwoFactorEnabled: true}
 
 		resp := serveUser(t, enabledCfg(), user, stubAdminChecker{isAdmin: true})
@@ -508,6 +536,8 @@ func TestHandler_MFANudgeInProfile_States(t *testing.T) {
 	})
 
 	t.Run("snoozed_nudge_hidden", func(t *testing.T) {
+		t.Parallel()
+
 		user := &domain.User{ID: 7, Login: "admin"}
 		shown := clock().Add(-3 * 24 * time.Hour)
 		snoozed := clock().Add(10 * time.Hour) // snooze still active
@@ -522,6 +552,8 @@ func TestHandler_MFANudgeInProfile_States(t *testing.T) {
 	})
 
 	t.Run("profile_get_does_not_persist", func(t *testing.T) {
+		t.Parallel()
+
 		user := &domain.User{ID: 7, Login: "admin"} // no first-shown in metadata
 		require.Nil(t, user.MFAFirstShownAt(), "precondition: the admin has no recorded first-shown timestamp")
 

@@ -16,6 +16,8 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		setupAuth      func() context.Context
@@ -104,6 +106,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			responder := api.NewResponder()
 			handler := NewHandler(responder)
 
@@ -137,6 +141,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_UserResponseFields(t *testing.T) {
+	t.Parallel()
+
 	responder := api.NewResponder()
 	handler := NewHandler(responder)
 
@@ -179,6 +185,8 @@ func TestHandler_UserResponseFields(t *testing.T) {
 }
 
 func TestHandler_UserResponseWithNilFields(t *testing.T) {
+	t.Parallel()
+
 	responder := api.NewResponder()
 	handler := NewHandler(responder)
 
@@ -218,6 +226,8 @@ func TestHandler_UserResponseWithNilFields(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
+
 	responder := api.NewResponder()
 
 	handler := NewHandler(responder)
@@ -227,6 +237,8 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestNewUserResponseFromUser(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	userName := "Test User"
 	user := &domain.User{
@@ -252,6 +264,8 @@ func TestNewUserResponseFromUser(t *testing.T) {
 }
 
 func TestNewUserResponseFromUserWithNilFields(t *testing.T) {
+	t.Parallel()
+
 	user := &domain.User{
 		ID:        1,
 		Login:     "testuser",

@@ -51,6 +51,8 @@ func setupStatusDispatcher(t *testing.T) *statusDispatcherTestSetup {
 }
 
 func TestStatusDispatcher_DispatchStatus_Success(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupStatusDispatcher(t)
 	const nodeID uint64 = 7
@@ -76,6 +78,8 @@ func TestStatusDispatcher_DispatchStatus_Success(t *testing.T) {
 }
 
 func TestStatusDispatcher_DispatchStatus_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupStatusDispatcher(t)
 	const nodeID uint64 = 8
@@ -95,6 +99,8 @@ func TestStatusDispatcher_DispatchStatus_GatewayError(t *testing.T) {
 }
 
 func TestStatusDispatcher_NotConnected_TimesOut(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupStatusDispatcher(t)
 	const nodeID uint64 = 99
@@ -113,6 +119,8 @@ func TestStatusDispatcher_NotConnected_TimesOut(t *testing.T) {
 }
 
 func TestStatusDispatcher_executeStatusRequest_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupStatusDispatcher(t)
 	d := s.dispatcher.(*statusDispatcher)
@@ -131,6 +139,8 @@ func TestStatusDispatcher_executeStatusRequest_GatewayError(t *testing.T) {
 }
 
 func TestNewStatusDispatcher_NilLoggerUsesDefault(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	gateway := &fakeStatusGateway{}
 	registry := newFakeConnectionChecker()

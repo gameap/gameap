@@ -108,6 +108,7 @@ func (r *errRBAC) RevokeOrForbidUserAbilitiesForEntity(
 }
 
 func TestServerFinder_FindUserServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		user           *domain.User
@@ -210,6 +211,7 @@ func TestServerFinder_FindUserServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rbacService, rbacRepo := setupRBAC(t)
 			defer rbacService.Close()
 
@@ -248,6 +250,7 @@ func TestServerFinder_FindUserServer(t *testing.T) {
 }
 
 func TestServerFinder_FindUserServer_RepoError(t *testing.T) {
+	t.Parallel()
 	rbacService, _ := setupRBAC(t)
 	defer rbacService.Close()
 
@@ -263,6 +266,7 @@ func TestServerFinder_FindUserServer_RepoError(t *testing.T) {
 }
 
 func TestServerFinder_FindUserServer_RBACError(t *testing.T) {
+	t.Parallel()
 	repo := setupServerRepo(t)
 	finder := serversbase.NewServerFinder(repo, &errRBAC{canErr: errors.New("rbac boom")})
 

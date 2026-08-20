@@ -10,6 +10,8 @@ import (
 )
 
 func TestPersonalAccessTokenRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewPersonalAccessTokenRepositorySuite(
 		func(_ *testing.T) repositories.PersonalAccessTokenRepository {
 			return inmemory.NewPersonalAccessTokenRepository()

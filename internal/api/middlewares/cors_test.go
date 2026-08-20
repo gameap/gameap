@@ -11,6 +11,7 @@ import (
 )
 
 func TestNewCORSMiddleware(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		config   *config.Config
@@ -52,6 +53,7 @@ func TestNewCORSMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			middleware := NewCORSMiddleware(tt.config)
 
 			require.NotNil(t, middleware)
@@ -61,6 +63,7 @@ func TestNewCORSMiddleware(t *testing.T) {
 }
 
 func TestCORSMiddleware_Middleware(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		config         *config.Config
@@ -117,6 +120,7 @@ func TestCORSMiddleware_Middleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			corsMiddleware := NewCORSMiddleware(tt.config)
 
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -151,6 +155,7 @@ func TestCORSMiddleware_Middleware(t *testing.T) {
 }
 
 func TestCORSMiddleware_Middleware_CallsNextHandler(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		HTTPHost: "example.com",
 		HTTPPort: 80,
@@ -177,6 +182,7 @@ func TestCORSMiddleware_Middleware_CallsNextHandler(t *testing.T) {
 }
 
 func TestCORSMiddleware_Middleware_AllowsCredentials(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		HTTPHost: "example.com",
 		HTTPPort: 80,
@@ -199,6 +205,7 @@ func TestCORSMiddleware_Middleware_AllowsCredentials(t *testing.T) {
 }
 
 func TestNewCORSMiddleware_HTTPSWhenForceHTTPS(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		HTTPHost:  "app.example.com",
 		HTTPPort:  8025,
@@ -224,6 +231,7 @@ func TestNewCORSMiddleware_HTTPSWhenForceHTTPS(t *testing.T) {
 }
 
 func TestNewCORSMiddleware_RejectsHTTPOriginWhenForceHTTPS(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		HTTPHost:  "app.example.com",
 		HTTPSPort: 443,
@@ -250,6 +258,7 @@ func TestNewCORSMiddleware_RejectsHTTPOriginWhenForceHTTPS(t *testing.T) {
 }
 
 func TestNewCORSMiddleware_ExplicitAllowedOriginsWinsOverAutoDerived(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		HTTPHost:           "default.local",
 		HTTPPort:           80,

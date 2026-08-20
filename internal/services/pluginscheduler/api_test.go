@@ -13,6 +13,8 @@ import (
 )
 
 func TestAddTask_Validation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		mutate    func(task *domain.PluginScheduledTask)
@@ -85,6 +87,8 @@ func TestAddTask_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			env := newTestEnv(t, nil)
 			task := testTask(time.Minute)
 			tt.mutate(&task)
@@ -103,6 +107,8 @@ func TestAddTask_Validation(t *testing.T) {
 }
 
 func TestAddTask_PersistsArmsAndDefaults(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	env := newTestEnv(t, nil)
 	task := testTask(time.Minute)
@@ -129,6 +135,8 @@ func TestAddTask_PersistsArmsAndDefaults(t *testing.T) {
 }
 
 func TestAddTask_LimitPerPlugin(t *testing.T) {
+	t.Parallel()
+
 	const firstTaskName = "first"
 
 	env := newTestEnv(t, func(opts *Options) { opts.MaxTasksPerPlugin = 2 })
@@ -155,6 +163,8 @@ func TestAddTask_LimitPerPlugin(t *testing.T) {
 }
 
 func TestAddTask_UpsertPreservesRunningFlag(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	ctx := context.Background()
 	key := taskKey{pluginID: 1, name: "stats-report"}
@@ -175,6 +185,8 @@ func TestAddTask_UpsertPreservesRunningFlag(t *testing.T) {
 }
 
 func TestRemoveTask(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	ctx := context.Background()
 
@@ -191,6 +203,8 @@ func TestRemoveTask(t *testing.T) {
 }
 
 func TestRemovePluginTasks(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	ctx := context.Background()
 
@@ -222,6 +236,8 @@ func TestRemovePluginTasks(t *testing.T) {
 }
 
 func TestListTasks_ReadsFromRepository(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	ctx := context.Background()
 

@@ -10,6 +10,8 @@ import (
 )
 
 func TestServerSettingRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewServerSettingRepositorySuite(
 		func(_ *testing.T) repositories.ServerSettingRepository {
 			return inmemory.NewServerSettingRepository()

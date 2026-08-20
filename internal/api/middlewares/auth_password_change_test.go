@@ -42,6 +42,7 @@ func passwordChangeMiddleware(
 }
 
 func TestAuthMiddleware_PasswordChange_InvalidatesSessionTokens(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	future := now.Add(time.Hour)
 	past := now.Add(-time.Hour)
@@ -70,6 +71,7 @@ func TestAuthMiddleware_PasswordChange_InvalidatesSessionTokens(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			userRepo := inmemory.NewUserRepository()
 			user := &domain.User{ID: 1, Login: "alice", Email: "alice@example.com"}
 			user.SetPasswordChangedAt(tt.passwordChangedAt)
@@ -94,6 +96,7 @@ func TestAuthMiddleware_PasswordChange_InvalidatesSessionTokens(t *testing.T) {
 }
 
 func TestAuthMiddleware_PasswordChange_InvalidatesPersonalAccessTokens(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	beforeChange := now.Add(-2 * time.Hour)
 	afterChange := now.Add(-30 * time.Minute)
@@ -118,6 +121,7 @@ func TestAuthMiddleware_PasswordChange_InvalidatesPersonalAccessTokens(t *testin
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			userRepo := inmemory.NewUserRepository()
 			user := &domain.User{ID: 1, Login: "alice", Email: "alice@example.com"}
 			user.SetPasswordChangedAt(&changedAt)

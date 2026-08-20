@@ -67,6 +67,7 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		serverID       string
@@ -619,6 +620,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -668,8 +670,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 // A protocol that can list players but has no kick or ban command must refuse before building a
 // command, so the caller gets "not implemented" instead of a confusing bad-request.
 func TestHandler_ListOnlyProtocolRejectsModeration(t *testing.T) {
+	t.Parallel()
 	for _, command := range []string{"kick", "ban"} {
 		t.Run(command, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -726,6 +730,7 @@ func TestHandler_ListOnlyProtocolRejectsModeration(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -741,6 +746,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestGetRconPort(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		server *domain.Server
@@ -766,6 +772,7 @@ func TestGetRconPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			port := getRconPort(tt.server)
 			assert.Equal(t, tt.want, port)
 		})
@@ -773,6 +780,7 @@ func TestGetRconPort(t *testing.T) {
 }
 
 func TestKickRequest_Validate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		request  kickRequest
@@ -834,6 +842,7 @@ func TestKickRequest_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.request.Validate()
 
 			if tt.wantErr {
@@ -847,6 +856,7 @@ func TestKickRequest_Validate(t *testing.T) {
 }
 
 func TestKickRequest_ToPlayer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		request     kickRequest
@@ -941,6 +951,7 @@ func TestKickRequest_ToPlayer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			player, err := tt.request.ToPlayer()
 
 			if tt.wantErr {
@@ -957,6 +968,7 @@ func TestKickRequest_ToPlayer(t *testing.T) {
 }
 
 func TestNewKickResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		message string
@@ -981,6 +993,7 @@ func TestNewKickResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			response := newKickResponse(tt.message)
 			assert.Equal(t, tt.want, response.Message)
 		})

@@ -10,7 +10,9 @@ import (
 )
 
 func TestNewCachingFileManager(t *testing.T) {
+	t.Parallel()
 	t.Run("creates_with_inner_and_cache", func(t *testing.T) {
+		t.Parallel()
 		inner := &MockFileManager{}
 		cache := &MockFileManager{}
 
@@ -23,7 +25,9 @@ func TestNewCachingFileManager(t *testing.T) {
 }
 
 func TestCachingFileManager_Read(t *testing.T) {
+	t.Parallel()
 	t.Run("cache_miss_reads_from_inner_and_caches", func(t *testing.T) {
+		t.Parallel()
 		expectedData := []byte("data from inner")
 		innerReadCalls := 0
 		cacheWriteCalls := 0
@@ -58,6 +62,7 @@ func TestCachingFileManager_Read(t *testing.T) {
 	})
 
 	t.Run("cache_hit_returns_cached_data", func(t *testing.T) {
+		t.Parallel()
 		cachedData := []byte("cached data")
 		innerReadCalls := 0
 
@@ -83,6 +88,7 @@ func TestCachingFileManager_Read(t *testing.T) {
 	})
 
 	t.Run("inner_error_is_propagated", func(t *testing.T) {
+		t.Parallel()
 		innerErr := errors.New("inner read error")
 		inner := &MockFileManager{
 			ReadFunc: func(_ context.Context, _ string) ([]byte, error) {
@@ -104,6 +110,7 @@ func TestCachingFileManager_Read(t *testing.T) {
 	})
 
 	t.Run("cache_write_error_does_not_affect_read", func(t *testing.T) {
+		t.Parallel()
 		expectedData := []byte("data from inner")
 		inner := &MockFileManager{
 			ReadFunc: func(_ context.Context, _ string) ([]byte, error) {
@@ -128,7 +135,9 @@ func TestCachingFileManager_Read(t *testing.T) {
 }
 
 func TestCachingFileManager_Write(t *testing.T) {
+	t.Parallel()
 	t.Run("writes_to_inner_and_updates_cache", func(t *testing.T) {
+		t.Parallel()
 		writtenData := []byte("new data")
 		innerWriteCalls := 0
 		cacheDeleteCalls := 0
@@ -167,6 +176,7 @@ func TestCachingFileManager_Write(t *testing.T) {
 	})
 
 	t.Run("inner_error_prevents_cache_update", func(t *testing.T) {
+		t.Parallel()
 		innerErr := errors.New("inner write error")
 		cacheWriteCalls := 0
 
@@ -193,7 +203,9 @@ func TestCachingFileManager_Write(t *testing.T) {
 }
 
 func TestCachingFileManager_Delete(t *testing.T) {
+	t.Parallel()
 	t.Run("deletes_from_inner_and_cache", func(t *testing.T) {
+		t.Parallel()
 		innerDeleteCalls := 0
 		cacheDeleteCalls := 0
 
@@ -222,6 +234,7 @@ func TestCachingFileManager_Delete(t *testing.T) {
 	})
 
 	t.Run("inner_error_prevents_cache_deletion", func(t *testing.T) {
+		t.Parallel()
 		innerErr := errors.New("inner delete error")
 		cacheDeleteCalls := 0
 
@@ -247,6 +260,7 @@ func TestCachingFileManager_Delete(t *testing.T) {
 	})
 
 	t.Run("cache_delete_error_is_ignored", func(t *testing.T) {
+		t.Parallel()
 		innerDeleteCalls := 0
 
 		inner := &MockFileManager{
@@ -271,7 +285,9 @@ func TestCachingFileManager_Delete(t *testing.T) {
 }
 
 func TestCachingFileManager_Exists(t *testing.T) {
+	t.Parallel()
 	t.Run("delegates_to_inner", func(t *testing.T) {
+		t.Parallel()
 		existsCalls := 0
 		inner := &MockFileManager{
 			ExistsFunc: func(_ context.Context, path string) bool {
@@ -292,7 +308,9 @@ func TestCachingFileManager_Exists(t *testing.T) {
 }
 
 func TestCachingFileManager_List(t *testing.T) {
+	t.Parallel()
 	t.Run("delegates_to_inner", func(t *testing.T) {
+		t.Parallel()
 		expectedFiles := []string{"file1.wasm", "file2.wasm"}
 		listCalls := 0
 		inner := &MockFileManager{
@@ -315,7 +333,9 @@ func TestCachingFileManager_List(t *testing.T) {
 }
 
 func TestCachingFileManager_cachePath(t *testing.T) {
+	t.Parallel()
 	t.Run("same_path_produces_same_hash", func(t *testing.T) {
+		t.Parallel()
 		inner := &MockFileManager{}
 		cache := &MockFileManager{}
 		cfm := NewCachingFileManager(inner, cache)
@@ -327,6 +347,7 @@ func TestCachingFileManager_cachePath(t *testing.T) {
 	})
 
 	t.Run("different_paths_produce_different_hashes", func(t *testing.T) {
+		t.Parallel()
 		inner := &MockFileManager{}
 		cache := &MockFileManager{}
 		cfm := NewCachingFileManager(inner, cache)
@@ -338,6 +359,7 @@ func TestCachingFileManager_cachePath(t *testing.T) {
 	})
 }
 
-func TestCachingFileManager_ImplementsInterface(_ *testing.T) {
+func TestCachingFileManager_ImplementsInterface(t *testing.T) {
+	t.Parallel()
 	var _ FileManager = (*CachingFileManager)(nil)
 }

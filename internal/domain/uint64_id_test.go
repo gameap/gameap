@@ -8,6 +8,8 @@ import (
 )
 
 func TestUint64ID_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		id   Uint64ID
@@ -37,6 +39,8 @@ func TestUint64ID_Value(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := test.id.Value()
 			require.NoError(t, err)
 			assert.Equal(t, test.want, result)
@@ -45,6 +49,8 @@ func TestUint64ID_Value(t *testing.T) {
 }
 
 func TestUint64ID_Scan(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     any
@@ -115,6 +121,8 @@ func TestUint64ID_Scan(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			var id Uint64ID
 			err := id.Scan(test.input)
 
@@ -132,6 +140,8 @@ func TestUint64ID_Scan(t *testing.T) {
 }
 
 func TestUint64ID_ScanValue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		id   Uint64ID
@@ -160,6 +170,8 @@ func TestUint64ID_ScanValue_RoundTrip(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			value, err := test.id.Value()
 			require.NoError(t, err)
 

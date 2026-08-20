@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:paralleltest // subtests mutate the package-level detectInterfaceSANs global
 func TestResolveGRPCCertSANs(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -181,6 +182,8 @@ func TestResolveGRPCCertSANs(t *testing.T) {
 }
 
 func TestRealDetectInterfaceSANs_excludes_loopback_and_link_local(t *testing.T) {
+	t.Parallel()
+
 	got := realDetectInterfaceSANs()
 
 	for _, s := range got {
@@ -194,6 +197,8 @@ func TestRealDetectInterfaceSANs_excludes_loopback_and_link_local(t *testing.T) 
 }
 
 func TestFormatSANSourcesForLog(t *testing.T) {
+	t.Parallel()
+
 	sources := []sanSource{
 		{ip: net.ParseIP("192.168.8.174"), from: "auto:eth0"},
 		{dns: "api.example.com", from: "config:GRPC_EXTERNAL_HOST"},

@@ -10,6 +10,8 @@ import (
 )
 
 func TestSetupKeyManager_Validate_from_cache(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cacheInstance := cache.NewInMemory()
 	m := NewSetupKeyManager(cacheInstance, "")
@@ -22,6 +24,8 @@ func TestSetupKeyManager_Validate_from_cache(t *testing.T) {
 }
 
 func TestSetupKeyManager_Validate_cache_takes_priority_over_env(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cacheInstance := cache.NewInMemory()
 	m := NewSetupKeyManager(cacheInstance, "env-key")
@@ -34,6 +38,8 @@ func TestSetupKeyManager_Validate_cache_takes_priority_over_env(t *testing.T) {
 }
 
 func TestSetupKeyManager_Validate_env_fallback(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cacheInstance := cache.NewInMemory()
 	m := NewSetupKeyManager(cacheInstance, "env-key")
@@ -43,6 +49,8 @@ func TestSetupKeyManager_Validate_env_fallback(t *testing.T) {
 }
 
 func TestSetupKeyManager_Validate_not_configured(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cacheInstance := cache.NewInMemory()
 	m := NewSetupKeyManager(cacheInstance, "")
@@ -52,6 +60,8 @@ func TestSetupKeyManager_Validate_not_configured(t *testing.T) {
 }
 
 func TestSetupKeyManager_Generate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cacheInstance := cache.NewInMemory()
 	m := NewSetupKeyManager(cacheInstance, "")
@@ -66,6 +76,8 @@ func TestSetupKeyManager_Generate(t *testing.T) {
 }
 
 func TestSetupKeyManager_Set_and_Get(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cacheInstance := cache.NewInMemory()
 	m := NewSetupKeyManager(cacheInstance, "")
@@ -79,6 +91,8 @@ func TestSetupKeyManager_Set_and_Get(t *testing.T) {
 }
 
 func TestSetupKeyManager_Invalidate_cache_key(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cacheInstance := cache.NewInMemory()
 	m := NewSetupKeyManager(cacheInstance, "")
@@ -94,6 +108,8 @@ func TestSetupKeyManager_Invalidate_cache_key(t *testing.T) {
 }
 
 func TestSetupKeyManager_Invalidate_env_key_burns(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cacheInstance := cache.NewInMemory()
 	m := NewSetupKeyManager(cacheInstance, "env-key-value")
@@ -110,6 +126,8 @@ func TestSetupKeyManager_Invalidate_env_key_burns(t *testing.T) {
 }
 
 func TestSetupKeyManager_Delete(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cacheInstance := cache.NewInMemory()
 	m := NewSetupKeyManager(cacheInstance, "")

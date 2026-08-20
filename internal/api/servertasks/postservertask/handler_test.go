@@ -104,6 +104,8 @@ var defaultSetupRepos = func(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		setupAuth        func() context.Context
@@ -739,6 +741,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Setup repositories
 			serversRepo := inmemory.NewServerRepository()
 			serverTasksRepo := inmemory.NewServerTaskRepository(serversRepo)

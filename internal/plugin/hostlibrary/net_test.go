@@ -21,6 +21,7 @@ func newNetService(t *testing.T, pluginID string, cfg NetConfig) (*NetServiceImp
 }
 
 func TestNet_SendAndRecv(t *testing.T) {
+	t.Parallel()
 	svc, reg := newNetService(t, "p1", NetConfig{})
 	local, remote := net.Pipe()
 	t.Cleanup(func() { _ = remote.Close() })
@@ -46,6 +47,7 @@ func TestNet_SendAndRecv(t *testing.T) {
 }
 
 func TestNet_RejectsForeignHandle(t *testing.T) {
+	t.Parallel()
 	svc, reg := newNetService(t, "attacker", NetConfig{})
 	local, remote := net.Pipe()
 	t.Cleanup(func() { _ = local.Close(); _ = remote.Close() })
@@ -65,6 +67,7 @@ func TestNet_RejectsForeignHandle(t *testing.T) {
 }
 
 func TestNet_RecvClampsMaxBytes(t *testing.T) {
+	t.Parallel()
 	svc, reg := newNetService(t, "p1", NetConfig{MaxReadBytes: 4})
 	local, remote := net.Pipe()
 	t.Cleanup(func() { _ = remote.Close() })
@@ -82,6 +85,7 @@ func TestNet_RecvClampsMaxBytes(t *testing.T) {
 }
 
 func TestNet_RecvTimeout(t *testing.T) {
+	t.Parallel()
 	svc, reg := newNetService(t, "p1", NetConfig{})
 	local, remote := net.Pipe()
 	t.Cleanup(func() { _ = local.Close(); _ = remote.Close() })
@@ -97,6 +101,7 @@ func TestNet_RecvTimeout(t *testing.T) {
 }
 
 func TestNet_CloseRemovesHandle(t *testing.T) {
+	t.Parallel()
 	svc, reg := newNetService(t, "p1", NetConfig{})
 	local, remote := net.Pipe()
 	t.Cleanup(func() { _ = remote.Close() })

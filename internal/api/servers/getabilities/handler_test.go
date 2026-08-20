@@ -21,6 +21,7 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		setupAuth      func() context.Context
@@ -234,6 +235,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			userRepo := inmemory.NewUserRepository()
 			serverRepo := inmemory.NewServerRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -290,6 +292,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_AdminUserHasAllAbilities(t *testing.T) {
+	t.Parallel()
 	userRepo := inmemory.NewUserRepository()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -370,6 +373,7 @@ func TestHandler_AdminUserHasAllAbilities(t *testing.T) {
 }
 
 func TestHandler_RegularUserAbilities(t *testing.T) {
+	t.Parallel()
 	userRepo := inmemory.NewUserRepository()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -457,6 +461,7 @@ func TestHandler_RegularUserAbilities(t *testing.T) {
 }
 
 func TestNewHandler(t *testing.T) {
+	t.Parallel()
 	userRepo := inmemory.NewUserRepository()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -473,6 +478,7 @@ func TestNewHandler(t *testing.T) {
 }
 
 func TestNewServersAbilitiesResponse(t *testing.T) {
+	t.Parallel()
 	abilities := map[uint]map[domain.AbilityName]bool{
 		1: {
 			"game-server-common": true,

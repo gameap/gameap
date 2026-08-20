@@ -9,6 +9,8 @@ import (
 )
 
 func TestUint_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		jsonStr  string
@@ -124,6 +126,8 @@ func TestUint_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var u Uint
 			err := json.Unmarshal([]byte(tt.jsonStr), &u)
 
@@ -138,6 +142,8 @@ func TestUint_UnmarshalJSON(t *testing.T) {
 }
 
 func TestUint_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    Uint
@@ -162,6 +168,8 @@ func TestUint_MarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := json.Marshal(tt.value)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, string(data))
@@ -170,6 +178,8 @@ func TestUint_MarshalJSON(t *testing.T) {
 }
 
 func TestUint_Uint(t *testing.T) {
+	t.Parallel()
+
 	zeroVal := Uint(0)
 	positiveVal := Uint(42)
 
@@ -197,6 +207,8 @@ func TestUint_Uint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.value.Uint()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -204,6 +216,8 @@ func TestUint_Uint(t *testing.T) {
 }
 
 func TestUint_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input string
@@ -233,6 +247,8 @@ func TestUint_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var u Uint
 			err := json.Unmarshal([]byte(tt.input), &u)
 			require.NoError(t, err)
@@ -250,6 +266,8 @@ func TestUint_RoundTrip(t *testing.T) {
 }
 
 func TestUint_StructMarshaling(t *testing.T) {
+	t.Parallel()
+
 	type TestStruct struct {
 		SteamAppIDLinux   *Uint `json:"steam_app_id_linux,omitempty"`
 		SteamAppIDWindows *Uint `json:"steam_app_id_windows,omitempty"`
@@ -257,6 +275,8 @@ func TestUint_StructMarshaling(t *testing.T) {
 	}
 
 	t.Run("marshal_struct_with_flexible_uint", func(t *testing.T) {
+		t.Parallel()
+
 		linux := Uint(730)
 		windows := Uint(440)
 		ts := TestStruct{
@@ -273,6 +293,8 @@ func TestUint_StructMarshaling(t *testing.T) {
 	})
 
 	t.Run("unmarshal_struct_with_flexible_uint_mixed_formats", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"steam_app_id_linux": "730",
 			"steam_app_id_windows": 440,
@@ -289,6 +311,8 @@ func TestUint_StructMarshaling(t *testing.T) {
 	})
 
 	t.Run("unmarshal_struct_with_all_string_formats", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"steam_app_id_linux": "730",
 			"steam_app_id_windows": "440",
@@ -305,6 +329,8 @@ func TestUint_StructMarshaling(t *testing.T) {
 	})
 
 	t.Run("unmarshal_struct_with_omitted_fields", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"count": 10
 		}`
@@ -320,7 +346,11 @@ func TestUint_StructMarshaling(t *testing.T) {
 }
 
 func TestUint_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	t.Run("multiple_unmarshal_same_variable", func(t *testing.T) {
+		t.Parallel()
+
 		var u Uint
 
 		err := json.Unmarshal([]byte(`42`), &u)
@@ -337,6 +367,8 @@ func TestUint_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("pointer_to_uint", func(t *testing.T) {
+		t.Parallel()
+
 		u := Uint(42)
 		ptr := &u
 
@@ -351,6 +383,8 @@ func TestUint_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("array_of_uints", func(t *testing.T) {
+		t.Parallel()
+
 		type UintArray struct {
 			Values []Uint `json:"values"`
 		}
@@ -369,6 +403,8 @@ func TestUint_EdgeCases(t *testing.T) {
 }
 
 func Test_anyToUint(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -414,6 +450,8 @@ func Test_anyToUint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := anyToUint(tt.input)
 			if tt.wantErr {
 				assert.Error(t, err)

@@ -129,6 +129,8 @@ func setupRepo(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	manyPaths := make([]string, maxHashPaths+1)
 	for i := range manyPaths {
 		manyPaths[i] = "file.txt"
@@ -375,6 +377,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -412,6 +416,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestDaemonRelPath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		serverDir   string
@@ -426,6 +432,8 @@ func TestDaemonRelPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, daemonRelPath(tt.serverDir, tt.requestPath))
 		})
 	}

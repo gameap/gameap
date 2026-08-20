@@ -15,6 +15,7 @@ import (
 )
 
 func TestServersService_FindServers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.ServerRepository)
@@ -113,6 +114,7 @@ func TestServersService_FindServers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 
@@ -131,6 +133,7 @@ func TestServersService_FindServers(t *testing.T) {
 }
 
 func TestServersService_GetServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.ServerRepository)
@@ -170,6 +173,7 @@ func TestServersService_GetServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 
@@ -191,6 +195,7 @@ func TestServersService_GetServer(t *testing.T) {
 }
 
 func TestServersService_SaveServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		server    *proto.Server
@@ -226,6 +231,7 @@ func TestServersService_SaveServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			if tt.server != nil && tt.server.Id > 0 {
 				_ = repo.Save(context.Background(), &domain.Server{
@@ -256,6 +262,7 @@ func TestServersService_SaveServer(t *testing.T) {
 }
 
 func TestServersService_DeleteServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.ServerRepository)
@@ -277,6 +284,7 @@ func TestServersService_DeleteServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 
@@ -290,6 +298,7 @@ func TestServersService_DeleteServer(t *testing.T) {
 }
 
 func TestConvertServerToProto(t *testing.T) {
+	t.Parallel()
 	serverUUID := uuid.New()
 	server := &domain.Server{
 		ID:            42,
@@ -339,6 +348,7 @@ func TestConvertServerToProto(t *testing.T) {
 }
 
 func TestConvertServerToProto_NilOptionalFields(t *testing.T) {
+	t.Parallel()
 	server := &domain.Server{
 		ID:         1,
 		Name:       "BasicServer",
@@ -357,6 +367,7 @@ func TestConvertServerToProto_NilOptionalFields(t *testing.T) {
 }
 
 func TestConvertServerFromProto(t *testing.T) {
+	t.Parallel()
 	protoServer := &proto.Server{
 		Id:           42,
 		Enabled:      true,
@@ -399,6 +410,7 @@ func TestConvertServerFromProto(t *testing.T) {
 }
 
 func TestNewServersHostLibrary(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewServerRepository()
 	lib := NewServersHostLibrary(repo)
 

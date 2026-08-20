@@ -8,6 +8,8 @@ import (
 )
 
 func TestIsPEMContent(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		data     []byte
@@ -62,6 +64,7 @@ func TestIsPEMContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := IsPEMContent(tt.data)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -69,6 +72,8 @@ func TestIsPEMContent(t *testing.T) {
 }
 
 func TestDecodePossibleBase64(t *testing.T) {
+	t.Parallel()
+
 	samplePEM := "-----BEGIN CERTIFICATE-----\nMIIBkTCB+wIJAKHBfpEgcMFvMA0GCSqGSIb3DQEBCwUAMBExDzANBgNVBAMMBnRl\nc3RDQTAeFw0yMzAxMDEwMDAwMDBaFw0yNDAxMDEwMDAwMDBaMBExDzANBgNVBAMM\nBnRlc3RDQTBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC5r4pzLyD6YF+SBP4OUMGO\nS2N7ewTNOl6EI7M8W5P2W7U8f5UUhFBli7P9LRlhrmS8N8JG3WqWmJJVZ7E1HQRX\nAgMBAAGjUzBRMB0GA1UdDgQWBBTYKaHXreWqZnTYT0q4r8wmqWYwMTAfBgNVHSME\nGDAWgBTYKaHXreWqZnTYT0q4r8wmqWYwMTAPBgNVHRMBAf8EBTADAQH/MA0GCSqG\nSIb3DQEBCwUAA0EA\n-----END CERTIFICATE-----"
 
 	tests := []struct {
@@ -110,6 +115,7 @@ func TestDecodePossibleBase64(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := DecodePossibleBase64(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -117,6 +123,8 @@ func TestDecodePossibleBase64(t *testing.T) {
 }
 
 func TestDecodePossibleBase64_RealCertificate(t *testing.T) {
+	t.Parallel()
+
 	certPEM := `-----BEGIN CERTIFICATE-----
 MIIBkTCB+wIJAKHBfpEgcMFvMA0GCSqGSIb3DQEBCwUAMBExDzANBgNVBAMMBnRl
 c3RDQTAeFw0yMzAxMDEwMDAwMDBaFw0yNDAxMDEwMDAwMDBaMBExDzANBgNVBAMM
@@ -137,6 +145,8 @@ SIb3DQEBCwUAA0EA
 }
 
 func TestDecodePossibleBase64_PrivateKey(t *testing.T) {
+	t.Parallel()
+
 	keyPEM := `-----BEGIN PRIVATE KEY-----
 MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAua+Kcy8g+mBfkgT+
 DlDBjktje3sEzTpehCOzPFuT9lu1PH+VFIRQZYuz/S0ZYa5kvDfCRt1qlpiSVWex

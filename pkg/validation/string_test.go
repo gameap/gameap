@@ -7,6 +7,7 @@ import (
 )
 
 func TestIsAlphanumeric(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -56,6 +57,7 @@ func TestIsAlphanumeric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := IsAlphanumeric(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -63,6 +65,7 @@ func TestIsAlphanumeric(t *testing.T) {
 }
 
 func TestIsAlphanumericMixed(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -132,6 +135,7 @@ func TestIsAlphanumericMixed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := IsAlphanumericMixed(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -139,6 +143,7 @@ func TestIsAlphanumericMixed(t *testing.T) {
 }
 
 func TestIsSlug(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -218,6 +223,7 @@ func TestIsSlug(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := IsSlug(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -225,6 +231,7 @@ func TestIsSlug(t *testing.T) {
 }
 
 func TestIsASCIILetter(t *testing.T) {
+	t.Parallel()
 	for _, c := range []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
 		assert.True(t, IsASCIILetter(c), "expected %q to be a letter", c)
 	}
@@ -246,6 +253,7 @@ func TestIsASCIILetter(t *testing.T) {
 }
 
 func TestIsRelativeServerPath(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -277,6 +285,7 @@ func TestIsRelativeServerPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.expected, IsRelativeServerPath(tt.input))
 		})
 	}

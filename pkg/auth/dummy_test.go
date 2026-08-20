@@ -25,6 +25,8 @@ import (
 // is still ~1 ms). The assertion is intentionally loose because GC pauses,
 // scheduler noise and warm-up effects can swing the ratio by 2-3× even when
 // the two paths execute the same bcrypt operation.
+//
+//nolint:paralleltest // mutates the package-level bcrypt cost and asserts wall-clock timing ratios
 func TestVerifyDummyPassword_ApproximatesRealVerifyTime(t *testing.T) {
 	t.Cleanup(func() { _ = SetDefaultBcryptCost(DefaultBcryptCost) })
 	require.NoError(t, SetDefaultBcryptCost(MinBcryptCost))
@@ -63,6 +65,8 @@ func TestVerifyDummyPassword_ApproximatesRealVerifyTime(t *testing.T) {
 // candidate string (empty, ASCII, Unicode, oversized). It is a timing
 // equaliser, not an authenticator.
 func TestVerifyDummyPassword_AlwaysReturnsCleanly(t *testing.T) {
+	t.Parallel()
+
 	for _, candidate := range []string{
 		"",
 		"x",

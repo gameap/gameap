@@ -9,6 +9,7 @@ import (
 )
 
 func TestSAMPPlayerManager_ParsePlayers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -55,6 +56,7 @@ func TestSAMPPlayerManager_ParsePlayers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := NewSAMPPlayers()
 
 			got, err := mgr.ParsePlayers(tt.input)
@@ -67,10 +69,12 @@ func TestSAMPPlayerManager_ParsePlayers(t *testing.T) {
 }
 
 func TestSAMPPlayerManager_PlayersCommand(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "players", NewSAMPPlayers().PlayersCommand())
 }
 
 func TestSAMPPlayerManager_ModerationIsNotSupported(t *testing.T) {
+	t.Parallel()
 	mgr := NewSAMPPlayers()
 	player := Player{ID: "0", Name: "Alice", UniqID: "0"}
 

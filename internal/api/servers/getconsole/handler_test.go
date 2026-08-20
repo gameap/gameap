@@ -86,6 +86,7 @@ func (m *mockConsoleLogService) GetConsoleLog(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                 string
 		serverID             string
@@ -759,6 +760,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -879,6 +881,7 @@ func seedServerWithRcon(
 }
 
 func TestHandler_ServeHTTP_masksRconPassword(t *testing.T) {
+	t.Parallel()
 	const launchLine = "./hlds_run -game cs +ip 127.0.0.1 +port 27015 +rcon_password " +
 		testRconPassword + "\nServer running\n"
 
@@ -986,6 +989,7 @@ func TestHandler_ServeHTTP_masksRconPassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
@@ -1038,6 +1042,7 @@ func TestHandler_ServeHTTP_masksRconPassword(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -1058,6 +1063,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestHandler_SanitizeUTF8(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -1087,6 +1093,7 @@ func TestHandler_SanitizeUTF8(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := sanitizeUTF8(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -1094,6 +1101,7 @@ func TestHandler_SanitizeUTF8(t *testing.T) {
 }
 
 func TestNewConsoleResponse(t *testing.T) {
+	t.Parallel()
 	consoleOutput := "Server starting...\nServer online\n"
 	response := newConsoleResponse(consoleOutput)
 

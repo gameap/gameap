@@ -41,6 +41,7 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		serverID       string
@@ -244,6 +245,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -296,6 +298,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -310,6 +313,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestNewQueryResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		result       *query.Result
@@ -380,6 +384,7 @@ func TestNewQueryResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			response := newQueryResponse(tt.result, tt.server)
 
 			assert.Equal(t, tt.wantStatus, response.Status)

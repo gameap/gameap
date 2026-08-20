@@ -71,6 +71,8 @@ func assertSameInstance(t *testing.T, first, second any, msg string) {
 // does not mask the rest, and so any accessor that turns out to bind/dial is
 // trivially identifiable by name.
 func TestContainerLazySingletonSweep(t *testing.T) {
+	t.Parallel()
+
 	type accessor struct {
 		name string
 		get  func(c *Container) any
@@ -179,6 +181,8 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 
 	for _, a := range accessors {
 		t.Run(a.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			// newWiredContainer leaves AuthService unset; createAuthService
 			// panics on an empty value (the paseto default is only applied by
@@ -202,7 +206,11 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 // of representative repositories. newMinimalContainer is used because the
 // inmemory repositories never touch a database handle.
 func TestRepositoryFactoryInMemoryDriver(t *testing.T) {
+	t.Parallel()
+
 	t.Run("server_repository_uses_inmemory_implementation", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{DatabaseDriver: databaseDriverInMemory})
 
@@ -216,6 +224,8 @@ func TestRepositoryFactoryInMemoryDriver(t *testing.T) {
 	})
 
 	t.Run("game_mod_repository_uses_inmemory_implementation", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{DatabaseDriver: databaseDriverInMemory})
 
@@ -235,7 +245,11 @@ func TestRepositoryFactoryInMemoryDriver(t *testing.T) {
 // the in-memory implementation. These tests assert the code as it is — they do
 // not endorse the inconsistency, only fence it so a change is noticed.
 func TestRepositoryFactoryUnknownDriverBehaviour(t *testing.T) {
+	t.Parallel()
+
 	t.Run("create_game_repository_panics_on_unknown_driver", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{DatabaseDriver: "totally-unknown"})
 
@@ -246,6 +260,8 @@ func TestRepositoryFactoryUnknownDriverBehaviour(t *testing.T) {
 	})
 
 	t.Run("create_game_mod_repository_falls_back_to_inmemory_on_unknown_driver", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{DatabaseDriver: "totally-unknown"})
 

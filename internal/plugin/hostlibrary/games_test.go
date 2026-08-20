@@ -13,6 +13,7 @@ import (
 )
 
 func TestGamesService_FindGames(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.GameRepository)
@@ -79,6 +80,7 @@ func TestGamesService_FindGames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewGameRepository()
 			tt.setupRepo(repo)
 
@@ -103,6 +105,7 @@ func TestGamesService_FindGames(t *testing.T) {
 }
 
 func TestGamesService_GetGame(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.GameRepository)
@@ -141,6 +144,7 @@ func TestGamesService_GetGame(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewGameRepository()
 			tt.setupRepo(repo)
 
@@ -162,6 +166,7 @@ func TestGamesService_GetGame(t *testing.T) {
 }
 
 func TestConvertGameToProto(t *testing.T) {
+	t.Parallel()
 	game := &domain.Game{
 		Code:                    "cs",
 		Name:                    "Counter-Strike",
@@ -195,6 +200,7 @@ func TestConvertGameToProto(t *testing.T) {
 }
 
 func TestConvertGameToProto_NilOptionalFields(t *testing.T) {
+	t.Parallel()
 	game := &domain.Game{
 		Code:    "mc",
 		Name:    "Minecraft",
@@ -210,6 +216,7 @@ func TestConvertGameToProto_NilOptionalFields(t *testing.T) {
 }
 
 func TestNewGamesHostLibrary(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameRepository()
 	lib := NewGamesHostLibrary(repo)
 

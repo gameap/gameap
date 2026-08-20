@@ -31,6 +31,8 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		setupAuth      func() context.Context
@@ -204,6 +206,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
@@ -258,6 +262,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ServersResponseFields(t *testing.T) {
+	t.Parallel()
+
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
@@ -356,6 +362,8 @@ func TestHandler_ServersResponseFields(t *testing.T) {
 }
 
 func TestNewServersResponseFromServers(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	games := []domain.Game{
@@ -428,6 +436,8 @@ func TestNewServersResponseFromServers(t *testing.T) {
 }
 
 func TestNewServerResponseFromServer(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	queryPort := 27016
 
@@ -495,6 +505,8 @@ func TestNewServerResponseFromServer(t *testing.T) {
 }
 
 func TestServerResponseWithMissingGameAndGameMod(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	server := &domain.Server{

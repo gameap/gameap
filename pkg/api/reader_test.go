@@ -11,6 +11,8 @@ import (
 )
 
 func TestInputReader_ReadUint(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		vars        map[string]string
@@ -58,6 +60,8 @@ func TestInputReader_ReadUint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			reader := &InputReader{vars: tt.vars}
 
 			result, err := reader.ReadUint(tt.key)
@@ -73,6 +77,8 @@ func TestInputReader_ReadUint(t *testing.T) {
 }
 
 func TestInputReader_ReadString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		vars     map[string]string
@@ -101,6 +107,8 @@ func TestInputReader_ReadString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			reader := &InputReader{vars: tt.vars}
 
 			result, err := reader.ReadString(tt.key)
@@ -112,6 +120,8 @@ func TestInputReader_ReadString(t *testing.T) {
 }
 
 func TestInputReader_ReadList(t *testing.T) {
+	t.Parallel()
+
 	reader := &InputReader{vars: map[string]string{"key": "value"}}
 
 	result, err := reader.ReadList("key")
@@ -121,6 +131,8 @@ func TestInputReader_ReadList(t *testing.T) {
 }
 
 func TestNewInputReader(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/test/123", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "123"})
 
@@ -133,6 +145,8 @@ func TestNewInputReader(t *testing.T) {
 }
 
 func TestNewQueryReader(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/test?name=value", nil)
 
 	reader := NewQueryReader(req)
@@ -144,6 +158,8 @@ func TestNewQueryReader(t *testing.T) {
 }
 
 func TestQueryReader_ReadString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		query    map[string][]string
@@ -178,6 +194,8 @@ func TestQueryReader_ReadString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			reader := &QueryReader{query: tt.query}
 
 			result, err := reader.ReadString(tt.key)
@@ -189,6 +207,8 @@ func TestQueryReader_ReadString(t *testing.T) {
 }
 
 func TestQueryReader_ReadList(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		query    map[string][]string
@@ -253,6 +273,8 @@ func TestQueryReader_ReadList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			reader := &QueryReader{query: tt.query}
 
 			result, err := reader.ReadList(tt.key)
@@ -264,6 +286,8 @@ func TestQueryReader_ReadList(t *testing.T) {
 }
 
 func TestQueryReader_ReadIntList(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		query       map[string][]string
@@ -317,6 +341,8 @@ func TestQueryReader_ReadIntList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			reader := &QueryReader{query: tt.query}
 
 			result, err := reader.ReadIntList(tt.key)
@@ -332,6 +358,8 @@ func TestQueryReader_ReadIntList(t *testing.T) {
 }
 
 func TestQueryReader_ReadUintList(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		query       map[string][]string
@@ -397,6 +425,8 @@ func TestQueryReader_ReadUintList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			reader := &QueryReader{query: tt.query}
 
 			result, err := reader.ReadUintList(tt.key)

@@ -29,6 +29,8 @@ func cfgWithMFA(require bool, hardFailDays int) config.Config {
 }
 
 func TestCompute_NotEnabledForNonAdmins(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	svc := mfanudge.New(cfgWithMFA(true, 30), fixedClock(now))
 
@@ -39,6 +41,8 @@ func TestCompute_NotEnabledForNonAdmins(t *testing.T) {
 }
 
 func TestCompute_NotEnabledWhenUserHas2FA(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	svc := mfanudge.New(cfgWithMFA(true, 30), fixedClock(now))
 
@@ -48,6 +52,8 @@ func TestCompute_NotEnabledWhenUserHas2FA(t *testing.T) {
 }
 
 func TestCompute_NotEnabledWhenOperatorFlagOff(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	svc := mfanudge.New(cfgWithMFA(false, 30), fixedClock(now))
 
@@ -58,6 +64,8 @@ func TestCompute_NotEnabledWhenOperatorFlagOff(t *testing.T) {
 }
 
 func TestCompute_FirstContactRecordsTimestamp(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	svc := mfanudge.New(cfgWithMFA(true, 30), fixedClock(now))
 
@@ -74,6 +82,8 @@ func TestCompute_FirstContactRecordsTimestamp(t *testing.T) {
 }
 
 func TestCompute_SnoozedSuppressesModal(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	shown := now.Add(-2 * 24 * time.Hour) // 2 days ago
 	snooze := now.Add(20 * time.Hour)     // 20 h in the future
@@ -92,6 +102,8 @@ func TestCompute_SnoozedSuppressesModal(t *testing.T) {
 }
 
 func TestCompute_SnoozeExpiredRevealsModal(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	shown := now.Add(-2 * 24 * time.Hour)
 	snooze := now.Add(-1 * time.Hour) // already past
@@ -108,6 +120,8 @@ func TestCompute_SnoozeExpiredRevealsModal(t *testing.T) {
 }
 
 func TestCompute_HardFailOnGracePeriodBoundary(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
 	shown := now.Add(-30 * 24 * time.Hour) // exactly 30 days ago
 
@@ -125,6 +139,8 @@ func TestCompute_HardFailOnGracePeriodBoundary(t *testing.T) {
 }
 
 func TestCompute_HardFailOverridesSnooze(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
 	shown := now.Add(-31 * 24 * time.Hour) // past grace period
 	snooze := now.Add(48 * time.Hour)      // user just snoozed 24h
@@ -142,6 +158,8 @@ func TestCompute_HardFailOverridesSnooze(t *testing.T) {
 }
 
 func TestCompute_HardFailDaysZeroDisablesEscalation(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
 	shown := now.Add(-365 * 24 * time.Hour) // a year ago
 
@@ -158,6 +176,8 @@ func TestCompute_HardFailDaysZeroDisablesEscalation(t *testing.T) {
 }
 
 func TestCompute_DaysRemainingRoundsUp(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 	shown := now.Add(-7*24*time.Hour - 3*time.Hour) // 7 days + 3h ago
 
@@ -174,6 +194,8 @@ func TestCompute_DaysRemainingRoundsUp(t *testing.T) {
 }
 
 func TestSnoozeDuration_Is24Hours(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, 24*time.Hour, mfanudge.SnoozeDuration,
 		"snooze window is documented as 24h — change must update ASVS_L2 doc in lockstep")
 }

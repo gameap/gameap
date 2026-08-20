@@ -9,6 +9,7 @@ import (
 )
 
 func TestFindPlugin_FilterCount(t *testing.T) {
+	t.Parallel()
 	filterType := reflect.TypeFor[FindPlugin]()
 	fieldsCount := filterType.NumField()
 
@@ -37,6 +38,7 @@ func TestFindPlugin_FilterCount(t *testing.T) {
 }
 
 func TestFindPluginByIDs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ids  []domain.Uint64ID
@@ -61,6 +63,7 @@ func TestFindPluginByIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -73,6 +76,7 @@ func TestFindPluginByIDs(t *testing.T) {
 }
 
 func TestFindPluginByNames(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		names []string
@@ -97,6 +101,7 @@ func TestFindPluginByNames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -109,6 +114,7 @@ func TestFindPluginByNames(t *testing.T) {
 }
 
 func TestFindPluginByStatuses(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		statuses []domain.PluginStatus
@@ -133,6 +139,7 @@ func TestFindPluginByStatuses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT

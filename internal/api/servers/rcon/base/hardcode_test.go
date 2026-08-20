@@ -10,6 +10,7 @@ import (
 )
 
 func TestDetermineProtocolByEngine(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		engine    string
@@ -107,6 +108,7 @@ func TestDetermineProtocolByEngine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			protocol, err := DetermineProtocolByEngine(tt.engine)
 
 			if tt.wantError != "" {
@@ -124,6 +126,7 @@ func TestDetermineProtocolByEngine(t *testing.T) {
 }
 
 func TestDetermineProtocolByGameCode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		gameCode  string
@@ -221,6 +224,7 @@ func TestDetermineProtocolByGameCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			protocol, err := DetermineProtocolByGameCode(tt.gameCode)
 
 			if tt.wantError != "" {
@@ -238,6 +242,7 @@ func TestDetermineProtocolByGameCode(t *testing.T) {
 }
 
 func TestDetermineProtocol(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		game      domain.Game
@@ -316,6 +321,7 @@ func TestDetermineProtocol(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			protocol, err := DetermineProtocol(tt.game)
 
 			if tt.wantError != "" {

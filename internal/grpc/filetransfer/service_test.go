@@ -239,6 +239,7 @@ func runUpload(t *testing.T, svc *Service, stream *uploadStream) error {
 }
 
 func TestService_UploadFile_small_payload_is_persisted_to_storage(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	payload := []byte("hello, world")
@@ -272,6 +273,7 @@ func TestService_UploadFile_small_payload_is_persisted_to_storage(t *testing.T) 
 }
 
 func TestService_UploadFile_multiple_chunks_aggregate_into_single_part(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	first := []byte("first-piece")
@@ -310,6 +312,7 @@ func TestService_UploadFile_multiple_chunks_aggregate_into_single_part(t *testin
 }
 
 func TestService_UploadFile_empty_chunks_are_skipped(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	payload := []byte("payload-data")
@@ -345,6 +348,7 @@ func TestService_UploadFile_empty_chunks_are_skipped(t *testing.T) {
 }
 
 func TestService_UploadFile_checksum_mismatch_returns_data_loss(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	payload := []byte("payload")
@@ -382,6 +386,7 @@ func TestService_UploadFile_checksum_mismatch_returns_data_loss(t *testing.T) {
 }
 
 func TestService_UploadFile_missing_metadata_in_first_chunk_returns_invalid_argument(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	stream := newUploadStream(context.Background())
@@ -398,6 +403,7 @@ func TestService_UploadFile_missing_metadata_in_first_chunk_returns_invalid_argu
 }
 
 func TestService_UploadFile_first_recv_error_returns_invalid_argument(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	stream := newUploadStream(context.Background())
@@ -413,6 +419,7 @@ func TestService_UploadFile_first_recv_error_returns_invalid_argument(t *testing
 }
 
 func TestService_UploadFile_stream_canceled_mid_upload_unregisters_transfer(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -457,6 +464,7 @@ func TestService_UploadFile_stream_canceled_mid_upload_unregisters_transfer(t *t
 }
 
 func TestService_UploadFile_publishes_transfer_complete_on_success(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	payload := []byte("ok-payload")
@@ -505,6 +513,7 @@ func TestService_UploadFile_publishes_transfer_complete_on_success(t *testing.T)
 }
 
 func TestService_UploadFile_publishes_transfer_complete_on_checksum_mismatch(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	payload := []byte("bad-payload")
@@ -550,6 +559,7 @@ func TestService_UploadFile_publishes_transfer_complete_on_checksum_mismatch(t *
 }
 
 func TestService_UploadFile_sets_registry_state_on_success(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	payload := []byte("registered-data")
@@ -586,6 +596,7 @@ func TestService_UploadFile_sets_registry_state_on_success(t *testing.T) {
 }
 
 func TestService_UploadFile_sets_registry_error_on_checksum_mismatch(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	state := ts.reg.Register(testTransferID)
@@ -614,6 +625,7 @@ func TestService_UploadFile_sets_registry_error_on_checksum_mismatch(t *testing.
 }
 
 func TestService_UploadFile_publisher_error_does_not_mask_success(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storage := files.NewInMemoryFileManager()
 	logger := slog.New(slog.DiscardHandler)
@@ -641,6 +653,7 @@ func TestService_UploadFile_publisher_error_does_not_mask_success(t *testing.T) 
 }
 
 func TestService_UploadFile_nil_logger_falls_back_to_default(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storage := files.NewInMemoryFileManager()
 	bus := memory.New()
@@ -670,6 +683,7 @@ func TestService_UploadFile_nil_logger_falls_back_to_default(t *testing.T) {
 }
 
 func TestService_DownloadFile_streams_all_chunks_with_correct_offsets(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	const transferID = "download-1"
@@ -711,6 +725,7 @@ func TestService_DownloadFile_streams_all_chunks_with_correct_offsets(t *testing
 }
 
 func TestService_DownloadFile_final_chunk_carries_is_final_and_checksum(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storage := eofTogetherStorage{InMemoryFileManager: files.NewInMemoryFileManager()}
 	bus := memory.New()
@@ -740,6 +755,7 @@ func TestService_DownloadFile_final_chunk_carries_is_final_and_checksum(t *testi
 }
 
 func TestService_DownloadFile_offset_skips_leading_bytes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	const transferID = "download-offset"
@@ -770,6 +786,7 @@ func TestService_DownloadFile_offset_skips_leading_bytes(t *testing.T) {
 }
 
 func TestService_DownloadFile_unknown_path_returns_not_found(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	stream := newDownloadStream(context.Background())
@@ -784,6 +801,7 @@ func TestService_DownloadFile_unknown_path_returns_not_found(t *testing.T) {
 }
 
 func TestService_DownloadFile_canceled_context_returns_canceled(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	const transferID = "download-cancel"
@@ -807,6 +825,7 @@ func TestService_DownloadFile_canceled_context_returns_canceled(t *testing.T) {
 }
 
 func TestService_DownloadFile_send_error_returns_internal(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	const transferID = "download-senderr"
@@ -828,6 +847,7 @@ func TestService_DownloadFile_send_error_returns_internal(t *testing.T) {
 }
 
 func TestService_CancelTransfer_unknown_id_returns_false(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 
@@ -839,6 +859,7 @@ func TestService_CancelTransfer_unknown_id_returns_false(t *testing.T) {
 }
 
 func TestService_CancelTransfer_known_id_invokes_cancel_func(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -858,6 +879,7 @@ func TestService_CancelTransfer_known_id_invokes_cancel_func(t *testing.T) {
 }
 
 func TestService_CancelAll_cancels_every_active_transfer(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	cancels := make([]context.CancelFunc, 0, 3)
@@ -885,6 +907,7 @@ func TestService_CancelAll_cancels_every_active_transfer(t *testing.T) {
 }
 
 func TestService_publishTransferComplete_emits_on_expected_channel(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 
@@ -917,6 +940,7 @@ func TestService_publishTransferComplete_emits_on_expected_channel(t *testing.T)
 }
 
 func TestService_writeSentinel_persists_done_info(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	const transferID = "sentinel-1"
@@ -940,6 +964,7 @@ func TestService_writeSentinel_persists_done_info(t *testing.T) {
 }
 
 func TestService_WaitForCompletion_returns_immediately_when_idle(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 
@@ -960,6 +985,7 @@ func TestService_WaitForCompletion_returns_immediately_when_idle(t *testing.T) {
 }
 
 func TestTransferIDFromListEntry(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		entry string
@@ -1004,12 +1030,14 @@ func TestTransferIDFromListEntry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.want, transferIDFromListEntry(tt.entry))
 		})
 	}
 }
 
 func TestService_cleanupStaleTransfers_deletes_completed_transfer_files(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	ctx := context.Background()
@@ -1029,6 +1057,7 @@ func TestService_cleanupStaleTransfers_deletes_completed_transfer_files(t *testi
 }
 
 func TestService_cleanupStaleTransfers_preserves_in_flight_transfer(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	ctx := context.Background()
@@ -1052,6 +1081,7 @@ func TestService_cleanupStaleTransfers_preserves_in_flight_transfer(t *testing.T
 }
 
 func TestService_cleanupStaleTransfers_dedupes_multiple_entries_per_transfer(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	ctx := context.Background()
@@ -1074,6 +1104,7 @@ func TestService_cleanupStaleTransfers_dedupes_multiple_entries_per_transfer(t *
 }
 
 func TestService_cleanupStaleTransfers_empty_storage_is_noop(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 
@@ -1082,6 +1113,7 @@ func TestService_cleanupStaleTransfers_empty_storage_is_noop(t *testing.T) {
 }
 
 func TestService_cleanupStaleTransfers_canceled_context_returns_ctx_err(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ts := newTestService(t)
 	ctx := context.Background()

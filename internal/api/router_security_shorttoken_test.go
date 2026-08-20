@@ -62,6 +62,8 @@ func seedShortLivedToken(t *testing.T, env *securityTestEnv, user *domain.User) 
 // must clear auth, the short-lived scope guard, and the admin gate (it must
 // NOT be 401 or 403); the only thing that may still fail is the absent daemon
 // backend in the in-memory container, which is not the behavior under test.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_ShortLivedToken_AuthenticatesOnOptedInRoute(t *testing.T) {
 	// ARRANGE
 	env, recorder := setupAuditRouterEnv(t)
@@ -91,6 +93,8 @@ func TestRouterSecurity_ShortLivedToken_AuthenticatesOnOptedInRoute(t *testing.T
 // (a route that did NOT opt in) must be refused with 403, the handler must not
 // run, and the denial must be audited with the stable shorttoken_scope reason
 // attributed to the authenticated principal.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_ShortLivedToken_DeniedOnNonOptedInRoute(t *testing.T) {
 	// ARRANGE
 	env, recorder := setupAuditRouterEnv(t)
@@ -121,6 +125,8 @@ func TestRouterSecurity_ShortLivedToken_DeniedOnNonOptedInRoute(t *testing.T) {
 // API2:2023. End-to-end through the real router, a short-lived token must
 // authenticate at most once: the first consume deletes the cache entry, so a
 // second presentation of the same token on the same opted-in route is a 401.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_ShortLivedToken_SingleUseAcrossRouter(t *testing.T) {
 	// ARRANGE
 	env, _ := setupAuditRouterEnv(t)

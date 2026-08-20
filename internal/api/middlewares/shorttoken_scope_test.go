@@ -25,6 +25,7 @@ import (
 )
 
 func TestShortLivedScopeMiddleware(t *testing.T) {
+	t.Parallel()
 	authedUser := &domain.User{ID: 1, Login: "alice"}
 
 	tests := []struct {
@@ -80,6 +81,7 @@ func TestShortLivedScopeMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &auditCapture{}
 			mw := NewShortLivedScopeMiddleware(api.NewResponder(), recorder)
@@ -113,6 +115,7 @@ func TestShortLivedScopeMiddleware(t *testing.T) {
 // TestShortLivedScopeMiddleware_DeniedBeforeHandler covers OWASP API2:2023:
 // the denied request must never reach the wrapped handler.
 func TestShortLivedScopeMiddleware_DeniedBeforeHandler(t *testing.T) {
+	t.Parallel()
 	reached := false
 	mw := NewShortLivedScopeMiddleware(api.NewResponder(), &auditCapture{})
 	handler := mw.Middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

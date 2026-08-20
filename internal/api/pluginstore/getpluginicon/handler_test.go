@@ -19,6 +19,7 @@ import (
 var pngData = []byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01, 0x02, 0x03}
 
 func TestGetPluginIcon(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		upstreamStatus  int
@@ -78,6 +79,7 @@ func TestGetPluginIcon(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "/plugins/hexeditor4jm2/icon", r.URL.Path)
 				if tt.upstreamType != "" {
@@ -119,6 +121,7 @@ func TestGetPluginIcon(t *testing.T) {
 }
 
 func TestGetPluginIcon_cache_hit_avoids_second_upstream_call(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	var iconCalls atomic.Int32
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

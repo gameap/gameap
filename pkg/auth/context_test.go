@@ -11,7 +11,11 @@ import (
 )
 
 func TestSessionFromContext(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_session_in_context", func(t *testing.T) {
+		t.Parallel()
+
 		testUser := &domain.User{
 			ID:    1,
 			Login: "testuser",
@@ -31,6 +35,8 @@ func TestSessionFromContext(t *testing.T) {
 	})
 
 	t.Run("without_session_in_context", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := context.Background()
 
 		session := auth.SessionFromContext(ctx)
@@ -39,6 +45,8 @@ func TestSessionFromContext(t *testing.T) {
 	})
 
 	t.Run("with_wrong_type_in_context", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := context.WithValue(context.Background(), auth.SessionKey{}, "not a session")
 
 		session := auth.SessionFromContext(ctx)
@@ -48,7 +56,11 @@ func TestSessionFromContext(t *testing.T) {
 }
 
 func TestContextWithSession(t *testing.T) {
+	t.Parallel()
+
 	t.Run("stores_session_in_context", func(t *testing.T) {
+		t.Parallel()
+
 		session := &auth.Session{
 			ID:    "session-123",
 			Login: "admin",
@@ -70,6 +82,8 @@ func TestContextWithSession(t *testing.T) {
 	})
 
 	t.Run("stores_nil_session", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := auth.ContextWithSession(context.Background(), nil)
 
 		session := auth.SessionFromContext(ctx)
@@ -79,6 +93,8 @@ func TestContextWithSession(t *testing.T) {
 }
 
 func TestSession_IsAuthenticated(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		session  *auth.Session
@@ -108,6 +124,8 @@ func TestSession_IsAuthenticated(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.session.IsAuthenticated()
 
 			assert.Equal(t, tt.expected, result)
@@ -116,6 +134,8 @@ func TestSession_IsAuthenticated(t *testing.T) {
 }
 
 func TestSession_IsTokenSession(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		session  *auth.Session
@@ -145,6 +165,8 @@ func TestSession_IsTokenSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.session.IsTokenSession()
 
 			assert.Equal(t, tt.expected, result)

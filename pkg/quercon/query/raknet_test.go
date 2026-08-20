@@ -9,6 +9,7 @@ import (
 )
 
 func TestParseRakNetResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      []byte
@@ -58,6 +59,7 @@ func TestParseRakNetResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			err := parseRakNetResponse(tt.input, result)
 
@@ -78,6 +80,7 @@ func TestParseRakNetResponse(t *testing.T) {
 }
 
 func TestParseRakNetPayload(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		payload    string
@@ -121,6 +124,7 @@ func TestParseRakNetPayload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			err := parseRakNetPayload(tt.payload, result)
 
@@ -141,6 +145,7 @@ func TestParseRakNetPayload(t *testing.T) {
 }
 
 func TestBuildRakNetPingPacket(t *testing.T) {
+	t.Parallel()
 	packet := buildRakNetPingPacket()
 
 	assert.Len(t, packet, 25)

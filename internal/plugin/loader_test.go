@@ -89,6 +89,7 @@ func (m *mockPluginManager) Shutdown(ctx context.Context) error {
 }
 
 func TestLoader_LoadAll_FromRepository(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -119,6 +120,7 @@ func TestLoader_LoadAll_FromRepository(t *testing.T) {
 }
 
 func TestLoader_LoadAll_WithAutoLoad(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{
 		loadFunc: func(_ context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
@@ -152,6 +154,7 @@ func TestLoader_LoadAll_WithAutoLoad(t *testing.T) {
 }
 
 func TestLoader_Load_FileNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -165,6 +168,7 @@ func TestLoader_Load_FileNotFound(t *testing.T) {
 }
 
 func TestLoader_ProcessAutoLoad_AddsToDatabase(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -186,6 +190,7 @@ func TestLoader_ProcessAutoLoad_AddsToDatabase(t *testing.T) {
 }
 
 func TestLoader_ProcessAutoLoad_ActivatesExisting(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -214,6 +219,7 @@ func TestLoader_ProcessAutoLoad_ActivatesExisting(t *testing.T) {
 }
 
 func TestLoader_ProcessAutoLoad_MissingFile(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -227,6 +233,7 @@ func TestLoader_ProcessAutoLoad_MissingFile(t *testing.T) {
 }
 
 func TestLoader_GetPluginManagerID(t *testing.T) {
+	t.Parallel()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
 	pluginRepo := inmemory.NewPluginRepository()
@@ -246,6 +253,7 @@ func TestLoader_GetPluginManagerID(t *testing.T) {
 }
 
 func TestLoader_GetDBPluginID(t *testing.T) {
+	t.Parallel()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
 	pluginRepo := inmemory.NewPluginRepository()
@@ -265,6 +273,7 @@ func TestLoader_GetDBPluginID(t *testing.T) {
 }
 
 func TestLoader_Unload(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	unloadCalled := false
 	manager := &mockPluginManager{
@@ -286,11 +295,13 @@ func TestLoader_Unload(t *testing.T) {
 }
 
 func TestParsePluginID_Numeric(t *testing.T) {
+	t.Parallel()
 	id := pkgplugin.ParsePluginID("12345")
 	assert.Equal(t, domain.Uint64ID(12345), id)
 }
 
 func TestParsePluginID_Base64(t *testing.T) {
+	t.Parallel()
 	var num uint64 = 9876543210
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, num)
@@ -301,6 +312,7 @@ func TestParsePluginID_Base64(t *testing.T) {
 }
 
 func TestParsePluginID_Hash(t *testing.T) {
+	t.Parallel()
 	h := fnv.New64a()
 	_, _ = h.Write([]byte("arbitrary-plugin-id"))
 	expected := domain.Uint64ID(h.Sum64())
@@ -310,6 +322,7 @@ func TestParsePluginID_Hash(t *testing.T) {
 }
 
 func TestLoader_LoadAll_UpdatesLastLoadedAt(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()

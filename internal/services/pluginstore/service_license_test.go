@@ -21,6 +21,8 @@ var (
 )
 
 func TestService_HasLicenseKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		licenseKey string
@@ -32,6 +34,8 @@ func TestService_HasLicenseKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			service := NewService("https://example.com", tt.licenseKey, nil)
 
@@ -42,7 +46,11 @@ func TestService_HasLicenseKey(t *testing.T) {
 }
 
 func TestService_ValidateLicense(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no_license_key_returns_nil_without_http_call", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		var callCount atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -63,6 +71,8 @@ func TestService_ValidateLicense(t *testing.T) {
 	})
 
 	t.Run("validates_license_and_caches_result", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		var callCount atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +108,8 @@ func TestService_ValidateLicense(t *testing.T) {
 	})
 
 	t.Run("returns_cached_validation", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		var callCount atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -127,6 +139,8 @@ func TestService_ValidateLicense(t *testing.T) {
 	})
 
 	t.Run("api_error_is_returned", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusForbidden)
@@ -147,7 +161,11 @@ func TestService_ValidateLicense(t *testing.T) {
 }
 
 func TestService_GetPluginIcon(t *testing.T) {
+	t.Parallel()
+
 	t.Run("downloads_icon_and_caches_it", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		var callCount atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -179,6 +197,8 @@ func TestService_GetPluginIcon(t *testing.T) {
 	})
 
 	t.Run("returns_cached_icon", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		var callCount atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -208,6 +228,8 @@ func TestService_GetPluginIcon(t *testing.T) {
 	})
 
 	t.Run("http_error_status_404", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
@@ -226,6 +248,8 @@ func TestService_GetPluginIcon(t *testing.T) {
 	})
 
 	t.Run("works_without_cache", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		var callCount atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -252,6 +276,8 @@ func TestService_GetPluginIcon(t *testing.T) {
 }
 
 func TestService_DownloadPlugin_LicenseKeyHeader(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "test-license-key", r.Header.Get("X-License-Key"))
@@ -272,7 +298,11 @@ func TestService_DownloadPlugin_LicenseKeyHeader(t *testing.T) {
 }
 
 func TestService_GetPlugins_CacheAndFilters(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_cached_plugins", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		var callCount atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -305,6 +335,8 @@ func TestService_GetPlugins_CacheAndFilters(t *testing.T) {
 	})
 
 	t.Run("sends_category_and_label_filters", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "files", r.URL.Query().Get("category"))
@@ -330,6 +362,8 @@ func TestService_GetPlugins_CacheAndFilters(t *testing.T) {
 	})
 
 	t.Run("http_error_status_500", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -349,6 +383,8 @@ func TestService_GetPlugins_CacheAndFilters(t *testing.T) {
 }
 
 func TestService_GetPlugin_Cached(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	var callCount atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -377,6 +413,8 @@ func TestService_GetPlugin_Cached(t *testing.T) {
 }
 
 func TestService_GetPluginVersions_Cached(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	var callCount atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -409,6 +447,8 @@ func TestService_GetPluginVersions_Cached(t *testing.T) {
 }
 
 func TestService_InvalidBaseURL(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		call        func(s *Service) error
@@ -445,6 +485,8 @@ func TestService_InvalidBaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE — a space in the host makes url.Parse reject the request URL.
 			service := NewService("http://invalid host", "", nil)
 
@@ -470,6 +512,8 @@ func (c *failingSetCache) Set(_ context.Context, _ string, _ any, _ ...cache.Opt
 }
 
 func TestService_SetCache_CacheErrorIsLogged(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	service := NewService("", "", &failingSetCache{
 		Cache:  cache.NewInMemory(),
@@ -491,6 +535,8 @@ func (errorCloser) Close() error {
 }
 
 func TestCloseBody_CloseErrorIsLogged(t *testing.T) {
+	t.Parallel()
+
 	// ACT & ASSERT
 	assert.NotPanics(t, func() {
 		closeBody(errorCloser{Reader: io.LimitReader(nil, 0)})

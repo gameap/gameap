@@ -46,7 +46,9 @@ func resolveOnSend(
 }
 
 func TestService_RequestFileRead(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 
@@ -59,6 +61,7 @@ func TestService_RequestFileRead(t *testing.T) {
 	})
 
 	t.Run("returns_response_when_daemon_resolves_request", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
@@ -92,6 +95,7 @@ func TestService_RequestFileRead(t *testing.T) {
 	})
 
 	t.Run("ctx_cancel_before_response_returns_ctx_err", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		connectAndRegisterSession(t, deps)
@@ -108,7 +112,9 @@ func TestService_RequestFileRead(t *testing.T) {
 }
 
 func TestService_RequestFileWrite(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		err := svc.RequestFileWrite(context.Background(), 1, "/x", []byte("a"), 0o644, false, daemon.OwnerOptions{})
 		require.Error(t, err)
@@ -116,6 +122,7 @@ func TestService_RequestFileWrite(t *testing.T) {
 	})
 
 	t.Run("success_response_returns_nil", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -133,6 +140,7 @@ func TestService_RequestFileWrite(t *testing.T) {
 	})
 
 	t.Run("error_response_propagates_error_text", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -152,7 +160,9 @@ func TestService_RequestFileWrite(t *testing.T) {
 }
 
 func TestService_RequestFileList(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		_, err := svc.RequestFileList(context.Background(), 1, "/", false, "*")
 		require.Error(t, err)
@@ -160,6 +170,7 @@ func TestService_RequestFileList(t *testing.T) {
 	})
 
 	t.Run("returns_response_on_resolution", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -187,7 +198,9 @@ func TestService_RequestFileList(t *testing.T) {
 }
 
 func TestService_RequestFileOperation(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		_, err := svc.RequestFileOperation(context.Background(), 1, &proto.FileOperationRequest{})
 		require.Error(t, err)
@@ -195,6 +208,7 @@ func TestService_RequestFileOperation(t *testing.T) {
 	})
 
 	t.Run("returns_response_on_resolution", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -223,7 +237,9 @@ func TestService_RequestFileOperation(t *testing.T) {
 }
 
 func TestService_RequestCommand(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		_, err := svc.RequestCommand(context.Background(), 1, &proto.CommandRequest{})
 		require.Error(t, err)
@@ -231,6 +247,7 @@ func TestService_RequestCommand(t *testing.T) {
 	})
 
 	t.Run("returns_command_result_when_resolved", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -251,7 +268,9 @@ func TestService_RequestCommand(t *testing.T) {
 }
 
 func TestService_RequestStatus(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		_, err := svc.RequestStatus(context.Background(), 1)
 		require.Error(t, err)
@@ -259,6 +278,7 @@ func TestService_RequestStatus(t *testing.T) {
 	})
 
 	t.Run("returns_status_on_resolution", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -280,7 +300,9 @@ func TestService_RequestStatus(t *testing.T) {
 }
 
 func TestService_RequestConsoleLog(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		_, err := svc.RequestConsoleLog(context.Background(), 1, 5, 100)
 		require.Error(t, err)
@@ -288,6 +310,7 @@ func TestService_RequestConsoleLog(t *testing.T) {
 	})
 
 	t.Run("returns_log_on_resolution", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -314,7 +337,9 @@ func TestService_RequestConsoleLog(t *testing.T) {
 }
 
 func TestService_RequestHTTPProxy(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		_, err := svc.RequestHTTPProxy(context.Background(), 1, &proto.HTTPProxyRequest{})
 		require.Error(t, err)
@@ -322,6 +347,7 @@ func TestService_RequestHTTPProxy(t *testing.T) {
 	})
 
 	t.Run("connected_without_capability_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		// no capability advertised
 		connectAndRegisterSession(t, deps)
@@ -332,6 +358,7 @@ func TestService_RequestHTTPProxy(t *testing.T) {
 	})
 
 	t.Run("returns_response_when_capability_present", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps, "http_proxy")
 
@@ -353,7 +380,9 @@ func TestService_RequestHTTPProxy(t *testing.T) {
 }
 
 func TestService_RequestFileUploadTask(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		err := svc.RequestFileUploadTask(context.Background(), 1, "tx-1", "/p", "abc", 100, 0, daemon.OwnerOptions{})
 		require.Error(t, err)
@@ -361,6 +390,7 @@ func TestService_RequestFileUploadTask(t *testing.T) {
 	})
 
 	t.Run("success_response_returns_nil", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -378,6 +408,7 @@ func TestService_RequestFileUploadTask(t *testing.T) {
 	})
 
 	t.Run("error_response_propagates_error_text", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -397,7 +428,9 @@ func TestService_RequestFileUploadTask(t *testing.T) {
 }
 
 func TestService_RequestFileDownloadTask(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		err := svc.RequestFileDownloadTask(context.Background(), 1, "tx-1", "/src")
 		require.Error(t, err)
@@ -405,6 +438,7 @@ func TestService_RequestFileDownloadTask(t *testing.T) {
 	})
 
 	t.Run("success_response_returns_nil", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -422,6 +456,7 @@ func TestService_RequestFileDownloadTask(t *testing.T) {
 	})
 
 	t.Run("error_response_propagates_error_text", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -441,7 +476,9 @@ func TestService_RequestFileDownloadTask(t *testing.T) {
 }
 
 func TestService_RequestArchive(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 
 		_, err := svc.RequestArchive(context.Background(), 999, &proto.ArchiveRequest{RequestId: "op-1"})
@@ -451,6 +488,7 @@ func TestService_RequestArchive(t *testing.T) {
 	})
 
 	t.Run("empty_request_id_rejected", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		connectAndRegisterSession(t, deps)
 
@@ -461,6 +499,7 @@ func TestService_RequestArchive(t *testing.T) {
 	})
 
 	t.Run("caller_supplied_request_id_goes_on_the_wire_and_resolves", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -501,6 +540,7 @@ func TestService_RequestArchive(t *testing.T) {
 	})
 
 	t.Run("unsuccessful_response_is_returned_not_converted_to_error", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 
@@ -522,6 +562,7 @@ func TestService_RequestArchive(t *testing.T) {
 	})
 
 	t.Run("ctx_cancel_before_response_returns_ctx_err", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		connectAndRegisterSession(t, deps)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -535,7 +576,9 @@ func TestService_RequestArchive(t *testing.T) {
 }
 
 func TestService_RequestArchiveCancel(t *testing.T) {
+	t.Parallel()
 	t.Run("not_connected_returns_error", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 
 		err := svc.RequestArchiveCancel(999, "op-1", "test")
@@ -545,6 +588,7 @@ func TestService_RequestArchiveCancel(t *testing.T) {
 	})
 
 	t.Run("sends_cancel_with_operation_id_and_reason", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		stream := connectAndRegisterSession(t, deps)
 

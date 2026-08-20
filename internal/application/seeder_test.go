@@ -68,7 +68,11 @@ func setupSeederContainer(t *testing.T) *Container {
 }
 
 func TestSeedClientCertificates(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates_client_certificate_when_none_exist", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := setupSeederContainer(t)
 		ctx := context.Background()
@@ -96,6 +100,8 @@ func TestSeedClientCertificates(t *testing.T) {
 	})
 
 	t.Run("is_idempotent_when_certificate_already_exists", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := setupSeederContainer(t)
 		ctx := context.Background()
@@ -120,7 +126,11 @@ func TestSeedClientCertificates(t *testing.T) {
 }
 
 func TestSeedRoles(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates_admin_and_user_roles_when_empty", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := setupSeederContainer(t)
 		ctx := context.Background()
@@ -145,6 +155,8 @@ func TestSeedRoles(t *testing.T) {
 	})
 
 	t.Run("admin_role_has_admin_permissions_ability", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := setupSeederContainer(t)
 		ctx := context.Background()
@@ -174,6 +186,8 @@ func TestSeedRoles(t *testing.T) {
 	})
 
 	t.Run("is_idempotent_when_roles_already_exist", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := setupSeederContainer(t)
 		ctx := context.Background()
@@ -329,7 +343,11 @@ func TestSeedUsers(t *testing.T) {
 }
 
 func TestSeedGamesAndMods(t *testing.T) {
+	t.Parallel()
+
 	t.Run("populates_games_from_fallback_when_global_api_unreachable", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := setupSeederContainer(t)
 		ctx := context.Background()
@@ -346,6 +364,8 @@ func TestSeedGamesAndMods(t *testing.T) {
 	})
 
 	t.Run("is_idempotent_when_games_already_exist", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := setupSeederContainer(t)
 		ctx := context.Background()

@@ -65,6 +65,7 @@ func subscribeOnce(t *testing.T, ps pubsub.PubSub, channel string) (
 }
 
 func TestAttachHandler_HandleAttachStarted_publishes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -107,6 +108,7 @@ func TestAttachHandler_HandleAttachStarted_publishes(t *testing.T) {
 }
 
 func TestAttachHandler_HandleAttachStarted_nilPublisher_returnsNil(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewAttachHandler(nil, slog.Default())
 
@@ -121,6 +123,7 @@ func TestAttachHandler_HandleAttachStarted_nilPublisher_returnsNil(t *testing.T)
 }
 
 func TestAttachHandler_HandleAttachOutput_publishesData(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -159,6 +162,7 @@ func TestAttachHandler_HandleAttachOutput_publishesData(t *testing.T) {
 }
 
 func TestAttachHandler_HandleAttachOutput_nilPublisher_returnsNil(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewAttachHandler(nil, slog.Default())
 
@@ -173,6 +177,7 @@ func TestAttachHandler_HandleAttachOutput_nilPublisher_returnsNil(t *testing.T) 
 }
 
 func TestAttachHandler_HandleAttachClosed_publishesAndUntracks(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -227,6 +232,7 @@ func TestAttachHandler_HandleAttachClosed_publishesAndUntracks(t *testing.T) {
 }
 
 func TestAttachHandler_HandleAttachClosed_nilPublisher_returnsNilAndUntracks(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewAttachHandler(nil, slog.Default())
 	const sessionID = "sess-nil-pub"
@@ -247,6 +253,7 @@ func TestAttachHandler_HandleAttachClosed_nilPublisher_returnsNilAndUntracks(t *
 }
 
 func TestAttachHandler_TrackUntrackSession(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(h *AttachHandler)
@@ -305,6 +312,7 @@ func TestAttachHandler_TrackUntrackSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := NewAttachHandler(nil, slog.Default())
 
@@ -320,6 +328,7 @@ func TestAttachHandler_TrackUntrackSession(t *testing.T) {
 }
 
 func TestAttachHandler_PublishError_isLoggedNotReturned(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewAttachHandler(errPublisher{}, slog.Default())
 	ctx := context.Background()
@@ -336,6 +345,7 @@ func TestAttachHandler_PublishError_isLoggedNotReturned(t *testing.T) {
 }
 
 func TestAttachHandler_NewAttachHandler_nilLogger_usesDefault(t *testing.T) {
+	t.Parallel()
 	// ARRANGE + ACT
 	handler := NewAttachHandler(nil, nil)
 
@@ -348,6 +358,7 @@ func TestAttachHandler_NewAttachHandler_nilLogger_usesDefault(t *testing.T) {
 }
 
 func TestAttachHandler_TrackUntrack_concurrentAccess(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewAttachHandler(nil, slog.Default())
 

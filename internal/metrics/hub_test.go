@@ -144,6 +144,7 @@ func eventually(t *testing.T, check func() bool) {
 }
 
 func TestHub_Subscribe_StartsPollOnHolder(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -167,6 +168,7 @@ func TestHub_Subscribe_StartsPollOnHolder(t *testing.T) {
 }
 
 func TestHub_Unsubscribe_DebouncedStopOfPoll(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -194,6 +196,7 @@ func TestHub_Unsubscribe_DebouncedStopOfPoll(t *testing.T) {
 }
 
 func TestHub_LiveSample_FanoutAndRing(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -238,6 +241,7 @@ func TestHub_LiveSample_FanoutAndRing(t *testing.T) {
 }
 
 func TestHub_GetHistory_TimesOut(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -254,6 +258,7 @@ func TestHub_GetHistory_TimesOut(t *testing.T) {
 }
 
 func TestHub_GetHistory_NotConnected(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -268,6 +273,7 @@ func TestHub_GetHistory_NotConnected(t *testing.T) {
 }
 
 func TestHub_GetHistory_ResolvesViaResponseChannel(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -327,6 +333,7 @@ func TestHub_GetHistory_ResolvesViaResponseChannel(t *testing.T) {
 }
 
 func TestHub_GetHistory_PropagatesErrorPayload(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -367,6 +374,7 @@ func TestHub_GetHistory_PropagatesErrorPayload(t *testing.T) {
 }
 
 func TestHub_GetHistory_SendError(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -386,6 +394,7 @@ func TestHub_GetHistory_SendError(t *testing.T) {
 }
 
 func TestHub_RemoteHeartbeat_AggregatesRefcount(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -420,6 +429,7 @@ func TestHub_RemoteHeartbeat_AggregatesRefcount(t *testing.T) {
 }
 
 func TestHub_LiveSample_DropsPayloadOnNodeIDMismatch(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -463,6 +473,7 @@ func TestHub_LiveSample_DropsPayloadOnNodeIDMismatch(t *testing.T) {
 }
 
 func TestHub_GetHistory_ClampsWindowToMax(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -488,6 +499,7 @@ func TestHub_GetHistory_ClampsWindowToMax(t *testing.T) {
 }
 
 func TestHub_Stop_ClosesSubscriberChannels(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -520,6 +532,7 @@ func TestHub_Stop_ClosesSubscriberChannels(t *testing.T) {
 }
 
 func TestHub_Stop_StopsPolling(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 
@@ -554,6 +567,7 @@ func TestHub_Stop_StopsPolling(t *testing.T) {
 }
 
 func TestHub_Stop_IsIdempotent(t *testing.T) {
+	t.Parallel()
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 

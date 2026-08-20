@@ -25,6 +25,8 @@ const (
 )
 
 func TestService_Root(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setup     func(inner *files.InMemoryFileManager) files.FileManager
@@ -67,6 +69,7 @@ func TestService_Root(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			fm := tt.setup(files.NewInMemoryFileManager())
 			service := NewService(fm)
@@ -99,6 +102,8 @@ func TestService_Root(t *testing.T) {
 }
 
 func TestService_RootKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setup     func(inner *files.InMemoryFileManager) files.FileManager
@@ -141,6 +146,7 @@ func TestService_RootKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			fm := tt.setup(files.NewInMemoryFileManager())
 			service := NewService(fm)
@@ -169,6 +175,8 @@ func TestService_RootKey(t *testing.T) {
 }
 
 func TestService_Sign(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// setup returns the FileManager and the CSR to sign. An empty csrPEM
@@ -287,6 +295,7 @@ func TestService_Sign(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			fm, csrPEM := tt.setup(t)
 			service := NewService(fm)
@@ -326,6 +335,8 @@ func TestService_Sign(t *testing.T) {
 }
 
 func TestService_Generate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		certificatePath string
@@ -413,6 +424,7 @@ func TestService_Generate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			inner := files.NewInMemoryFileManager()
 			var writes []string
@@ -467,6 +479,8 @@ func TestService_Generate(t *testing.T) {
 }
 
 func TestService_EnsureGenerated(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// setup configures the FileManager and returns it together with a
@@ -580,6 +594,7 @@ func TestService_EnsureGenerated(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			inner := files.NewInMemoryFileManager()
 			var leafWrites []string
@@ -625,6 +640,8 @@ func TestService_EnsureGenerated(t *testing.T) {
 }
 
 func TestService_GenerateInMemory(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		opts *SignOptions
@@ -650,6 +667,7 @@ func TestService_GenerateInMemory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			inner := files.NewInMemoryFileManager()
 			var writes []string
@@ -702,6 +720,8 @@ func TestService_GenerateInMemory(t *testing.T) {
 }
 
 func TestService_Fingerprint(t *testing.T) {
+	t.Parallel()
+
 	wellFormedPEMBadCert := string(pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: []byte("this is valid base64 but not a DER certificate"),
@@ -739,6 +759,7 @@ func TestService_Fingerprint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			fm := files.NewInMemoryFileManager()
 			service := NewService(fm)
@@ -773,6 +794,8 @@ func TestService_Fingerprint(t *testing.T) {
 }
 
 func TestService_Fingerprint_Consistency(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	fm := files.NewInMemoryFileManager()
 	service := NewService(fm)
@@ -793,6 +816,8 @@ func TestService_Fingerprint_Consistency(t *testing.T) {
 }
 
 func TestService_RootGeneration_Persistence(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	fm := files.NewInMemoryFileManager()
 	service := NewService(fm)
@@ -817,6 +842,8 @@ func TestService_RootGeneration_Persistence(t *testing.T) {
 }
 
 func TestCertificateMatchesSANs(t *testing.T) {
+	t.Parallel()
+
 	withSANsCertPEM := func(t *testing.T, opts *SignOptions) []byte {
 		t.Helper()
 
@@ -923,6 +950,7 @@ func TestCertificateMatchesSANs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			certPEM := tt.certPEM(t)
 
@@ -936,6 +964,8 @@ func TestCertificateMatchesSANs(t *testing.T) {
 }
 
 func TestApplySignOptions(t *testing.T) {
+	t.Parallel()
+
 	emailOID := []int{1, 2, 840, 113549, 1, 9, 1}
 
 	tests := []struct {
@@ -1027,6 +1057,7 @@ func TestApplySignOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			subject := pkix.Name{CommonName: "base"}
 

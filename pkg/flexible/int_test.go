@@ -9,6 +9,8 @@ import (
 )
 
 func TestInt_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		jsonStr  string
@@ -157,6 +159,8 @@ func TestInt_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var i Int
 			err := json.Unmarshal([]byte(tt.jsonStr), &i)
 
@@ -171,6 +175,8 @@ func TestInt_UnmarshalJSON(t *testing.T) {
 }
 
 func TestInt_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    Int
@@ -205,6 +211,8 @@ func TestInt_MarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := json.Marshal(tt.value)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, string(data))
@@ -213,6 +221,8 @@ func TestInt_MarshalJSON(t *testing.T) {
 }
 
 func TestInt_Int(t *testing.T) {
+	t.Parallel()
+
 	zeroVal := Int(0)
 	positiveVal := Int(42)
 	negativeVal := Int(-42)
@@ -246,6 +256,8 @@ func TestInt_Int(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.value.Int()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -253,6 +265,8 @@ func TestInt_Int(t *testing.T) {
 }
 
 func TestInt_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input string
@@ -297,6 +311,8 @@ func TestInt_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var i Int
 			err := json.Unmarshal([]byte(tt.input), &i)
 			require.NoError(t, err)
@@ -314,6 +330,8 @@ func TestInt_RoundTrip(t *testing.T) {
 }
 
 func TestInt_StructMarshaling(t *testing.T) {
+	t.Parallel()
+
 	type TestStruct struct {
 		Priority *Int `json:"priority,omitempty"`
 		Offset   *Int `json:"offset,omitempty"`
@@ -321,6 +339,8 @@ func TestInt_StructMarshaling(t *testing.T) {
 	}
 
 	t.Run("marshal_struct_with_flexible_int", func(t *testing.T) {
+		t.Parallel()
+
 		priority := Int(10)
 		offset := Int(-5)
 		ts := TestStruct{
@@ -337,6 +357,8 @@ func TestInt_StructMarshaling(t *testing.T) {
 	})
 
 	t.Run("unmarshal_struct_with_flexible_int_mixed_formats", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"priority": "10",
 			"offset": -5,
@@ -353,6 +375,8 @@ func TestInt_StructMarshaling(t *testing.T) {
 	})
 
 	t.Run("unmarshal_struct_with_all_string_formats", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"priority": "10",
 			"offset": "-5",
@@ -369,6 +393,8 @@ func TestInt_StructMarshaling(t *testing.T) {
 	})
 
 	t.Run("unmarshal_struct_with_omitted_fields", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"count": 10
 		}`
@@ -384,7 +410,11 @@ func TestInt_StructMarshaling(t *testing.T) {
 }
 
 func TestInt_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	t.Run("multiple_unmarshal_same_variable", func(t *testing.T) {
+		t.Parallel()
+
 		var i Int
 
 		err := json.Unmarshal([]byte(`42`), &i)
@@ -401,6 +431,8 @@ func TestInt_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("pointer_to_int", func(t *testing.T) {
+		t.Parallel()
+
 		i := Int(-42)
 		ptr := &i
 
@@ -415,6 +447,8 @@ func TestInt_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("array_of_ints", func(t *testing.T) {
+		t.Parallel()
+
 		type IntArray struct {
 			Values []Int `json:"values"`
 		}
@@ -433,6 +467,8 @@ func TestInt_EdgeCases(t *testing.T) {
 }
 
 func Test_anyToInt(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -482,6 +518,8 @@ func Test_anyToInt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := anyToInt(tt.input)
 			if tt.wantErr {
 				assert.Error(t, err)

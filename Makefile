@@ -18,3 +18,17 @@ frontend-stub:
 	else \
 		echo "frontend-stub: real bundle present, leaving as-is"; \
 	fi
+
+.PHONY: test
+test:
+	go test -race -parallel 8 \
+		$(shell go list ./... | \
+			grep -v /test/ | \
+			grep -v /repositories/testing | \
+			grep -v /migrations | \
+			grep -v /pkg/plugin/examples | \
+			grep -v /pkg/plugin/proto | \
+			grep -v /pkg/plugin/sdk | \
+			grep -v /pkg/proto | \
+			grep -v /pkg/testcontainer \
+		)

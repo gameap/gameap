@@ -67,6 +67,7 @@ func openSAMPClient(t *testing.T, addr string) *SAMP {
 }
 
 func TestSAMP_OpenCompletesPingHandshake(t *testing.T) {
+	t.Parallel()
 	requests := make(chan []byte, 1)
 	srv := newScriptedUDPServer(t, func(req []byte, _ int) [][]byte {
 		requests <- req
@@ -85,6 +86,7 @@ func TestSAMP_OpenCompletesPingHandshake(t *testing.T) {
 }
 
 func TestSAMP_OpenRejectsPingMismatch(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(req []byte, _ int) [][]byte {
 		mangled := append([]byte(nil), req...)
 		mangled[len(mangled)-1] ^= 0xFF
@@ -103,6 +105,7 @@ func TestSAMP_OpenRejectsPingMismatch(t *testing.T) {
 }
 
 func TestSAMP_OpenFailsWhenServerIsSilent(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return nil
 	})
@@ -117,6 +120,7 @@ func TestSAMP_OpenFailsWhenServerIsSilent(t *testing.T) {
 }
 
 func TestSAMP_ExecuteFramesRconRequest(t *testing.T) {
+	t.Parallel()
 	requests := make(chan []byte, 1)
 	srv := sampRconServer(t, func() []string { return []string{"ok"} }, requests)
 
@@ -140,6 +144,7 @@ func TestSAMP_ExecuteFramesRconRequest(t *testing.T) {
 }
 
 func TestSAMP_ExecuteJoinsConsoleLinesWithNewlines(t *testing.T) {
+	t.Parallel()
 	srv := sampRconServer(t, func() []string {
 		return []string{"ID\tName\tPing\tIP", "0\tAlice\t42\t192.0.2.10", "1\tBob\t53\t192.0.2.11"}
 	}, nil)
@@ -154,6 +159,7 @@ func TestSAMP_ExecuteJoinsConsoleLinesWithNewlines(t *testing.T) {
 }
 
 func TestSAMP_ExecuteTreatsSilenceAsEmptyOutput(t *testing.T) {
+	t.Parallel()
 	srv := sampRconServer(t, func() []string { return nil }, nil)
 
 	client, err := NewSAMP(Config{Address: srv.addr, Password: "secret", Timeout: 300 * time.Millisecond})
@@ -168,6 +174,7 @@ func TestSAMP_ExecuteTreatsSilenceAsEmptyOutput(t *testing.T) {
 }
 
 func TestSAMP_ExecuteDetectsInvalidPassword(t *testing.T) {
+	t.Parallel()
 	srv := sampRconServer(t, func() []string { return []string{sampRefusedMessage} }, nil)
 
 	client := openSAMPClient(t, srv.addr)
@@ -180,6 +187,7 @@ func TestSAMP_ExecuteDetectsInvalidPassword(t *testing.T) {
 }
 
 func TestSAMP_ExecuteSkipsUnusableDatagrams(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		datagram func(header []byte) []byte
@@ -210,6 +218,7 @@ func TestSAMP_ExecuteSkipsUnusableDatagrams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv := newScriptedUDPServer(t, func(req []byte, _ int) [][]byte {
 				if len(req) == sampHeaderSize+sampPingPayloadSize && req[10] == sampPingOpcode {
 					return [][]byte{sampEchoPing(req)}
@@ -231,6 +240,7 @@ func TestSAMP_ExecuteSkipsUnusableDatagrams(t *testing.T) {
 }
 
 func TestSAMP_BuildRconPacketRejectsOversizedField(t *testing.T) {
+	t.Parallel()
 	client, err := NewSAMP(Config{Address: "127.0.0.1:7777", Password: strings.Repeat("x", 70000)})
 	require.NoError(t, err)
 	client.packetHeader = make([]byte, sampHeaderSize)
@@ -242,6 +252,7 @@ func TestSAMP_BuildRconPacketRejectsOversizedField(t *testing.T) {
 }
 
 func TestSAMP_CloseWithoutOpen(t *testing.T) {
+	t.Parallel()
 	client, err := NewSAMP(Config{Address: "127.0.0.1:7777", Password: "secret"})
 	require.NoError(t, err)
 

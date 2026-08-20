@@ -32,6 +32,8 @@ var testAdminUser = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		userID     string
@@ -67,7 +69,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			) {
 				now := time.Now()
 
-				require.NoError(t, userRepo.Save(context.Background(), &testUser))
+				user := testUser
+				require.NoError(t, userRepo.Save(context.Background(), &user))
 
 				server := &domain.Server{
 					ID:         1,
@@ -126,7 +129,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			) {
 				now := time.Now()
 
-				require.NoError(t, userRepo.Save(context.Background(), &testAdminUser))
+				adminUser := testAdminUser
+				require.NoError(t, userRepo.Save(context.Background(), &adminUser))
 
 				server := &domain.Server{
 					ID:         1,
@@ -262,7 +266,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				_ *inmemory.ServerRepository,
 				_ *inmemory.RBACRepository,
 			) {
-				require.NoError(t, userRepo.Save(context.Background(), &testUser))
+				user := testUser
+				require.NoError(t, userRepo.Save(context.Background(), &user))
 			},
 			expectedStatus: http.StatusNotFound,
 			wantError:      "server not found",
@@ -287,7 +292,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			) {
 				now := time.Now()
 
-				require.NoError(t, userRepo.Save(context.Background(), &testUser))
+				user := testUser
+				require.NoError(t, userRepo.Save(context.Background(), &user))
 
 				server := &domain.Server{
 					ID:         1,
@@ -312,6 +318,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			userRepo := inmemory.NewUserRepository()
 			serverRepo := inmemory.NewServerRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -394,6 +402,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_PermissionResponseStructure(t *testing.T) {
+	t.Parallel()
+
 	userRepo := inmemory.NewUserRepository()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -404,7 +414,8 @@ func TestHandler_PermissionResponseStructure(t *testing.T) {
 
 	now := time.Now()
 
-	require.NoError(t, userRepo.Save(context.Background(), &testUser))
+	user := testUser
+	require.NoError(t, userRepo.Save(context.Background(), &user))
 
 	server := &domain.Server{
 		ID:         1,
@@ -481,6 +492,8 @@ func TestHandler_PermissionResponseStructure(t *testing.T) {
 }
 
 func TestNewPermissionResponse(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		abilityName  domain.AbilityName
@@ -517,6 +530,8 @@ func TestNewPermissionResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			resp := NewPermissionResponse(tt.abilityName, tt.value)
 
 			assert.Equal(t, tt.wantPerm, resp.Permission)

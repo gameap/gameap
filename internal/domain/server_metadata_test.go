@@ -8,6 +8,8 @@ import (
 )
 
 func TestServer_PublicIP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		server   domain.Server
@@ -63,12 +65,16 @@ func TestServer_PublicIP(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, test.wantIP, test.server.PublicIP())
 		})
 	}
 }
 
 func TestServer_VisibleServerIP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		server domain.Server
@@ -98,6 +104,8 @@ func TestServer_VisibleServerIP(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, test.want, test.server.VisibleServerIP())
 		})
 	}

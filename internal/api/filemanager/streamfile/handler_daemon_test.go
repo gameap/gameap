@@ -80,6 +80,8 @@ func (alwaysConnected) HasCapability(uint64, string) bool {
 // daemon text -> FileService -> handler -> responder is exercised the way the
 // reported request (/baseq2/server.cfg on a server without that file) is.
 func TestHandler_ServeHTTP_daemonErrorsThroughRealFileService(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		daemonError    string
@@ -108,6 +110,8 @@ func TestHandler_ServeHTTP_daemonErrorsThroughRealFileService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()

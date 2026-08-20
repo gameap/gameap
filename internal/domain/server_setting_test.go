@@ -9,6 +9,8 @@ import (
 )
 
 func TestNewServerSettingValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     any
@@ -85,6 +87,8 @@ func TestNewServerSettingValue(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			result := NewServerSettingValue(test.input)
 
@@ -96,6 +100,8 @@ func TestNewServerSettingValue(t *testing.T) {
 }
 
 func TestServerSettingValue_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		value   ServerSettingValue
@@ -130,6 +136,8 @@ func TestServerSettingValue_String(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			val, ok := test.value.String()
 			assert.Equal(t, test.wantVal, val)
 			assert.Equal(t, test.wantOK, ok)
@@ -138,6 +146,8 @@ func TestServerSettingValue_String(t *testing.T) {
 }
 
 func TestServerSettingValue_Bool(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		value   ServerSettingValue
@@ -202,6 +212,8 @@ func TestServerSettingValue_Bool(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			val, ok := test.value.Bool()
 			assert.Equal(t, test.wantVal, val)
 			assert.Equal(t, test.wantOK, ok)
@@ -210,6 +222,8 @@ func TestServerSettingValue_Bool(t *testing.T) {
 }
 
 func TestServerSettingValue_Int(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		value   ServerSettingValue
@@ -262,6 +276,8 @@ func TestServerSettingValue_Int(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			val, ok := test.value.Int()
 
@@ -273,6 +289,8 @@ func TestServerSettingValue_Int(t *testing.T) {
 }
 
 func TestServerSettingValue_Any(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value ServerSettingValue
@@ -302,6 +320,8 @@ func TestServerSettingValue_Any(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := test.value.Any()
 			assert.Equal(t, test.want, result)
 		})
@@ -309,6 +329,8 @@ func TestServerSettingValue_Any(t *testing.T) {
 }
 
 func TestServerSettingValue_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value ServerSettingValue
@@ -353,6 +375,8 @@ func TestServerSettingValue_MarshalJSON(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := json.Marshal(test.value)
 			require.NoError(t, err)
 			assert.JSONEq(t, test.want, string(result))
@@ -361,6 +385,8 @@ func TestServerSettingValue_MarshalJSON(t *testing.T) {
 }
 
 func TestServerSettingValue_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -400,6 +426,8 @@ func TestServerSettingValue_UnmarshalJSON(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			var result ServerSettingValue
 			err := json.Unmarshal([]byte(test.input), &result)
 			require.NoError(t, err)
@@ -409,6 +437,8 @@ func TestServerSettingValue_UnmarshalJSON(t *testing.T) {
 }
 
 func TestServerSettingValue_Scan(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		receiver  ServerSettingValue
@@ -539,6 +569,8 @@ func TestServerSettingValue_Scan(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			result := test.receiver
 
@@ -554,6 +586,8 @@ func TestServerSettingValue_Scan(t *testing.T) {
 }
 
 func TestServerSettingValue_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value ServerSettingValue
@@ -593,6 +627,8 @@ func TestServerSettingValue_Value(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := test.value.Value()
 			require.NoError(t, err)
 			assert.Equal(t, test.want, result)
@@ -601,6 +637,8 @@ func TestServerSettingValue_Value(t *testing.T) {
 }
 
 func TestServerSettingValue_ScanAndValue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input any
@@ -637,6 +675,8 @@ func TestServerSettingValue_ScanAndValue_RoundTrip(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			var value ServerSettingValue
 			err := value.Scan(test.input)
 			require.NoError(t, err)
@@ -650,6 +690,8 @@ func TestServerSettingValue_ScanAndValue_RoundTrip(t *testing.T) {
 }
 
 func TestServerSettingValue_MarshalUnmarshal_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value ServerSettingValue
@@ -682,6 +724,8 @@ func TestServerSettingValue_MarshalUnmarshal_RoundTrip(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			marshaled, err := json.Marshal(test.value)
 			require.NoError(t, err)
 
@@ -695,6 +739,8 @@ func TestServerSettingValue_MarshalUnmarshal_RoundTrip(t *testing.T) {
 }
 
 func TestServerSetting_Fields(t *testing.T) {
+	t.Parallel()
+
 	setting := ServerSetting{
 		ID:       1,
 		Name:     "max_players",

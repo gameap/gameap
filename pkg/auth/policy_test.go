@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:paralleltest // subtests mutate the package-level blocklist and AllowWeakPasswords flag shared across cases
 func TestValidatePassword(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -121,6 +122,7 @@ func TestValidatePassword(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // installs a package-level blocklist shared with other tests
 func TestValidatePassword_BlockedSentinel(t *testing.T) {
 	installBlocklistContaining(t, "blockedforpolicytest")(t)
 
@@ -130,6 +132,8 @@ func TestValidatePassword_BlockedSentinel(t *testing.T) {
 }
 
 func TestValidatePassword_PolicyConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, 12, MinPasswordLength, "ASVS §2.1.1 requires at least 12 characters")
 	assert.Equal(t, 128, MaxPasswordLength, "ASVS §2.1.2 requires denying passwords longer than 128")
 }

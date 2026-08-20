@@ -42,6 +42,8 @@ func (m *mockDLQ) RecordFailure(
 }
 
 func TestPublisher_Publish_success_on_first_attempt(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPublisher{
 		publishFunc: func(_ context.Context, _ string, _ *pubsub.Message) error {
 			return nil
@@ -63,6 +65,8 @@ func TestPublisher_Publish_success_on_first_attempt(t *testing.T) {
 }
 
 func TestPublisher_Publish_success_after_retry(t *testing.T) {
+	t.Parallel()
+
 	attempts := 0
 	mock := &mockPublisher{
 		publishFunc: func(_ context.Context, _ string, _ *pubsub.Message) error {
@@ -90,6 +94,8 @@ func TestPublisher_Publish_success_after_retry(t *testing.T) {
 }
 
 func TestPublisher_Publish_returns_ErrClosed_immediately(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPublisher{
 		publishFunc: func(_ context.Context, _ string, _ *pubsub.Message) error {
 			return pubsub.ErrClosed
@@ -111,6 +117,8 @@ func TestPublisher_Publish_returns_ErrClosed_immediately(t *testing.T) {
 }
 
 func TestPublisher_Publish_returns_ErrPayloadTooLarge_immediately(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPublisher{
 		publishFunc: func(_ context.Context, _ string, _ *pubsub.Message) error {
 			return pubsub.ErrPayloadTooLarge
@@ -132,6 +140,8 @@ func TestPublisher_Publish_returns_ErrPayloadTooLarge_immediately(t *testing.T) 
 }
 
 func TestPublisher_Publish_context_cancelled(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPublisher{
 		publishFunc: func(_ context.Context, _ string, _ *pubsub.Message) error {
 			return errors.New("transient error")
@@ -158,6 +168,8 @@ func TestPublisher_Publish_context_cancelled(t *testing.T) {
 }
 
 func TestPublisher_Publish_records_in_DLQ_after_max_retries(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPublisher{
 		publishFunc: func(_ context.Context, _ string, _ *pubsub.Message) error {
 			return errors.New("persistent error")
@@ -184,6 +196,8 @@ func TestPublisher_Publish_records_in_DLQ_after_max_retries(t *testing.T) {
 }
 
 func TestPublisher_Publish_uses_default_config_values(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPublisher{
 		publishFunc: func(_ context.Context, _ string, _ *pubsub.Message) error {
 			return nil

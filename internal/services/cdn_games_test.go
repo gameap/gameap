@@ -34,7 +34,11 @@ func gamesResponseHandler(games []domain.GlobalAPIGame) http.HandlerFunc {
 }
 
 func TestCDNGamesService_Games(t *testing.T) {
+	t.Parallel()
+
 	t.Run("fetches_from_primary_mirror", func(t *testing.T) {
+		t.Parallel()
+
 		var primaryHits, secondaryHits atomic.Int32
 
 		primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +70,8 @@ func TestCDNGamesService_Games(t *testing.T) {
 	})
 
 	t.Run("falls_back_to_secondary_mirror_on_error_status", func(t *testing.T) {
+		t.Parallel()
+
 		primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
@@ -86,6 +92,8 @@ func TestCDNGamesService_Games(t *testing.T) {
 	})
 
 	t.Run("falls_back_to_secondary_mirror_on_invalid_json", func(t *testing.T) {
+		t.Parallel()
+
 		primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte("not json"))
 		}))
@@ -106,6 +114,8 @@ func TestCDNGamesService_Games(t *testing.T) {
 	})
 
 	t.Run("returns_error_when_all_mirrors_fail", func(t *testing.T) {
+		t.Parallel()
+
 		primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
@@ -125,6 +135,8 @@ func TestCDNGamesService_Games(t *testing.T) {
 	})
 
 	t.Run("returns_error_when_no_urls_configured", func(t *testing.T) {
+		t.Parallel()
+
 		service := newCDNGamesService()
 
 		_, err := service.Games(context.Background())
@@ -134,6 +146,8 @@ func TestCDNGamesService_Games(t *testing.T) {
 	})
 
 	t.Run("rejects_oversized_valid_response", func(t *testing.T) {
+		t.Parallel()
+
 		server := httptest.NewServer(gamesResponseHandler([]domain.GlobalAPIGame{
 			{Code: "cstrike", Name: strings.Repeat("a", 256), Engine: "GoldSource"},
 		}))
@@ -149,6 +163,8 @@ func TestCDNGamesService_Games(t *testing.T) {
 	})
 
 	t.Run("empty_catalog_is_a_success", func(t *testing.T) {
+		t.Parallel()
+
 		primary := httptest.NewServer(gamesResponseHandler([]domain.GlobalAPIGame{}))
 		defer primary.Close()
 
@@ -162,6 +178,8 @@ func TestCDNGamesService_Games(t *testing.T) {
 }
 
 func TestCDNGamesService_Games_ContextCancellation(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()
 	}))

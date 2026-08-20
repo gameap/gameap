@@ -160,6 +160,8 @@ func (m *mockFileService) GetFileInfo(ctx context.Context, node *domain.Node, pa
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		serverID         string
@@ -1024,6 +1026,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -1106,6 +1110,8 @@ func newUpdateFileAuditServer() *domain.Server {
 // success, category file_op, the server as the scoped resource, and the
 // acting user attributed as the actor.
 func TestHandler_Audit_SuccessfulWriteIsRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -1168,6 +1174,8 @@ func TestHandler_Audit_SuccessfulWriteIsRecorded(t *testing.T) {
 // A write refused by the per-server ability check must NOT emit a file.write
 // success event.
 func TestHandler_Audit_DeniedWriteDoesNotEmitFileWrite(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -1215,6 +1223,8 @@ func TestHandler_Audit_DeniedWriteDoesNotEmitFileWrite(t *testing.T) {
 }
 
 func TestValidateFilename(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		filename string
@@ -1254,6 +1264,8 @@ func TestValidateFilename(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := validateFilename(tt.filename)
 			if tt.wantErr {
 				assert.Error(t, err)

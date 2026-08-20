@@ -25,6 +25,8 @@ var testUser1 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		userID         string
@@ -135,6 +137,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			usersRepo := inmemory.NewUserRepository()
 			userService := services.NewUserService(usersRepo)
 			responder := api.NewResponder()
@@ -175,6 +179,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_UserActuallyDeleted(t *testing.T) {
+	t.Parallel()
+
 	usersRepo := inmemory.NewUserRepository()
 	userService := services.NewUserService(usersRepo)
 	responder := api.NewResponder()
@@ -216,6 +222,8 @@ func TestHandler_UserActuallyDeleted(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
+
 	usersRepo := inmemory.NewUserRepository()
 	userService := services.NewUserService(usersRepo)
 	responder := api.NewResponder()

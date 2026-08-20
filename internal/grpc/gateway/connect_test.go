@@ -27,6 +27,7 @@ func setupAuthorizedNode(t *testing.T, deps *serviceDeps, apiKey string) {
 }
 
 func TestService_Connect_authenticatesAndSendsRegisterAck(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc, deps := newServiceWithDeps(t)
 	setupAuthorizedNode(t, deps, "secret")
@@ -92,6 +93,7 @@ func TestService_Connect_authenticatesAndSendsRegisterAck(t *testing.T) {
 }
 
 func TestService_Connect_flushesPendingTasksAfterRegister(t *testing.T) {
+	t.Parallel()
 	svc, deps := newServiceWithDeps(t)
 	setupAuthorizedNode(t, deps, "secret")
 
@@ -140,7 +142,9 @@ func TestService_Connect_flushesPendingTasksAfterRegister(t *testing.T) {
 }
 
 func TestService_Connect_invalidFirstMessageReturnsError(t *testing.T) {
+	t.Parallel()
 	t.Run("recv_error_returns_invalid_argument", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 		stream := newStubConnectServer(context.Background())
@@ -158,6 +162,7 @@ func TestService_Connect_invalidFirstMessageReturnsError(t *testing.T) {
 	})
 
 	t.Run("non_register_first_message_returns_invalid_argument", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 		stream := newStubConnectServer(context.Background())
@@ -178,6 +183,7 @@ func TestService_Connect_invalidFirstMessageReturnsError(t *testing.T) {
 }
 
 func TestService_Connect_invalidAuthRejectsConnection(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc, deps := newServiceWithDeps(t)
 	require.NoError(t, deps.nodeRepo.Save(context.Background(), &domain.Node{
@@ -208,6 +214,7 @@ func TestService_Connect_invalidAuthRejectsConnection(t *testing.T) {
 }
 
 func TestService_Connect_handleMessagesProcessesIncomingThenReturnsOnEOF(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc, deps := newServiceWithDeps(t)
 	setupAuthorizedNode(t, deps, "k")
@@ -256,6 +263,7 @@ func TestService_Connect_handleMessagesProcessesIncomingThenReturnsOnEOF(t *test
 }
 
 func TestService_Connect_recvErrorPropagatesNonEOF(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc, deps := newServiceWithDeps(t)
 	setupAuthorizedNode(t, deps, "k")
@@ -277,6 +285,7 @@ func TestService_Connect_recvErrorPropagatesNonEOF(t *testing.T) {
 }
 
 func TestService_Connect_eofAfterRegisterClosesGracefully(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc, deps := newServiceWithDeps(t)
 	setupAuthorizedNode(t, deps, "k")
@@ -301,7 +310,9 @@ func TestService_Connect_eofAfterRegisterClosesGracefully(t *testing.T) {
 }
 
 func TestService_Connect_reconcilesAbandonedTasksOnRegister(t *testing.T) {
+	t.Parallel()
 	t.Run("forwards_in_flight_task_ids_with_daemon_restart_reason", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		setupAuthorizedNode(t, deps, "k")
@@ -332,6 +343,7 @@ func TestService_Connect_reconcilesAbandonedTasksOnRegister(t *testing.T) {
 	})
 
 	t.Run("empty_in_flight_passes_empty_slice", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		setupAuthorizedNode(t, deps, "k")
@@ -354,6 +366,7 @@ func TestService_Connect_reconcilesAbandonedTasksOnRegister(t *testing.T) {
 	})
 
 	t.Run("reconcile_error_does_not_fail_registration", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		setupAuthorizedNode(t, deps, "k")
@@ -378,6 +391,7 @@ func TestService_Connect_reconcilesAbandonedTasksOnRegister(t *testing.T) {
 }
 
 func TestService_Connect_shutdownContextCancelsSession(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc, deps := newServiceWithDeps(t)
 	setupAuthorizedNode(t, deps, "k")
@@ -414,6 +428,7 @@ func TestService_Connect_shutdownContextCancelsSession(t *testing.T) {
 }
 
 func TestService_SetShutdownContext_nilDefaultsToBackground(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc, _ := newServiceWithDeps(t)
 	var nilCtx context.Context

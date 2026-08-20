@@ -17,6 +17,7 @@ import (
 
 // TestIsSHA256Hex — OWASP API2:2023 Broken Authentication.
 func TestIsSHA256Hex(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		input string
@@ -76,6 +77,7 @@ func TestIsSHA256Hex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := IsSHA256Hex(tt.input)
 
@@ -89,6 +91,7 @@ func TestIsSHA256Hex(t *testing.T) {
 // secret is hashed exactly once; an already-hashed value passes through
 // unchanged so re-saving a hashed column never corrupts the credential.
 func TestSHA256IfNeeded(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		input string
@@ -118,6 +121,7 @@ func TestSHA256IfNeeded(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := SHA256IfNeeded(tt.input)
 
@@ -131,6 +135,7 @@ func TestSHA256IfNeeded(t *testing.T) {
 // applying the function repeatedly (e.g. node saved many times, migration
 // re-run) must converge after the first hash and never change again.
 func TestSHA256IfNeeded_Idempotent(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	const plaintext = "rotate-me"
 

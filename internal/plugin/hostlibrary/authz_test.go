@@ -37,6 +37,7 @@ func newAuthzService(t *testing.T, setup func(context.Context, *inmemory.RBACRep
 }
 
 func TestAuthzService_Can(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(context.Context, *inmemory.RBACRepository)
@@ -72,6 +73,7 @@ func TestAuthzService_Can(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			service := newAuthzService(t, tt.setup)
 
 			resp, err := service.Can(context.Background(), &authz.CanRequest{
@@ -87,6 +89,7 @@ func TestAuthzService_Can(t *testing.T) {
 }
 
 func TestAuthzService_CanOneOf(t *testing.T) {
+	t.Parallel()
 	service := newAuthzService(t, func(ctx context.Context, r *inmemory.RBACRepository) {
 		_ = r.Allow(ctx, authzTestUserID, domain.EntityTypeUser, []domain.Ability{
 			{Name: domain.AbilityNameView},
@@ -103,6 +106,7 @@ func TestAuthzService_CanOneOf(t *testing.T) {
 }
 
 func TestAuthzService_CanForEntity(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		serverID uint64
@@ -114,6 +118,7 @@ func TestAuthzService_CanForEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			service := newAuthzService(t, func(ctx context.Context, r *inmemory.RBACRepository) {
 				_ = r.Allow(ctx, authzTestUserID, domain.EntityTypeUser, []domain.Ability{
 					domain.CreateAbilityForEntity(
@@ -137,6 +142,7 @@ func TestAuthzService_CanForEntity(t *testing.T) {
 }
 
 func TestAuthzService_CanAnyForEntity(t *testing.T) {
+	t.Parallel()
 	service := newAuthzService(t, func(ctx context.Context, r *inmemory.RBACRepository) {
 		_ = r.Allow(ctx, authzTestUserID, domain.EntityTypeUser, []domain.Ability{
 			domain.CreateAbilityForEntity(
@@ -160,6 +166,7 @@ func TestAuthzService_CanAnyForEntity(t *testing.T) {
 }
 
 func TestAuthzService_CanForEntity_unspecified_entity_type_is_rejected(t *testing.T) {
+	t.Parallel()
 	service := newAuthzService(t, nil)
 
 	resp, err := service.CanForEntity(context.Background(), &authz.CanForEntityRequest{
@@ -176,6 +183,7 @@ func TestAuthzService_CanForEntity_unspecified_entity_type_is_rejected(t *testin
 }
 
 func TestAuthzService_GetUserRoles(t *testing.T) {
+	t.Parallel()
 	service := newAuthzService(t, func(ctx context.Context, r *inmemory.RBACRepository) {
 		role := &domain.Role{Name: "moderator"}
 		_ = r.SaveRole(ctx, role)
@@ -226,6 +234,7 @@ func (c failingRBACChecker) GetRoles(context.Context, uint) ([]string, error) {
 // generated host stub panics on a returned error, and a plugin reading only
 // Allowed would mistake an outage for a deliberate "no".
 func TestAuthzService_check_failure_is_reported_in_the_error_field(t *testing.T) {
+	t.Parallel()
 	service := NewAuthzService(failingRBACChecker{err: errors.New("database is down")})
 
 	resp, err := service.Can(context.Background(), &authz.CanRequest{

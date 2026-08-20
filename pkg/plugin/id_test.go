@@ -8,6 +8,7 @@ import (
 )
 
 func TestParsePluginID(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -57,6 +58,7 @@ func TestParsePluginID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := ParsePluginID(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -64,6 +66,7 @@ func TestParsePluginID(t *testing.T) {
 }
 
 func TestCompactPluginID(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    domain.Uint64ID
@@ -93,6 +96,7 @@ func TestCompactPluginID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := CompactPluginID(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -100,6 +104,7 @@ func TestCompactPluginID(t *testing.T) {
 }
 
 func TestCompactPluginID_RoundTrip(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		id   domain.Uint64ID
@@ -113,6 +118,7 @@ func TestCompactPluginID_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			compact := CompactPluginID(tt.id)
 			parsed := ParsePluginID(compact)
 			assert.Equal(t, tt.id, parsed)

@@ -21,6 +21,7 @@ func newTestManager(t *testing.T, now time.Time) *Manager {
 }
 
 func TestCipher_round_trip(t *testing.T) {
+	t.Parallel()
 	c, err := NewCipher([]byte(testAppKey))
 	require.NoError(t, err)
 
@@ -34,6 +35,7 @@ func TestCipher_round_trip(t *testing.T) {
 }
 
 func TestCipher_encrypt_is_non_deterministic(t *testing.T) {
+	t.Parallel()
 	c, err := NewCipher([]byte(testAppKey))
 	require.NoError(t, err)
 
@@ -46,6 +48,7 @@ func TestCipher_encrypt_is_non_deterministic(t *testing.T) {
 }
 
 func TestCipher_decrypt_errors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		ciphertext string
@@ -60,6 +63,7 @@ func TestCipher_decrypt_errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := c.Decrypt(tt.ciphertext)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantError)
@@ -68,6 +72,7 @@ func TestCipher_decrypt_errors(t *testing.T) {
 }
 
 func TestCipher_wrong_key_cannot_decrypt(t *testing.T) {
+	t.Parallel()
 	enc, err := mustCipher(t, "key-one").Encrypt("secret")
 	require.NoError(t, err)
 
@@ -77,12 +82,14 @@ func TestCipher_wrong_key_cannot_decrypt(t *testing.T) {
 }
 
 func TestNewCipher_empty_key(t *testing.T) {
+	t.Parallel()
 	_, err := NewCipher(nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "two-factor encryption key is empty")
 }
 
 func TestManager_GenerateSecret(t *testing.T) {
+	t.Parallel()
 	m := newTestManager(t, time.Now())
 
 	secret, uri, err := m.GenerateSecret("admin@example.com")
@@ -93,6 +100,7 @@ func TestManager_GenerateSecret(t *testing.T) {
 }
 
 func TestManager_ValidateTOTP(t *testing.T) {
+	t.Parallel()
 	now := time.Unix(1_700_000_000, 0)
 	m := newTestManager(t, now)
 
@@ -106,6 +114,7 @@ func TestManager_ValidateTOTP(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("valid_code_accepted_and_step_returned", func(t *testing.T) {
+		t.Parallel()
 		ok, step, err := m.ValidateTOTP(encSecret, validCode, nil)
 		require.NoError(t, err)
 		assert.True(t, ok)
@@ -113,6 +122,7 @@ func TestManager_ValidateTOTP(t *testing.T) {
 	})
 
 	t.Run("replay_of_used_step_rejected", func(t *testing.T) {
+		t.Parallel()
 		used := currentStep
 		ok, _, err := m.ValidateTOTP(encSecret, validCode, &used)
 		require.NoError(t, err)
@@ -120,12 +130,14 @@ func TestManager_ValidateTOTP(t *testing.T) {
 	})
 
 	t.Run("wrong_code_rejected", func(t *testing.T) {
+		t.Parallel()
 		ok, _, err := m.ValidateTOTP(encSecret, "000000", nil)
 		require.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("previous_step_within_skew_accepted", func(t *testing.T) {
+		t.Parallel()
 		prev := now.Add(-time.Duration(totpPeriod) * time.Second)
 		prevCode, err := totp.GenerateCodeCustom(secret, prev, validateOpts())
 		require.NoError(t, err)
@@ -138,6 +150,7 @@ func TestManager_ValidateTOTP(t *testing.T) {
 }
 
 func TestManager_RecoveryCodes(t *testing.T) {
+	t.Parallel()
 	m := newTestManager(t, time.Now())
 
 	plain, encoded, err := m.GenerateRecoveryCodes()
@@ -147,6 +160,7 @@ func TestManager_RecoveryCodes(t *testing.T) {
 	assert.NotContains(t, encoded, plain[0], "stored blob must not contain plaintext codes")
 
 	t.Run("consume_then_single_use", func(t *testing.T) {
+		t.Parallel()
 		updated, ok, err := m.ConsumeRecoveryCode(encoded, plain[0])
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -157,12 +171,14 @@ func TestManager_RecoveryCodes(t *testing.T) {
 	})
 
 	t.Run("tolerates_formatting", func(t *testing.T) {
+		t.Parallel()
 		_, ok, err := m.ConsumeRecoveryCode(encoded, "  "+plain[1]+"  ")
 		require.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("unknown_code_rejected", func(t *testing.T) {
+		t.Parallel()
 		_, ok, err := m.ConsumeRecoveryCode(encoded, "zzzzz-zzzzz")
 		require.NoError(t, err)
 		assert.False(t, ok)
@@ -170,6 +186,7 @@ func TestManager_RecoveryCodes(t *testing.T) {
 }
 
 func TestChallengeToken_helpers(t *testing.T) {
+	t.Parallel()
 	token := ChallengeTokenPrefix + "abc123"
 	assert.True(t, IsChallengeToken(token))
 	assert.False(t, IsChallengeToken("glst_abc123"))
@@ -199,6 +216,7 @@ func mustCipher(t *testing.T, key string) *Cipher {
 }
 
 func TestWithIssuer_OverridesOtpauthLabel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		issuer     string
@@ -218,6 +236,7 @@ func TestWithIssuer_OverridesOtpauthLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			m, err := NewManager([]byte(testAppKey), WithIssuer(tt.issuer))
 			require.NoError(t, err)
@@ -233,6 +252,7 @@ func TestWithIssuer_OverridesOtpauthLabel(t *testing.T) {
 }
 
 func TestNewManager_RejectsEmptyAppKey(t *testing.T) {
+	t.Parallel()
 	// ACT
 	m, err := NewManager(nil)
 
@@ -245,6 +265,7 @@ func TestNewManager_RejectsEmptyAppKey(t *testing.T) {
 // A challenge payload has to survive whichever shape the cache backend hands
 // back — the in-memory cache returns a string, Redis returns bytes.
 func TestChallengePayload_RoundTripAcrossCacheShapes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	want := ChallengePayload{
 		UserID:    7,
@@ -267,6 +288,7 @@ func TestChallengePayload_RoundTripAcrossCacheShapes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got, decodeErr := UnmarshalChallengePayload(tt.raw)
 
@@ -284,6 +306,7 @@ func TestChallengePayload_RoundTripAcrossCacheShapes(t *testing.T) {
 }
 
 func TestUnmarshalChallengePayload_Rejections(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		raw       any
@@ -308,6 +331,7 @@ func TestUnmarshalChallengePayload_Rejections(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got, err := UnmarshalChallengePayload(tt.raw)
 
@@ -320,6 +344,7 @@ func TestUnmarshalChallengePayload_Rejections(t *testing.T) {
 }
 
 func TestConsumeRecoveryCode_Rejections(t *testing.T) {
+	t.Parallel()
 	m := newTestManager(t, time.Unix(1_700_000_000, 0))
 	_, encoded, err := m.GenerateRecoveryCodes()
 	require.NoError(t, err)
@@ -360,6 +385,7 @@ func TestConsumeRecoveryCode_Rejections(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			updated, ok, consumeErr := m.ConsumeRecoveryCode(tt.encoded, tt.input)
 
@@ -382,6 +408,7 @@ func TestConsumeRecoveryCode_Rejections(t *testing.T) {
 // A secret that is not valid ciphertext must be reported, never treated as a
 // silently failing validation.
 func TestValidateTOTP_RejectsUndecryptableSecret(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	m := newTestManager(t, time.Unix(1_700_000_000, 0))
 

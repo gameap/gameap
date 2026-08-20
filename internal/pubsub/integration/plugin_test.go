@@ -81,6 +81,8 @@ func subscribeRecorder(ctx context.Context, t *testing.T, bus *memory.Memory, pa
 }
 
 func TestPublishEvent_MapsServerEvent(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := subscribeRecorder(ctx, t, bus, channels.PluginServerEvents)
@@ -118,6 +120,8 @@ func TestPublishEvent_MapsServerEvent(t *testing.T) {
 }
 
 func TestPublishEvent_MapsTaskEvent_WithServerID(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := subscribeRecorder(ctx, t, bus, channels.PluginServerEvents)
@@ -161,6 +165,8 @@ func TestPublishEvent_MapsTaskEvent_WithServerID(t *testing.T) {
 }
 
 func TestPublishEvent_MapsTaskEvent_WithoutServerID(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := subscribeRecorder(ctx, t, bus, channels.PluginTaskEvents)
@@ -199,6 +205,8 @@ func TestPublishEvent_MapsTaskEvent_WithoutServerID(t *testing.T) {
 }
 
 func TestPublishEvent_GenericEvent(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := subscribeRecorder(ctx, t, bus, channels.PluginEvents)
@@ -227,6 +235,8 @@ func TestPublishEvent_GenericEvent(t *testing.T) {
 }
 
 func TestPublishEvent_ServerEvent_NilServer_FallsBackToGenericChannel(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	// A ServerEvent with Server == nil currently does not set ServerID, so the
 	// publisher falls back to the generic PluginEvents channel. Pinning this
@@ -259,6 +269,8 @@ func TestPublishEvent_ServerEvent_NilServer_FallsBackToGenericChannel(t *testing
 }
 
 func TestPublishServerEvent_BuildsCorrectChannel(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := subscribeRecorder(ctx, t, bus, channels.PluginServerEvents)
@@ -289,6 +301,8 @@ func TestPublishServerEvent_BuildsCorrectChannel(t *testing.T) {
 }
 
 func TestPublishTaskEvent_BuildsCorrectChannel(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := subscribeRecorder(ctx, t, bus, channels.PluginTaskEvents)
@@ -326,6 +340,8 @@ func TestPublishTaskEvent_BuildsCorrectChannel(t *testing.T) {
 }
 
 func TestPublishTaskEvent_NilServerID(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := subscribeRecorder(ctx, t, bus, channels.PluginTaskEvents)
@@ -364,6 +380,8 @@ func (e *errorPublisher) Publish(_ context.Context, _ string, _ *pubsub.Message)
 }
 
 func TestPublishEvent_PubsubError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	publisher := NewPluginEventPublisher(&errorPublisher{err: errBoom})
 
@@ -385,6 +403,8 @@ func TestPublishEvent_PubsubError_Propagates(t *testing.T) {
 }
 
 func TestPublishServerEvent_PubsubError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	publisher := NewPluginEventPublisher(&errorPublisher{err: errServerDown})
 
@@ -402,6 +422,8 @@ func TestPublishServerEvent_PubsubError_Propagates(t *testing.T) {
 }
 
 func TestPublishTaskEvent_PubsubError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	publisher := NewPluginEventPublisher(&errorPublisher{err: errTaskDown})
 
@@ -421,6 +443,8 @@ func TestPublishTaskEvent_PubsubError_Propagates(t *testing.T) {
 }
 
 func TestNewPluginEventPublisher_AssignsLogger(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus := memory.New()
 	t.Cleanup(func() { _ = bus.Close() })

@@ -51,6 +51,8 @@ func setupCommandDispatcher(t *testing.T) *commandDispatcherTestSetup {
 }
 
 func TestCommandDispatcher_DispatchCommand_Success(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupCommandDispatcher(t)
 	const nodeID uint64 = 7
@@ -75,6 +77,8 @@ func TestCommandDispatcher_DispatchCommand_Success(t *testing.T) {
 }
 
 func TestCommandDispatcher_DispatchCommand_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupCommandDispatcher(t)
 	const nodeID uint64 = 8
@@ -94,6 +98,8 @@ func TestCommandDispatcher_DispatchCommand_GatewayError(t *testing.T) {
 }
 
 func TestCommandDispatcher_NotConnected_TimesOut(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupCommandDispatcher(t)
 	const nodeID uint64 = 99
@@ -112,6 +118,8 @@ func TestCommandDispatcher_NotConnected_TimesOut(t *testing.T) {
 }
 
 func TestCommandDispatcher_executeCommandRequest_UnmarshalError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupCommandDispatcher(t)
 	d := s.dispatcher.(*commandDispatcher)
@@ -128,6 +136,8 @@ func TestCommandDispatcher_executeCommandRequest_UnmarshalError(t *testing.T) {
 }
 
 func TestNewCommandDispatcher_NilLoggerUsesDefault(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	gateway := &fakeCommandGateway{}
 	registry := newFakeConnectionChecker()

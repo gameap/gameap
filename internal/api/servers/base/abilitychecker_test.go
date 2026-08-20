@@ -141,6 +141,7 @@ func allowUserAbilityForServer(
 }
 
 func TestAbilityChecker_Check(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		userID        uint
@@ -215,6 +216,7 @@ func TestAbilityChecker_Check(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rbacService, repo := setupRBAC(t)
 			defer rbacService.Close()
 
@@ -237,6 +239,7 @@ func TestAbilityChecker_Check(t *testing.T) {
 }
 
 func TestAbilityChecker_CheckOrError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name               string
 		userID             uint
@@ -299,6 +302,7 @@ func TestAbilityChecker_CheckOrError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rbacService, repo := setupRBAC(t)
 			defer rbacService.Close()
 
@@ -329,6 +333,7 @@ func TestAbilityChecker_CheckOrError(t *testing.T) {
 }
 
 func TestAbilityChecker_CheckAny(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		userID        uint
@@ -386,6 +391,7 @@ func TestAbilityChecker_CheckAny(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rbacService, repo := setupRBAC(t)
 			defer rbacService.Close()
 
@@ -408,6 +414,7 @@ func TestAbilityChecker_CheckAny(t *testing.T) {
 }
 
 func TestAbilityChecker_CheckAnyOrError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name               string
 		userID             uint
@@ -453,6 +460,7 @@ func TestAbilityChecker_CheckAnyOrError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rbacService, repo := setupRBAC(t)
 			defer rbacService.Close()
 
@@ -503,6 +511,7 @@ func TestAbilityChecker_CheckAnyOrError(t *testing.T) {
 // required abilities listed in Extra. The logger is injected per-checker via
 // WithAuditLogger so the test does not depend on the process-global default.
 func TestAbilityChecker_Audit_DenialEmitsScopedEvent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		userID         uint
@@ -540,6 +549,7 @@ func TestAbilityChecker_Audit_DenialEmitsScopedEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			rbacService, repo := setupRBAC(t)
 			defer rbacService.Close()
@@ -585,6 +595,7 @@ func TestAbilityChecker_Audit_DenialEmitsScopedEvent(t *testing.T) {
 // must pass and must NOT leave an access.denied event (no false-positive
 // denials in the audit trail).
 func TestAbilityChecker_Audit_AuthorisedAccessIsNotDenied(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rbacService, repo := setupRBAC(t)
 	defer rbacService.Close()
@@ -610,6 +621,7 @@ func TestAbilityChecker_Audit_AuthorisedAccessIsNotDenied(t *testing.T) {
 // access.denied event scoped to the target server, with the missing_ability
 // reason and every acceptable ability listed in Extra.required_abilities.
 func TestAbilityChecker_Audit_CheckAnyDenialEmitsScopedEvent(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rbacService, _ := setupRBAC(t)
 	defer rbacService.Close()

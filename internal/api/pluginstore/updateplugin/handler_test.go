@@ -202,6 +202,7 @@ func executeUpdate(
 }
 
 func TestUpdatePlugin(t *testing.T) {
+	t.Parallel()
 	server := newMockServer(t, defaultMockHandler(t))
 
 	storeService := pluginstore.NewService(server.URL, "", cache.NewInMemory())
@@ -232,6 +233,7 @@ func TestUpdatePlugin(t *testing.T) {
 }
 
 func TestUpdatePlugin_picks_first_stable_version_when_unspecified(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	versions := pluginstore.PaginatedResponse[pluginstore.PluginVersion]{
 		Data: []pluginstore.PluginVersion{
@@ -273,6 +275,7 @@ func TestUpdatePlugin_picks_first_stable_version_when_unspecified(t *testing.T) 
 }
 
 func TestUpdatePlugin_falls_back_to_first_when_no_stable_version_exists(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	versions := pluginstore.PaginatedResponse[pluginstore.PluginVersion]{
 		Data: []pluginstore.PluginVersion{
@@ -314,6 +317,7 @@ func TestUpdatePlugin_falls_back_to_first_when_no_stable_version_exists(t *testi
 }
 
 func TestUpdatePlugin_with_loader_unloads_old_and_loads_new(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	server := newMockServer(t, defaultMockHandler(t))
 	storeService := pluginstore.NewService(server.URL, "", cache.NewInMemory())
@@ -347,6 +351,7 @@ func TestUpdatePlugin_with_loader_unloads_old_and_loads_new(t *testing.T) {
 }
 
 func TestUpdatePlugin_with_loader_no_registered_manager_id_falls_back_to_compact_id(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	server := newMockServer(t, defaultMockHandler(t))
 	storeService := pluginstore.NewService(server.URL, "", cache.NewInMemory())
@@ -376,6 +381,7 @@ func TestUpdatePlugin_with_loader_no_registered_manager_id_falls_back_to_compact
 }
 
 func TestUpdatePlugin_not_installed(t *testing.T) {
+	t.Parallel()
 	server := newMockServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -421,6 +427,7 @@ func errorMessage(t *testing.T, resp map[string]any) string {
 }
 
 func TestUpdatePlugin_pipeline_failures(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		setupRepo        func(t *testing.T) repositories.PluginRepository
@@ -746,6 +753,7 @@ func TestUpdatePlugin_pipeline_failures(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			server := newMockServer(t, tt.mockHandler(t))
 			storeService := pluginstore.NewService(server.URL, "", cache.NewInMemory())

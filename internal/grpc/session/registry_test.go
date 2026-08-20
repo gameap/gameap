@@ -98,6 +98,7 @@ func newTestSession(nodeID uint64, cancel context.CancelFunc) (*Session, *stubSt
 }
 
 func TestNewRegistry_nilLoggerFallsBackToDefault(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -112,6 +113,7 @@ func TestNewRegistry_nilLoggerFallsBackToDefault(t *testing.T) {
 }
 
 func TestRegistry_Register_addsLocalSession(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, _ := newTestSession(7, nil)
@@ -129,6 +131,7 @@ func TestRegistry_Register_addsLocalSession(t *testing.T) {
 }
 
 func TestRegistry_Register_replacesExistingSessionForSameNode(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 
@@ -152,6 +155,7 @@ func TestRegistry_Register_replacesExistingSessionForSameNode(t *testing.T) {
 }
 
 func TestRegistry_Register_publishesConnectedEvent(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, false)
 
@@ -198,6 +202,7 @@ func TestRegistry_Register_publishesConnectedEvent(t *testing.T) {
 }
 
 func TestRegistry_Unregister_removesAndPublishesDisconnectedEvent(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, false)
 	s, _ := newTestSession(50, nil)
@@ -244,6 +249,7 @@ func TestRegistry_Unregister_removesAndPublishesDisconnectedEvent(t *testing.T) 
 }
 
 func TestRegistry_UnregisterSession_staleSession_doesNotEvictReconnectedSession(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: a daemon connects (s1), then reconnects (s2) under the same
 	// node ID. Register replaces s1 with s2. The old stream's deferred cleanup
 	// then runs UnregisterSession(s1); it must NOT evict the live s2.
@@ -280,6 +286,7 @@ func TestRegistry_UnregisterSession_staleSession_doesNotEvictReconnectedSession(
 }
 
 func TestRegistry_UnregisterSession_ownSession_removesAndPublishes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, false)
 	s, _ := newTestSession(8, nil)
@@ -309,6 +316,7 @@ func TestRegistry_UnregisterSession_ownSession_removesAndPublishes(t *testing.T)
 }
 
 func TestRegistry_UnregisterSession_neverRegistered_isNoop(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: a session whose node was never registered exercises the
 	// UnregisterSession `!ok` branch — it must neither panic nor publish a
 	// spurious closed event, and must leave registry state untouched.
@@ -340,6 +348,7 @@ func TestRegistry_UnregisterSession_neverRegistered_isNoop(t *testing.T) {
 }
 
 func TestRegistry_Unregister_unknownNode_isNoop(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, false)
 
@@ -364,6 +373,7 @@ func TestRegistry_Unregister_unknownNode_isNoop(t *testing.T) {
 }
 
 func TestRegistry_GetSession_unknown_returnsNil(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, _ := setupRegistry(t, false)
 
@@ -376,6 +386,7 @@ func TestRegistry_GetSession_unknown_returnsNil(t *testing.T) {
 }
 
 func TestRegistry_GetSession_globalRouteOnly_returnsNil(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -397,6 +408,7 @@ func TestRegistry_GetSession_globalRouteOnly_returnsNil(t *testing.T) {
 }
 
 func TestRegistry_IsConnected_table(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		setup            func(t *testing.T, r *Registry, ps pubsub.Publisher, ctx context.Context)
@@ -441,6 +453,7 @@ func TestRegistry_IsConnected_table(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			r, ps, ctx := setupRegistry(t, true)
 			tt.setup(t, r, ps, ctx)
@@ -454,6 +467,7 @@ func TestRegistry_IsConnected_table(t *testing.T) {
 }
 
 func TestRegistry_HasCapability(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, _ := newTestSession(5, nil)
@@ -466,6 +480,7 @@ func TestRegistry_HasCapability(t *testing.T) {
 }
 
 func TestRegistry_SendTask_localDirect_callsStream(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, stream := newTestSession(20, nil)
@@ -490,6 +505,7 @@ func TestRegistry_SendTask_localDirect_callsStream(t *testing.T) {
 }
 
 func TestRegistry_SendTask_localStreamErrorIsWrapped(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, stream := newTestSession(20, nil)
@@ -506,6 +522,7 @@ func TestRegistry_SendTask_localStreamErrorIsWrapped(t *testing.T) {
 }
 
 func TestRegistry_SendTask_remoteViaPubSub_publishes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -571,6 +588,7 @@ func TestRegistry_SendTask_remoteViaPubSub_publishes(t *testing.T) {
 }
 
 func TestRegistry_SendTask_unknownNode_publishesViaPubSub(t *testing.T) {
+	t.Parallel()
 	// Sending to an unknown node still publishes — the registry does not
 	// gate dispatch on prior knowledge of remote nodes, since global state
 	// can lag. This locks in the current contract.
@@ -599,6 +617,7 @@ func TestRegistry_SendTask_unknownNode_publishesViaPubSub(t *testing.T) {
 }
 
 func TestRegistry_SendCommand_localDirect_callsStream(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, stream := newTestSession(80, nil)
@@ -625,6 +644,7 @@ func TestRegistry_SendCommand_localDirect_callsStream(t *testing.T) {
 }
 
 func TestRegistry_SendCommand_remoteViaPubSub_publishes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 	channel := channels.BuildDaemonCommandDispatchChannel(81)
@@ -675,6 +695,7 @@ func TestRegistry_SendCommand_remoteViaPubSub_publishes(t *testing.T) {
 }
 
 func TestRegistry_SendAttachRequest_localDirect_callsStream(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, stream := newTestSession(60, nil)
@@ -695,6 +716,7 @@ func TestRegistry_SendAttachRequest_localDirect_callsStream(t *testing.T) {
 }
 
 func TestRegistry_SendAttachInput_localDirect_callsStream(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, stream := newTestSession(60, nil)
@@ -715,6 +737,7 @@ func TestRegistry_SendAttachInput_localDirect_callsStream(t *testing.T) {
 }
 
 func TestRegistry_SendAttachDetach_localDirect_callsStream(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, stream := newTestSession(60, nil)
@@ -734,6 +757,7 @@ func TestRegistry_SendAttachDetach_localDirect_callsStream(t *testing.T) {
 }
 
 func TestRegistry_SendAttachRequest_remoteViaPubSub_publishes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -782,6 +806,7 @@ func TestRegistry_SendAttachRequest_remoteViaPubSub_publishes(t *testing.T) {
 }
 
 func TestRegistry_SendMetricsRequest_localDirect_doesNotRegisterWaiter(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	waiters := &fakeMetricsWaiterRegistrar{}
@@ -807,6 +832,7 @@ func TestRegistry_SendMetricsRequest_localDirect_doesNotRegisterWaiter(t *testin
 }
 
 func TestRegistry_SendMetricsRequest_localStreamErrorIsWrapped(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, stream := newTestSession(90, nil)
@@ -823,6 +849,7 @@ func TestRegistry_SendMetricsRequest_localStreamErrorIsWrapped(t *testing.T) {
 }
 
 func TestRegistry_SendMetricsRequest_remote_publishes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 	channel := channels.BuildDaemonMetricsRequestChannel(91)
@@ -868,6 +895,7 @@ func TestRegistry_SendMetricsRequest_remote_publishes(t *testing.T) {
 }
 
 func TestRegistry_BroadcastToAll_sendsToEveryLocalSession(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 
@@ -892,6 +920,7 @@ func TestRegistry_BroadcastToAll_sendsToEveryLocalSession(t *testing.T) {
 }
 
 func TestRegistry_BroadcastToAll_continuesOnSendError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 
@@ -911,6 +940,7 @@ func TestRegistry_BroadcastToAll_continuesOnSendError(t *testing.T) {
 }
 
 func TestRegistry_BroadcastShutdown_sendsShutdownMessage(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, stream := newTestSession(5, nil)
@@ -929,6 +959,7 @@ func TestRegistry_BroadcastShutdown_sendsShutdownMessage(t *testing.T) {
 }
 
 func TestRegistry_CloseAllSessions_invokesEverySessionCancel(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 
@@ -956,6 +987,7 @@ func TestRegistry_CloseAllSessions_invokesEverySessionCancel(t *testing.T) {
 }
 
 func TestRegistry_ConnectedNodeIDs_returnsLocalNodes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	for _, nodeID := range []uint64{1, 2, 3} {
@@ -971,6 +1003,7 @@ func TestRegistry_ConnectedNodeIDs_returnsLocalNodes(t *testing.T) {
 }
 
 func TestRegistry_SessionCount_returnsLocalCount(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	assert.Equal(t, 0, r.SessionCount(), "fresh registry has no sessions")
@@ -988,6 +1021,7 @@ func TestRegistry_SessionCount_returnsLocalCount(t *testing.T) {
 }
 
 func TestRegistry_WaitSessionsClosed_returnsImmediatelyWhenEmpty(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, _ := setupRegistry(t, false)
 
@@ -1002,6 +1036,7 @@ func TestRegistry_WaitSessionsClosed_returnsImmediatelyWhenEmpty(t *testing.T) {
 }
 
 func TestRegistry_WaitSessionsClosed_returnsWhenAllUnregistered(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	for _, nodeID := range []uint64{1, 2} {
@@ -1030,6 +1065,7 @@ func TestRegistry_WaitSessionsClosed_returnsWhenAllUnregistered(t *testing.T) {
 }
 
 func TestRegistry_WaitSessionsClosed_returnsFalseOnTimeout(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, _, ctx := setupRegistry(t, false)
 	s, _ := newTestSession(1, nil)
@@ -1043,6 +1079,7 @@ func TestRegistry_WaitSessionsClosed_returnsFalseOnTimeout(t *testing.T) {
 }
 
 func TestRegistry_handleSessionEvent_addsGlobalNodeForRemoteInstance(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -1060,6 +1097,7 @@ func TestRegistry_handleSessionEvent_addsGlobalNodeForRemoteInstance(t *testing.
 }
 
 func TestRegistry_handleSessionEvent_removesGlobalNodeOnDisconnect(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -1082,6 +1120,7 @@ func TestRegistry_handleSessionEvent_removesGlobalNodeOnDisconnect(t *testing.T)
 }
 
 func TestRegistry_handleSessionEvent_ignoresOwnInstance(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -1102,6 +1141,7 @@ func TestRegistry_handleSessionEvent_ignoresOwnInstance(t *testing.T) {
 }
 
 func TestRegistry_handleTaskDispatch_routesToLocalSession(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -1140,6 +1180,7 @@ func TestRegistry_handleTaskDispatch_routesToLocalSession(t *testing.T) {
 }
 
 func TestRegistry_handleTaskDispatch_skipsForeignNode(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -1169,6 +1210,7 @@ func TestRegistry_handleTaskDispatch_skipsForeignNode(t *testing.T) {
 }
 
 func TestRegistry_handleTaskDispatch_enqueueError_dropsWithoutPanic(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: register a session then close it so its outbound queue rejects
 	// new work (Enqueue → ErrSessionClosed). handleTaskDispatch must hit its
 	// enqueue-error branch, drop the task and neither panic nor tear down the
@@ -1206,6 +1248,7 @@ func TestRegistry_handleTaskDispatch_enqueueError_dropsWithoutPanic(t *testing.T
 }
 
 func TestRegistry_handleAttachDispatch_routesToLocalSession(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -1241,6 +1284,7 @@ func TestRegistry_handleAttachDispatch_routesToLocalSession(t *testing.T) {
 }
 
 func TestRegistry_handleAttachDispatch_enqueueError_dropsWithoutPanic(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: closed session → Enqueue rejects, exercising handleAttachDispatch's
 	// enqueue-error branch. The message must be dropped without a panic.
 	r, ps, ctx := setupRegistry(t, true)
@@ -1271,6 +1315,7 @@ func TestRegistry_handleAttachDispatch_enqueueError_dropsWithoutPanic(t *testing
 }
 
 func TestRegistry_handleMetricsRequest_registersRemoteWaiterAndForwards(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -1325,6 +1370,7 @@ func TestRegistry_handleMetricsRequest_registersRemoteWaiterAndForwards(t *testi
 }
 
 func TestRegistry_handleMetricsRequest_skipsRegisterForOwnInstance(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -1361,6 +1407,7 @@ func TestRegistry_handleMetricsRequest_skipsRegisterForOwnInstance(t *testing.T)
 }
 
 func TestRegistry_handleMetricsRequest_unknownNode_isNoop(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	r, ps, ctx := setupRegistry(t, true)
 
@@ -1391,6 +1438,7 @@ func TestRegistry_handleMetricsRequest_unknownNode_isNoop(t *testing.T) {
 }
 
 func TestRegistry_handleMetricsRequest_enqueueError_cancelsRemoteWaiter(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: a remote metrics request registers a cross-instance waiter before
 	// forwarding to the local session. If that forward fails (here: the session
 	// is closed so Enqueue → ErrSessionClosed), the waiter would otherwise leak

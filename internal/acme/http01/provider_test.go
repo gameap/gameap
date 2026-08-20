@@ -12,6 +12,8 @@ import (
 )
 
 func TestProvider_PresentServesKeyAuthorization(t *testing.T) {
+	t.Parallel()
+
 	p := http01.New()
 
 	require.NoError(t, p.Present("example.com", "tok123", "key.auth.value"))
@@ -30,6 +32,8 @@ func TestProvider_PresentServesKeyAuthorization(t *testing.T) {
 }
 
 func TestProvider_CleanUpRemovesToken(t *testing.T) {
+	t.Parallel()
+
 	p := http01.New()
 
 	require.NoError(t, p.Present("example.com", "tok123", "key.auth.value"))
@@ -44,6 +48,8 @@ func TestProvider_CleanUpRemovesToken(t *testing.T) {
 }
 
 func TestProvider_HandlerRejectsUnknownToken(t *testing.T) {
+	t.Parallel()
+
 	p := http01.New()
 
 	rw := httptest.NewRecorder()
@@ -55,6 +61,8 @@ func TestProvider_HandlerRejectsUnknownToken(t *testing.T) {
 }
 
 func TestProvider_HandlerRejectsBadMethod(t *testing.T) {
+	t.Parallel()
+
 	p := http01.New()
 
 	require.NoError(t, p.Present("example.com", "tok", "key"))
@@ -68,6 +76,8 @@ func TestProvider_HandlerRejectsBadMethod(t *testing.T) {
 }
 
 func TestProvider_HandlerRejectsPathTraversal(t *testing.T) {
+	t.Parallel()
+
 	p := http01.New()
 
 	require.NoError(t, p.Present("example.com", "tok", "key"))
@@ -79,6 +89,8 @@ func TestProvider_HandlerRejectsPathTraversal(t *testing.T) {
 
 	for _, path := range tests {
 		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 
@@ -90,6 +102,8 @@ func TestProvider_HandlerRejectsPathTraversal(t *testing.T) {
 }
 
 func TestProvider_HandlerHEADReturnsKeyAuth(t *testing.T) {
+	t.Parallel()
+
 	p := http01.New()
 
 	require.NoError(t, p.Present("example.com", "tok", "key"))
@@ -102,7 +116,9 @@ func TestProvider_HandlerHEADReturnsKeyAuth(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rw.Code)
 }
 
-func TestProvider_ConcurrentPresentCleanUp(_ *testing.T) {
+func TestProvider_ConcurrentPresentCleanUp(t *testing.T) {
+	t.Parallel()
+
 	p := http01.New()
 
 	const n = 50

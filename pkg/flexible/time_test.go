@@ -10,6 +10,8 @@ import (
 )
 
 func TestFlexibleTime_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		jsonStr  string
@@ -229,6 +231,8 @@ func TestFlexibleTime_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var ft Time
 			err := json.Unmarshal([]byte(tt.jsonStr), &ft)
 
@@ -245,6 +249,8 @@ func TestFlexibleTime_UnmarshalJSON(t *testing.T) {
 }
 
 func TestFlexibleTime_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		time     Time
@@ -284,6 +290,8 @@ func TestFlexibleTime_MarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := json.Marshal(tt.time)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, string(data))
@@ -292,6 +300,8 @@ func TestFlexibleTime_MarshalJSON(t *testing.T) {
 }
 
 func TestFlexibleTime_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		original string
@@ -312,6 +322,8 @@ func TestFlexibleTime_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var ft Time
 			err := json.Unmarshal([]byte(tt.original), &ft)
 			require.NoError(t, err)
@@ -329,12 +341,16 @@ func TestFlexibleTime_RoundTrip(t *testing.T) {
 }
 
 func TestFlexibleTime_StructMarshaling(t *testing.T) {
+	t.Parallel()
+
 	type TestStruct struct {
 		CreatedAt Time `json:"created_at"`
 		UpdatedAt Time `json:"updated_at"`
 	}
 
 	t.Run("marshal_struct_with_flexible_time", func(t *testing.T) {
+		t.Parallel()
+
 		ts := TestStruct{
 			CreatedAt: Time{Time: time.Date(2025, 10, 20, 10, 0, 0, 0, time.UTC)},
 			UpdatedAt: Time{Time: time.Date(2025, 10, 21, 15, 30, 0, 0, time.UTC)},
@@ -347,6 +363,8 @@ func TestFlexibleTime_StructMarshaling(t *testing.T) {
 	})
 
 	t.Run("unmarshal_struct_with_flexible_time_mixed_formats", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"created_at": "2025-10-20 10:00:00",
 			"updated_at": "2025-10-21T15:30:00Z"
@@ -367,7 +385,11 @@ func TestFlexibleTime_StructMarshaling(t *testing.T) {
 }
 
 func TestFlexibleTime_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	t.Run("very_old_date", func(t *testing.T) {
+		t.Parallel()
+
 		ft := Time{Time: time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)}
 		data, err := json.Marshal(ft)
 		require.NoError(t, err)
@@ -379,6 +401,8 @@ func TestFlexibleTime_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("far_future_date", func(t *testing.T) {
+		t.Parallel()
+
 		ft := Time{Time: time.Date(2100, 12, 31, 23, 59, 59, 0, time.UTC)}
 		data, err := json.Marshal(ft)
 		require.NoError(t, err)
@@ -390,6 +414,8 @@ func TestFlexibleTime_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("timezone_conversion_preserves_instant", func(t *testing.T) {
+		t.Parallel()
+
 		utc := Time{Time: time.Date(2025, 10, 20, 20, 0, 0, 0, time.UTC)}
 		est := Time{Time: time.Date(2025, 10, 20, 15, 0, 0, 0, time.FixedZone("EST", -5*60*60))}
 
@@ -408,6 +434,8 @@ func TestFlexibleTime_EdgeCases(t *testing.T) {
 }
 
 func TestFlexibleTime_AllSupportedFormats(t *testing.T) {
+	t.Parallel()
+
 	baseTime := time.Date(2025, 10, 20, 20, 28, 10, 123456789, time.UTC)
 
 	tests := []struct {
@@ -459,6 +487,8 @@ func TestFlexibleTime_AllSupportedFormats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			jsonStr := `"` + tt.input + `"`
 			var ft Time
 			err := json.Unmarshal([]byte(jsonStr), &ft)

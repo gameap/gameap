@@ -8,6 +8,7 @@ import (
 )
 
 func TestFindGame_FilterCount(t *testing.T) {
+	t.Parallel()
 	filterType := reflect.TypeFor[FindGame]()
 	fieldsCount := filterType.NumField()
 
@@ -37,6 +38,7 @@ func TestFindGame_FilterCount(t *testing.T) {
 }
 
 func TestFindGameByCodes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		codes []string
@@ -61,6 +63,7 @@ func TestFindGameByCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT

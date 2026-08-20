@@ -13,6 +13,7 @@ import (
 )
 
 func TestNodesService_FindNodes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.NodeRepository)
@@ -79,6 +80,7 @@ func TestNodesService_FindNodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewNodeRepository()
 			tt.setupRepo(repo)
 
@@ -97,6 +99,7 @@ func TestNodesService_FindNodes(t *testing.T) {
 }
 
 func TestNodesService_GetNode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.NodeRepository)
@@ -138,6 +141,7 @@ func TestNodesService_GetNode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewNodeRepository()
 			tt.setupRepo(repo)
 
@@ -159,6 +163,7 @@ func TestNodesService_GetNode(t *testing.T) {
 }
 
 func TestConvertNodeToProto(t *testing.T) {
+	t.Parallel()
 	node := &domain.Node{
 		ID:          42,
 		Name:        "TestNode",
@@ -188,6 +193,7 @@ func TestConvertNodeToProto(t *testing.T) {
 }
 
 func TestConvertNodeToProto_MinimalFields(t *testing.T) {
+	t.Parallel()
 	node := &domain.Node{
 		ID:      1,
 		Name:    "BasicNode",
@@ -207,6 +213,7 @@ func TestConvertNodeToProto_MinimalFields(t *testing.T) {
 }
 
 func TestNodesHostLibraryFactory_Create(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewNodeRepository()
 	factory := NewNodesHostLibraryFactory(repo, nil, nil, nil, stubPermissionChecker{}, nil)
 

@@ -10,6 +10,8 @@ import (
 )
 
 func TestPluginRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewPluginRepositorySuite(
 		func(_ *testing.T) repositories.PluginRepository {
 			return inmemory.NewPluginRepository()

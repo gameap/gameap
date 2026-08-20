@@ -12,7 +12,9 @@ import (
 )
 
 func TestService_processMessage(t *testing.T) {
+	t.Parallel()
 	t.Run("heartbeat_updates_last_ping_and_returns_nil", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 		stream := newStubStream(context.Background())
@@ -31,6 +33,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("task_status_routed_to_task_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(7, newStubStream(context.Background()), "v", nil, func() {})
@@ -49,6 +52,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("nil_task_handler_swallowed_for_task_status", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 		svc.taskHandler = nil
@@ -64,6 +68,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("task_output_routed_to_task_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
@@ -81,6 +86,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("command_output_routed_to_command_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
@@ -100,6 +106,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("command_result_resolves_pending_request_and_calls_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
@@ -128,6 +135,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("server_statuses_routed_to_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
@@ -146,6 +154,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("file_read_response_resolves_pending_request", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
@@ -171,6 +180,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("file_write_response_resolves_pending_request", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 		ch := sess.RegisterPendingRequest("fw-1")
@@ -191,6 +201,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("file_list_response_resolves_pending_request", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 		ch := sess.RegisterPendingRequest("fl-1")
@@ -211,6 +222,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("file_operation_response_resolves_pending_request", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 		ch := sess.RegisterPendingRequest("fo-1")
@@ -231,6 +243,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("status_response_resolves_pending_request", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 		ch := sess.RegisterPendingRequest("st-1")
@@ -251,6 +264,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("console_log_response_resolves_pending_request", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 		ch := sess.RegisterPendingRequest("cl-1")
@@ -271,6 +285,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("http_proxy_response_resolves_pending_request", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 		ch := sess.RegisterPendingRequest("hp-1")
@@ -291,6 +306,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("archive_response_resolves_pending_request", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 		ch := sess.RegisterPendingRequest("ar-1")
@@ -313,6 +329,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("archive_progress_keeps_pending_request_open", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 		ch := sess.RegisterPendingRequest("ar-2")
@@ -343,6 +360,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("archive_progress_routed_to_handler_without_resolving", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		handler := &fakeArchiveProgressHandler{}
 		svc.SetArchiveProgressHandler(handler)
@@ -375,6 +393,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("attach_started_routed_to_attach_handler", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 
@@ -389,6 +408,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("attach_output_routed_to_attach_handler", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 
@@ -403,6 +423,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("attach_closed_routed_to_attach_handler", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 
@@ -417,6 +438,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("metrics_response_routed_to_metrics_handler", func(t *testing.T) {
+		t.Parallel()
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 
@@ -431,6 +453,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("unknown_payload_returns_nil_without_panic", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 
@@ -443,6 +466,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("server_task_execution_started_routed_to_server_task_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(7, newStubStream(context.Background()), "v", nil, func() {})
@@ -462,6 +486,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("server_task_execution_finished_routed_to_server_task_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
@@ -480,6 +505,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("server_task_execution_log_routed_to_server_task_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
@@ -498,6 +524,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("server_task_resync_request_routed_to_server_task_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
@@ -516,6 +543,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("nil_server_task_handler_swallowed_for_all_server_task_messages", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 		svc.serverTaskHandler = nil
@@ -544,6 +572,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("server_task_execution_started_propagates_handler_error", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		deps.serverTaskHandler.startedErr = errSentinel
@@ -562,6 +591,7 @@ func TestService_processMessage(t *testing.T) {
 	})
 
 	t.Run("server_task_execution_finished_propagates_handler_error", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		deps.serverTaskHandler.finishedErr = errSentinel
@@ -581,7 +611,9 @@ func TestService_processMessage(t *testing.T) {
 }
 
 func TestService_Connect_reconcilesAbandonedServerTaskExecutionsOnRegister(t *testing.T) {
+	t.Parallel()
 	t.Run("forwards_in_flight_execution_ids_with_daemon_restart_reason", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		setupAuthorizedNode(t, deps, "k")
@@ -613,6 +645,7 @@ func TestService_Connect_reconcilesAbandonedServerTaskExecutionsOnRegister(t *te
 	})
 
 	t.Run("empty_in_flight_passes_empty_slice", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		setupAuthorizedNode(t, deps, "k")
@@ -636,6 +669,7 @@ func TestService_Connect_reconcilesAbandonedServerTaskExecutionsOnRegister(t *te
 	})
 
 	t.Run("reconcile_error_does_not_fail_registration", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		setupAuthorizedNode(t, deps, "k")
@@ -659,6 +693,7 @@ func TestService_Connect_reconcilesAbandonedServerTaskExecutionsOnRegister(t *te
 	})
 
 	t.Run("nil_server_task_handler_skips_reconcile", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		setupAuthorizedNode(t, deps, "k")
@@ -690,6 +725,7 @@ func TestService_Connect_reconcilesAbandonedServerTaskExecutionsOnRegister(t *te
 }
 
 func TestResolveResponse_alwaysReturnsNilAndDispatchesToSession(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	sess := session.NewSession(1, newStubStream(context.Background()), "v", nil, func() {})
 	ch := sess.RegisterPendingRequest("any-id")

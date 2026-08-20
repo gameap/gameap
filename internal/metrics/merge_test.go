@@ -35,11 +35,13 @@ func makeResponse(ts time.Time, series ...*proto.MetricSeries) *proto.MetricsRes
 }
 
 func TestMergeResponses_EmptyInput_ReturnsNil(t *testing.T) {
+	t.Parallel()
 	assert.Nil(t, mergeResponses(nil))
 	assert.Nil(t, mergeResponses([]*proto.MetricsResponse{}))
 }
 
 func TestMergeResponses_SingleEntry_ReturnsInputVerbatim(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	in := makeResponse(now, makeSeries("cpu", nil, makePoint(now, 1)))
 
@@ -49,6 +51,7 @@ func TestMergeResponses_SingleEntry_ReturnsInputVerbatim(t *testing.T) {
 }
 
 func TestMergeResponses_TwoEntriesSameSeries_PointsConcatenatedAndSorted(t *testing.T) {
+	t.Parallel()
 	t0 := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(5 * time.Second)
 	t2 := t0.Add(10 * time.Second)
@@ -71,6 +74,7 @@ func TestMergeResponses_TwoEntriesSameSeries_PointsConcatenatedAndSorted(t *test
 }
 
 func TestMergeResponses_DifferentLabelCombinations_StaySeparate(t *testing.T) {
+	t.Parallel()
 	t0 := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(5 * time.Second)
 
@@ -94,6 +98,7 @@ func TestMergeResponses_DifferentLabelCombinations_StaySeparate(t *testing.T) {
 }
 
 func TestMergeResponses_NodeAndServerSeries_GroupedPerIdentity(t *testing.T) {
+	t.Parallel()
 	t0 := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(5 * time.Second)
 
@@ -120,6 +125,7 @@ func TestMergeResponses_NodeAndServerSeries_GroupedPerIdentity(t *testing.T) {
 }
 
 func TestMergeResponses_DuplicateTimestamps_Deduped(t *testing.T) {
+	t.Parallel()
 	t0 := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(5 * time.Second)
 
@@ -141,6 +147,7 @@ func TestMergeResponses_DuplicateTimestamps_Deduped(t *testing.T) {
 }
 
 func TestMergeResponses_OutOfOrderEntries_PointsSortedByTimestamp(t *testing.T) {
+	t.Parallel()
 	t0 := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(5 * time.Second)
 	t2 := t0.Add(10 * time.Second)
@@ -161,6 +168,7 @@ func TestMergeResponses_OutOfOrderEntries_PointsSortedByTimestamp(t *testing.T) 
 }
 
 func TestMergeResponses_RealWorldShape_ReducesEnvelopesToOne(t *testing.T) {
+	t.Parallel()
 	const ticks = 360
 	const seriesPerTick = 31
 
@@ -185,6 +193,7 @@ func TestMergeResponses_RealWorldShape_ReducesEnvelopesToOne(t *testing.T) {
 }
 
 func TestMergeResponses_PreservesActualWindowSecondsMax(t *testing.T) {
+	t.Parallel()
 	t0 := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(5 * time.Second)
 
@@ -200,6 +209,7 @@ func TestMergeResponses_PreservesActualWindowSecondsMax(t *testing.T) {
 }
 
 func TestSeriesIdentityKey(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		series *proto.MetricSeries
@@ -234,6 +244,7 @@ func TestSeriesIdentityKey(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tc.want, seriesIdentityKey(tc.series))
 		})
 	}

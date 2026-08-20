@@ -115,6 +115,8 @@ func (m *mockReadCloser) Close() error {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		serverID         string
@@ -960,6 +962,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()

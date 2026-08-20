@@ -15,6 +15,7 @@ import (
 )
 
 func TestNewBridge(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	ps := memory.New()
 	defer func() { _ = ps.Close() }()
@@ -28,9 +29,10 @@ func TestNewBridge(t *testing.T) {
 }
 
 func TestBridge_Start_SubscribesAllRealtimePatterns(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	ps := memory.New()
-	defer func() { _ = ps.Close() }()
+	t.Cleanup(func() { _ = ps.Close() })
 
 	bridge := NewBridge(hub, ps, nil)
 
@@ -60,6 +62,7 @@ func TestBridge_Start_SubscribesAllRealtimePatterns(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			client := newOfflineClient(t, hub)
 			hub.Register(client, tt.topic)
 			defer hub.Unregister(client)
@@ -79,6 +82,7 @@ func TestBridge_Start_SubscribesAllRealtimePatterns(t *testing.T) {
 }
 
 func TestBridge_Start_ReturnsFirstSubscribeError(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	wantErr := errors.New("subscribe boom")
 	ps := &fakeSubscriber{subscribeErr: wantErr}
@@ -93,6 +97,7 @@ func TestBridge_Start_ReturnsFirstSubscribeError(t *testing.T) {
 }
 
 func TestBridge_HandleMessage_BroadcastsWrappedPayload(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	ps := memory.New()
 	defer func() { _ = ps.Close() }()
@@ -135,6 +140,7 @@ func TestBridge_HandleMessage_BroadcastsWrappedPayload(t *testing.T) {
 }
 
 func TestBridge_HandleMessage_SkipsEmptyTopic(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	ps := memory.New()
 	defer func() { _ = ps.Close() }()
@@ -160,6 +166,7 @@ func TestBridge_HandleMessage_SkipsEmptyTopic(t *testing.T) {
 }
 
 func TestChannelToTopic(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		channel string
@@ -194,6 +201,7 @@ func TestChannelToTopic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.want, ChannelToTopic(tt.channel))
 		})
 	}

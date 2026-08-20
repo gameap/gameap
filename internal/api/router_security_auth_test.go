@@ -45,6 +45,8 @@ const (
 // Asserts 401 Unauthorized for the most common authentication-bypass attempts:
 // missing token, malformed token, signed-with-wrong-key, expired token,
 // invalid PAT id/secret, PAT for a removed user, garbage payloads.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API2_BrokenAuthentication(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -176,6 +178,8 @@ func buildAuthTokenForKind(t *testing.T, env *securityTestEnv, kind tokenKind) s
 // Although by design the AuthMiddleware also reads the token from the `?token=` query string
 // (for WebSocket connections) and from a `token` cookie (for browser apps), this test pins
 // down the *current* contract so future regressions are caught.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API2_TokenSchemes(t *testing.T) {
 	env := setupSecurityTest(t)
 	validToken := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -218,6 +222,8 @@ func TestRouterSecurity_API2_TokenSchemes(t *testing.T) {
 //     (covered by the shorttoken handler tests); URLs leak into proxy logs.
 //   - cookies accept session PASETOs but reject PATs (PAT is API-only).
 //   - invalid tokens via either channel return 401.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API2_TokenViaQueryAndCookie(t *testing.T) {
 	env := setupSecurityTest(t)
 	valid := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -255,6 +261,8 @@ func TestRouterSecurity_API2_TokenViaQueryAndCookie(t *testing.T) {
 // TestRouterSecurity_API2_UserDeletedAfterTokenIssue verifies that a previously valid
 // PASETO/JWT token cannot be used after the underlying user account is removed —
 // the auth middleware re-resolves the user on every request via login lookup.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API2_UserDeletedAfterTokenIssue(t *testing.T) {
 	env := setupSecurityTest(t)
 
@@ -275,6 +283,8 @@ func TestRouterSecurity_API2_UserDeletedAfterTokenIssue(t *testing.T) {
 //
 // This guards against a regression where the database might be queried with the
 // plaintext secret instead of the SHA-256 hash.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API2_PATSecretMustBeOpaque(t *testing.T) {
 	env := setupSecurityTest(t)
 
@@ -307,6 +317,8 @@ func TestRouterSecurity_API2_PATSecretMustBeOpaque(t *testing.T) {
 // TestRouterSecurity_API2_LogoutInvalidatesToken covers OWASP API2:2023 — once
 // the user POSTs /api/auth/logout with a valid token, that exact token must be
 // rejected on subsequent requests even though its `exp` is still in the future.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API2_LogoutInvalidatesToken(t *testing.T) {
 	env := setupSecurityTest(t)
 	token := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -328,6 +340,8 @@ func TestRouterSecurity_API2_LogoutInvalidatesToken(t *testing.T) {
 
 // TestRouterSecurity_API2_LogoutRequiresAuth verifies that the logout endpoint
 // itself requires authentication — anonymous callers get 401, not 204.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API2_LogoutRequiresAuth(t *testing.T) {
 	env := setupSecurityTest(t)
 
@@ -343,6 +357,8 @@ func TestRouterSecurity_API2_LogoutRequiresAuth(t *testing.T) {
 // The default middleware permits 20 failures per IP and 5 per username within
 // a 15-minute window. We exercise the per-username path because it is tightest
 // and easiest to assert against without adjusting headers.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API2_LoginBruteForceProtection(t *testing.T) {
 	env := setupSecurityTest(t)
 	body := []byte(`{"login":"never-existed","password":"wrong"}`)

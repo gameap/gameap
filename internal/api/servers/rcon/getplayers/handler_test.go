@@ -65,6 +65,7 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		serverID       string
@@ -462,6 +463,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -503,6 +505,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -518,6 +521,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestGetRconPort(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		server *domain.Server
@@ -543,6 +547,7 @@ func TestGetRconPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			port := getRconPort(tt.server)
 			assert.Equal(t, tt.want, port)
 		})
@@ -550,6 +555,7 @@ func TestGetRconPort(t *testing.T) {
 }
 
 func TestNewPlayersResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		players []struct {
@@ -685,6 +691,7 @@ func TestNewPlayersResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var playersList []struct {
 				ID    string
 				Name  string

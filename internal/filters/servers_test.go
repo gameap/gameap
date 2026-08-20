@@ -8,6 +8,7 @@ import (
 )
 
 func TestFindServerByIDs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ids  []uint
@@ -32,6 +33,7 @@ func TestFindServerByIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -44,6 +46,7 @@ func TestFindServerByIDs(t *testing.T) {
 }
 
 func TestFindServerByNodeIDs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		nodeIDs []uint
@@ -68,6 +71,7 @@ func TestFindServerByNodeIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -80,6 +84,7 @@ func TestFindServerByNodeIDs(t *testing.T) {
 }
 
 func TestFindServerByUUIDs(t *testing.T) {
+	t.Parallel()
 	uuid1 := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	uuid2 := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
@@ -112,6 +117,7 @@ func TestFindServerByUUIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT

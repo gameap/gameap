@@ -8,6 +8,7 @@ import (
 )
 
 func TestSanitizeLoadError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		input     error
@@ -43,6 +44,7 @@ func TestSanitizeLoadError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := SanitizeLoadError(tt.input)
 			if tt.wantError == "" {
 				assert.Nil(t, result)
@@ -54,6 +56,7 @@ func TestSanitizeLoadError(t *testing.T) {
 }
 
 func TestSanitizeLoadError_known_errors(t *testing.T) {
+	t.Parallel()
 	knownErrors := []error{
 		ErrAPIVersionMismatch,
 		ErrExportNotFound,
@@ -66,6 +69,7 @@ func TestSanitizeLoadError_known_errors(t *testing.T) {
 
 	for _, knownErr := range knownErrors {
 		t.Run(knownErr.Error(), func(t *testing.T) {
+			t.Parallel()
 			result := SanitizeLoadError(knownErr)
 			assert.ErrorIs(t, result, knownErr)
 		})
@@ -73,6 +77,7 @@ func TestSanitizeLoadError_known_errors(t *testing.T) {
 }
 
 func TestSanitizeLoadError_wrapped_known_errors(t *testing.T) {
+	t.Parallel()
 	knownErrors := []error{
 		ErrAPIVersionMismatch,
 		ErrExportNotFound,
@@ -85,6 +90,7 @@ func TestSanitizeLoadError_wrapped_known_errors(t *testing.T) {
 
 	for _, knownErr := range knownErrors {
 		t.Run("wrapped_"+knownErr.Error(), func(t *testing.T) {
+			t.Parallel()
 			wrapped := errors.Wrap(knownErr, "some context")
 			result := SanitizeLoadError(wrapped)
 			assert.ErrorIs(t, result, knownErr)

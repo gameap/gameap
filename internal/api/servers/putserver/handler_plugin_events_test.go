@@ -33,6 +33,7 @@ func (f *fakePluginDispatcher) DispatchServerEventAsync(
 }
 
 func TestHandler_ServeHTTP_dispatches_server_updated_event(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{
 		ID:         1,

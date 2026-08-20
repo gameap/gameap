@@ -13,6 +13,7 @@ import (
 )
 
 func TestInMemoryFileManager_Read(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setup       func(fm *InMemoryFileManager)
@@ -42,6 +43,7 @@ func TestInMemoryFileManager_Read(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := NewInMemoryFileManager()
 			tt.setup(fm)
 			ctx := context.Background()
@@ -62,6 +64,7 @@ func TestInMemoryFileManager_Read(t *testing.T) {
 }
 
 func TestInMemoryFileManager_Write(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		setup   func(fm *InMemoryFileManager)
@@ -89,6 +92,7 @@ func TestInMemoryFileManager_Write(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := NewInMemoryFileManager()
 			tt.setup(fm)
 			ctx := context.Background()
@@ -108,6 +112,7 @@ func TestInMemoryFileManager_Write(t *testing.T) {
 }
 
 func TestInMemoryFileManager_Delete(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		setup   func(fm *InMemoryFileManager)
@@ -132,6 +137,7 @@ func TestInMemoryFileManager_Delete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := NewInMemoryFileManager()
 			tt.setup(fm)
 			ctx := context.Background()
@@ -149,6 +155,7 @@ func TestInMemoryFileManager_Delete(t *testing.T) {
 }
 
 func TestInMemoryFileManager_Exists(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		setup  func(fm *InMemoryFileManager)
@@ -173,6 +180,7 @@ func TestInMemoryFileManager_Exists(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := NewInMemoryFileManager()
 			tt.setup(fm)
 			ctx := context.Background()
@@ -185,6 +193,7 @@ func TestInMemoryFileManager_Exists(t *testing.T) {
 }
 
 func TestInMemoryFileManager_List(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(fm *InMemoryFileManager)
@@ -227,6 +236,7 @@ func TestInMemoryFileManager_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := NewInMemoryFileManager()
 			tt.setup(fm)
 			ctx := context.Background()
@@ -246,7 +256,8 @@ func TestInMemoryFileManager_List(t *testing.T) {
 	}
 }
 
-func TestInMemoryFileManager_Concurrency(_ *testing.T) {
+func TestInMemoryFileManager_Concurrency(t *testing.T) {
+	t.Parallel()
 	fm := NewInMemoryFileManager()
 	ctx := context.Background()
 
@@ -279,6 +290,7 @@ func TestInMemoryFileManager_Concurrency(_ *testing.T) {
 }
 
 func TestInMemoryFileManager_ReadStream(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setup       func(fm *InMemoryFileManager)
@@ -307,6 +319,7 @@ func TestInMemoryFileManager_ReadStream(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := NewInMemoryFileManager()
 			tt.setup(fm)
 			ctx := context.Background()
@@ -332,6 +345,7 @@ func TestInMemoryFileManager_ReadStream(t *testing.T) {
 }
 
 func TestInMemoryFileManager_ReadStream_ReturnsCopy(t *testing.T) {
+	t.Parallel()
 	fm := NewInMemoryFileManager()
 	ctx := context.Background()
 
@@ -350,6 +364,7 @@ func TestInMemoryFileManager_ReadStream_ReturnsCopy(t *testing.T) {
 }
 
 func TestInMemoryFileManager_ReadStreamAt(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setup       func(fm *InMemoryFileManager)
@@ -411,6 +426,7 @@ func TestInMemoryFileManager_ReadStreamAt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := NewInMemoryFileManager()
 			tt.setup(fm)
 			ctx := context.Background()
@@ -436,6 +452,7 @@ func TestInMemoryFileManager_ReadStreamAt(t *testing.T) {
 }
 
 func TestInMemoryFileManager_WriteStream(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setup       func(fm *InMemoryFileManager)
@@ -475,6 +492,7 @@ func TestInMemoryFileManager_WriteStream(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := NewInMemoryFileManager()
 			tt.setup(fm)
 			ctx := context.Background()
@@ -500,6 +518,7 @@ func TestInMemoryFileManager_WriteStream(t *testing.T) {
 }
 
 func TestInMemoryFileManager_DeleteByPrefix(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		setup        func(fm *InMemoryFileManager)
@@ -543,6 +562,7 @@ func TestInMemoryFileManager_DeleteByPrefix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := NewInMemoryFileManager()
 			tt.setup(fm)
 			ctx := context.Background()

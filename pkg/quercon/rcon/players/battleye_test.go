@@ -9,6 +9,7 @@ import (
 )
 
 func TestBattlEyePlayerManager_ParsePlayers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -63,6 +64,7 @@ func TestBattlEyePlayerManager_ParsePlayers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := NewBattlEyePlayers()
 
 			got, err := mgr.ParsePlayers(tt.input)
@@ -75,10 +77,12 @@ func TestBattlEyePlayerManager_ParsePlayers(t *testing.T) {
 }
 
 func TestBattlEyePlayerManager_PlayersCommand(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "players", NewBattlEyePlayers().PlayersCommand())
 }
 
 func TestBattlEyePlayerManager_ModerationIsNotSupported(t *testing.T) {
+	t.Parallel()
 	mgr := NewBattlEyePlayers()
 	player := Player{ID: "0", Name: "Nickname", UniqID: "guid"}
 

@@ -18,6 +18,8 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	serverID := uint(1)
 
 	tests := []struct {
@@ -478,6 +480,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			daemonTasksRepo := inmemory.NewDaemonTaskRepository()
 			tt.setupRepo(daemonTasksRepo)
 
@@ -520,6 +524,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestBuildFilter(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    *input
@@ -576,6 +582,8 @@ func TestBuildFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			filter := buildFilter(tt.input)
 			tt.expected(t, filter)
 		})
@@ -583,6 +591,8 @@ func TestBuildFilter(t *testing.T) {
 }
 
 func TestBuildSorting(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    *input
@@ -682,6 +692,8 @@ func TestBuildSorting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			sorting := buildSorting(tt.input)
 			assert.Equal(t, tt.expected, sorting)
 		})
@@ -689,6 +701,8 @@ func TestBuildSorting(t *testing.T) {
 }
 
 func TestBuildPagination(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    *input
@@ -742,6 +756,8 @@ func TestBuildPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			pagination := buildPagination(tt.input)
 
 			require.NotNil(t, pagination)
@@ -752,6 +768,8 @@ func TestBuildPagination(t *testing.T) {
 }
 
 func TestNewDaemonTasksResponseFromDaemonTasks(t *testing.T) {
+	t.Parallel()
+
 	tasks := []domain.DaemonTask{
 		{
 			ID:                1,

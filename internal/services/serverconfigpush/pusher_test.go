@@ -57,6 +57,8 @@ func discardLogger() *slog.Logger {
 }
 
 func TestPusher_PushServerConfig(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		serverID      uint
@@ -387,6 +389,8 @@ func TestPusher_PushServerConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			serverRepo := inmemory.NewServerRepository()
 			settingRepo := inmemory.NewServerSettingRepository()
@@ -422,6 +426,8 @@ func TestPusher_PushServerConfig(t *testing.T) {
 }
 
 func TestPusher_PushServerConfig_server_lookup_error_skips_send(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := &erroringServerRepo{
 		ServerRepository: inmemory.NewServerRepository(),
@@ -453,6 +459,8 @@ func TestPusher_PushServerConfig_server_lookup_error_skips_send(t *testing.T) {
 }
 
 func TestNewPusher_nil_logger_defaults_to_slog_default(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	settingRepo := inmemory.NewServerSettingRepository()
@@ -475,6 +483,8 @@ func TestNewPusher_nil_logger_defaults_to_slog_default(t *testing.T) {
 }
 
 func TestPusher_PushServerConfig_repository_errors_swallowed(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE — stub repositories that return errors verify the method
 	// completes without panicking and without invoking SendTask twice.
 	serverRepo := inmemory.NewServerRepository()

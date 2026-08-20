@@ -66,6 +66,7 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		serverID       string
@@ -584,6 +585,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -642,6 +644,7 @@ func (c *stubRconClient) Execute(_ context.Context, _ string) (string, error) {
 }
 
 func TestHandler_ServeHTTP_masksRconPassword(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		rconPassword string
@@ -682,6 +685,7 @@ func TestHandler_ServeHTTP_masksRconPassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
@@ -765,6 +769,7 @@ func seedOnlineServer(
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -781,6 +786,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestGetRconPort(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		server *domain.Server
@@ -806,6 +812,7 @@ func TestGetRconPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			port := getRconPort(tt.server)
 			assert.Equal(t, tt.want, port)
 		})
@@ -813,6 +820,7 @@ func TestGetRconPort(t *testing.T) {
 }
 
 func TestCommandRequest_Validate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		request  commandRequest
@@ -853,6 +861,7 @@ func TestCommandRequest_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.request.Validate()
 
 			if tt.wantErr {
@@ -866,6 +875,7 @@ func TestCommandRequest_Validate(t *testing.T) {
 }
 
 func TestNewCommandResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		output string
@@ -890,6 +900,7 @@ func TestNewCommandResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			response := newCommandResponse(tt.output)
 			assert.Equal(t, tt.want, response.Output)
 		})

@@ -18,6 +18,8 @@ import (
 var errBackendUnavailable = errors.New("backend unavailable")
 
 func TestTokenIdentifier(t *testing.T) {
+	t.Parallel()
+
 	emptySum := sha256.Sum256(nil)
 	emptyHex := hex.EncodeToString(emptySum[:])
 
@@ -47,6 +49,8 @@ func TestTokenIdentifier(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			input := tt.input
 
@@ -64,6 +68,8 @@ func TestTokenIdentifier(t *testing.T) {
 	}
 
 	t.Run("differs_for_different_inputs", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE / ACT
 		left := TokenIdentifier("token-a")
 		right := TokenIdentifier("token-b")
@@ -74,6 +80,8 @@ func TestTokenIdentifier(t *testing.T) {
 }
 
 func TestNoopRevocation_Revoke_NeverErrors(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	rev := NoopRevocation{}
 
@@ -85,6 +93,8 @@ func TestNoopRevocation_Revoke_NeverErrors(t *testing.T) {
 }
 
 func TestNoopRevocation_IsRevoked_AlwaysFalse(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	rev := NoopRevocation{}
 	_ = rev.Revoke(context.Background(), "any-id", time.Hour)
@@ -153,7 +163,11 @@ func (r *recordingCache) snapshotSetKeys() []string {
 }
 
 func TestCacheRevocation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("revoke_then_is_revoked_returns_true", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		rev := NewCacheRevocation(cache.NewInMemory())
@@ -168,6 +182,8 @@ func TestCacheRevocation(t *testing.T) {
 	})
 
 	t.Run("is_revoked_returns_false_for_unknown_identifier", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		rev := NewCacheRevocation(cache.NewInMemory())
@@ -181,6 +197,8 @@ func TestCacheRevocation(t *testing.T) {
 	})
 
 	t.Run("revoke_with_zero_ttl_is_noop", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		recorder := newRecordingCache()
@@ -197,6 +215,8 @@ func TestCacheRevocation(t *testing.T) {
 	})
 
 	t.Run("revoke_with_negative_ttl_is_noop", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		recorder := newRecordingCache()
@@ -213,6 +233,8 @@ func TestCacheRevocation(t *testing.T) {
 	})
 
 	t.Run("cache_get_returns_unrelated_error_propagates", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		recorder := newRecordingCache()
@@ -229,6 +251,8 @@ func TestCacheRevocation(t *testing.T) {
 	})
 
 	t.Run("key_uses_revocation_prefix", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		recorder := newRecordingCache()

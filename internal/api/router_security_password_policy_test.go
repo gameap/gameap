@@ -42,6 +42,8 @@ const (
 
 // TestRouterSecurity_API2_PasswordPolicy_RejectsCommonPasswordOnCreate
 // covers ASVS §2.1.7 at the admin user-creation entry point.
+//
+//nolint:paralleltest // mutates the pkg/auth package-global password policy (SetPasswordBlocklist/SetAllowWeakPasswords) and hits the CreateRouter audit-sink race.
 func TestRouterSecurity_API2_PasswordPolicy_RejectsCommonPasswordOnCreate(t *testing.T) {
 	installEmbeddedBlocklist(t)
 
@@ -57,6 +59,8 @@ func TestRouterSecurity_API2_PasswordPolicy_RejectsCommonPasswordOnCreate(t *tes
 
 // TestRouterSecurity_API2_PasswordPolicy_RejectsCommonPasswordOnAdminUpdate
 // covers ASVS §2.1.7 at the admin-update-user entry point.
+//
+//nolint:paralleltest // mutates the pkg/auth package-global password policy (SetPasswordBlocklist/SetAllowWeakPasswords) and hits the CreateRouter audit-sink race.
 func TestRouterSecurity_API2_PasswordPolicy_RejectsCommonPasswordOnAdminUpdate(t *testing.T) {
 	installEmbeddedBlocklist(t)
 
@@ -73,6 +77,8 @@ func TestRouterSecurity_API2_PasswordPolicy_RejectsCommonPasswordOnAdminUpdate(t
 
 // TestRouterSecurity_API2_PasswordPolicy_RejectsCommonPasswordOnSelfUpdate
 // covers ASVS §2.1.7 at the self-service profile-update entry point.
+//
+//nolint:paralleltest // mutates the pkg/auth package-global password policy (SetPasswordBlocklist/SetAllowWeakPasswords) and hits the CreateRouter audit-sink race.
 func TestRouterSecurity_API2_PasswordPolicy_RejectsCommonPasswordOnSelfUpdate(t *testing.T) {
 	installEmbeddedBlocklist(t)
 
@@ -90,6 +96,8 @@ func TestRouterSecurity_API2_PasswordPolicy_RejectsCommonPasswordOnSelfUpdate(t 
 // TestRouterSecurity_API2_PasswordPolicy_BlocklistIsCaseInsensitive verifies
 // that uppercasing a known weak password does not bypass the check (the
 // lookup lowercases the candidate before consulting the blocklist).
+//
+//nolint:paralleltest // mutates the pkg/auth package-global password policy (SetPasswordBlocklist/SetAllowWeakPasswords) and hits the CreateRouter audit-sink race.
 func TestRouterSecurity_API2_PasswordPolicy_BlocklistIsCaseInsensitive(t *testing.T) {
 	installEmbeddedBlocklist(t)
 
@@ -112,6 +120,8 @@ func TestRouterSecurity_API2_PasswordPolicy_BlocklistIsCaseInsensitive(t *testin
 // The check is run via /api/profile to keep the assertion clean of the
 // transaction-manager wiring used by POST /api/users (the in-memory test
 // container intentionally returns nil for TransactionManager).
+//
+//nolint:paralleltest // mutates the pkg/auth package-global password policy (SetPasswordBlocklist/SetAllowWeakPasswords) and hits the CreateRouter audit-sink race.
 func TestRouterSecurity_API2_PasswordPolicy_AllowWeakOverridesBlock(t *testing.T) {
 	installEmbeddedBlocklist(t)
 	auth.SetAllowWeakPasswords(true)
@@ -131,6 +141,8 @@ func TestRouterSecurity_API2_PasswordPolicy_AllowWeakOverridesBlock(t *testing.T
 
 // TestRouterSecurity_API2_PasswordPolicy_AcceptsStrongPassword pins the
 // happy path — a high-entropy passphrase under the policy must succeed.
+//
+//nolint:paralleltest // mutates the pkg/auth package-global password policy (SetPasswordBlocklist/SetAllowWeakPasswords) and hits the CreateRouter audit-sink race.
 func TestRouterSecurity_API2_PasswordPolicy_AcceptsStrongPassword(t *testing.T) {
 	installEmbeddedBlocklist(t)
 
@@ -149,6 +161,8 @@ func TestRouterSecurity_API2_PasswordPolicy_AcceptsStrongPassword(t *testing.T) 
 // password is being SET. A user whose stored bcrypt hash corresponds to a
 // blocked password can still log in (otherwise existing accounts would be
 // locked out by a policy tightening).
+//
+//nolint:paralleltest // mutates the pkg/auth package-global password policy (SetPasswordBlocklist/SetAllowWeakPasswords) and hits the CreateRouter audit-sink race.
 func TestRouterSecurity_API2_PasswordPolicy_LoginDoesNotRunBlocklist(t *testing.T) {
 	installEmbeddedBlocklist(t)
 

@@ -13,10 +13,12 @@ import (
 )
 
 func TestJanitor_Sweep(t *testing.T) {
+	t.Parallel()
 	payload := []byte("0123456789")
 	checksum := sha256Hex(t, payload)
 
 	t.Run("removes_expired_session", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		storage := files.NewInMemoryFileManager()
 		clock := &fakeClock{now: time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)}
@@ -43,6 +45,7 @@ func TestJanitor_Sweep(t *testing.T) {
 	})
 
 	t.Run("keeps_active_session", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		storage := files.NewInMemoryFileManager()
 		clock := &fakeClock{now: time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)}
@@ -65,6 +68,7 @@ func TestJanitor_Sweep(t *testing.T) {
 	})
 
 	t.Run("noop_on_empty_storage", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		storage := files.NewInMemoryFileManager()
 		clock := &fakeClock{now: time.Now()}
@@ -80,6 +84,7 @@ func TestJanitor_Sweep(t *testing.T) {
 	})
 
 	t.Run("ignores_orphaned_chunk_without_metadata", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE — chunk exists without a sibling upload.json.
 		storage := files.NewInMemoryFileManager()
 		require.NoError(t, storage.Write(
@@ -96,6 +101,7 @@ func TestJanitor_Sweep(t *testing.T) {
 	})
 
 	t.Run("removes_only_expired_in_mixed_set", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE — one expired and one active session in the same storage.
 		storage := files.NewInMemoryFileManager()
 		clock := &fakeClock{now: time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)}
@@ -127,6 +133,7 @@ func TestJanitor_Sweep(t *testing.T) {
 	})
 
 	t.Run("skips_session_with_corrupted_metadata", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE — non-JSON bytes in upload.json must not crash the sweep.
 		storage := files.NewInMemoryFileManager()
 		require.NoError(t, storage.Write(
@@ -147,7 +154,9 @@ func TestJanitor_Sweep(t *testing.T) {
 }
 
 func TestJanitor_Run(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_immediately_when_interval_is_zero", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		storage := files.NewInMemoryFileManager()
 		janitor := upload.NewJanitor(storage, &fakeClock{now: time.Now()}, 0, nil)
@@ -169,6 +178,7 @@ func TestJanitor_Run(t *testing.T) {
 	})
 
 	t.Run("returns_when_context_cancelled", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		storage := files.NewInMemoryFileManager()
 		janitor := upload.NewJanitor(storage, &fakeClock{now: time.Now()}, 10*time.Millisecond, nil)

@@ -18,6 +18,7 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		requestBody    string
@@ -142,6 +143,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()
@@ -180,6 +182,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_EmptyBody(t *testing.T) {
+	t.Parallel()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
@@ -206,6 +209,7 @@ func TestHandler_EmptyBody(t *testing.T) {
 }
 
 func TestHandler_ResponseStructure(t *testing.T) {
+	t.Parallel()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
@@ -240,6 +244,7 @@ func TestHandler_ResponseStructure(t *testing.T) {
 }
 
 func TestHandler_WithQueryParameters(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		requestBody    string
@@ -312,6 +317,7 @@ func TestHandler_WithQueryParameters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()
@@ -342,6 +348,7 @@ func TestHandler_WithQueryParameters(t *testing.T) {
 }
 
 func TestHandler_InvalidQueryParameters(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		requestBody    string
@@ -374,6 +381,7 @@ func TestHandler_InvalidQueryParameters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()

@@ -13,6 +13,8 @@ import (
 )
 
 func TestGlobalAPIService_SendBug(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		report         BugReport
@@ -66,6 +68,8 @@ func TestGlobalAPIService_SendBug(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create mock server
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if tt.validateReq != nil {

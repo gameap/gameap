@@ -31,6 +31,7 @@ func (f *fakePluginDispatcher) DispatchServerEventAsync(
 }
 
 func TestHandler_ServeHTTP_dispatches_server_created_event(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
 	gameRepo := inmemory.NewGameRepository()

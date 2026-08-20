@@ -11,6 +11,8 @@ import (
 )
 
 func TestExporter_Export(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		gameCode     string
@@ -191,6 +193,8 @@ func TestExporter_Export(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 
@@ -219,6 +223,8 @@ func TestExporter_Export(t *testing.T) {
 }
 
 func TestExporter_ExportToStruct(t *testing.T) {
+	t.Parallel()
+
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 

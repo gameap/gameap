@@ -36,6 +36,8 @@ func (h *captureInfoHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 // over-long or illegal-character value is replaced by a freshly generated id
 // so a client can neither forge nor oversize the correlation key.
 func TestRequestContextMiddleware_RequestIDSanitization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		inbound     string
@@ -95,6 +97,7 @@ func TestRequestContextMiddleware_RequestIDSanitization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			next := &captureInfoHandler{}
 			h := audit.NewRequestContextMiddleware("").Middleware(next)
@@ -131,6 +134,8 @@ func TestRequestContextMiddleware_RequestIDSanitization(t *testing.T) {
 // The middleware must capture method/path/user-agent and the client IP so
 // every downstream audit record is enrichable (OWASP ASVS §7.1.4).
 func TestRequestContextMiddleware_CapturesRequestMetadata(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	next := &captureInfoHandler{}
 	h := audit.NewRequestContextMiddleware("").Middleware(next)
@@ -155,6 +160,8 @@ func TestRequestContextMiddleware_CapturesRequestMetadata(t *testing.T) {
 // When configured behind a reverse proxy the middleware must attribute the
 // client IP from the trusted header instead of the proxy's socket address.
 func TestRequestContextMiddleware_TrustedHeaderUsedForIP(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	next := &captureInfoHandler{}
 	h := audit.NewRequestContextMiddleware("X-Real-IP").Middleware(next)
@@ -177,7 +184,10 @@ func TestRequestContextMiddleware_TrustedHeaderUsedForIP(t *testing.T) {
 // RequestIDFromContext must surface the same id the middleware assigned, and
 // return "" when the request never passed through the middleware.
 func TestRequestContextMiddleware_RequestIDFromContextHelper(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_assigned_id_inside_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		var seen string
 		h := audit.NewRequestContextMiddleware("").Middleware(
@@ -197,6 +207,7 @@ func TestRequestContextMiddleware_RequestIDFromContextHelper(t *testing.T) {
 	})
 
 	t.Run("returns_empty_without_middleware", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		req := httptest.NewRequest(http.MethodGet, "/api/user", nil)
 
@@ -212,6 +223,8 @@ func TestRequestContextMiddleware_RequestIDFromContextHelper(t *testing.T) {
 // ClientIP is the single shared client-IP resolver (also used by the login
 // rate limiter); its behaviour with/without a trusted header must be stable.
 func TestClientIP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		trustedHeader string
@@ -258,6 +271,7 @@ func TestClientIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			req.RemoteAddr = tt.remoteAddr

@@ -111,6 +111,8 @@ func recoveryReq(t *testing.T, body string) *http.Request {
 }
 
 func TestRegenerate_ReplacesCodesWithPassword(t *testing.T) {
+	t.Parallel()
+
 	handler, repo := newFixture(t, true)
 
 	before, err := repo.Find(context.Background(), nil, nil, nil)
@@ -131,6 +133,8 @@ func TestRegenerate_ReplacesCodesWithPassword(t *testing.T) {
 }
 
 func TestRegenerate_Rejections(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		enabled        bool
@@ -163,6 +167,8 @@ func TestRegenerate_Rejections(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler, _ := newFixture(t, tt.enabled)
 
 			w := httptest.NewRecorder()
@@ -175,6 +181,8 @@ func TestRegenerate_Rejections(t *testing.T) {
 }
 
 func TestRegenerate_RejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	handler, _ := newFixture(t, true)
 	req := httptest.NewRequest(http.MethodPost, "/api/profile/2fa/recovery-codes",
@@ -189,6 +197,8 @@ func TestRegenerate_RejectsUnauthenticated(t *testing.T) {
 }
 
 func TestRegenerate_MalformedBodyIsBadRequest(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	handler, _ := newFixture(t, true)
 
@@ -202,6 +212,8 @@ func TestRegenerate_MalformedBodyIsBadRequest(t *testing.T) {
 }
 
 func TestRegenerate_RejectsWhenSessionUserIsGone(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	handler := NewHandler(inmemory.NewUserRepository(), &stubTwoFactor{}, api.NewResponder(), nil)
 
@@ -217,6 +229,8 @@ func TestRegenerate_RejectsWhenSessionUserIsGone(t *testing.T) {
 // A failed rotation must keep the previously issued set usable — the owner
 // must not be locked out of their fallback by a transient backend error.
 func TestRegenerate_StorageAndCryptoErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		repo        func(t *testing.T) *errUserRepository
@@ -257,6 +271,8 @@ func TestRegenerate_StorageAndCryptoErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			repo := tt.repo(t)
 			handler := NewHandler(repo, tt.twoFactor, api.NewResponder(), nil)
@@ -285,6 +301,8 @@ func TestRegenerate_StorageAndCryptoErrors(t *testing.T) {
 // A pre-§2.1.2 password hash (bare bcrypt, no SHA-256 pre-hash) still
 // authenticates, and the rotation piggybacks the hash upgrade onto its Save.
 func TestRegenerate_UpgradesLegacyPasswordHash(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	legacyHash, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 	require.NoError(t, err)

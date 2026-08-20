@@ -56,6 +56,8 @@ func setupHTTPProxyDispatcher(t *testing.T) *httpProxyDispatcherTestSetup {
 }
 
 func TestHTTPProxyDispatcher_DispatchHTTPProxy_Success_Inline(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupHTTPProxyDispatcher(t)
 	const nodeID uint64 = 7
@@ -83,6 +85,8 @@ func TestHTTPProxyDispatcher_DispatchHTTPProxy_Success_Inline(t *testing.T) {
 }
 
 func TestHTTPProxyDispatcher_LargeResponse_StoredAndResolved(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupHTTPProxyDispatcher(t)
 	const nodeID uint64 = 8
@@ -114,6 +118,8 @@ func TestHTTPProxyDispatcher_LargeResponse_StoredAndResolved(t *testing.T) {
 }
 
 func TestHTTPProxyDispatcher_resolveResponseData_StorageReadError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupHTTPProxyDispatcher(t)
 	d := s.dispatcher.(*httpProxyDispatcher)
@@ -130,6 +136,8 @@ func TestHTTPProxyDispatcher_resolveResponseData_StorageReadError(t *testing.T) 
 }
 
 func TestHTTPProxyDispatcher_resolveResponseData_InlineData(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupHTTPProxyDispatcher(t)
 	d := s.dispatcher.(*httpProxyDispatcher)
@@ -145,6 +153,8 @@ func TestHTTPProxyDispatcher_resolveResponseData_InlineData(t *testing.T) {
 }
 
 func TestHTTPProxyDispatcher_DispatchHTTPProxy_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupHTTPProxyDispatcher(t)
 	const nodeID uint64 = 9
@@ -164,6 +174,8 @@ func TestHTTPProxyDispatcher_DispatchHTTPProxy_GatewayError(t *testing.T) {
 }
 
 func TestHTTPProxyDispatcher_executeRequest_UnmarshalError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupHTTPProxyDispatcher(t)
 	d := s.dispatcher.(*httpProxyDispatcher)
@@ -180,6 +192,8 @@ func TestHTTPProxyDispatcher_executeRequest_UnmarshalError(t *testing.T) {
 }
 
 func TestHTTPProxyDispatcher_NotConnected_TimesOut(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupHTTPProxyDispatcher(t)
 	const nodeID uint64 = 99
@@ -198,6 +212,8 @@ func TestHTTPProxyDispatcher_NotConnected_TimesOut(t *testing.T) {
 }
 
 func TestNewHTTPProxyDispatcher_NilLoggerUsesDefault(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	gateway := &fakeHTTPProxyGateway{}
 	registry := newFakeConnectionChecker()

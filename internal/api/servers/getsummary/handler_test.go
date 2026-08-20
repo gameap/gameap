@@ -32,6 +32,7 @@ var testRegularUser = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		setupAuth      func() context.Context
@@ -279,6 +280,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			rbacRepo := inmemory.NewRBACRepository()
 			responder := api.NewResponder()
@@ -322,6 +324,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_calculateSummary(t *testing.T) {
+	t.Parallel()
 	handler := &Handler{}
 	now := time.Now().UTC()
 
@@ -395,6 +398,7 @@ func TestHandler_calculateSummary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := handler.calculateSummary(tt.servers)
 			assert.Equal(t, tt.wantTotal, result.Total)
 			assert.Equal(t, tt.wantOnline, result.Online)

@@ -20,6 +20,7 @@ import (
 // authenticated encryption (AES-GCM or ChaCha20-Poly1305). A regression that
 // re-introduces CBC suites would break Lucky13 / BEAST resistance.
 func TestModernCipherSuites_OnlyAEAD(t *testing.T) {
+	t.Parallel()
 	suites := tlsutil.ModernCipherSuites()
 	require.NotEmpty(t, suites)
 
@@ -41,6 +42,7 @@ func TestModernCipherSuites_OnlyAEAD(t *testing.T) {
 // TestModernCipherSuites_NoLegacy — OWASP API8:2023 — explicit denylist of
 // suites that must never appear: static RSA, CBC-MAC, RC4, 3DES.
 func TestModernCipherSuites_NoLegacy(t *testing.T) {
+	t.Parallel()
 	forbidden := []uint16{
 		tls.TLS_RSA_WITH_RC4_128_SHA,
 		tls.TLS_RSA_WITH_3DES_EDE_CBC_SHA,
@@ -69,6 +71,7 @@ func TestModernCipherSuites_NoLegacy(t *testing.T) {
 // performance is optimal and we get curve-validation safety for free; P-256
 // trails for legacy clients; nothing else is offered.
 func TestPreferredCurves_X25519First(t *testing.T) {
+	t.Parallel()
 	curves := tlsutil.PreferredCurves()
 	require.Len(t, curves, 2)
 
@@ -79,6 +82,7 @@ func TestPreferredCurves_X25519First(t *testing.T) {
 // TestHardenServerConfig_AppliesDefaultsOnZeroValue — OWASP API8:2023 — a
 // freshly-allocated tls.Config receives every project-wide hardening default.
 func TestHardenServerConfig_AppliesDefaultsOnZeroValue(t *testing.T) {
+	t.Parallel()
 	got := tlsutil.HardenServerConfig(&tls.Config{})
 
 	assert.Equal(t, uint16(tls.VersionTLS12), got.MinVersion)
@@ -91,6 +95,7 @@ func TestHardenServerConfig_AppliesDefaultsOnZeroValue(t *testing.T) {
 // or curve preferences keep their choice. The helper only fills zero-valued
 // fields.
 func TestHardenServerConfig_DoesNotOverrideExplicitValues(t *testing.T) {
+	t.Parallel()
 	customCiphers := []uint16{tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384}
 	customCurves := []tls.CurveID{tls.CurveP384}
 
@@ -112,6 +117,7 @@ func TestHardenServerConfig_DoesNotOverrideExplicitValues(t *testing.T) {
 // usable defaulted config rather than panicking; this keeps caller code
 // (tlsutil.HardenServerConfig(nil)) ergonomic in tests.
 func TestHardenServerConfig_NilInput(t *testing.T) {
+	t.Parallel()
 	got := tlsutil.HardenServerConfig(nil)
 	require.NotNil(t, got)
 

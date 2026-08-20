@@ -68,6 +68,7 @@ func (f *fakeResolver) LookupNetIP(_ context.Context, _, host string) ([]netip.A
 // directly. Without this, a malicious plugin can reach panel-internal
 // services (Redis, sqlite admin, the local metrics endpoint).
 func TestHTTPService_SSRF_BlocksLoopback(t *testing.T) {
+	t.Parallel()
 	svc := NewHTTPService(strictTestConfig())
 
 	resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
@@ -84,6 +85,7 @@ func TestHTTPService_SSRF_BlocksLoopback(t *testing.T) {
 // TestHTTPService_SSRF_BlocksRFC1918 — OWASP API7:2023 — private IPs are
 // blocked. Covers 10/8, 172.16/12, 192.168/16.
 func TestHTTPService_SSRF_BlocksRFC1918(t *testing.T) {
+	t.Parallel()
 	cases := []string{
 		"http://10.0.0.1/",
 		"http://172.16.0.1/",
@@ -91,6 +93,7 @@ func TestHTTPService_SSRF_BlocksRFC1918(t *testing.T) {
 	}
 	for _, target := range cases {
 		t.Run(target, func(t *testing.T) {
+			t.Parallel()
 			svc := NewHTTPService(strictTestConfig())
 
 			resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
@@ -109,8 +112,10 @@ func TestHTTPService_SSRF_BlocksRFC1918(t *testing.T) {
 // Alibaba IMDS endpoints must be rejected. Even when the operator turns
 // off BlockPrivateIPs, cloud-metadata IPs stay blocked.
 func TestHTTPService_SSRF_BlocksCloudMetadata(t *testing.T) {
+	t.Parallel()
 	for _, blockPrivate := range []bool{true, false} {
 		t.Run(fmt.Sprintf("block_private_%v", blockPrivate), func(t *testing.T) {
+			t.Parallel()
 			cfg := strictTestConfig()
 			cfg.BlockPrivateIPs = blockPrivate
 
@@ -139,6 +144,7 @@ func TestHTTPService_SSRF_BlocksCloudMetadata(t *testing.T) {
 // Without per-IP validation post-resolution, an attacker could host a DNS
 // name that maps to a private IP and bypass naive URL-only filters.
 func TestHTTPService_SSRF_BlocksHostnameResolvingToPrivate(t *testing.T) {
+	t.Parallel()
 	resolver := &fakeResolver{
 		mapping: map[string][]netip.Addr{
 			"attacker.example": {netip.MustParseAddr("10.0.0.50")},
@@ -161,6 +167,7 @@ func TestHTTPService_SSRF_BlocksHostnameResolvingToPrivate(t *testing.T) {
 // outside the allow-list (file://, ftp://, gopher://, …) must be refused
 // before any IO.
 func TestHTTPService_SSRF_RejectsBlockedScheme(t *testing.T) {
+	t.Parallel()
 	cases := []string{
 		"file:///etc/passwd",
 		"ftp://example.com/",
@@ -169,6 +176,7 @@ func TestHTTPService_SSRF_RejectsBlockedScheme(t *testing.T) {
 	}
 	for _, target := range cases {
 		t.Run(target, func(t *testing.T) {
+			t.Parallel()
 			svc := NewHTTPService(strictTestConfig())
 
 			resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
@@ -187,6 +195,7 @@ func TestHTTPService_SSRF_RejectsBlockedScheme(t *testing.T) {
 // public origin that issues a 302 Location: http://10.0.0.1/ must not
 // follow into RFC1918. CheckRedirect re-validates every hop.
 func TestHTTPService_SSRF_BlocksRedirectIntoPrivate(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "http://10.0.0.42/secret", http.StatusFound)
 	}))
@@ -246,6 +255,7 @@ func indexOf(s, sub string) int {
 // The clamp is observable as: a server that hangs longer than the cap
 // causes the fetch to error out within the cap window.
 func TestHTTPService_SSRF_TimeoutCap(t *testing.T) {
+	t.Parallel()
 	cfg := strictTestConfig()
 	cfg.MaxTimeoutSeconds = 1 // 1s ceiling
 	cfg.AllowedHosts = []string{"127.0.0.1"}
@@ -282,6 +292,7 @@ func TestHTTPService_SSRF_TimeoutCap(t *testing.T) {
 // is the documented escape hatch for internal infrastructure (e.g. an
 // in-VPC plugin store mirror).
 func TestHTTPService_SSRF_AllowedHostBypassesBlocklist(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -308,6 +319,7 @@ func TestHTTPService_SSRF_AllowedHostBypassesBlocklist(t *testing.T) {
 // pins the layered defence: operator allow-lists are for internal
 // hostnames, not for IMDS.
 func TestHTTPService_SSRF_AllowedHostCannotBypassMetadata(t *testing.T) {
+	t.Parallel()
 	resolver := &fakeResolver{
 		mapping: map[string][]netip.Addr{
 			"imds.attacker.example": {netip.MustParseAddr("169.254.169.254")},
@@ -335,6 +347,7 @@ func TestHTTPService_SSRF_AllowedHostCannotBypassMetadata(t *testing.T) {
 // by a reachable origin must not reach the plugin. The plugin sees only
 // the curated allowlist.
 func TestHTTPService_SSRF_ResponseHeaderAllowlist(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Set-Cookie", "session=secret-cookie-value; HttpOnly")
 		w.Header().Set("Authorization", "Bearer leaked-token")
@@ -371,6 +384,7 @@ func TestHTTPService_SSRF_ResponseHeaderAllowlist(t *testing.T) {
 // API7:2023 — the operator can additively allow extra headers (X-Trace-ID
 // for an internal API), but the dangerous defaults remain stripped.
 func TestHTTPService_SSRF_ResponseHeaderAllowlistOperatorExtras(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Trace-ID", "trace-abc")
 		w.Header().Set("Set-Cookie", "session=secret")
@@ -398,6 +412,7 @@ func TestHTTPService_SSRF_ResponseHeaderAllowlistOperatorExtras(t *testing.T) {
 // chain longer than the configured ceiling must be refused so an
 // attacker cannot waste resources or evade per-hop logging.
 func TestHTTPService_SSRF_MaxRedirectsCap(t *testing.T) {
+	t.Parallel()
 	hopCount := 0
 	var serverURL string
 

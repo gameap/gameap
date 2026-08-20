@@ -53,6 +53,7 @@ func (s *stubTaskScheduler) ListTasks(
 }
 
 func TestSchedulerService_AddTask(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		pluginID   uint64
@@ -128,6 +129,7 @@ func TestSchedulerService_AddTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			stub := &stubTaskScheduler{}
 			if tt.addErr != nil {
 				stub.addTaskFunc = func(context.Context, domain.PluginScheduledTask) error {
@@ -159,6 +161,7 @@ func TestSchedulerService_AddTask(t *testing.T) {
 }
 
 func TestSchedulerService_RemoveTask(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		pluginID    uint64
@@ -186,6 +189,7 @@ func TestSchedulerService_RemoveTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			stub := &stubTaskScheduler{}
 			if tt.removeErr != nil {
 				stub.removeTaskFunc = func(context.Context, domain.Uint64ID, string) error {
@@ -212,7 +216,9 @@ func TestSchedulerService_RemoveTask(t *testing.T) {
 }
 
 func TestSchedulerService_ListTasks(t *testing.T) {
+	t.Parallel()
 	t.Run("maps_domain_tasks_to_proto", func(t *testing.T) {
+		t.Parallel()
 		stub := &stubTaskScheduler{
 			listTasksFunc: func(_ context.Context, pluginID domain.Uint64ID) ([]domain.PluginScheduledTask, error) {
 				assert.Equal(t, domain.Uint64ID(42), pluginID)
@@ -250,6 +256,7 @@ func TestSchedulerService_ListTasks(t *testing.T) {
 	})
 
 	t.Run("zero_plugin_id_returns_empty_list", func(t *testing.T) {
+		t.Parallel()
 		svc := NewSchedulerService(0, &stubTaskScheduler{
 			listTasksFunc: func(context.Context, domain.Uint64ID) ([]domain.PluginScheduledTask, error) {
 				t.Fatal("scheduler must not be called for transient loads")
@@ -266,6 +273,7 @@ func TestSchedulerService_ListTasks(t *testing.T) {
 	})
 
 	t.Run("scheduler_error_traps_the_call", func(t *testing.T) {
+		t.Parallel()
 		svc := NewSchedulerService(42, &stubTaskScheduler{
 			listTasksFunc: func(context.Context, domain.Uint64ID) ([]domain.PluginScheduledTask, error) {
 				return nil, errors.New("db is down")
@@ -281,6 +289,7 @@ func TestSchedulerService_ListTasks(t *testing.T) {
 }
 
 func TestSchedulerHostLibraryFactory_Create(t *testing.T) {
+	t.Parallel()
 	factory := NewSchedulerHostLibraryFactory(&stubTaskScheduler{})
 
 	lib := factory.Create(42)

@@ -83,6 +83,8 @@ func setupMFARouterEnv(t *testing.T, requireMFAForAdmins bool) (*securityTestEnv
 // /api/servers (a route that did NOT opt in) must be refused with 403, the
 // handler must not run, and the denial must be audited with the stable
 // mfa_enrollment_scope reason attributed to the authenticated admin.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_MFAEnrollmentToken_DeniedOnNonOptedInRoute(t *testing.T) {
 	// ARRANGE
 	env, recorder := setupMFARouterEnv(t, true)
@@ -110,6 +112,8 @@ func TestRouterSecurity_MFAEnrollmentToken_DeniedOnNonOptedInRoute(t *testing.T)
 // API2:2023. The profile read opted in (AllowMFAEnrollmentToken), so an
 // enrollment-scoped admin token must clear auth and the scope guard there: the
 // response must NOT be 401 or 403, and no scope denial may be audited.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_MFAEnrollmentToken_AuthenticatesOnProfileRead(t *testing.T) {
 	// ARRANGE
 	env, recorder := setupMFARouterEnv(t, true)
@@ -136,6 +140,8 @@ func TestRouterSecurity_MFAEnrollmentToken_AuthenticatesOnProfileRead(t *testing
 // refuse an enrollment-scoped token there. The setup handler itself may answer
 // some other status, which is fine — the contract under test is only that the
 // scope guard does not turn it into a 403 (nor the auth layer into a 401).
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_MFAEnrollmentToken_AllowedOnSetupRoute(t *testing.T) {
 	// ARRANGE
 	env, recorder := setupMFARouterEnv(t, true)
@@ -162,6 +168,8 @@ func TestRouterSecurity_MFAEnrollmentToken_AllowedOnSetupRoute(t *testing.T) {
 // must be honoured as a full session: no scope-403, no mfa_enrollment_scope
 // audit denial — otherwise its bearer stays locked out of the whole API with
 // no enrollment modal to escape through.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_MFAEnrollmentToken_HonoredWhenEnforcementDisabled(t *testing.T) {
 	// ARRANGE
 	env, recorder := setupMFARouterEnv(t, false)
@@ -187,6 +195,8 @@ func TestRouterSecurity_MFAEnrollmentToken_HonoredWhenEnforcementDisabled(t *tes
 // the scope claim. The request may legitimately reach the handler (200) or hit
 // backend behavior, but it must never be the scope-403 nor carry the
 // scope-restriction body.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_NormalToken_NotBlockedByEnrollmentGuard(t *testing.T) {
 	// ARRANGE
 	env := setupSecurityTest(t)
@@ -213,6 +223,8 @@ func TestRouterSecurity_NormalToken_NotBlockedByEnrollmentGuard(t *testing.T) {
 // The flag is set BEFORE CreateRouter on purpose: the profile handler captures
 // the nudge service (config-by-value) at wiring time, mirroring production,
 // which reads the env var at startup before building the router.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_MFANudge_ProfileEmitsNudgeWhenEnabled(t *testing.T) {
 	// ARRANGE
 	c, err := testcontainer.LoadInmemoryContainer()

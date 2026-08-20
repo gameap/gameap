@@ -13,6 +13,8 @@ import (
 )
 
 func TestServerControlService_Start(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		server        *domain.Server
@@ -123,6 +125,8 @@ func TestServerControlService_Start(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			settingRepo := inmemory.NewServerSettingRepository()
 			taskRepo := inmemory.NewDaemonTaskRepository()
 
@@ -150,6 +154,8 @@ func TestServerControlService_Start(t *testing.T) {
 }
 
 func TestServerControlService_Stop(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		server        *domain.Server
@@ -218,6 +224,8 @@ func TestServerControlService_Stop(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			settingRepo := inmemory.NewServerSettingRepository()
 			taskRepo := inmemory.NewDaemonTaskRepository()
 
@@ -245,6 +253,8 @@ func TestServerControlService_Stop(t *testing.T) {
 }
 
 func TestServerControlService_Restart(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		server        *domain.Server
@@ -333,6 +343,8 @@ func TestServerControlService_Restart(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			settingRepo := inmemory.NewServerSettingRepository()
 			taskRepo := inmemory.NewDaemonTaskRepository()
 
@@ -360,6 +372,8 @@ func TestServerControlService_Restart(t *testing.T) {
 }
 
 func TestServerControlService_Update(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		server      *domain.Server
@@ -430,6 +444,8 @@ func TestServerControlService_Update(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			settingRepo := inmemory.NewServerSettingRepository()
 			taskRepo := inmemory.NewDaemonTaskRepository()
 
@@ -456,6 +472,8 @@ func TestServerControlService_Update(t *testing.T) {
 }
 
 func TestServerControlService_Install(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		server      *domain.Server
@@ -508,6 +526,8 @@ func TestServerControlService_Install(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			settingRepo := inmemory.NewServerSettingRepository()
 			taskRepo := inmemory.NewDaemonTaskRepository()
 
@@ -534,6 +554,8 @@ func TestServerControlService_Install(t *testing.T) {
 }
 
 func TestServerControlService_Reinstall(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		server      *domain.Server
@@ -611,6 +633,8 @@ func TestServerControlService_Reinstall(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			settingRepo := inmemory.NewServerSettingRepository()
 			taskRepo := inmemory.NewDaemonTaskRepository()
 

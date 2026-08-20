@@ -12,6 +12,7 @@ import (
 )
 
 func TestInMemoryLocker_AcquireReclaimsExpiredEntries(t *testing.T) {
+	t.Parallel()
 	l := NewInMemoryLocker()
 	ctx := context.Background()
 
@@ -31,6 +32,7 @@ func TestInMemoryLocker_AcquireReclaimsExpiredEntries(t *testing.T) {
 }
 
 func TestDBLocker_CleanupExpiredRemovesOnlyExpiredLockRows(t *testing.T) {
+	t.Parallel()
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 	db.SetMaxOpenConns(1)
@@ -70,6 +72,7 @@ func TestDBLocker_CleanupExpiredRemovesOnlyExpiredLockRows(t *testing.T) {
 }
 
 func TestDBLocker_AcquireTriggersCleanup(t *testing.T) {
+	t.Parallel()
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 	db.SetMaxOpenConns(1)

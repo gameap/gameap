@@ -21,6 +21,7 @@ var (
 )
 
 func TestHandler_RejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/metrics", nil)
 
@@ -32,6 +33,7 @@ func TestHandler_RejectsUnauthenticated(t *testing.T) {
 }
 
 func TestHandler_RejectsNonAdmin(t *testing.T) {
+	t.Parallel()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/metrics", nil)
 	req = req.WithContext(auth.ContextWithSession(req.Context(), &auth.Session{
@@ -46,6 +48,7 @@ func TestHandler_RejectsNonAdmin(t *testing.T) {
 }
 
 func TestHandler_RBACError_Returns500(t *testing.T) {
+	t.Parallel()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/metrics", nil)
 	req = req.WithContext(auth.ContextWithSession(req.Context(), &auth.Session{
@@ -60,6 +63,7 @@ func TestHandler_RBACError_Returns500(t *testing.T) {
 }
 
 func TestHandler_NodeRepoError_Returns500(t *testing.T) {
+	t.Parallel()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/metrics", nil)
 	req = req.WithContext(auth.ContextWithSession(req.Context(), &auth.Session{
@@ -74,6 +78,7 @@ func TestHandler_NodeRepoError_Returns500(t *testing.T) {
 }
 
 func TestEnabledNodeIDs_FiltersDisabled(t *testing.T) {
+	t.Parallel()
 	provider := &fakeNodes{nodes: []domain.Node{
 		{ID: 1, Enabled: true},
 		{ID: 2, Enabled: false},

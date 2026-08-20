@@ -19,6 +19,8 @@ import (
 const testChunkSize = 8 << 20
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		body           []byte
@@ -154,6 +156,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			resolver := uploadsessiontest.NewResolver(t, tt.grantAccess)
 			handler := putchunk.NewHandler(resolver, tt.serviceFactory(t), api.NewResponder(), testChunkSize)
 

@@ -86,6 +86,8 @@ var adminMutatingEndpoints = []adminEndpoint{
 
 // TestRouterSecurity_API5_BFLA_RegularUserRejected verifies API5:2023 — that admin
 // endpoints reject a regular user with 403 even when they hold a valid PASETO token.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API5_BFLA_RegularUserRejected(t *testing.T) {
 	for _, ep := range adminMutatingEndpoints {
 		t.Run(testNameForAdminEndpoint("regular_user_rejected", ep), func(t *testing.T) {
@@ -104,6 +106,8 @@ func TestRouterSecurity_API5_BFLA_RegularUserRejected(t *testing.T) {
 
 // TestRouterSecurity_API5_BFLA_UnauthenticatedRejected verifies that the same
 // endpoints reject completely unauthenticated callers with 401 (not 403, not 200).
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API5_BFLA_UnauthenticatedRejected(t *testing.T) {
 	for _, ep := range adminMutatingEndpoints {
 		t.Run(testNameForAdminEndpoint("anon_rejected", ep), func(t *testing.T) {
@@ -121,6 +125,8 @@ func TestRouterSecurity_API5_BFLA_UnauthenticatedRejected(t *testing.T) {
 
 // TestRouterSecurity_API5_BFLA_AdminAllowed asserts the inverse: admin tokens are NOT
 // rejected at the authz layer for these endpoints. We accept any non-401/403 result.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API5_BFLA_AdminAllowed(t *testing.T) {
 	for _, ep := range adminMutatingEndpoints {
 		t.Run(testNameForAdminEndpoint("admin_passes_authz", ep), func(t *testing.T) {
@@ -143,6 +149,8 @@ func TestRouterSecurity_API5_BFLA_AdminAllowed(t *testing.T) {
 //
 // This guards against mass-assignment vulnerabilities (API3:2023 — BOPLA)
 // where a malicious caller submits {"roles":["admin"]} to elevate themselves.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API3_Escalation_RegularUserCannotEditOtherUsers(t *testing.T) {
 	env := setupSecurityTest(t)
 	token := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -165,6 +173,8 @@ func TestRouterSecurity_API3_Escalation_RegularUserCannotEditOtherUsers(t *testi
 // verifies that the put-server-permissions endpoint (the most direct privilege-grant
 // surface) is admin-only AND that even after a forbidden attempt, the foreign server
 // is still inaccessible.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API3_Escalation_RegularUserCannotGrantSelfServerAccess(t *testing.T) {
 	env := setupSecurityTest(t)
 	regularToken := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -190,6 +200,8 @@ func TestRouterSecurity_API3_Escalation_RegularUserCannotGrantSelfServerAccess(t
 // that POST /api/tokens with an admin-only ability is rejected even though the endpoint
 // itself is user-level — the handler must validate that the requester holds the underlying
 // RBAC permission for each requested PAT ability.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API5_Escalation_RegularUserCannotCreatePATWithAdminAbility(t *testing.T) {
 	env := setupSecurityTest(t)
 	regularToken := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -207,6 +219,8 @@ func TestRouterSecurity_API5_Escalation_RegularUserCannotCreatePATWithAdminAbili
 // TestRouterSecurity_API5_Escalation_PATCannotIssueAnotherToken verifies that even
 // admin-issued PATs cannot mint additional PATs — that endpoint is restricted to
 // password-authenticated sessions (PASETO/JWT).
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API5_Escalation_PATCannotIssueAnotherToken(t *testing.T) {
 	env := setupSecurityTest(t)
 
@@ -227,6 +241,8 @@ func TestRouterSecurity_API5_Escalation_PATCannotIssueAnotherToken(t *testing.T)
 // TestRouterSecurity_API5_Escalation_RemovedAdminRoleLosesAccess verifies that
 // admin role is re-checked on every request (not cached past role removal).
 // If an admin loses their role in mid-session, subsequent requests must be denied.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API5_Escalation_RemovedAdminRoleLosesAccess(t *testing.T) {
 	env := setupSecurityTest(t)
 	adminToken := issuePASETOToken(t, env, env.fixtures.AdminUser)
@@ -252,6 +268,8 @@ func TestRouterSecurity_API5_Escalation_RemovedAdminRoleLosesAccess(t *testing.T
 // TestRouterSecurity_API5_Escalation_AdminGrantedAccessThenRevoked exercises the
 // grant→use→revoke→use cycle to verify that revoked permissions take effect on
 // the next request.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API5_Escalation_AdminGrantedAccessThenRevoked(t *testing.T) {
 	env := setupSecurityTest(t)
 	regularToken := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -293,6 +311,8 @@ func testNameForAdminEndpoint(prefix string, ep adminEndpoint) string {
 // /gdaemon_api/get_token (see internal/api/daemonapi/gettoken/handler.go), which
 // in turn grants full daemon control. These fields belong only to a deliberate
 // "reveal credentials" flow with audit logging, not to ordinary list/detail reads.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API3_NodeResponseDoesNotLeakDaemonSecrets(t *testing.T) {
 	env := setupSecurityTest(t)
 	adminToken := issuePASETOToken(t, env, env.fixtures.AdminUser)
