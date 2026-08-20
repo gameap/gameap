@@ -374,6 +374,64 @@ func TestSSH_ConnectTimeoutIsBounded(t *testing.T) {
 	assert.Less(t, time.Since(start), 5*time.Second, "the handshake must honour the connect budget")
 }
 
+// frozenDeadlineConn ignores the deadline dialSSH sets, so the one already on
+// the socket stands.
+type frozenDeadlineConn struct {
+	net.Conn
+}
+
+func (frozenDeadlineConn) SetDeadline(_ time.Time) error { return nil }
+
+// expiredDeadlineDialer hands back a socket whose read budget has already run
+// out: the handshake then fails with a net timeout while the context is still
+// alive, which is the ordering a loaded machine produces.
+type expiredDeadlineDialer struct{}
+
+func (expiredDeadlineDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	var dialer net.Dialer
+
+	conn, err := dialer.DialContext(ctx, network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := conn.SetDeadline(time.Now().Add(-time.Second)); err != nil {
+		_ = conn.Close()
+
+		return nil, err
+	}
+
+	return frozenDeadlineConn{Conn: conn}, nil
+}
+
+// TestSSH_ConnectTimeoutSurvivesSocketDeadline: the connect budget is enforced
+// both on the socket and on the context, and either one can trip first. A
+// plugin distinguishes an unreachable machine from a rejected one by the
+// sentinel, so the socket deadline must not leak the raw "i/o timeout" out.
+func TestSSH_ConnectTimeoutSurvivesSocketDeadline(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+
+	svc := newService(nil, nil, Config{ConnectTimeout: time.Minute}, nil, staticResolver{}, expiredDeadlineDialer{})
+	t.Cleanup(svc.Stop)
+
+	sessions := svc.NewSessions(testPluginID)
+	t.Cleanup(sessions.Close)
+
+	host, port := server.addr()
+
+	_, err := sessions.Connect(context.Background(), ConnectParams{
+		Host:     host,
+		Port:     port,
+		User:     "gameap",
+		Password: testPassword,
+		HostKey:  HostKeyPolicy{AcceptAny: true},
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrConnectTimeout)
+}
+
 func boolName(v bool) string {
 	if v {
 		return "on"

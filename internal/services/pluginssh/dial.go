@@ -135,7 +135,7 @@ func (s *Service) dialSSH(
 		if result.err != nil {
 			_ = conn.Close()
 
-			return nil, result.err
+			return nil, classifyHandshakeError(ctx, result.err)
 		}
 
 		_ = conn.SetDeadline(time.Time{})
@@ -148,4 +148,23 @@ func (s *Service) dialSSH(
 
 		return nil, errors.Wrap(ErrConnectTimeout, ctx.Err().Error())
 	}
+}
+
+// classifyHandshakeError keeps an exhausted connect budget behind the
+// ErrConnectTimeout sentinel. The read deadline on the socket and the context
+// expire at the same instant, so a stalled handshake surfaces either as a net
+// timeout from the handshake goroutine or as ctx.Done(), depending on which
+// one the scheduler reaches first; the plugin must see the same error either
+// way.
+func classifyHandshakeError(ctx context.Context, err error) error {
+	var netErr net.Error
+
+	timedOut := errors.Is(ctx.Err(), context.DeadlineExceeded) ||
+		(errors.As(err, &netErr) && netErr.Timeout())
+
+	if timedOut {
+		return errors.Wrap(ErrConnectTimeout, err.Error())
+	}
+
+	return err
 }
