@@ -981,6 +981,7 @@ func TestHandler_APIKeyHashedEvenWhen64HexInput(t *testing.T) {
 // keeps the stored value (so a client that never learned about metadata
 // cannot wipe it), a present object replaces it wholesale.
 func TestHandler_Metadata(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		body         string
@@ -1005,6 +1006,7 @@ func TestHandler_Metadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := inmemory.NewNodeRepository()
 			fileManager := &files.MockFileManager{

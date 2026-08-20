@@ -60,6 +60,7 @@ func connectTo(t *testing.T, sessions *Sessions, host string) error {
 // the credentials of the machine the panel runs on. It must stay unreachable
 // whatever the operator relaxed.
 func TestSSH_SSRF_CloudMetadataIsAlwaysBlocked(t *testing.T) {
+	t.Parallel()
 	metadataAddresses := []string{
 		"169.254.169.254",
 		"100.100.100.200",
@@ -70,6 +71,7 @@ func TestSSH_SSRF_CloudMetadataIsAlwaysBlocked(t *testing.T) {
 	for _, blockPrivate := range []bool{true, false} {
 		for _, address := range metadataAddresses {
 			t.Run(address+"_block_private_"+boolName(blockPrivate), func(t *testing.T) {
+				t.Parallel()
 				cfg := Config{BlockPrivateIPs: blockPrivate, AllowedHosts: []string{"metadata.example.com"}}
 				sessions, dialer := newPolicySessions(t, cfg, staticResolver{
 					answers: map[string][]netip.Addr{"metadata.example.com": {netip.MustParseAddr(address)}},
@@ -92,6 +94,7 @@ func TestSSH_SSRF_CloudMetadataIsAlwaysBlocked(t *testing.T) {
 }
 
 func TestSSH_SSRF_PrivateAddressPolicy(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		cfg         Config
@@ -126,6 +129,7 @@ func TestSSH_SSRF_PrivateAddressPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			sessions, dialer := newPolicySessions(t, tt.cfg, staticResolver{})
 
 			err := connectTo(t, sessions, tt.host)
@@ -148,6 +152,7 @@ func TestSSH_SSRF_PrivateAddressPolicy(t *testing.T) {
 // TestSSH_SSRF_AllowedHostsBypassesPrivateBlock lets an operator reach nodes on
 // a private network without opening the panel to every private address.
 func TestSSH_SSRF_AllowedHostsBypassesPrivateBlock(t *testing.T) {
+	t.Parallel()
 	cfg := Config{BlockPrivateIPs: true, AllowedHosts: []string{"NODE.internal"}}
 	resolver := staticResolver{answers: map[string][]netip.Addr{
 		"node.internal":  {netip.MustParseAddr("10.0.0.5")},
@@ -170,6 +175,7 @@ func TestSSH_SSRF_AllowedHostsBypassesPrivateBlock(t *testing.T) {
 // private address at once is the classic way past a naive check, so any
 // blocked answer refuses the whole connection.
 func TestSSH_SSRF_MixedAnswerIsRejected(t *testing.T) {
+	t.Parallel()
 	resolver := staticResolver{answers: map[string][]netip.Addr{
 		"mixed.example.com": {
 			netip.MustParseAddr("203.0.113.10"),
@@ -189,6 +195,7 @@ func TestSSH_SSRF_MixedAnswerIsRejected(t *testing.T) {
 // TestSSH_SSRF_UnresolvableHost keeps DNS failures distinguishable from policy
 // refusals, so a plugin author is not sent hunting for the wrong problem.
 func TestSSH_SSRF_UnresolvableHost(t *testing.T) {
+	t.Parallel()
 	sessions, dialer := newPolicySessions(t, Config{}, staticResolver{})
 
 	err := connectTo(t, sessions, "nowhere.example.com")
@@ -199,6 +206,7 @@ func TestSSH_SSRF_UnresolvableHost(t *testing.T) {
 }
 
 func TestSSH_HostKeyVerification(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	host, port := server.addr()
 
@@ -261,6 +269,7 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			sessions := newTestSessions(t, Config{})
 
 			result, err := sessions.Connect(context.Background(), ConnectParams{
@@ -287,6 +296,7 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 // TestSSH_HostKeyRejectionNamesTheObservedKey: after a mismatch the plugin has
 // to be able to tell an operator what actually answered.
 func TestSSH_HostKeyRejectionNamesTheObservedKey(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
 	host, port := server.addr()
@@ -310,6 +320,7 @@ func TestSSH_HostKeyRejectionNamesTheObservedKey(t *testing.T) {
 // TestSSH_ForeignHandleIsUnknown: handles live in the session set of one
 // plugin, so a handle leaked to another plugin resolves to nothing.
 func TestSSH_ForeignHandleIsUnknown(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 
 	svc := newService(nil, nil, Config{}, nil, staticResolver{}, realDialer{})
@@ -329,6 +340,7 @@ func TestSSH_ForeignHandleIsUnknown(t *testing.T) {
 // TestSSH_ConnectTimeoutIsBounded: an unresponsive machine must not hold the
 // guest call past its deadline, which would kill the plugin's wasm module.
 func TestSSH_ConnectTimeoutIsBounded(t *testing.T) {
+	t.Parallel()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })

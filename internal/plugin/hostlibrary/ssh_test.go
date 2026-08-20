@@ -146,6 +146,7 @@ func newSSHService(t *testing.T, allowed bool, sessions *mockSSHSessions) *SSHSe
 // point may skip it — not even key generation, which leaks entropy budget and
 // signals intent.
 func TestSSHService_EveryMethodRequiresTheGrant(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	sessions := &mockSSHSessions{}
 	svc := newSSHService(t, false, sessions)
@@ -203,6 +204,7 @@ func TestSSHService_EveryMethodRequiresTheGrant(t *testing.T) {
 
 	for _, check := range checks {
 		t.Run(check.name, func(t *testing.T) {
+			t.Parallel()
 			success, errMsg := check.call()
 
 			assert.False(t, success)
@@ -218,6 +220,7 @@ func TestSSHService_EveryMethodRequiresTheGrant(t *testing.T) {
 // TestSSHService_PermissionCheckFailureIsReported keeps a database hiccup from
 // silently granting access.
 func TestSSHService_PermissionCheckFailureIsReported(t *testing.T) {
+	t.Parallel()
 	sessions := &mockSSHSessions{}
 	svc := NewSSHService(sshTestPluginID, sessions,
 		stubPermissionChecker{allowed: true, err: assert.AnError})
@@ -231,6 +234,7 @@ func TestSSHService_PermissionCheckFailureIsReported(t *testing.T) {
 }
 
 func TestSSHService_ConnectMapsRequestAndResult(t *testing.T) {
+	t.Parallel()
 	sessions := &mockSSHSessions{connectResult: &pluginssh.ConnectResult{
 		Handle:                   42,
 		HostKeyFingerprintSHA256: "SHA256:abc",
@@ -269,6 +273,7 @@ func TestSSHService_ConnectMapsRequestAndResult(t *testing.T) {
 // TestSSHService_ConnectReportsRejectedHostKey: after a mismatch the plugin
 // needs the observed key to decide whether to pin it or raise an alarm.
 func TestSSHService_ConnectReportsRejectedHostKey(t *testing.T) {
+	t.Parallel()
 	sessions := &mockSSHSessions{connectErr: &pluginssh.HostKeyRejectedError{
 		KeyType:           "ssh-ed25519",
 		FingerprintSHA256: "SHA256:observed",
@@ -286,6 +291,7 @@ func TestSSHService_ConnectReportsRejectedHostKey(t *testing.T) {
 }
 
 func TestSSHService_ExecCompletesWithinBudget(t *testing.T) {
+	t.Parallel()
 	started := time.Now()
 	sessions := &mockSSHSessions{
 		operationID:   "op-1",
@@ -325,6 +331,7 @@ func TestSSHService_ExecCompletesWithinBudget(t *testing.T) {
 // TestSSHService_ExecSubscribesWhenTheBudgetRunsOut is the long-bootstrap
 // path: the command keeps running and the plugin is told when it ends.
 func TestSSHService_ExecSubscribesWhenTheBudgetRunsOut(t *testing.T) {
+	t.Parallel()
 	sessions := &mockSSHSessions{operationID: "op-2", waitErr: context.DeadlineExceeded}
 	svc := newSSHService(t, true, sessions)
 
@@ -345,6 +352,7 @@ func TestSSHService_ExecSubscribesWhenTheBudgetRunsOut(t *testing.T) {
 // TestSSHService_ExecAnswersWithoutWaitingNearTheDeadline: waiting past the
 // guest deadline would close the plugin's wasm module.
 func TestSSHService_ExecAnswersWithoutWaitingNearTheDeadline(t *testing.T) {
+	t.Parallel()
 	sessions := &mockSSHSessions{operationID: "op-3"}
 	svc := newSSHService(t, true, sessions)
 
@@ -360,6 +368,7 @@ func TestSSHService_ExecAnswersWithoutWaitingNearTheDeadline(t *testing.T) {
 }
 
 func TestSSHService_StartExecRequestsCompletionCallback(t *testing.T) {
+	t.Parallel()
 	sessions := &mockSSHSessions{operationID: "op-4"}
 	svc := newSSHService(t, true, sessions)
 
@@ -373,7 +382,9 @@ func TestSSHService_StartExecRequestsCompletionCallback(t *testing.T) {
 }
 
 func TestSSHService_GetExecOperation(t *testing.T) {
+	t.Parallel()
 	t.Run("unknown_operation_is_not_an_error", func(t *testing.T) {
+		t.Parallel()
 		svc := newSSHService(t, true, &mockSSHSessions{})
 
 		resp, err := svc.GetExecOperation(context.Background(),
@@ -385,6 +396,7 @@ func TestSSHService_GetExecOperation(t *testing.T) {
 	})
 
 	t.Run("passes_offsets_and_maps_the_snapshot", func(t *testing.T) {
+		t.Parallel()
 		sessions := &mockSSHSessions{
 			snapshotFound: true,
 			snapshot: pluginssh.ExecSnapshot{
@@ -423,7 +435,9 @@ func TestSSHService_GetExecOperation(t *testing.T) {
 }
 
 func TestSSHService_WriteFile(t *testing.T) {
+	t.Parallel()
 	t.Run("pipes_content_through_cat_and_applies_mode", func(t *testing.T) {
+		t.Parallel()
 		sessions := &mockSSHSessions{
 			operationID:   "op-6",
 			snapshotFound: true,
@@ -450,6 +464,7 @@ func TestSSHService_WriteFile(t *testing.T) {
 	})
 
 	t.Run("remote_failure_is_reported_with_stderr", func(t *testing.T) {
+		t.Parallel()
 		sessions := &mockSSHSessions{
 			operationID:   "op-7",
 			snapshotFound: true,
@@ -473,6 +488,7 @@ func TestSSHService_WriteFile(t *testing.T) {
 	})
 
 	t.Run("empty_path_is_refused", func(t *testing.T) {
+		t.Parallel()
 		sessions := &mockSSHSessions{}
 		svc := newSSHService(t, true, sessions)
 
@@ -485,6 +501,7 @@ func TestSSHService_WriteFile(t *testing.T) {
 }
 
 func TestSSHService_ReadFile(t *testing.T) {
+	t.Parallel()
 	sessions := &mockSSHSessions{
 		operationID:   "op-8",
 		snapshotFound: true,
@@ -514,6 +531,7 @@ func TestSSHService_ReadFile(t *testing.T) {
 }
 
 func TestSSHService_CancelAndDisconnect(t *testing.T) {
+	t.Parallel()
 	sessions := &mockSSHSessions{}
 	svc := newSSHService(t, true, sessions)
 	ctx := context.Background()
@@ -537,6 +555,7 @@ func TestSSHService_CancelAndDisconnect(t *testing.T) {
 }
 
 func TestSSHService_GenerateKeyPair(t *testing.T) {
+	t.Parallel()
 	svc := newSSHService(t, true, &mockSSHSessions{})
 
 	resp, err := svc.GenerateKeyPair(context.Background(), &sshsdk.GenerateKeyPairRequest{
@@ -556,6 +575,7 @@ func TestSSHService_GenerateKeyPair(t *testing.T) {
 // TestSSHHostLibrary_CloseReleasesSessions is what keeps an unloaded plugin
 // from leaving SSH connections open on the panel.
 func TestSSHHostLibrary_CloseReleasesSessions(t *testing.T) {
+	t.Parallel()
 	sessions := &mockSSHSessions{}
 	factory := NewSSHHostLibraryFactory(stubSSHOpener{sessions: sessions}, stubPermissionChecker{allowed: true})
 
@@ -576,6 +596,7 @@ type stubSSHOpener struct {
 func (o stubSSHOpener) NewSessions(uint64) SSHSessionManager { return o.sessions }
 
 func TestSyncWaitBudget(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		ctx       func(t *testing.T) context.Context
@@ -623,6 +644,7 @@ func TestSyncWaitBudget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.assert(t, syncWaitBudget(tt.ctx(t), tt.requested))
 		})
 	}

@@ -36,6 +36,7 @@ func (f closingHostLibFactory) Create(uint64) HostLibrary {
 }
 
 func TestHostLibraryCloser_ReleasedOnEveryPluginExit(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		run        func(t *testing.T, manager *Manager)
@@ -99,6 +100,7 @@ func TestHostLibraryCloser_ReleasedOnEveryPluginExit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			closes := &atomic.Int32{}
 			manager := NewManager(ManagerConfig{
 				Libraries:        sharedTestHostLibraries(),
@@ -115,6 +117,7 @@ func TestHostLibraryCloser_ReleasedOnEveryPluginExit(t *testing.T) {
 // TestHostLibraryCloser_ClosedWhenALaterFactoryFails: the libraries built so
 // far already hold resources for this plugin and nothing else would free them.
 func TestHostLibraryCloser_ClosedWhenALaterFactoryFails(t *testing.T) {
+	t.Parallel()
 	closes := &atomic.Int32{}
 	manager := NewManager(ManagerConfig{
 		LibraryFactories: []HostLibraryFactory{
@@ -132,6 +135,7 @@ func TestHostLibraryCloser_ClosedWhenALaterFactoryFails(t *testing.T) {
 // TestHostLibraryCloser_CloseErrorDoesNotBreakUnload: cleanup failures are
 // logged, never surfaced as an unload failure the operator has to act on.
 func TestHostLibraryCloser_CloseErrorDoesNotBreakUnload(t *testing.T) {
+	t.Parallel()
 	closes := &atomic.Int32{}
 	manager := NewManager(ManagerConfig{
 		Libraries: sharedTestHostLibraries(),

@@ -14,6 +14,7 @@ import (
 // the optional load-time queries, a missing export here is an error — silently
 // succeeding would swallow the result of a command the plugin asked about.
 func TestPluginServiceWrapper_HandleExecCompleted_NilFunctionReturnsError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	w := &pluginServiceWrapper{handleexeccompleted: nil}
 
@@ -30,6 +31,7 @@ func TestPluginServiceWrapper_HandleExecCompleted_NilFunctionReturnsError(t *tes
 }
 
 func TestPluginServiceWrapper_HasSSHExecEventsHandler(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		wrapper *pluginServiceWrapper
@@ -49,6 +51,7 @@ func TestPluginServiceWrapper_HasSSHExecEventsHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.want, tt.wrapper.HasSSHExecEventsHandler())
 		})
 	}
@@ -64,6 +67,7 @@ type sshCapablePluginService struct {
 func (s *sshCapablePluginService) HasSSHExecEventsHandler() bool { return s.hasHandler }
 
 func TestLoadedPlugin_HasSSHExecEventsHandler(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		plugin *LoadedPlugin
@@ -88,6 +92,7 @@ func TestLoadedPlugin_HasSSHExecEventsHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.want, tt.plugin.HasSSHExecEventsHandler())
 		})
 	}
@@ -97,6 +102,7 @@ func TestLoadedPlugin_HasSSHExecEventsHandler(t *testing.T) {
 // example plugin predates the ssh module, and it must still load with the
 // capability simply reported as absent.
 func TestSharedFixtureHasNoSSHExecEventsHandler(t *testing.T) {
+	t.Parallel()
 	plugin := loadSharedServerLoggerWASM(t)
 
 	assert.False(t, plugin.HasSSHExecEventsHandler())

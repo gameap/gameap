@@ -18,6 +18,8 @@ func newTicketStore(t *testing.T) *TicketStore {
 }
 
 func TestTicketStore_CreateAndResolve(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := newTicketStore(t)
 
@@ -48,6 +50,8 @@ func TestTicketStore_CreateAndResolve(t *testing.T) {
 }
 
 func TestTicketStore_Resolve(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	tests := []struct {
@@ -74,6 +78,8 @@ func TestTicketStore_Resolve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			store := newTicketStore(t)
 			ticket, key, err := store.Create(ctx, CreateTicketInput{Owner: "plugin:1", TTL: time.Hour})
 			require.NoError(t, err)
@@ -87,6 +93,8 @@ func TestTicketStore_Resolve(t *testing.T) {
 }
 
 func TestTicketStore_TTLBounds(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := newTicketStore(t)
 
@@ -102,6 +110,8 @@ func TestTicketStore_TTLBounds(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ticket, _, err := store.Create(ctx, CreateTicketInput{Owner: "plugin:1", TTL: tt.ttl})
 
 			if tt.wantError != "" {
@@ -118,6 +128,8 @@ func TestTicketStore_TTLBounds(t *testing.T) {
 }
 
 func TestTicketStore_ExpiredTicketIsRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := newTicketStore(t)
 
@@ -136,6 +148,8 @@ func TestTicketStore_ExpiredTicketIsRejected(t *testing.T) {
 }
 
 func TestTicketStore_ConsumeAndRevoke(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	store := newTicketStore(t)
 
@@ -161,6 +175,8 @@ func TestTicketStore_ConsumeAndRevoke(t *testing.T) {
 }
 
 func TestIsTicketKey(t *testing.T) {
+	t.Parallel()
+
 	store := newTicketStore(t)
 	ticket, key, err := store.Create(context.Background(), CreateTicketInput{Owner: "plugin:1", TTL: time.Hour})
 	require.NoError(t, err)
@@ -179,6 +195,8 @@ func TestIsTicketKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, IsTicketKey(tt.key))
 		})
 	}

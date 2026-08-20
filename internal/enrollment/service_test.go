@@ -250,6 +250,8 @@ func TestService_Enroll_env_key_invalidated_after_use(t *testing.T) {
 // enrolls a daemon exactly like the global key does, applies the presets the
 // issuer chose, records which node it produced, and cannot be replayed.
 func TestService_Enroll_WithTicket(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := setupService(t)
 	ctx := context.Background()
 
@@ -300,6 +302,8 @@ func TestService_Enroll_WithTicket(t *testing.T) {
 // must survive plugin enrollments, otherwise an auto-scaler would break the
 // operator's own node setup.
 func TestService_Enroll_TicketDoesNotDisturbTheGlobalKey(t *testing.T) {
+	t.Parallel()
+
 	svc, cacheInstance := setupService(t)
 	ctx := context.Background()
 
@@ -322,6 +326,8 @@ func TestService_Enroll_TicketDoesNotDisturbTheGlobalKey(t *testing.T) {
 // reveal whether tickets exist, and the gateway's status mapping relies on the
 // error identity staying ErrInvalidSetupKey.
 func TestService_Enroll_UnknownTicketKeepsTheGlobalKeyError(t *testing.T) {
+	t.Parallel()
+
 	svc, cacheInstance := setupService(t)
 	ctx := context.Background()
 

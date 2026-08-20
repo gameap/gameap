@@ -113,11 +113,13 @@ func testResolver() stubConnectResolver {
 // standing between an installed plugin and someone else's infrastructure, so
 // every mutating entry point must consult it.
 func TestNodesService_WritesRequireManageNodes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newNodesWriteEnv(t, stubPermissionChecker{allowed: false}, testResolver())
 	node := seedNode(t, env.nodes)
 
 	t.Run("update_node", func(t *testing.T) {
+		t.Parallel()
 		resp, err := env.service.UpdateNode(ctx, &nodes.UpdateNodeRequest{Id: uint64(node.ID), Name: new("hacked")})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -126,6 +128,7 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	})
 
 	t.Run("delete_node", func(t *testing.T) {
+		t.Parallel()
 		resp, err := env.service.DeleteNode(ctx, &nodes.DeleteNodeRequest{Id: uint64(node.ID)})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -134,6 +137,7 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	})
 
 	t.Run("create_setup_key", func(t *testing.T) {
+		t.Parallel()
 		resp, err := env.service.CreateSetupKey(ctx, &nodes.CreateSetupKeyRequest{})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -143,6 +147,7 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	})
 
 	t.Run("get_setup_key", func(t *testing.T) {
+		t.Parallel()
 		resp, err := env.service.GetSetupKey(ctx, &nodes.GetSetupKeyRequest{TicketId: "whatever"})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -150,6 +155,7 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	})
 
 	t.Run("revoke_setup_key", func(t *testing.T) {
+		t.Parallel()
 		resp, err := env.service.RevokeSetupKey(ctx, &nodes.RevokeSetupKeyRequest{TicketId: "whatever"})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -168,6 +174,7 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 }
 
 func TestNodesService_UpdateNode(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -253,6 +260,7 @@ func TestNodesService_UpdateNode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			env := newNodesWriteEnv(t, stubPermissionChecker{allowed: true}, testResolver())
 			node := seedNode(t, env.nodes)
 
@@ -284,9 +292,11 @@ func TestNodesService_UpdateNode(t *testing.T) {
 }
 
 func TestNodesService_DeleteNode(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("soft_deletes_and_audits", func(t *testing.T) {
+		t.Parallel()
 		env := newNodesWriteEnv(t, stubPermissionChecker{allowed: true}, testResolver())
 		node := seedNode(t, env.nodes)
 
@@ -308,6 +318,7 @@ func TestNodesService_DeleteNode(t *testing.T) {
 	})
 
 	t.Run("refuses_while_game_servers_remain", func(t *testing.T) {
+		t.Parallel()
 		env := newNodesWriteEnv(t, stubPermissionChecker{allowed: true}, testResolver())
 		node := seedNode(t, env.nodes)
 
@@ -331,6 +342,7 @@ func TestNodesService_DeleteNode(t *testing.T) {
 	})
 
 	t.Run("unknown_node", func(t *testing.T) {
+		t.Parallel()
 		env := newNodesWriteEnv(t, stubPermissionChecker{allowed: true}, testResolver())
 
 		resp, err := env.service.DeleteNode(ctx, &nodes.DeleteNodeRequest{Id: 4242})
@@ -342,6 +354,7 @@ func TestNodesService_DeleteNode(t *testing.T) {
 }
 
 func TestNodesService_SetupKeyLifecycle(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newNodesWriteEnv(t, stubPermissionChecker{allowed: true}, testResolver())
 
@@ -394,6 +407,7 @@ func TestNodesService_SetupKeyLifecycle(t *testing.T) {
 // issued it. Another plugin must not be able to read its state or revoke it,
 // and must not even learn that it exists.
 func TestNodesService_SetupKeyIsolation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newNodesWriteEnv(t, stubPermissionChecker{allowed: true}, testResolver())
 
@@ -425,6 +439,7 @@ func TestNodesService_SetupKeyIsolation(t *testing.T) {
 }
 
 func TestNodesService_CreateSetupKeyValidation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -464,6 +479,7 @@ func TestNodesService_CreateSetupKeyValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			env := newNodesWriteEnv(t, stubPermissionChecker{allowed: true}, tt.resolver)
 
 			resp, err := env.service.CreateSetupKey(ctx, tt.request)
@@ -481,6 +497,7 @@ func TestNodesService_CreateSetupKeyValidation(t *testing.T) {
 // gRPC certificate does not cover the connect host would see daemons fail TLS,
 // so the warning must reach the plugin instead of only the panel log.
 func TestNodesService_CreateSetupKeySurfacesCertificateWarning(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	resolver := stubConnectResolver{target: enrollment.ConnectTarget{
 		Host:     "panel.example.com",

@@ -91,6 +91,7 @@ func runToCompletion(t *testing.T, sessions *Sessions, params ExecParams) ExecSn
 }
 
 func TestSessions_ConnectAndExec(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
 	host, port := server.addr()
@@ -119,6 +120,7 @@ func TestSessions_ConnectAndExec(t *testing.T) {
 }
 
 func TestSessions_ExecOutcomes(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
 	handle := connectToTestServer(t, sessions, server)
@@ -192,6 +194,7 @@ func TestSessions_ExecOutcomes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			snapshot := runToCompletion(t, sessions, tt.params)
 
 			assert.Equal(t, tt.wantStatus, snapshot.Status)
@@ -201,6 +204,7 @@ func TestSessions_ExecOutcomes(t *testing.T) {
 }
 
 func TestSessions_ExecValidation(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{MaxStdinBytes: 8})
 	handle := connectToTestServer(t, sessions, server)
@@ -234,6 +238,7 @@ func TestSessions_ExecValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := sessions.StartExec(context.Background(), tt.params)
 
 			require.Error(t, err)
@@ -246,6 +251,7 @@ func TestSessions_ExecValidation(t *testing.T) {
 // the failure must name the variable instead of surfacing as an opaque start
 // error.
 func TestSessions_EnvRejectedBySshd(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
 	handle := connectToTestServer(t, sessions, server)
@@ -271,6 +277,7 @@ func TestSessions_EnvRejectedBySshd(t *testing.T) {
 }
 
 func TestSessions_CancelExec(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
 	handle := connectToTestServer(t, sessions, server)
@@ -301,6 +308,7 @@ func TestSessions_CancelExec(t *testing.T) {
 // TestSessions_DisconnectCancelsRunningOperations: closing a connection must
 // not leave a plugin waiting forever on a command that can no longer finish.
 func TestSessions_DisconnectCancelsRunningOperations(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
 	handle := connectToTestServer(t, sessions, server)
@@ -328,6 +336,7 @@ func TestSessions_DisconnectCancelsRunningOperations(t *testing.T) {
 // TestSessions_ConnectionLossFailsOperations: a machine that goes away mid
 // bootstrap must produce a failed operation, not a stuck one.
 func TestSessions_ConnectionLossFailsOperations(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{KeepaliveInterval: 50 * time.Millisecond})
 	handle := connectToTestServer(t, sessions, server)
@@ -348,6 +357,7 @@ func TestSessions_ConnectionLossFailsOperations(t *testing.T) {
 }
 
 func TestSessions_SnapshotOffsets(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
 	handle := connectToTestServer(t, sessions, server)
@@ -366,10 +376,12 @@ func TestSessions_SnapshotOffsets(t *testing.T) {
 }
 
 func TestSessions_Limits(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	host, port := server.addr()
 
 	t.Run("connections_per_plugin", func(t *testing.T) {
+		t.Parallel()
 		sessions := newTestSessions(t, Config{MaxConnections: 1})
 		connectToTestServer(t, sessions, server)
 
@@ -382,6 +394,7 @@ func TestSessions_Limits(t *testing.T) {
 	})
 
 	t.Run("running_operations_per_plugin", func(t *testing.T) {
+		t.Parallel()
 		sessions := newTestSessions(t, Config{MaxOperations: 1})
 		handle := connectToTestServer(t, sessions, server)
 
@@ -394,9 +407,11 @@ func TestSessions_Limits(t *testing.T) {
 }
 
 func TestSessions_RetentionAndEviction(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 
 	t.Run("finished_operations_expire", func(t *testing.T) {
+		t.Parallel()
 		sessions := newTestSessions(t, Config{OperationRetention: 100 * time.Millisecond})
 		handle := connectToTestServer(t, sessions, server)
 
@@ -410,6 +425,7 @@ func TestSessions_RetentionAndEviction(t *testing.T) {
 	})
 
 	t.Run("oldest_finished_operations_are_evicted", func(t *testing.T) {
+		t.Parallel()
 		sessions := newTestSessions(t, Config{MaxRetainedOperations: 2, OperationRetention: time.Hour})
 		handle := connectToTestServer(t, sessions, server)
 
@@ -426,6 +442,7 @@ func TestSessions_RetentionAndEviction(t *testing.T) {
 }
 
 func TestSessions_ClosedSetRefusesEverything(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
 	handle := connectToTestServer(t, sessions, server)
@@ -448,6 +465,7 @@ func TestSessions_ClosedSetRefusesEverything(t *testing.T) {
 }
 
 func TestSessions_ConnectValidation(t *testing.T) {
+	t.Parallel()
 	sessions := newTestSessions(t, Config{})
 
 	tests := []struct {
@@ -479,6 +497,7 @@ func TestSessions_ConnectValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := sessions.Connect(context.Background(), tt.params)
 
 			require.Error(t, err)
@@ -488,6 +507,7 @@ func TestSessions_ConnectValidation(t *testing.T) {
 }
 
 func TestSessions_PublicKeyAuthentication(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
 	host, port := server.addr()
@@ -511,6 +531,7 @@ func TestSessions_PublicKeyAuthentication(t *testing.T) {
 }
 
 func TestSessions_IdleTimeoutClosesConnection(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{KeepaliveInterval: 30 * time.Millisecond})
 	host, port := server.addr()
@@ -533,6 +554,7 @@ func TestSessions_IdleTimeoutClosesConnection(t *testing.T) {
 }
 
 func TestGenerateKeyPair(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		keyType     KeyType
@@ -545,6 +567,7 @@ func TestGenerateKeyPair(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			pair, err := GenerateKeyPair(tt.keyType, "autoscale@panel")
 
 			require.NoError(t, err)

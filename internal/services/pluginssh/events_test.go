@@ -119,6 +119,7 @@ func newEventsEnv(t *testing.T, cfg Config, hasHandler bool) *eventsEnv {
 }
 
 func TestEvents_StartExecDeliversCompletion(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	env := newEventsEnv(t, Config{}, true)
 	handle := connectToTestServer(t, env.sessions, server)
@@ -148,6 +149,7 @@ func TestEvents_StartExecDeliversCompletion(t *testing.T) {
 // only after its wait budget expires, and the command may have finished in
 // between — the event must not be lost.
 func TestEvents_SubscribeAfterCompletionIsReplayed(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	env := newEventsEnv(t, Config{}, true)
 	handle := connectToTestServer(t, env.sessions, server)
@@ -165,6 +167,7 @@ func TestEvents_SubscribeAfterCompletionIsReplayed(t *testing.T) {
 // TestEvents_SubscribeBeforeCompletionDeliversOnce guards against the replay
 // path and the normal path both firing.
 func TestEvents_SubscribeBeforeCompletionDeliversOnce(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	env := newEventsEnv(t, Config{}, true)
 	handle := connectToTestServer(t, env.sessions, server)
@@ -189,6 +192,7 @@ func TestEvents_SubscribeBeforeCompletionDeliversOnce(t *testing.T) {
 // so a completion landing while the plugin is inside another host call must be
 // retried rather than dropped.
 func TestEvents_BusyPluginIsRetried(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	env := newEventsEnv(t, Config{BusyRetryDelay: 10 * time.Millisecond, BusyRetries: 3}, true)
 	handle := connectToTestServer(t, env.sessions, server)
@@ -220,6 +224,7 @@ func TestEvents_BusyPluginIsRetried(t *testing.T) {
 // TestEvents_PluginWithoutHandlerIsNotCalled: a plugin compiled without the
 // ssh module exports nothing to call.
 func TestEvents_PluginWithoutHandlerIsNotCalled(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	env := newEventsEnv(t, Config{}, false)
 	handle := connectToTestServer(t, env.sessions, server)
@@ -238,6 +243,7 @@ func TestEvents_PluginWithoutHandlerIsNotCalled(t *testing.T) {
 // TestEvents_ClosedSessionsDropPendingCallbacks: a reloaded plugin instance
 // must not receive completions belonging to the previous one.
 func TestEvents_ClosedSessionsDropPendingCallbacks(t *testing.T) {
+	t.Parallel()
 	server := newTestSSHServer(t)
 	env := newEventsEnv(t, Config{}, true)
 	handle := connectToTestServer(t, env.sessions, server)
@@ -259,6 +265,7 @@ func TestEvents_ClosedSessionsDropPendingCallbacks(t *testing.T) {
 // panel shuts down must get a set that refuses work rather than deadlocking
 // the loader.
 func TestService_StoppedServiceHandsOutClosedSessions(t *testing.T) {
+	t.Parallel()
 	svc := newService(nil, nil, Config{}, nil, staticResolver{}, realDialer{})
 	svc.Start(context.Background())
 	svc.Stop()
