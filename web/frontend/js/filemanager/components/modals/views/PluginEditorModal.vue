@@ -4,7 +4,7 @@
             <component
                 ref="editorRef"
                 :is="editorComponent"
-                :content="content"
+                v-bind="contentBinding"
                 :file-path="filePath"
                 :file-name="fileName"
                 :extension="extension"
@@ -52,6 +52,10 @@ const fileMtime = computed(() => file.value?.timestamp)
 const editorComponent = computed(() => editor.value?.component ? markRaw(editor.value.component) : null)
 const isReadOnly = computed(() => editor.value?.readOnly || false)
 const contentType = computed(() => editor.value?.contentType || 'text')
+
+// An editor that loads its own content gets no `content` prop at all: passing
+// null would override whatever default the component declares for it.
+const contentBinding = computed(() => contentType.value === 'none' ? {} : { content: content.value })
 
 const selectedDisk = computed(() => fm.selectedDisk)
 

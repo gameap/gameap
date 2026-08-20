@@ -70,10 +70,17 @@ export function useFileEditors() {
      */
     function getMatchingEditors(file) {
         const fileInfo = getFileInfo(file)
-        return pluginsStore.getMatchingEditors(fileInfo, {
+        const permitted = pluginsStore.getMatchingEditors(fileInfo, {
             gameCode: gameCode.value,
             gameName: gameName.value
         }).filter(item => isPermitted(item.editor))
+
+        // The store marks the default before permissions are known, so the one
+        // it picked may be the one just filtered out. The default is the most
+        // specific editor a double click can actually open.
+        const preferred = permitted.find(item => !item.editor.contextMenuOnly)
+
+        return permitted.map(item => ({ ...item, isDefault: item === preferred }))
     }
 
     /**
