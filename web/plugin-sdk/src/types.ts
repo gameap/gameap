@@ -236,8 +236,13 @@ export interface DashboardWidgetProps {
 
 /**
  * Content type that the editor can handle.
+ *
+ * `none` means the modal loads nothing before mounting the editor: the editor
+ * fetches whatever it needs itself, and the file manager's edit size cap does
+ * not apply to it. It is what an editor that only inspects a file — its size,
+ * its history — needs in order to work on a file too large to hand over.
  */
-export type EditorContentType = 'text' | 'binary';
+export type EditorContentType = 'text' | 'binary' | 'none';
 
 /**
  * Matching rules for when a file editor should be available.
@@ -266,8 +271,11 @@ export interface EditorMatchRules {
  * Props passed to file editor components.
  */
 export interface FileEditorProps {
-    /** File content (string for text, ArrayBuffer for binary) */
-    content: string | ArrayBuffer;
+    /**
+     * File content (string for text, ArrayBuffer for binary).
+     * Absent when the editor declares `contentType: 'none'`.
+     */
+    content?: string | ArrayBuffer;
     /** Full file path */
     filePath: string;
     /** File name with extension */
@@ -278,6 +286,12 @@ export interface FileEditorProps {
     gameCode?: string;
     /** Current server's game name (if available) */
     gameName?: string;
+    /** Size in bytes, as the directory listing reported it */
+    fileSize?: number;
+    /** Modification time in unix seconds, as the directory listing reported it */
+    fileMtime?: number;
+    /** File manager disk the file lives on */
+    disk?: string;
     /** ID of the plugin that registered this editor */
     pluginId: string;
 }
@@ -294,10 +308,28 @@ export interface PluginFileEditor {
     component: Component;
     /** Matching rules that determine when this editor is available */
     match: EditorMatchRules;
-    /** Content type: 'text' (default) or 'binary' */
+    /** Content type: 'text' (default), 'binary' or 'none' */
     contentType?: EditorContentType;
     /** If true, editor is read-only (no save button) */
     readOnly?: boolean;
-    /** Custom icon for context menu (Font Awesome class) */
+    /** Icon name from the @gameap/ui icon registry (e.g. 'file-archive') */
     icon?: string;
+    /**
+     * Keep the editor out of the double-click default: it is offered in the
+     * context menu only, and the file manager's own handling of a double click
+     * (image, video, pdf, text) stays as it was. An editor that matches every
+     * file has to set this, or it takes every preview over.
+     */
+    contextMenuOnly?: boolean;
+    /**
+     * Caption of the context menu item, instead of the "Edit with <name>"
+     * wording. Supports the `@:key` form, resolved through the plugin's own
+     * translations.
+     */
+    menuLabel?: string;
+    /**
+     * Permission check - the file manager hides the item when it fails, so a
+     * plugin does not offer what its own API would answer 403 to.
+     */
+    checkPermission?: PermissionCheck;
 }

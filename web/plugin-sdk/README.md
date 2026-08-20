@@ -169,7 +169,7 @@ export const myPlugin: PluginDefinition = {
                 fileName: 'server.cfg',
                 gameCode: 'cstrike'
             },
-            icon: 'fa-solid fa-gear'
+            icon: 'gear'
         },
         {
             id: 'ini-editor',
@@ -187,7 +187,7 @@ export const myPlugin: PluginDefinition = {
                 allFiles: true
             },
             contentType: 'binary',
-            icon: 'fa-solid fa-memory'
+            icon: 'memory'
         }
     ]
 };
@@ -201,9 +201,12 @@ export const myPlugin: PluginDefinition = {
 | `name` | `string` | Yes | Display name shown in context menu |
 | `component` | `Component` | Yes | Vue component that renders the editor |
 | `match` | `EditorMatchRules` | Yes | Rules for when this editor is available |
-| `contentType` | `'text' \| 'binary'` | No | Content type (default: 'text') |
+| `contentType` | `'text' \| 'binary' \| 'none'` | No | Content type (default: 'text') |
 | `readOnly` | `boolean` | No | If true, editor is view-only (no save) |
-| `icon` | `string` | No | Font Awesome icon class for context menu |
+| `icon` | `string` | No | Icon name from the `@gameap/ui` registry, e.g. `'file-archive'` |
+| `contextMenuOnly` | `boolean` | No | Offer in the context menu only; never open on a double click |
+| `menuLabel` | `string` | No | Caption of the context menu item instead of "Edit with …"; supports `@:key` |
+| `checkPermission` | `PermissionCheck` | No | Hide the item unless the user holds these server abilities |
 
 ### Matching Rules
 
@@ -228,6 +231,7 @@ When multiple editors match a file:
 - Specificity order: `fullPath` > `pathContains` > `fileName` > `fileNameRegexp` > `extensions` > `allFiles`
 - Game filters (`gameCode`/`gameName`) add to specificity score
 - `allFiles: true` has the lowest specificity (score=1), useful for generic editors like hex viewers
+- An editor with `contextMenuOnly: true` is never the default and never opens on a double click
 
 ### Editor Component Props
 
@@ -235,15 +239,22 @@ Editor components receive these props:
 
 ```typescript
 interface FileEditorProps {
-    content: string | ArrayBuffer;  // File content
+    content?: string | ArrayBuffer; // File content; absent for contentType: 'none'
     filePath: string;               // Full file path
     fileName: string;               // File name with extension
     extension: string;              // File extension (without dot)
     gameCode?: string;              // Current server's game code
     gameName?: string;              // Current server's game name
+    fileSize?: number;              // Size in bytes, as the listing reported it
+    fileMtime?: number;             // Modification time in unix seconds
+    disk?: string;                  // File manager disk the file lives on
     pluginId: string;               // Plugin ID
 }
 ```
+
+The server the file belongs to is not a prop: read it with `useServerId()` /
+`useServer()` from this SDK. Both throw when no plugin context is provided, so
+wrap the call if your component can be mounted outside one.
 
 ### Editor Component Events
 
@@ -313,6 +324,61 @@ fileEditors: [
 ```
 
 The `content` prop will be an `ArrayBuffer` instead of a string.
+
+### Editors that load their own content
+
+The modal downloads the file before it mounts the editor, and the file manager
+refuses to open a file larger than 1 MB that way. An editor that does not need
+the whole file — one that reports on it, compares it, or fetches only the part
+it shows — declares `contentType: 'none'` instead: no `content` prop arrives,
+the size cap does not apply, and the editor decides what to read.
+
+```typescript
+fileEditors: [
+    {
+        id: 'file-report',
+        name: 'File report',
+        component: FileReport,
+        match: { allFiles: true },
+        contentType: 'none',
+        contextMenuOnly: true,
+        readOnly: true
+    }
+]
+```
+
+`fileSize` and `fileMtime` come from the directory listing, so such an editor
+can describe the file without downloading it. Saving still works: emit `save`
+with the new content and the file manager writes it.
+
+### Context-menu-only editors
+
+The most specific matching editor is what a double click opens, ahead of the
+file manager's own image, video, pdf and text handling. An editor registered
+with `allFiles: true` therefore takes over every preview in the file manager —
+which is right for a hex editor and wrong for anything that only inspects a
+file. Set `contextMenuOnly: true` to stay out of the double click, and give
+the item its own wording with `menuLabel`:
+
+```typescript
+{
+    id: 'file-versions',
+    name: '@:versions_title',
+    menuLabel: '@:versions_menu',
+    component: FileVersions,
+    match: { allFiles: true },
+    contentType: 'none',
+    contextMenuOnly: true,
+    checkPermission: {
+        type: 'hasServerPermissions',
+        permissions: ['plugin:myplugin:view']
+    }
+}
+```
+
+Without `menuLabel` the item reads "Edit with &lt;name&gt;". `checkPermission` takes
+the same shape as a server tab's, and hides the item rather than letting the
+plugin's own API answer 403.
 
 ## Internationalization (i18n)
 

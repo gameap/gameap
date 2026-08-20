@@ -212,7 +212,7 @@ const settings = useSettingsStore()
 const modal = useModalStore()
 const { lang } = useTranslate()
 const { bytesToHuman, timestampToDate, extensionToIcon } = useHelper()
-const { getDefaultEditor, isFileTooLarge } = useFileEditors()
+const { getDefaultEditor, isFileTooLarge, loadsOwnContent } = useFileEditors()
 
 const {
     selectedDisk,
@@ -351,7 +351,7 @@ function selectAction(file) {
     }
 
     const customEditor = getDefaultEditor(file)
-    if (customEditor && !isFileTooLarge(file)) {
+    if (customEditor && (!isFileTooLarge(file) || loadsOwnContent(customEditor.editor))) {
         modal.openPluginEditor({
             pluginId: customEditor.pluginId,
             editor: customEditor.editor,

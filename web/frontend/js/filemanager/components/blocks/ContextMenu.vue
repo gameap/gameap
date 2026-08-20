@@ -39,7 +39,7 @@ import { useFileManagerStore } from '../../stores/useFileManagerStore.js'
 import { useSettingsStore } from '../../stores/useSettingsStore.js'
 import { useModalStore } from '../../stores/useModalStore.js'
 import { useTranslate } from '../../composables/useTranslate.js'
-import { useFileEditors, isFileTooLarge } from '../../composables/useFileEditors.js'
+import { useFileEditors, isFileTooLarge, loadsOwnContent } from '../../composables/useFileEditors.js'
 import { usePluginsStore } from '../../../store/plugins'
 
 const fm = useFileManagerStore()
@@ -357,11 +357,18 @@ const pluginEditorItems = computed(() => {
     const fileTooLarge = isFileTooLarge(file)
     return getMatchingEditors(file).map(item => ({
         ...item,
-        disabled: fileTooLarge
+        // The size cap is about handing the editor the file's content; an
+        // editor that loads what it needs itself is offered whatever the size.
+        disabled: fileTooLarge && !loadsOwnContent(item.editor)
     }))
 })
 
 function getEditorMenuLabel(editorItem) {
+    // An editor that is not "Edit with X" — a viewer, a comparison — names its
+    // own item, and that name goes through the plugin's translations.
+    if (editorItem.editor.menuLabel) {
+        return pluginsStore.resolvePluginText(editorItem.pluginId, editorItem.editor.menuLabel)
+    }
     const baseName = pluginsStore.resolvePluginText(editorItem.pluginId, editorItem.editor.name)
     if (editorItem.isDefault) {
         return `Edit with ${baseName} (default)`

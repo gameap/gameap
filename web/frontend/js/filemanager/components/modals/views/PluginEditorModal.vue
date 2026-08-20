@@ -10,6 +10,9 @@
                 :extension="extension"
                 :game-code="gameCode"
                 :game-name="gameName"
+                :file-size="fileSize"
+                :file-mtime="fileMtime"
+                :disk="selectedDisk"
                 :plugin-id="pluginId"
                 @save="handleSave"
                 @close="handleClose"
@@ -44,6 +47,8 @@ const file = computed(() => editorState.value?.file)
 const fileName = computed(() => file.value?.basename || '')
 const filePath = computed(() => file.value?.path || '')
 const extension = computed(() => file.value?.extension || '')
+const fileSize = computed(() => file.value?.size)
+const fileMtime = computed(() => file.value?.timestamp)
 const editorComponent = computed(() => editor.value?.component ? markRaw(editor.value.component) : null)
 const isReadOnly = computed(() => editor.value?.readOnly || false)
 const contentType = computed(() => editor.value?.contentType || 'text')
@@ -81,6 +86,13 @@ function handleClose() {
 onMounted(() => {
     if (!file.value || !editor.value) {
         modal.clearModal()
+        return
+    }
+
+    // An editor that declares 'none' is handed no content: it decides what to
+    // read, which is the only way to work on a file past the edit size cap.
+    if (contentType.value === 'none') {
+        contentLoaded.value = true
         return
     }
 
