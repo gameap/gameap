@@ -68,6 +68,7 @@ func (m *mockPluginService) GetSubscribedEvents(_ context.Context, _ *proto.GetS
 }
 
 func TestDryRun(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		wasmContent    []byte
@@ -130,6 +131,7 @@ func TestDryRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			h := dryrun.NewHandler(tt.mockManager, api.NewResponder())
 			recorder := httptest.NewRecorder()
 
@@ -158,6 +160,7 @@ func TestDryRun(t *testing.T) {
 }
 
 func TestDryRun_no_file_uploaded(t *testing.T) {
+	t.Parallel()
 	h := dryrun.NewHandler(&mockLoaderManager{}, api.NewResponder())
 	recorder := httptest.NewRecorder()
 

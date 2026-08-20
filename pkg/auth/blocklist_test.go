@@ -10,6 +10,8 @@ import (
 )
 
 func TestNoopBlocklist_AlwaysFalse(t *testing.T) {
+	t.Parallel()
+
 	b := NoopBlocklist{}
 
 	assert.False(t, b.Contains(""))
@@ -18,6 +20,8 @@ func TestNoopBlocklist_AlwaysFalse(t *testing.T) {
 }
 
 func TestMapBlocklist_Contains(t *testing.T) {
+	t.Parallel()
+
 	b := &MapBlocklist{entries: map[string]struct{}{
 		"password1234":   {},
 		"qwertyuiop12":   {},
@@ -33,6 +37,8 @@ func TestMapBlocklist_Contains(t *testing.T) {
 }
 
 func TestMapBlocklist_NilSafe(t *testing.T) {
+	t.Parallel()
+
 	var b *MapBlocklist
 
 	assert.False(t, b.Contains("anything"))
@@ -40,6 +46,8 @@ func TestMapBlocklist_NilSafe(t *testing.T) {
 }
 
 func TestLoadBlocklistFromBytes_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	gz := gzipBytes(t, "password1234\nqwertyuiop12\ncorrectbattery\n")
 
 	bl, err := LoadBlocklistFromBytes(gz)
@@ -53,6 +61,8 @@ func TestLoadBlocklistFromBytes_RoundTrip(t *testing.T) {
 }
 
 func TestLoadBlocklistFromBytes_IgnoresEmptyAndWhitespace(t *testing.T) {
+	t.Parallel()
+
 	gz := gzipBytes(t, "\n\npassword1234\n  qwertyuiop12  \n\n\n")
 
 	bl, err := LoadBlocklistFromBytes(gz)
@@ -64,12 +74,16 @@ func TestLoadBlocklistFromBytes_IgnoresEmptyAndWhitespace(t *testing.T) {
 }
 
 func TestLoadBlocklistFromBytes_RejectsEmptyInput(t *testing.T) {
+	t.Parallel()
+
 	_, err := LoadBlocklistFromBytes(nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrBlocklistEmpty)
 }
 
 func TestLoadBlocklistFromBytes_RejectsEmptyAfterParse(t *testing.T) {
+	t.Parallel()
+
 	gz := gzipBytes(t, "")
 
 	_, err := LoadBlocklistFromBytes(gz)
@@ -78,12 +92,15 @@ func TestLoadBlocklistFromBytes_RejectsEmptyAfterParse(t *testing.T) {
 }
 
 func TestLoadBlocklistFromBytes_RejectsCorruptGzip(t *testing.T) {
+	t.Parallel()
+
 	_, err := LoadBlocklistFromBytes([]byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06})
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrBlocklistEmpty)
 	assert.Contains(t, err.Error(), "gzip")
 }
 
+//nolint:paralleltest // mutates the package-level password policy (SetPasswordBlocklist) shared with other tests
 func TestSetPasswordBlocklist_NilFallsBackToNoop(t *testing.T) {
 	t.Cleanup(ResetPasswordPolicy)
 
@@ -97,6 +114,7 @@ func TestSetPasswordBlocklist_NilFallsBackToNoop(t *testing.T) {
 	assert.True(t, isNoop, "nil should reset to NoopBlocklist")
 }
 
+//nolint:paralleltest // mutates the package-level password policy (SetAllowWeakPasswords) shared with other tests
 func TestSetAllowWeakPasswords_Toggles(t *testing.T) {
 	t.Cleanup(ResetPasswordPolicy)
 
@@ -109,6 +127,7 @@ func TestSetAllowWeakPasswords_Toggles(t *testing.T) {
 	assert.False(t, AllowWeakPasswords())
 }
 
+//nolint:paralleltest // mutates the package-level password policy (ResetPasswordPolicy) shared with other tests
 func TestResetPasswordPolicy_RestoresDefaults(t *testing.T) {
 	SetPasswordBlocklist(&MapBlocklist{entries: map[string]struct{}{"x": {}}})
 	SetAllowWeakPasswords(true)
@@ -124,6 +143,8 @@ func TestResetPasswordPolicy_RestoresDefaults(t *testing.T) {
 }
 
 func TestLoadEmbeddedBlocklist_HasReasonableCorpus(t *testing.T) {
+	t.Parallel()
+
 	bl, err := LoadEmbeddedBlocklist()
 	require.NoError(t, err)
 

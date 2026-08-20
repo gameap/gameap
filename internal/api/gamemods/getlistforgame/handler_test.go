@@ -16,6 +16,7 @@ import (
 )
 
 func TestGetListForGame(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		gameCode string
@@ -189,6 +190,7 @@ func TestGetListForGame(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewGameModRepository()
 
 			for _, gameMod := range test.gameMods {

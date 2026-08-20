@@ -18,6 +18,7 @@ import (
 // black box through io.Reader semantics.
 
 func TestLazyChunkReader_Read_LoadsFromStorageOnFirstRead(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storage := files.NewInMemoryFileManager()
 	require.NoError(t, storage.Write(context.Background(), "chunk", []byte("hello")))
@@ -32,6 +33,7 @@ func TestLazyChunkReader_Read_LoadsFromStorageOnFirstRead(t *testing.T) {
 }
 
 func TestLazyChunkReader_Read_ReturnsErrorWhenChunkMissing(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storage := files.NewInMemoryFileManager()
 	r := newLazyChunkReader(context.Background(), storage, "missing")
@@ -45,6 +47,7 @@ func TestLazyChunkReader_Read_ReturnsErrorWhenChunkMissing(t *testing.T) {
 }
 
 func TestLazyChunkReader_Read_ReturnsEOFAfterCloseAndDoesNotReopen(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storage := &openCounterStorage{StreamFileManager: files.NewInMemoryFileManager()}
 	require.NoError(t, storage.Write(context.Background(), "chunk", []byte("data")))
@@ -62,6 +65,7 @@ func TestLazyChunkReader_Read_ReturnsEOFAfterCloseAndDoesNotReopen(t *testing.T)
 }
 
 func TestLazyChunkReader_Read_PartialReadAcrossMultipleCalls(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — verify the lazy reader threads io.Reader semantics through to
 	// the underlying ReadCloser, including short reads.
 	storage := files.NewInMemoryFileManager()
@@ -85,6 +89,7 @@ func TestLazyChunkReader_Read_PartialReadAcrossMultipleCalls(t *testing.T) {
 }
 
 func TestLazyChunkReader_Read_ReleasesUnderlyingReadCloserOnEOF(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storage := &openCounterStorage{StreamFileManager: files.NewInMemoryFileManager()}
 	require.NoError(t, storage.Write(context.Background(), "chunk", []byte("xy")))
@@ -103,6 +108,7 @@ func TestLazyChunkReader_Read_ReleasesUnderlyingReadCloserOnEOF(t *testing.T) {
 }
 
 func TestLazyChunkReader_MultiReader_OpensStreamsSequentiallyNotInParallel(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — three lazy readers wrapped in io.MultiReader. The contract we
 	// verify is that we never hold more than one underlying ReadStream open at
 	// a time (the reason lazyChunkReader exists in the first place).
@@ -196,6 +202,7 @@ func (e *errReadCloser) Close() error             { return nil }
 var errFakeDiskFault = errors.New("fake disk fault")
 
 func TestLazyChunkReader_Read_PropagatesUnderlyingReadError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storage := &errStreamStorage{err: errFakeDiskFault}
 	r := newLazyChunkReader(context.Background(), storage, "chunk")

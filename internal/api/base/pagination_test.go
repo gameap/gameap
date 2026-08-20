@@ -12,6 +12,8 @@ import (
 )
 
 func TestReadPage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		query      string
@@ -67,6 +69,8 @@ func TestReadPage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req := httptest.NewRequest(http.MethodGet, "/api/servers?"+tt.query, http.NoBody)
 			number, size, err := base.ReadPage(api.NewQueryReader(req))
 

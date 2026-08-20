@@ -30,6 +30,8 @@ var testAdminUser = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		setupAuth       func() context.Context
@@ -137,6 +139,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			rbacRepo := inmemory.NewRBACRepository()
 			if tt.setupRBAC != nil {
 				tt.setupRBAC(rbacRepo)

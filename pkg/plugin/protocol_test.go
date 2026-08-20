@@ -77,6 +77,7 @@ func managerWithPlugin(id string, svc protocol.ProtocolService) *Manager {
 }
 
 func TestRunner_CheckIP(t *testing.T) {
+	t.Parallel()
 	metadata := netip.MustParseAddr("169.254.169.254")
 	private := netip.MustParseAddr("10.0.0.5")
 	public := netip.MustParseAddr("8.8.8.8")
@@ -94,6 +95,7 @@ func TestRunner_CheckIP(t *testing.T) {
 }
 
 func TestRunner_CheckIP_MappedAddresses(t *testing.T) {
+	t.Parallel()
 	permissive := NewProtocolRunner(nil, nil, NetDialPolicy{})
 	strict := NewProtocolRunner(nil, nil, NetDialPolicy{BlockPrivateIPs: true})
 
@@ -114,6 +116,7 @@ func TestRunner_CheckIP_MappedAddresses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.runner.checkIP(netip.MustParseAddr(tt.addr), false)
 
 			if tt.blocked {
@@ -126,6 +129,7 @@ func TestRunner_CheckIP_MappedAddresses(t *testing.T) {
 }
 
 func TestRunner_CheckIP_MappedMetadataNotBypassedByAllowlist(t *testing.T) {
+	t.Parallel()
 	strict := NewProtocolRunner(nil, nil, NetDialPolicy{BlockPrivateIPs: true})
 
 	err := strict.checkIP(netip.MustParseAddr("::ffff:169.254.169.254"), true)
@@ -134,6 +138,7 @@ func TestRunner_CheckIP_MappedMetadataNotBypassedByAllowlist(t *testing.T) {
 }
 
 func TestPluginRconClient_OpenExecuteClose(t *testing.T) {
+	t.Parallel()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer ln.Close()
@@ -172,6 +177,7 @@ func TestPluginRconClient_OpenExecuteClose(t *testing.T) {
 }
 
 func TestPluginRconClient_SecondOpenRejected(t *testing.T) {
+	t.Parallel()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer ln.Close()
@@ -208,6 +214,7 @@ func TestPluginRconClient_SecondOpenRejected(t *testing.T) {
 }
 
 func TestPluginRconClient_AuthFailed(t *testing.T) {
+	t.Parallel()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer ln.Close()
@@ -235,6 +242,7 @@ func TestPluginRconClient_AuthFailed(t *testing.T) {
 }
 
 func TestRunner_Query(t *testing.T) {
+	t.Parallel()
 	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer pc.Close()
@@ -266,6 +274,7 @@ func TestRunner_Query(t *testing.T) {
 }
 
 func TestRunner_ParsePlayers(t *testing.T) {
+	t.Parallel()
 	fake := &fakeProtoPlugin{parseResp: &protocol.ParsePlayersResponse{
 		Players: []*protocol.RconPlayer{
 			{Id: "1", Name: "bob", Uniqid: "STEAM_1", Score: "5", Ping: "30"},

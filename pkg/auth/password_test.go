@@ -10,6 +10,8 @@ import (
 )
 
 func TestHashPassword(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		password string
@@ -42,6 +44,8 @@ func TestHashPassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hash, err := HashPassword(tt.password)
 
 			require.NoError(t, err)
@@ -56,6 +60,8 @@ func TestHashPassword(t *testing.T) {
 }
 
 func TestHashPassword_UniqueHashes(t *testing.T) {
+	t.Parallel()
+
 	password := "samepassword12"
 
 	hash1, err := HashPassword(password)
@@ -71,6 +77,8 @@ func TestHashPassword_UniqueHashes(t *testing.T) {
 // are accepted without truncation. The SHA-256 pre-hash in HashPassword
 // keeps the bcrypt input at a fixed 44 ASCII chars regardless of length.
 func TestHashPassword_RoundTrip_128Chars(t *testing.T) {
+	t.Parallel()
+
 	password := strings.Repeat("a", 128)
 
 	hash, err := HashPassword(password)
@@ -82,6 +90,8 @@ func TestHashPassword_RoundTrip_128Chars(t *testing.T) {
 }
 
 func TestVerifyPassword(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		password      string
@@ -106,6 +116,8 @@ func TestVerifyPassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			hash, err := HashPassword(tt.password)
 			require.NoError(t, err)
 
@@ -125,6 +137,8 @@ func TestVerifyPassword(t *testing.T) {
 // authenticating them and report needsRehash=true so the caller can upgrade
 // the stored hash to the SHA-256+bcrypt scheme on the next successful login.
 func TestVerifyPassword_LegacyHashStillVerifiesAndSignalsRehash(t *testing.T) {
+	t.Parallel()
+
 	password := "legacy-pw-12"
 	legacyHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	require.NoError(t, err)
@@ -136,6 +150,8 @@ func TestVerifyPassword_LegacyHashStillVerifiesAndSignalsRehash(t *testing.T) {
 }
 
 func TestVerifyPassword_NewHashDoesNotNeedRehash(t *testing.T) {
+	t.Parallel()
+
 	password := "current-scheme-pw"
 	hash, err := HashPassword(password)
 	require.NoError(t, err)
@@ -147,6 +163,8 @@ func TestVerifyPassword_NewHashDoesNotNeedRehash(t *testing.T) {
 }
 
 func TestVerifyPassword_WrongPassword_BothSchemes(t *testing.T) {
+	t.Parallel()
+
 	password := "secret-password"
 	wrongPassword := "wrong-password"
 
@@ -166,6 +184,8 @@ func TestVerifyPassword_WrongPassword_BothSchemes(t *testing.T) {
 }
 
 func TestVerifyPassword_InvalidHash(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		hashValue  string
@@ -194,6 +214,8 @@ func TestVerifyPassword_InvalidHash(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			needsRehash, err := VerifyPassword(tt.hashValue, tt.password)
 
 			require.Error(t, err)
@@ -204,6 +226,8 @@ func TestVerifyPassword_InvalidHash(t *testing.T) {
 }
 
 func TestVerifyPassword_CaseSensitive(t *testing.T) {
+	t.Parallel()
+
 	password := "CaseSensitive"
 	hash, err := HashPassword(password)
 	require.NoError(t, err)
@@ -220,6 +244,8 @@ func TestVerifyPassword_CaseSensitive(t *testing.T) {
 }
 
 func TestDefaultBcryptCost(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, bcrypt.DefaultCost, DefaultBcryptCost)
 }
 
@@ -227,6 +253,8 @@ func TestDefaultBcryptCost(t *testing.T) {
 // active cost must move when the operator-configured value is in the
 // allowed range. The post-test restore keeps subsequent tests using the
 // historical default.
+//
+//nolint:paralleltest // mutates the package-level active bcrypt cost shared with other tests
 func TestSetDefaultBcryptCost_AcceptsValidRange(t *testing.T) {
 	t.Cleanup(func() { _ = SetDefaultBcryptCost(DefaultBcryptCost) })
 
@@ -240,6 +268,8 @@ func TestSetDefaultBcryptCost_AcceptsValidRange(t *testing.T) {
 // misconfigured AUTH_BCRYPT_COST must be refused so a deployment cannot
 // ship a weaker default than the project floor (or a cost so high it
 // becomes a DoS).
+//
+//nolint:paralleltest // mutates the package-level active bcrypt cost shared with other tests
 func TestSetDefaultBcryptCost_RejectsOutOfRange(t *testing.T) {
 	t.Cleanup(func() { _ = SetDefaultBcryptCost(DefaultBcryptCost) })
 
@@ -255,6 +285,8 @@ func TestSetDefaultBcryptCost_RejectsOutOfRange(t *testing.T) {
 // TestHashPassword_RespectsActiveCost — OWASP ASVS §2.4.4 — a hash produced
 // after SetDefaultBcryptCost(N) carries cost=N. This is the round-trip the
 // login rehash flow depends on.
+//
+//nolint:paralleltest // mutates the package-level active bcrypt cost shared with other tests
 func TestHashPassword_RespectsActiveCost(t *testing.T) {
 	t.Cleanup(func() { _ = SetDefaultBcryptCost(DefaultBcryptCost) })
 
@@ -273,6 +305,8 @@ func TestHashPassword_RespectsActiveCost(t *testing.T) {
 // so the login handler can fall back to a safe "rehash anyway" decision
 // for unexpected stored values.
 func TestHashCost_ReturnsErrorForGarbage(t *testing.T) {
+	t.Parallel()
+
 	_, err := HashCost("not-a-bcrypt-hash")
 	assert.Error(t, err)
 }

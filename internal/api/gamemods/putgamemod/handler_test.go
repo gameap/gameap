@@ -20,6 +20,7 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		gameModID   string
@@ -387,6 +388,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()
 			handler := NewHandler(repo, nil, nil, responder)
@@ -428,6 +430,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_GameModUpdatePersistence(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)
@@ -534,6 +537,7 @@ func TestHandler_GameModUpdatePersistence(t *testing.T) {
 }
 
 func TestHandler_EmptyGameModID(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)
@@ -559,6 +563,7 @@ func TestHandler_EmptyGameModID(t *testing.T) {
 }
 
 func TestHandler_MinecraftGameModUpdate(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)
@@ -643,6 +648,7 @@ func TestHandler_MinecraftGameModUpdate(t *testing.T) {
 }
 
 func TestHandler_GameModUpdateMetadataPersistence(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)
@@ -695,6 +701,7 @@ func TestHandler_GameModUpdateMetadataPersistence(t *testing.T) {
 }
 
 func TestHandler_GameModUpdateWithNilMetadata(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)
@@ -740,6 +747,7 @@ func TestHandler_GameModUpdateWithNilMetadata(t *testing.T) {
 }
 
 func TestHandler_GameModChangeGameCode(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)

@@ -134,8 +134,10 @@ func protocolCalls() []protocolCall {
 // the panel: discovery degrades to "no protocols", and the protocols the plugin
 // never declared report a missing export rather than panicking.
 func TestPluginServiceWrapper_Protocol_MissingExports(t *testing.T) {
+	t.Parallel()
 	for _, tt := range protocolCalls() {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			wrapper := &pluginServiceWrapper{gate: make(chan struct{}, 1)}
 
@@ -170,8 +172,10 @@ func TestPluginServiceWrapper_Protocol_MissingExports(t *testing.T) {
 // Protocol methods share the core PluginService call gate, so a caller that
 // cannot acquire it must surface ErrPluginBusy instead of reaching the guest.
 func TestPluginServiceWrapper_Protocol_CallGateRejection(t *testing.T) {
+	t.Parallel()
 	for _, tt := range protocolCalls() {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			wrapper := &pluginServiceWrapper{gate: make(chan struct{}, 1)}
 			tt.setExport(wrapper)
@@ -194,6 +198,7 @@ func TestPluginServiceWrapper_Protocol_CallGateRejection(t *testing.T) {
 // The wrapper must satisfy the optional ProtocolService for every loaded
 // plugin, including ones that implement none of its exports.
 func TestPluginServiceWrapper_Protocol_LoadedPluginWithoutProtocolSupport(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 

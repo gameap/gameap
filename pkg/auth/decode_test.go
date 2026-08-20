@@ -9,6 +9,8 @@ import (
 )
 
 func TestDecodeWithPrefix(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    []byte
@@ -68,6 +70,8 @@ func TestDecodeWithPrefix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := DecodeWithPrefix(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -75,6 +79,8 @@ func TestDecodeWithPrefix(t *testing.T) {
 }
 
 func TestDecodeWithPrefix_ASCII85(t *testing.T) {
+	t.Parallel()
+
 	// Helper function to encode data with ascii85
 	encodeASCII85 := func(data []byte) string {
 		encoded := make([]byte, ascii85.MaxEncodedLen(len(data)))
@@ -107,6 +113,8 @@ func TestDecodeWithPrefix_ASCII85(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := DecodeWithPrefix(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -114,21 +122,29 @@ func TestDecodeWithPrefix_ASCII85(t *testing.T) {
 }
 
 func TestDecodeWithPrefix_MultipleEncodings(t *testing.T) {
+	t.Parallel()
+
 	testData := []byte("secret-key-123")
 
 	t.Run("base64_encoding", func(t *testing.T) {
+		t.Parallel()
+
 		encoded := "base64:" + base64.StdEncoding.EncodeToString(testData)
 		result := DecodeWithPrefix([]byte(encoded))
 		assert.Equal(t, testData, result)
 	})
 
 	t.Run("no_encoding", func(t *testing.T) {
+		t.Parallel()
+
 		result := DecodeWithPrefix(testData)
 		assert.Equal(t, testData, result)
 	})
 }
 
 func TestDecodeWithPrefix_LongData(t *testing.T) {
+	t.Parallel()
+
 	// Test with long data to ensure buffer handling is correct
 	longData := make([]byte, 1024)
 	for i := range longData {

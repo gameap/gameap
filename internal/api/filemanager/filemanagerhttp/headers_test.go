@@ -22,6 +22,8 @@ import (
 // everything else (notably text/html and image/svg+xml) is forced to an
 // opaque attachment so it cannot execute in the panel origin.
 func TestSafeContentHeaders_Disposition(t *testing.T) {
+	t.Parallel()
+
 	const fn = "report"
 
 	tests := []struct {
@@ -112,6 +114,8 @@ func TestSafeContentHeaders_Disposition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			h := http.Header{}
 
@@ -141,6 +145,8 @@ func TestSafeContentHeaders_Disposition(t *testing.T) {
 // parameters. The ASCII fallback is sanitized and the exact bytes are carried
 // in the RFC 5987 filename* parameter.
 func TestSafeContentHeaders_FilenameEncoding(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		filename           string
@@ -216,6 +222,8 @@ func TestSafeContentHeaders_FilenameEncoding(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			h := http.Header{}
 

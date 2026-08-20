@@ -30,6 +30,7 @@ func (m *mockResponder) Write(_ context.Context, _ http.ResponseWriter, result a
 }
 
 func TestNewHandler(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	responder := &mockResponder{}
 
@@ -41,6 +42,7 @@ func TestNewHandler(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		defaultLanguage string
@@ -65,6 +67,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := &config.Config{}
 			cfg.UI.DefaultLanguage = tt.defaultLanguage
 
@@ -87,7 +90,9 @@ func TestHandler_ServeHTTP(t *testing.T) {
 // provider and site key when captcha is configured, never the secret, and
 // stays absent when no provider is set.
 func TestHandler_ServeHTTP_Captcha(t *testing.T) {
+	t.Parallel()
 	t.Run("captcha_absent_when_provider_unset", func(t *testing.T) {
+		t.Parallel()
 		cfg := &config.Config{}
 		cfg.Captcha.SecretKey = "should-not-leak"
 
@@ -103,6 +108,7 @@ func TestHandler_ServeHTTP_Captcha(t *testing.T) {
 	})
 
 	t.Run("captcha_exposes_provider_and_site_key_only", func(t *testing.T) {
+		t.Parallel()
 		cfg := &config.Config{}
 		cfg.Captcha.Provider = "turnstile"
 		cfg.Captcha.SiteKey = "site-key-123"

@@ -9,6 +9,8 @@ import (
 )
 
 func TestUserRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewUserRepositorySuite(
 		func(_ *testing.T) repositories.UserRepository {
 			return NewUserRepository()

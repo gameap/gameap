@@ -16,6 +16,7 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		requestBody    string
@@ -192,6 +193,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := inmemory.NewGameRepository()
 			responder := api.NewResponder()
@@ -233,6 +235,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_GamePersistence(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewGameRepository()
 	responder := api.NewResponder()
@@ -293,6 +296,7 @@ func TestHandler_GamePersistence(t *testing.T) {
 }
 
 func TestHandler_DuplicateGameCode(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewGameRepository()
 	responder := api.NewResponder()

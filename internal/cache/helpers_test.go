@@ -11,6 +11,8 @@ import (
 )
 
 func TestGetTyped_RoundTrip_String(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	c := cache.NewInMemory()
@@ -25,6 +27,8 @@ func TestGetTyped_RoundTrip_String(t *testing.T) {
 }
 
 func TestGetTyped_RoundTrip_Int(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	c := cache.NewInMemory()
@@ -39,6 +43,8 @@ func TestGetTyped_RoundTrip_Int(t *testing.T) {
 }
 
 func TestGetTyped_RoundTrip_Bool(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	c := cache.NewInMemory()
@@ -53,6 +59,8 @@ func TestGetTyped_RoundTrip_Bool(t *testing.T) {
 }
 
 func TestGetTyped_RoundTrip_Struct(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	type payload struct {
 		Name  string `json:"name"`
@@ -74,6 +82,8 @@ func TestGetTyped_RoundTrip_Struct(t *testing.T) {
 }
 
 func TestGetTyped_RoundTrip_Slice(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	c := cache.NewInMemory()
@@ -90,6 +100,8 @@ func TestGetTyped_RoundTrip_Slice(t *testing.T) {
 }
 
 func TestGetTyped_PropagatesNotFound(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	c := cache.NewInMemory()
@@ -103,6 +115,8 @@ func TestGetTyped_PropagatesNotFound(t *testing.T) {
 }
 
 func TestGetTyped_PropagatesUnderlyingCacheError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	fake := &failingCache{getErr: errInjectedGet}
@@ -117,6 +131,8 @@ func TestGetTyped_PropagatesUnderlyingCacheError(t *testing.T) {
 }
 
 func TestGetTyped_ReturnsUnmarshalErrorOnTypeMismatch(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	c := cache.NewInMemory()
@@ -132,6 +148,8 @@ func TestGetTyped_ReturnsUnmarshalErrorOnTypeMismatch(t *testing.T) {
 }
 
 func TestSetWithTTL_StoresValueAndExpires(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	c := cache.NewInMemory()
@@ -153,6 +171,8 @@ func TestSetWithTTL_StoresValueAndExpires(t *testing.T) {
 }
 
 func TestSetWithTTL_PropagatesUnderlyingCacheError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	fake := &failingCache{setErr: errInjectedSet}

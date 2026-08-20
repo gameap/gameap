@@ -370,7 +370,11 @@ func waitForOneMessage(captured *[]*pubsub.Message, mu *sync.Mutex) bool {
 }
 
 func TestDispatcher_BuildSnapshot(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_only_enabled_and_non_deleted_tasks", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -387,6 +391,8 @@ func TestDispatcher_BuildSnapshot(t *testing.T) {
 	})
 
 	t.Run("wraps_repo_find_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -404,6 +410,8 @@ func TestDispatcher_BuildSnapshot(t *testing.T) {
 	})
 
 	t.Run("converts_tasks_via_DomainServerTasksToProtoList", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -444,6 +452,8 @@ func TestDispatcher_BuildSnapshot(t *testing.T) {
 	})
 
 	t.Run("sets_generated_at_to_now", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -464,7 +474,11 @@ func TestDispatcher_BuildSnapshot(t *testing.T) {
 }
 
 func TestDispatcher_DispatchUpsert(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_error_when_task_has_no_node_id", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -487,6 +501,8 @@ func TestDispatcher_DispatchUpsert(t *testing.T) {
 	})
 
 	t.Run("sends_upserted_delta_to_correct_node", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -517,6 +533,8 @@ func TestDispatcher_DispatchUpsert(t *testing.T) {
 	})
 
 	t.Run("swallows_sender_error_and_returns_nil", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -540,7 +558,11 @@ func TestDispatcher_DispatchUpsert(t *testing.T) {
 }
 
 func TestDispatcher_DispatchDelete(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sends_deleted_delta_with_id_and_version", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -564,6 +586,8 @@ func TestDispatcher_DispatchDelete(t *testing.T) {
 	})
 
 	t.Run("swallows_sender_error_and_returns_nil", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -580,7 +604,11 @@ func TestDispatcher_DispatchDelete(t *testing.T) {
 }
 
 func TestDispatcher_HandleExecutionStarted(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates_execution_with_running_status", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -615,6 +643,8 @@ func TestDispatcher_HandleExecutionStarted(t *testing.T) {
 	})
 
 	t.Run("uses_evt_started_at_when_provided", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -639,6 +669,8 @@ func TestDispatcher_HandleExecutionStarted(t *testing.T) {
 	})
 
 	t.Run("falls_back_to_now_when_started_at_nil", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -663,6 +695,8 @@ func TestDispatcher_HandleExecutionStarted(t *testing.T) {
 	})
 
 	t.Run("publishes_started_status", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -704,6 +738,8 @@ func TestDispatcher_HandleExecutionStarted(t *testing.T) {
 	})
 
 	t.Run("returns_error_when_execution_id_invalid", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -725,6 +761,8 @@ func TestDispatcher_HandleExecutionStarted(t *testing.T) {
 	})
 
 	t.Run("wraps_repo_create_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -754,6 +792,8 @@ func TestDispatcher_HandleExecutionStarted(t *testing.T) {
 	})
 
 	t.Run("does_not_panic_when_publisher_is_nil", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		sender := &fakeSender{}
 		serverRepo := &fakeServerTaskRepo{}
@@ -779,7 +819,11 @@ func TestDispatcher_HandleExecutionStarted(t *testing.T) {
 }
 
 func TestDispatcher_HandleExecutionFinished(t *testing.T) {
+	t.Parallel()
+
 	t.Run("builds_finish_patch_with_all_fields", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -827,6 +871,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("sets_exit_code_when_zero_and_status_is_success", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -851,6 +897,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("leaves_exit_code_nil_when_zero_and_status_failed", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -874,6 +922,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("omits_error_message_when_empty", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -897,6 +947,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("omits_storage_path_when_not_streamed", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -921,6 +973,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("omits_storage_path_when_path_empty", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -945,6 +999,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("truncates_output_inline_to_64KB", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -974,6 +1030,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("uses_evt_finished_at_when_provided", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -998,6 +1056,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("falls_back_to_now_for_finished_at", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1022,6 +1082,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("publishes_finished_status_on_realtime_channel", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1066,6 +1128,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("sends_execution_ack_to_node", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1094,6 +1158,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("returns_error_when_execution_id_invalid", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1118,6 +1184,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("wraps_repo_update_finish_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1141,6 +1209,8 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 	})
 
 	t.Run("does_not_surface_publisher_or_sender_errors", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1165,7 +1235,11 @@ func TestDispatcher_HandleExecutionFinished(t *testing.T) {
 }
 
 func TestDispatcher_HandleExecutionLog(t *testing.T) {
+	t.Parallel()
+
 	t.Run("early_returns_when_chunk_empty_and_not_final", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1194,6 +1268,8 @@ func TestDispatcher_HandleExecutionLog(t *testing.T) {
 	})
 
 	t.Run("appends_chunk_to_execution_output", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1219,6 +1295,8 @@ func TestDispatcher_HandleExecutionLog(t *testing.T) {
 	})
 
 	t.Run("publishes_log_payload_on_realtime_log_channel", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1257,6 +1335,8 @@ func TestDispatcher_HandleExecutionLog(t *testing.T) {
 	})
 
 	t.Run("returns_error_when_execution_id_invalid", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1279,6 +1359,8 @@ func TestDispatcher_HandleExecutionLog(t *testing.T) {
 	})
 
 	t.Run("swallows_append_error_and_continues_to_publish", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1304,7 +1386,11 @@ func TestDispatcher_HandleExecutionLog(t *testing.T) {
 }
 
 func TestDispatcher_HandleResyncRequest(t *testing.T) {
+	t.Parallel()
+
 	t.Run("builds_snapshot_and_sends_to_node", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1333,6 +1419,8 @@ func TestDispatcher_HandleResyncRequest(t *testing.T) {
 	})
 
 	t.Run("wraps_build_snapshot_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1351,6 +1439,8 @@ func TestDispatcher_HandleResyncRequest(t *testing.T) {
 	})
 
 	t.Run("wraps_sender_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1369,7 +1459,11 @@ func TestDispatcher_HandleResyncRequest(t *testing.T) {
 }
 
 func TestDispatcher_ReconcileWorkingExecutions(t *testing.T) {
+	t.Parallel()
+
 	t.Run("defaults_reason_when_empty", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1387,6 +1481,8 @@ func TestDispatcher_ReconcileWorkingExecutions(t *testing.T) {
 	})
 
 	t.Run("passes_explicit_reason", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1403,6 +1499,8 @@ func TestDispatcher_ReconcileWorkingExecutions(t *testing.T) {
 	})
 
 	t.Run("skips_malformed_execution_ids", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1426,6 +1524,8 @@ func TestDispatcher_ReconcileWorkingExecutions(t *testing.T) {
 	})
 
 	t.Run("returns_count_from_repo", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1441,6 +1541,8 @@ func TestDispatcher_ReconcileWorkingExecutions(t *testing.T) {
 	})
 
 	t.Run("wraps_mark_abandoned_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1459,7 +1561,11 @@ func TestDispatcher_ReconcileWorkingExecutions(t *testing.T) {
 }
 
 func TestDispatcher_CancelExecution(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sends_cancel_message_to_node", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1485,6 +1591,8 @@ func TestDispatcher_CancelExecution(t *testing.T) {
 	})
 
 	t.Run("wraps_sender_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		h := newTestDispatcher(t)
 		defer h.cleanup()
@@ -1502,7 +1610,11 @@ func TestDispatcher_CancelExecution(t *testing.T) {
 }
 
 func TestTruncateTail(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_input_when_max_bytes_zero", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		input := "hello"
 
@@ -1514,6 +1626,8 @@ func TestTruncateTail(t *testing.T) {
 	})
 
 	t.Run("returns_input_when_max_bytes_negative", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		input := "hello"
 
@@ -1525,6 +1639,8 @@ func TestTruncateTail(t *testing.T) {
 	})
 
 	t.Run("returns_input_when_shorter_than_max", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		input := "abc"
 
@@ -1536,6 +1652,8 @@ func TestTruncateTail(t *testing.T) {
 	})
 
 	t.Run("returns_input_when_equal", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		input := "abc"
 
@@ -1547,6 +1665,8 @@ func TestTruncateTail(t *testing.T) {
 	})
 
 	t.Run("returns_tail_when_longer_than_max", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		input := "abcdef"
 
@@ -1558,6 +1678,8 @@ func TestTruncateTail(t *testing.T) {
 	})
 
 	t.Run("result_is_valid_utf8_when_cut_lands_mid_rune", func(t *testing.T) {
+		t.Parallel()
+
 		// "🚀" is 4 bytes; a byte cut that starts inside it must not yield
 		// invalid UTF-8 (Postgres text columns reject invalid byte sequences).
 		input := "ab🚀cd"

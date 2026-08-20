@@ -14,6 +14,7 @@ import (
 )
 
 func TestStorageService_Get(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		pluginID    uint64
@@ -105,6 +106,7 @@ func TestStorageService_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewPluginStorageRepository()
 			tt.setupRepo(repo)
 
@@ -122,6 +124,7 @@ func TestStorageService_Get(t *testing.T) {
 }
 
 func TestStorageService_Set(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		pluginID  uint64
@@ -166,6 +169,7 @@ func TestStorageService_Set(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewPluginStorageRepository()
 			svc := NewStorageService(tt.pluginID, repo)
 
@@ -197,6 +201,7 @@ func TestStorageService_Set(t *testing.T) {
 }
 
 func TestStorageService_Set_ExistingEntryUpdated(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewPluginStorageRepository()
 	svc := NewStorageService(1, repo)
 
@@ -219,6 +224,7 @@ func TestStorageService_Set_ExistingEntryUpdated(t *testing.T) {
 }
 
 func TestStorageService_Delete(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		pluginID  uint64
@@ -269,6 +275,7 @@ func TestStorageService_Delete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewPluginStorageRepository()
 			tt.setupRepo(repo)
 
@@ -290,6 +297,7 @@ func TestStorageService_Delete(t *testing.T) {
 }
 
 func TestStorageService_List(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		pluginID  uint64
@@ -362,6 +370,7 @@ func TestStorageService_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewPluginStorageRepository()
 			tt.setupRepo(repo)
 
@@ -384,6 +393,7 @@ func TestStorageService_List(t *testing.T) {
 }
 
 func TestStorageHostLibraryFactory_Create(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewPluginStorageRepository()
 	factory := NewStorageHostLibraryFactory(repo)
 
@@ -396,6 +406,7 @@ func TestStorageHostLibraryFactory_Create(t *testing.T) {
 }
 
 func TestNewStorageHostLibrary(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewPluginStorageRepository()
 	lib := NewStorageHostLibrary(1, repo)
 

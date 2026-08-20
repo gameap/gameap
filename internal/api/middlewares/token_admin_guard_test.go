@@ -14,6 +14,7 @@ import (
 )
 
 func TestTokenAdminGuardMiddleware(t *testing.T) {
+	t.Parallel()
 	middleware := NewTokenAdminGuardMiddleware(api.NewResponder(), nil)
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -63,6 +64,7 @@ func TestTokenAdminGuardMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(http.MethodDelete, "/api/users/5", nil)
 			req = req.WithContext(auth.ContextWithSession(req.Context(), tt.session))
 
@@ -85,11 +87,13 @@ func TestTokenAdminGuardMiddleware(t *testing.T) {
 //
 // Reference: https://owasp.org/API-Security/editions/2023/
 func TestTokenAdminGuardMiddleware_Audit(t *testing.T) {
+	t.Parallel()
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
 	t.Run("pat_denial_emits_access_denied_event", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		recorder := &auditCapture{}
 		middleware := NewTokenAdminGuardMiddleware(api.NewResponder(), recorder)
@@ -120,6 +124,7 @@ func TestTokenAdminGuardMiddleware_Audit(t *testing.T) {
 	})
 
 	t.Run("non_token_session_emits_no_denial", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		recorder := &auditCapture{}
 		middleware := NewTokenAdminGuardMiddleware(api.NewResponder(), recorder)

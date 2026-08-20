@@ -19,6 +19,8 @@ import (
 )
 
 func TestGetUsers(t *testing.T) {
+	t.Parallel()
+
 	createdAt := time.Date(2025, 9, 19, 16, 43, 1, 0, time.UTC)
 	updatedAt := time.Date(2025, 9, 18, 18, 20, 58, 0, time.UTC)
 
@@ -95,6 +97,8 @@ func TestGetUsers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			repo := inmemory.NewUserRepository()
 

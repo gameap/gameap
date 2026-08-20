@@ -22,6 +22,8 @@ import (
 )
 
 func TestGetServerSettings(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		serverID       uint
@@ -343,6 +345,8 @@ func TestGetServerSettings(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			ctx := context.Background()
 

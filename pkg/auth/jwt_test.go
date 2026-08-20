@@ -13,6 +13,8 @@ import (
 )
 
 func TestNewJWTService(t *testing.T) {
+	t.Parallel()
+
 	secretKey := []byte("test-secret-key")
 	service := NewJWTService(secretKey)
 
@@ -21,6 +23,8 @@ func TestNewJWTService(t *testing.T) {
 }
 
 func TestJWTService_GenerateTokenForUser(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		user          *domain.User
@@ -66,6 +70,8 @@ func TestJWTService_GenerateTokenForUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			service := NewJWTService([]byte("test-secret-key"))
 
 			token, err := service.GenerateTokenForUser(tt.user, tt.tokenDuration)
@@ -84,6 +90,8 @@ func TestJWTService_GenerateTokenForUser(t *testing.T) {
 }
 
 func TestJWTService_ValidateToken(t *testing.T) {
+	t.Parallel()
+
 	secretKey := []byte("test-secret-key")
 	service := NewJWTService(secretKey)
 	user := &domain.User{
@@ -93,6 +101,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	}
 
 	t.Run("valid_token", func(t *testing.T) {
+		t.Parallel()
+
 		token, err := service.GenerateTokenForUser(user, time.Hour)
 		require.NoError(t, err)
 
@@ -106,6 +116,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("expired_token", func(t *testing.T) {
+		t.Parallel()
+
 		expiredClaims := JWTClaims{
 			RegisteredClaims: jwt.RegisteredClaims{
 				ID:        "test-id",
@@ -127,6 +139,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("invalid_signature", func(t *testing.T) {
+		t.Parallel()
+
 		otherService := NewJWTService([]byte("different-secret-key"))
 		token, err := otherService.GenerateTokenForUser(user, time.Hour)
 		require.NoError(t, err)
@@ -137,18 +151,24 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("malformed_token", func(t *testing.T) {
+		t.Parallel()
+
 		claims, err := service.ValidateToken("not-a-valid-token")
 		assert.Error(t, err)
 		assert.Nil(t, claims)
 	})
 
 	t.Run("empty_token", func(t *testing.T) {
+		t.Parallel()
+
 		claims, err := service.ValidateToken("")
 		assert.Error(t, err)
 		assert.Nil(t, claims)
 	})
 
 	t.Run("wrong_signing_method", func(t *testing.T) {
+		t.Parallel()
+
 		wrongMethodClaims := JWTClaims{
 			RegisteredClaims: jwt.RegisteredClaims{
 				ID:        "test-id",
@@ -171,6 +191,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("token_with_none_algorithm", func(t *testing.T) {
+		t.Parallel()
+
 		noneToken := "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyOmxvZ2luOnRlc3R1c2VyIn0."
 
 		claims, err := service.ValidateToken(noneToken)
@@ -179,6 +201,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("token_with_rsa_algorithm_rejected", func(t *testing.T) {
+		t.Parallel()
+
 		rsaClaims := JWTClaims{
 			RegisteredClaims: jwt.RegisteredClaims{
 				ID:        "rsa-id",
@@ -203,6 +227,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("token_without_exp_field", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		// jwt/v5 by default treats `exp` as optional, so a token without it
 		// should still validate. This pins that behavior so that toggling
@@ -237,6 +263,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("GetExpirationTime_via_adapter_returns_time", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		token, err := service.GenerateTokenForUser(user, time.Hour)
 		require.NoError(t, err)
@@ -256,6 +284,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("GetIssuedAt_via_adapter_returns_time", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE — generateToken stamps IssuedAt = now; the adapter must expose
 		// it as *time.Time for the password-change invalidation check.
 		token, err := service.GenerateTokenForUser(user, time.Hour)
@@ -276,6 +306,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("GetIssuedAt_nil_when_iat_absent", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE — hand-mint a valid HS384 token with no iat claim at all. The
 		// adapter must translate a missing iat into (nil, nil), not an error.
 		noIatToken := jwt.NewWithClaims(jwt.SigningMethodHS384, jwt.MapClaims{
@@ -300,6 +332,8 @@ func TestJWTService_ValidateToken(t *testing.T) {
 }
 
 func TestJWTService_TokenClaims(t *testing.T) {
+	t.Parallel()
+
 	secretKey := []byte("test-secret-key")
 	service := NewJWTService(secretKey)
 	user := &domain.User{
@@ -320,29 +354,41 @@ func TestJWTService_TokenClaims(t *testing.T) {
 	require.True(t, ok)
 
 	t.Run("has_valid_subject", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Equal(t, "user:login:testuser", claims.Subject)
 	})
 
 	t.Run("has_valid_issuer", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Equal(t, "gameap-api", claims.Issuer)
 	})
 
 	t.Run("has_issued_at", func(t *testing.T) {
+		t.Parallel()
+
 		require.NotNil(t, claims.IssuedAt)
 		assert.WithinDuration(t, time.Now(), claims.IssuedAt.Time, time.Minute)
 	})
 
 	t.Run("has_expiration", func(t *testing.T) {
+		t.Parallel()
+
 		require.NotNil(t, claims.ExpiresAt)
 		assert.WithinDuration(t, time.Now().Add(time.Hour), claims.ExpiresAt.Time, time.Minute)
 	})
 
 	t.Run("has_unique_id", func(t *testing.T) {
+		t.Parallel()
+
 		assert.NotEmpty(t, claims.ID)
 	})
 }
 
 func TestJWTService_UniqueTokenIDs(t *testing.T) {
+	t.Parallel()
+
 	service := NewJWTService([]byte("test-secret-key"))
 	user := &domain.User{
 		ID:    1,
@@ -370,6 +416,8 @@ func TestJWTService_UniqueTokenIDs(t *testing.T) {
 }
 
 func TestCreateSubjectFromLogin(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		login    string
@@ -404,6 +452,8 @@ func TestCreateSubjectFromLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := createSubjectFromLogin(tt.login)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -411,6 +461,8 @@ func TestCreateSubjectFromLogin(t *testing.T) {
 }
 
 func TestJWTClaims_ImplementsClaims(t *testing.T) {
+	t.Parallel()
+
 	claims := &JWTClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject: "user:login:testuser",

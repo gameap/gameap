@@ -207,6 +207,7 @@ func loadSharedServerLoggerWASM(t *testing.T) *LoadedPlugin {
 }
 
 func TestPluginServiceWrapper_GetInfo(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -225,6 +226,7 @@ func TestPluginServiceWrapper_GetInfo(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_Initialize(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -242,7 +244,10 @@ func TestPluginServiceWrapper_Initialize(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_HandleEvent(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_unhandled_when_payload_is_missing", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		plugin := loadSharedServerLoggerWASM(t)
 		event := &proto.Event{
@@ -261,6 +266,7 @@ func TestPluginServiceWrapper_HandleEvent(t *testing.T) {
 	})
 
 	t.Run("returns_handled_when_server_payload_present", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		plugin := loadSharedServerLoggerWASM(t)
 		event := &proto.Event{
@@ -292,6 +298,7 @@ func TestPluginServiceWrapper_HandleEvent(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetSubscribedEvents(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -313,6 +320,7 @@ func TestPluginServiceWrapper_GetSubscribedEvents(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_Shutdown(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -329,6 +337,7 @@ func TestPluginServiceWrapper_Shutdown(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetHTTPRoutes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -354,7 +363,10 @@ func TestPluginServiceWrapper_GetHTTPRoutes(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_HandleHTTPRequest(t *testing.T) {
+	t.Parallel()
 	t.Run("status_endpoint_returns_ok_payload", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		plugin := loadSharedServerLoggerWASM(t)
 		req := &proto.HTTPRequest{
@@ -376,6 +388,7 @@ func TestPluginServiceWrapper_HandleHTTPRequest(t *testing.T) {
 	})
 
 	t.Run("unknown_path_returns_404", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		plugin := loadSharedServerLoggerWASM(t)
 		req := &proto.HTTPRequest{
@@ -395,6 +408,7 @@ func TestPluginServiceWrapper_HandleHTTPRequest(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetFrontendBundle(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -413,6 +427,7 @@ func TestPluginServiceWrapper_GetFrontendBundle(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetServerAbilities(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -433,6 +448,7 @@ func TestPluginServiceWrapper_GetServerAbilities(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetFrontendBundle_NilFunctionReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	w := &pluginServiceWrapper{getfrontendbundle: nil}
 
@@ -447,6 +463,7 @@ func TestPluginServiceWrapper_GetFrontendBundle_NilFunctionReturnsEmpty(t *testi
 }
 
 func TestPluginServiceWrapper_GetServerAbilities_NilFunctionReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	w := &pluginServiceWrapper{getserverabilities: nil}
 

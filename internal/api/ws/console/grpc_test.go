@@ -44,6 +44,7 @@ func (r *recordingStream) Send(msg *proto.GatewayMessage) error {
 // ---------- newGRPCMessageHandler ----------
 
 func TestHandler_NewGRPCMessageHandler(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 
@@ -136,6 +137,7 @@ func TestHandler_NewGRPCMessageHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			d := dialConsoleClient(t)
 
@@ -212,6 +214,7 @@ func TestHandler_NewGRPCMessageHandler(t *testing.T) {
 }
 
 func TestHandler_NewGRPCMessageHandler_cleanupUntracksAllRegisteredCommands(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	d := dialConsoleClient(t)
 

@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewClient_DispatchesByProtocol(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		protocol  Protocol
@@ -59,6 +60,7 @@ func TestNewClient_DispatchesByProtocol(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			cfg := Config{
 				Address:  "127.0.0.1:27015",
@@ -90,8 +92,10 @@ func TestNewClient_DispatchesByProtocol(t *testing.T) {
 // switch statements, and the plugin layer validates a declared built-in protocol name with
 // IsProtocolSupported before NewClient ever runs.
 func TestIsProtocolSupported_MatchesNewClient(t *testing.T) {
+	t.Parallel()
 	for protocol := range clientFactories {
 		t.Run(string(protocol), func(t *testing.T) {
+			t.Parallel()
 			require.True(t, IsProtocolSupported(protocol))
 
 			_, err := NewClient(Config{Address: "127.0.0.1:27015", Protocol: protocol})
@@ -104,6 +108,7 @@ func TestIsProtocolSupported_MatchesNewClient(t *testing.T) {
 }
 
 func TestIsProtocolSupported(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		protocol Protocol
@@ -121,6 +126,7 @@ func TestIsProtocolSupported(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := IsProtocolSupported(tt.protocol)
 
@@ -131,6 +137,7 @@ func TestIsProtocolSupported(t *testing.T) {
 }
 
 func TestIsPlayerManagementSupported(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		gameCode string
@@ -145,6 +152,7 @@ func TestIsPlayerManagementSupported(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := IsPlayerManagementSupported(tt.gameCode)
 

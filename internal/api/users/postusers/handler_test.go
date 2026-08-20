@@ -26,6 +26,8 @@ var testUser1 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		requestBody    any
@@ -445,6 +447,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			usersRepo := inmemory.NewUserRepository()
 			userService := services.NewUserService(usersRepo)
 			rbacRepo := inmemory.NewRBACRepository()
@@ -501,6 +505,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_CreateUserWithRoles(t *testing.T) {
+	t.Parallel()
+
 	usersRepo := inmemory.NewUserRepository()
 	userService := services.NewUserService(usersRepo)
 	rbacRepo := inmemory.NewRBACRepository()
@@ -560,6 +566,8 @@ func TestHandler_CreateUserWithRoles(t *testing.T) {
 }
 
 func TestHandler_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	usersRepo := inmemory.NewUserRepository()
 	userService := services.NewUserService(usersRepo)
 	rbacRepo := inmemory.NewRBACRepository()
@@ -594,6 +602,8 @@ func TestHandler_InvalidJSON(t *testing.T) {
 }
 
 func TestNewUserResponseFromUser(t *testing.T) {
+	t.Parallel()
+
 	name := "Test User"
 
 	user := &domain.User{
@@ -616,6 +626,8 @@ func TestNewUserResponseFromUser(t *testing.T) {
 }
 
 func TestNewUserResponseFromUser_NoRoles(t *testing.T) {
+	t.Parallel()
+
 	user := &domain.User{
 		ID:    1,
 		Login: "noroles",

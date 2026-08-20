@@ -13,6 +13,8 @@ import (
 )
 
 func TestRBACRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewRBACRepositorySuite(
 		func(_ *testing.T) (repositories.RBACRepository, func(ctx context.Context, t *testing.T, name string) domain.Role, func(ctx context.Context, t *testing.T, ability domain.Ability) uint) {
 			repo := NewRBACRepository()
@@ -57,6 +59,8 @@ func TestRBACRepository(t *testing.T) {
 // directly); they are not part of the shared RBACRepository contract.
 
 func TestRBACRepository_SaveAndDeleteRole(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// ARRANGE
@@ -80,6 +84,8 @@ func TestRBACRepository_SaveAndDeleteRole(t *testing.T) {
 }
 
 func TestRBACRepository_SaveAssignedRoleLifecycle(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// ARRANGE
@@ -110,6 +116,8 @@ func TestRBACRepository_SaveAssignedRoleLifecycle(t *testing.T) {
 }
 
 func TestRBACRepository_SaveAbilityAndPermission(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// ARRANGE
@@ -144,6 +152,8 @@ func TestRBACRepository_SaveAbilityAndPermission(t *testing.T) {
 }
 
 func TestRBACRepository_AssignAbilityToUser(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// ARRANGE

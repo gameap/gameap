@@ -7,6 +7,7 @@ import (
 )
 
 func TestPlayer_ValidateName(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		player      Player
@@ -36,6 +37,7 @@ func TestPlayer_ValidateName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.player.ValidateName()
 			if tt.expectedErr != nil {
 				assert.ErrorIs(t, err, tt.expectedErr)
@@ -47,6 +49,7 @@ func TestPlayer_ValidateName(t *testing.T) {
 }
 
 func TestPlayer_ValidateUniqID(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		player      Player
@@ -76,6 +79,7 @@ func TestPlayer_ValidateUniqID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.player.ValidateUniqID()
 			if tt.expectedErr != nil {
 				assert.ErrorIs(t, err, tt.expectedErr)

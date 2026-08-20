@@ -75,6 +75,8 @@ var serverScopedEndpoints = []struct {
 // rejection happens at slightly different layers depending on the handler:
 // ServerFinder returns NotFound, while a few handlers short-circuit via
 // AbilityChecker which returns 403.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API1_BOLA_ForeignServerReturnsNotFound(t *testing.T) {
 	const foreignServerID = 2 // Server2 — not attached to RegularUser
 
@@ -101,6 +103,8 @@ func TestRouterSecurity_API1_BOLA_ForeignServerReturnsNotFound(t *testing.T) {
 // at the authorization layer. We only check the authz contract: response status
 // must not be 401 (auth) or 403 (authz). 200/400/404/500 are all accepted —
 // they reflect downstream business logic, not access control.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API1_BOLA_OwnServerNotRejectedByAuthz(t *testing.T) {
 	const ownServerID = 1 // Server1 — attached to RegularUser
 
@@ -123,6 +127,8 @@ func TestRouterSecurity_API1_BOLA_OwnServerNotRejectedByAuthz(t *testing.T) {
 // TestRouterSecurity_API1_BOLA_AdminCanReachAnyServer verifies that an admin
 // is not blocked at the authz layer for any of the server-scoped endpoints,
 // regardless of whether the server is attached to them via server_user.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API1_BOLA_AdminCanReachAnyServer(t *testing.T) {
 	const foreignToAdmin = 2
 
@@ -145,6 +151,8 @@ func TestRouterSecurity_API1_BOLA_AdminCanReachAnyServer(t *testing.T) {
 // TestRouterSecurity_API1_BOLA_ServerListLeaksOnlyOwnServers verifies that GET /api/servers,
 // when called by a regular user, returns ONLY the servers attached to that user, not all
 // servers in the system. Otherwise an attacker could enumerate other users' resources.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API1_BOLA_ServerListLeaksOnlyOwnServers(t *testing.T) {
 	env := setupSecurityTest(t)
 	regularToken := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -183,6 +191,8 @@ func TestRouterSecurity_API1_BOLA_ServerListLeaksOnlyOwnServers(t *testing.T) {
 
 // TestRouterSecurity_API1_BOLA_ServerSummaryLeaksOnlyOwnServers verifies the same
 // per-user filtering for /api/servers/summary.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API1_BOLA_ServerSummaryLeaksOnlyOwnServers(t *testing.T) {
 	env := setupSecurityTest(t)
 	regularToken := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -198,6 +208,8 @@ func TestRouterSecurity_API1_BOLA_ServerSummaryLeaksOnlyOwnServers(t *testing.T)
 // TestRouterSecurity_API1_BOLA_AbilitiesEndpointDoesNotLeakForeignServer verifies
 // that a regular user cannot enumerate abilities/permissions for a server they
 // don't own.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API1_BOLA_AbilitiesEndpointDoesNotLeakForeignServer(t *testing.T) {
 	env := setupSecurityTest(t)
 	regularToken := issuePASETOToken(t, env, env.fixtures.RegularUser)
@@ -214,6 +226,8 @@ func TestRouterSecurity_API1_BOLA_AbilitiesEndpointDoesNotLeakForeignServer(t *t
 // TestRouterSecurity_API1_BOLA_PathTraversalAndMalformedIDs verifies that
 // malformed/encoded server IDs cannot be used to bypass the access check or
 // crash the router with a 500.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_API1_BOLA_PathTraversalAndMalformedIDs(t *testing.T) {
 	env := setupSecurityTest(t)
 	regularToken := issuePASETOToken(t, env, env.fixtures.RegularUser)

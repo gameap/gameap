@@ -11,6 +11,8 @@ import (
 )
 
 func TestMapRconRegistrations_PluginTransportGate(t *testing.T) {
+	t.Parallel()
+
 	regs := []pkgplugin.RconProtocolRegistration{
 		{PluginID: "a", Protocol: &protocol.RconProtocol{
 			Id:        "declarative",
@@ -32,6 +34,8 @@ func TestMapRconRegistrations_PluginTransportGate(t *testing.T) {
 	}
 
 	t.Run("net_enabled_keeps_plugin_transport", func(t *testing.T) {
+		t.Parallel()
+
 		out := mapRconRegistrations(regs, true)
 
 		require.Len(t, out, 3)
@@ -47,6 +51,8 @@ func TestMapRconRegistrations_PluginTransportGate(t *testing.T) {
 	})
 
 	t.Run("net_disabled_drops_plugin_transport", func(t *testing.T) {
+		t.Parallel()
+
 		out := mapRconRegistrations(regs, false)
 
 		require.Len(t, out, 2, "unrunnable registration must not shadow the built-in tables")
@@ -59,6 +65,8 @@ func TestMapRconRegistrations_PluginTransportGate(t *testing.T) {
 // transports: if the legacy enum values stopped resolving to a protocol name, every plugin that
 // registers a built-in RCON protocol would silently lose it.
 func TestMapRconTransport(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		transport       protocol.RconTransport
@@ -105,6 +113,8 @@ func TestMapRconTransport(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			transport, builtinProtocol := mapRconTransport(tt.transport, tt.builtinProtocol)
 
 			assert.Equal(t, tt.wantTransport, transport)
@@ -114,6 +124,8 @@ func TestMapRconTransport(t *testing.T) {
 }
 
 func TestMapRconRegistrations_DropsUnknownBuiltinProtocol(t *testing.T) {
+	t.Parallel()
+
 	regs := []pkgplugin.RconProtocolRegistration{
 		{PluginID: "a", Protocol: &protocol.RconProtocol{
 			Id:              "typo",
@@ -141,6 +153,8 @@ func TestMapRconRegistrations_DropsUnknownBuiltinProtocol(t *testing.T) {
 }
 
 func TestMapQueryRegistrations_PluginTransportGate(t *testing.T) {
+	t.Parallel()
+
 	regs := []pkgplugin.QueryProtocolRegistration{
 		{PluginID: "a", Protocol: &protocol.QueryProtocol{
 			Id:              "declarative",
@@ -157,6 +171,8 @@ func TestMapQueryRegistrations_PluginTransportGate(t *testing.T) {
 	}
 
 	t.Run("net_enabled_keeps_plugin_transport", func(t *testing.T) {
+		t.Parallel()
+
 		out := mapQueryRegistrations(regs, true)
 
 		require.Len(t, out, 2)
@@ -167,6 +183,8 @@ func TestMapQueryRegistrations_PluginTransportGate(t *testing.T) {
 	})
 
 	t.Run("net_disabled_drops_plugin_transport", func(t *testing.T) {
+		t.Parallel()
+
 		out := mapQueryRegistrations(regs, false)
 
 		require.Len(t, out, 1, "unrunnable registration must not shadow the built-in tables")
@@ -175,6 +193,8 @@ func TestMapQueryRegistrations_PluginTransportGate(t *testing.T) {
 }
 
 func TestMapQueryRegistrations_DropsUnknownBuiltinProtocol(t *testing.T) {
+	t.Parallel()
+
 	regs := []pkgplugin.QueryProtocolRegistration{
 		{PluginID: "a", Protocol: &protocol.QueryProtocol{
 			Id:              "typo",

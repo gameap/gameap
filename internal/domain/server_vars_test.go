@@ -8,6 +8,8 @@ import (
 )
 
 func TestServerVars_Scan(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		value     any
@@ -53,6 +55,8 @@ func TestServerVars_Scan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var vars ServerVars
 			err := vars.Scan(tt.value)
 
@@ -70,6 +74,8 @@ func TestServerVars_Scan(t *testing.T) {
 }
 
 func TestServerVars_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		vars ServerVars
@@ -94,6 +100,8 @@ func TestServerVars_Value(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := tt.vars.Value()
 			require.NoError(t, err)
 
@@ -109,6 +117,8 @@ func TestServerVars_Value(t *testing.T) {
 }
 
 func TestServerVars_StringPtr(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		vars ServerVars
@@ -128,6 +138,8 @@ func TestServerVars_StringPtr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.vars.StringPtr()
 
 			if tt.want == nil {

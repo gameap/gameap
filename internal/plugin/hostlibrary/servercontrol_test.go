@@ -72,6 +72,7 @@ func (m *mockServerController) Reinstall(ctx context.Context, server *domain.Ser
 }
 
 func TestServerControlService_StartServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.ServerRepository)
@@ -127,6 +128,7 @@ func TestServerControlService_StartServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
@@ -150,6 +152,7 @@ func TestServerControlService_StartServer(t *testing.T) {
 }
 
 func TestServerControlService_StopServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.ServerRepository)
@@ -189,6 +192,7 @@ func TestServerControlService_StopServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
@@ -212,6 +216,7 @@ func TestServerControlService_StopServer(t *testing.T) {
 }
 
 func TestServerControlService_RestartServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.ServerRepository)
@@ -251,6 +256,7 @@ func TestServerControlService_RestartServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
@@ -274,6 +280,7 @@ func TestServerControlService_RestartServer(t *testing.T) {
 }
 
 func TestServerControlService_UpdateServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.ServerRepository)
@@ -313,6 +320,7 @@ func TestServerControlService_UpdateServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
@@ -336,6 +344,7 @@ func TestServerControlService_UpdateServer(t *testing.T) {
 }
 
 func TestServerControlService_InstallServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.ServerRepository)
@@ -375,6 +384,7 @@ func TestServerControlService_InstallServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
@@ -398,6 +408,7 @@ func TestServerControlService_InstallServer(t *testing.T) {
 }
 
 func TestServerControlService_ReinstallServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.ServerRepository)
@@ -437,6 +448,7 @@ func TestServerControlService_ReinstallServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
@@ -460,6 +472,7 @@ func TestServerControlService_ReinstallServer(t *testing.T) {
 }
 
 func TestNewServerControlHostLibrary(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewServerRepository()
 	ctrl := &mockServerController{}
 	lib := NewServerControlHostLibrary(repo, ctrl)

@@ -73,6 +73,8 @@ var testUser1 = domain.User{
 const originalUserName = "Original User"
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		userID         string
@@ -368,6 +370,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			usersRepo := inmemory.NewUserRepository()
 			userService := services.NewUserService(usersRepo)
 			rbacRepo := inmemory.NewRBACRepository()
@@ -430,6 +434,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_UpdateUserFields(t *testing.T) {
+	t.Parallel()
+
 	usersRepo := inmemory.NewUserRepository()
 	userService := services.NewUserService(usersRepo)
 	rbacRepo := inmemory.NewRBACRepository()
@@ -525,6 +531,8 @@ func TestHandler_UpdateUserFields(t *testing.T) {
 // (empty password field means "no change") must leave password_changed_at
 // untouched, so unrelated profile edits don't invalidate the user's sessions.
 func TestHandler_UpdateUser_WithoutPasswordDoesNotStampChangedAt(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	usersRepo := inmemory.NewUserRepository()
 	userService := services.NewUserService(usersRepo)
@@ -572,6 +580,8 @@ func TestHandler_UpdateUser_WithoutPasswordDoesNotStampChangedAt(t *testing.T) {
 }
 
 func TestNewUserResponseFromUser(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	name := "Test User"
 
@@ -599,6 +609,8 @@ func TestNewUserResponseFromUser(t *testing.T) {
 }
 
 func TestNewUserResponseFromUser_NoRoles(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	user := &domain.User{
@@ -689,6 +701,8 @@ func doPutUser(t *testing.T, handler *Handler, body any) *httptest.ResponseRecor
 // event AND a user.roles.assign event, both with outcome success, category
 // admin_op, scoped to the target user, and attributed to the acting admin.
 func TestHandler_Audit_UserUpdateWithRolesEmitsBothEvents(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	handler, recorder := setupPutUserAudit(t)
 
@@ -730,6 +744,8 @@ func TestHandler_Audit_UserUpdateWithRolesEmitsBothEvents(t *testing.T) {
 // user.update event but must NOT emit a user.roles.assign event (the audit
 // trail must not claim a privilege change that did not happen).
 func TestHandler_Audit_UserUpdateWithoutRolesEmitsOnlyUpdate(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	handler, recorder := setupPutUserAudit(t)
 

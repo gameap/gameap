@@ -25,6 +25,7 @@ import (
 )
 
 func TestMFAEnrollmentScopeMiddleware(t *testing.T) {
+	t.Parallel()
 	authedUser := &domain.User{ID: 1, Login: "admin"}
 
 	tests := []struct {
@@ -74,6 +75,7 @@ func TestMFAEnrollmentScopeMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			recorder := &auditCapture{}
 			mw := NewMFAEnrollmentScopeMiddleware(api.NewResponder(), recorder, !tt.enforceDisabled)
 			handler := mw.Middleware(noopNextHandler(), tt.allowMFAEnrollment)
@@ -104,6 +106,7 @@ func TestMFAEnrollmentScopeMiddleware(t *testing.T) {
 // TestMFAEnrollmentScopeMiddleware_DeniedBeforeHandler covers OWASP API2:2023:
 // the denied request must never reach the wrapped handler.
 func TestMFAEnrollmentScopeMiddleware_DeniedBeforeHandler(t *testing.T) {
+	t.Parallel()
 	reached := false
 	mw := NewMFAEnrollmentScopeMiddleware(api.NewResponder(), &auditCapture{}, true)
 	handler := mw.Middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

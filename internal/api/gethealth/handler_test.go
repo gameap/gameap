@@ -30,6 +30,7 @@ func (m *mockResponder) Write(_ context.Context, _ http.ResponseWriter, result a
 }
 
 func TestNewGetHealthHandler(t *testing.T) {
+	t.Parallel()
 	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
 	require.NoError(t, err)
 	defer db.Close()
@@ -44,6 +45,7 @@ func TestNewGetHealthHandler(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		setupDB          func() *sql.DB
@@ -75,6 +77,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			db := tt.setupDB()
 
 			responder := &mockResponder{}
@@ -96,6 +99,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_with_context(t *testing.T) {
+	t.Parallel()
 	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
 	require.NoError(t, err)
 	defer db.Close()

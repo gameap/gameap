@@ -15,6 +15,8 @@ import (
 )
 
 func TestService_GetCategories(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		lang           string
@@ -91,6 +93,8 @@ func TestService_GetCategories(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "/categories", r.URL.Path)
 				assert.Equal(t, http.MethodGet, r.Method)
@@ -138,6 +142,8 @@ func TestService_GetCategories(t *testing.T) {
 }
 
 func TestService_GetLabels(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		lang           string
@@ -199,6 +205,8 @@ func TestService_GetLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "/labels", r.URL.Path)
 
@@ -241,6 +249,8 @@ func TestService_GetLabels(t *testing.T) {
 }
 
 func TestService_GetPlugins(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		params         GetPluginsParams
@@ -310,6 +320,8 @@ func TestService_GetPlugins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "/plugins", r.URL.Path)
 				if tt.validateReq != nil {
@@ -339,6 +351,8 @@ func TestService_GetPlugins(t *testing.T) {
 }
 
 func TestService_GetPlugin(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		pluginID       string
@@ -383,6 +397,8 @@ func TestService_GetPlugin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "/plugins/"+tt.pluginID, r.URL.Path)
 
@@ -411,6 +427,8 @@ func TestService_GetPlugin(t *testing.T) {
 }
 
 func TestService_GetPluginVersions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		pluginID       string
@@ -452,6 +470,8 @@ func TestService_GetPluginVersions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "/plugins/"+tt.pluginID+"/versions", r.URL.Path)
 
@@ -478,6 +498,8 @@ func TestService_GetPluginVersions(t *testing.T) {
 }
 
 func TestService_DownloadPlugin(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		pluginID       string
@@ -540,6 +562,8 @@ func TestService_DownloadPlugin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				expectedPath := "/plugins/" + tt.pluginID + "/versions/" + tt.version + "/download"
 				assert.Equal(t, expectedPath, r.URL.Path)
@@ -574,6 +598,8 @@ func TestService_DownloadPlugin(t *testing.T) {
 }
 
 func TestVerifyHash(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		data         []byte
@@ -602,6 +628,8 @@ func TestVerifyHash(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := VerifyHash(tt.data, tt.expectedHash)
 			assert.Equal(t, tt.want, result)
 		})
@@ -609,6 +637,8 @@ func TestVerifyHash(t *testing.T) {
 }
 
 func TestExtractLanguage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		queryParam string
@@ -637,6 +667,8 @@ func TestExtractLanguage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			url := "/test"
 			if tt.queryParam != "" {
 				url += "?lang=" + tt.queryParam
@@ -654,6 +686,8 @@ func TestExtractLanguage(t *testing.T) {
 }
 
 func TestService_CacheExpiration(t *testing.T) {
+	t.Parallel()
+
 	callCount := 0
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -681,6 +715,8 @@ func TestService_CacheExpiration(t *testing.T) {
 }
 
 func TestService_ContextCancellation(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()
 	}))
@@ -698,6 +734,8 @@ func TestService_ContextCancellation(t *testing.T) {
 }
 
 func TestService_WithNilCache(t *testing.T) {
+	t.Parallel()
+
 	callCount := 0
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -722,6 +760,8 @@ func TestService_WithNilCache(t *testing.T) {
 }
 
 func TestService_LanguageAwareCaching(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lang := r.Header.Get("Accept-Language")
 		w.Header().Set("Content-Type", "application/json")
@@ -748,16 +788,22 @@ func TestService_LanguageAwareCaching(t *testing.T) {
 }
 
 func TestService_BaseURL(t *testing.T) {
+	t.Parallel()
+
 	service := NewService("https://custom.api.com", "", nil)
 	assert.Equal(t, "https://custom.api.com", service.BaseURL())
 }
 
 func TestService_DefaultBaseURL(t *testing.T) {
+	t.Parallel()
+
 	service := NewService("", "", nil)
 	assert.Equal(t, defaultBaseURL, service.BaseURL())
 }
 
 func TestNewService(t *testing.T) {
+	t.Parallel()
+
 	testCache := cache.NewInMemory()
 	service := NewService("https://test.com", "", testCache)
 
@@ -768,6 +814,8 @@ func TestNewService(t *testing.T) {
 }
 
 func TestAPIError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		statusCode     int
@@ -793,6 +841,8 @@ func TestAPIError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			apiErr := &APIError{
 				StatusCode: tt.statusCode,
 				Message:    tt.message,

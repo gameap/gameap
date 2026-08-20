@@ -7,6 +7,7 @@ import (
 )
 
 func TestNewPagination(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		limit  uint64
@@ -35,6 +36,7 @@ func TestNewPagination(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -47,6 +49,7 @@ func TestNewPagination(t *testing.T) {
 }
 
 func TestDefaultPagination(t *testing.T) {
+	t.Parallel()
 	// ASSERT
 	assert.Equal(t, DefaultLimit, DefaultPagination.Limit)
 	assert.Equal(t, DefaultOffset, DefaultPagination.Offset)

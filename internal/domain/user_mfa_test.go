@@ -10,6 +10,8 @@ import (
 )
 
 func TestUser_MFAFirstShownAt_NilWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		user domain.User
@@ -34,12 +36,16 @@ func TestUser_MFAFirstShownAt_NilWhenAbsent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Nil(t, tt.user.MFAFirstShownAt())
 		})
 	}
 }
 
 func TestUser_SetMFAFirstShownAt_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	user := domain.User{}
 
@@ -55,6 +61,8 @@ func TestUser_SetMFAFirstShownAt_RoundTrip(t *testing.T) {
 }
 
 func TestUser_SetMFAFirstShownAt_NormalizesToUTC(t *testing.T) {
+	t.Parallel()
+
 	loc := time.FixedZone("UTC+3", 3*60*60)
 	local := time.Date(2026, 5, 30, 12, 0, 0, 0, loc)
 	user := domain.User{}
@@ -67,6 +75,8 @@ func TestUser_SetMFAFirstShownAt_NormalizesToUTC(t *testing.T) {
 }
 
 func TestUser_SetMFAFirstShownAt_NilClears(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	user := domain.User{}
 	user.SetMFAFirstShownAt(&now)
@@ -79,6 +89,8 @@ func TestUser_SetMFAFirstShownAt_NilClears(t *testing.T) {
 }
 
 func TestUser_MFASnoozedUntil_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	until := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	user := domain.User{}
 
@@ -90,6 +102,8 @@ func TestUser_MFASnoozedUntil_RoundTrip(t *testing.T) {
 }
 
 func TestUser_SetMFAFirstShownAt_PreservesUnrelatedMetadata(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	user := domain.User{Metadata: domain.Metadata{"theme": "dark"}}
 
@@ -102,6 +116,8 @@ func TestUser_SetMFAFirstShownAt_PreservesUnrelatedMetadata(t *testing.T) {
 }
 
 func TestUser_MFAAccessors_AreIndependent(t *testing.T) {
+	t.Parallel()
+
 	shown := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	snoozed := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	user := domain.User{}

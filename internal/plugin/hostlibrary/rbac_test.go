@@ -59,10 +59,12 @@ func newAllowedRBACEnv(t *testing.T) rbacTestEnv {
 }
 
 func TestRBACService_denied_without_the_grant(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newRBACTestEnv(t, stubPermissionChecker{allowed: false}, rbacTestPluginID)
 
 	t.Run("mutations_are_refused", func(t *testing.T) {
+		t.Parallel()
 		resp, err := env.service.SaveRole(ctx, &rbac.SaveRoleRequest{
 			Role: &rbac.Role{Name: "should-not-exist"},
 		})
@@ -78,6 +80,7 @@ func TestRBACService_denied_without_the_grant(t *testing.T) {
 	})
 
 	t.Run("reads_are_refused", func(t *testing.T) {
+		t.Parallel()
 		resp, err := env.service.GetRoles(ctx, &rbac.GetRolesRequest{})
 
 		require.NoError(t, err)
@@ -87,6 +90,7 @@ func TestRBACService_denied_without_the_grant(t *testing.T) {
 	})
 
 	t.Run("ability_writes_are_refused", func(t *testing.T) {
+		t.Parallel()
 		resp, err := env.service.Allow(ctx, &rbac.AbilitiesRequest{
 			EntityType: proto.EntityType_ENTITY_TYPE_USER,
 			EntityId:   1,
@@ -103,6 +107,7 @@ func TestRBACService_denied_without_the_grant(t *testing.T) {
 // A plugin loaded without a database record (dry-run, install validation) has
 // no grants to read, so the real checker must refuse it.
 func TestRBACService_transient_plugin_id_is_denied(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	checker := NewRepositoryPermissionChecker(inmemory.NewPluginRepository())
 
@@ -118,6 +123,7 @@ func TestRBACService_transient_plugin_id_is_denied(t *testing.T) {
 
 // A failing permission lookup must deny rather than fall open.
 func TestRBACService_permission_check_failure_denies(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newRBACTestEnv(t, stubPermissionChecker{err: errors.New("db down")}, rbacTestPluginID)
 
@@ -132,6 +138,7 @@ func TestRBACService_permission_check_failure_denies(t *testing.T) {
 // The flow a role-management plugin actually performs: define a role, give it
 // abilities, hand it to a user, and have the panel honour it.
 func TestRBACService_create_role_grant_abilities_assign_to_user(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -196,6 +203,7 @@ func TestRBACService_create_role_grant_abilities_assign_to_user(t *testing.T) {
 // Writes that bypass the RBAC service must still drop its permission cache,
 // otherwise checks keep answering from a stale snapshot.
 func TestRBACService_writes_invalidate_the_permission_cache(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -222,6 +230,7 @@ func TestRBACService_writes_invalidate_the_permission_cache(t *testing.T) {
 }
 
 func TestRBACService_role_changes_invalidate_the_whole_cache(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -251,6 +260,7 @@ func TestRBACService_role_changes_invalidate_the_whole_cache(t *testing.T) {
 }
 
 func TestRBACService_SetUserRoles(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -270,6 +280,7 @@ func TestRBACService_SetUserRoles(t *testing.T) {
 	assert.Equal(t, []string{"editor"}, rolesResp.Roles)
 
 	t.Run("unknown_role_is_rejected", func(t *testing.T) {
+		t.Parallel()
 		resp, err := env.service.SetUserRoles(ctx, &rbac.SetUserRolesRequest{
 			UserId:    userID,
 			RoleNames: []string{"does-not-exist"},
@@ -283,6 +294,7 @@ func TestRBACService_SetUserRoles(t *testing.T) {
 }
 
 func TestRBACService_SaveRole_requires_a_name(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -295,6 +307,7 @@ func TestRBACService_SaveRole_requires_a_name(t *testing.T) {
 }
 
 func TestRBACService_ClearRolesForEntity(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -321,6 +334,7 @@ func TestRBACService_ClearRolesForEntity(t *testing.T) {
 }
 
 func TestRBACService_unspecified_entity_type_is_rejected(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -337,6 +351,7 @@ func TestRBACService_unspecified_entity_type_is_rejected(t *testing.T) {
 }
 
 func TestRepositoryPermissionChecker(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	repo := inmemory.NewPluginRepository()
@@ -366,6 +381,7 @@ func TestRepositoryPermissionChecker(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := checker.Has(ctx, tt.pluginID, domain.PluginPermissionManageRBAC)
 
 			require.NoError(t, err)
@@ -377,6 +393,7 @@ func TestRepositoryPermissionChecker(t *testing.T) {
 // Per-user grants bypass roles entirely, so the direct user-ability path must
 // grant and take away access on its own.
 func TestRBACService_user_abilities_for_entity_round_trip(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -427,6 +444,7 @@ func TestRBACService_user_abilities_for_entity_round_trip(t *testing.T) {
 }
 
 func TestRBACService_user_abilities_rejections(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -499,6 +517,7 @@ func TestRBACService_user_abilities_rejections(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			env := tt.env(t)
 
@@ -516,6 +535,7 @@ func TestRBACService_user_abilities_rejections(t *testing.T) {
 
 // Forbid outranks a role grant; Revoke only drops the direct grant.
 func TestRBACService_Forbid_overrides_a_role_grant(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -584,6 +604,7 @@ func TestRBACService_Forbid_overrides_a_role_grant(t *testing.T) {
 }
 
 func TestRBACService_Revoke_drops_a_direct_grant(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -631,6 +652,7 @@ func TestRBACService_Revoke_drops_a_direct_grant(t *testing.T) {
 // GetRolesForEntity is the read side of AssignRolesForEntity; the role fields a
 // plugin needs must survive the domain → proto conversion.
 func TestRBACService_GetRolesForEntity_returns_assigned_roles(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
@@ -667,10 +689,12 @@ func TestRBACService_GetRolesForEntity_returns_assigned_roles(t *testing.T) {
 }
 
 func TestRBACService_entity_reads_reject_unspecified_entity_type(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	env := newAllowedRBACEnv(t)
 
 	t.Run("get_permissions", func(t *testing.T) {
+		t.Parallel()
 		// ACT
 		resp, err := env.service.GetPermissions(ctx, &rbac.EntityRequest{
 			EntityType: proto.EntityType_ENTITY_TYPE_UNSPECIFIED,
@@ -685,6 +709,7 @@ func TestRBACService_entity_reads_reject_unspecified_entity_type(t *testing.T) {
 	})
 
 	t.Run("get_roles_for_entity", func(t *testing.T) {
+		t.Parallel()
 		// ACT
 		resp, err := env.service.GetRolesForEntity(ctx, &rbac.EntityRequest{
 			EntityType: proto.EntityType_ENTITY_TYPE_UNSPECIFIED,

@@ -61,6 +61,8 @@ func (fm *failingFileManager) List(ctx context.Context, dir string) ([]string, e
 }
 
 func TestFileStorage_Account(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		account   *acme.Account
@@ -96,6 +98,7 @@ func TestFileStorage_Account(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := files.NewInMemoryFileManager()
 			s := storage.NewFileStorage(fm, "acme")
 
@@ -123,6 +126,8 @@ func TestFileStorage_Account(t *testing.T) {
 }
 
 func TestFileStorage_Resource(t *testing.T) {
+	t.Parallel()
+
 	fm := files.NewInMemoryFileManager()
 	s := storage.NewFileStorage(fm, "acme")
 	ctx := context.Background()
@@ -137,6 +142,8 @@ func TestFileStorage_Resource(t *testing.T) {
 	}
 
 	t.Run("save_load_round_trip", func(t *testing.T) {
+		t.Parallel()
+
 		err := s.SaveResource(ctx, "*.example.com,example.com", resource)
 		require.NoError(t, err)
 
@@ -154,6 +161,8 @@ func TestFileStorage_Resource(t *testing.T) {
 	})
 
 	t.Run("delete_removes_resource", func(t *testing.T) {
+		t.Parallel()
+
 		err := s.SaveResource(ctx, "to-delete", resource)
 		require.NoError(t, err)
 
@@ -166,11 +175,15 @@ func TestFileStorage_Resource(t *testing.T) {
 	})
 
 	t.Run("missing_resource_returns_error", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := s.LoadResource(ctx, "non-existent")
 		assert.Error(t, err)
 	})
 
 	t.Run("nil_resource_rejected", func(t *testing.T) {
+		t.Parallel()
+
 		err := s.SaveResource(ctx, "key", nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "resource is nil")
@@ -178,6 +191,8 @@ func TestFileStorage_Resource(t *testing.T) {
 }
 
 func TestFileStorage_KeySanitization(t *testing.T) {
+	t.Parallel()
+
 	fm := files.NewInMemoryFileManager()
 	s := storage.NewFileStorage(fm, "acme")
 
@@ -201,6 +216,8 @@ func TestFileStorage_KeySanitization(t *testing.T) {
 // =============================================================================
 
 func TestFileStorage_LoadAccount_ReturnsErrorOnCorruptedJSON(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: bypass SaveAccount to plant invalid JSON at the same path
 	// FileStorage will try to read.
 	fm := files.NewInMemoryFileManager()
@@ -220,6 +237,8 @@ func TestFileStorage_LoadAccount_ReturnsErrorOnCorruptedJSON(t *testing.T) {
 }
 
 func TestFileStorage_LoadResource_ReturnsErrorWhenUnderlyingReadFails(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ioErr := errors.New("simulated disk read failure")
 	fm := newFailingFM()
@@ -242,6 +261,8 @@ func TestFileStorage_LoadResource_ReturnsErrorWhenUnderlyingReadFails(t *testing
 }
 
 func TestFileStorage_SaveAccount_ReturnsErrorOnWriteFailure(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	writeErr := errors.New("simulated write failure")
 	fm := newFailingFM()
@@ -266,6 +287,8 @@ func TestFileStorage_SaveAccount_ReturnsErrorOnWriteFailure(t *testing.T) {
 }
 
 func TestFileStorage_SaveResource_ReturnsErrorOnWriteFailure(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	writeErr := errors.New("io write failed")
 	fm := newFailingFM()
@@ -287,6 +310,8 @@ func TestFileStorage_SaveResource_ReturnsErrorOnWriteFailure(t *testing.T) {
 }
 
 func TestFileStorage_DeleteResource_ReturnsErrorWhenUnderlyingDeleteFails(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	delErr := errors.New("io delete failed")
 	fm := newFailingFM()
@@ -303,6 +328,8 @@ func TestFileStorage_DeleteResource_ReturnsErrorWhenUnderlyingDeleteFails(t *tes
 }
 
 func TestFileStorage_DeleteResource_NoErrorOnMissingKey(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: InMemoryFileManager.Delete is a silent no-op for missing paths.
 	// FileStorage must therefore be idempotent on missing keys.
 	fm := files.NewInMemoryFileManager()
@@ -316,6 +343,8 @@ func TestFileStorage_DeleteResource_NoErrorOnMissingKey(t *testing.T) {
 }
 
 func TestFileStorage_HasAccount_ReturnsFalseForEmptyEmail(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := storage.NewFileStorage(files.NewInMemoryFileManager(), "acme")
 
@@ -328,6 +357,8 @@ func TestFileStorage_HasAccount_ReturnsFalseForEmptyEmail(t *testing.T) {
 }
 
 func TestFileStorage_LoadAccount_RejectsEmptyEmail(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := storage.NewFileStorage(files.NewInMemoryFileManager(), "acme")
 
@@ -341,6 +372,8 @@ func TestFileStorage_LoadAccount_RejectsEmptyEmail(t *testing.T) {
 }
 
 func TestFileStorage_AccountSanitization_HandlesUppercaseAndDots(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: sanitizer replaces "@" with "_at_" and ".." with "_". Emails
 	// that round-trip via the chosen email key are persistable; the storage
 	// does not lowercase, but the lookup key is whatever string the caller
@@ -356,6 +389,7 @@ func TestFileStorage_AccountSanitization_HandlesUppercaseAndDots(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fm := files.NewInMemoryFileManager()
 			s := storage.NewFileStorage(fm, "acme")
 

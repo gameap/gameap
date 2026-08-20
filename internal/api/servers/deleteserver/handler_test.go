@@ -35,6 +35,7 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		serverID       string
@@ -168,6 +169,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -210,6 +212,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ServerActuallyDeleted(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -271,6 +274,7 @@ func TestHandler_ServerActuallyDeleted(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -287,7 +291,9 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestHandler_DeleteFiles(t *testing.T) {
+	t.Parallel()
 	t.Run("delete_files_false_hard_deletes_server", func(t *testing.T) {
+		t.Parallel()
 		serverRepo := inmemory.NewServerRepository()
 		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 		rbacRepo := inmemory.NewRBACRepository()
@@ -341,6 +347,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 	})
 
 	t.Run("delete_files_true_offline_server_creates_delete_task", func(t *testing.T) {
+		t.Parallel()
 		serverRepo := inmemory.NewServerRepository()
 		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 		rbacRepo := inmemory.NewRBACRepository()
@@ -402,6 +409,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 	})
 
 	t.Run("delete_files_true_online_server_creates_stop_and_delete_tasks", func(t *testing.T) {
+		t.Parallel()
 		serverRepo := inmemory.NewServerRepository()
 		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 		rbacRepo := inmemory.NewRBACRepository()
@@ -474,6 +482,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 	})
 
 	t.Run("delete_files_false_returns_conflict_when_server_is_online", func(t *testing.T) {
+		t.Parallel()
 		serverRepo := inmemory.NewServerRepository()
 		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 		rbacRepo := inmemory.NewRBACRepository()
@@ -532,6 +541,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 	})
 
 	t.Run("delete_files_false_returns_conflict_when_server_has_pending_tasks", func(t *testing.T) {
+		t.Parallel()
 		serverRepo := inmemory.NewServerRepository()
 		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 		rbacRepo := inmemory.NewRBACRepository()
@@ -599,6 +609,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 	})
 
 	t.Run("no_body_returns_conflict_when_server_is_online", func(t *testing.T) {
+		t.Parallel()
 		serverRepo := inmemory.NewServerRepository()
 		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 		rbacRepo := inmemory.NewRBACRepository()
@@ -655,6 +666,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 	})
 
 	t.Run("no_body_returns_conflict_when_server_has_working_task", func(t *testing.T) {
+		t.Parallel()
 		serverRepo := inmemory.NewServerRepository()
 		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 		rbacRepo := inmemory.NewRBACRepository()
@@ -720,6 +732,7 @@ func TestHandler_DeleteFiles(t *testing.T) {
 	})
 
 	t.Run("online_server_with_delete_files_true_succeeds", func(t *testing.T) {
+		t.Parallel()
 		serverRepo := inmemory.NewServerRepository()
 		daemonTaskRepo := inmemory.NewDaemonTaskRepository()
 		rbacRepo := inmemory.NewRBACRepository()

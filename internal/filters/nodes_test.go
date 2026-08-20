@@ -8,6 +8,7 @@ import (
 )
 
 func TestFindNodeByIDs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ids  []uint
@@ -32,6 +33,7 @@ func TestFindNodeByIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -44,6 +46,7 @@ func TestFindNodeByIDs(t *testing.T) {
 }
 
 func TestFindNodeByGDaemonAPIKey(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		key  string
@@ -54,6 +57,7 @@ func TestFindNodeByGDaemonAPIKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT

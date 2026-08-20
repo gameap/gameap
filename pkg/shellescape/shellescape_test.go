@@ -21,6 +21,7 @@ import (
 // TestQuote — OWASP API8:2023 OS command injection: the exact escaped form is
 // asserted so the single-quote-breakout idiom ('\”) is not silently changed.
 func TestQuote(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		input string
@@ -90,6 +91,7 @@ func TestQuote(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := shellescape.Quote(tt.input)
 
@@ -104,6 +106,7 @@ func TestQuote(t *testing.T) {
 // it through a real POSIX shell and verify the shell sees exactly one
 // argument equal to the original bytes (no extra command executed).
 func TestQuote_RoundTripsThroughRealShell(t *testing.T) {
+	t.Parallel()
 	sh, err := exec.LookPath("sh")
 	if err != nil {
 		t.Skip("POSIX sh not available")
@@ -134,6 +137,7 @@ func TestQuote_RoundTripsThroughRealShell(t *testing.T) {
 
 	for _, p := range payloads {
 		t.Run(strings.ReplaceAll(p, " ", "_"), func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE: printf %s of the quoted value must reproduce the exact
 			// input and nothing else (no second command, no expansion).
 			script := "printf %s " + shellescape.Quote(p)

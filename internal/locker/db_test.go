@@ -33,6 +33,7 @@ func setupDBLocker(t *testing.T) *locker.DBLocker {
 }
 
 func TestDBLocker_Acquire(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		ttl       time.Duration
@@ -45,6 +46,7 @@ func TestDBLocker_Acquire(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			l := setupDBLocker(t)
 			lock, err := l.Acquire(context.Background(), "key", tt.ttl)
 			if tt.wantError != "" {
@@ -64,6 +66,7 @@ func TestDBLocker_Acquire(t *testing.T) {
 }
 
 func TestDBLocker_MutualExclusion(t *testing.T) {
+	t.Parallel()
 	l := setupDBLocker(t)
 	ctx := context.Background()
 
@@ -81,6 +84,7 @@ func TestDBLocker_MutualExclusion(t *testing.T) {
 }
 
 func TestDBLocker_TTLExpirySteal(t *testing.T) {
+	t.Parallel()
 	l := setupDBLocker(t)
 	ctx := context.Background()
 
@@ -95,6 +99,7 @@ func TestDBLocker_TTLExpirySteal(t *testing.T) {
 }
 
 func TestDBLocker_Refresh(t *testing.T) {
+	t.Parallel()
 	l := setupDBLocker(t)
 	ctx := context.Background()
 
@@ -112,6 +117,7 @@ func TestDBLocker_Refresh(t *testing.T) {
 }
 
 func TestDBLocker_RefreshLostAfterSteal(t *testing.T) {
+	t.Parallel()
 	l := setupDBLocker(t)
 	ctx := context.Background()
 
@@ -130,6 +136,7 @@ func TestDBLocker_RefreshLostAfterSteal(t *testing.T) {
 }
 
 func TestDBLocker_ReleaseKeepsForeignLock(t *testing.T) {
+	t.Parallel()
 	l := setupDBLocker(t)
 	ctx := context.Background()
 
@@ -150,6 +157,7 @@ func TestDBLocker_ReleaseKeepsForeignLock(t *testing.T) {
 }
 
 func TestDBLocker_RefreshLostAfterExpiry(t *testing.T) {
+	t.Parallel()
 	l := setupDBLocker(t)
 	ctx := context.Background()
 
@@ -164,6 +172,7 @@ func TestDBLocker_RefreshLostAfterExpiry(t *testing.T) {
 }
 
 func TestDBLocker_RefreshAfterRelease(t *testing.T) {
+	t.Parallel()
 	l := setupDBLocker(t)
 	ctx := context.Background()
 
@@ -178,6 +187,7 @@ func TestDBLocker_RefreshAfterRelease(t *testing.T) {
 }
 
 func TestDBLocker_DoubleRelease(t *testing.T) {
+	t.Parallel()
 	l := setupDBLocker(t)
 	ctx := context.Background()
 
@@ -189,6 +199,7 @@ func TestDBLocker_DoubleRelease(t *testing.T) {
 }
 
 func TestDBLocker_IndependentKeys(t *testing.T) {
+	t.Parallel()
 	l := setupDBLocker(t)
 	ctx := context.Background()
 

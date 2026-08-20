@@ -96,12 +96,14 @@ func setupS3Test(t *testing.T) (*S3FileManager, string, func()) {
 }
 
 func TestS3FileManager_Read(t *testing.T) {
+	t.Parallel()
 	fm, prefix, cleanup := setupS3Test(t)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 
 	t.Run("read_existing_file", func(t *testing.T) {
+		t.Parallel()
 		path := prefix + "read_test.txt"
 		content := []byte("hello s3 world")
 		err := fm.Write(ctx, path, content)
@@ -114,6 +116,7 @@ func TestS3FileManager_Read(t *testing.T) {
 	})
 
 	t.Run("read_non_existent_file", func(t *testing.T) {
+		t.Parallel()
 		path := prefix + "nonexistent.txt"
 
 		_, err := fm.Read(ctx, path)
@@ -123,12 +126,14 @@ func TestS3FileManager_Read(t *testing.T) {
 }
 
 func TestS3FileManager_Write(t *testing.T) {
+	t.Parallel()
 	fm, prefix, cleanup := setupS3Test(t)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 
 	t.Run("write_new_file", func(t *testing.T) {
+		t.Parallel()
 		path := prefix + "write_new.txt"
 		content := []byte("new s3 content")
 
@@ -141,6 +146,7 @@ func TestS3FileManager_Write(t *testing.T) {
 	})
 
 	t.Run("overwrite_existing_file", func(t *testing.T) {
+		t.Parallel()
 		path := prefix + "write_overwrite.txt"
 		oldContent := []byte("old content")
 		newContent := []byte("new content")
@@ -158,12 +164,14 @@ func TestS3FileManager_Write(t *testing.T) {
 }
 
 func TestS3FileManager_Delete(t *testing.T) {
+	t.Parallel()
 	fm, prefix, cleanup := setupS3Test(t)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 
 	t.Run("delete_existing_file", func(t *testing.T) {
+		t.Parallel()
 		path := prefix + "delete_existing.txt"
 		err := fm.Write(ctx, path, []byte("to delete"))
 		require.NoError(t, err)
@@ -175,6 +183,7 @@ func TestS3FileManager_Delete(t *testing.T) {
 	})
 
 	t.Run("delete_non_existent_file", func(t *testing.T) {
+		t.Parallel()
 		path := prefix + "delete_nonexistent.txt"
 
 		err := fm.Delete(ctx, path)
@@ -184,12 +193,14 @@ func TestS3FileManager_Delete(t *testing.T) {
 }
 
 func TestS3FileManager_Exists(t *testing.T) {
+	t.Parallel()
 	fm, prefix, cleanup := setupS3Test(t)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 
 	t.Run("file_exists", func(t *testing.T) {
+		t.Parallel()
 		path := prefix + "exists.txt"
 		err := fm.Write(ctx, path, []byte("content"))
 		require.NoError(t, err)
@@ -200,6 +211,7 @@ func TestS3FileManager_Exists(t *testing.T) {
 	})
 
 	t.Run("file_does_not_exist", func(t *testing.T) {
+		t.Parallel()
 		path := prefix + "not_exists.txt"
 
 		exists := fm.Exists(ctx, path)
@@ -209,12 +221,14 @@ func TestS3FileManager_Exists(t *testing.T) {
 }
 
 func TestS3FileManager_List(t *testing.T) {
+	t.Parallel()
 	fm, prefix, cleanup := setupS3Test(t)
-	defer cleanup()
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 
 	t.Run("list_files_in_directory", func(t *testing.T) {
+		t.Parallel()
 		dir := prefix + "list_dir/"
 		err := fm.Write(ctx, dir+"file1.txt", []byte("content1"))
 		require.NoError(t, err)
@@ -230,6 +244,7 @@ func TestS3FileManager_List(t *testing.T) {
 	})
 
 	t.Run("list_empty_directory", func(t *testing.T) {
+		t.Parallel()
 		dir := prefix + "empty_dir/"
 
 		files, err := fm.List(ctx, dir)
@@ -239,6 +254,7 @@ func TestS3FileManager_List(t *testing.T) {
 	})
 
 	t.Run("list_with_prefix", func(t *testing.T) {
+		t.Parallel()
 		dir := prefix + "prefix_dir/"
 		err := fm.Write(ctx, dir+"a_file.txt", []byte("a"))
 		require.NoError(t, err)
@@ -257,6 +273,7 @@ func TestS3FileManager_List(t *testing.T) {
 }
 
 func TestParseS3DSN(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		dsn     string
@@ -315,6 +332,7 @@ func TestParseS3DSN(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg, err := parseS3DSN(tt.dsn)
 
 			if tt.wantErr {

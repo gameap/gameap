@@ -13,6 +13,7 @@ import (
 )
 
 func TestGameModsService_FindGameMods(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.GameModRepository)
@@ -75,6 +76,7 @@ func TestGameModsService_FindGameMods(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewGameModRepository()
 			tt.setupRepo(repo)
 
@@ -89,6 +91,7 @@ func TestGameModsService_FindGameMods(t *testing.T) {
 }
 
 func TestGameModsService_GetGameMod(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.GameModRepository)
@@ -126,6 +129,7 @@ func TestGameModsService_GetGameMod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewGameModRepository()
 			tt.setupRepo(repo)
 
@@ -147,6 +151,7 @@ func TestGameModsService_GetGameMod(t *testing.T) {
 }
 
 func TestConvertGameModToProto(t *testing.T) {
+	t.Parallel()
 	gameMod := &domain.GameMod{
 		ID:              42,
 		GameCode:        "cs",
@@ -173,6 +178,7 @@ func TestConvertGameModToProto(t *testing.T) {
 }
 
 func TestConvertGameModToProto_EmptyFields(t *testing.T) {
+	t.Parallel()
 	gameMod := &domain.GameMod{
 		ID:       1,
 		GameCode: "mc",
@@ -191,6 +197,7 @@ func TestConvertGameModToProto_EmptyFields(t *testing.T) {
 }
 
 func TestNewGameModsHostLibrary(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameModRepository()
 	lib := NewGameModsHostLibrary(repo)
 

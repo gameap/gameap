@@ -8,6 +8,8 @@ import (
 )
 
 func TestFormatConnectURL(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		host     string
@@ -40,6 +42,7 @@ func TestFormatConnectURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := FormatConnectURL(tt.host, tt.port, tt.setupKey)
 			assert.Equal(t, tt.want, got)
 		})
@@ -47,6 +50,8 @@ func TestFormatConnectURL(t *testing.T) {
 }
 
 func TestParseConnectURL(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		rawURL    string
@@ -105,6 +110,7 @@ func TestParseConnectURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := ParseConnectURL(tt.rawURL)
 			if tt.wantError != "" {
 				require.Error(t, err)
@@ -119,6 +125,8 @@ func TestParseConnectURL(t *testing.T) {
 }
 
 func TestFormatParseRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	host := "panel.example.com"
 	port := uint16(31718)
 	key := "AbCdEfGh1234567890AbCdEfGh123456"

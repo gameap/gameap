@@ -8,6 +8,7 @@ import (
 )
 
 func TestFindUser_FilterCount(t *testing.T) {
+	t.Parallel()
 	filterType := reflect.TypeFor[FindUser]()
 	fieldsCount := filterType.NumField()
 
@@ -47,6 +48,7 @@ func TestFindUser_FilterCount(t *testing.T) {
 }
 
 func TestFindUserByIDs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ids  []uint
@@ -71,6 +73,7 @@ func TestFindUserByIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -83,6 +86,7 @@ func TestFindUserByIDs(t *testing.T) {
 }
 
 func TestFindUserByLogins(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		logins []string
@@ -107,6 +111,7 @@ func TestFindUserByLogins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -119,6 +124,7 @@ func TestFindUserByLogins(t *testing.T) {
 }
 
 func TestFindUserByEmails(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		emails []string
@@ -143,6 +149,7 @@ func TestFindUserByEmails(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT

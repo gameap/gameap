@@ -73,6 +73,8 @@ func disableReq(t *testing.T, body string) *http.Request {
 }
 
 func TestDisable_PasswordPlusCodeClearsTwoFactor(t *testing.T) {
+	t.Parallel()
+
 	f := newDisableFixture(t, true)
 
 	w := httptest.NewRecorder()
@@ -89,6 +91,8 @@ func TestDisable_PasswordPlusCodeClearsTwoFactor(t *testing.T) {
 }
 
 func TestDisable_Rejections(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		enabled        bool
@@ -128,6 +132,8 @@ func TestDisable_Rejections(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := newDisableFixture(t, tt.enabled)
 
 			w := httptest.NewRecorder()

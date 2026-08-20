@@ -76,6 +76,7 @@ func (e secretsTestEnv) storedValue(t *testing.T, pluginID uint64, key string) s
 }
 
 func TestSecretsService_Set(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		key       string
@@ -181,6 +182,7 @@ func TestSecretsService_Set(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cipher, err := secret.NewCipher("test-encryption-key")
 			require.NoError(t, err)
 
@@ -221,6 +223,7 @@ func TestSecretsService_Set(t *testing.T) {
 }
 
 func TestSecretsService_Get(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		storeUnder uint64
@@ -253,6 +256,7 @@ func TestSecretsService_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			env := newAllowedSecretsEnv(t)
 
 			encrypted, err := env.cipher.EncryptWithAAD("s3cret", secretAAD(tt.storeUnder, tt.storeKey))
@@ -283,6 +287,7 @@ func TestSecretsService_Get(t *testing.T) {
 // moving a ciphertext to another plugin's row (or another key) must not make
 // it readable, which is what the AAD binding buys.
 func TestSecretsService_Get_RejectsValueBoundToAnotherRow(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		aadFrom func() string
@@ -303,6 +308,7 @@ func TestSecretsService_Get_RejectsValueBoundToAnotherRow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			env := newAllowedSecretsEnv(t)
 
 			foreign, err := env.cipher.EncryptWithAAD("s3cret", tt.aadFrom())
@@ -326,6 +332,7 @@ func TestSecretsService_Get_RejectsValueBoundToAnotherRow(t *testing.T) {
 }
 
 func TestSecretsService_Delete(t *testing.T) {
+	t.Parallel()
 	env := newAllowedSecretsEnv(t)
 	ctx := context.Background()
 
@@ -355,6 +362,7 @@ func TestSecretsService_Delete(t *testing.T) {
 }
 
 func TestSecretsService_Delete_MissingKeySucceeds(t *testing.T) {
+	t.Parallel()
 	env := newAllowedSecretsEnv(t)
 
 	resp, err := env.service.Delete(context.Background(), &secrets.SecretDeleteRequest{Key: "absent"})
@@ -365,6 +373,7 @@ func TestSecretsService_Delete_MissingKeySucceeds(t *testing.T) {
 }
 
 func TestSecretsService_ListKeys(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		keyPrefix *string
@@ -388,6 +397,7 @@ func TestSecretsService_ListKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			env := newAllowedSecretsEnv(t)
 			ctx := context.Background()
 
@@ -417,6 +427,7 @@ func TestSecretsService_ListKeys(t *testing.T) {
 // TestSecretsService_PermissionGate — OWASP API3:2023: without the "secrets"
 // grant every method answers with the missing permission and touches nothing.
 func TestSecretsService_PermissionGate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		checker   PluginPermissionChecker
@@ -436,6 +447,7 @@ func TestSecretsService_PermissionGate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cipher, err := secret.NewCipher("test-encryption-key")
 			require.NoError(t, err)
 
@@ -477,6 +489,7 @@ func TestSecretsService_PermissionGate(t *testing.T) {
 // database record (dry-run, info discovery) has no grants, so the real
 // repository-backed checker must deny it.
 func TestSecretsService_TransientLoadIsDenied(t *testing.T) {
+	t.Parallel()
 	cipher, err := secret.NewCipher("test-encryption-key")
 	require.NoError(t, err)
 
@@ -495,6 +508,7 @@ func TestSecretsService_TransientLoadIsDenied(t *testing.T) {
 // ENCRYPTION_KEY configured the write is refused instead of silently storing
 // the credential in plaintext.
 func TestSecretsService_Set_RequiresEncryption(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		requireEncryption bool
@@ -515,6 +529,7 @@ func TestSecretsService_Set_RequiresEncryption(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			env := newSecretsEnv(t, secretsTestPluginID, stubPermissionChecker{allowed: true}, secret.Disabled(),
 				SecretsConfig{RequireEncryption: tt.requireEncryption})
 			ctx := context.Background()
@@ -551,6 +566,7 @@ func TestSecretsService_Set_RequiresEncryption(t *testing.T) {
 // TestSecretsService_ConfigDefaults — a zero-valued config must not disable
 // the quotas.
 func TestSecretsService_ConfigDefaults(t *testing.T) {
+	t.Parallel()
 	service := NewSecretsService(secretsTestPluginID, inmemory.NewPluginSecretRepository(),
 		secret.Disabled(), stubPermissionChecker{allowed: true}, SecretsConfig{})
 
@@ -563,6 +579,7 @@ func TestSecretsService_ConfigDefaults(t *testing.T) {
 // breaks every compiled plugin, which would otherwise only surface as a load
 // failure in production.
 func TestSecretsHostLibrary_Instantiate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	runtime := wazero.NewRuntime(ctx)
@@ -582,6 +599,7 @@ func TestSecretsHostLibrary_Instantiate(t *testing.T) {
 
 	for _, name := range []string{"get", "set", "delete", "list_keys"} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			definition, ok := definitions[name]
 			require.True(t, ok, "the module must export the function a guest imports")
 
@@ -624,6 +642,7 @@ func (r *brokenSecretRepo) Delete(context.Context, domain.Uint64ID, string) erro
 // error text can name tables, hosts or credentials, and the plugin can act on
 // none of it, so responses carry a fixed message instead.
 func TestSecretsService_StorageErrorsAreNotLeaked(t *testing.T) {
+	t.Parallel()
 	const driverDetail = "pq: relation \"plugin_secrets\" does not exist (host=db.internal)"
 
 	cipher, err := secret.NewCipher("test-encryption-key")
@@ -683,6 +702,7 @@ func TestSecretsService_StorageErrorsAreNotLeaked(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			respError, err := tt.call()
 
 			require.NoError(t, err)

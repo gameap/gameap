@@ -16,6 +16,7 @@ import (
 )
 
 func TestPluginServiceWrapper_HandleArchiveEvents(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: the current fixture is built with the extended sdk/nodefs
 	// module and registers an ArchiveEventsHandler in init().
 	plugin := loadSharedServerLoggerWASM(t)
@@ -52,6 +53,7 @@ func TestPluginServiceWrapper_HandleArchiveEvents(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_HandleArchiveEvents_NilFunctionsReturnError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	w := &pluginServiceWrapper{}
 
@@ -74,6 +76,7 @@ func TestPluginServiceWrapper_HandleArchiveEvents_NilFunctionsReturnError(t *tes
 }
 
 func TestPluginServiceWrapper_HasArchiveEventsHandler(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		progress bool
@@ -88,6 +91,7 @@ func TestPluginServiceWrapper_HasArchiveEventsHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			w := &pluginServiceWrapper{}
 			if tt.progress {
 				w.handlearchiveprogress = unusedExport{}
@@ -112,19 +116,25 @@ func (s *archiveCapablePluginService) HasArchiveEventsHandler() bool {
 }
 
 func TestLoadedPlugin_HasArchiveEventsHandler(t *testing.T) {
+	t.Parallel()
 	t.Run("instance_without_capability_reports_false", func(t *testing.T) {
+		t.Parallel()
+
 		lp := &LoadedPlugin{Instance: &mockPluginService{}}
 
 		assert.False(t, lp.HasArchiveEventsHandler())
 	})
 
 	t.Run("capability_reports_true", func(t *testing.T) {
+		t.Parallel()
+
 		lp := &LoadedPlugin{Instance: &archiveCapablePluginService{hasHandler: true}}
 
 		assert.True(t, lp.HasArchiveEventsHandler())
 	})
 
 	t.Run("capability_reports_false", func(t *testing.T) {
+		t.Parallel()
 		lp := &LoadedPlugin{Instance: &archiveCapablePluginService{hasHandler: false}}
 
 		assert.False(t, lp.HasArchiveEventsHandler())
@@ -132,6 +142,7 @@ func TestLoadedPlugin_HasArchiveEventsHandler(t *testing.T) {
 }
 
 func TestManager_Load_PluginWithoutArchiveEventsExports(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: the frozen pre-scheduler fixture also predates the archive
 	// events service — it proves old binaries load with the capability off.
 	wasmBytes := decompressNoSchedulerWASM(t)

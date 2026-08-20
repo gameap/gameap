@@ -28,6 +28,7 @@ func validInput() updateServerInput {
 }
 
 func TestUpdateServerInput_Validate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		input     updateServerInput
@@ -465,6 +466,7 @@ func TestUpdateServerInput_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.input.Validate()
 
 			if tt.wantError == "" {
@@ -478,7 +480,9 @@ func TestUpdateServerInput_Validate(t *testing.T) {
 }
 
 func TestUpdateServerInput_Apply(t *testing.T) {
+	t.Parallel()
 	t.Run("ram_limit_above_uint32_and_cpu_limit_applied", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		in := validInput()
 		in.RAMLimit = ptrFI(4294967296)
@@ -496,6 +500,7 @@ func TestUpdateServerInput_Apply(t *testing.T) {
 	})
 
 	t.Run("nil_optional_limits_leave_server_pointers_nil", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		in := validInput()
 		server := &domain.Server{}

@@ -10,6 +10,8 @@ import (
 )
 
 func TestUser_PasswordChangedAt_NilWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		user domain.User
@@ -34,6 +36,8 @@ func TestUser_PasswordChangedAt_NilWhenAbsent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ACT & ASSERT
 			assert.Nil(t, tt.user.PasswordChangedAt(),
 				"a missing or unreadable password_changed_at must read as nil (accounts predating tracking)")
@@ -42,6 +46,8 @@ func TestUser_PasswordChangedAt_NilWhenAbsent(t *testing.T) {
 }
 
 func TestUser_SetPasswordChangedAt_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	now := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
 	user := domain.User{}
@@ -60,6 +66,8 @@ func TestUser_SetPasswordChangedAt_RoundTrip(t *testing.T) {
 }
 
 func TestUser_SetPasswordChangedAt_NormalizesToUTC(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	loc := time.FixedZone("UTC+3", 3*60*60)
 	local := time.Date(2026, 5, 30, 12, 0, 0, 0, loc)
@@ -75,6 +83,8 @@ func TestUser_SetPasswordChangedAt_NormalizesToUTC(t *testing.T) {
 }
 
 func TestUser_SetPasswordChangedAt_NilClears(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	now := time.Now()
 	user := domain.User{}
@@ -90,6 +100,8 @@ func TestUser_SetPasswordChangedAt_NilClears(t *testing.T) {
 }
 
 func TestUser_SetPasswordChangedAt_NilOnNilMetadataIsNoOp(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	user := domain.User{}
 
@@ -102,6 +114,8 @@ func TestUser_SetPasswordChangedAt_NilOnNilMetadataIsNoOp(t *testing.T) {
 }
 
 func TestUser_SetPasswordChangedAt_RepeatedSetOverwrites(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	first := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	second := time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC)
@@ -120,6 +134,8 @@ func TestUser_SetPasswordChangedAt_RepeatedSetOverwrites(t *testing.T) {
 }
 
 func TestUser_SetPasswordChangedAt_PreservesUnrelatedMetadata(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	shown := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	changed := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)

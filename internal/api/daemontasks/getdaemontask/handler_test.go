@@ -87,6 +87,8 @@ func createTestServer(t *testing.T, serverRepo *inmemory.ServerRepository, serve
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		taskID     string
@@ -686,6 +688,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			taskRepo := inmemory.NewDaemonTaskRepository()
 			serverRepo := inmemory.NewServerRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -726,6 +730,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_ResponseContent(t *testing.T) {
+	t.Parallel()
+
 	taskRepo := inmemory.NewDaemonTaskRepository()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -780,6 +786,8 @@ func TestHandler_ServeHTTP_ResponseContent(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_LargeOutput(t *testing.T) {
+	t.Parallel()
+
 	taskRepo := inmemory.NewDaemonTaskRepository()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -829,6 +837,8 @@ func TestHandler_ServeHTTP_LargeOutput(t *testing.T) {
 }
 
 func TestHandler_WithOutput_False(t *testing.T) {
+	t.Parallel()
+
 	taskRepo := inmemory.NewDaemonTaskRepository()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()

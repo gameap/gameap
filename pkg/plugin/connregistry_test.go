@@ -22,6 +22,7 @@ func (c *fakeConn) Close() error {
 }
 
 func TestConnRegistry_RegisterAndResolve(t *testing.T) {
+	t.Parallel()
 	reg := NewConnRegistry(8)
 	conn := &fakeConn{}
 
@@ -36,6 +37,7 @@ func TestConnRegistry_RegisterAndResolve(t *testing.T) {
 }
 
 func TestConnRegistry_OwnershipEnforced(t *testing.T) {
+	t.Parallel()
 	reg := NewConnRegistry(8)
 	handle, err := reg.Register(&fakeConn{}, "p1", time.Time{})
 	require.NoError(t, err)
@@ -48,6 +50,7 @@ func TestConnRegistry_OwnershipEnforced(t *testing.T) {
 }
 
 func TestConnRegistry_Expiry(t *testing.T) {
+	t.Parallel()
 	reg := NewConnRegistry(8)
 	handle, err := reg.Register(&fakeConn{}, "p1", time.Now().Add(-time.Second))
 	require.NoError(t, err)
@@ -57,6 +60,7 @@ func TestConnRegistry_Expiry(t *testing.T) {
 }
 
 func TestConnRegistry_CloseOwnedClosesAndRemoves(t *testing.T) {
+	t.Parallel()
 	reg := NewConnRegistry(8)
 	conn := &fakeConn{}
 	handle, err := reg.Register(conn, "p1", time.Time{})
@@ -71,6 +75,7 @@ func TestConnRegistry_CloseOwnedClosesAndRemoves(t *testing.T) {
 }
 
 func TestConnRegistry_DiscardIsIdempotent(t *testing.T) {
+	t.Parallel()
 	reg := NewConnRegistry(8)
 	conn := &fakeConn{}
 	handle, err := reg.Register(conn, "p1", time.Time{})
@@ -84,6 +89,7 @@ func TestConnRegistry_DiscardIsIdempotent(t *testing.T) {
 }
 
 func TestConnRegistry_PerPluginCap(t *testing.T) {
+	t.Parallel()
 	reg := NewConnRegistry(2)
 
 	_, err := reg.Register(&fakeConn{}, "p1", time.Time{})

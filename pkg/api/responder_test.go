@@ -29,11 +29,15 @@ func (e *descriptionError) Description() string {
 }
 
 func TestNewResponder(t *testing.T) {
+	t.Parallel()
+
 	responder := NewResponder()
 	require.NotNil(t, responder)
 }
 
 func TestResponder_Write(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		result   any
@@ -66,6 +70,8 @@ func TestResponder_Write(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			responder := NewResponder()
 			rec := httptest.NewRecorder()
 
@@ -78,6 +84,8 @@ func TestResponder_Write(t *testing.T) {
 }
 
 func TestResponder_WriteError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		err              error
@@ -148,6 +156,8 @@ func TestResponder_WriteError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			responder := NewResponder()
 			rec := httptest.NewRecorder()
 
@@ -206,7 +216,7 @@ func (h *capturingLogHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
 
 func (h *capturingLogHandler) WithGroup(string) slog.Handler { return h }
 
-func TestResponder_WriteError_LogLevels(t *testing.T) {
+func TestResponder_WriteError_LogLevels(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	tests := []struct {
 		name       string
 		err        error
@@ -251,7 +261,7 @@ func TestResponder_WriteError_LogLevels(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // subtests mutate the global slog default logger
 		t.Run(tt.name, func(t *testing.T) {
 			handler := &capturingLogHandler{}
 			prev := slog.Default()
@@ -274,6 +284,8 @@ func TestResponder_WriteError_LogLevels(t *testing.T) {
 }
 
 func TestResponder_WriteError_WithDescription(t *testing.T) {
+	t.Parallel()
+
 	responder := NewResponder()
 	rec := httptest.NewRecorder()
 	err := &descriptionError{
@@ -296,7 +308,7 @@ type statusDescriptionError struct {
 
 func (e *statusDescriptionError) HTTPStatus() int { return e.status }
 
-func TestResponder_WriteError_DescriptionStaysOutOfBody(t *testing.T) {
+func TestResponder_WriteError_DescriptionStaysOutOfBody(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	handler := &capturingLogHandler{}
 	prev := slog.Default()
 	slog.SetDefault(slog.New(handler))
@@ -330,6 +342,8 @@ func TestResponder_WriteError_DescriptionStaysOutOfBody(t *testing.T) {
 }
 
 func TestWriteJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		result   any
@@ -359,6 +373,8 @@ func TestWriteJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			rec := httptest.NewRecorder()
 
 			WriteJSON(rec, tt.result)
@@ -370,6 +386,8 @@ func TestWriteJSON(t *testing.T) {
 }
 
 func TestWriteErr(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		code          int
@@ -414,6 +432,8 @@ func TestWriteErr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			rec := httptest.NewRecorder()
 
 			WriteErr(rec, tt.code, tt.err)
@@ -437,6 +457,8 @@ func TestWriteErr(t *testing.T) {
 }
 
 func TestWriteErr_ResponseStructure(t *testing.T) {
+	t.Parallel()
+
 	rec := httptest.NewRecorder()
 	err := errors.New("test error")
 

@@ -191,6 +191,8 @@ func publishComplete(t *testing.T, ps pubsub.PubSub, payload messages.ArchiveCom
 }
 
 func TestService_Register_NeverResolvesPlugins(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: Register runs from host functions, possibly under the plugin
 	// manager write lock — resolving the plugin there would self-deadlock.
 	env := newServiceEnv(t, nil)
@@ -204,6 +206,8 @@ func TestService_Register_NeverResolvesPlugins(t *testing.T) {
 }
 
 func TestService_DeliversProgressAndCompletion(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	env := newServiceEnv(t, nil)
 	env.service.Register(testPluginDBID, testOperationID, testNodeID, true)
@@ -247,6 +251,8 @@ func TestService_DeliversProgressAndCompletion(t *testing.T) {
 }
 
 func TestService_ProgressCoalescesToLatest(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: a slow guest must see fewer, fresher progress updates.
 	release := make(chan struct{})
 	env := newServiceEnv(t, nil)
@@ -298,6 +304,8 @@ func TestService_ProgressCoalescesToLatest(t *testing.T) {
 }
 
 func TestService_CompletionRetriesWhenBusy(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	var attempts int
 	var mu sync.Mutex
@@ -333,6 +341,8 @@ func TestService_CompletionRetriesWhenBusy(t *testing.T) {
 }
 
 func TestService_ProgressSkippedWithoutOptIn(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	env := newServiceEnv(t, nil)
 	env.service.Register(testPluginDBID, testOperationID, testNodeID, false)
@@ -356,6 +366,8 @@ func TestService_ProgressSkippedWithoutOptIn(t *testing.T) {
 }
 
 func TestService_HandlerAbsentPluginStaysUntouched(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: a plugin without the export polls GetArchiveOperation instead.
 	env := newServiceEnv(t, nil)
 	env.instance.hasHandler = false
@@ -377,6 +389,8 @@ func TestService_HandlerAbsentPluginStaysUntouched(t *testing.T) {
 }
 
 func TestService_UnknownOperationEventsIgnored(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	env := newServiceEnv(t, nil)
 	env.service.Register(testPluginDBID, testOperationID, testNodeID, true)
@@ -394,6 +408,8 @@ func TestService_UnknownOperationEventsIgnored(t *testing.T) {
 }
 
 func TestService_RemovePluginStopsDelivery(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	env := newServiceEnv(t, nil)
 	env.service.Register(testPluginDBID, testOperationID, testNodeID, true)
@@ -412,6 +428,8 @@ func TestService_RemovePluginStopsDelivery(t *testing.T) {
 }
 
 func TestService_NotifyCompletedReplaysMissedCompletion(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: the completion event of a fast operation was published (and
 	// dropped) before Register; the host library replays it from the
 	// operation snapshot.
@@ -433,6 +451,8 @@ func TestService_NotifyCompletedReplaysMissedCompletion(t *testing.T) {
 }
 
 func TestService_StopWaitsForInFlightDelivery(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: a completion callback is executing inside the guest when
 	// Stop is called; Stop must wait for it instead of racing the runtime
 	// teardown.
@@ -486,6 +506,8 @@ func TestService_StopWaitsForInFlightDelivery(t *testing.T) {
 }
 
 func TestService_GuestDeadlineDisablesPlugin(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: a deadline hit inside the guest closes the wasm module, so
 	// the plugin must be disabled until reload (scheduler policy).
 	env := newServiceEnv(t, func(o *Options) {

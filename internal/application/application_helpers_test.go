@@ -99,7 +99,11 @@ func takenPort(t *testing.T) (port int, release func()) {
 }
 
 func TestStartPubSub(t *testing.T) {
+	t.Parallel()
+
 	t.Run("starts_cache_invalidator_bridge_and_listener_without_panic", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -118,7 +122,11 @@ func TestStartPubSub(t *testing.T) {
 }
 
 func TestStartUploadJanitor(t *testing.T) {
+	t.Parallel()
+
 	t.Run("launches_janitor_goroutine_without_panic", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t, func(cfg *config.Config) {
 			cfg.Files.Upload.JanitorInterval = 10 * time.Millisecond
@@ -136,6 +144,7 @@ func TestStartUploadJanitor(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // a subtest stubs the shared osExit global
 func TestStartHTTPListener(t *testing.T) {
 	t.Run("binds_ephemeral_port_and_serves_without_exit", func(t *testing.T) {
 		// ARRANGE
@@ -178,6 +187,8 @@ func TestStartHTTPListener(t *testing.T) {
 // OWASP API8:2023 Security Misconfiguration / ASVS §9.1: TLS startup must abort
 // (osExit) when no certificate source is configured rather than silently serving
 // an unusable listener; with a real certificate source it must start serving.
+//
+//nolint:paralleltest // a subtest stubs the shared osExit global
 func TestStartHTTPSServer(t *testing.T) {
 	t.Run("calls_os_exit_when_no_certificate_source_is_configured", func(t *testing.T) {
 		// ARRANGE
@@ -220,6 +231,7 @@ func TestStartHTTPSServer(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // the subtest stubs the shared osExit global
 func TestRunWithGRPC(t *testing.T) {
 	t.Run("calls_os_exit_when_the_grpc_bind_address_is_already_in_use", func(t *testing.T) {
 		// ARRANGE

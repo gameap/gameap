@@ -27,6 +27,7 @@ type stubService struct {
 func (s stubService) Status() acme.Status { return s.status }
 
 func TestHandler_ReturnsDisabledWhenACMEOff(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		cfg     getstatus.Config
@@ -46,6 +47,7 @@ func TestHandler_ReturnsDisabledWhenACMEOff(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			h := getstatus.NewHandler(tt.cfg, tt.service, api.NewResponder())
 
 			rw := httptest.NewRecorder()
@@ -65,6 +67,7 @@ func TestHandler_ReturnsDisabledWhenACMEOff(t *testing.T) {
 }
 
 func TestHandler_ReturnsActiveStatus(t *testing.T) {
+	t.Parallel()
 	notBefore := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	notAfter := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
 	last := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -107,6 +110,7 @@ func TestHandler_ReturnsActiveStatus(t *testing.T) {
 }
 
 func TestHandler_ReportsFailureState(t *testing.T) {
+	t.Parallel()
 	cfg := stubConfig{enabled: true}
 	svc := stubService{
 		status: acme.Status{
@@ -134,6 +138,7 @@ func TestHandler_ReportsFailureState(t *testing.T) {
 }
 
 func TestHandler_PendingStateOmitsDates(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	cfg := stubConfig{enabled: true}
 	svc := stubService{
@@ -167,6 +172,7 @@ func TestHandler_PendingStateOmitsDates(t *testing.T) {
 }
 
 func TestHandler_RenewingStateIncludesLastRenewalAt(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	last := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
 	cfg := stubConfig{enabled: true}
@@ -202,6 +208,7 @@ func TestHandler_RenewingStateIncludesLastRenewalAt(t *testing.T) {
 }
 
 func TestHandler_DNSChallengeIncludesDNSProviderField(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	cfg := stubConfig{enabled: true}
 	svc := stubService{
@@ -232,6 +239,7 @@ func TestHandler_DNSChallengeIncludesDNSProviderField(t *testing.T) {
 }
 
 func TestHandler_WildcardDomainsPassedThrough(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	cfg := stubConfig{enabled: true}
 	svc := stubService{

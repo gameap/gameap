@@ -10,6 +10,8 @@ import (
 )
 
 func TestServerTaskExecutionRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewServerTaskExecutionRepositorySuite(
 		func(_ *testing.T) repositories.ServerTaskExecutionRepository {
 			return inmemory.NewServerTaskExecutionRepository()

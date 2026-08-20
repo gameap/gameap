@@ -30,6 +30,7 @@ func (m *mockLoaderManager) GetPlugins() []*pkgplugin.LoadedPlugin {
 }
 
 func TestLoaded_empty_list(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 
 	h := getloaded.NewHandler(
@@ -60,6 +61,7 @@ func TestLoaded_empty_list(t *testing.T) {
 }
 
 func TestLoaded_with_plugins(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 
 	plugin1 := &domain.Plugin{
@@ -164,6 +166,7 @@ func TestLoaded_with_plugins(t *testing.T) {
 }
 
 func TestLoaded_plugin_not_in_db(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 
 	h := getloaded.NewHandler(

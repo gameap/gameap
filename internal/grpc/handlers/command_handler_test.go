@@ -52,6 +52,7 @@ func subscribeOnceCmd(t *testing.T, ps pubsub.PubSub, channel string) (
 }
 
 func TestCommandHandler_RegisterPendingCommand_returnsBufferedChan(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewCommandHandler(nil, slog.Default())
 
@@ -71,6 +72,7 @@ func TestCommandHandler_RegisterPendingCommand_returnsBufferedChan(t *testing.T)
 }
 
 func TestCommandHandler_HandleCommandResult_deliversToWaiter(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewCommandHandler(nil, slog.Default())
 	const commandID = "cmd-deliver"
@@ -116,6 +118,7 @@ func TestCommandHandler_HandleCommandResult_deliversToWaiter(t *testing.T) {
 }
 
 func TestCommandHandler_HandleCommandResult_secondCallForSameID_isDroppedSilently(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — register a waiter and deliver a first result. The first call
 	// buffers the result, closes the channel and removes the registration
 	// (delete-under-lock).
@@ -149,6 +152,7 @@ func TestCommandHandler_HandleCommandResult_secondCallForSameID_isDroppedSilentl
 }
 
 func TestCommandHandler_HandleCommandResult_unknownID_dropsSilently(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -180,6 +184,7 @@ func TestCommandHandler_HandleCommandResult_unknownID_dropsSilently(t *testing.T
 }
 
 func TestCommandHandler_HandleCommandResult_publishesConsoleResultWhenServerTracked(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -226,6 +231,7 @@ func TestCommandHandler_HandleCommandResult_publishesConsoleResultWhenServerTrac
 }
 
 func TestCommandHandler_HandleCommandResult_untracksServerAfterDelivery(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewCommandHandler(nil, slog.Default())
 	const (
@@ -282,6 +288,7 @@ func TestCommandHandler_HandleCommandResult_untracksServerAfterDelivery(t *testi
 }
 
 func TestCommandHandler_HandleCommandOutput_publishesToConsoleOutputChannel(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -326,6 +333,7 @@ func TestCommandHandler_HandleCommandOutput_publishesToConsoleOutputChannel(t *t
 }
 
 func TestCommandHandler_HandleCommandOutput_untrackedCommand_doesNotPublish(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -357,6 +365,7 @@ func TestCommandHandler_HandleCommandOutput_untrackedCommand_doesNotPublish(t *t
 }
 
 func TestCommandHandler_HandleCommandOutput_nilPublisher_returnsNil(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewCommandHandler(nil, slog.Default())
 	handler.TrackCommandServer("cmd", 1) // server tracked, but publisher is nil
@@ -372,6 +381,7 @@ func TestCommandHandler_HandleCommandOutput_nilPublisher_returnsNil(t *testing.T
 }
 
 func TestCommandHandler_HandleCommandResult_nilPublisher_returnsNilAndUntracksServer(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewCommandHandler(nil, slog.Default())
 	const (
@@ -391,6 +401,7 @@ func TestCommandHandler_HandleCommandResult_nilPublisher_returnsNilAndUntracksSe
 }
 
 func TestCommandHandler_UnregisterPendingCommand_closesChan(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewCommandHandler(nil, slog.Default())
 	const commandID = "cmd-unreg"
@@ -409,7 +420,8 @@ func TestCommandHandler_UnregisterPendingCommand_closesChan(t *testing.T) {
 	}
 }
 
-func TestCommandHandler_UnregisterPendingCommand_unknownID_isSafe(_ *testing.T) {
+func TestCommandHandler_UnregisterPendingCommand_unknownID_isSafe(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewCommandHandler(nil, slog.Default())
 
@@ -418,6 +430,7 @@ func TestCommandHandler_UnregisterPendingCommand_unknownID_isSafe(_ *testing.T) 
 }
 
 func TestCommandHandler_UnregisterPendingCommand_alsoRemovesServerMapping(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -455,6 +468,7 @@ func TestCommandHandler_UnregisterPendingCommand_alsoRemovesServerMapping(t *tes
 }
 
 func TestCommandHandler_TrackUntrackCommandServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		setup          func(h *CommandHandler)
@@ -504,6 +518,7 @@ func TestCommandHandler_TrackUntrackCommandServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			ps := memory.New()
 			t.Cleanup(func() { _ = ps.Close() })
@@ -545,6 +560,7 @@ func TestCommandHandler_TrackUntrackCommandServer(t *testing.T) {
 }
 
 func TestCommandHandler_PublishError_isLoggedNotReturned(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewCommandHandler(errPublisher{}, slog.Default())
 	const (
@@ -571,6 +587,7 @@ func TestCommandHandler_PublishError_isLoggedNotReturned(t *testing.T) {
 }
 
 func TestCommandHandler_NewCommandHandler_nilLogger_usesDefault(t *testing.T) {
+	t.Parallel()
 	// ARRANGE + ACT
 	handler := NewCommandHandler(nil, nil)
 
@@ -580,7 +597,8 @@ func TestCommandHandler_NewCommandHandler_nilLogger_usesDefault(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestCommandHandler_RegisterUnregister_concurrentAccess(_ *testing.T) {
+func TestCommandHandler_RegisterUnregister_concurrentAccess(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewCommandHandler(nil, slog.Default())
 
@@ -611,6 +629,7 @@ func TestCommandHandler_RegisterUnregister_concurrentAccess(_ *testing.T) {
 }
 
 func TestCommandHandler_HandleResultAndUnregister_concurrentSameID_noDoubleClose(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — HandleCommandResult and UnregisterPendingCommand both take
 	// exclusive ownership of the pending channel under the lock (delete-then-use),
 	// so racing them on the SAME command id must never close the channel twice

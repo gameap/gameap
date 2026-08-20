@@ -15,6 +15,8 @@ import (
 )
 
 func TestServerTaskRepository(t *testing.T) {
+	t.Parallel()
+
 	serverRepo := inmemory.NewServerRepository()
 	suite.Run(t, repotesting.NewServerTaskRepositorySuite(
 		func(_ *testing.T) repositories.ServerTaskRepository {
@@ -27,6 +29,8 @@ func TestServerTaskRepository(t *testing.T) {
 }
 
 func TestServerTaskRepository_FilterByNodeIDs(t *testing.T) {
+	t.Parallel()
+
 	serverRepo := inmemory.NewServerRepository()
 	taskRepo := inmemory.NewServerTaskRepository(serverRepo)
 
@@ -92,6 +96,8 @@ func TestServerTaskRepository_FilterByNodeIDs(t *testing.T) {
 	}
 
 	t.Run("Filter_by_Node_1", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServerTask{
 			NodeIDs: []uint{1},
 		}
@@ -112,6 +118,8 @@ func TestServerTaskRepository_FilterByNodeIDs(t *testing.T) {
 	})
 
 	t.Run("Filter_by_Node_2", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServerTask{
 			NodeIDs: []uint{2},
 		}
@@ -130,6 +138,8 @@ func TestServerTaskRepository_FilterByNodeIDs(t *testing.T) {
 	})
 
 	t.Run("Filter_by_Multiple_Nodes", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServerTask{
 			NodeIDs: []uint{1, 2},
 		}
@@ -144,6 +154,8 @@ func TestServerTaskRepository_FilterByNodeIDs(t *testing.T) {
 	})
 
 	t.Run("Filter_by_Non_existent_Node", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServerTask{
 			NodeIDs: []uint{999},
 		}
@@ -158,6 +170,8 @@ func TestServerTaskRepository_FilterByNodeIDs(t *testing.T) {
 	})
 
 	t.Run("Filter_by_Node_and_Command", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServerTask{
 			NodeIDs:  []uint{1},
 			Commands: []domain.ServerTaskCommand{domain.ServerTaskCommandStart},
@@ -183,6 +197,8 @@ func TestServerTaskRepository_FilterByNodeIDs(t *testing.T) {
 }
 
 func TestServerTaskRepository_FilterByNodeIDs_WithoutServerRepo(t *testing.T) {
+	t.Parallel()
+
 	taskRepo := inmemory.NewServerTaskRepository(nil)
 
 	ctx := context.Background()

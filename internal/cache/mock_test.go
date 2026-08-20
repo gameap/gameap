@@ -63,6 +63,8 @@ func (f *failingCache) Clear(_ context.Context) error {
 var _ cache.Cache = (*failingCache)(nil)
 
 func TestFailingCache_PropagatesErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		fake      *failingCache
@@ -121,6 +123,8 @@ func TestFailingCache_PropagatesErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			ctx := context.Background()
 
@@ -136,6 +140,8 @@ func TestFailingCache_PropagatesErrors(t *testing.T) {
 }
 
 func TestFailingCache_GetReturnsNilValueOnError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	fake := &failingCache{getErr: errInjectedGet}
 
@@ -148,6 +154,8 @@ func TestFailingCache_GetReturnsNilValueOnError(t *testing.T) {
 }
 
 func TestFailingCache_NoErrorWhenUnconfigured(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	fake := &failingCache{}
 	ctx := context.Background()
@@ -165,6 +173,8 @@ func TestFailingCache_NoErrorWhenUnconfigured(t *testing.T) {
 }
 
 func TestFailingCache_CallCountsAccumulate(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	fake := &failingCache{}
 	ctx := context.Background()

@@ -27,6 +27,7 @@ func (f *fakeRefresher) RefreshSubscriptions(_ context.Context) error {
 }
 
 func TestInstall_refreshes_subscriptions(t *testing.T) {
+	t.Parallel()
 	mockManager := &mockLoaderManager{
 		loadFunc: func(_ context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
 			return &pkgplugin.LoadedPlugin{

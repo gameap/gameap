@@ -11,6 +11,8 @@ import (
 const testJSONPayload = `{"key":"value"}`
 
 func TestEntityTypeConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, EntityType(""), EntityTypeEmpty)
 	assert.Equal(t, EntityType("Gameap\\Models\\User"), EntityTypeUser)
 	assert.Equal(t, EntityType("Gameap\\Models\\DedicatedServer"), EntityTypeNode)
@@ -22,6 +24,8 @@ func TestEntityTypeConstants(t *testing.T) {
 }
 
 func TestAbilityNameConstants_GameServer(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, AbilityName("game-server-common"), AbilityNameGameServerCommon)
 	assert.Equal(t, AbilityName("game-server-start"), AbilityNameGameServerStart)
 	assert.Equal(t, AbilityName("game-server-stop"), AbilityNameGameServerStop)
@@ -39,6 +43,8 @@ func TestAbilityNameConstants_GameServer(t *testing.T) {
 }
 
 func TestAbilityNameConstants_General(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, AbilityName("create"), AbilityNameCreate)
 	assert.Equal(t, AbilityName("view"), AbilityNameView)
 	assert.Equal(t, AbilityName("edit"), AbilityNameEdit)
@@ -46,10 +52,14 @@ func TestAbilityNameConstants_General(t *testing.T) {
 }
 
 func TestAbilityNameConstants_Admin(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, AbilityName("admin roles & permissions"), AbilityNameAdminRolesPermissions)
 }
 
 func TestServersAbilities(t *testing.T) {
+	t.Parallel()
+
 	expectedAbilities := []AbilityName{
 		AbilityNameGameServerCommon,
 		AbilityNameGameServerStart,
@@ -76,6 +86,8 @@ func TestServersAbilities(t *testing.T) {
 }
 
 func TestCreateAbilityForEntity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		abilityName AbilityName
@@ -110,6 +122,8 @@ func TestCreateAbilityForEntity(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			before := time.Now()
 			ability := CreateAbilityForEntity(test.abilityName, test.entityID, test.entityType)
 			after := time.Now()
@@ -136,6 +150,8 @@ func TestCreateAbilityForEntity(t *testing.T) {
 }
 
 func TestCreateAbilityForEntity_TimestampsSet(t *testing.T) {
+	t.Parallel()
+
 	ability1 := CreateAbilityForEntity(AbilityNameGameServerStart, 1, EntityTypeServer)
 	time.Sleep(10 * time.Millisecond)
 	ability2 := CreateAbilityForEntity(AbilityNameGameServerStop, 2, EntityTypeServer)
@@ -146,6 +162,8 @@ func TestCreateAbilityForEntity_TimestampsSet(t *testing.T) {
 }
 
 func TestNewRestrictedRoleFromRole(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		role Role
@@ -182,6 +200,8 @@ func TestNewRestrictedRoleFromRole(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			restrictedRole := NewRestrictedRoleFromRole(test.role)
 
 			assert.Equal(t, test.role.ID, restrictedRole.ID)
@@ -199,6 +219,8 @@ func TestNewRestrictedRoleFromRole(t *testing.T) {
 }
 
 func TestAbility_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	entityID := uint(42)
 	entityType := EntityTypeServer
@@ -232,6 +254,8 @@ func TestAbility_Fields(t *testing.T) {
 }
 
 func TestRole_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	title := "Administrator"
 	level := uint(10)
@@ -257,6 +281,8 @@ func TestRole_Fields(t *testing.T) {
 }
 
 func TestRestrictedRole_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	title := "Moderator"
 	level := uint(5)
@@ -287,6 +313,8 @@ func TestRestrictedRole_Fields(t *testing.T) {
 }
 
 func TestPermission_Fields(t *testing.T) {
+	t.Parallel()
+
 	entityID := uint(42)
 	entityType := EntityTypeServer
 	scope := 1
@@ -315,6 +343,8 @@ func TestPermission_Fields(t *testing.T) {
 }
 
 func TestPermission_NotForbidden(t *testing.T) {
+	t.Parallel()
+
 	permission := Permission{
 		ID:        1,
 		AbilityID: 10,
@@ -325,6 +355,8 @@ func TestPermission_NotForbidden(t *testing.T) {
 }
 
 func TestAssignedRole_Fields(t *testing.T) {
+	t.Parallel()
+
 	restrictedToID := uint(100)
 	restrictedToType := EntityTypeServer
 	scope := 1
@@ -349,6 +381,8 @@ func TestAssignedRole_Fields(t *testing.T) {
 }
 
 func TestAssignedRole_WithoutRestrictions(t *testing.T) {
+	t.Parallel()
+
 	assignedRole := AssignedRole{
 		ID:               1,
 		RoleID:           5,
@@ -365,6 +399,8 @@ func TestAssignedRole_WithoutRestrictions(t *testing.T) {
 }
 
 func TestServersAbilities_NoGeneralAbilities(t *testing.T) {
+	t.Parallel()
+
 	generalAbilities := []AbilityName{
 		AbilityNameCreate,
 		AbilityNameView,
@@ -380,6 +416,8 @@ func TestServersAbilities_NoGeneralAbilities(t *testing.T) {
 }
 
 func TestCreateAbilityForEntity_DifferentEntityTypes(t *testing.T) {
+	t.Parallel()
+
 	entityTypes := []EntityType{
 		EntityTypeUser,
 		EntityTypeNode,
@@ -392,6 +430,8 @@ func TestCreateAbilityForEntity_DifferentEntityTypes(t *testing.T) {
 
 	for _, entityType := range entityTypes {
 		t.Run(string(entityType), func(t *testing.T) {
+			t.Parallel()
+
 			ability := CreateAbilityForEntity(AbilityNameView, 1, entityType)
 
 			require.NotNil(t, ability.EntityType)
@@ -401,6 +441,8 @@ func TestCreateAbilityForEntity_DifferentEntityTypes(t *testing.T) {
 }
 
 func TestRestrictedRole_CanBeRestricted(t *testing.T) {
+	t.Parallel()
+
 	role := Role{
 		ID:   1,
 		Name: "admin",

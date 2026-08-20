@@ -15,6 +15,7 @@ import (
 )
 
 func TestAccept_UpgradesConnection(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := Accept(w, r, nil)
 		if err != nil {
@@ -51,6 +52,7 @@ func TestAccept_UpgradesConnection(t *testing.T) {
 }
 
 func TestAccept_ClearsHTTPServerDeadlines(t *testing.T) {
+	t.Parallel()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 

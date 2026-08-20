@@ -117,6 +117,7 @@ func runMiddleware(
 // that the generated CSP carries the inline-script hash for both shipped
 // HTML documents.
 func TestSecurityHeaders_Defaults(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 	staticFS := newTestFS(t)
 
@@ -141,6 +142,7 @@ func TestSecurityHeaders_Defaults(t *testing.T) {
 // SECURITY_HEADERS_ENABLED=false fully bypasses the middleware so it cannot
 // accidentally emit a stale policy in a deployment that disabled it.
 func TestSecurityHeaders_MasterSwitchOff(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 	cfg.Security.Enabled = false
 
@@ -164,6 +166,7 @@ func TestSecurityHeaders_MasterSwitchOff(t *testing.T) {
 // a localhost dev request would lock the user out of http://localhost for a
 // year.
 func TestSecurityHeaders_HSTSEmission(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name         string
 		forceHTTPS   bool
@@ -194,6 +197,7 @@ func TestSecurityHeaders_HSTSEmission(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := baseSecureConfig()
 			cfg.TLS.ForceHTTPS = tc.forceHTTPS
 
@@ -215,6 +219,7 @@ func TestSecurityHeaders_HSTSEmission(t *testing.T) {
 // max-age / includeSubDomains / preload formatting so a misconfigured deploy
 // cannot accidentally drop the directives.
 func TestSecurityHeaders_HSTSFormatting(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name              string
 		maxAge            int
@@ -230,6 +235,7 @@ func TestSecurityHeaders_HSTSFormatting(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := baseSecureConfig()
 			cfg.Security.HSTS.MaxAge = tc.maxAge
 			cfg.Security.HSTS.IncludeSubDomains = tc.includeSubDomains
@@ -247,6 +253,7 @@ func TestSecurityHeaders_HSTSFormatting(t *testing.T) {
 // SECURITY_CSP_REPORT_ONLY swaps the header name so admins can stage rollout
 // without ever briefly enforcing a policy they have not validated.
 func TestSecurityHeaders_CSPReportOnly(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 	cfg.Security.CSP.ReportOnly = true
 
@@ -260,6 +267,7 @@ func TestSecurityHeaders_CSPReportOnly(t *testing.T) {
 // SECURITY_CSP_POLICY is set the generated policy (and captcha/extra-src
 // logic) is bypassed so an operator can ship an exact custom policy.
 func TestSecurityHeaders_CSPVerbatimOverride(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 	cfg.Security.CSP.Policy = "default-src 'none'; script-src 'self'"
 	cfg.Captcha.Provider = string(captcha.ProviderTurnstile)
@@ -278,6 +286,7 @@ func TestSecurityHeaders_CSPVerbatimOverride(t *testing.T) {
 // the "don't permanently whitelist Google + Cloudflare just because someone
 // might enable a captcha" concern.
 func TestSecurityHeaders_CSPCaptchaProviderMatrix(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name       string
 		provider   string
@@ -318,6 +327,7 @@ func TestSecurityHeaders_CSPCaptchaProviderMatrix(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := baseSecureConfig()
 			cfg.Captcha.Provider = tc.provider
 
@@ -339,6 +349,7 @@ func TestSecurityHeaders_CSPCaptchaProviderMatrix(t *testing.T) {
 // additive EXTRA_*_SRC knobs append to the right directive so plugins /
 // reverse-proxy setups can extend the policy without replacing it.
 func TestSecurityHeaders_CSPExtraSources(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 	cfg.Security.CSP.ExtraScriptSrc = []string{"https://script.plugin.example"}
 	cfg.Security.CSP.ExtraStyleSrc = []string{"https://style.plugin.example"}
@@ -370,6 +381,7 @@ func TestSecurityHeaders_CSPExtraSources(t *testing.T) {
 // runtime <style>) and never in script-src (where it would gut XSS
 // protection).
 func TestSecurityHeaders_CSPCoreDirectives(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 
 	resp := runMiddleware(t, cfg, newTestFS(t), nil, nil)
@@ -400,6 +412,7 @@ func TestSecurityHeaders_CSPCoreDirectives(t *testing.T) {
 // "Content-Security-Policy: sandbox" for user-uploaded HTML/SVG, and the
 // global middleware must not clobber it.
 func TestSecurityHeaders_DownstreamCanOverride(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 
 	resp := runMiddleware(t, cfg, newTestFS(t), nil, func(w http.ResponseWriter, _ *http.Request) {
@@ -415,6 +428,7 @@ func TestSecurityHeaders_DownstreamCanOverride(t *testing.T) {
 // respective header so an admin can opt out of a single directive without
 // resorting to the master switch.
 func TestSecurityHeaders_OptionalHeadersOmitted(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 	cfg.Security.ContentTypeOptions = false
 	cfg.Security.FrameOptions = ""
@@ -433,6 +447,7 @@ func TestSecurityHeaders_OptionalHeadersOmitted(t *testing.T) {
 // build that lost index.html must fail at startup, not silently ship a CSP
 // without the inline-script hash that the served HTML still relies on.
 func TestSecurityHeaders_MissingStaticFile(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 
 	empty := fstest.MapFS{}
@@ -447,6 +462,7 @@ func TestSecurityHeaders_MissingStaticFile(t *testing.T) {
 // and produce non-empty hashes. Catches breakage from a Vite build that
 // stops emitting the expected inline bootstrap.
 func TestSecurityHeaders_RealEmbeddedFS(t *testing.T) {
+	t.Parallel()
 	staticFS, err := webstatic.GetFS()
 	require.NoError(t, err)
 
@@ -472,6 +488,7 @@ func TestSecurityHeaders_RealEmbeddedFS(t *testing.T) {
 // a stricter browser, or (b) over-include a hash and dilute the inline-hash
 // guarantee.
 func TestSecurityHeaders_CSPInlineScriptDiscovery(t *testing.T) {
+	t.Parallel()
 	// The streamsaver document is constant across cases so the hash count
 	// math stays predictable: every case carries +1 from this file.
 	mitmFile := &fstest.MapFile{
@@ -527,6 +544,7 @@ func TestSecurityHeaders_CSPInlineScriptDiscovery(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			cfg := baseSecureConfig()
 			staticFS := fstest.MapFS{
@@ -561,6 +579,7 @@ func TestSecurityHeaders_CSPInlineScriptDiscovery(t *testing.T) {
 // cached HSTS state. The middleware must emit it verbatim so an operator can
 // undo a misconfigured HSTS rollout without re-deploying the binary.
 func TestSecurityHeaders_HSTSMaxAgeZero(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	cfg := baseSecureConfig()
 	cfg.Security.HSTS.MaxAge = 0
@@ -580,6 +599,7 @@ func TestSecurityHeaders_HSTSMaxAgeZero(t *testing.T) {
 // isolation elsewhere; this guards the combined path so the header name
 // swap and the report-uri append don't regress against each other.
 func TestSecurityHeaders_CSPReportOnlyWithReportURI(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	cfg := baseSecureConfig()
 	cfg.Security.CSP.ReportOnly = true
@@ -605,6 +625,7 @@ func TestSecurityHeaders_CSPReportOnlyWithReportURI(t *testing.T) {
 // instead of silently shipping a CSP missing the inline-script hash the
 // served HTML relies on.
 func TestSecurityHeaders_InlineScriptHashTokenizerError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	cfg := baseSecureConfig()
 	staticFS := errFS{files: map[string][]byte{
@@ -710,6 +731,7 @@ func runMiddlewareForPath(
 // proxy) cannot serve another user's credentials or PII back to a different
 // session. ASVS 8.1.2 / 8.2.1.
 func TestSecurityHeaders_CacheControl_OnSensitivePaths(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		path string
@@ -724,6 +746,7 @@ func TestSecurityHeaders_CacheControl_OnSensitivePaths(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := baseSecureConfig()
 			resp := runMiddlewareForPath(t, cfg, newTestFS(t), tc.path, nil)
 
@@ -741,6 +764,7 @@ func TestSecurityHeaders_CacheControl_OnSensitivePaths(t *testing.T) {
 // non-sensitive endpoints (server lists, games catalogue, public assets)
 // remain cacheable.
 func TestSecurityHeaders_CacheControl_NotOnPublicPaths(t *testing.T) {
+	t.Parallel()
 	cases := []string{
 		"/api/games",
 		"/api/servers/1",
@@ -751,6 +775,7 @@ func TestSecurityHeaders_CacheControl_NotOnPublicPaths(t *testing.T) {
 
 	for _, path := range cases {
 		t.Run(strings.ReplaceAll(strings.TrimPrefix(path, "/"), "/", "_"), func(t *testing.T) {
+			t.Parallel()
 			cfg := baseSecureConfig()
 			resp := runMiddlewareForPath(t, cfg, newTestFS(t), path, nil)
 
@@ -767,6 +792,7 @@ func TestSecurityHeaders_CacheControl_NotOnPublicPaths(t *testing.T) {
 // file download that wants no-store with an extra directive) must not be
 // silently overwritten by the middleware default.
 func TestSecurityHeaders_CacheControl_RespectsHandlerOverride(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 
 	handler := func(w http.ResponseWriter, _ *http.Request) {
@@ -785,6 +811,7 @@ func TestSecurityHeaders_CacheControl_RespectsHandlerOverride(t *testing.T) {
 // collapse to []string{""} and match every path. The middleware must do
 // nothing when no prefixes are configured.
 func TestSecurityHeaders_CacheControl_EmptyPrefixListIsInert(t *testing.T) {
+	t.Parallel()
 	cfg := baseSecureConfig()
 	cfg.Security.SensitivePathPrefixes = []string{"", "  "}
 

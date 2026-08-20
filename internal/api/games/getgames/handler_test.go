@@ -15,6 +15,7 @@ import (
 )
 
 func TestGames(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		games []domain.Game
@@ -90,6 +91,7 @@ func TestGames(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := inmemory.NewGameRepository()
 

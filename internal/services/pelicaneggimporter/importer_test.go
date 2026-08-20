@@ -15,6 +15,8 @@ import (
 )
 
 func TestImporter_Import(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		egg            *gamesimport.PelicanEgg
@@ -403,6 +405,8 @@ func TestImporter_Import(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 
@@ -433,6 +437,8 @@ func TestImporter_Import(t *testing.T) {
 }
 
 func TestImporter_Import_WithOptions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		egg            *gamesimport.PelicanEgg
@@ -577,6 +583,8 @@ func TestImporter_Import_WithOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 
@@ -604,6 +612,8 @@ func TestImporter_Import_WithOptions(t *testing.T) {
 }
 
 func TestGenerateGameCode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -643,6 +653,8 @@ func TestGenerateGameCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := generateGameCode(tt.input)
 			assert.Equal(t, tt.expected, result)
 			assert.LessOrEqual(t, len(result), 16)
@@ -652,6 +664,8 @@ func TestGenerateGameCode(t *testing.T) {
 }
 
 func TestTransformStartupCommand(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		startup  string
@@ -751,6 +765,8 @@ func TestTransformStartupCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := transformStartupCommand(tt.startup)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -758,6 +774,8 @@ func TestTransformStartupCommand(t *testing.T) {
 }
 
 func TestTransformVariables(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		variables []gamesimport.PelicanEggVariable
@@ -831,6 +849,8 @@ func TestTransformVariables(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := transformVariables(tt.variables)
 			require.Len(t, result, len(tt.expected))
 
@@ -845,6 +865,8 @@ func TestTransformVariables(t *testing.T) {
 }
 
 func TestParsePelicanEgg(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		jsonData       string
@@ -945,6 +967,8 @@ func TestParsePelicanEgg(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			egg, err := gamesimport.ParsePelicanEgg([]byte(tt.jsonData))
 
 			if tt.wantErr {

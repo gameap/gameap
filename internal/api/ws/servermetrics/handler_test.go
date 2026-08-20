@@ -34,6 +34,7 @@ var (
 )
 
 func TestServerIDFilter(t *testing.T) {
+	t.Parallel()
 	const wantedServer uint = 7
 
 	tests := []struct {
@@ -85,12 +86,14 @@ func TestServerIDFilter(t *testing.T) {
 	filter := serverIDFilter(wantedServer)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tc.want, filter(tc.series))
 		})
 	}
 }
 
 func TestHandler_ServeHTTP_RejectsRequestsBeforeUpgrade(t *testing.T) {
+	t.Parallel()
 	authedSession := &auth.Session{User: &domain.User{ID: 1}}
 
 	tests := []struct {
@@ -197,6 +200,7 @@ func TestHandler_ServeHTTP_RejectsRequestsBeforeUpgrade(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/api/ws/servers/1/metrics", nil)
 			if tt.muxVars != nil {
@@ -219,6 +223,7 @@ func TestHandler_ServeHTTP_RejectsRequestsBeforeUpgrade(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_BlocksOnRecorder_BeforeUpgrade(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/servers/3/metrics", nil)
@@ -251,6 +256,7 @@ func TestHandler_ServeHTTP_BlocksOnRecorder_BeforeUpgrade(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_SuccessfulUpgrade(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	const serverID uint = 4
 	const dsID uint = 11
@@ -306,6 +312,7 @@ func TestHandler_ServeHTTP_SuccessfulUpgrade(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_SubscribeError_ReportsErrorFrame(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := &fakeServerRepo{servers: []domain.Server{{ID: 1, DSID: 7}}}
 	hub := &fakeHub{subErr: errors.New("hub down")}

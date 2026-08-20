@@ -8,6 +8,7 @@ import (
 )
 
 func TestCryptoRandomString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		length int
@@ -44,6 +45,7 @@ func TestCryptoRandomString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := CryptoRandomString(tt.length)
 			require.NoError(t, err)
 			assert.Equal(t, tt.length, len(result), "Generated string should have the requested length")
@@ -56,12 +58,14 @@ func TestCryptoRandomString(t *testing.T) {
 }
 
 func TestCryptoRandomString_ZeroLength(t *testing.T) {
+	t.Parallel()
 	result, err := CryptoRandomString(0)
 	require.NoError(t, err)
 	assert.Equal(t, "", result, "Zero length should return empty string")
 }
 
 func TestCryptoRandomString_Uniqueness(t *testing.T) {
+	t.Parallel()
 	length := 32
 	iterations := 100
 	generated := make(map[string]bool)
@@ -77,6 +81,7 @@ func TestCryptoRandomString_Uniqueness(t *testing.T) {
 }
 
 func TestCryptoRandomString_CharacterDistribution(t *testing.T) {
+	t.Parallel()
 	length := 1000
 	result, err := CryptoRandomString(length)
 	require.NoError(t, err)
@@ -93,6 +98,7 @@ func TestCryptoRandomString_CharacterDistribution(t *testing.T) {
 }
 
 func TestCryptoRandomString_OnlyValidCharacters(t *testing.T) {
+	t.Parallel()
 	length := 100
 	result, err := CryptoRandomString(length)
 	require.NoError(t, err)
@@ -108,6 +114,7 @@ func TestCryptoRandomString_OnlyValidCharacters(t *testing.T) {
 }
 
 func TestCryptoRandomString_NoWhitespace(t *testing.T) {
+	t.Parallel()
 	length := 100
 	result, err := CryptoRandomString(length)
 	require.NoError(t, err)
@@ -121,6 +128,7 @@ func TestCryptoRandomString_NoWhitespace(t *testing.T) {
 }
 
 func TestCryptoRandomString_NoSpecialCharacters(t *testing.T) {
+	t.Parallel()
 	length := 100
 	result, err := CryptoRandomString(length)
 	require.NoError(t, err)
@@ -132,6 +140,7 @@ func TestCryptoRandomString_NoSpecialCharacters(t *testing.T) {
 }
 
 func TestCryptoRandomString_AlphanumericOnly(t *testing.T) {
+	t.Parallel()
 	length := 100
 	result, err := CryptoRandomString(length)
 	require.NoError(t, err)
@@ -149,6 +158,7 @@ func TestCryptoRandomString_AlphanumericOnly(t *testing.T) {
 // and so cannot catch such a defect. Here the expectation is spelled out with
 // explicit rune ranges instead.
 func TestCharacterSet_IsCompleteAlphanumericWithoutDuplicates(t *testing.T) {
+	t.Parallel()
 	// ARRANGE / ACT — count every occurrence of each rune.
 	seen := make(map[rune]int, len(characterSet))
 	for _, c := range characterSet {

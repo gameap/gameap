@@ -22,6 +22,7 @@ import (
 const testJWTSecret = "test-secret-key-for-testing"
 
 func TestAuthMiddleware_Middleware(t *testing.T) {
+	t.Parallel()
 	// Setup test user
 	userRepo := inmemory.NewUserRepository()
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
@@ -133,6 +134,7 @@ func TestAuthMiddleware_Middleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Setup middleware
 			responder := api.NewResponder()
 			authMiddleware := NewAuthMiddleware(
@@ -196,6 +198,7 @@ func TestAuthMiddleware_Middleware(t *testing.T) {
 }
 
 func TestAuthMiddleware_OptionalMiddleware(t *testing.T) {
+	t.Parallel()
 	// Setup test user
 	userRepo := inmemory.NewUserRepository()
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
@@ -252,6 +255,7 @@ func TestAuthMiddleware_OptionalMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Setup middleware
 			responder := api.NewResponder()
 			authMiddleware := NewAuthMiddleware(auth.NewJWTService([]byte(testJWTSecret)), userRepo, tokenRepo, auth.NoopRevocation{}, nil, responder, nil)
@@ -298,6 +302,7 @@ func TestAuthMiddleware_OptionalMiddleware(t *testing.T) {
 }
 
 func TestTokenExtractionPriority(t *testing.T) {
+	t.Parallel()
 	// Setup
 	userRepo := inmemory.NewUserRepository()
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
@@ -453,6 +458,7 @@ func noopNextHandler() http.Handler {
 // emit exactly one auth.token.rejected event with outcome failure and the
 // branch-specific stable reason token.
 func TestAuthMiddleware_Audit_RejectionEmitsEvent(t *testing.T) {
+	t.Parallel()
 	jwtService := auth.NewJWTService([]byte(testJWTSecret))
 	expiredToken, _ := jwtService.GenerateTokenForUser(&domain.User{ID: 1, Login: "testuser"}, -time.Hour)
 
@@ -495,6 +501,7 @@ func TestAuthMiddleware_Audit_RejectionEmitsEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			mw, recorder := setupAuthMiddlewareAudit(t)
 			handler := mw.Middleware(noopNextHandler())
@@ -533,6 +540,7 @@ func TestAuthMiddleware_Audit_RejectionEmitsEvent(t *testing.T) {
 // A credential that verifies but is on the revocation denylist must still be
 // rejected AND audited with the stable token_revoked reason.
 func TestAuthMiddleware_Audit_TokenRevokedEmitsEvent(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	userRepo := inmemory.NewUserRepository()
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
@@ -595,6 +603,7 @@ func (revokeAllRevocation) IsRevoked(context.Context, string) (bool, error) { re
 // presented (anonymous access is legitimate) but MUST record one when a
 // token is presented and turns out to be invalid (a real failed attempt).
 func TestAuthMiddleware_Audit_OptionalMiddlewareNuance(t *testing.T) {
+	t.Parallel()
 	jwtService := auth.NewJWTService([]byte(testJWTSecret))
 	expiredToken, _ := jwtService.GenerateTokenForUser(&domain.User{ID: 1, Login: "testuser"}, -time.Hour)
 
@@ -619,6 +628,7 @@ func TestAuthMiddleware_Audit_OptionalMiddlewareNuance(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			mw, recorder := setupAuthMiddlewareAudit(t)
 			handler := mw.OptionalMiddleware(noopNextHandler())
@@ -656,6 +666,7 @@ func TestAuthMiddleware_Audit_OptionalMiddlewareNuance(t *testing.T) {
 // denied and category authorization for both the unauthenticated and the
 // authenticated-non-admin cases, with the branch-specific stable reason.
 func TestIsAdminMiddleware_Audit_DenialEmitsEvent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		setupAuth  func() context.Context
@@ -687,6 +698,7 @@ func TestIsAdminMiddleware_Audit_DenialEmitsEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			rbacRepo := inmemory.NewRBACRepository()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
@@ -723,6 +735,7 @@ func TestIsAdminMiddleware_Audit_DenialEmitsEvent(t *testing.T) {
 // (so the downstream scope guard can confine it), while an ordinary session
 // token leaves the flag false.
 func TestAuthMiddleware_MFAEnrollmentScopeFlag(t *testing.T) {
+	t.Parallel()
 	jwtService := auth.NewJWTService([]byte(testJWTSecret))
 
 	tests := []struct {
@@ -754,6 +767,7 @@ func TestAuthMiddleware_MFAEnrollmentScopeFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			userRepo := inmemory.NewUserRepository()
 			tokenRepo := inmemory.NewPersonalAccessTokenRepository()
@@ -807,6 +821,7 @@ func TestAuthMiddleware_MFAEnrollmentScopeFlag(t *testing.T) {
 // who actually holds the admin ability must pass the gate and must NOT leave
 // an access.denied event (no false-positive denials in the audit trail).
 func TestIsAdminMiddleware_Audit_AdminIsNotDenied(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)

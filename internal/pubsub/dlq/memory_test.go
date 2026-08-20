@@ -12,6 +12,8 @@ import (
 )
 
 func TestMemoryStore_Push_and_Pop(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	ctx := context.Background()
 
@@ -40,6 +42,8 @@ func TestMemoryStore_Push_and_Pop(t *testing.T) {
 }
 
 func TestMemoryStore_Pop_returns_ErrEmpty(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	ctx := context.Background()
 
@@ -48,6 +52,8 @@ func TestMemoryStore_Pop_returns_ErrEmpty(t *testing.T) {
 }
 
 func TestMemoryStore_List(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	ctx := context.Background()
 
@@ -73,6 +79,8 @@ func TestMemoryStore_List(t *testing.T) {
 }
 
 func TestMemoryStore_Count(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	ctx := context.Background()
 
@@ -94,6 +102,8 @@ func TestMemoryStore_Count(t *testing.T) {
 }
 
 func TestMemoryStore_MarkProcessed(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	ctx := context.Background()
 
@@ -116,6 +126,8 @@ func TestMemoryStore_MarkProcessed(t *testing.T) {
 }
 
 func TestMemoryStore_Delete(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	ctx := context.Background()
 
@@ -136,6 +148,8 @@ func TestMemoryStore_Delete(t *testing.T) {
 }
 
 func TestMemoryStore_Purge(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	ctx := context.Background()
 
@@ -159,6 +173,8 @@ func TestMemoryStore_Purge(t *testing.T) {
 }
 
 func TestMemoryStore_maxSize_eviction(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(3)
 	ctx := context.Background()
 

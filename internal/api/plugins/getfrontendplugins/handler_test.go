@@ -20,6 +20,7 @@ func (m *mockPluginProvider) GetPlugins() []*plugin.LoadedPlugin {
 }
 
 func TestHandler_ServeHTTP_NilProvider(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := getfrontendplugins.NewHandler(nil)
 	recorder := httptest.NewRecorder()
@@ -37,6 +38,7 @@ func TestHandler_ServeHTTP_NilProvider(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_Headers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		expectedHeaders map[string]string
@@ -52,6 +54,7 @@ func TestHandler_ServeHTTP_Headers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := getfrontendplugins.NewHandler(nil)
 			recorder := httptest.NewRecorder()
@@ -69,6 +72,7 @@ func TestHandler_ServeHTTP_Headers(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_PluginsHeader(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := getfrontendplugins.NewHandler(nil)
 	recorder := httptest.NewRecorder()
@@ -87,6 +91,7 @@ func TestHandler_ServeHTTP_PluginsHeader(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_WithPlugins(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		plugins        []*plugin.LoadedPlugin
@@ -201,6 +206,7 @@ func TestHandler_ServeHTTP_WithPlugins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			provider := &mockPluginProvider{plugins: tt.plugins}
 			handler := getfrontendplugins.NewHandler(provider)
@@ -226,7 +232,9 @@ func TestHandler_ServeHTTP_WithPlugins(t *testing.T) {
 }
 
 func TestNewHandler(t *testing.T) {
+	t.Parallel()
 	t.Run("with_nil_provider", func(t *testing.T) {
+		t.Parallel()
 		// ACT
 		handler := getfrontendplugins.NewHandler(nil)
 
@@ -235,6 +243,7 @@ func TestNewHandler(t *testing.T) {
 	})
 
 	t.Run("with_provider", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		provider := &mockPluginProvider{}
 

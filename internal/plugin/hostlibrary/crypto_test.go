@@ -11,6 +11,7 @@ import (
 )
 
 func TestCryptoService_RandomUint64(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		max       uint64
@@ -40,6 +41,7 @@ func TestCryptoService_RandomUint64(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			resp, err := svc.RandomUint64(ctx, &crypto.RandomUint64Request{Max: tt.max})
 			require.NoError(t, err)
 
@@ -57,6 +59,7 @@ func TestCryptoService_RandomUint64(t *testing.T) {
 }
 
 func TestCryptoService_RandomUint64_Distribution(t *testing.T) {
+	t.Parallel()
 	svc := NewCryptoService()
 	ctx := context.Background()
 
@@ -78,6 +81,7 @@ func TestCryptoService_RandomUint64_Distribution(t *testing.T) {
 }
 
 func TestCryptoService_RandomString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		length    int32
@@ -125,6 +129,7 @@ func TestCryptoService_RandomString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			resp, err := svc.RandomString(ctx, &crypto.RandomStringRequest{
 				Length:  tt.length,
 				Charset: tt.charset,
@@ -152,6 +157,7 @@ func TestCryptoService_RandomString(t *testing.T) {
 }
 
 func TestCryptoService_RandomString_Uniqueness(t *testing.T) {
+	t.Parallel()
 	svc := NewCryptoService()
 	ctx := context.Background()
 
@@ -169,6 +175,7 @@ func TestCryptoService_RandomString_Uniqueness(t *testing.T) {
 }
 
 func TestCryptoService_Argon2Hash(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		password  string
@@ -238,6 +245,7 @@ func TestCryptoService_Argon2Hash(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			resp, err := svc.Argon2Hash(ctx, &crypto.Argon2HashRequest{
 				Password: tt.password,
 				Params:   tt.params,
@@ -258,6 +266,7 @@ func TestCryptoService_Argon2Hash(t *testing.T) {
 }
 
 func TestCryptoService_Argon2Hash_UniqueHashes(t *testing.T) {
+	t.Parallel()
 	svc := NewCryptoService()
 	ctx := context.Background()
 
@@ -277,6 +286,7 @@ func TestCryptoService_Argon2Hash_UniqueHashes(t *testing.T) {
 }
 
 func TestCryptoService_Argon2Verify(t *testing.T) {
+	t.Parallel()
 	svc := NewCryptoService()
 	ctx := context.Background()
 
@@ -338,6 +348,7 @@ func TestCryptoService_Argon2Verify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			resp, err := svc.Argon2Verify(ctx, &crypto.Argon2VerifyRequest{
 				Password: tt.password,
 				Hash:     tt.hash,
@@ -358,6 +369,7 @@ func TestCryptoService_Argon2Verify(t *testing.T) {
 }
 
 func TestCryptoService_Argon2Verify_CustomParams(t *testing.T) {
+	t.Parallel()
 	svc := NewCryptoService()
 	ctx := context.Background()
 
@@ -394,6 +406,7 @@ func TestCryptoService_Argon2Verify_CustomParams(t *testing.T) {
 }
 
 func TestCryptoHostLibrary_New(t *testing.T) {
+	t.Parallel()
 	lib := NewCryptoHostLibrary()
 	assert.NotNil(t, lib)
 	assert.NotNil(t, lib.impl)

@@ -103,6 +103,7 @@ func newShortTokenMiddleware(c cache.Cache, userRepo *inmemory.UserRepository) *
 // short-lived token authenticates the request and the reconstructed session is
 // flagged ShortLived so downstream scope enforcement can apply.
 func TestAuthMiddleware_ShortLivedToken_Accepted(t *testing.T) {
+	t.Parallel()
 	user := shortTokenUser()
 	userRepo := inmemory.NewUserRepository()
 	require.NoError(t, userRepo.Save(context.Background(), user))
@@ -136,6 +137,7 @@ func TestAuthMiddleware_ShortLivedToken_Accepted(t *testing.T) {
 // token must authenticate at most once — the second presentation is rejected
 // because the first consumed (deleted) the cache entry.
 func TestAuthMiddleware_ShortLivedToken_SingleUse(t *testing.T) {
+	t.Parallel()
 	user := shortTokenUser()
 	userRepo := inmemory.NewUserRepository()
 	require.NoError(t, userRepo.Save(context.Background(), user))
@@ -167,6 +169,7 @@ func TestAuthMiddleware_ShortLivedToken_SingleUse(t *testing.T) {
 // TestAuthMiddleware_ShortLivedToken_Rejected covers OWASP API2:2023: an
 // unknown or expired short-lived token is refused with 401.
 func TestAuthMiddleware_ShortLivedToken_Rejected(t *testing.T) {
+	t.Parallel()
 	userRepo := inmemory.NewUserRepository()
 	c := cache.NewInMemory()
 
@@ -188,6 +191,7 @@ func TestAuthMiddleware_ShortLivedToken_Rejected(t *testing.T) {
 // API2:2023: a token minted from a PAT session must reconstruct a session
 // bound to the PAT id and abilities, so it is never broader than its origin.
 func TestAuthMiddleware_ShortLivedToken_InheritsPATAbilities(t *testing.T) {
+	t.Parallel()
 	user := shortTokenUser()
 	userRepo := inmemory.NewUserRepository()
 	require.NoError(t, userRepo.Save(context.Background(), user))
@@ -230,6 +234,7 @@ func TestAuthMiddleware_ShortLivedToken_InheritsPATAbilities(t *testing.T) {
 // API2:2023: with no cache wired the prefix must not be treated as a valid
 // credential — it falls through to the unknown-token rejection.
 func TestAuthMiddleware_ShortLivedToken_DisabledWithoutCache(t *testing.T) {
+	t.Parallel()
 	mw := NewAuthMiddleware(
 		auth.NewJWTService([]byte(testJWTSecret)),
 		inmemory.NewUserRepository(),
@@ -259,6 +264,7 @@ func TestAuthMiddleware_ShortLivedToken_DisabledWithoutCache(t *testing.T) {
 // infrastructure outage is not silently misreported as "token invalid" (which
 // would also let an attacker probe backend health via the auth response).
 func TestAuthMiddleware_ShortLivedToken_CacheBackendError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	userRepo := inmemory.NewUserRepository()
 	c := newControllableCache()
@@ -302,6 +308,7 @@ func TestAuthMiddleware_ShortLivedToken_CacheBackendError(t *testing.T) {
 // and the stable shorttoken_invalid_or_expired audit reason — never construct
 // a zero-valued session (which would authenticate as user id 0).
 func TestAuthMiddleware_ShortLivedToken_CorruptPayload(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	userRepo := inmemory.NewUserRepository()
 	c := cache.NewInMemory()
@@ -348,6 +355,7 @@ func TestAuthMiddleware_ShortLivedToken_CorruptPayload(t *testing.T) {
 // user_not_found reason — a deleted account cannot be resurrected by a token
 // minted before deletion.
 func TestAuthMiddleware_ShortLivedToken_UserNotFound(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — empty user repo: the payload references a user that is absent.
 	userRepo := inmemory.NewUserRepository()
 	c := cache.NewInMemory()
@@ -390,6 +398,7 @@ func TestAuthMiddleware_ShortLivedToken_UserNotFound(t *testing.T) {
 // not deny a legitimate first use); single-use is enforced by the delete on
 // the happy path, not by failing the request when the delete itself errors.
 func TestAuthMiddleware_ShortLivedToken_DeleteErrorStillAuthenticates(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	user := shortTokenUser()
 	userRepo := inmemory.NewUserRepository()
@@ -437,6 +446,7 @@ func TestAuthMiddleware_ShortLivedToken_DeleteErrorStillAuthenticates(t *testing
 // the cache entry is consumed before the session is built, so a captured
 // PAT-scoped short token cannot be replayed any more than a session-derived one.
 func TestAuthMiddleware_ShortLivedToken_PATDerivedIsSingleUse(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	user := shortTokenUser()
 	userRepo := inmemory.NewUserRepository()
@@ -480,6 +490,7 @@ func TestAuthMiddleware_ShortLivedToken_PATDerivedIsSingleUse(t *testing.T) {
 // middleware must emit exactly one auth.token.rejected event with the stable
 // shorttoken_invalid_or_expired reason and an anonymous (never a user) actor.
 func TestAuthMiddleware_ShortLivedToken_RejectionEmitsExactlyOneEvent(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	userRepo := inmemory.NewUserRepository()
 	c := cache.NewInMemory()
@@ -531,6 +542,7 @@ func TestAuthMiddleware_ShortLivedToken_RejectionEmitsExactlyOneEvent(t *testing
 // (never revoked) still authenticates and the post-auth revocation check is
 // harmless for it.
 func TestAuthMiddleware_ShortLivedToken_RevocationDoesNotInterfere(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	user := shortTokenUser()
 	userRepo := inmemory.NewUserRepository()

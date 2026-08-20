@@ -24,6 +24,7 @@ import (
 // session start the handler issues an AttachRequest with the right server id
 // to the daemon session registered in the registry.
 func TestRunAttachSession_grpcMode_sendsAttachRequestToRegistry(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 
@@ -60,6 +61,7 @@ func TestRunAttachSession_grpcMode_sendsAttachRequestToRegistry(t *testing.T) {
 // attach.input frame received over the WebSocket is translated into an
 // AttachInput gateway message containing the same payload bytes.
 func TestRunAttachSession_grpcMode_forwardsInputToRegistry(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	conn := env.dial(t)
@@ -97,6 +99,7 @@ func TestRunAttachSession_grpcMode_forwardsInputToRegistry(t *testing.T) {
 // AttachOutputPayload published on the realtime channel is delivered to the
 // connected WebSocket client through the bridge → hub → client pipeline.
 func TestRunAttachSession_grpcMode_relaysOutputToWS(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	conn := env.dial(t)
@@ -139,6 +142,7 @@ func TestRunAttachSession_grpcMode_relaysOutputToWS(t *testing.T) {
 // password — which the game server prints as part of its launch command line — never reaches
 // the WebSocket client, whichever instance published the output.
 func TestRunAttachSession_grpcMode_masksRconPasswordInOutput(t *testing.T) {
+	t.Parallel()
 	const rconPassword = "s3cr3tRc0n"
 
 	tests := []struct {
@@ -174,6 +178,7 @@ func TestRunAttachSession_grpcMode_masksRconPasswordInOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			var opts []attachEnvOption
 			if tt.rconPassword != "" {
@@ -226,6 +231,7 @@ func TestRunAttachSession_grpcMode_masksRconPasswordInOutput(t *testing.T) {
 // attach.detach frame from the client triggers a detach gateway message and
 // closes the WebSocket connection.
 func TestRunAttachSession_grpcMode_clientDetachClosesConnection(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	conn := env.dial(t)
@@ -269,6 +275,7 @@ func TestRunAttachSession_grpcMode_clientDetachClosesConnection(t *testing.T) {
 // closing the client side of the WebSocket causes the handler to send a
 // detach gateway message on its way out.
 func TestRunAttachSession_grpcMode_clientCloseTriggersDetach(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	conn := env.dial(t)
@@ -303,6 +310,7 @@ func TestRunAttachSession_grpcMode_clientCloseTriggersDetach(t *testing.T) {
 // are dropped (no AttachInput message reaches the registry) and the client
 // receives an error frame.
 func TestRunAttachSession_grpcMode_inputDeniedWhenCanSendFalse(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	// Drop admin so the per-entity allow set is consulted, then grant only
@@ -351,6 +359,7 @@ func TestRunAttachSession_grpcMode_inputDeniedWhenCanSendFalse(t *testing.T) {
 // authenticated session is rejected via the responder before any WebSocket
 // upgrade happens.
 func TestServeHTTP_unauthenticated_returns401(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	rec := httptest.NewRecorder()
@@ -373,6 +382,7 @@ func TestServeHTTP_unauthenticated_returns401(t *testing.T) {
 
 // TestServeHTTP_invalidServerID_returns400 verifies path parameter parsing.
 func TestServeHTTP_invalidServerID_returns400(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	rec := httptest.NewRecorder()
@@ -397,6 +407,7 @@ func TestServeHTTP_invalidServerID_returns400(t *testing.T) {
 // the user has no access to (here: nonexistent) yields a 404 from the
 // ServerFinder.
 func TestServeHTTP_unknownServer_returns404(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	rec := httptest.NewRecorder()
@@ -423,6 +434,7 @@ func TestServeHTTP_unknownServer_returns404(t *testing.T) {
 // gate produces a Forbidden when the user is neither admin nor explicitly
 // granted GameServerConsoleView for the server.
 func TestServeHTTP_consoleViewDenied_returns403(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	env.rbac.isAdmin = false
@@ -455,6 +467,7 @@ func TestServeHTTP_consoleViewDenied_returns403(t *testing.T) {
 // TestServeHTTP_unknownNode_returns404 verifies that a server pointing to a
 // non-existent DSID surfaces a NotFound from the node lookup.
 func TestServeHTTP_unknownNode_returns404(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newAttachEnv(t)
 	rec := httptest.NewRecorder()

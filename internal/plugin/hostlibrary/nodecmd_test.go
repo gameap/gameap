@@ -52,6 +52,7 @@ func newNodeCmdService(
 }
 
 func TestNodeCmdService_ExecuteCommand(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		setupRepo    func(*inmemory.NodeRepository)
@@ -180,6 +181,7 @@ func TestNodeCmdService_ExecuteCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeCmdService(tt.setupCmd(), repo, tt.repoFails)
@@ -205,6 +207,7 @@ func TestNodeCmdService_ExecuteCommand(t *testing.T) {
 }
 
 func TestNodeCmdService_ExecuteCommand_ForwardsCommandAndWorkDir(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	seedTestNode(repo)
@@ -237,6 +240,7 @@ func TestNodeCmdService_ExecuteCommand_ForwardsCommandAndWorkDir(t *testing.T) {
 }
 
 func TestNodeCmdService_ExecuteCommand_OmitsWorkDirOptionWhenUnset(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	seedTestNode(repo)
@@ -265,6 +269,7 @@ func TestNodeCmdService_ExecuteCommand_OmitsWorkDirOptionWhenUnset(t *testing.T)
 }
 
 func TestNewNodeCmdHostLibrary(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewNodeRepository()
 	lib := NewNodeCmdHostLibrary(nil, repo)
 

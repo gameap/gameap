@@ -8,6 +8,8 @@ import (
 )
 
 func TestMetadata_Scan(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		receiver Metadata
@@ -61,6 +63,8 @@ func TestMetadata_Scan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			m := tt.receiver
 
@@ -81,6 +85,8 @@ func TestMetadata_Scan(t *testing.T) {
 }
 
 func TestMetadata_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		metadata  Metadata
@@ -106,6 +112,8 @@ func TestMetadata_Value(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			val, err := tt.metadata.Value()
 			require.NoError(t, err)
 
@@ -123,6 +131,8 @@ func TestMetadata_Value(t *testing.T) {
 }
 
 func TestMetadata_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		metadata Metadata
@@ -152,6 +162,8 @@ func TestMetadata_String(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			result := tt.metadata.String()
 

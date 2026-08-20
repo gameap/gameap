@@ -116,6 +116,8 @@ func (m *mockFileService) GetFileInfo(ctx context.Context, node *domain.Node, pa
 // handler rejects names that could escape the per-server directory while the
 // directory Path field still accepts a legitimate relative path.
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		serverID         string
@@ -1425,6 +1427,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()

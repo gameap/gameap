@@ -15,6 +15,7 @@ import (
 )
 
 func TestSessionFromRequest(t *testing.T) {
+	t.Parallel()
 	authedSession := &auth.Session{
 		ID:    "sess-1",
 		Login: "tester",
@@ -55,6 +56,7 @@ func TestSessionFromRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, "/api/ws/tasks/1", nil)
 			if tt.ctxSession != nil {
 				req = req.WithContext(auth.ContextWithSession(req.Context(), tt.ctxSession))
@@ -81,6 +83,7 @@ func TestSessionFromRequest(t *testing.T) {
 }
 
 func TestSessionFromContext(t *testing.T) {
+	t.Parallel()
 	authedSession := &auth.Session{
 		User: &domain.User{ID: 12, Login: "alice"},
 	}
@@ -115,6 +118,7 @@ func TestSessionFromContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := context.Background()
 			if tt.ctxSession != nil {
 				ctx = auth.ContextWithSession(ctx, tt.ctxSession)

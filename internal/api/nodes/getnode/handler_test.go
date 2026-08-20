@@ -24,6 +24,7 @@ var testUser1 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		nodeID         string
@@ -117,6 +118,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			nodesRepo := inmemory.NewNodeRepository()
 			responder := api.NewResponder()
 			handler := NewHandler(nodesRepo, responder)
@@ -162,6 +164,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_NodeResponseFields(t *testing.T) {
+	t.Parallel()
 	nodesRepo := inmemory.NewNodeRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(nodesRepo, responder)
@@ -310,6 +313,7 @@ func TestHandler_NodeResponseFields(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	nodesRepo := inmemory.NewNodeRepository()
 	responder := api.NewResponder()
 
@@ -321,6 +325,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestNewNodeResponseFromNode(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	provider := "DigitalOcean"
 	ram := "2048"
@@ -381,6 +386,7 @@ func TestNewNodeResponseFromNode(t *testing.T) {
 }
 
 func TestNewNodeResponseFromNode_EmptyIP(t *testing.T) {
+	t.Parallel()
 	node := &domain.Node{
 		ID:                  1,
 		Enabled:             true,
@@ -404,6 +410,7 @@ func TestNewNodeResponseFromNode_EmptyIP(t *testing.T) {
 }
 
 func TestNewNodeResponseFromNode_NullableFields(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	node := &domain.Node{

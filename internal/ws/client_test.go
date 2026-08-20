@@ -17,6 +17,7 @@ import (
 )
 
 func TestNewClient_Defaults(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	client := NewClient(context.Background(), nil, hub, nil, nil)
 
@@ -36,6 +37,7 @@ func TestNewClient_Defaults(t *testing.T) {
 }
 
 func TestClient_Send_Enqueues(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 
 	client.Send([]byte("hello"))
@@ -45,6 +47,7 @@ func TestClient_Send_Enqueues(t *testing.T) {
 }
 
 func TestClient_Send_DropsOnFullBuffer(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 
 	for range defaultSendBufferSize {
@@ -71,6 +74,7 @@ func TestClient_Send_DropsOnFullBuffer(t *testing.T) {
 }
 
 func TestClient_Send_AppliesOutboundFilter(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 	client.SetOutboundFilter(func(frame []byte) []byte {
 		return bytes.ReplaceAll(frame, []byte("secret"), []byte("******"))
@@ -83,6 +87,7 @@ func TestClient_Send_AppliesOutboundFilter(t *testing.T) {
 }
 
 func TestClient_SendMessage_AppliesOutboundFilter(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 	client.SetOutboundFilter(func(frame []byte) []byte {
 		return bytes.ReplaceAll(frame, []byte("secret"), []byte("******"))
@@ -95,6 +100,7 @@ func TestClient_SendMessage_AppliesOutboundFilter(t *testing.T) {
 }
 
 func TestClient_Send_WithoutFilter_PassesThrough(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 
 	client.Send([]byte("password is secret"))
@@ -104,6 +110,7 @@ func TestClient_Send_WithoutFilter_PassesThrough(t *testing.T) {
 }
 
 func TestClient_SetOutboundFilter_NilClearsFilter(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 	client.SetOutboundFilter(func([]byte) []byte {
 		return []byte("filtered")
@@ -117,6 +124,7 @@ func TestClient_SetOutboundFilter_NilClearsFilter(t *testing.T) {
 }
 
 func TestClient_SendMessage_MarshalsAndEnqueues(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 
 	msg := &OutboundMessage{
@@ -136,6 +144,7 @@ func TestClient_SendMessage_MarshalsAndEnqueues(t *testing.T) {
 }
 
 func TestClient_SendMessage_DropsOnMarshalError(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 
 	msg := &OutboundMessage{
@@ -150,6 +159,7 @@ func TestClient_SendMessage_DropsOnMarshalError(t *testing.T) {
 }
 
 func TestClient_Close_CancelsContext(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 
 	client.Close()
@@ -162,6 +172,7 @@ func TestClient_Close_CancelsContext(t *testing.T) {
 }
 
 func TestClient_Close_Idempotent(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 
 	assert.NotPanics(t, func() {
@@ -172,6 +183,7 @@ func TestClient_Close_Idempotent(t *testing.T) {
 }
 
 func TestClient_Done_TracksParentContext(t *testing.T) {
+	t.Parallel()
 	parentCtx, cancel := context.WithCancel(context.Background())
 	client := NewClient(parentCtx, nil, NewHub(nil), nil, nil)
 
@@ -185,6 +197,7 @@ func TestClient_Done_TracksParentContext(t *testing.T) {
 }
 
 func TestClient_SetMessageHandler(t *testing.T) {
+	t.Parallel()
 	client := NewClient(context.Background(), nil, NewHub(nil), nil, nil)
 	require.Nil(t, client.handler)
 
@@ -283,6 +296,7 @@ func readMessage(t *testing.T, conn *websocket.Conn) []byte {
 }
 
 func TestClient_Run_AnswersApplicationPing(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	ts := newWSTestServer(t, hub, nil)
 
@@ -299,6 +313,7 @@ func TestClient_Run_AnswersApplicationPing(t *testing.T) {
 }
 
 func TestClient_Run_DispatchesToHandler(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 
 	got := make(chan *InboundMessage, 1)
@@ -328,6 +343,7 @@ func TestClient_Run_DispatchesToHandler(t *testing.T) {
 }
 
 func TestClient_Run_IgnoresInvalidJSON(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 
 	var handlerCalls int32
@@ -360,6 +376,7 @@ func TestClient_Run_IgnoresInvalidJSON(t *testing.T) {
 }
 
 func TestClient_Run_WritePumpDeliversHubBroadcast(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	ts := newWSTestServer(t, hub, nil)
 
@@ -376,6 +393,7 @@ func TestClient_Run_WritePumpDeliversHubBroadcast(t *testing.T) {
 }
 
 func TestClient_Run_DisconnectUnregistersFromHub(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	ts := newWSTestServer(t, hub, nil)
 
@@ -392,6 +410,7 @@ func TestClient_Run_DisconnectUnregistersFromHub(t *testing.T) {
 }
 
 func TestClient_Run_ServerCloseTearsDownConnection(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	ts := newWSTestServer(t, hub, nil)
 

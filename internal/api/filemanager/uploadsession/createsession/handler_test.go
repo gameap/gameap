@@ -18,6 +18,8 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	validBody := `{"path":"configs","filename":"big.bin","total_size":100,"expected_checksum":"` +
 		strings.Repeat("a", 64) + `"}`
 
@@ -180,6 +182,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			resolver := uploadsessiontest.NewResolver(t, tt.grantAccess)
 			handler := createsession.NewHandler(resolver, tt.serviceFactory(t), api.NewResponder())
 

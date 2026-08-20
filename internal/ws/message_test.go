@@ -10,6 +10,7 @@ import (
 )
 
 func TestNewOutboundMessage(t *testing.T) {
+	t.Parallel()
 	before := time.Now().Unix()
 	msg := NewOutboundMessage("task.status", map[string]any{"id": 42})
 	after := time.Now().Unix()
@@ -24,6 +25,7 @@ func TestNewOutboundMessage(t *testing.T) {
 }
 
 func TestNewOutboundMessage_NilPayload(t *testing.T) {
+	t.Parallel()
 	msg := NewOutboundMessage("ping", nil)
 
 	require.NotNil(t, msg)
@@ -33,6 +35,7 @@ func TestNewOutboundMessage_NilPayload(t *testing.T) {
 }
 
 func TestNewErrorMessage(t *testing.T) {
+	t.Parallel()
 	before := time.Now().Unix()
 	msg := NewErrorMessage("something broke")
 	after := time.Now().Unix()
@@ -51,6 +54,7 @@ func TestNewErrorMessage(t *testing.T) {
 }
 
 func TestOutboundMessage_Marshal(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		msg            OutboundMessage
@@ -104,6 +108,7 @@ func TestOutboundMessage_Marshal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			data, err := json.Marshal(tt.msg)
 			require.NoError(t, err)
 
@@ -119,6 +124,7 @@ func TestOutboundMessage_Marshal(t *testing.T) {
 }
 
 func TestInboundMessage_Unmarshal(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		input       string
@@ -154,6 +160,7 @@ func TestInboundMessage_Unmarshal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var msg InboundMessage
 			err := json.Unmarshal([]byte(tt.input), &msg)
 
@@ -177,6 +184,7 @@ func TestInboundMessage_Unmarshal(t *testing.T) {
 }
 
 func TestMessageTypes_Constants(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "ping", TypePing)
 	assert.Equal(t, "pong", TypePong)
 	assert.Equal(t, "error", TypeError)

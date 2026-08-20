@@ -9,6 +9,7 @@ import (
 )
 
 func TestMasker_String(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		secrets []string
@@ -103,6 +104,7 @@ func TestMasker_String(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			masker := secretmask.New(tt.secrets...)
 
@@ -116,6 +118,7 @@ func TestMasker_String(t *testing.T) {
 }
 
 func TestMasker_Bytes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		secrets []string
@@ -150,6 +153,7 @@ func TestMasker_Bytes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			masker := secretmask.New(tt.secrets...)
 
@@ -163,6 +167,7 @@ func TestMasker_Bytes(t *testing.T) {
 }
 
 func TestMasker_Bytes_does_not_modify_input(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	masker := secretmask.New("s3cr3tpass")
 	input := []byte("+rcon_password s3cr3tpass")
@@ -176,6 +181,7 @@ func TestMasker_Bytes_does_not_modify_input(t *testing.T) {
 }
 
 func TestMasker_Bytes_returns_same_slice_when_no_match(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	masker := secretmask.New("s3cr3tpass")
 	input := []byte("nothing to hide here")
@@ -189,6 +195,7 @@ func TestMasker_Bytes_returns_same_slice_when_no_match(t *testing.T) {
 }
 
 func TestMasker_Empty(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		masker  *secretmask.Masker
@@ -235,6 +242,7 @@ func TestMasker_Empty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			empty := tt.masker.Empty()
 			masked := tt.masker.String(tt.input)
@@ -249,6 +257,7 @@ func TestMasker_Empty(t *testing.T) {
 }
 
 func TestMasker_Bytes_masksShortSecret(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	masker := secretmask.New("ab")
 
@@ -260,6 +269,7 @@ func TestMasker_Bytes_masksShortSecret(t *testing.T) {
 }
 
 func TestPlaceholder_hides_secret_length(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	short := secretmask.New("abcd")
 	long := secretmask.New("averylongrconpassword")
