@@ -78,7 +78,7 @@ properties:
     type: array
     description: Initial server settings (optional)
     items:
-      $ref: '../ServerSetting.yaml'
+      $ref: '../ServerSettingInput.yaml'
 required:
   - name
   - ds_id

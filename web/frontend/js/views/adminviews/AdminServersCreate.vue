@@ -120,16 +120,16 @@
               />
             </n-form-item>
 
-            <div v-if="gameModSettings.length > 0">
+            <div v-if="gameModVars.length > 0">
               <n-divider>{{ trans('games.vars') }}</n-divider>
-              <div v-for="varDef in gameModSettings" :key="varDef.var" class="mb-3">
-                <n-form-item :label="varDef.info">
-                  <n-input
-                      v-model:value="serverForm.settings[varDef.var]"
-                      :placeholder="varDef.default || ''"
-                  />
-                </n-form-item>
-              </div>
+              <VarFormItem
+                  v-for="definition in gameModVars"
+                  :key="definition.name"
+                  :definition="definition"
+                  :path="`settings[${JSON.stringify(definition.name)}]`"
+                  :value="serverForm.settings[definition.name] ?? null"
+                  @update:value="serverForm.settings[definition.name] = $event"
+              />
             </div>
           </n-collapse-transition>
         </n-card>
@@ -164,6 +164,8 @@ import DsIpSelector from "@/components/servers/DsIpSelector.vue";
 import SmartPortSelector from "@/components/servers/SmartPortSelector.vue";
 import GameModSelector from "@/components/servers/GameModSelector.vue";
 import GFixedBottomBar from "@/components/GFixedBottomBar.vue";
+import VarFormItem from "@/components/input/VarFormItem.vue";
+import {coerceValue, isBlankValue, normalizeVarDefinition, serializeValue} from "@/parts/gameModVars";
 
 const router = useRouter()
 
@@ -270,16 +272,25 @@ watch(() => serverForm.value.name, (newName) => {
 
 watch(() => serverForm.value.gameMod, async (newModId) => {
   serverForm.value.settings = {}
-  if (newModId) {
-    gameModStore.setModId(newModId)
-    await gameModStore.fetchMod()
+  if (!newModId) {
+    return
   }
+
+  gameModStore.setModId(newModId)
+  await gameModStore.fetchMod()
+
+  // Text and number fields stay blank so the placeholder shows the mod default
+  // and the backend applies it; a switch has no blank state, so it is seeded.
+  const seeded = {}
+  for (const definition of gameModVars.value) {
+    if (definition.type === 'bool') {
+      seeded[definition.name] = coerceValue(definition, definition.default)
+    }
+  }
+  serverForm.value.settings = seeded
 })
 
-const gameModSettings = computed(() => {
-  if (!gameMod.value?.vars) return []
-  return gameMod.value.vars
-})
+const gameModVars = computed(() => (gameMod.value?.vars || []).map(normalizeVarDefinition))
 
 const generateRandomName = () => {
   const gameName = gamesCodeName.value[serverForm.value.game] || 'Server'
@@ -327,9 +338,12 @@ const rules = {
 const onClickCreate = () => {
   formRef.value?.validate((errors, { warnings }) => {
     if (errors) {
-      console.log(errors)
+      // The variables live inside a collapsed block that stays mounted, so an
+      // invalid one would otherwise block the submit with nothing to look at.
+      showAdditionSettings.value = true
+
       notification({
-        content: "Please check the form.",
+        content: trans('servers.settings_check_form'),
         type: "error",
       })
     } else {
@@ -339,9 +353,15 @@ const onClickCreate = () => {
 }
 
 const createServer = () => {
-  const settings = Object.entries(serverForm.value.settings || {})
-    .filter(([_, value]) => value && value.trim() !== '')
-    .map(([name, value]) => ({name, value}))
+  // A switch always carries a value; everything else is only sent when filled in,
+  // so an untouched field falls back to the mod default.
+  const settings = gameModVars.value
+    .map((definition) => ({definition, value: serverForm.value.settings?.[definition.name]}))
+    .filter(({definition, value}) => definition.type === 'bool' || !isBlankValue(value))
+    .map(({definition, value}) => ({
+      name: definition.name,
+      value: serializeValue(definition, value),
+    }))
 
   serverListStore.create({
     name: serverForm.value.name,

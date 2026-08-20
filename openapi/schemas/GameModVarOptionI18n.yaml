@@ -1,0 +1,17 @@
+type: object
+minProperties: 1
+description: |
+  Option label translations keyed by lowercase BCP-47 locale.
+  `en` is not allowed: the base label lives in the `label` field.
+additionalProperties:
+  type: object
+  required:
+    - label
+  properties:
+    label:
+      type: string
+      minLength: 1
+      maxLength: 128
+example:
+  ru:
+    label: "Ванильный"

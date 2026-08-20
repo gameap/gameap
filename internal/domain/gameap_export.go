@@ -66,17 +66,13 @@ type GameExportMod struct {
 	Metadata                Metadata                `yaml:"metadata,omitempty"`
 }
 
-type GameExportModFastRcon struct {
-	Info    string `yaml:"info"`
-	Command string `yaml:"command"`
-}
-
-type GameExportModVar struct {
-	Var      string `yaml:"var"`
-	Default  string `yaml:"default,omitempty"`
-	Info     string `yaml:"info,omitempty"`
-	AdminVar bool   `yaml:"admin_var,omitempty"`
-}
+// The export format carries the same variable and fast RCON shape as the
+// catalog schema, so it reuses the domain types instead of a parallel copy that
+// would have to be kept in sync by hand.
+type (
+	GameExportModFastRcon = GameModFastRcon
+	GameExportModVar      = GameModVar
+)
 
 func ParseGameExport(data []byte) (*GameExport, error) {
 	var export GameExport
@@ -194,6 +190,14 @@ func (e *GameExport) validateMods() error {
 		if err := validateModCommands(&mod, i); err != nil {
 			return err
 		}
+
+		if err := GameModVarList(mod.Vars).Validate(); err != nil {
+			return errors.WithMessagef(err, "mods[%d]", i)
+		}
+
+		if err := GameModFastRconList(mod.FastRcon).Validate(); err != nil {
+			return errors.WithMessagef(err, "mods[%d]", i)
+		}
 	}
 
 	return nil
@@ -264,17 +268,17 @@ func (g *GameExportGame) ToDomainGame() *Game {
 func (m *GameExportMod) ToDomainGameMod(gameCode string) *GameMod {
 	fastRcon := make(GameModFastRconList, 0, len(m.FastRcon))
 	for _, fr := range m.FastRcon {
-		fastRcon = append(fastRcon, GameModFastRcon(fr))
+		fr.Normalize()
+		fastRcon = append(fastRcon, fr)
 	}
 
 	vars := make(GameModVarList, 0, len(m.Vars))
 	for _, v := range m.Vars {
-		vars = append(vars, GameModVar{
-			Var:      v.Var,
-			Default:  GameModVarDefault(v.Default),
-			Info:     v.Info,
-			AdminVar: v.AdminVar,
-		})
+		// Clone the rules so the export struct and the domain struct do not
+		// share one pointer.
+		v.Rules = v.Rules.Clone()
+		v.Normalize()
+		vars = append(vars, v)
 	}
 
 	return &GameMod{
@@ -336,17 +340,15 @@ func NewGameExportFromDomain(game *Game, mods []GameMod, version string) *GameEx
 func newGameExportModFromDomain(mod *GameMod) GameExportMod {
 	fastRcon := make([]GameExportModFastRcon, 0, len(mod.FastRcon))
 	for _, fr := range mod.FastRcon {
-		fastRcon = append(fastRcon, GameExportModFastRcon(fr))
+		fr.Normalize()
+		fastRcon = append(fastRcon, fr)
 	}
 
 	vars := make([]GameExportModVar, 0, len(mod.Vars))
 	for _, v := range mod.Vars {
-		vars = append(vars, GameExportModVar{
-			Var:      v.Var,
-			Default:  string(v.Default),
-			Info:     v.Info,
-			AdminVar: v.AdminVar,
-		})
+		v.Rules = v.Rules.Clone()
+		v.Normalize()
+		vars = append(vars, v)
 	}
 
 	return GameExportMod{

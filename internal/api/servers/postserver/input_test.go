@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	settingsbase "github.com/gameap/gameap/internal/api/serversettings/base"
 	"github.com/gameap/gameap/pkg/flexible"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -311,7 +312,7 @@ func TestServerInput_Validate(t *testing.T) {
 			name: "setting_name_empty_required",
 			input: func() serverInput {
 				in := validInput()
-				in.Settings = []settingInput{
+				in.Settings = []settingsbase.InputSetting{
 					{Name: "", Value: "ignored"},
 				}
 
@@ -323,7 +324,7 @@ func TestServerInput_Validate(t *testing.T) {
 			name: "settings_with_non_empty_names_are_valid",
 			input: func() serverInput {
 				in := validInput()
-				in.Settings = []settingInput{
+				in.Settings = []settingsbase.InputSetting{
 					{Name: "autostart", Value: true},
 					{Name: "maxplayers", Value: "32"},
 				}

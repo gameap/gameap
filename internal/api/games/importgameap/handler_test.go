@@ -165,7 +165,7 @@ game:
 `,
 			setupGame:      func(_ *inmemory.GameRepository) {},
 			setupGameMod:   func(_ *inmemory.GameModRepository) {},
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus: http.StatusUnprocessableEntity,
 		},
 		{
 			name: "invalid_game_code",
@@ -178,7 +178,7 @@ game:
 `,
 			setupGame:      func(_ *inmemory.GameRepository) {},
 			setupGameMod:   func(_ *inmemory.GameModRepository) {},
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus: http.StatusUnprocessableEntity,
 		},
 		{
 			name: "duplicate_mod_names",
@@ -194,7 +194,7 @@ mods:
 `,
 			setupGame:      func(_ *inmemory.GameRepository) {},
 			setupGameMod:   func(_ *inmemory.GameModRepository) {},
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus: http.StatusUnprocessableEntity,
 		},
 		{
 			name: "unsupported_schema_version",
@@ -207,7 +207,7 @@ game:
 `,
 			setupGame:      func(_ *inmemory.GameRepository) {},
 			setupGameMod:   func(_ *inmemory.GameModRepository) {},
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus: http.StatusUnprocessableEntity,
 		},
 	}
 

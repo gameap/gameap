@@ -99,8 +99,64 @@ const mockGames = [
 ]
 
 // Mock game mods
+const mockGameModVars = [
+    {
+        var: 'version',
+        default: '1.20.4',
+        info: 'Minecraft version',
+        admin_var: true,
+        type: 'select',
+        description: 'The version the server runs',
+        allow_custom: true,
+        options: ['1.21', { value: '1.20.4', label: '1.20.4 (LTS)' }],
+        i18n: { ru: { info: 'Версия Minecraft' } },
+    },
+    {
+        var: 'maxplayers',
+        default: '20',
+        info: 'Max players',
+        admin_var: false,
+        type: 'int',
+        rules: { min: 1, max: 64 },
+    },
+    {
+        var: 'pvp',
+        default: 'on',
+        info: 'PvP',
+        admin_var: false,
+        type: 'bool',
+        true_value: 'on',
+        false_value: 'off',
+    },
+    {
+        var: 'hostname',
+        default: 'Test Server',
+        info: 'Hostname',
+        admin_var: false,
+    },
+    {
+        var: 'rcon_password',
+        default: '',
+        info: 'RCON password',
+        admin_var: true,
+        type: 'password',
+    },
+]
+
+const mockFastRcon = [
+    { info: 'Say Hello', command: 'say Hello', i18n: { ru: { info: 'Поздороваться' } } },
+    { info: 'Change to Dust2', command: 'changelevel de_dust2' },
+]
+
 const mockGameMods = [
-    { id: 1, game_code: 'minecraft', name: 'Vanilla', default_start_cmd: 'java -jar server.jar' },
+    {
+        id: 1,
+        game_code: 'minecraft',
+        name: 'Vanilla',
+        default_start_cmd: 'java -jar server.jar',
+        vars: mockGameModVars,
+        fast_rcon: mockFastRcon,
+    },
     { id: 2, game_code: 'cs2', name: 'Competitive', default_start_cmd: './cs2 -dedicated' },
 ]
 
@@ -264,12 +320,38 @@ export const handlers = [
 
     http.get('/api/servers/:id/settings', async () => {
         await delay(debugState.networkDelay)
-        return HttpResponse.json({
-            vars: {
-                maxplayers: '20',
-                hostname: 'Test Server',
+        // Mirrors GET /api/servers/{id}/settings: the game mod definition merged
+        // with the per-server value, typed after `type`.
+        return HttpResponse.json([
+            { name: 'autostart', value: false, default: false, type: 'bool', label: 'Autostart' },
+            {
+                name: 'update_before_start', value: false, default: false,
+                type: 'bool', label: 'Update before start',
             },
-        })
+            {
+                name: 'version', value: '1.20.4', default: '1.20.4', type: 'select',
+                label: 'Minecraft version', description: 'The version the server runs',
+                allow_custom: true, admin_var: true,
+                options: [
+                    { value: '1.21', label: '1.21' },
+                    { value: '1.20.4', label: '1.20.4 (LTS)' },
+                ],
+                i18n: { ru: { info: 'Версия Minecraft' } },
+            },
+            {
+                name: 'maxplayers', value: 32, default: 20, type: 'int',
+                label: 'Max players', rules: { min: 1, max: 64 },
+            },
+            { name: 'pvp', value: true, default: true, type: 'bool', label: 'PvP' },
+            {
+                name: 'hostname', value: 'Test Server', default: 'Test Server',
+                type: 'string', label: 'Hostname',
+            },
+            {
+                name: 'rcon_password', value: '', default: '',
+                type: 'password', label: 'RCON password', admin_var: true,
+            },
+        ])
     }),
 
     http.put('/api/servers/:id', async () => {
@@ -380,10 +462,7 @@ export const handlers = [
 
     http.get('/api/servers/:id/rcon/fast_rcon', async () => {
         await delay(debugState.networkDelay)
-        return HttpResponse.json([
-            { command: 'say Hello', label: 'Say Hello' },
-            { command: 'changelevel de_dust2', label: 'Change to Dust2' },
-        ])
+        return HttpResponse.json(mockFastRcon)
     }),
 
     http.post('/api/servers/:id/rcon', async ({ request }) => {

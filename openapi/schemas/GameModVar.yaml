@@ -1,0 +1,64 @@
+type: object
+description: |
+  Game mod template variable, referenced as `{var}` in command templates and
+  exported as an environment variable on server start.
+required:
+  - var
+properties:
+  var:
+    type: string
+    pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
+    maxLength: 32
+    description: |
+      Variable name. The curated games catalog uses `^[a-z][a-z0-9_]*$`; the
+      panel also accepts uppercase so that imported Pelican eggs keep their
+      original environment variable names.
+    example: "maxplayers"
+  default:
+    type:
+      - string
+      - "null"
+    maxLength: 64
+    description: |
+      Default value. Always a string (quote numbers in YAML) or null; for `bool`
+      variables it must equal `true_value` or `false_value`.
+    example: "32"
+  info:
+    type: string
+    minLength: 1
+    maxLength: 128
+    description: Short label shown in the panel. Base language is English; translations go to `i18n`.
+    example: "Maximum number of players"
+  admin_var:
+    type: boolean
+    description: Only panel administrators can change the value.
+    example: false
+  type:
+    $ref: './GameModVarType.yaml'
+  description:
+    type: string
+    maxLength: 1000
+    description: Long help text shown as a hint next to the field.
+  options:
+    type: array
+    minItems: 1
+    description: Allowed values for a `select` variable.
+    items:
+      $ref: './GameModVarOption.yaml'
+  allow_custom:
+    type: boolean
+    description: |
+      `select` only: allow entering a value that is not in `options` (combobox).
+      Custom input is checked against the `min_length`/`max_length`/`pattern` rules.
+  true_value:
+    type: string
+    maxLength: 64
+    description: '`bool` only: the string stored and substituted into `{var}` when the checkbox is on. Default "1".'
+  false_value:
+    type: string
+    maxLength: 64
+    description: '`bool` only: the string stored and substituted into `{var}` when the checkbox is off. Default "0". May be empty for flag-style options.'
+  rules:
+    $ref: './GameModVarRules.yaml'
+  i18n:
+    $ref: './GameModVarI18n.yaml'

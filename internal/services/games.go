@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -54,6 +55,11 @@ func (s *GameUpgradeService) UpgradeGames(ctx context.Context) error {
 			}
 
 			for _, apiMod := range apiGame.Mods {
+				incoming := apiMod.ToDomainGameMod()
+				if !sanitizeCatalogMod(ctx, incoming) {
+					continue
+				}
+
 				gameMods, err := s.gameModRepo.Find(ctx, &filters.FindGameMod{
 					Names:     []string{apiMod.Name},
 					GameCodes: []string{apiMod.GameCode},
@@ -71,9 +77,9 @@ func (s *GameUpgradeService) UpgradeGames(ctx context.Context) error {
 				if len(gameMods) == 1 {
 					gameMod = &gameMods[0]
 
-					gameMod.Merge(apiMod.ToDomainGameMod())
+					gameMod.Merge(incoming)
 				} else {
-					gameMod = apiMod.ToDomainGameMod()
+					gameMod = incoming
 				}
 
 				err = s.gameModRepo.Save(ctx, gameMod)
@@ -87,4 +93,39 @@ func (s *GameUpgradeService) UpgradeGames(ctx context.Context) error {
 	})
 
 	return err
+}
+
+// sanitizeCatalogMod normalizes the definitions that came from the catalog and
+// reports whether the mod is safe to store. A single malformed entry is skipped
+// with a warning rather than aborting the whole upgrade.
+func sanitizeCatalogMod(ctx context.Context, gameMod *domain.GameMod) bool {
+	for i := range gameMod.Vars {
+		gameMod.Vars[i].Normalize()
+	}
+
+	for i := range gameMod.FastRcon {
+		gameMod.FastRcon[i].Normalize()
+	}
+
+	if err := gameMod.Vars.Validate(); err != nil {
+		slog.WarnContext(ctx, "skipping game mod with invalid variables",
+			slog.String("game_code", gameMod.GameCode),
+			slog.String("mod", gameMod.Name),
+			slog.String("error", err.Error()),
+		)
+
+		return false
+	}
+
+	if err := gameMod.FastRcon.Validate(); err != nil {
+		slog.WarnContext(ctx, "skipping game mod with invalid fast rcon commands",
+			slog.String("game_code", gameMod.GameCode),
+			slog.String("mod", gameMod.Name),
+			slog.String("error", err.Error()),
+		)
+
+		return false
+	}
+
+	return true
 }

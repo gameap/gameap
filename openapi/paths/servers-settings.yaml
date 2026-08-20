@@ -3,7 +3,10 @@
     tags:
       - ServerSettings
     summary: Get server settings
-    description: Returns the server settings (vars)
+    description: |
+      Returns the server settings: the game mod variable definitions merged with
+      the per-server values. `value` and `default` are typed after the variable
+      `type`. Admin-only variables are omitted for non-admin users.
     operationId: getServerSettings
     parameters:
       - name: server
@@ -38,7 +41,10 @@
     tags:
       - ServerSettings
     summary: Update server settings
-    description: Updates the server settings (vars)
+    description: |
+      Updates the server settings. Every value is validated against the variable
+      `rules` before anything is written; on a violation the response is 422 with
+      a per-variable `errors` map and no setting is changed.
     operationId: updateServerSettings
     parameters:
       - name: server
@@ -73,7 +79,7 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '422':
-        description: Validation error
+        description: Validation error; `errors` maps a variable name to its messages
         content:
           application/json:
             schema:

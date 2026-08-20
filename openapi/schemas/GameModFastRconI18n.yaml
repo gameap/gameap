@@ -1,0 +1,17 @@
+type: object
+minProperties: 1
+description: |
+  Button label translations keyed by lowercase BCP-47 locale.
+  `en` is not allowed: the base label lives in the `info` field.
+additionalProperties:
+  type: object
+  required:
+    - info
+  properties:
+    info:
+      type: string
+      minLength: 1
+      maxLength: 128
+example:
+  ru:
+    info: "Статус"

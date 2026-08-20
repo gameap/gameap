@@ -30,6 +30,7 @@ export const defaultIconMap = {
   "download": "fa-solid fa-download",
   "upload": "fa-solid fa-upload",
   "export": "fa-solid fa-arrow-up-right-from-square",
+  "languages": "fa-solid fa-language",
   "search": "fa-solid fa-magnifying-glass",
   "magnifying-glass": "fa-solid fa-magnifying-glass",
   "view": "fa-solid fa-eye",

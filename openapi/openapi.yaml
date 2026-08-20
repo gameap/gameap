@@ -533,6 +533,10 @@ paths:
     $ref: './paths/games.yaml#/~1api~1games~1{code}'
   /api/games/{code}/mods:
     $ref: './paths/games.yaml#/~1api~1games~1{code}~1mods'
+  /api/games/import/gameap:
+    $ref: './paths/games.yaml#/~1api~1games~1import~1gameap'
+  /api/games/{code}/export:
+    $ref: './paths/games.yaml#/~1api~1games~1{code}~1export'
 
   # Game Mods (Admin)
   /api/game_mods:

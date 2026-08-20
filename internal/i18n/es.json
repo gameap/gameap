@@ -176,6 +176,48 @@
     "work_path": "Ruta de trabajo"
   },
   "games": {
+    "var_type": "Tipo",
+    "var_type_string": "Cadena",
+    "var_type_text": "Texto",
+    "var_type_int": "Entero",
+    "var_type_float": "Número",
+    "var_type_bool": "Interruptor",
+    "var_type_select": "Lista",
+    "var_type_password": "Contraseña",
+    "var_name_hint": "Letras minúsculas, dígitos y guiones bajos, hasta 32 caracteres.",
+    "var_name_invalid": "El catálogo de juegos rechazará este nombre.",
+    "add_var": "Añadir variable",
+    "search_vars": "Buscar variables",
+    "var_options": "Opciones",
+    "var_option_value": "Valor",
+    "var_option_label": "Etiqueta",
+    "var_option_add": "Añadir opción",
+    "var_options_required": "Añada al menos una opción para una variable de lista.",
+    "var_options_duplicate": "Los valores de las opciones deben ser únicos.",
+    "var_allow_custom": "Permitir un valor personalizado",
+    "var_true_value": "Valor cuando está activado",
+    "var_false_value": "Valor cuando está desactivado",
+    "var_bool_default_hint": "El valor predeterminado debe coincidir con uno de los dos valores anteriores.",
+    "var_rules": "Validación",
+    "var_rule_required": "Obligatorio",
+    "var_rule_min": "Mínimo",
+    "var_rule_max": "Máximo",
+    "var_rule_min_length": "Longitud mínima",
+    "var_rule_max_length": "Longitud máxima",
+    "var_rule_pattern": "Patrón (expresión regular)",
+    "var_rule_pattern_test": "Valor de prueba",
+    "var_rule_pattern_match": "Coincide",
+    "var_rule_pattern_no_match": "No coincide",
+    "var_rule_pattern_invalid": "Expresión regular no válida",
+    "var_rule_pattern_unsupported": "No se admiten aserciones de anticipación ni retrorreferencias.",
+    "translations": "Traducciones",
+    "translations_add": "Añadir traducción",
+    "translations_locale": "Idioma",
+    "translations_en_hint": "El texto en inglés se toma de los campos principales.",
+    "translations_empty": "Sin traducciones",
+    "move_up": "Mover arriba",
+    "move_down": "Mover abajo",
+    "advanced": "Avanzado",
     "title_games_list": "Lista de juegos",
     "title_game": "Juego",
     "title_game_mod": "Mod del juego",
@@ -637,6 +679,8 @@
     "message_msg_success": "Mensaje enviado"
   },
   "servers": {
+    "settings_admin_var": "Solo administradores",
+    "settings_check_form": "Compruebe los campos resaltados.",
     "title_servers_list": "Lista de servidores de juego",
     "title_create": "Crear servidor",
     "title_edit": "Editar servidor",
@@ -908,6 +952,30 @@
     "delete_self_error_msg": "No puedes eliminarte a ti mismo"
   },
   "validation": {
+    "between": {
+      "numeric": "El campo :attribute debe estar entre :min y :max.",
+      "file": "El archivo :attribute debe pesar entre :min y :max kilobytes.",
+      "string": "El campo :attribute debe tener entre :min y :max caracteres.",
+      "array": "El campo :attribute debe tener entre :min y :max elementos."
+    },
+    "gte": {
+      "numeric": "El campo :attribute debe ser mayor o igual que :value.",
+      "file": "El archivo :attribute debe ser mayor o igual que :value kilobytes.",
+      "string": "El campo :attribute debe tener :value caracteres o más.",
+      "array": "El campo :attribute debe tener :value elementos o más."
+    },
+    "max": {
+      "numeric": "El campo :attribute no debe ser mayor que :max.",
+      "file": "El archivo :attribute no debe pesar más de :max kilobytes.",
+      "string": "El campo :attribute no debe tener más de :max caracteres.",
+      "array": "El campo :attribute no debe tener más de :max elementos."
+    },
+    "min": {
+      "numeric": "El campo :attribute debe ser al menos :min.",
+      "file": "El archivo :attribute debe pesar al menos :min kilobytes.",
+      "string": "El campo :attribute debe tener al menos :min caracteres.",
+      "array": "El campo :attribute debe tener al menos :min elementos."
+    },
     "accepted": "El campo :attribute debe ser aceptado.",
     "accepted_if": "El campo :attribute debe ser aceptado cuando :other es :value.",
     "active_url": "El campo :attribute no es una URL válida.",

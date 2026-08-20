@@ -1,27 +1,59 @@
 type: object
 description: |
-  Server setting key-value pair as returned by `GET /api/servers/{server}/settings`.
-  Settings come from the game mod template (`type`, `label`) merged with the per-server
-  override (`value`). For the update payload of `PUT /api/servers/{server}/settings`,
-  see `UpdateServerSettingsRequest`.
+  Server setting as returned by `GET /api/servers/{server}/settings`.
+  Settings merge the game mod variable definition (`type`, `label`, `options`,
+  `rules`, …) with the per-server override (`value`). For the update payload of
+  `PUT /api/servers/{server}/settings` see `UpdateServerSettingsRequest`.
+
+  `value` and `default` are typed after `type`: boolean for `bool`, number for
+  `int`/`float`, string for `string`, `text`, `password` and `select`.
+  Whatever the JSON type, the panel stores the value as the string that is
+  substituted into `{var}`.
 properties:
   name:
     type: string
     description: Setting machine name
     example: "maxplayers"
   value:
-    description: |
-      Setting value. JSON type depends on `type` — string for text/select,
-      number for int/float, boolean for bool, array for multiselect.
-    example: "32"
+    description: Current value, typed after `type`.
+    example: 32
+  default:
+    description: Value from the game mod template, typed after `type`.
+    example: 32
   type:
-    type: string
-    description: Value type hint for the UI
-    example: "int"
+    $ref: './GameModVarType.yaml'
   label:
     type: string
-    description: Human-readable label
+    description: Human-readable label (base language English)
     example: "Maximum players"
+  description:
+    type: string
+    description: Long help text shown next to the field
+  options:
+    type: array
+    description: |
+      Allowed values for a `select` setting. Always the object form here, even
+      when the game mod template used the plain-string shorthand.
+    items:
+      type: object
+      required:
+        - value
+        - label
+      properties:
+        value:
+          type: string
+        label:
+          type: string
+          description: Defaults to `value`
+        i18n:
+          $ref: './GameModVarOptionI18n.yaml'
+  allow_custom:
+    type: boolean
+    description: '`select` only: a value outside `options` is accepted'
+  rules:
+    $ref: './GameModVarRules.yaml'
+  i18n:
+    $ref: './GameModVarI18n.yaml'
   admin_var:
     type: boolean
     description: Whether the setting is admin-only (omitted when false)

@@ -54,19 +54,46 @@
               "var": "default_map",
               "default": "Ragnarok",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": {
+                "ru": {
+                  "info": "Карта по умолчанию"
+                }
+              }
             },
             {
               "var": "maxplayers",
               "default": "20",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": {
+                "ru": {
+                  "info": "Максимум игроков на сервере"
+                }
+              }
             },
             {
               "var": "join_password",
               "default": "",
               "info": "Join password",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": {
+                "ru": {
+                  "info": "Пароль для входа"
+                }
+              }
             }
           ],
           "remote_repository_linux": "",
@@ -198,11 +225,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -210,13 +239,23 @@
               "var": "default_map",
               "default": "crossfire",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -265,11 +304,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -277,19 +318,34 @@
               "var": "default_map",
               "default": "de_dust2",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -325,11 +381,21 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": {
+                "ru": {
+                  "info": "Статус"
+                }
+              }
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": {
+                "ru": {
+                  "info": "Статистика"
+                }
+              }
             }
           ],
           "vars": [
@@ -337,19 +403,34 @@
               "var": "default_map",
               "default": "de_dust2",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "server_token",
               "default": "",
               "info": "Server Token (sv_setsteamaccount)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "hostname",
               "default": "GameAP CS2 Server",
               "info": "Server hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/cs2/default_linux.tar.gz",
@@ -385,11 +466,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -397,19 +480,34 @@
               "var": "default_map",
               "default": "de_dust2",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "server_token",
               "default": "",
               "info": "Server Token (sv_setsteamaccount)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -445,11 +543,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -457,13 +557,23 @@
               "var": "default_map",
               "default": "de_dust2",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -499,11 +609,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -511,19 +623,34 @@
               "var": "default_map",
               "default": "de_dust2",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "tickrate",
               "default": "66",
               "info": "Tickrate",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -559,19 +686,23 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             },
             {
               "info": "Last disconnect players",
-              "command": "amx_last"
+              "command": "amx_last",
+              "i18n": null
             },
             {
               "info": "Admins on servers",
-              "command": "amx_who"
+              "command": "amx_who",
+              "i18n": null
             }
           ],
           "vars": [
@@ -579,19 +710,34 @@
               "var": "default_map",
               "default": "de_dust2",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/cstrike-1.6/amxx.tar.xz",
@@ -613,11 +759,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -625,19 +773,34 @@
               "var": "default_map",
               "default": "de_dust2",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -659,19 +822,23 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             },
             {
               "info": "Last disconnect players",
-              "command": "amx_last"
+              "command": "amx_last",
+              "i18n": null
             },
             {
               "info": "Admins on servers",
-              "command": "amx_who"
+              "command": "amx_who",
+              "i18n": null
             }
           ],
           "vars": [
@@ -679,19 +846,34 @@
               "var": "default_map",
               "default": "de_dust2",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/cstrike-1.6/rehlds-amxx-reunion.tar.xz",
@@ -727,11 +909,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -739,19 +923,34 @@
               "var": "default_map",
               "default": "de_dust2",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -787,11 +986,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -799,19 +1000,34 @@
               "var": "default_map",
               "default": "dm1",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -847,11 +1063,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -859,19 +1077,34 @@
               "var": "default_map",
               "default": "dod_caen",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -907,11 +1140,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -919,13 +1154,23 @@
               "var": "default_map",
               "default": "dod_anzio",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -939,6 +1184,190 @@
           "chmap_cmd": "changelevel {map}",
           "sendmsg_cmd": "",
           "passwd_cmd": "password {password}"
+        }
+      ]
+    },
+    {
+      "code": "factorio",
+      "start_code": "factorio",
+      "name": "Factorio",
+      "engine": "factorio",
+      "engine_version": "1",
+      "steam_app_id_linux": 0,
+      "steam_app_id_windows": 0,
+      "steam_app_set_config": "",
+      "remote_repository_linux": "https://cdn.gameap.com/factorio/run.sh.tar.gz",
+      "remote_repository_windows": "",
+      "mods": [
+        {
+          "id": 0,
+          "game_code": "factorio",
+          "name": "Experimental",
+          "fast_rcon": null,
+          "vars": [
+            {
+              "var": "name",
+              "default": "GameAP Factorio Server",
+              "info": "Server Name",
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "maxplayers",
+              "default": "10",
+              "info": "Maximum players on server",
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "autosave_interval",
+              "default": "10",
+              "info": "Autosave interval in minutes",
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "visibility",
+              "default": "public,lan",
+              "info": "Server visibility (public, lan, hidden)",
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "seed",
+              "default": "1829462",
+              "info": "Seed for server map generation",
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "tags",
+              "default": "vanilla, casual",
+              "info": "Tags to make searching easier",
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            }
+          ],
+          "remote_repository_linux": "https://cdn.gameap.com/factorio/factorio-headless_linux_2.1.12.tar.xz",
+          "remote_repository_windows": "",
+          "start_cmd_linux": "./run.sh --name=\"{name}\" --port={port} --rcon-port={rcon_port} --rcon-password={rcon_password} --tags=\"{tags}\" --max-players={maxplayers} --autosave-interval={autosave_interval} --visibility={visibility} --map-gen-seed={seed}",
+          "start_cmd_windows": "",
+          "kick_cmd": "",
+          "ban_cmd": "",
+          "chname_cmd": "",
+          "srestart_cmd": "",
+          "chmap_cmd": "",
+          "sendmsg_cmd": "",
+          "passwd_cmd": ""
+        },
+        {
+          "id": 0,
+          "game_code": "factorio",
+          "name": "Stable",
+          "fast_rcon": null,
+          "vars": [
+            {
+              "var": "name",
+              "default": "GameAP Factorio Server",
+              "info": "Server Name",
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "maxplayers",
+              "default": "10",
+              "info": "Maximum players on server",
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "autosave_interval",
+              "default": "10",
+              "info": "Autosave interval in minutes",
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "visibility",
+              "default": "public,lan",
+              "info": "Server visibility (public, lan, hidden)",
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "seed",
+              "default": "1829462",
+              "info": "Seed for server map generation",
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            },
+            {
+              "var": "tags",
+              "default": "vanilla, casual",
+              "info": "Tags to make searching easier",
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
+            }
+          ],
+          "remote_repository_linux": "https://cdn.gameap.com/factorio/factorio-headless_linux_2.0.77.tar.xz",
+          "remote_repository_windows": "",
+          "start_cmd_linux": "./run.sh --name=\"{name}\" --port={port} --rcon-port={rcon_port} --rcon-password={rcon_password} --tags=\"{tags}\" --max-players={maxplayers} --autosave-interval={autosave_interval} --visibility={visibility} --map-gen-seed={seed}",
+          "start_cmd_windows": "",
+          "kick_cmd": "",
+          "ban_cmd": "",
+          "chname_cmd": "",
+          "srestart_cmd": "",
+          "chmap_cmd": "",
+          "sendmsg_cmd": "",
+          "passwd_cmd": ""
         }
       ]
     },
@@ -964,19 +1393,34 @@
               "var": "hostname",
               "default": "GameAP FiveM Server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "license_key",
               "default": "changeme",
               "info": "License key from https://keymaster.fivem.net",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1012,11 +1456,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -1024,19 +1470,34 @@
               "var": "default_map",
               "default": "gm_flatgrass",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "tickrate",
               "default": "22",
               "info": "Tickrate",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1075,7 +1536,12 @@
               "var": "memory",
               "default": "4G",
               "info": "Memory. Max heap size (Xmx)",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1111,11 +1577,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -1123,13 +1591,23 @@
               "var": "default_map",
               "default": "dm_lockdown",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "16",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1168,13 +1646,23 @@
               "var": "hostname",
               "default": "GameAP Hurtworld Server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1242,11 +1730,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -1254,7 +1744,12 @@
               "var": "default_map",
               "default": "l4d_hospital01_apartment",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1290,11 +1785,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -1302,7 +1799,12 @@
               "var": "default_map",
               "default": "c2m1_highway",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1338,27 +1840,33 @@
           "fast_rcon": [
             {
               "info": "Ban List",
-              "command": "banlist players"
+              "command": "banlist players",
+              "i18n": null
             },
             {
               "info": "Save World",
-              "command": "save-all"
+              "command": "save-all",
+              "i18n": null
             },
             {
               "info": "Set Day",
-              "command": "time set day"
+              "command": "time set day",
+              "i18n": null
             },
             {
               "info": "Set Night",
-              "command": "time set night"
+              "command": "time set night",
+              "i18n": null
             },
             {
               "info": "Weather Clear",
-              "command": "weather clear"
+              "command": "weather clear",
+              "i18n": null
             },
             {
               "info": "Seed",
-              "command": "seed"
+              "command": "seed",
+              "i18n": null
             }
           ],
           "vars": [
@@ -1366,31 +1874,200 @@
               "var": "version",
               "default": "1.20.4",
               "info": "Minecraft version",
-              "admin_var": true
+              "admin_var": true,
+              "type": "select",
+              "description": "",
+              "allow_custom": true,
+              "options": [
+                "26.2",
+                "26.1.2",
+                "26.1.1",
+                "26.1",
+                "1.21.11",
+                "1.21.10",
+                "1.21.9",
+                "1.21.8",
+                "1.21.7",
+                "1.21.6",
+                "1.21.5",
+                "1.21.4",
+                "1.21.3",
+                "1.21.2",
+                "1.21.1",
+                "1.21",
+                "1.20.6",
+                "1.20.5",
+                "1.20.4",
+                "1.20.3",
+                "1.20.2",
+                "1.20.1",
+                "1.20",
+                "1.19.4",
+                "1.19.3",
+                "1.19.2",
+                "1.19.1",
+                "1.19",
+                "1.18.2",
+                "1.18.1",
+                "1.18",
+                "1.17.1",
+                "1.17",
+                "1.16.5",
+                "1.16.4",
+                "1.16.3",
+                "1.16.2",
+                "1.16.1",
+                "1.16",
+                "1.15.2",
+                "1.15.1",
+                "1.15",
+                "1.14.4",
+                "1.14.3",
+                "1.14.2",
+                "1.14.1",
+                "1.14",
+                "1.13.2",
+                "1.13.1",
+                "1.13",
+                "1.12.2",
+                "1.12.1",
+                "1.12",
+                "1.11.2",
+                "1.11.1",
+                "1.11",
+                "1.10.2",
+                "1.10.1",
+                "1.10",
+                "1.9.4",
+                "1.9.3",
+                "1.9.2",
+                "1.9.1",
+                "1.9",
+                "1.8.9",
+                "1.8.8",
+                "1.8.7",
+                "1.8.6",
+                "1.8.5",
+                "1.8.4",
+                "1.8.3",
+                "1.8.2",
+                "1.8.1",
+                "1.8",
+                "1.7.10",
+                "1.7.9",
+                "1.7.8",
+                "1.7.7",
+                "1.7.6",
+                "1.7.5",
+                "1.7.4",
+                "1.7.3",
+                "1.7.2",
+                "1.6.4",
+                "1.6.2",
+                "1.6.1",
+                "1.5.2",
+                "1.5.1",
+                "1.4.7",
+                "1.4.5",
+                "1.4.6",
+                "1.4.4",
+                "1.4.2",
+                "1.3.2",
+                "1.3.1",
+                "1.2.5",
+                "1.2.4",
+                "1.2.3",
+                "1.2.2",
+                "1.2.1",
+                "1.1",
+                "1.0"
+              ],
+              "i18n": null
             },
             {
               "var": "mod",
               "default": "vanilla",
               "info": "Mod",
-              "admin_var": true
+              "admin_var": true,
+              "type": "select",
+              "description": "",
+              "allow_custom": false,
+              "options": [
+                {
+                  "value": "vanilla",
+                  "label": "Vanilla"
+                },
+                {
+                  "value": "paper",
+                  "label": "Paper"
+                },
+                {
+                  "value": "forge",
+                  "label": "Forge"
+                },
+                {
+                  "value": "fabric",
+                  "label": "Fabric"
+                },
+                {
+                  "value": "spigot",
+                  "label": "Spigot"
+                },
+                {
+                  "value": "craftbukkit",
+                  "label": "CraftBukkit"
+                },
+                {
+                  "value": "cauldron",
+                  "label": "Cauldron"
+                },
+                {
+                  "value": "waterfall",
+                  "label": "Waterfall"
+                },
+                {
+                  "value": "velocity",
+                  "label": "Velocity"
+                },
+                {
+                  "value": "bungeecord",
+                  "label": "BungeeCord"
+                }
+              ],
+              "i18n": null
             },
             {
               "var": "mod_version",
               "default": "",
               "info": "Mod version",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "memory",
               "default": "1G",
               "info": "Memory. Max heap size (Xmx)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "min_memory",
               "default": "512M",
               "info": "Min memory. Initial heap size (Xms)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1429,7 +2106,12 @@
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/mta/default-deathmatch.tar.xz",
@@ -1465,11 +2147,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -1477,19 +2161,34 @@
               "var": "default_map",
               "default": "crossfire",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1528,37 +2227,67 @@
               "var": "hostname",
               "default": "Quake 2 Server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "16",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "map",
               "default": "base1",
               "info": "Map of the server",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "timelimit",
               "default": "20",
               "info": "Timelimit in minutes",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fraglimit",
               "default": "30",
               "info": "Frag limit",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "game",
               "default": "baseq2",
               "info": "Mission Pack (game)",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1597,31 +2326,56 @@
               "var": "hostname",
               "default": "Quake 3 Server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "16",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "map",
               "default": "q3dm17",
               "info": "Default map of the server",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "timelimit",
               "default": "20",
               "info": "Timelimit in minutes",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fraglimit",
               "default": "30",
               "info": "Frag limit",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/quake/ioquake3-linux-amd64.tar.gz",
@@ -1646,31 +2400,56 @@
               "var": "hostname",
               "default": "Quake 3 Server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "16",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "map",
               "default": "q3dm17",
               "info": "Default map of the server",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "timelimit",
               "default": "20",
               "info": "Timelimit in minutes",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fraglimit",
               "default": "30",
               "info": "Frag limit",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/quake/quake3e-linux.tar.gz",
@@ -1706,11 +2485,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -1718,19 +2499,34 @@
               "var": "default_map",
               "default": "rc_arena",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "16",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1782,37 +2578,67 @@
               "var": "hostname",
               "default": "GameAP Rust server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "level",
               "default": "Procedural Map",
               "info": "Map of the server",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "level_seed",
               "default": "1234",
               "info": "Map generation seed",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "world_size",
               "default": "2000",
               "info": "World size",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "saveinterval",
               "default": "300",
               "info": "Server save interval",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/rust/default_linux.tar.gz",
@@ -1837,37 +2663,67 @@
               "var": "hostname",
               "default": "GameAP Rust server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "level",
               "default": "Procedural Map",
               "info": "Map of the server",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "level_seed",
               "default": "1234",
               "info": "Map generation seed",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "world_size",
               "default": "2000",
               "info": "World size",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "saveinterval",
               "default": "300",
               "info": "Server save interval",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1903,15 +2759,18 @@
           "fast_rcon": [
             {
               "info": "Commands List",
-              "command": "cmdlist"
+              "command": "cmdlist",
+              "i18n": null
             },
             {
               "info": "Variables List",
-              "command": "varlist"
+              "command": "varlist",
+              "i18n": null
             },
             {
               "info": "Version",
-              "command": "version"
+              "command": "version",
+              "i18n": null
             }
           ],
           "vars": [
@@ -1919,13 +2778,23 @@
               "var": "hostname",
               "default": "SA-MP 0.3 Server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "50",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -1961,11 +2830,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -1973,13 +2844,23 @@
               "var": "default_map",
               "default": "svencoop1",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "16",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -2015,11 +2896,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -2027,13 +2910,23 @@
               "var": "default_map",
               "default": "d1_trainstation_01",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "16",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -2069,11 +2962,13 @@
           "fast_rcon": [
             {
               "info": "Help. List all commands",
-              "command": "help"
+              "command": "help",
+              "i18n": null
             },
             {
               "info": "Channel List",
-              "command": "channellist"
+              "command": "channellist",
+              "i18n": null
             }
           ],
           "vars": [
@@ -2081,7 +2976,12 @@
               "var": "files_port",
               "default": "30033",
               "info": "File transfer port",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/teamspeak3/teamspeak-runner.tar.gz",
@@ -2117,11 +3017,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -2129,19 +3031,34 @@
               "var": "default_map",
               "default": "pl_goldrush",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "24",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "server_token",
               "default": "",
               "info": "Server Token (sv_setsteamaccount)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -2177,11 +3094,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -2189,19 +3108,34 @@
               "var": "default_map",
               "default": "2fort",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -2240,13 +3174,23 @@
               "var": "hostname",
               "default": "GameAP The Forest Server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "8",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",
@@ -2285,13 +3229,23 @@
               "var": "word",
               "default": "Dedicated",
               "info": "Default Word",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "hostname",
               "default": "GameAP Valheim Server",
               "info": "Server Hostname",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/valheim/default_linux.tar.gz",
@@ -2327,19 +3281,23 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             },
             {
               "info": "Last disconnect players",
-              "command": "amx_last"
+              "command": "amx_last",
+              "i18n": null
             },
             {
               "info": "Admins on servers",
-              "command": "amx_who"
+              "command": "amx_who",
+              "i18n": null
             }
           ],
           "vars": [
@@ -2347,19 +3305,34 @@
               "var": "default_map",
               "default": "crossfire",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "https://cdn.gameap.com/half-life/amxx.tar.xz",
@@ -2381,11 +3354,13 @@
           "fast_rcon": [
             {
               "info": "Status",
-              "command": "status"
+              "command": "status",
+              "i18n": null
             },
             {
               "info": "Stats",
-              "command": "stats"
+              "command": "stats",
+              "i18n": null
             }
           ],
           "vars": [
@@ -2393,19 +3368,34 @@
               "var": "default_map",
               "default": "crossfire",
               "info": "Default Map",
-              "admin_var": false
+              "admin_var": false,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "fps",
               "default": "500",
               "info": "Server FPS (tickrate)",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             },
             {
               "var": "maxplayers",
               "default": "32",
               "info": "Maximum players on server",
-              "admin_var": true
+              "admin_var": true,
+              "type": "",
+              "description": "",
+              "allow_custom": false,
+              "options": null,
+              "i18n": null
             }
           ],
           "remote_repository_linux": "",

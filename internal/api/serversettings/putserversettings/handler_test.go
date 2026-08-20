@@ -40,6 +40,8 @@ func TestPutServerSettings(t *testing.T) {
 		expectedStatus   int
 		verifySettings   bool
 		wantFinalVals    map[string]string
+		wantErrorField   string
+		wantUnwritten    []string
 	}{
 		{
 			name:     "success updating existing settings",
@@ -711,6 +713,147 @@ func TestPutServerSettings(t *testing.T) {
 				"autostart": "true",
 			},
 		},
+		{
+			name:     "typed_values_are_stored_canonically",
+			serverID: 1,
+			userID:   1,
+			gameMod: &domain.GameMod{
+				ID:       1,
+				GameCode: "minecraft",
+				Name:     "Default",
+				Vars: domain.GameModVarList{
+					{
+						Var:     "maxplayers",
+						Default: "20",
+						Info:    "Max players",
+						Type:    domain.GameModVarTypeInt,
+						Rules:   &domain.GameModVarRules{Min: new(1.0), Max: new(64.0)},
+					},
+					{
+						Var:        "pvp",
+						Default:    "on",
+						Info:       "PvP",
+						Type:       domain.GameModVarTypeBool,
+						TrueValue:  new("on"),
+						FalseValue: new("off"),
+					},
+					{
+						Var:  "hostname",
+						Info: "Hostname",
+					},
+				},
+			},
+			inputSettings: []map[string]string{
+				{"name": "maxplayers", "value": "32"},
+				{"name": "pvp", "value": "false"},
+			},
+			abilities: []domain.Ability{
+				{
+					ID:         1,
+					Name:       domain.AbilityNameGameServerCommon,
+					EntityType: lo.ToPtr(domain.EntityTypeServer),
+					EntityID:   new(uint(1)),
+				},
+				{
+					ID:         2,
+					Name:       domain.AbilityNameGameServerSettings,
+					EntityType: lo.ToPtr(domain.EntityTypeServer),
+					EntityID:   new(uint(1)),
+				},
+			},
+			permissions: []domain.Permission{
+				{
+					ID:         1,
+					AbilityID:  1,
+					EntityType: lo.ToPtr(domain.EntityTypeUser),
+					EntityID:   new(uint(1)),
+					Forbidden:  false,
+				},
+				{
+					ID:         2,
+					AbilityID:  2,
+					EntityType: lo.ToPtr(domain.EntityTypeUser),
+					EntityID:   new(uint(1)),
+					Forbidden:  false,
+				},
+			},
+			roles:          []domain.Role{},
+			expectedStatus: http.StatusOK,
+			verifySettings: true,
+			wantFinalVals: map[string]string{
+				"maxplayers": "32",
+				"pvp":        "off",
+			},
+		},
+		{
+			name:     "rule_violation_returns_422_and_writes_nothing",
+			serverID: 1,
+			userID:   1,
+			gameMod: &domain.GameMod{
+				ID:       1,
+				GameCode: "minecraft",
+				Name:     "Default",
+				Vars: domain.GameModVarList{
+					{
+						Var:     "maxplayers",
+						Default: "20",
+						Info:    "Max players",
+						Type:    domain.GameModVarTypeInt,
+						Rules:   &domain.GameModVarRules{Min: new(1.0), Max: new(64.0)},
+					},
+					{
+						Var:        "pvp",
+						Default:    "on",
+						Info:       "PvP",
+						Type:       domain.GameModVarTypeBool,
+						TrueValue:  new("on"),
+						FalseValue: new("off"),
+					},
+					{
+						Var:  "hostname",
+						Info: "Hostname",
+					},
+				},
+			},
+			inputSettings: []map[string]string{
+				{"name": "hostname", "value": "New name"},
+				{"name": "maxplayers", "value": "100"},
+			},
+			abilities: []domain.Ability{
+				{
+					ID:         1,
+					Name:       domain.AbilityNameGameServerCommon,
+					EntityType: lo.ToPtr(domain.EntityTypeServer),
+					EntityID:   new(uint(1)),
+				},
+				{
+					ID:         2,
+					Name:       domain.AbilityNameGameServerSettings,
+					EntityType: lo.ToPtr(domain.EntityTypeServer),
+					EntityID:   new(uint(1)),
+				},
+			},
+			permissions: []domain.Permission{
+				{
+					ID:         1,
+					AbilityID:  1,
+					EntityType: lo.ToPtr(domain.EntityTypeUser),
+					EntityID:   new(uint(1)),
+					Forbidden:  false,
+				},
+				{
+					ID:         2,
+					AbilityID:  2,
+					EntityType: lo.ToPtr(domain.EntityTypeUser),
+					EntityID:   new(uint(1)),
+					Forbidden:  false,
+				},
+			},
+			roles:          []domain.Role{},
+			expectedStatus: http.StatusUnprocessableEntity,
+			wantErrorField: "maxplayers",
+			wantUnwritten:  []string{"hostname", "maxplayers"},
+		},
 	}
 
 	for _, test := range tests {
@@ -838,6 +981,23 @@ func TestPutServerSettings(t *testing.T) {
 				t.Logf("Expected OK but got %d. Response: %s", recorder.Code, recorder.Body.String())
 			}
 
+			if test.wantErrorField != "" {
+				assert.Contains(t, recorder.Body.String(), test.wantErrorField, "error body should name the field")
+			}
+
+			if len(test.wantUnwritten) > 0 {
+				savedSettings, err := serverSettingsRepo.Find(ctx, &filters.FindServerSetting{
+					ServerIDs: []uint{test.serverID},
+				}, nil, nil)
+				require.NoError(t, err)
+
+				for _, name := range test.wantUnwritten {
+					for _, setting := range savedSettings {
+						assert.NotEqual(t, name, setting.Name, "setting %s must not be written", name)
+					}
+				}
+			}
+
 			if test.verifySettings && test.expectedStatus == http.StatusOK {
 				savedSettings, err := serverSettingsRepo.Find(ctx, &filters.FindServerSetting{
 					ServerIDs: []uint{test.serverID},
@@ -853,10 +1013,13 @@ func TestPutServerSettings(t *testing.T) {
 					actualValue, exists := savedSettingsMap[name]
 					require.True(t, exists, "setting %s should exist", name)
 
-					actualValueStr, ok := actualValue.(domain.ServerSettingValue)
+					settingValue, ok := actualValue.(domain.ServerSettingValue)
 					require.True(t, ok, "setting %s has wrong type", name)
 
-					assert.Equal(t, expectedValue, actualValueStr.Any(), "setting %s value mismatch", name)
+					// Raw is what actually lands in servers_settings.value.
+					raw, present := settingValue.Raw()
+					require.True(t, present, "setting %s has no value", name)
+					assert.Equal(t, expectedValue, raw, "setting %s value mismatch", name)
 				}
 			}
 		})

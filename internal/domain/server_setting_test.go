@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"testing"
 
@@ -48,10 +49,16 @@ func TestNewServerSettingValue(t *testing.T) {
 			wantType:  serverSettingTypeInt,
 		},
 		{
-			name:      "float64_converted_to_int",
+			name:      "float64_value",
 			input:     float64(123.456),
-			wantValue: 123,
-			wantType:  serverSettingTypeInt,
+			wantValue: 123.456,
+			wantType:  serverSettingTypeFloat,
+		},
+		{
+			name:      "float64_whole_number",
+			input:     float64(30),
+			wantValue: float64(30),
+			wantType:  serverSettingTypeFloat,
 		},
 		{
 			name:      "nil_value",
@@ -755,4 +762,133 @@ func TestServerSetting_Fields(t *testing.T) {
 	intVal, ok := setting.Value.Int()
 	assert.True(t, ok)
 	assert.Equal(t, 16, intVal)
+}
+
+func TestServerSettingValue_Raw(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		setup   func() ServerSettingValue
+		wantRaw string
+		wantOK  bool
+	}{
+		{
+			name:    "string_from_constructor",
+			setup:   func() ServerSettingValue { return NewServerSettingValue("de_dust2") },
+			wantRaw: "de_dust2",
+			wantOK:  true,
+		},
+		{
+			name:    "leading_zeros_survive_scan",
+			setup:   func() ServerSettingValue { return scanValue([]byte("007")) },
+			wantRaw: "007",
+			wantOK:  true,
+		},
+		{
+			name:    "hex_looking_text_survives_scan",
+			setup:   func() ServerSettingValue { return scanValue([]byte("0x10")) },
+			wantRaw: "0x10",
+			wantOK:  true,
+		},
+		{
+			name:    "float_keeps_decimal_notation",
+			setup:   func() ServerSettingValue { return NewServerSettingValue(0.5) },
+			wantRaw: "0.5",
+			wantOK:  true,
+		},
+		{
+			name:    "bool_true",
+			setup:   func() ServerSettingValue { return NewServerSettingValue(true) },
+			wantRaw: "true",
+			wantOK:  true,
+		},
+		{
+			name:    "empty_string_is_present",
+			setup:   func() ServerSettingValue { return NewServerSettingValue("") },
+			wantRaw: "",
+			wantOK:  true,
+		},
+		{
+			name:    "nil_is_absent",
+			setup:   func() ServerSettingValue { return NewServerSettingValue(nil) },
+			wantRaw: "",
+			wantOK:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			value := test.setup()
+
+			// ACT
+			raw, ok := value.Raw()
+
+			// ASSERT
+			assert.Equal(t, test.wantOK, ok, "presence mismatch")
+			assert.Equal(t, test.wantRaw, raw, "raw mismatch")
+		})
+	}
+}
+
+func TestServerSettingValue_ValuePreservesRawText(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input []byte
+		want  driver.Value
+	}{
+		{
+			name:  "leading_zeros",
+			input: []byte("007"),
+			want:  "007",
+		},
+		{
+			name:  "hex_looking_text",
+			input: []byte("0x10"),
+			want:  "0x10",
+		},
+		{
+			name:  "plain_int",
+			input: []byte("32"),
+			want:  "32",
+		},
+		{
+			name:  "bool",
+			input: []byte("true"),
+			want:  "true",
+		},
+		{
+			name:  "null",
+			input: []byte("null"),
+			want:  nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			value := scanValue(test.input)
+
+			// ACT
+			result, err := value.Value()
+
+			// ASSERT
+			require.NoError(t, err)
+			assert.Equal(t, test.want, result)
+		})
+	}
+}
+
+func scanValue(raw []byte) ServerSettingValue {
+	var value ServerSettingValue
+	_ = value.Scan(raw)
+
+	return value
 }

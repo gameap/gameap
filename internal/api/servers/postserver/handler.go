@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	settingsbase "github.com/gameap/gameap/internal/api/serversettings/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -97,6 +98,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Settings are validated before the server row is written so a rejected value
+	// cannot leave a half-created server behind. The route is admin-only, hence
+	// isAdmin = true.
+	normalizedSettings, err := settingsbase.Normalize(gameMod, input.Settings, true)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	err = h.serverRepo.Save(ctx, server)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save server"))
@@ -108,8 +119,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.pluginDispatcher.DispatchServerEventAsync(ctx, servercontrol.PluginEventServerCreated, server, nil)
 	}
 
-	if len(input.Settings) > 0 {
-		err = h.saveSettings(ctx, server.ID, input.SettingsToMap(), gameMod)
+	if len(normalizedSettings) > 0 {
+		err = h.saveSettings(ctx, server.ID, normalizedSettings)
 		if err != nil {
 			h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save settings"))
 
@@ -232,45 +243,17 @@ func (h *Handler) createInstallTask(ctx context.Context, server *domain.Server) 
 	return task.ID, nil
 }
 
-const (
-	autostartSettingKey         = "autostart"
-	updateBeforeStartSettingKey = "update_before_start"
-)
-
-func (h *Handler) buildAllowedSettings(gameMod *domain.GameMod) map[string]bool {
-	allowedSettings := make(map[string]bool)
-
-	allowedSettings[autostartSettingKey] = true
-	allowedSettings[updateBeforeStartSettingKey] = true
-
-	if gameMod != nil {
-		for _, gmVar := range gameMod.Vars {
-			allowedSettings[gmVar.Var] = true
-		}
-	}
-
-	return allowedSettings
-}
-
 func (h *Handler) saveSettings(
 	ctx context.Context,
 	serverID uint,
-	settingsMap map[string]any,
-	gameMod *domain.GameMod,
+	settings []settingsbase.NormalizedSetting,
 ) error {
-	allowedSettings := h.buildAllowedSettings(gameMod)
-
-	for settingName, settingValue := range settingsMap {
-		if !allowedSettings[settingName] {
-			continue
-		}
-
-		newSetting := &domain.ServerSetting{
+	for _, setting := range settings {
+		err := h.serverSettingsRepo.Save(ctx, &domain.ServerSetting{
 			ServerID: serverID,
-			Name:     settingName,
-			Value:    domain.NewServerSettingValue(settingValue),
-		}
-		err := h.serverSettingsRepo.Save(ctx, newSetting)
+			Name:     setting.Name,
+			Value:    setting.Value,
+		})
 		if err != nil {
 			return errors.WithMessage(err, "failed to save setting")
 		}

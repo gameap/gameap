@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
+	settingsbase "github.com/gameap/gameap/internal/api/serversettings/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -172,19 +173,40 @@ func (h *Handler) prepareUpdate(
 		}
 	}
 
-	if gameChanged || gameModChanged {
+	var gameMod *domain.GameMod
+
+	if gameChanged || gameModChanged || len(input.Vars) > 0 {
 		gameMods, err := h.gameModRepo.Find(ctx, &filters.FindGameMod{IDs: []uint{newGameModID}}, nil, nil)
 		if err != nil {
 			return errors.WithMessage(err, "failed to find game mod")
 		}
 
-		if len(gameMods) == 0 {
+		if len(gameMods) > 0 {
+			gameMod = &gameMods[0]
+		}
+	}
+
+	if gameChanged || gameModChanged {
+		if gameMod == nil {
 			return errors.New("game mod not found")
 		}
 
-		if gameMods[0].GameCode != input.GameID {
+		if gameMod.GameCode != input.GameID {
 			return api.NewValidationError("game mod does not belong to the specified game")
 		}
+	}
+
+	// server.vars overrides the mod defaults for the daemon, so keys that name a
+	// mod variable go through the same rules as the settings form. Keys that do
+	// not are low-level administrator overrides and pass through untouched. With
+	// no mod to check against there is nothing to validate.
+	if gameMod != nil {
+		normalizedVars, err := settingsbase.NormalizeVars(gameMod, input.Vars)
+		if err != nil {
+			return err
+		}
+
+		input.Vars = normalizedVars
 	}
 
 	return nil

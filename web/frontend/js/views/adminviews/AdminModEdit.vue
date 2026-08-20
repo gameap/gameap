@@ -23,6 +23,7 @@ import {useInitialLoad} from "@/composables/useInitialLoad"
 import {errorNotification, notification} from "@/parts/dialogs"
 import {storeToRefs} from "pinia"
 import {useRoute, useRouter} from "vue-router"
+import {denormalizeFastRcon, denormalizeVar} from "@/parts/gameModVars"
 
 const route = useRoute()
 const router = useRouter()
@@ -102,6 +103,12 @@ const onUpdateMod = () => {
       Object.entries(modUpdateModel.value).map(([k, v]) => [snakeCase(k), v])
   );
   fields.metadata = metadataObj
+
+  // The snake-case mapping above only touches top-level keys, so the array items
+  // are normalized here: empty rules dropped, plain-string options restored,
+  // fields that do not apply to the type removed.
+  fields.vars = (modUpdateModel.value.vars || []).map(denormalizeVar)
+  fields.fast_rcon = (modUpdateModel.value.fastRcon || []).map(denormalizeFastRcon)
 
   gameModStore.saveMod(fields).then(() => {
     notification({

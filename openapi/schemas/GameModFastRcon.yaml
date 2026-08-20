@@ -1,0 +1,19 @@
+type: object
+description: Quick RCON command shown in the panel.
+required:
+  - info
+  - command
+properties:
+  info:
+    type: string
+    minLength: 1
+    maxLength: 128
+    description: Button label shown in the panel. Base language is English; translations go to `i18n`.
+    example: "Restart Map"
+  command:
+    type: string
+    minLength: 1
+    description: Console command sent to the server.
+    example: "changelevel {map}"
+  i18n:
+    $ref: './GameModFastRconI18n.yaml'

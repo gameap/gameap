@@ -1,8 +1,17 @@
-type: object
-description: Update server settings request
-additionalProperties:
-  type: string
+type: array
+description: |
+  Server settings to save. Only names known to the server's game mod template
+  (plus `autostart` and `update_before_start`) are accepted; anything else is
+  ignored. Settings that are not listed keep their current value.
+
+  Every value is validated against the variable `rules`; a violation fails the
+  whole request with 422 and nothing is written.
+items:
+  $ref: '../ServerSettingInput.yaml'
 example:
-  maxplayers: "32"
-  hostname: "My Server"
-  map: "de_dust2"
+  - name: maxplayers
+    value: 32
+  - name: hostname
+    value: "My Server"
+  - name: autostart
+    value: true

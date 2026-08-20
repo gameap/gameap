@@ -176,6 +176,48 @@
     "work_path": "Рабочий путь"
   },
   "games": {
+    "var_type": "Тип",
+    "var_type_string": "Строка",
+    "var_type_text": "Текст",
+    "var_type_int": "Целое число",
+    "var_type_float": "Дробное число",
+    "var_type_bool": "Переключатель",
+    "var_type_select": "Список",
+    "var_type_password": "Пароль",
+    "var_name_hint": "Строчные буквы, цифры и подчёркивания, не больше 32 символов.",
+    "var_name_invalid": "Такое имя не примет каталог игр.",
+    "add_var": "Добавить переменную",
+    "search_vars": "Поиск переменных",
+    "var_options": "Варианты",
+    "var_option_value": "Значение",
+    "var_option_label": "Подпись",
+    "var_option_add": "Добавить вариант",
+    "var_options_required": "Добавьте хотя бы один вариант для переменной-списка.",
+    "var_options_duplicate": "Значения вариантов должны быть уникальными.",
+    "var_allow_custom": "Разрешить произвольное значение",
+    "var_true_value": "Значение при включении",
+    "var_false_value": "Значение при выключении",
+    "var_bool_default_hint": "Значение по умолчанию должно совпадать с одним из двух значений выше.",
+    "var_rules": "Проверка значения",
+    "var_rule_required": "Обязательное",
+    "var_rule_min": "Минимум",
+    "var_rule_max": "Максимум",
+    "var_rule_min_length": "Минимальная длина",
+    "var_rule_max_length": "Максимальная длина",
+    "var_rule_pattern": "Шаблон (регулярное выражение)",
+    "var_rule_pattern_test": "Проверочное значение",
+    "var_rule_pattern_match": "Совпадает",
+    "var_rule_pattern_no_match": "Не совпадает",
+    "var_rule_pattern_invalid": "Некорректное регулярное выражение",
+    "var_rule_pattern_unsupported": "Опережающие проверки и обратные ссылки не поддерживаются.",
+    "translations": "Переводы",
+    "translations_add": "Добавить перевод",
+    "translations_locale": "Язык",
+    "translations_en_hint": "Английский текст берётся из основных полей.",
+    "translations_empty": "Нет переводов",
+    "move_up": "Переместить выше",
+    "move_down": "Переместить ниже",
+    "advanced": "Дополнительно",
     "title_games_list": "Список игр",
     "title_game": "Игра",
     "title_game_mod": "Мод",
@@ -638,6 +680,8 @@
     "message_msg_success": "Игрок успешно забанен"
   },
   "servers": {
+    "settings_admin_var": "Только для администраторов",
+    "settings_check_form": "Проверьте выделенные поля.",
     "title_servers_list": "Список игровых серверов",
     "title_create": "Создание игрового сервера",
     "title_edit": "Редактирование игрового сервера",
@@ -909,6 +953,30 @@
     "delete_self_error_msg": "Вы не можете удалить себя"
   },
   "validation": {
+    "between": {
+      "numeric": "Поле :attribute должно быть между :min и :max.",
+      "file": "Файл :attribute должен быть между :min и :max килобайт.",
+      "string": "Поле :attribute должно содержать от :min до :max символов.",
+      "array": "Поле :attribute должно содержать от :min до :max элементов."
+    },
+    "gte": {
+      "numeric": "Поле :attribute должно быть больше или равно :value.",
+      "file": "Файл :attribute должен быть больше или равен :value килобайт.",
+      "string": "Поле :attribute должно содержать не менее :value символов.",
+      "array": "Поле :attribute должно содержать не менее :value элементов."
+    },
+    "max": {
+      "numeric": "Поле :attribute не должно превышать :max.",
+      "file": "Файл :attribute не должен быть больше :max килобайт.",
+      "string": "Поле :attribute не должно содержать более :max символов.",
+      "array": "Поле :attribute не должно содержать более :max элементов."
+    },
+    "min": {
+      "numeric": "Поле :attribute должно быть не менее :min.",
+      "file": "Файл :attribute должен быть не менее :min килобайт.",
+      "string": "Поле :attribute должно содержать не менее :min символов.",
+      "array": "Поле :attribute должно содержать не менее :min элементов."
+    },
     "accepted": "Вы должны принять :attribute.",
     "active_url": "Поле :attribute содержит недействительный URL.",
     "after": "В поле :attribute должна быть дата после :date.",

@@ -1,0 +1,18 @@
+type: object
+description: |
+  Server setting value submitted by the client. The JSON type of `value` follows
+  the variable `type` from the game mod template: boolean for `bool`, number for
+  `int`/`float`, string for everything else. The panel normalizes it to the
+  canonical string that is substituted into `{var}`.
+required:
+  - name
+  - value
+properties:
+  name:
+    type: string
+    maxLength: 32
+    description: Setting machine name (a game mod variable, `autostart` or `update_before_start`)
+    example: "maxplayers"
+  value:
+    description: Setting value; see the description above.
+    example: 32
