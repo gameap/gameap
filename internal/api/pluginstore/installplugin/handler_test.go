@@ -30,6 +30,7 @@ import (
 )
 
 func TestInstallPlugin(t *testing.T) {
+	t.Parallel()
 	pluginDetails := pluginstore.PluginDetails{
 		ID:            "testplugin123",
 		Name:          "Test Plugin",
@@ -87,6 +88,7 @@ func TestInstallPlugin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 
@@ -161,6 +163,7 @@ func TestInstallPlugin(t *testing.T) {
 }
 
 func TestInstallPlugin_already_installed(t *testing.T) {
+	t.Parallel()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -414,6 +417,7 @@ func defaultVersions() *pluginstore.PaginatedResponse[pluginstore.PluginVersion]
 }
 
 func TestInstallPlugin_errors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		licenseKey    string
@@ -618,6 +622,7 @@ func TestInstallPlugin_errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			cfg := tt.buildUpstream()
 			mockServer := newUpstreamServer(t, cfg)
@@ -691,6 +696,7 @@ func TestInstallPlugin_errors(t *testing.T) {
 }
 
 func TestInstallPlugin_load_error_keeps_record_with_correct_timestamps(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	cfg := upstreamConfig{
 		pluginDetails: defaultPluginDetails(false),
@@ -787,6 +793,7 @@ func (m *manifestLoaderManager) Shutdown(_ context.Context) error      { return 
 // manifest after the load the plugin would hold no grants at all and every
 // gated host module would deny it.
 func TestInstallPlugin_records_manifest_permissions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                string
 		requiredPermissions []string
@@ -814,6 +821,7 @@ func TestInstallPlugin_records_manifest_permissions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			mockServer := newUpstreamServer(t, upstreamConfig{
 				pluginDetails: defaultPluginDetails(false),
@@ -884,6 +892,7 @@ func (r *failAfterNSavesPluginRepo) Save(ctx context.Context, p *domain.Plugin) 
 // while the grants were not written would leave a plugin that is denied by
 // every gated host library with no sign of what went wrong.
 func TestInstallPlugin_permission_save_error_fails_install(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	mockServer := newUpstreamServer(t, upstreamConfig{
 		pluginDetails: defaultPluginDetails(false),

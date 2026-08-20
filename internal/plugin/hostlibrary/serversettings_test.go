@@ -12,6 +12,7 @@ import (
 )
 
 func TestServerSettingsService_FindServerSettings(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.ServerSettingRepository)
@@ -98,6 +99,7 @@ func TestServerSettingsService_FindServerSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerSettingRepository()
 			tt.setupRepo(repo)
 
@@ -121,6 +123,7 @@ func TestServerSettingsService_FindServerSettings(t *testing.T) {
 }
 
 func TestServerSettingsService_SaveServerSetting(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		request   *serversettings.SaveServerSettingRequest
@@ -154,6 +157,7 @@ func TestServerSettingsService_SaveServerSetting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerSettingRepository()
 			svc := NewServerSettingsService(repo)
 
@@ -185,6 +189,7 @@ func TestServerSettingsService_SaveServerSetting(t *testing.T) {
 }
 
 func TestServerSettingsService_SaveServerSetting_CreatesDuplicate(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewServerSettingRepository()
 	_ = repo.Save(context.Background(), &domain.ServerSetting{
 		ServerID: 1,
@@ -212,6 +217,7 @@ func TestServerSettingsService_SaveServerSetting_CreatesDuplicate(t *testing.T) 
 }
 
 func TestConvertServerSettingsToProto(t *testing.T) {
+	t.Parallel()
 	settings := []domain.ServerSetting{
 		{
 			ID:       1,
@@ -242,6 +248,7 @@ func TestConvertServerSettingsToProto(t *testing.T) {
 }
 
 func TestNewServerSettingsHostLibrary(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewServerSettingRepository()
 	lib := NewServerSettingsHostLibrary(repo)
 

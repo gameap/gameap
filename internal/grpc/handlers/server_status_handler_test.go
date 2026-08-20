@@ -28,6 +28,7 @@ func setupServerRepo(t *testing.T, servers ...*domain.Server) *inmemory.ServerRe
 }
 
 func TestHandleServerStatuses(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		nodeID     uint64
@@ -176,6 +177,7 @@ func TestHandleServerStatuses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := setupServerRepo(t, tt.servers...)
 			handler := NewServerStatusHandler(repo, slog.Default())
 

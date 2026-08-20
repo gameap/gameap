@@ -168,6 +168,8 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func TestNormalizeConfigValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                   string
 		databaseDriver         string
@@ -270,6 +272,8 @@ func TestNormalizeConfigValues(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := &Config{
 				DatabaseDriver: test.databaseDriver,
 			}
@@ -284,6 +288,8 @@ func TestNormalizeConfigValues(t *testing.T) {
 }
 
 func TestConfig_TLSEnabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		config   Config
@@ -390,6 +396,8 @@ func TestConfig_TLSEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := test.config.TLSEnabled()
 			assert.Equal(t, test.expected, result)
 		})
@@ -397,9 +405,13 @@ func TestConfig_TLSEnabled(t *testing.T) {
 }
 
 func TestConfig_LoadTLSCertificate(t *testing.T) {
+	t.Parallel()
+
 	certPEM, keyPEM := generateTestCertificate(t)
 
 	t.Run("from_files", func(t *testing.T) {
+		t.Parallel()
+
 		tempDir := t.TempDir()
 		certFile := filepath.Join(tempDir, "cert.pem")
 		keyFile := filepath.Join(tempDir, "key.pem")
@@ -419,6 +431,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("from_content", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		cfg.TLS.Cert = string(certPEM)
 		cfg.TLS.Key = string(keyPEM)
@@ -429,6 +443,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("from_base64_content", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		cfg.TLS.Cert = base64.StdEncoding.EncodeToString(certPEM)
 		cfg.TLS.Key = base64.StdEncoding.EncodeToString(keyPEM)
@@ -439,6 +455,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("invalid_file_paths", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		cfg.TLS.CertFile = "/nonexistent/cert.pem"
 		cfg.TLS.KeyFile = "/nonexistent/key.pem"
@@ -450,6 +468,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("invalid_content", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		cfg.TLS.Cert = "invalid-cert-content"
 		cfg.TLS.Key = "invalid-key-content"
@@ -461,6 +481,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("files_take_priority_over_content", func(t *testing.T) {
+		t.Parallel()
+
 		tempDir := t.TempDir()
 		certFile := filepath.Join(tempDir, "cert.pem")
 		keyFile := filepath.Join(tempDir, "key.pem")
@@ -483,6 +505,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 }
 
 func TestNormalizeConfigValues_DefaultLanguage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		defaultLanguage  string
@@ -517,6 +541,7 @@ func TestNormalizeConfigValues_DefaultLanguage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := &Config{}
 			cfg.UI.DefaultLanguage = tt.defaultLanguage
 
@@ -538,6 +563,8 @@ const (
 )
 
 func TestConfig_ACMEEnabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		mutate     func(*Config)
@@ -619,6 +646,7 @@ func TestConfig_ACMEEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			cfg := &Config{}
 			tt.mutate(cfg)
@@ -633,6 +661,8 @@ func TestConfig_ACMEEnabled(t *testing.T) {
 }
 
 func TestConfig_EffectiveCertSource(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		mutate func(*Config)
@@ -683,6 +713,7 @@ func TestConfig_EffectiveCertSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			cfg := &Config{}
 			tt.mutate(cfg)
@@ -697,6 +728,8 @@ func TestConfig_EffectiveCertSource(t *testing.T) {
 }
 
 func TestCertSource_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		source CertSource
 		want   string
@@ -710,12 +743,16 @@ func TestCertSource_String(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, tt.source.String())
 		})
 	}
 }
 
 func TestConfig_TLSEnabled_FollowsEffectiveCertSource(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		mutate func(*Config)
@@ -740,6 +777,7 @@ func TestConfig_TLSEnabled_FollowsEffectiveCertSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := &Config{}
 			tt.mutate(cfg)
 

@@ -8,6 +8,7 @@ import (
 )
 
 func TestFindPersonalAccessToken_FilterCount(t *testing.T) {
+	t.Parallel()
 	filterType := reflect.TypeFor[FindPersonalAccessToken]()
 	fieldsCount := filterType.NumField()
 
@@ -37,6 +38,7 @@ func TestFindPersonalAccessToken_FilterCount(t *testing.T) {
 }
 
 func TestFindPersonalAccessTokenByIDs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ids  []uint
@@ -61,6 +63,7 @@ func TestFindPersonalAccessTokenByIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT

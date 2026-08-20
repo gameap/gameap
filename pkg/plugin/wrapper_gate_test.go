@@ -12,6 +12,7 @@ import (
 )
 
 func TestCallFunction_queued_caller_gives_up_at_deadline(t *testing.T) {
+	t.Parallel()
 	// Guest functions are nil on purpose: a busy-wait failure must return
 	// before the request is even marshaled.
 	wrapper := &pluginServiceWrapper{gate: make(chan struct{}, 1)}
@@ -29,6 +30,7 @@ func TestCallFunction_queued_caller_gives_up_at_deadline(t *testing.T) {
 }
 
 func TestCallFunction_queued_caller_gives_up_on_cancellation(t *testing.T) {
+	t.Parallel()
 	wrapper := &pluginServiceWrapper{gate: make(chan struct{}, 1)}
 	wrapper.gate <- struct{}{}
 
@@ -42,6 +44,7 @@ func TestCallFunction_queued_caller_gives_up_on_cancellation(t *testing.T) {
 }
 
 func TestDispatcher_Dispatch_busy_plugin_is_not_disabled(t *testing.T) {
+	t.Parallel()
 	manager := newDispatcherTestManager()
 	plugin := &LoadedPlugin{
 		Info:    &proto.PluginInfo{Id: "busy"},

@@ -12,6 +12,7 @@ import (
 )
 
 func TestMapEventType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		eventType servercontrol.PluginEventType
@@ -39,15 +40,19 @@ func TestMapEventType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.want, mapEventType(tt.eventType))
 		})
 	}
 }
 
 func TestServerControlAdapter_DispatchServerEvent(t *testing.T) {
+	t.Parallel()
 	server := &domain.Server{ID: 1, DSID: 10}
 
 	t.Run("nil_adapter_returns_empty_result", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		var adapter *ServerControlAdapter
 
@@ -60,6 +65,8 @@ func TestServerControlAdapter_DispatchServerEvent(t *testing.T) {
 	})
 
 	t.Run("nil_dispatcher_returns_empty_result", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		adapter := NewServerControlAdapter(nil)
 
@@ -72,6 +79,8 @@ func TestServerControlAdapter_DispatchServerEvent(t *testing.T) {
 	})
 
 	t.Run("no_subscribers_not_cancelled", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		adapter := NewServerControlAdapter(NewDispatcher(newDispatcherTestManager(), discardLogger()))
 
@@ -84,6 +93,7 @@ func TestServerControlAdapter_DispatchServerEvent(t *testing.T) {
 	})
 
 	t.Run("cancellation_is_propagated", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		manager.plugins["plugin-a"] = &LoadedPlugin{
@@ -122,9 +132,12 @@ func TestServerControlAdapter_DispatchServerEvent(t *testing.T) {
 }
 
 func TestServerControlAdapter_DispatchServerEventAsync(t *testing.T) {
+	t.Parallel()
 	server := &domain.Server{ID: 1, DSID: 10}
 
 	t.Run("nil_adapter_is_noop", func(t *testing.T) {
+		t.Parallel()
+
 		var adapter *ServerControlAdapter
 
 		assert.NotPanics(t, func() {
@@ -133,6 +146,8 @@ func TestServerControlAdapter_DispatchServerEventAsync(t *testing.T) {
 	})
 
 	t.Run("nil_dispatcher_is_noop", func(t *testing.T) {
+		t.Parallel()
+
 		adapter := NewServerControlAdapter(nil)
 
 		assert.NotPanics(t, func() {
@@ -141,6 +156,7 @@ func TestServerControlAdapter_DispatchServerEventAsync(t *testing.T) {
 	})
 
 	t.Run("dispatches_to_dispatcher", func(t *testing.T) {
+		t.Parallel()
 		adapter := NewServerControlAdapter(NewDispatcher(newDispatcherTestManager(), discardLogger()))
 
 		assert.NotPanics(t, func() {
@@ -150,6 +166,7 @@ func TestServerControlAdapter_DispatchServerEventAsync(t *testing.T) {
 }
 
 func TestServerControlAdapter_DispatchServerEventsAsync(t *testing.T) {
+	t.Parallel()
 	server := &domain.Server{ID: 1, DSID: 10}
 	eventTypes := []servercontrol.PluginEventType{
 		servercontrol.PluginEventServerPostStop,
@@ -158,6 +175,8 @@ func TestServerControlAdapter_DispatchServerEventsAsync(t *testing.T) {
 	}
 
 	t.Run("nil_adapter_is_noop", func(t *testing.T) {
+		t.Parallel()
+
 		var adapter *ServerControlAdapter
 
 		assert.NotPanics(t, func() {
@@ -166,6 +185,8 @@ func TestServerControlAdapter_DispatchServerEventsAsync(t *testing.T) {
 	})
 
 	t.Run("nil_dispatcher_is_noop", func(t *testing.T) {
+		t.Parallel()
+
 		adapter := NewServerControlAdapter(nil)
 
 		assert.NotPanics(t, func() {
@@ -174,6 +195,7 @@ func TestServerControlAdapter_DispatchServerEventsAsync(t *testing.T) {
 	})
 
 	t.Run("dispatches_batch_to_dispatcher", func(t *testing.T) {
+		t.Parallel()
 		adapter := NewServerControlAdapter(NewDispatcher(newDispatcherTestManager(), discardLogger()))
 
 		assert.NotPanics(t, func() {

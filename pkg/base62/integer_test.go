@@ -7,6 +7,8 @@ import (
 )
 
 func Test_FormatUint_ParseUint(t *testing.T) {
+	t.Parallel()
+
 	x := uint64(math.MaxUint64)
 	dst := FormatUint(x)
 
@@ -20,6 +22,8 @@ func Test_FormatUint_ParseUint(t *testing.T) {
 }
 
 func Test_FormatUint_ParseInt(t *testing.T) {
+	t.Parallel()
+
 	x := int64(math.MaxInt64)
 	dst := FormatInt(x)
 
@@ -33,6 +37,8 @@ func Test_FormatUint_ParseInt(t *testing.T) {
 }
 
 func Test_AppendInt_AppendUint(t *testing.T) {
+	t.Parallel()
+
 	x := int64(math.MaxInt64)
 
 	dst1 := AppendInt(nil, x)
@@ -44,6 +50,8 @@ func Test_AppendInt_AppendUint(t *testing.T) {
 }
 
 func Test_FormatInt_Zero(t *testing.T) {
+	t.Parallel()
+
 	dst := FormatInt(0)
 	if len(dst) != 1 || dst[0] != encodeStd[0] {
 		t.Fatalf("failed format zero int, got = %v", string(dst))

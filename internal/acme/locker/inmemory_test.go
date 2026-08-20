@@ -12,6 +12,8 @@ import (
 )
 
 func TestInMemoryLocker_Acquire(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		ttl       time.Duration
@@ -24,6 +26,8 @@ func TestInMemoryLocker_Acquire(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			l := locker.NewInMemoryLocker()
 			lock, err := l.Acquire(context.Background(), "key", tt.ttl)
 			if tt.wantError != "" {
@@ -43,6 +47,8 @@ func TestInMemoryLocker_Acquire(t *testing.T) {
 }
 
 func TestInMemoryLocker_MutualExclusion(t *testing.T) {
+	t.Parallel()
+
 	l := locker.NewInMemoryLocker()
 	ctx := context.Background()
 
@@ -60,6 +66,8 @@ func TestInMemoryLocker_MutualExclusion(t *testing.T) {
 }
 
 func TestInMemoryLocker_TTLExpiry(t *testing.T) {
+	t.Parallel()
+
 	l := locker.NewInMemoryLocker()
 	ctx := context.Background()
 
@@ -74,6 +82,8 @@ func TestInMemoryLocker_TTLExpiry(t *testing.T) {
 }
 
 func TestInMemoryLocker_Refresh(t *testing.T) {
+	t.Parallel()
+
 	l := locker.NewInMemoryLocker()
 	ctx := context.Background()
 
@@ -91,6 +101,8 @@ func TestInMemoryLocker_Refresh(t *testing.T) {
 }
 
 func TestInMemoryLocker_RefreshAfterRelease(t *testing.T) {
+	t.Parallel()
+
 	l := locker.NewInMemoryLocker()
 	ctx := context.Background()
 
@@ -105,6 +117,8 @@ func TestInMemoryLocker_RefreshAfterRelease(t *testing.T) {
 }
 
 func TestInMemoryLocker_DoubleRelease(t *testing.T) {
+	t.Parallel()
+
 	l := locker.NewInMemoryLocker()
 	ctx := context.Background()
 

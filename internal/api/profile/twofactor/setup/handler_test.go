@@ -118,6 +118,8 @@ func authedRequest(login string) *http.Request {
 }
 
 func TestSetup_StartsEnrollmentEncryptedAndInactive(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewUserRepository()
 	require.NoError(t, repo.Save(context.Background(), &domain.User{
 		ID: 1, Login: "alice", Email: "alice@example.com",
@@ -145,6 +147,8 @@ func TestSetup_StartsEnrollmentEncryptedAndInactive(t *testing.T) {
 }
 
 func TestSetup_RejectsWhenAlreadyEnabled(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewUserRepository()
 	secret := "already-encrypted"
 	require.NoError(t, repo.Save(context.Background(), &domain.User{
@@ -160,6 +164,8 @@ func TestSetup_RejectsWhenAlreadyEnabled(t *testing.T) {
 }
 
 func TestSetup_RejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
+
 	handler := NewHandler(inmemory.NewUserRepository(), newManager(t), api.NewResponder())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/profile/2fa/setup", http.NoBody)
@@ -171,6 +177,8 @@ func TestSetup_RejectsUnauthenticated(t *testing.T) {
 
 // A session whose user no longer exists must not enroll anything.
 func TestSetup_RejectsWhenSessionUserIsGone(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	handler := NewHandler(inmemory.NewUserRepository(), newManager(t), api.NewResponder())
 
@@ -186,6 +194,8 @@ func TestSetup_RejectsWhenSessionUserIsGone(t *testing.T) {
 // Any failure along the enrollment path must abort without leaving a usable
 // pending secret behind, and must not leak the internal cause to the client.
 func TestSetup_StorageAndCryptoErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		repo func(t *testing.T) *errUserRepository
@@ -238,6 +248,8 @@ func TestSetup_StorageAndCryptoErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			repo := tt.repo(t)
 			handler := NewHandler(repo, tt.twoFactor, api.NewResponder())
@@ -266,6 +278,8 @@ func TestSetup_StorageAndCryptoErrors(t *testing.T) {
 // Restarting enrollment must invalidate whatever the previous attempt left
 // behind, so a half-finished attempt cannot be resumed with stale state.
 func TestSetup_RestartClearsPreviousEnrollmentState(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	staleSecret := "enc:stale"

@@ -44,6 +44,7 @@ func newLoginRequest(t *testing.T, login, password, remoteAddr string) *http.Req
 }
 
 func TestLoginRateLimitMiddleware_BlocksAfterMaxFailuresPerUsername(t *testing.T) {
+	t.Parallel()
 	c := cache.NewInMemory()
 	mw := NewLoginRateLimitMiddleware(c, api.NewResponder(),
 		WithLoginRateLimitPerUsername(3),
@@ -68,6 +69,7 @@ func TestLoginRateLimitMiddleware_BlocksAfterMaxFailuresPerUsername(t *testing.T
 }
 
 func TestLoginRateLimitMiddleware_BlocksAfterMaxFailuresPerIP(t *testing.T) {
+	t.Parallel()
 	c := cache.NewInMemory()
 	mw := NewLoginRateLimitMiddleware(c, api.NewResponder(),
 		WithLoginRateLimitPerIP(2),
@@ -92,6 +94,7 @@ func TestLoginRateLimitMiddleware_BlocksAfterMaxFailuresPerIP(t *testing.T) {
 }
 
 func TestLoginRateLimitMiddleware_SeparateIPBuckets(t *testing.T) {
+	t.Parallel()
 	c := cache.NewInMemory()
 	mw := NewLoginRateLimitMiddleware(c, api.NewResponder(),
 		WithLoginRateLimitPerIP(1),
@@ -114,6 +117,7 @@ func TestLoginRateLimitMiddleware_SeparateIPBuckets(t *testing.T) {
 }
 
 func TestLoginRateLimitMiddleware_SuccessResetsUsernameCounter(t *testing.T) {
+	t.Parallel()
 	c := cache.NewInMemory()
 	mw := NewLoginRateLimitMiddleware(c, api.NewResponder(),
 		WithLoginRateLimitPerUsername(2),
@@ -146,6 +150,7 @@ func TestLoginRateLimitMiddleware_SuccessResetsUsernameCounter(t *testing.T) {
 }
 
 func TestLoginRateLimitMiddleware_BodyForwardedToNextHandler(t *testing.T) {
+	t.Parallel()
 	// The middleware reads the request body to peek at the username; it must
 	// then restore the body so the wrapped login handler can decode it again.
 	c := cache.NewInMemory()
@@ -168,6 +173,7 @@ func TestLoginRateLimitMiddleware_BodyForwardedToNextHandler(t *testing.T) {
 }
 
 func TestLoginRateLimitMiddleware_EmailFieldUsedAsUsername(t *testing.T) {
+	t.Parallel()
 	c := cache.NewInMemory()
 	mw := NewLoginRateLimitMiddleware(c, api.NewResponder(),
 		WithLoginRateLimitPerUsername(2),
@@ -209,6 +215,7 @@ func TestLoginRateLimitMiddleware_EmailFieldUsedAsUsername(t *testing.T) {
 }
 
 func TestLoginRateLimitMiddleware_HonoursClientIPHeader(t *testing.T) {
+	t.Parallel()
 	c := cache.NewInMemory()
 	mw := NewLoginRateLimitMiddleware(c, api.NewResponder(),
 		WithLoginRateLimitPerIP(1),
@@ -235,6 +242,7 @@ func TestLoginRateLimitMiddleware_HonoursClientIPHeader(t *testing.T) {
 }
 
 func TestLoginRateLimitMiddleware_NoBodyDoesNotPanic(t *testing.T) {
+	t.Parallel()
 	c := cache.NewInMemory()
 	mw := NewLoginRateLimitMiddleware(c, api.NewResponder())
 	handler := mw.Middleware(&loginAttemptHandler{outcome: http.StatusUnauthorized})
@@ -252,6 +260,7 @@ func TestLoginRateLimitMiddleware_NoBodyDoesNotPanic(t *testing.T) {
 // keys; if a buggy cache returned a non-numeric value, readCount must treat it
 // as zero rather than panic or count nonsense.
 func TestLoginRateLimitMiddleware_NonNumericCacheValueTreatedAsZero(t *testing.T) {
+	t.Parallel()
 	c := cache.NewInMemory()
 	require.NoError(t, c.Set(context.Background(), "auth:login-fail:ip:10.0.0.70", "garbage"))
 
@@ -288,6 +297,7 @@ func TestLoginRateLimitMiddleware_NonNumericCacheValueTreatedAsZero(t *testing.T
 // category ratelimit, the blocked-by reason ("ip" or "username"), and the
 // submitted identifier carried only in Extra.attempted_login.
 func TestLoginRateLimitMiddleware_Audit_OverLimitEmitsBlocked(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		opts       []LoginRateLimitOption
@@ -318,6 +328,7 @@ func TestLoginRateLimitMiddleware_Audit_OverLimitEmitsBlocked(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &auditCapture{}
 			c := cache.NewInMemory()
@@ -368,6 +379,7 @@ func TestLoginRateLimitMiddleware_Audit_OverLimitEmitsBlocked(t *testing.T) {
 // identifier in Extra.attempted_login (never as the actor) so individual
 // failed attempts are auditable, not just the throttled ones.
 func TestLoginRateLimitMiddleware_Audit_DownstreamUnauthorizedEmitsFailure(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	recorder := &auditCapture{}
 	c := cache.NewInMemory()
@@ -412,6 +424,7 @@ func TestLoginRateLimitMiddleware_Audit_DownstreamUnauthorizedEmitsFailure(t *te
 // (auth.login.success); the rate limiter must NOT additionally emit a
 // failure or blocked event for a 200 response.
 func TestLoginRateLimitMiddleware_Audit_SuccessIsNotAudited(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	recorder := &auditCapture{}
 	c := cache.NewInMemory()

@@ -11,6 +11,7 @@ import (
 )
 
 func TestCacheService_Get(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		setupCache func(*intcache.InMemory, string)
@@ -70,6 +71,7 @@ func TestCacheService_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			c := intcache.NewInMemory()
 			tt.setupCache(c, tt.keyPrefix)
 
@@ -84,6 +86,7 @@ func TestCacheService_Get(t *testing.T) {
 }
 
 func TestCacheService_Set(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		key        string
@@ -131,6 +134,7 @@ func TestCacheService_Set(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			c := intcache.NewInMemory()
 			svc := NewCacheService(c, tt.keyPrefix)
 
@@ -162,6 +166,7 @@ func TestCacheService_Set(t *testing.T) {
 }
 
 func TestCacheService_Delete(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		setupCache func(*intcache.InMemory, string)
@@ -192,6 +197,7 @@ func TestCacheService_Delete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			c := intcache.NewInMemory()
 			tt.setupCache(c, tt.keyPrefix)
 
@@ -209,6 +215,7 @@ func TestCacheService_Delete(t *testing.T) {
 }
 
 func TestCacheService_KeyPrefixIsolation(t *testing.T) {
+	t.Parallel()
 	c := intcache.NewInMemory()
 	svc1 := NewCacheService(c, "plugin1:")
 	svc2 := NewCacheService(c, "plugin2:")
@@ -237,6 +244,7 @@ func TestCacheService_KeyPrefixIsolation(t *testing.T) {
 }
 
 func TestNewCacheHostLibrary(t *testing.T) {
+	t.Parallel()
 	c := intcache.NewInMemory()
 	lib := NewCacheHostLibrary(c, "test:")
 

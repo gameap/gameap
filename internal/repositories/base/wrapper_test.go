@@ -55,6 +55,8 @@ func setupDBTxWrapper(t *testing.T) (*DBTxWrapper, sqlmock.Sqlmock, *fakeTransac
 }
 
 func TestNewDBTxWrapper(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
@@ -72,6 +74,8 @@ func TestNewDBTxWrapper(t *testing.T) {
 }
 
 func TestDBTxWrapper_PrepareContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setupMock func(sqlmock.Sqlmock)
@@ -97,6 +101,8 @@ func TestDBTxWrapper_PrepareContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			wrapper, mock, getter, cleanup := setupDBTxWrapper(t)
 			defer cleanup()
@@ -122,6 +128,8 @@ func TestDBTxWrapper_PrepareContext(t *testing.T) {
 }
 
 func TestDBTxWrapper_Prepare(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setupMock func(sqlmock.Sqlmock)
@@ -147,6 +155,8 @@ func TestDBTxWrapper_Prepare(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			wrapper, mock, getter, cleanup := setupDBTxWrapper(t)
 			defer cleanup()
@@ -172,6 +182,8 @@ func TestDBTxWrapper_Prepare(t *testing.T) {
 }
 
 func TestDBTxWrapper_ExecContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		setupMock        func(sqlmock.Sqlmock)
@@ -203,6 +215,8 @@ func TestDBTxWrapper_ExecContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			wrapper, mock, getter, cleanup := setupDBTxWrapper(t)
 			defer cleanup()
@@ -230,6 +244,8 @@ func TestDBTxWrapper_ExecContext(t *testing.T) {
 }
 
 func TestDBTxWrapper_Exec(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		setupMock        func(sqlmock.Sqlmock)
@@ -261,6 +277,8 @@ func TestDBTxWrapper_Exec(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			wrapper, mock, getter, cleanup := setupDBTxWrapper(t)
 			defer cleanup()
@@ -288,6 +306,8 @@ func TestDBTxWrapper_Exec(t *testing.T) {
 }
 
 func TestDBTxWrapper_QueryContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		setupMock   func(sqlmock.Sqlmock)
@@ -317,6 +337,8 @@ func TestDBTxWrapper_QueryContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			wrapper, mock, getter, cleanup := setupDBTxWrapper(t)
 			defer cleanup()
@@ -343,6 +365,8 @@ func TestDBTxWrapper_QueryContext(t *testing.T) {
 }
 
 func TestDBTxWrapper_Query(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		setupMock   func(sqlmock.Sqlmock)
@@ -372,6 +396,8 @@ func TestDBTxWrapper_Query(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			wrapper, mock, getter, cleanup := setupDBTxWrapper(t)
 			defer cleanup()
@@ -398,6 +424,8 @@ func TestDBTxWrapper_Query(t *testing.T) {
 }
 
 func TestDBTxWrapper_QueryRowContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setupMock func(sqlmock.Sqlmock)
@@ -434,6 +462,8 @@ func TestDBTxWrapper_QueryRowContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			wrapper, mock, getter, cleanup := setupDBTxWrapper(t)
 			defer cleanup()
@@ -460,6 +490,8 @@ func TestDBTxWrapper_QueryRowContext(t *testing.T) {
 }
 
 func TestDBTxWrapper_QueryRow(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setupMock func(sqlmock.Sqlmock)
@@ -490,6 +522,8 @@ func TestDBTxWrapper_QueryRow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			wrapper, mock, getter, cleanup := setupDBTxWrapper(t)
 			defer cleanup()
@@ -592,6 +626,8 @@ func (f *fakeDB) QueryRow(query string, args ...any) *sql.Row {
 }
 
 func TestNewDBLogWrapper(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	fake := &fakeDB{}
 
@@ -603,7 +639,7 @@ func TestNewDBLogWrapper(t *testing.T) {
 	assert.Same(t, fake, wrapper.db, "wrapper must hold the provided DB implementation")
 }
 
-func TestDBLogWrapper_PrepareContext(t *testing.T) {
+func TestDBLogWrapper_PrepareContext(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	tests := []struct {
 		name      string
 		fake      *fakeDB
@@ -623,7 +659,7 @@ func TestDBLogWrapper_PrepareContext(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // subtests mutate the global slog default logger
 		t.Run(tt.name, func(t *testing.T) {
 			// ARRANGE
 			capture := captureSlog(t)
@@ -648,7 +684,7 @@ func TestDBLogWrapper_PrepareContext(t *testing.T) {
 	}
 }
 
-func TestDBLogWrapper_Prepare(t *testing.T) {
+func TestDBLogWrapper_Prepare(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	tests := []struct {
 		name      string
 		fake      *fakeDB
@@ -668,7 +704,7 @@ func TestDBLogWrapper_Prepare(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // subtests mutate the global slog default logger
 		t.Run(tt.name, func(t *testing.T) {
 			// ARRANGE
 			capture := captureSlog(t)
@@ -693,7 +729,7 @@ func TestDBLogWrapper_Prepare(t *testing.T) {
 	}
 }
 
-func TestDBLogWrapper_ExecContext(t *testing.T) {
+func TestDBLogWrapper_ExecContext(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	tests := []struct {
 		name      string
 		fake      *fakeDB
@@ -716,7 +752,7 @@ func TestDBLogWrapper_ExecContext(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // subtests mutate the global slog default logger
 		t.Run(tt.name, func(t *testing.T) {
 			// ARRANGE
 			capture := captureSlog(t)
@@ -742,7 +778,7 @@ func TestDBLogWrapper_ExecContext(t *testing.T) {
 	}
 }
 
-func TestDBLogWrapper_Exec(t *testing.T) {
+func TestDBLogWrapper_Exec(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	tests := []struct {
 		name      string
 		fake      *fakeDB
@@ -765,7 +801,7 @@ func TestDBLogWrapper_Exec(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // subtests mutate the global slog default logger
 		t.Run(tt.name, func(t *testing.T) {
 			// ARRANGE
 			capture := captureSlog(t)
@@ -791,7 +827,7 @@ func TestDBLogWrapper_Exec(t *testing.T) {
 	}
 }
 
-func TestDBLogWrapper_QueryContext(t *testing.T) {
+func TestDBLogWrapper_QueryContext(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	tests := []struct {
 		name      string
 		fake      *fakeDB
@@ -814,7 +850,7 @@ func TestDBLogWrapper_QueryContext(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // subtests mutate the global slog default logger
 		t.Run(tt.name, func(t *testing.T) {
 			// ARRANGE
 			capture := captureSlog(t)
@@ -839,7 +875,7 @@ func TestDBLogWrapper_QueryContext(t *testing.T) {
 	}
 }
 
-func TestDBLogWrapper_Query(t *testing.T) {
+func TestDBLogWrapper_Query(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	tests := []struct {
 		name      string
 		fake      *fakeDB
@@ -862,7 +898,7 @@ func TestDBLogWrapper_Query(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:paralleltest // subtests mutate the global slog default logger
 		t.Run(tt.name, func(t *testing.T) {
 			// ARRANGE
 			capture := captureSlog(t)
@@ -887,7 +923,7 @@ func TestDBLogWrapper_Query(t *testing.T) {
 	}
 }
 
-func TestDBLogWrapper_QueryRowContext(t *testing.T) {
+func TestDBLogWrapper_QueryRowContext(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	// ARRANGE
 	fake := &fakeDB{}
 	capture := captureSlog(t)
@@ -905,7 +941,7 @@ func TestDBLogWrapper_QueryRowContext(t *testing.T) {
 	assert.Contains(t, capture.String(), "DB QueryRowContext", "operation name must be logged")
 }
 
-func TestDBLogWrapper_QueryRow(t *testing.T) {
+func TestDBLogWrapper_QueryRow(t *testing.T) { //nolint:paralleltest // mutates the global slog default logger
 	// ARRANGE
 	fake := &fakeDB{}
 	capture := captureSlog(t)
@@ -924,6 +960,8 @@ func TestDBLogWrapper_QueryRow(t *testing.T) {
 }
 
 func TestFakeTransactionGetter_TrOrDB_Records_Key(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	getter := &fakeTransactionGetter{}
 	db, _, err := sqlmock.New()

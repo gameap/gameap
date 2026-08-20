@@ -33,6 +33,7 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		serverID       string
@@ -230,6 +231,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
@@ -285,6 +287,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_PublicIPVisibility(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		metadata domain.Metadata
@@ -325,6 +328,7 @@ func TestHandler_PublicIPVisibility(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
@@ -394,6 +398,7 @@ func TestHandler_PublicIPVisibility(t *testing.T) {
 }
 
 func TestHandler_ServerResponseFields(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
@@ -537,6 +542,7 @@ func TestHandler_ServerResponseFields(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
@@ -553,6 +559,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestNewServerResponseFromServer(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	queryPort := 27016
 	server := &domain.Server{

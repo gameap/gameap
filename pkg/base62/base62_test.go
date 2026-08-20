@@ -9,6 +9,8 @@ import (
 )
 
 func Test_EncodeDecode(t *testing.T) {
+	t.Parallel()
+
 	src := []byte("Hello, 世界！")
 	dst := Encode(src)
 	got, err := Decode(dst)
@@ -27,6 +29,8 @@ func Test_EncodeDecode(t *testing.T) {
 }
 
 func Test_EncodeDecode_Zeros(t *testing.T) {
+	t.Parallel()
+
 	for i := range 1000 {
 		src := make([]byte, i)
 		dst := Encode(src)
@@ -41,6 +45,8 @@ func Test_EncodeDecode_Zeros(t *testing.T) {
 }
 
 func Test_EncodeDecode_0xFF(t *testing.T) {
+	t.Parallel()
+
 	for i := range 1000 {
 		src := make([]byte, i)
 		for i := range src {
@@ -58,6 +64,8 @@ func Test_EncodeDecode_0xFF(t *testing.T) {
 }
 
 func Test_EncodeDecode_RandomBytes(t *testing.T) {
+	t.Parallel()
+
 	for range 1000000 {
 		src := make([]byte, 32+mathrand.Intn(32))
 		_, _ = rand.Read(src)
@@ -73,6 +81,8 @@ func Test_EncodeDecode_RandomBytes(t *testing.T) {
 }
 
 func Test_EncodeToBuf(t *testing.T) {
+	t.Parallel()
+
 	buf := make([]byte, 0, 1000)
 	for range 10000 {
 		src := make([]byte, 32+mathrand.Intn(100))
@@ -92,6 +102,8 @@ func Test_EncodeToBuf(t *testing.T) {
 }
 
 func TestDecodeToBuf(t *testing.T) {
+	t.Parallel()
+
 	buf := make([]byte, 0, 1000)
 	for range 10000 {
 		src := make([]byte, 32+mathrand.Intn(100))
@@ -117,6 +129,8 @@ func TestDecodeToBuf(t *testing.T) {
 }
 
 func Test_NewEncoding_panic(t *testing.T) {
+	t.Parallel()
+
 	func() {
 		encoder := "abcdef"
 		defer func() {
@@ -151,6 +165,8 @@ func Test_NewEncoding_panic(t *testing.T) {
 }
 
 func Test_Decode_CorruptInputError(t *testing.T) {
+	t.Parallel()
+
 	src := make([]byte, 256)
 	for i := range src {
 		src[i] = byte(i)

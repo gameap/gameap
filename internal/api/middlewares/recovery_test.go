@@ -13,6 +13,7 @@ import (
 )
 
 func TestRecoveryMiddleware_Middleware(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		handler          http.HandlerFunc
@@ -93,6 +94,7 @@ func TestRecoveryMiddleware_Middleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Setup
 			responder := api.NewResponder()
 			recoveryMiddleware := NewRecoveryMiddleware(responder)
@@ -128,6 +130,7 @@ func TestRecoveryMiddleware_Middleware(t *testing.T) {
 }
 
 func TestRecoveryMiddleware_MultipleRequests(t *testing.T) {
+	t.Parallel()
 	// Test that the middleware can handle multiple requests,
 	// including recovery from panics without affecting subsequent requests
 	responder := api.NewResponder()
@@ -165,6 +168,7 @@ func TestRecoveryMiddleware_MultipleRequests(t *testing.T) {
 }
 
 func TestRecoveryMiddleware_RepanicsErrAbortHandler(t *testing.T) {
+	t.Parallel()
 	responder := api.NewResponder()
 	recoveryMiddleware := NewRecoveryMiddleware(responder)
 

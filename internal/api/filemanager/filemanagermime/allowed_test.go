@@ -18,6 +18,8 @@ import (
 )
 
 func TestChecker_Defaults_AcceptsInertTypes(t *testing.T) {
+	t.Parallel()
+
 	c := filemanagermime.NewChecker(filemanagermime.Config{})
 
 	for _, m := range []string{
@@ -39,6 +41,8 @@ func TestChecker_Defaults_AcceptsInertTypes(t *testing.T) {
 }
 
 func TestChecker_Defaults_RejectsExecutableContent(t *testing.T) {
+	t.Parallel()
+
 	c := filemanagermime.NewChecker(filemanagermime.Config{})
 
 	for _, m := range []string{
@@ -58,6 +62,8 @@ func TestChecker_Defaults_RejectsExecutableContent(t *testing.T) {
 }
 
 func TestChecker_AllowArchives_UnlocksArchiveGroup(t *testing.T) {
+	t.Parallel()
+
 	c := filemanagermime.NewChecker(filemanagermime.Config{AllowArchives: true})
 
 	for _, m := range []string{
@@ -74,6 +80,8 @@ func TestChecker_AllowArchives_UnlocksArchiveGroup(t *testing.T) {
 }
 
 func TestChecker_AllowBinary_UnlocksOctetStreamOnly(t *testing.T) {
+	t.Parallel()
+
 	c := filemanagermime.NewChecker(filemanagermime.Config{AllowBinary: true})
 
 	bare, ok := c.Allowed("application/octet-stream")
@@ -87,6 +95,8 @@ func TestChecker_AllowBinary_UnlocksOctetStreamOnly(t *testing.T) {
 }
 
 func TestChecker_OperatorExtrasAreAdditive(t *testing.T) {
+	t.Parallel()
+
 	c := filemanagermime.NewChecker(filemanagermime.Config{
 		AllowedMIMEs: []string{"video/mp4", "audio/mpeg"},
 	})
@@ -103,6 +113,8 @@ func TestChecker_OperatorExtrasAreAdditive(t *testing.T) {
 }
 
 func TestChecker_BareTypeIsParameterInsensitive(t *testing.T) {
+	t.Parallel()
+
 	c := filemanagermime.NewChecker(filemanagermime.Config{})
 
 	bare, ok := c.Allowed("text/plain; charset=utf-8; boundary=---")
@@ -111,6 +123,8 @@ func TestChecker_BareTypeIsParameterInsensitive(t *testing.T) {
 }
 
 func TestChecker_MalformedInputIsRejected(t *testing.T) {
+	t.Parallel()
+
 	c := filemanagermime.NewChecker(filemanagermime.Config{})
 
 	for _, m := range []string{

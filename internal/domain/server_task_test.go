@@ -9,6 +9,8 @@ import (
 )
 
 func TestServerTaskCommandConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, ServerTaskCommand("start"), ServerTaskCommandStart)
 	assert.Equal(t, ServerTaskCommand("stop"), ServerTaskCommandStop)
 	assert.Equal(t, ServerTaskCommand("restart"), ServerTaskCommandRestart)
@@ -17,6 +19,8 @@ func TestServerTaskCommandConstants(t *testing.T) {
 }
 
 func TestNewServerTaskCommandFromString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -71,6 +75,8 @@ func TestNewServerTaskCommandFromString(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := NewServerTaskCommandFromString(test.input)
 			assert.Equal(t, test.expected, result)
 		})
@@ -78,10 +84,14 @@ func TestNewServerTaskCommandFromString(t *testing.T) {
 }
 
 func TestNewServerTaskCommandFromString_AllValidCommands(t *testing.T) {
+	t.Parallel()
+
 	validCommands := []string{"start", "stop", "restart", "update", "reinstall"}
 
 	for _, cmd := range validCommands {
 		t.Run(cmd, func(t *testing.T) {
+			t.Parallel()
+
 			result := NewServerTaskCommandFromString(cmd)
 			assert.NotEmpty(t, result, "valid command should not return empty")
 			assert.Equal(t, ServerTaskCommand(cmd), result)
@@ -90,6 +100,8 @@ func TestNewServerTaskCommandFromString_AllValidCommands(t *testing.T) {
 }
 
 func TestServerTask_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	executeDate := time.Now().Add(1 * time.Hour)
 	payload := testJSONPayload
@@ -120,6 +132,8 @@ func TestServerTask_Fields(t *testing.T) {
 }
 
 func TestServerTask_WithoutOptionalFields(t *testing.T) {
+	t.Parallel()
+
 	executeDate := time.Now().Add(1 * time.Hour)
 
 	task := ServerTask{
@@ -147,6 +161,8 @@ func TestServerTask_WithoutOptionalFields(t *testing.T) {
 }
 
 func TestServerTask_DifferentCommands(t *testing.T) {
+	t.Parallel()
+
 	commands := []ServerTaskCommand{
 		ServerTaskCommandStart,
 		ServerTaskCommandStop,
@@ -157,6 +173,8 @@ func TestServerTask_DifferentCommands(t *testing.T) {
 
 	for _, cmd := range commands {
 		t.Run(string(cmd), func(t *testing.T) {
+			t.Parallel()
+
 			task := ServerTask{
 				ID:          1,
 				Command:     cmd,
@@ -170,6 +188,8 @@ func TestServerTask_DifferentCommands(t *testing.T) {
 }
 
 func TestServerTask_RepeatPeriodDurations(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		duration time.Duration
@@ -198,6 +218,8 @@ func TestServerTask_RepeatPeriodDurations(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			task := ServerTask{
 				ID:           1,
 				Command:      ServerTaskCommandStart,
@@ -212,6 +234,8 @@ func TestServerTask_RepeatPeriodDurations(t *testing.T) {
 }
 
 func TestServerTaskExecution_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	output := "Error: connection timeout"
 	execID := xid.New()

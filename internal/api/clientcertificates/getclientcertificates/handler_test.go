@@ -37,6 +37,8 @@ aQnb1+Re
 -----END CERTIFICATE-----`
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		setupRepo        func(*inmemory.ClientCertificateRepository)
@@ -87,6 +89,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewClientCertificateRepository()
 			fileManager := &files.MockFileManager{}
 			responder := api.NewResponder()
@@ -141,6 +145,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_CertificatesResponseFields(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewClientCertificateRepository()
 	fileManager := &files.MockFileManager{
 		ReadFunc: func(_ context.Context, _ string) ([]byte, error) {
@@ -199,6 +205,8 @@ func TestHandler_CertificatesResponseFields(t *testing.T) {
 }
 
 func TestHandler_CertificatesSortedByID(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewClientCertificateRepository()
 	fileManager := &files.MockFileManager{
 		ReadFunc: func(_ context.Context, _ string) ([]byte, error) {

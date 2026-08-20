@@ -64,6 +64,7 @@ func (f failingHostLibFactory) Create(uint64) HostLibrary {
 }
 
 func TestLoadTransient_InvalidWASM(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	manager := NewManager(ManagerConfig{})
 
@@ -78,6 +79,7 @@ func TestLoadTransient_InvalidWASM(t *testing.T) {
 }
 
 func TestLoadTransient_EmptyModule(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	manager := NewManager(ManagerConfig{})
 
@@ -91,6 +93,7 @@ func TestLoadTransient_EmptyModule(t *testing.T) {
 }
 
 func TestLoadTransient_APIVersionMismatch(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	manager := NewManager(ManagerConfig{})
 
@@ -104,6 +107,7 @@ func TestLoadTransient_APIVersionMismatch(t *testing.T) {
 }
 
 func TestLoadTransient_APIVersionCallTraps(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	manager := NewManager(ManagerConfig{})
 
@@ -117,6 +121,7 @@ func TestLoadTransient_APIVersionCallTraps(t *testing.T) {
 }
 
 func TestLoadTransient_UnknownImport(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	manager := NewManager(ManagerConfig{})
 
@@ -130,6 +135,7 @@ func TestLoadTransient_UnknownImport(t *testing.T) {
 }
 
 func TestLoadTransient_HostLibraryInstantiateError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	manager := NewManager(ManagerConfig{
 		Libraries: []HostLibrary{
@@ -150,6 +156,7 @@ func TestLoadTransient_HostLibraryInstantiateError(t *testing.T) {
 }
 
 func TestLoadTransient_HostLibraryFactoryInstantiateError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	manager := NewManager(ManagerConfig{
 		LibraryFactories: []HostLibraryFactory{

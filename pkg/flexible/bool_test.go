@@ -8,6 +8,8 @@ import (
 )
 
 func TestBool_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		jsonStr  string
@@ -269,6 +271,8 @@ func TestBool_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var fb Bool
 			err := json.Unmarshal([]byte(tt.jsonStr), &fb)
 
@@ -283,6 +287,8 @@ func TestBool_UnmarshalJSON(t *testing.T) {
 }
 
 func TestBool_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		value    Bool
@@ -302,6 +308,8 @@ func TestBool_MarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := json.Marshal(tt.value)
 			if err != nil {
 				t.Errorf("Bool.MarshalJSON() error = %v", err)
@@ -317,6 +325,8 @@ func TestBool_MarshalJSON(t *testing.T) {
 }
 
 func TestBool_Bool(t *testing.T) {
+	t.Parallel()
+
 	trueVal := Bool(true)
 	falseVal := Bool(false)
 
@@ -344,6 +354,8 @@ func TestBool_Bool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.value.Bool()
 			if result != tt.expected {
 				t.Errorf("Bool.Bool() = %v, want %v", result, tt.expected)
@@ -353,6 +365,8 @@ func TestBool_Bool(t *testing.T) {
 }
 
 func TestBool_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input string
@@ -392,6 +406,8 @@ func TestBool_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var fb Bool
 			err := json.Unmarshal([]byte(tt.input), &fb)
 			assert.NoError(t, err)
@@ -409,6 +425,8 @@ func TestBool_RoundTrip(t *testing.T) {
 }
 
 func TestBool_StructMarshaling(t *testing.T) {
+	t.Parallel()
+
 	type TestStruct struct {
 		Enabled    Bool `json:"enabled"`
 		Active     Bool `json:"active"`
@@ -416,6 +434,8 @@ func TestBool_StructMarshaling(t *testing.T) {
 	}
 
 	t.Run("marshal_struct_with_flexible_bool", func(t *testing.T) {
+		t.Parallel()
+
 		ts := TestStruct{
 			Enabled:    Bool(true),
 			Active:     Bool(false),
@@ -430,6 +450,8 @@ func TestBool_StructMarshaling(t *testing.T) {
 	})
 
 	t.Run("unmarshal_struct_with_flexible_bool_mixed_formats", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"enabled": "yes",
 			"active": 0,
@@ -446,6 +468,8 @@ func TestBool_StructMarshaling(t *testing.T) {
 	})
 
 	t.Run("unmarshal_struct_with_all_string_formats", func(t *testing.T) {
+		t.Parallel()
+
 		jsonData := `{
 			"enabled": "on",
 			"active": "1",
@@ -463,7 +487,11 @@ func TestBool_StructMarshaling(t *testing.T) {
 }
 
 func TestBool_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	t.Run("multiple_unmarshal_same_variable", func(t *testing.T) {
+		t.Parallel()
+
 		var fb Bool
 
 		err := json.Unmarshal([]byte(`true`), &fb)
@@ -480,6 +508,8 @@ func TestBool_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("pointer_to_bool", func(t *testing.T) {
+		t.Parallel()
+
 		fb := Bool(true)
 		ptr := &fb
 
@@ -494,6 +524,8 @@ func TestBool_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("array_of_bools", func(t *testing.T) {
+		t.Parallel()
+
 		type BoolArray struct {
 			Values []Bool `json:"values"`
 		}
@@ -513,6 +545,8 @@ func TestBool_EdgeCases(t *testing.T) {
 }
 
 func Test_anyToBool(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -594,6 +628,8 @@ func Test_anyToBool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := anyToBool(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})

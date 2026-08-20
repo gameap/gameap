@@ -27,6 +27,7 @@ func encodeFrame(t *testing.T, msgType string, payload any) []byte {
 }
 
 func TestNewOutboundMaskFilter_returns_nil_for_empty_masker(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		masker *secretmask.Masker
@@ -38,6 +39,7 @@ func TestNewOutboundMaskFilter_returns_nil_for_empty_masker(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			filter := wsbase.NewOutboundMaskFilter(tt.masker)
 
@@ -48,6 +50,7 @@ func TestNewOutboundMaskFilter_returns_nil_for_empty_masker(t *testing.T) {
 }
 
 func TestNewOutboundMaskFilter_masksAttachOutput(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		data     string
@@ -77,6 +80,7 @@ func TestNewOutboundMaskFilter_masksAttachOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			filter := wsbase.NewOutboundMaskFilter(secretmask.New(testRconPassword))
 			require.NotNil(t, filter)
@@ -106,6 +110,7 @@ func TestNewOutboundMaskFilter_masksAttachOutput(t *testing.T) {
 }
 
 func TestNewOutboundMaskFilter_masksConsoleOutputChunk(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	filter := wsbase.NewOutboundMaskFilter(secretmask.New(testRconPassword))
 	require.NotNil(t, filter)
@@ -133,6 +138,7 @@ func TestNewOutboundMaskFilter_masksConsoleOutputChunk(t *testing.T) {
 // A password holding characters that JSON escapes ("\ and friends) never appears verbatim
 // in the encoded frame, so masking it depends on the payload being decoded first.
 func TestNewOutboundMaskFilter_masksJSONEscapedPassword(t *testing.T) {
+	t.Parallel()
 	const escapedPassword = `pa"ss\word`
 
 	tests := []struct {
@@ -180,6 +186,7 @@ func TestNewOutboundMaskFilter_masksJSONEscapedPassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			filter := wsbase.NewOutboundMaskFilter(secretmask.New(escapedPassword))
 			require.NotNil(t, filter)
@@ -205,6 +212,7 @@ func TestNewOutboundMaskFilter_masksJSONEscapedPassword(t *testing.T) {
 }
 
 func TestNewOutboundMaskFilter_masksUnknownFrameTypes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	filter := wsbase.NewOutboundMaskFilter(secretmask.New(testRconPassword))
 	require.NotNil(t, filter)
@@ -222,6 +230,7 @@ func TestNewOutboundMaskFilter_masksUnknownFrameTypes(t *testing.T) {
 }
 
 func TestNewOutboundMaskFilter_masksErrorFrames(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	filter := wsbase.NewOutboundMaskFilter(secretmask.New(testRconPassword))
 	require.NotNil(t, filter)
@@ -238,6 +247,7 @@ func TestNewOutboundMaskFilter_masksErrorFrames(t *testing.T) {
 }
 
 func TestNewOutboundMaskFilter_masksJSONEscapedPasswordInErrorFrame(t *testing.T) {
+	t.Parallel()
 	const escapedPassword = `pa"ss\word`
 
 	// ARRANGE
@@ -264,6 +274,7 @@ func TestNewOutboundMaskFilter_masksJSONEscapedPasswordInErrorFrame(t *testing.T
 }
 
 func TestNewOutboundMaskFilter_masksEnvelopeErrorField(t *testing.T) {
+	t.Parallel()
 	const escapedPassword = `pa"ss\word`
 
 	// ARRANGE
@@ -293,6 +304,7 @@ func TestNewOutboundMaskFilter_masksEnvelopeErrorField(t *testing.T) {
 }
 
 func TestNewOutboundMaskFilter_masksMalformedFrames(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	filter := wsbase.NewOutboundMaskFilter(secretmask.New(testRconPassword))
 	require.NotNil(t, filter)
@@ -307,6 +319,7 @@ func TestNewOutboundMaskFilter_masksMalformedFrames(t *testing.T) {
 }
 
 func TestNewOutboundMaskFilter_preservesEnvelopeFields(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	filter := wsbase.NewOutboundMaskFilter(secretmask.New(testRconPassword))
 	require.NotNil(t, filter)
@@ -345,6 +358,7 @@ func TestNewOutboundMaskFilter_preservesEnvelopeFields(t *testing.T) {
 }
 
 func TestNewOutboundMaskFilter_returnsFrameAsIsWhenNothingMatches(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	filter := wsbase.NewOutboundMaskFilter(secretmask.New(testRconPassword))
 	require.NotNil(t, filter)

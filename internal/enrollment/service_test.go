@@ -35,6 +35,8 @@ func setupService(t *testing.T) (*Service, cache.Cache) {
 }
 
 func TestService_Enroll_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, cacheInstance := setupService(t)
 	ctx := context.Background()
 
@@ -59,6 +61,8 @@ func TestService_Enroll_Success(t *testing.T) {
 }
 
 func TestService_Enroll_invalid_setup_key(t *testing.T) {
+	t.Parallel()
+
 	svc, cacheInstance := setupService(t)
 	ctx := context.Background()
 
@@ -77,6 +81,8 @@ func TestService_Enroll_invalid_setup_key(t *testing.T) {
 }
 
 func TestService_Enroll_no_setup_key_configured(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := setupService(t)
 	ctx := context.Background()
 
@@ -92,6 +98,8 @@ func TestService_Enroll_no_setup_key_configured(t *testing.T) {
 }
 
 func TestService_Enroll_default_port(t *testing.T) {
+	t.Parallel()
+
 	svc, cacheInstance := setupService(t)
 	ctx := context.Background()
 
@@ -113,6 +121,8 @@ func TestService_Enroll_default_port(t *testing.T) {
 // 10:2023 API2:2023 Broken Authentication. Asserts the persisted node stores
 // the SHA-256 digest of the issued API key, never the plaintext.
 func TestService_Enroll_creates_node_with_correct_fields(t *testing.T) {
+	t.Parallel()
+
 	cacheInstance := cache.NewInMemory()
 	fileManager := files.NewInMemoryFileManager()
 	certsSvc := certificates.NewService(fileManager)
@@ -158,6 +168,8 @@ func TestService_Enroll_creates_node_with_correct_fields(t *testing.T) {
 }
 
 func TestService_Enroll_with_env_setup_key(t *testing.T) {
+	t.Parallel()
+
 	cacheInstance := cache.NewInMemory()
 	fileManager := files.NewInMemoryFileManager()
 	certsSvc := certificates.NewService(fileManager)
@@ -180,6 +192,8 @@ func TestService_Enroll_with_env_setup_key(t *testing.T) {
 }
 
 func TestService_Enroll_key_invalidated_after_use(t *testing.T) {
+	t.Parallel()
+
 	svc, cacheInstance := setupService(t)
 	ctx := context.Background()
 
@@ -203,6 +217,8 @@ func TestService_Enroll_key_invalidated_after_use(t *testing.T) {
 }
 
 func TestService_Enroll_env_key_invalidated_after_use(t *testing.T) {
+	t.Parallel()
+
 	cacheInstance := cache.NewInMemory()
 	fileManager := files.NewInMemoryFileManager()
 	certsSvc := certificates.NewService(fileManager)

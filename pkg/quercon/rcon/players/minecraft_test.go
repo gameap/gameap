@@ -9,6 +9,7 @@ import (
 )
 
 func TestMinecraftPlayerManager_ParsePlayers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -84,6 +85,7 @@ func TestMinecraftPlayerManager_ParsePlayers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := NewMinecraftPlayers()
 			result, err := mgr.ParsePlayers(tt.input)
 
@@ -95,11 +97,13 @@ func TestMinecraftPlayerManager_ParsePlayers(t *testing.T) {
 }
 
 func TestMinecraftPlayerManager_PlayersCommand(t *testing.T) {
+	t.Parallel()
 	mgr := NewMinecraftPlayers()
 	assert.Equal(t, "list uuids", mgr.PlayersCommand())
 }
 
 func TestMinecraftPlayerManager_KickCommand(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		player      Player
@@ -136,6 +140,7 @@ func TestMinecraftPlayerManager_KickCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := NewMinecraftPlayers()
 			result, err := mgr.KickCommand(tt.player, tt.reason)
 			if tt.expectedErr != nil {
@@ -150,6 +155,7 @@ func TestMinecraftPlayerManager_KickCommand(t *testing.T) {
 }
 
 func TestMinecraftPlayerManager_BanCommand(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		player      Player
@@ -191,6 +197,7 @@ func TestMinecraftPlayerManager_BanCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := NewMinecraftPlayers()
 			result, err := mgr.BanCommand(tt.player, tt.reason, tt.duration)
 			if tt.expectedErr != nil {

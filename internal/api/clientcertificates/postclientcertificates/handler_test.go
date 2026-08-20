@@ -79,6 +79,8 @@ INVALID KEY DATA
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		setupRequest     func() *http.Request
@@ -189,6 +191,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewClientCertificateRepository()
 			fileManager := &files.MockFileManager{}
 			responder := api.NewResponder()
@@ -223,6 +227,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_CertificateStoredCorrectly(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewClientCertificateRepository()
 	fileManager := &files.MockFileManager{}
 	responder := api.NewResponder()
@@ -253,6 +259,8 @@ func TestHandler_CertificateStoredCorrectly(t *testing.T) {
 }
 
 func TestHandler_FingerprintCalculation(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewClientCertificateRepository()
 	fileManager := &files.MockFileManager{}
 	responder := api.NewResponder()

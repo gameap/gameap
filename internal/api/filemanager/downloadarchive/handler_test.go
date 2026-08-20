@@ -175,6 +175,8 @@ func (f *fakeGuard) Acquire(_ context.Context, _ uint) (func(), error) {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	cancelledDuringWriteCtx, cancelDuringWrite := context.WithCancel(authedCtx())
 	t.Cleanup(cancelDuringWrite)
 
@@ -733,6 +735,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -791,6 +795,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 // router does) and checks the wire-level contract: a mid-stream failure leaves the client with a
 // transport error while reading the body instead of a cleanly terminated, truncated archive.
 func TestHandler_ServeHTTP_WriteFailureTruncatesResponseBody(t *testing.T) {
+	t.Parallel()
+
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -861,6 +867,8 @@ func TestHandler_ServeHTTP_WriteFailureTruncatesResponseBody(t *testing.T) {
 }
 
 func TestArchiveFilename(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		rootName string
@@ -878,6 +886,8 @@ func TestArchiveFilename(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := archiveFilename(tt.rootName, tt.path)
 			assert.Equal(t, tt.want, got)
 		})
@@ -885,12 +895,16 @@ func TestArchiveFilename(t *testing.T) {
 }
 
 func TestContentDispositionHeader_RFC5987(t *testing.T) {
+	t.Parallel()
+
 	header := contentDispositionHeader("кириллица.zip")
 	assert.True(t, strings.HasPrefix(header, "attachment;"))
 	assert.Contains(t, header, "filename*=UTF-8''")
 }
 
 func TestReadCompressLevel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		raw       string
@@ -908,6 +922,8 @@ func TestReadCompressLevel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			urlStr := "/?"
 			if tt.raw != "" {
@@ -933,6 +949,8 @@ func TestReadCompressLevel(t *testing.T) {
 }
 
 func TestStripNonASCII(t *testing.T) {
+	t.Parallel()
+
 	// stripNonASCII iterates by rune: every non-ASCII rune becomes one underscore.
 	// Empty result falls back to "archive.zip".
 	tests := []struct {
@@ -950,6 +968,8 @@ func TestStripNonASCII(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := stripNonASCII(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -957,6 +977,8 @@ func TestStripNonASCII(t *testing.T) {
 }
 
 func TestMapManifestError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		inErr         error
@@ -992,6 +1014,8 @@ func TestMapManifestError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ACT
 			got := mapManifestError(tt.inErr)
 			require.Error(t, got)
@@ -1039,6 +1063,8 @@ func (e *errNodeRepo) Delete(_ context.Context, _ uint) error {
 }
 
 func TestHandler_ServeHTTP_NodeRepoError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()

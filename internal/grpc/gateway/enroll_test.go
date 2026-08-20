@@ -35,7 +35,9 @@ func newServiceWithEnrollment(t *testing.T) (*Service, cache.Cache, *inmemory.No
 }
 
 func TestService_Enroll(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_unavailable_when_enrollment_disabled", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 		// enrollmentSvc is nil by default
@@ -53,6 +55,7 @@ func TestService_Enroll(t *testing.T) {
 	})
 
 	t.Run("invalid_setup_key_returns_unauthenticated", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, cacheInstance, _ := newServiceWithEnrollment(t)
 		const correctKey = "correct-key-32-chars-long1234567"
@@ -75,6 +78,7 @@ func TestService_Enroll(t *testing.T) {
 	})
 
 	t.Run("missing_setup_key_returns_unauthenticated", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _ := newServiceWithEnrollment(t)
 
@@ -95,6 +99,7 @@ func TestService_Enroll(t *testing.T) {
 	})
 
 	t.Run("happy_path_returns_node_credentials_and_certs", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, cacheInstance, nodeRepo := newServiceWithEnrollment(t)
 		const setupKey = "test-setup-key-32-chars-long1234"
@@ -128,6 +133,7 @@ func TestService_Enroll(t *testing.T) {
 	})
 
 	t.Run("uses_peer_address_when_host_omitted", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, cacheInstance, nodeRepo := newServiceWithEnrollment(t)
 		const setupKey = "test-setup-key-32-chars-long1234"

@@ -10,6 +10,8 @@ import (
 )
 
 func TestGameModFastRconList_Scan(t *testing.T) {
+	t.Parallel()
+
 	prefilled := GameModFastRconList{
 		{Info: "preexisting", Command: "preexisting_cmd"},
 	}
@@ -98,6 +100,8 @@ func TestGameModFastRconList_Scan(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			result := test.receiver
 
@@ -118,6 +122,8 @@ func TestGameModFastRconList_Scan(t *testing.T) {
 }
 
 func TestGameModFastRconList_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    GameModFastRconList
@@ -157,6 +163,8 @@ func TestGameModFastRconList_Value(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := test.input.Value()
 
 			if test.wantErr {
@@ -174,6 +182,8 @@ func TestGameModFastRconList_Value(t *testing.T) {
 }
 
 func TestGameModVarDefault_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    GameModVarDefault
@@ -203,6 +213,8 @@ func TestGameModVarDefault_MarshalJSON(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := json.Marshal(test.input)
 			require.NoError(t, err)
 			assert.JSONEq(t, test.expected, string(result))
@@ -211,6 +223,8 @@ func TestGameModVarDefault_MarshalJSON(t *testing.T) {
 }
 
 func TestGameModVarDefault_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -275,6 +289,8 @@ func TestGameModVarDefault_UnmarshalJSON(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			var result GameModVarDefault
 
@@ -289,6 +305,8 @@ func TestGameModVarDefault_UnmarshalJSON(t *testing.T) {
 }
 
 func TestGameModVarList_Scan(t *testing.T) {
+	t.Parallel()
+
 	prefilled := GameModVarList{
 		{Var: "preexisting_var", Default: "preexisting", Info: "preexisting"},
 	}
@@ -386,6 +404,8 @@ func TestGameModVarList_Scan(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			result := test.receiver
 
@@ -406,6 +426,8 @@ func TestGameModVarList_Scan(t *testing.T) {
 }
 
 func TestGameModVarList_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    GameModVarList
@@ -445,6 +467,8 @@ func TestGameModVarList_Value(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := test.input.Value()
 
 			if test.wantErr {
@@ -462,6 +486,8 @@ func TestGameModVarList_Value(t *testing.T) {
 }
 
 func TestGameModFastRconList_ScanAndValue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	original := GameModFastRconList{
 		{Info: "Status", Command: "status"},
 		{Info: "Players", Command: "players"},
@@ -479,6 +505,8 @@ func TestGameModFastRconList_ScanAndValue_RoundTrip(t *testing.T) {
 }
 
 func TestGameModVarList_ScanAndValue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	original := GameModVarList{
 		{Var: "sv_cheats", Default: "0", Info: "Enable cheats", AdminVar: true},
 		{Var: "hostname", Default: "My Server", Info: "Server name", AdminVar: false},
@@ -496,6 +524,8 @@ func TestGameModVarList_ScanAndValue_RoundTrip(t *testing.T) {
 }
 
 func TestGameModVarDefault_MarshalUnmarshal_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input GameModVarDefault
@@ -520,6 +550,8 @@ func TestGameModVarDefault_MarshalUnmarshal_RoundTrip(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			marshaled, err := json.Marshal(test.input)
 			require.NoError(t, err)
 
@@ -533,6 +565,8 @@ func TestGameModVarDefault_MarshalUnmarshal_RoundTrip(t *testing.T) {
 }
 
 func TestGameMod_Merge(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		base     *GameMod
@@ -819,6 +853,8 @@ func TestGameMod_Merge(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			test.base.Merge(test.other)
 			assert.Equal(t, test.expected, test.base)
 		})

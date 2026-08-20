@@ -11,6 +11,7 @@ import (
 )
 
 func TestState_WaitForPart_complete_with_zero_parts(t *testing.T) {
+	t.Parallel()
 	state := &State{ch: make(chan struct{})}
 	state.Complete()
 
@@ -21,6 +22,7 @@ func TestState_WaitForPart_complete_with_zero_parts(t *testing.T) {
 }
 
 func TestState_WaitForPart_available_part(t *testing.T) {
+	t.Parallel()
 	state := &State{ch: make(chan struct{})}
 	state.AddPart()
 	state.Complete()
@@ -32,6 +34,7 @@ func TestState_WaitForPart_available_part(t *testing.T) {
 }
 
 func TestState_WaitForPart_error(t *testing.T) {
+	t.Parallel()
 	state := &State{ch: make(chan struct{})}
 	state.SetError(errors.New("transfer error"))
 
@@ -43,6 +46,7 @@ func TestState_WaitForPart_error(t *testing.T) {
 }
 
 func TestState_WaitForPart_context_cancelled(t *testing.T) {
+	t.Parallel()
 	state := &State{ch: make(chan struct{})}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -55,6 +59,7 @@ func TestState_WaitForPart_context_cancelled(t *testing.T) {
 }
 
 func TestState_Complete_idempotent(t *testing.T) {
+	t.Parallel()
 	state := &State{ch: make(chan struct{})}
 
 	state.Complete()
@@ -67,6 +72,7 @@ func TestState_Complete_idempotent(t *testing.T) {
 }
 
 func TestState_Complete_after_SetError(t *testing.T) {
+	t.Parallel()
 	state := &State{ch: make(chan struct{})}
 
 	state.SetError(errors.New("some error"))
@@ -80,6 +86,7 @@ func TestState_Complete_after_SetError(t *testing.T) {
 }
 
 func TestState_Complete_unblocks_waiting_goroutine(t *testing.T) {
+	t.Parallel()
 	state := &State{ch: make(chan struct{})}
 
 	done := make(chan struct{})
@@ -102,6 +109,7 @@ func TestState_Complete_unblocks_waiting_goroutine(t *testing.T) {
 }
 
 func TestState_AddPart_then_Complete(t *testing.T) {
+	t.Parallel()
 	state := &State{ch: make(chan struct{})}
 
 	state.AddPart()
@@ -124,6 +132,7 @@ func TestState_AddPart_then_Complete(t *testing.T) {
 }
 
 func TestRegistry_Register_Get_Unregister(t *testing.T) {
+	t.Parallel()
 	reg := NewRegistry()
 
 	state := reg.Register("transfer-1")

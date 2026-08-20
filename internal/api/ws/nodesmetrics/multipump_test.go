@@ -20,6 +20,7 @@ import (
 var errSubscribe = errors.New("subscribe failed")
 
 func TestTagNodeID_AddsLabelWithoutSharingMap(t *testing.T) {
+	t.Parallel()
 	original := &proto.MetricsResponse{
 		Timestamp:    timestamppb.New(time.Unix(1700000000, 0)),
 		CommonLabels: map[string]string{"foo": "bar"},
@@ -36,10 +37,12 @@ func TestTagNodeID_AddsLabelWithoutSharingMap(t *testing.T) {
 }
 
 func TestTagNodeID_NilResponse(t *testing.T) {
+	t.Parallel()
 	assert.Nil(t, tagNodeID(nil, 1))
 }
 
 func TestPumpAll_NoNodes_SendsReplayDoneOnly(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
@@ -55,6 +58,7 @@ func TestPumpAll_NoNodes_SendsReplayDoneOnly(t *testing.T) {
 }
 
 func TestPumpAll_TagsEachEnvelopeWithNodeID(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
@@ -82,6 +86,7 @@ func TestPumpAll_TagsEachEnvelopeWithNodeID(t *testing.T) {
 }
 
 func TestPumpAll_ClosesSubscriptionsOnClientDone(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
@@ -100,6 +105,7 @@ func TestPumpAll_ClosesSubscriptionsOnClientDone(t *testing.T) {
 }
 
 func TestPumpAll_DropsNonNodeSeries(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
@@ -128,6 +134,7 @@ func TestPumpAll_DropsNonNodeSeries(t *testing.T) {
 }
 
 func TestPumpAll_AllSeriesFiltered_NoEnvelopeSent(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
@@ -150,6 +157,7 @@ func TestPumpAll_AllSeriesFiltered_NoEnvelopeSent(t *testing.T) {
 }
 
 func TestPumpAll_HubSubscribeError_SkipsFailingNode(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 

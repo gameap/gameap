@@ -20,6 +20,7 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name               string
 		requestBody        string
@@ -537,6 +538,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
@@ -592,6 +594,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ServerPersistence(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -664,6 +667,7 @@ func TestHandler_ServerPersistence(t *testing.T) {
 }
 
 func TestHandler_MultipleServers(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -728,6 +732,7 @@ func TestHandler_MultipleServers(t *testing.T) {
 }
 
 func TestHandler_ServerWithSettings(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -807,6 +812,7 @@ func TestHandler_ServerWithSettings(t *testing.T) {
 }
 
 func TestHandler_ServerWithoutSettings_BackwardCompatibility(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -854,6 +860,7 @@ func TestHandler_ServerWithoutSettings_BackwardCompatibility(t *testing.T) {
 }
 
 func TestHandler_SettingEmptyName_ValidationError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -901,6 +908,7 @@ func TestHandler_SettingEmptyName_ValidationError(t *testing.T) {
 }
 
 func TestHandler_DisallowedSettings_Ignored(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -976,6 +984,7 @@ func TestHandler_DisallowedSettings_Ignored(t *testing.T) {
 }
 
 func TestHandler_GameModBelongsToGame_Validation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		setupRepo         func(nodeRepo *inmemory.NodeRepository, gameRepo *inmemory.GameRepository, gameModRepo *inmemory.GameModRepository)
@@ -1049,6 +1058,7 @@ func TestHandler_GameModBelongsToGame_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
@@ -1096,6 +1106,7 @@ func TestHandler_GameModBelongsToGame_Validation(t *testing.T) {
 }
 
 func TestHandler_PrepareServerErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func() (repositories.NodeRepository, repositories.GameRepository, repositories.GameModRepository)
@@ -1236,6 +1247,7 @@ func TestHandler_PrepareServerErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo, gameRepo, gameModRepo := tt.setupRepo()
@@ -1271,6 +1283,7 @@ func TestHandler_PrepareServerErrors(t *testing.T) {
 }
 
 func TestHandler_PersistenceErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		buildHandler   func(t *testing.T) (*Handler, *inmemory.ServerRepository, *inmemory.DaemonTaskRepository, *stubTaskDispatcher)
@@ -1475,6 +1488,7 @@ func TestHandler_PersistenceErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler, serverRepo, taskRepo, dispatcher := tt.buildHandler(t)
 
@@ -1504,6 +1518,7 @@ func TestHandler_PersistenceErrors(t *testing.T) {
 }
 
 func TestHandler_TaskDispatcher_Success(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()

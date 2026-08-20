@@ -116,7 +116,7 @@ jobs:
           TEST_REDIS_ADDR: '127.0.0.1:6379'
           TEST_S3_DSN: 's3://e2e-rustfs-secret:e2e-rustfs-secret@127.0.0.1:9000/test-bucket?ssl=false'
         run: |
-          go test -race -v \
+          go test -race -v -parallel 8 \
             $(go list ./... | \
               grep -v /test/ | \
               grep -v /repositories/testing | \

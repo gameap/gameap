@@ -47,6 +47,7 @@ func (s stubClaims) GetIssuedAt() (*time.Time, error)       { return s.iat, s.ia
 // missing the relevant timestamp passes (backward compatible with credentials
 // predating the tracking).
 func TestRejectPATIfCreatedBeforePasswordChange(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	before := now.Add(-time.Hour)
 	after := now.Add(time.Hour)
@@ -85,6 +86,7 @@ func TestRejectPATIfCreatedBeforePasswordChange(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			user := &domain.User{ID: 1, Login: "alice"}
 			user.SetPasswordChangedAt(tt.passwordChangedAt)
@@ -111,6 +113,7 @@ func TestRejectPATIfCreatedBeforePasswordChange(t *testing.T) {
 // time or an absent/unreadable iat is fail-open (the token already passed
 // signature validation, so a missing cutoff must not itself reject it).
 func TestRejectIfIssuedBeforePasswordChange(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	before := now.Add(-time.Hour)
 	after := now.Add(time.Hour)
@@ -155,6 +158,7 @@ func TestRejectIfIssuedBeforePasswordChange(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			user := &domain.User{ID: 1, Login: "alice"}
 			user.SetPasswordChangedAt(tt.passwordChangedAt)
@@ -179,6 +183,7 @@ func TestRejectIfIssuedBeforePasswordChange(t *testing.T) {
 // API2:2023 through the PASETO code path (v4.local tokens), exercising the real
 // pasetoClaims.GetIssuedAt cutoff comparison end-to-end in the middleware.
 func TestAuthMiddleware_PasswordChange_InvalidatesPASETOSessionTokens(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	future := now.Add(time.Hour)
 	past := now.Add(-time.Hour)
@@ -202,6 +207,7 @@ func TestAuthMiddleware_PasswordChange_InvalidatesPASETOSessionTokens(t *testing
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			userRepo := inmemory.NewUserRepository()
 			user := &domain.User{ID: 1, Login: "alice", Email: "alice@example.com"}

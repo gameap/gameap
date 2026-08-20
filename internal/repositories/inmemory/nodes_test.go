@@ -16,6 +16,8 @@ import (
 )
 
 func TestNodeRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewNodeRepositorySuite(
 		func(_ *testing.T) repositories.NodeRepository {
 			return inmemory.NewNodeRepository()
@@ -24,6 +26,8 @@ func TestNodeRepository(t *testing.T) {
 }
 
 func TestNodeRepository_DeletedAtFiltering(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewNodeRepository()
 	now := time.Now()
 	deletedTime := now.Add(-1 * time.Hour)
@@ -57,6 +61,8 @@ func TestNodeRepository_DeletedAtFiltering(t *testing.T) {
 	require.NoError(t, repo.Save(context.Background(), node2))
 
 	t.Run("FindAll_excludes_deleted_nodes", func(t *testing.T) {
+		t.Parallel()
+
 		nodes, err := repo.FindAll(context.Background(), nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, nodes, 1)
@@ -64,6 +70,8 @@ func TestNodeRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_without_WithDeleted_excludes_deleted_nodes", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -72,6 +80,8 @@ func TestNodeRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_with_WithDeleted_includes_deleted_nodes", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{WithDeleted: true}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -79,6 +89,8 @@ func TestNodeRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_by_ID_without_WithDeleted_excludes_deleted_nodes", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{IDs: []uint{1, 2}}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -87,6 +99,8 @@ func TestNodeRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_by_ID_with_WithDeleted_includes_deleted_nodes", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{IDs: []uint{1, 2}, WithDeleted: true}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -95,6 +109,8 @@ func TestNodeRepository_DeletedAtFiltering(t *testing.T) {
 }
 
 func TestNodeRepository_GDaemonAPIKeyFiltering(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewNodeRepository()
 	now := time.Now()
 	apiKey1 := "api-key-1"
@@ -146,6 +162,8 @@ func TestNodeRepository_GDaemonAPIKeyFiltering(t *testing.T) {
 	require.NoError(t, repo.Save(context.Background(), node3))
 
 	t.Run("Find_by_GDaemonAPIKey_returns_matching_nodes", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{GDaemonAPIKey: &apiKey1}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -159,6 +177,8 @@ func TestNodeRepository_GDaemonAPIKeyFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_by_GDaemonAPIKey_returns_single_node", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{GDaemonAPIKey: &apiKey2}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -168,6 +188,8 @@ func TestNodeRepository_GDaemonAPIKeyFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_by_GDaemonAPIKey_with_no_matches_returns_empty", func(t *testing.T) {
+		t.Parallel()
+
 		nonExistentKey := "non-existent-key"
 		filter := &filters.FindNode{GDaemonAPIKey: &nonExistentKey}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
@@ -176,6 +198,8 @@ func TestNodeRepository_GDaemonAPIKeyFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_by_GDaemonAPIKey_and_IDs", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{
 			IDs:           []uint{1, 2},
 			GDaemonAPIKey: &apiKey1,
@@ -187,6 +211,8 @@ func TestNodeRepository_GDaemonAPIKeyFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_by_GDaemonAPIKey_and_GDaemonAPIToken", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{
 			GDaemonAPIKey:   &apiKey1,
 			GDaemonAPIToken: &apiToken1,
@@ -199,6 +225,8 @@ func TestNodeRepository_GDaemonAPIKeyFiltering(t *testing.T) {
 }
 
 func TestNodeRepository_GDaemonAPIKeyFiltering_WithDeletedNodes(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewNodeRepository()
 	now := time.Now()
 	deletedTime := now.Add(-1 * time.Hour)
@@ -235,6 +263,8 @@ func TestNodeRepository_GDaemonAPIKeyFiltering_WithDeletedNodes(t *testing.T) {
 	require.NoError(t, repo.Save(context.Background(), deletedNode))
 
 	t.Run("Find_by_GDaemonAPIKey_excludes_deleted_nodes_by_default", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{GDaemonAPIKey: &apiKey}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -244,6 +274,8 @@ func TestNodeRepository_GDaemonAPIKeyFiltering_WithDeletedNodes(t *testing.T) {
 	})
 
 	t.Run("Find_by_GDaemonAPIKey_includes_deleted_nodes_with_WithDeleted", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{
 			GDaemonAPIKey: &apiKey,
 			WithDeleted:   true,
@@ -261,6 +293,8 @@ func TestNodeRepository_GDaemonAPIKeyFiltering_WithDeletedNodes(t *testing.T) {
 }
 
 func TestNodeRepository_FilterByNodeIDs(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewNodeRepository()
 	now := time.Now()
 
@@ -294,6 +328,8 @@ func TestNodeRepository_FilterByNodeIDs(t *testing.T) {
 	require.NoError(t, repo.Save(context.Background(), node2))
 
 	t.Run("Filter_by_Node_1", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{IDs: []uint{1}}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -302,6 +338,8 @@ func TestNodeRepository_FilterByNodeIDs(t *testing.T) {
 	})
 
 	t.Run("Filter_by_Node_2", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{IDs: []uint{2}}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -310,6 +348,8 @@ func TestNodeRepository_FilterByNodeIDs(t *testing.T) {
 	})
 
 	t.Run("Filter_by_Multiple_Nodes", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{IDs: []uint{1, 2}}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -317,6 +357,8 @@ func TestNodeRepository_FilterByNodeIDs(t *testing.T) {
 	})
 
 	t.Run("Filter_by_Non-existent_Node", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindNode{IDs: []uint{999}}
 		nodes, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -324,6 +366,8 @@ func TestNodeRepository_FilterByNodeIDs(t *testing.T) {
 	})
 
 	t.Run("Filter_by_Node_and_GDaemonAPIKey", func(t *testing.T) {
+		t.Parallel()
+
 		key := "key1"
 		filter := &filters.FindNode{
 			IDs:           []uint{1, 2},

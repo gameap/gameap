@@ -56,6 +56,7 @@ func (m *mockFileService) DownloadStream(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		nodeID         string
@@ -291,6 +292,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			nodesRepo := inmemory.NewNodeRepository()
 			responder := api.NewResponder()
 			mockFS := tt.setupMock()
@@ -351,6 +353,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	nodesRepo := inmemory.NewNodeRepository()
 	mockFS := &mockFileService{}
 	responder := api.NewResponder()
@@ -364,6 +367,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestHandler_ZipContent(t *testing.T) {
+	t.Parallel()
 	nodesRepo := inmemory.NewNodeRepository()
 	responder := api.NewResponder()
 
@@ -442,6 +446,7 @@ func TestHandler_ZipContent(t *testing.T) {
 }
 
 func TestHandler_SkipDirectories(t *testing.T) {
+	t.Parallel()
 	nodesRepo := inmemory.NewNodeRepository()
 	responder := api.NewResponder()
 

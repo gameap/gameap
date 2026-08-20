@@ -157,6 +157,8 @@ func (m *mockFileService) UploadStream(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		serverID         string
@@ -862,6 +864,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -962,6 +966,8 @@ func uploadAuditForm(t *testing.T) (*bytes.Buffer, string) {
 // success, category file_op, the server as the scoped resource, and the
 // acting user attributed as the actor.
 func TestHandler_Audit_SuccessfulUploadIsRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -1015,6 +1021,8 @@ func TestHandler_Audit_SuccessfulUploadIsRecorded(t *testing.T) {
 // An upload refused by the per-server ability check must NOT emit a
 // file.upload success event.
 func TestHandler_Audit_DeniedUploadDoesNotEmitFileUpload(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -1113,6 +1121,8 @@ func runUploadWithMime(t *testing.T, mimeChecker *filemanagermime.Checker, filen
 // The audit record captures the detected MIME so an operator can spot the
 // attempted bypass.
 func TestHandler_C8_HTMLAsPNG_RejectedAndAudited(t *testing.T) {
+	t.Parallel()
+
 	mimeChecker := filemanagermime.NewChecker(filemanagermime.Config{})
 
 	htmlBody := []byte(`<!DOCTYPE html><html><body><script>alert("xss")</script></body></html>`)
@@ -1155,6 +1165,8 @@ func lookupExtraString(extra []slog.Attr, key string) string {
 // TestHandler_C8_ValidPNG_Accepted — OWASP API6:2023 — a real PNG must
 // pass the MIME gate so the regression does not block legitimate uploads.
 func TestHandler_C8_ValidPNG_Accepted(t *testing.T) {
+	t.Parallel()
+
 	mimeChecker := filemanagermime.NewChecker(filemanagermime.Config{})
 
 	// Minimal PNG magic header (8 bytes) — enough for DetectContentType to
@@ -1171,6 +1183,8 @@ func TestHandler_C8_ValidPNG_Accepted(t *testing.T) {
 // must let game-config files through. DetectContentType returns text/plain
 // for an ASCII config, which is on the default allowlist.
 func TestHandler_C8_PlainTextConfig_Accepted(t *testing.T) {
+	t.Parallel()
+
 	mimeChecker := filemanagermime.NewChecker(filemanagermime.Config{})
 
 	cfg := []byte("server_name=test\nmaxplayers=16\nrcon_password=...\n")
@@ -1185,6 +1199,8 @@ func TestHandler_C8_PlainTextConfig_Accepted(t *testing.T) {
 // must be refused under the default (deny-by-default) configuration.
 // Operators that legitimately need archives flip AllowArchives.
 func TestHandler_C8_ZIP_RejectedByDefault(t *testing.T) {
+	t.Parallel()
+
 	mimeChecker := filemanagermime.NewChecker(filemanagermime.Config{})
 
 	// PK\x03\x04 — ZIP signature.
@@ -1200,6 +1216,8 @@ func TestHandler_C8_ZIP_RejectedByDefault(t *testing.T) {
 // operator override flips the same upload from 415 → 200, proving the
 // allow-list is config-driven rather than hard-coded.
 func TestHandler_C8_ZIP_AcceptedWhenArchivesAllowed(t *testing.T) {
+	t.Parallel()
+
 	mimeChecker := filemanagermime.NewChecker(filemanagermime.Config{AllowArchives: true})
 
 	zipHeader := []byte{0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00}

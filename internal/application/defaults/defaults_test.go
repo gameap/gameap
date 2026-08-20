@@ -16,11 +16,15 @@ import (
 // local darwin machine and the linux CI runner.
 
 func TestVersionDefaultsAreNonEmpty(t *testing.T) {
+	t.Parallel()
+
 	assert.NotEmpty(t, Version, "Version must always carry a value (default or -ldflags override)")
 	assert.NotEmpty(t, BuildDate, "BuildDate must always carry a value (default or -ldflags override)")
 }
 
 func TestStoragePathMatchesPlatform(t *testing.T) {
+	t.Parallel()
+
 	want := map[string]string{
 		"darwin":  "",
 		"linux":   "/var/www/gameap/storage/app",

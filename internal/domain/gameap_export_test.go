@@ -9,6 +9,8 @@ import (
 )
 
 func TestParseGameExport(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		input      string
@@ -143,6 +145,8 @@ game:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			export, err := ParseGameExport([]byte(tt.input))
 
 			if tt.wantError != "" {
@@ -163,6 +167,8 @@ game:
 }
 
 func TestGameExport_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		export    *GameExport
@@ -656,6 +662,8 @@ func TestGameExport_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.export.Validate()
 
 			if tt.wantError != "" {
@@ -671,6 +679,8 @@ func TestGameExport_Validate(t *testing.T) {
 }
 
 func TestValidateModCommands(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		mod       GameExportMod
@@ -916,6 +926,8 @@ func TestValidateModCommands(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			mod := tt.mod
 
@@ -936,6 +948,8 @@ func TestValidateModCommands(t *testing.T) {
 }
 
 func TestGameExportGame_ToDomainGame(t *testing.T) {
+	t.Parallel()
+
 	exportGame := &GameExportGame{
 		Code:                    "cstrike",
 		Name:                    "Counter-Strike 1.6",
@@ -971,6 +985,8 @@ func TestGameExportGame_ToDomainGame(t *testing.T) {
 }
 
 func TestGameExportMod_ToDomainGameMod(t *testing.T) {
+	t.Parallel()
+
 	exportMod := &GameExportMod{
 		Name: "Classic",
 		FastRcon: []GameExportModFastRcon{
@@ -1014,6 +1030,8 @@ func TestGameExportMod_ToDomainGameMod(t *testing.T) {
 }
 
 func TestNewGameExportFromDomain(t *testing.T) {
+	t.Parallel()
+
 	game := &Game{
 		Code:                    "cstrike",
 		Name:                    "Counter-Strike 1.6",
@@ -1071,6 +1089,8 @@ func TestNewGameExportFromDomain(t *testing.T) {
 }
 
 func TestNewGameExportFromDomain_FastRconAndVarsNilWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		fastRcon        GameModFastRconList
@@ -1118,6 +1138,8 @@ func TestNewGameExportFromDomain_FastRconAndVarsNilWhenEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			mods := []GameMod{
 				{
@@ -1151,6 +1173,8 @@ func TestNewGameExportFromDomain_FastRconAndVarsNilWhenEmpty(t *testing.T) {
 }
 
 func TestNewGameExportFromDomain_ExportedByWithoutVersion(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	game := &Game{
 		Code:    "cstrike",
@@ -1167,6 +1191,8 @@ func TestNewGameExportFromDomain_ExportedByWithoutVersion(t *testing.T) {
 }
 
 func TestGameExport_ToYAML(t *testing.T) {
+	t.Parallel()
+
 	export := &GameExport{
 		SchemaVersion: "1.0",
 		ExportedAt:    "2024-01-15T10:30:00Z",

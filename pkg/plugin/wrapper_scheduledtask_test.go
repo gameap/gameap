@@ -41,6 +41,7 @@ func decompressNoSchedulerWASM(t *testing.T) []byte {
 }
 
 func TestPluginServiceWrapper_HandleScheduledTask(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: the current fixture is built with the sdk/scheduler module and
 	// registers a handler in init().
 	plugin := loadSharedServerLoggerWASM(t)
@@ -63,6 +64,7 @@ func TestPluginServiceWrapper_HandleScheduledTask(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_HandleScheduledTask_NilFunctionReturnsError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	w := &pluginServiceWrapper{handlescheduledtask: nil}
 
@@ -79,12 +81,14 @@ func TestPluginServiceWrapper_HandleScheduledTask_NilFunctionReturnsError(t *tes
 }
 
 func TestPluginServiceWrapper_HasScheduledTaskHandler_NilFunction(t *testing.T) {
+	t.Parallel()
 	w := &pluginServiceWrapper{}
 
 	assert.False(t, w.HasScheduledTaskHandler())
 }
 
 func TestLoadedPlugin_HasScheduledTaskHandler_InstanceWithoutCapability(t *testing.T) {
+	t.Parallel()
 	// mockPluginService implements proto.PluginService only; the capability
 	// type assertion must miss and report false.
 	lp := &LoadedPlugin{Instance: &mockPluginService{}}
@@ -103,6 +107,7 @@ func (s *schedulerCapablePluginService) HasScheduledTaskHandler() bool {
 }
 
 func TestLoadedPlugin_HasScheduledTaskHandler_InstanceWithCapability(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		hasHandler bool
@@ -114,6 +119,7 @@ func TestLoadedPlugin_HasScheduledTaskHandler_InstanceWithCapability(t *testing.
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			lp := &LoadedPlugin{Instance: &schedulerCapablePluginService{hasHandler: tt.hasHandler}}
 
 			assert.Equal(t, tt.want, lp.HasScheduledTaskHandler())
@@ -122,6 +128,7 @@ func TestLoadedPlugin_HasScheduledTaskHandler_InstanceWithCapability(t *testing.
 }
 
 func TestManager_Load_PluginWithoutSchedulerExport(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	wasmBytes := decompressNoSchedulerWASM(t)
 

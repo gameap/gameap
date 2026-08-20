@@ -10,6 +10,8 @@ import (
 )
 
 func TestDaemonTaskRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewDaemonTaskRepositorySuite(
 		func(_ *testing.T) repositories.DaemonTaskRepository {
 			return inmemory.NewDaemonTaskRepository()

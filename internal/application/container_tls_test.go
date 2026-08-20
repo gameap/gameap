@@ -28,7 +28,11 @@ import (
 // the builder must explicitly opt out (nil config, plaintext), and when on it
 // must delegate to the hardened builder.
 func TestGRPCTLSConfig(t *testing.T) {
+	t.Parallel()
+
 	t.Run("tls_disabled_returns_nil_config_and_no_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t, func(cfg *config.Config) {
 			cfg.GRPC.TLSEnabled = false
@@ -43,6 +47,8 @@ func TestGRPCTLSConfig(t *testing.T) {
 	})
 
 	t.Run("tls_enabled_returns_non_nil_config", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t, func(cfg *config.Config) {
 			cfg.GRPC.TLSEnabled = true
@@ -62,7 +68,11 @@ func TestGRPCTLSConfig(t *testing.T) {
 // modern minimum protocol version, carry exactly one parseable server
 // certificate, and only require/verify client certificates when mTLS is enabled.
 func TestBuildGRPCTLSConfig(t *testing.T) {
+	t.Parallel()
+
 	t.Run("generates_hardened_config_without_client_auth_by_default", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t, func(cfg *config.Config) {
 			cfg.GRPC.TLSEnabled = true
@@ -91,6 +101,8 @@ func TestBuildGRPCTLSConfig(t *testing.T) {
 	})
 
 	t.Run("require_mtls_enables_client_cert_verification", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t, func(cfg *config.Config) {
 			cfg.GRPC.TLSEnabled = true
@@ -116,7 +128,11 @@ func TestBuildGRPCTLSConfig(t *testing.T) {
 // loopback identities the local multiplexer presents, so an operator who never
 // configures an external host still gets a working, verifiable certificate.
 func TestGRPCCertSignOptions(t *testing.T) {
+	t.Parallel()
+
 	t.Run("always_includes_loopback_and_localhost_sans", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t)
 
@@ -140,7 +156,11 @@ func TestGRPCCertSignOptions(t *testing.T) {
 // configured the mux must run plaintext (nil config), and when an inline cert is
 // configured the mux must serve a hardened TLS config carrying that certificate.
 func TestBuildMultiplexerTLSConfig(t *testing.T) {
+	t.Parallel()
+
 	t.Run("tls_disabled_returns_nil_config_and_no_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t)
 		require.False(t, c.config.TLSEnabled(), "sanity: no cert source must disable TLS")
@@ -154,6 +174,8 @@ func TestBuildMultiplexerTLSConfig(t *testing.T) {
 	})
 
 	t.Run("inline_certificate_yields_hardened_config", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		certPEM, keyPEM := buildSelfSignedPEM(t)
 		c := newWiredContainer(t, func(cfg *config.Config) {
@@ -181,7 +203,11 @@ func TestBuildMultiplexerTLSConfig(t *testing.T) {
 // reachability) and verifies the server is built once. Serve() is intentionally
 // not driven here — the full Serve loop is covered by multiplexer_test.go.
 func TestMultiplexedServer(t *testing.T) {
+	t.Parallel()
+
 	t.Run("builds_once_on_ephemeral_loopback_port", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		// MultiplexedServer pulls in the full HTTP router (HTTPServer -> Router),
 		// which wires the auth-backed handlers; AuthService panics on an empty

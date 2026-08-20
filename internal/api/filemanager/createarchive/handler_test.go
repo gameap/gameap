@@ -149,6 +149,8 @@ func setupRepo(
 
 //nolint:maintidx
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		requestBody      any
@@ -416,6 +418,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -453,6 +457,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_Audit_SuccessfulStartIsRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -493,6 +499,8 @@ func TestHandler_Audit_SuccessfulStartIsRecorded(t *testing.T) {
 }
 
 func TestHandler_Audit_DeniedStartIsNotRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: no files ability granted.
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()

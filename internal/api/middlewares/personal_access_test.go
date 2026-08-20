@@ -14,6 +14,7 @@ import (
 )
 
 func TestPersonalAccessMiddleware_Middleware(t *testing.T) {
+	t.Parallel()
 	// Setup
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 	responder := api.NewResponder()
@@ -177,6 +178,7 @@ func TestPersonalAccessMiddleware_Middleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Create request
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
@@ -203,6 +205,7 @@ func TestPersonalAccessMiddleware_Middleware(t *testing.T) {
 }
 
 func TestPersonalAccessMiddleware_Middleware_ContextPropagation(t *testing.T) {
+	t.Parallel()
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 	responder := api.NewResponder()
 	middleware := NewPersonalAccessMiddleware(tokenRepo, responder)
@@ -236,6 +239,7 @@ func TestPersonalAccessMiddleware_Middleware_ContextPropagation(t *testing.T) {
 }
 
 func TestNewPersonalAccessMiddleware(t *testing.T) {
+	t.Parallel()
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 	responder := api.NewResponder()
 	middleware := NewPersonalAccessMiddleware(tokenRepo, responder)
@@ -246,6 +250,7 @@ func TestNewPersonalAccessMiddleware(t *testing.T) {
 }
 
 func TestPersonalAccessMiddleware_EdgeCases(t *testing.T) {
+	t.Parallel()
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 	responder := api.NewResponder()
 	middleware := NewPersonalAccessMiddleware(tokenRepo, responder)
@@ -255,6 +260,7 @@ func TestPersonalAccessMiddleware_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("duplicate_required_abilities_causes_forbidden_due_to_length_check", func(t *testing.T) {
+		t.Parallel()
 		session := &auth.Session{
 			Token: &domain.PersonalAccessToken{
 				ID: 1,
@@ -287,6 +293,7 @@ func TestPersonalAccessMiddleware_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("token_with_zero_id_is_not_token_session", func(t *testing.T) {
+		t.Parallel()
 		session := &auth.Session{
 			Token: &domain.PersonalAccessToken{
 				ID: 0, // Zero ID means it's not a valid token session

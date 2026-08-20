@@ -28,7 +28,11 @@ import (
 )
 
 func TestNewMultiplexedServer(t *testing.T) {
+	t.Parallel()
+
 	t.Run("plaintext_listener_is_bound_on_loopback", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		grpcSrv := grpc.NewServer()
@@ -51,6 +55,8 @@ func TestNewMultiplexedServer(t *testing.T) {
 	})
 
 	t.Run("tls_listener_wraps_with_tls_config", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		grpcSrv := grpc.NewServer()
@@ -73,6 +79,8 @@ func TestNewMultiplexedServer(t *testing.T) {
 	})
 
 	t.Run("nil_logger_falls_back_to_default", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		grpcSrv := grpc.NewServer()
@@ -93,6 +101,8 @@ func TestNewMultiplexedServer(t *testing.T) {
 	})
 
 	t.Run("invalid_address_returns_listener_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx := context.Background()
 		grpcSrv := grpc.NewServer()
@@ -112,6 +122,8 @@ func TestNewMultiplexedServer(t *testing.T) {
 }
 
 func TestMultiplexedServer_Address(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	grpcSrv := grpc.NewServer()
@@ -137,6 +149,8 @@ func TestMultiplexedServer_Address(t *testing.T) {
 }
 
 func TestMultiplexedServer_Close_BeforeServe(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx := context.Background()
 	grpcSrv := grpc.NewServer()
@@ -160,6 +174,8 @@ func TestMultiplexedServer_Close_BeforeServe(t *testing.T) {
 }
 
 func TestMultiplexedServer_Serve_RoutesGRPCAndHTTP(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -246,6 +262,8 @@ func TestMultiplexedServer_Serve_RoutesGRPCAndHTTP(t *testing.T) {
 }
 
 func TestMultiplexedServer_Serve_TLS(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -320,6 +338,8 @@ func TestMultiplexedServer_Serve_TLS(t *testing.T) {
 }
 
 func TestMultiplexedServer_Serve_FiltersGRPCStoppedError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)

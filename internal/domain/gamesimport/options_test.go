@@ -9,6 +9,8 @@ import (
 )
 
 func TestImportOptions_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		opts      *Options
@@ -132,6 +134,8 @@ func TestImportOptions_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.opts.Validate()
 
 			if tt.wantError != "" {
@@ -145,6 +149,8 @@ func TestImportOptions_Validate(t *testing.T) {
 }
 
 func TestImportOptions_IsEmpty(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		opts     *Options
@@ -186,6 +192,8 @@ func TestImportOptions_IsEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.opts.IsEmpty()
 			assert.Equal(t, tt.expected, result)
 		})

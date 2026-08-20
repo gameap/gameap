@@ -10,6 +10,8 @@ import (
 )
 
 func TestNewContentResponse_Mode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		fileType daemon.FileType
@@ -35,6 +37,8 @@ func TestNewContentResponse_Mode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			fileInfo := &daemon.FileInfo{
 				Name:         "thing",
 				Size:         42,
@@ -62,6 +66,8 @@ func TestNewContentResponse_Mode(t *testing.T) {
 }
 
 func TestNewContentResponse_Mode_JSONShape(t *testing.T) {
+	t.Parallel()
+
 	// Locks the JSON wire contract: the field must be named "mode" and
 	// serialized as a JSON number (uint32). Frontend code reads `item.mode`,
 	// so a rename here would silently break the file manager.

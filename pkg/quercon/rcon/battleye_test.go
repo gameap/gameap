@@ -69,6 +69,7 @@ func openBattlEyeClient(t *testing.T, addr string) *BattlEye {
 }
 
 func TestBattlEye_BuildPacket(t *testing.T) {
+	t.Parallel()
 	got := buildBattlEyePacket([]byte{battlEyePacketLogin, 'p', 'w'})
 
 	require.Len(t, got, 7+3)
@@ -80,6 +81,7 @@ func TestBattlEye_BuildPacket(t *testing.T) {
 }
 
 func TestBattlEye_ParsePacket(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		datagram  []byte
@@ -125,6 +127,7 @@ func TestBattlEye_ParsePacket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := parseBattlEyePacket(tt.datagram)
 
 			if tt.wantError != "" {
@@ -142,6 +145,7 @@ func TestBattlEye_ParsePacket(t *testing.T) {
 }
 
 func TestBattlEye_OpenSendsLoginPayload(t *testing.T) {
+	t.Parallel()
 	requests := make(chan []byte, 1)
 	srv := newScriptedUDPServer(t, func(req []byte, _ int) [][]byte {
 		requests <- req
@@ -158,6 +162,7 @@ func TestBattlEye_OpenSendsLoginPayload(t *testing.T) {
 }
 
 func TestBattlEye_OpenRejectsBadPassword(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return [][]byte{battlEyeDatagram(battlEyePacketLogin, 0x00)}
 	})
@@ -173,6 +178,7 @@ func TestBattlEye_OpenRejectsBadPassword(t *testing.T) {
 }
 
 func TestBattlEye_OpenSkipsCorruptDatagramBeforeLoginAnswer(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		corrupt := battlEyeDatagram(battlEyePacketLogin, battlEyeLoginSucceeded)
 		corrupt[3] ^= 0xFF
@@ -188,6 +194,7 @@ func TestBattlEye_OpenSkipsCorruptDatagramBeforeLoginAnswer(t *testing.T) {
 }
 
 func TestBattlEye_OpenFailsWhenServerIsSilent(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return nil
 	})
@@ -202,6 +209,7 @@ func TestBattlEye_OpenFailsWhenServerIsSilent(t *testing.T) {
 }
 
 func TestBattlEye_ExecuteSingleAndEmptyResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		body string
@@ -213,6 +221,7 @@ func TestBattlEye_ExecuteSingleAndEmptyResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv := battlEyeServer(t, func(req []byte, _ int) [][]byte {
 				payload, _ := parseBattlEyePacket(req)
 
@@ -230,6 +239,7 @@ func TestBattlEye_ExecuteSingleAndEmptyResponse(t *testing.T) {
 }
 
 func TestBattlEye_ExecuteReassemblesOutOfOrderMultipart(t *testing.T) {
+	t.Parallel()
 	srv := battlEyeServer(t, func(req []byte, _ int) [][]byte {
 		payload, _ := parseBattlEyePacket(req)
 		seq := payload[1]
@@ -250,6 +260,7 @@ func TestBattlEye_ExecuteReassemblesOutOfOrderMultipart(t *testing.T) {
 }
 
 func TestBattlEye_ExecuteAcknowledgesServerMessages(t *testing.T) {
+	t.Parallel()
 	acks := make(chan byte, 4)
 	srv := newScriptedUDPServer(t, func(req []byte, _ int) [][]byte {
 		payload, err := parseBattlEyePacket(req)
@@ -282,6 +293,7 @@ func TestBattlEye_ExecuteAcknowledgesServerMessages(t *testing.T) {
 }
 
 func TestBattlEye_ExecuteIgnoresStaleSequence(t *testing.T) {
+	t.Parallel()
 	srv := battlEyeServer(t, func(req []byte, _ int) [][]byte {
 		payload, _ := parseBattlEyePacket(req)
 		seq := payload[1]
@@ -301,6 +313,7 @@ func TestBattlEye_ExecuteIgnoresStaleSequence(t *testing.T) {
 }
 
 func TestBattlEye_ExecuteIncrementsSequence(t *testing.T) {
+	t.Parallel()
 	sequences := make(chan byte, 2)
 	srv := battlEyeServer(t, func(req []byte, _ int) [][]byte {
 		payload, _ := parseBattlEyePacket(req)
@@ -321,6 +334,7 @@ func TestBattlEye_ExecuteIncrementsSequence(t *testing.T) {
 }
 
 func TestBattlEye_ExecuteTimesOutOnIncompleteMultipart(t *testing.T) {
+	t.Parallel()
 	srv := battlEyeServer(t, func(req []byte, _ int) [][]byte {
 		payload, _ := parseBattlEyePacket(req)
 
@@ -340,6 +354,7 @@ func TestBattlEye_ExecuteTimesOutOnIncompleteMultipart(t *testing.T) {
 }
 
 func TestBattlEye_MultipartDetection(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		body []byte
@@ -354,6 +369,7 @@ func TestBattlEye_MultipartDetection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, _, _, ok := battlEyeMultipart(tt.body)
 
 			assert.Equal(t, tt.want, ok)
@@ -362,6 +378,7 @@ func TestBattlEye_MultipartDetection(t *testing.T) {
 }
 
 func TestBattlEye_CloseWithoutOpen(t *testing.T) {
+	t.Parallel()
 	client, err := NewBattlEye(Config{Address: "127.0.0.1:2302", Password: "secret"})
 	require.NoError(t, err)
 

@@ -23,6 +23,7 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		serverID    string
@@ -1187,6 +1188,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			gameRepo := inmemory.NewGameRepository()
@@ -1230,6 +1232,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ServerUpdatePersistence(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
 	gameRepo := inmemory.NewGameRepository()
@@ -1318,6 +1321,7 @@ func TestHandler_ServerUpdatePersistence(t *testing.T) {
 }
 
 func TestHandler_ServerUpdatePersistence_WithVarsAndLimits(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
 	gameRepo := inmemory.NewGameRepository()
@@ -1391,6 +1395,7 @@ func TestHandler_ServerUpdatePersistence_WithVarsAndLimits(t *testing.T) {
 }
 
 func TestHandler_ServerUpdatePersistence_WithMetadata(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		metadata     any
@@ -1416,6 +1421,7 @@ func TestHandler_ServerUpdatePersistence_WithMetadata(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			gameRepo := inmemory.NewGameRepository()
@@ -1478,6 +1484,7 @@ func TestHandler_ServerUpdatePersistence_WithMetadata(t *testing.T) {
 }
 
 func TestHandler_InvalidServerID(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
 	gameRepo := inmemory.NewGameRepository()
@@ -1516,6 +1523,7 @@ func TestHandler_InvalidServerID(t *testing.T) {
 }
 
 func TestHandler_PrepareUpdateRepoErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		buildRepos  func() (repositories.NodeRepository, repositories.GameRepository, repositories.GameModRepository)
@@ -1579,6 +1587,7 @@ func TestHandler_PrepareUpdateRepoErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo, gameRepo, gameModRepo := tt.buildRepos()
 			responder := api.NewResponder()

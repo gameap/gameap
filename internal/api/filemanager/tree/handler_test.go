@@ -86,6 +86,8 @@ func (m *mockFileService) ReadDir(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		serverID         string
@@ -839,6 +841,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -892,6 +896,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestExtractDirname(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		path        string
@@ -926,6 +932,8 @@ func TestExtractDirname(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			dirname := extractDirname(tt.path)
 			assert.Equal(t, tt.wantDirname, dirname)
 		})

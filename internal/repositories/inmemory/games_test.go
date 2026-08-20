@@ -10,6 +10,8 @@ import (
 )
 
 func TestGameRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewGameRepositorySuite(
 		func(_ *testing.T) repositories.GameRepository {
 			return inmemory.NewGameRepository()

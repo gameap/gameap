@@ -136,6 +136,7 @@ var errCacheUnavailable = errors.New("cache unavailable")
 // -----------------------------------------------------------------------------
 
 func TestHandler_ServeHTTP_unauthenticated_returns401(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	c := cache.NewInMemory()
 	svc := newEnrollmentService(t, c)
@@ -165,6 +166,7 @@ func TestHandler_ServeHTTP_unauthenticated_returns401(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_keyManagerError_propagates(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc := newEnrollmentService(t, &failingCache{setErr: errCacheUnavailable})
 	responder := &fakeResponder{}
@@ -187,6 +189,7 @@ func TestHandler_ServeHTTP_keyManagerError_propagates(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_success_writesResponse(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	c := cache.NewInMemory()
 	svc := newEnrollmentService(t, c)
@@ -244,6 +247,7 @@ func TestHandler_ServeHTTP_success_writesResponse(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_usesGRPCExtPort_whenSet(t *testing.T) {
+	t.Parallel()
 	// Pins the dual-port behaviour: when grpcExtPort is non-zero it overrides
 	// the in-cluster grpcPort. The previous test fixed extPort=0 so this case
 	// covers the other branch.
@@ -269,6 +273,7 @@ func TestHandler_ServeHTTP_usesGRPCExtPort_whenSet(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_warnsWhenHostNotCoveredByCert(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc := newEnrollmentService(t, nil)
 	responder := &fakeResponder{}
@@ -292,6 +297,7 @@ func TestHandler_ServeHTTP_warnsWhenHostNotCoveredByCert(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_noWarningsWhenHostCovered(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	svc := newEnrollmentService(t, nil)
 	responder := &fakeResponder{}
@@ -316,6 +322,7 @@ func TestHandler_ServeHTTP_noWarningsWhenHostCovered(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestHandler_resolveGRPCHost(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		panelHost     string
@@ -375,6 +382,7 @@ func TestHandler_resolveGRPCHost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			h := NewHandler(&fakeResponder{}, tt.panelHost, nil, 31718, tt.grpcExtHost, 0, nil)
 			req := httptest.NewRequest(http.MethodGet, "/api/nodes/setup", nil)
@@ -399,6 +407,7 @@ func TestHandler_resolveGRPCHost(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestHandler_detectBaseURL(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		panelHost      string
@@ -443,6 +452,7 @@ func TestHandler_detectBaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			h := NewHandler(&fakeResponder{}, tt.panelHost, nil, 31718, "", 0, nil)
 			req := httptest.NewRequest(http.MethodGet, "/api/nodes/setup", nil)
@@ -473,6 +483,7 @@ func TestHandler_detectBaseURL(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestNewHandler_assemblesDependencies(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	responder := &fakeResponder{}
 	svc := newEnrollmentService(t, nil)

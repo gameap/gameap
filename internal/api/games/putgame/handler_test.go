@@ -18,6 +18,7 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		gameCode    string
@@ -291,6 +292,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewGameRepository()
 			responder := api.NewResponder()
 			handler := NewHandler(repo, nil, nil, responder)
@@ -326,6 +328,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_GameUpdatePersistence(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)
@@ -393,6 +396,7 @@ func TestHandler_GameUpdatePersistence(t *testing.T) {
 }
 
 func TestHandler_GameUpdateMetadataPersistence(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)
@@ -447,6 +451,7 @@ func TestHandler_GameUpdateMetadataPersistence(t *testing.T) {
 }
 
 func TestHandler_GameUpdateWithNilMetadata(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)
@@ -494,6 +499,7 @@ func TestHandler_GameUpdateWithNilMetadata(t *testing.T) {
 }
 
 func TestHandler_EmptyGameCode(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, nil, nil, responder)

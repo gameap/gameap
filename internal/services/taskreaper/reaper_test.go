@@ -98,6 +98,8 @@ func (f *fakeReconciler) recordedNodeIDs() []uint64 {
 }
 
 func TestReaperSweep(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	stale := now.Add(-30 * time.Minute)
 	fresh := now.Add(-5 * time.Second)
@@ -189,6 +191,8 @@ func TestReaperSweep(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := &fakeTaskRepo{}
 			for _, s := range tt.seed {
 				task := domain.DaemonTask{
@@ -241,6 +245,8 @@ func (panicTaskRepo) Find(
 }
 
 func TestReaper_safeSweep_recoversPanic(t *testing.T) {
+	t.Parallel()
+
 	reaper := NewReaper(
 		panicTaskRepo{},
 		&fakeRegistry{connected: make(map[uint64]struct{})},
@@ -255,6 +261,8 @@ func TestReaper_safeSweep_recoversPanic(t *testing.T) {
 }
 
 func TestReaperOptionsApplyDefaults(t *testing.T) {
+	t.Parallel()
+
 	o := Options{}
 	o.applyDefaults()
 	assert.Equal(t, defaultInterval, o.Interval)
@@ -294,6 +302,8 @@ func (r *errorReconciler) ReconcileWorkingTasks(
 }
 
 func TestReaperSweep_FindError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	reaper := NewReaper(
 		&errorTaskRepo{err: errTestRepoFind},
@@ -313,6 +323,8 @@ func TestReaperSweep_FindError(t *testing.T) {
 }
 
 func TestReaperSweep_ReconcileErrorIsIgnored(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	stale := time.Now().Add(-30 * time.Minute)
 	repo := &fakeTaskRepo{tasks: []domain.DaemonTask{
@@ -342,6 +354,8 @@ func TestReaperSweep_ReconcileErrorIsIgnored(t *testing.T) {
 }
 
 func TestReaper_safeSweep_logsSweepError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	reaper := NewReaper(
 		&errorTaskRepo{err: errTestRepoFind},
@@ -358,7 +372,11 @@ func TestReaper_safeSweep_logsSweepError(t *testing.T) {
 }
 
 func TestReaperStart(t *testing.T) {
+	t.Parallel()
+
 	t.Run("sweeps_on_ticker", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		stale := time.Now().Add(-30 * time.Minute)
 		repo := &fakeTaskRepo{tasks: []domain.DaemonTask{
@@ -401,6 +419,8 @@ func TestReaperStart(t *testing.T) {
 	})
 
 	t.Run("stops_on_context_cancel", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE — a huge interval guarantees the ticker never fires, so the
 		// goroutine can only leave the select through the ctx.Done branch. The
 		// repo is seeded with the same stale, abandoned task as sweeps_on_ticker
@@ -440,6 +460,8 @@ func TestReaperStart(t *testing.T) {
 }
 
 func TestNewReaper_NilLogger(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE & ACT
 	reaper := NewReaper(
 		&fakeTaskRepo{},

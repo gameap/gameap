@@ -8,6 +8,7 @@ import (
 )
 
 func TestNodePrefixFilter(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		series *proto.MetricSeries
@@ -53,6 +54,7 @@ func TestNodePrefixFilter(t *testing.T) {
 	filter := NodePrefixFilter()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tc.want, filter(tc.series))
 		})
 	}

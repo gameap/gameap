@@ -30,6 +30,7 @@ func setupKeyManager(t *testing.T, setupKey string) *enrollment.SetupKeyManager 
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		key            string
@@ -212,6 +213,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			keyManager := setupKeyManager(t, tt.setupKey)
 			cacheInstance := cache.NewInMemory()
 
@@ -290,6 +292,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 //
 // Reference: https://owasp.org/API-Security/editions/2023/
 func TestHandler_ServeHTTP_ShellInjectionSafety(t *testing.T) {
+	t.Parallel()
 	const key = "AbCdEfGh1234567890AbCdEfGh123456"
 
 	tests := []struct {
@@ -349,6 +352,7 @@ func TestHandler_ServeHTTP_ShellInjectionSafety(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			keyManager := setupKeyManager(t, key)
 			enrollSvc := enrollment.NewService(keyManager, nil, nil, nil)
@@ -402,6 +406,7 @@ func TestHandler_ServeHTTP_ShellInjectionSafety(t *testing.T) {
 }
 
 func TestHandler_GRPCDisabled(t *testing.T) {
+	t.Parallel()
 	responder := api.NewResponder()
 	handler := NewHandler(nil, responder, "", "", 0, 0, nil)
 
@@ -417,6 +422,7 @@ func TestHandler_GRPCDisabled(t *testing.T) {
 // The uncovered-host warning is log-only for this endpoint: the generated
 // script must stay byte-identical so existing installs are not disturbed.
 func TestHandler_ServeHTTP_uncoveredHostKeepsScriptUnchanged(t *testing.T) {
+	t.Parallel()
 	const key = "AbCdEfGh1234567890AbCdEfGh123456"
 
 	buildScript := func(certHostCovered func(string) bool) string {

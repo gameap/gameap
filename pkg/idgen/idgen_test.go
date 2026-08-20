@@ -10,6 +10,8 @@ import (
 )
 
 func TestXIDToUUID_and_UUIDToXID(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		xid  xid.ID
@@ -42,6 +44,8 @@ func TestXIDToUUID_and_UUIDToXID(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			u := XIDToUUID(tc.xid)
 
 			assert.Equal(t, uuid.RFC4122, u.Variant(), "UUID variant must be RFC4122")
@@ -54,6 +58,8 @@ func TestXIDToUUID_and_UUIDToXID(t *testing.T) {
 }
 
 func TestXIDToUUID_deterministic(t *testing.T) {
+	t.Parallel()
+
 	id := xid.ID{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xAB, 0x08, 0xCD, 0x0A, 0x0B, 0x0C}
 
 	u1 := XIDToUUID(id)
@@ -63,6 +69,8 @@ func TestXIDToUUID_deterministic(t *testing.T) {
 }
 
 func TestXIDToUUID_distinct(t *testing.T) {
+	t.Parallel()
+
 	id1 := xid.New()
 	id2 := xid.New()
 

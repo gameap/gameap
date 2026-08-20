@@ -114,6 +114,8 @@ func prepareRBACService(
 }
 
 func TestRBAC_Can(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	rbacService := setupRBAC(t)
 
@@ -169,6 +171,7 @@ func TestRBAC_Can(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := rbacService.Can(ctx, tt.user.ID, tt.abilities)
 
 			require.NoError(t, err)
@@ -178,6 +181,8 @@ func TestRBAC_Can(t *testing.T) {
 }
 
 func TestRBAC_Can_RoleBased(t *testing.T) {
+	t.Parallel()
+
 	type state struct {
 		roles         []domain.Role
 		assignedRoles []domain.AssignedRole
@@ -326,6 +331,7 @@ func TestRBAC_Can_RoleBased(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := context.Background()
 			rbacService := prepareRBACService(
 				t,
@@ -344,6 +350,8 @@ func TestRBAC_Can_RoleBased(t *testing.T) {
 }
 
 func TestRBAC_CanOneOf(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	rbacService := setupRBAC(t)
 
@@ -405,6 +413,7 @@ func TestRBAC_CanOneOf(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := rbacService.CanOneOf(ctx, tt.user.ID, tt.abilities)
 
 			require.NoError(t, err)
@@ -414,6 +423,8 @@ func TestRBAC_CanOneOf(t *testing.T) {
 }
 
 func TestRBAC_CanForEntity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	rbacService := setupRBAC(t)
 
@@ -485,6 +496,7 @@ func TestRBAC_CanForEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := rbacService.CanForEntity(ctx, tt.user.ID, tt.entityType, tt.entityID, tt.abilities)
 
 			require.NoError(t, err)
@@ -494,6 +506,8 @@ func TestRBAC_CanForEntity(t *testing.T) {
 }
 
 func TestRBAC_CanAnyForEntity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	rbacService := setupRBAC(t)
 
@@ -565,6 +579,7 @@ func TestRBAC_CanAnyForEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := rbacService.CanAnyForEntity(ctx, tt.user.ID, tt.entityType, tt.entityID, tt.abilities)
 
 			require.NoError(t, err)
@@ -574,6 +589,8 @@ func TestRBAC_CanAnyForEntity(t *testing.T) {
 }
 
 func TestRBAC_grantsAbilityForEntity(t *testing.T) {
+	t.Parallel()
+
 	serverType := domain.EntityTypeServer
 
 	allowAllServers := domain.Permission{
@@ -669,6 +686,7 @@ func TestRBAC_grantsAbilityForEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := grantsAbilityForEntity(tt.permissions, serverType, tt.entityID)
 			assert.Equal(t, tt.want, got)
 		})
@@ -676,6 +694,8 @@ func TestRBAC_grantsAbilityForEntity(t *testing.T) {
 }
 
 func TestRBAC_EntityForbidSemantics_endToEnd(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	user := domain.User{ID: 40, Login: "scoped"}
@@ -711,6 +731,8 @@ func TestRBAC_EntityForbidSemantics_endToEnd(t *testing.T) {
 }
 
 func TestRBAC_GetRoles(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	rbacService := setupRBAC(t)
 
@@ -738,6 +760,7 @@ func TestRBAC_GetRoles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			roles, err := rbacService.GetRoles(ctx, tt.user.ID)
 
 			require.NoError(t, err)
@@ -747,6 +770,8 @@ func TestRBAC_GetRoles(t *testing.T) {
 }
 
 func TestRBAC_SetRolesToUser(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	tests := []struct {
@@ -803,6 +828,7 @@ func TestRBAC_SetRolesToUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rbacService := setupRBAC(t)
 			err := rbacService.SetRolesToUser(ctx, tt.userID, tt.roleNames)
 
@@ -826,6 +852,8 @@ func TestRBAC_SetRolesToUser(t *testing.T) {
 // has to go with them. Every other test here runs with the cache disabled
 // (TTL 0), which would hide a missing invalidation.
 func TestRBAC_SetRolesToUser_invalidates_the_cached_permissions(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	repo := inmemory.NewRBACRepository()
@@ -850,6 +878,8 @@ func TestRBAC_SetRolesToUser_invalidates_the_cached_permissions(t *testing.T) {
 }
 
 func TestRBAC_AllowUserAbilitiesForEntity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	tests := []struct {
@@ -888,6 +918,7 @@ func TestRBAC_AllowUserAbilitiesForEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rbacService := setupRBAC(t)
 			err := rbacService.AllowUserAbilitiesForEntity(
 				ctx,
@@ -913,6 +944,8 @@ func TestRBAC_AllowUserAbilitiesForEntity(t *testing.T) {
 }
 
 func TestRBAC_RevokeOrForbidUserAbilitiesForEntity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	tests := []struct {
@@ -985,6 +1018,7 @@ func TestRBAC_RevokeOrForbidUserAbilitiesForEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rbacService := tt.setupFunc(t)
 
 			err := rbacService.RevokeOrForbidUserAbilitiesForEntity(

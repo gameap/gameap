@@ -22,6 +22,8 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		setupAuth      func() context.Context
@@ -570,6 +572,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serversRepo := inmemory.NewServerRepository()
 			serverTasksRepo := inmemory.NewServerTaskRepository(serversRepo)
 			rbacRepo := inmemory.NewRBACRepository()
@@ -625,6 +629,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ServerTasksResponseConversion(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	executeDate := now.Add(time.Hour)
 	payload := "test payload"

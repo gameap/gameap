@@ -57,6 +57,7 @@ func allowUserAbilityForServer(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		serverID   string
@@ -707,6 +708,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			rbacRepo := inmemory.NewRBACRepository()
 			daemonTaskRepo := inmemory.NewDaemonTaskRepository()
@@ -762,6 +764,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	daemonTaskRepo := inmemory.NewDaemonTaskRepository()
@@ -787,6 +790,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestHandler_CommandMapContainsAllCommands(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	daemonTaskRepo := inmemory.NewDaemonTaskRepository()
@@ -811,6 +815,7 @@ func TestHandler_CommandMapContainsAllCommands(t *testing.T) {
 }
 
 func TestHandler_AbilitiesMapContainsCorrectAbilities(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	daemonTaskRepo := inmemory.NewDaemonTaskRepository()
@@ -876,6 +881,7 @@ func TestHandler_AbilitiesMapContainsCorrectAbilities(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.command, func(t *testing.T) {
+			t.Parallel()
 			abilities, exists := handler.abilitiesMap[tt.command]
 			require.True(t, exists)
 			assert.Equal(t, tt.expectedAbilities, abilities)
@@ -884,6 +890,7 @@ func TestHandler_AbilitiesMapContainsCorrectAbilities(t *testing.T) {
 }
 
 func TestNewCommandResponse(t *testing.T) {
+	t.Parallel()
 	taskID := uint(42)
 	response := newCommandResponse(taskID)
 
@@ -892,6 +899,7 @@ func TestNewCommandResponse(t *testing.T) {
 }
 
 func TestHandler_FindUserServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		userID       uint
@@ -990,6 +998,7 @@ func TestHandler_FindUserServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			rbacRepo := inmemory.NewRBACRepository()
 			daemonTaskRepo := inmemory.NewDaemonTaskRepository()
@@ -1028,6 +1037,7 @@ func TestHandler_FindUserServer(t *testing.T) {
 }
 
 func TestHandler_DaemonTaskCreation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		command          string
@@ -1068,6 +1078,7 @@ func TestHandler_DaemonTaskCreation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			rbacRepo := inmemory.NewRBACRepository()
 			daemonTaskRepo := inmemory.NewDaemonTaskRepository()

@@ -15,6 +15,7 @@ import (
 )
 
 func TestDomainServerToProtoWithGameMod(t *testing.T) {
+	t.Parallel()
 	linuxCmd := "./start.sh -game cstrike"
 	windowsCmd := "start.exe -game cstrike"
 
@@ -83,6 +84,7 @@ func TestDomainServerToProtoWithGameMod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			server := &domain.Server{
 				ID:           1,
 				Name:         "test",
@@ -107,6 +109,7 @@ func TestDomainServerToProtoWithGameMod(t *testing.T) {
 }
 
 func TestDomainServerToProto_minimalServer(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	srv := &domain.Server{
 		ID:         42,
@@ -156,6 +159,7 @@ func TestDomainServerToProto_minimalServer(t *testing.T) {
 }
 
 func TestDomainServerToProto_fullServer(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	created := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
 	updated := time.Date(2024, 1, 3, 3, 4, 5, 0, time.UTC)
@@ -251,6 +255,7 @@ func TestDomainServerToProto_fullServer(t *testing.T) {
 }
 
 func TestDomainServerToProto_ramLimitAboveInt32IsNotClamped(t *testing.T) {
+	t.Parallel()
 	// ram_limit is stored in bytes; the proto field is int64, so values above the
 	// int32/uint32 boundaries must pass through unchanged (the original 500 bug).
 	tests := []struct {
@@ -266,6 +271,7 @@ func TestDomainServerToProto_ramLimitAboveInt32IsNotClamped(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			srv := &domain.Server{
 				ID:         1,
@@ -291,6 +297,7 @@ func TestDomainServerToProto_ramLimitAboveInt32IsNotClamped(t *testing.T) {
 }
 
 func TestDomainServerToProto_cpuAndNetLimitsStillClampToInt32(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	// cpu_limit and net_limit remain int32 on the wire, so values above int32 must
 	// still be clamped — only ram_limit was widened to int64.
@@ -324,6 +331,7 @@ func TestDomainServerToProto_cpuAndNetLimitsStillClampToInt32(t *testing.T) {
 }
 
 func TestDomainServerToProto_installedStatusMapping(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   domain.ServerInstalledStatus
@@ -353,6 +361,7 @@ func TestDomainServerToProto_installedStatusMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv := &domain.Server{ID: 1, Installed: tt.in, ServerIP: "1.1.1.1", ServerPort: 1}
 
 			got := DomainServerToProto(srv)
@@ -364,6 +373,7 @@ func TestDomainServerToProto_installedStatusMapping(t *testing.T) {
 }
 
 func TestDomainGameToProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		in        *domain.Game
@@ -448,6 +458,7 @@ func TestDomainGameToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := DomainGameToProto(tt.in)
 
 			require.NotNil(t, got)
@@ -457,7 +468,9 @@ func TestDomainGameToProto(t *testing.T) {
 }
 
 func TestDomainGameModToProto(t *testing.T) {
+	t.Parallel()
 	t.Run("minimal_game_mod_yields_empty_collections", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		gm := &domain.GameMod{
 			ID:       11,
@@ -481,6 +494,7 @@ func TestDomainGameModToProto(t *testing.T) {
 	})
 
 	t.Run("populated_game_mod_translates_all_fields", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		gm := &domain.GameMod{
 			ID:                      22,
@@ -537,11 +551,14 @@ func TestDomainGameModToProto(t *testing.T) {
 }
 
 func TestDomainMetadataToProto(t *testing.T) {
+	t.Parallel()
 	t.Run("nil_metadata_returns_nil", func(t *testing.T) {
+		t.Parallel()
 		assert.Nil(t, domainMetadataToProto(nil))
 	})
 
 	t.Run("scalars_stringified_into_anypb_wrappers", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		m := domain.Metadata{
 			"int_val":  42,
@@ -571,6 +588,7 @@ func TestDomainMetadataToProto(t *testing.T) {
 }
 
 func TestDomainDaemonTaskToProto(t *testing.T) {
+	t.Parallel()
 	created := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	updated := time.Date(2024, 1, 2, 12, 0, 0, 0, time.UTC)
 	serverID := uint(7)
@@ -643,6 +661,7 @@ func TestDomainDaemonTaskToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := DomainDaemonTaskToProto(tt.task)
 
 			require.NotNil(t, got)
@@ -652,6 +671,7 @@ func TestDomainDaemonTaskToProto(t *testing.T) {
 }
 
 func TestDomainTaskTypeToProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   domain.DaemonTaskType
@@ -670,6 +690,7 @@ func TestDomainTaskTypeToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := domainTaskTypeToProto(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -677,6 +698,7 @@ func TestDomainTaskTypeToProto(t *testing.T) {
 }
 
 func TestDomainTaskStatusToProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   domain.DaemonTaskStatus
@@ -692,6 +714,7 @@ func TestDomainTaskStatusToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := domainTaskStatusToProto(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -699,6 +722,7 @@ func TestDomainTaskStatusToProto(t *testing.T) {
 }
 
 func TestProtoTaskStatusToDomain(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   proto.DaemonTaskStatus
@@ -714,6 +738,7 @@ func TestProtoTaskStatusToDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ProtoTaskStatusToDomain(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -721,13 +746,16 @@ func TestProtoTaskStatusToDomain(t *testing.T) {
 }
 
 func TestDomainServerSettingsToProto(t *testing.T) {
+	t.Parallel()
 	t.Run("empty_input_returns_empty_slice", func(t *testing.T) {
+		t.Parallel()
 		got := DomainServerSettingsToProto(nil)
 		require.NotNil(t, got, "must return non-nil even for nil input")
 		assert.Empty(t, got)
 	})
 
 	t.Run("string_int_bool_values_serialised_via_String", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		settings := []domain.ServerSetting{
 			{ID: 1, ServerID: 10, Name: "map", Value: domain.NewServerSettingValue("de_dust2")},
@@ -751,6 +779,7 @@ func TestDomainServerSettingsToProto(t *testing.T) {
 }
 
 func TestClampToInt32(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   int
@@ -763,6 +792,7 @@ func TestClampToInt32(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := clampToInt32(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -770,6 +800,7 @@ func TestClampToInt32(t *testing.T) {
 }
 
 func TestClampToUint32(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   uint
@@ -781,6 +812,7 @@ func TestClampToUint32(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := clampToUint32(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -788,6 +820,7 @@ func TestClampToUint32(t *testing.T) {
 }
 
 func TestDomainServerTaskToProto(t *testing.T) {
+	t.Parallel()
 	executeDate := time.Date(2026, 5, 13, 10, 0, 0, 0, time.UTC)
 	updatedAt := time.Date(2026, 5, 13, 11, 30, 0, 0, time.UTC)
 	repeatPeriod := 15 * time.Minute
@@ -1005,6 +1038,7 @@ func TestDomainServerTaskToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := DomainServerTaskToProto(tt.task)
 
 			require.NotNil(t, got)
@@ -1014,9 +1048,11 @@ func TestDomainServerTaskToProto(t *testing.T) {
 }
 
 func TestDomainServerTasksToProtoList(t *testing.T) {
+	t.Parallel()
 	executeDate := time.Date(2026, 5, 13, 10, 0, 0, 0, time.UTC)
 
 	t.Run("empty_slice_returns_empty_not_nil", func(t *testing.T) {
+		t.Parallel()
 		got := DomainServerTasksToProtoList([]domain.ServerTask{})
 
 		require.NotNil(t, got, "result must be empty slice, not nil")
@@ -1024,6 +1060,7 @@ func TestDomainServerTasksToProtoList(t *testing.T) {
 	})
 
 	t.Run("nil_slice_returns_empty_not_nil", func(t *testing.T) {
+		t.Parallel()
 		got := DomainServerTasksToProtoList(nil)
 
 		require.NotNil(t, got, "converter must return an empty slice for nil input")
@@ -1031,6 +1068,7 @@ func TestDomainServerTasksToProtoList(t *testing.T) {
 	})
 
 	t.Run("preserves_order", func(t *testing.T) {
+		t.Parallel()
 		tasks := []domain.ServerTask{
 			{ID: 1, ServerID: 10, Command: domain.ServerTaskCommandStart, ExecuteDate: executeDate},
 			{ID: 2, ServerID: 20, Command: domain.ServerTaskCommandStop, ExecuteDate: executeDate},
@@ -1053,6 +1091,7 @@ func TestDomainServerTasksToProtoList(t *testing.T) {
 }
 
 func TestDomainServerTaskCommandToProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   domain.ServerTaskCommand
@@ -1069,6 +1108,7 @@ func TestDomainServerTaskCommandToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := domainServerTaskCommandToProto(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -1076,6 +1116,7 @@ func TestDomainServerTaskCommandToProto(t *testing.T) {
 }
 
 func TestProtoServerTaskCommandToDomain(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   proto.ServerTaskCommand
@@ -1092,6 +1133,7 @@ func TestProtoServerTaskCommandToDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ProtoServerTaskCommandToDomain(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -1099,6 +1141,7 @@ func TestProtoServerTaskCommandToDomain(t *testing.T) {
 }
 
 func TestDomainServerTaskOverlapPolicyToProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   domain.ServerTaskOverlapPolicy
@@ -1128,6 +1171,7 @@ func TestDomainServerTaskOverlapPolicyToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := domainServerTaskOverlapPolicyToProto(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -1135,6 +1179,7 @@ func TestDomainServerTaskOverlapPolicyToProto(t *testing.T) {
 }
 
 func TestDomainServerTaskCatchupPolicyToProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   domain.ServerTaskCatchupPolicy
@@ -1164,6 +1209,7 @@ func TestDomainServerTaskCatchupPolicyToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := domainServerTaskCatchupPolicyToProto(tt.in)
 			assert.Equal(t, tt.want, got)
 		})
@@ -1171,6 +1217,7 @@ func TestDomainServerTaskCatchupPolicyToProto(t *testing.T) {
 }
 
 func TestProtoServerTaskExecutionStatusToDomain(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   proto.ServerTaskExecutionStatus
@@ -1220,6 +1267,7 @@ func TestProtoServerTaskExecutionStatusToDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ProtoServerTaskExecutionStatusToDomain(tt.in)
 			assert.Equal(t, tt.want, got)
 		})

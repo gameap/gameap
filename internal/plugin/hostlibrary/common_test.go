@@ -13,6 +13,7 @@ import (
 )
 
 func TestUintsFromUint64s(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    []uint64
@@ -42,6 +43,7 @@ func TestUintsFromUint64s(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := uintsFromUint64s(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -49,6 +51,7 @@ func TestUintsFromUint64s(t *testing.T) {
 }
 
 func TestUintPtrsFromUint64s(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    []uint64
@@ -73,6 +76,7 @@ func TestUintPtrsFromUint64s(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := uintPtrsFromUint64s(tt.input)
 			require.Len(t, result, len(tt.expected))
 			for i, ptr := range result {
@@ -84,6 +88,7 @@ func TestUintPtrsFromUint64s(t *testing.T) {
 }
 
 func TestConvertSorting(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    []*common.Sorting
@@ -132,6 +137,7 @@ func TestConvertSorting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := convertSorting(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -139,6 +145,7 @@ func TestConvertSorting(t *testing.T) {
 }
 
 func TestUintPtrFromUint64Ptr(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    *uint64
@@ -168,6 +175,7 @@ func TestUintPtrFromUint64Ptr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := uintPtrFromUint64Ptr(tt.input)
 			if tt.expected == nil {
 				assert.Nil(t, result)
@@ -180,6 +188,7 @@ func TestUintPtrFromUint64Ptr(t *testing.T) {
 }
 
 func TestUint64PtrFromUintPtr(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    *uint
@@ -209,6 +218,7 @@ func TestUint64PtrFromUintPtr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := uint64PtrFromUintPtr(tt.input)
 			if tt.expected == nil {
 				assert.Nil(t, result)
@@ -221,6 +231,7 @@ func TestUint64PtrFromUintPtr(t *testing.T) {
 }
 
 func TestEntityTypeFromProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    *proto.EntityType
@@ -275,6 +286,7 @@ func TestEntityTypeFromProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := entityTypeFromProto(tt.input)
 			if tt.expected == nil {
 				assert.Nil(t, result)
@@ -287,6 +299,7 @@ func TestEntityTypeFromProto(t *testing.T) {
 }
 
 func TestOptionalEntityTypeToProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    *domain.EntityType
@@ -326,6 +339,7 @@ func TestOptionalEntityTypeToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := optionalEntityTypeToProto(tt.input)
 			if tt.expected == nil {
 				assert.Nil(t, result)
@@ -338,6 +352,7 @@ func TestOptionalEntityTypeToProto(t *testing.T) {
 }
 
 func TestEntityTypeToProtoPtr(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    *string
@@ -387,6 +402,7 @@ func TestEntityTypeToProtoPtr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := entityTypeToProtoPtr(tt.input)
 			if tt.expected == nil {
 				assert.Nil(t, result)

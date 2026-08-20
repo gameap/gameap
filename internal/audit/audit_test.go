@@ -91,6 +91,8 @@ func patDerivedShortLivedSessionCtx(id uint, login string, tokenID uint) context
 // request context: user session → session, PAT session → pat, daemon
 // session → daemon, nothing → anonymous.
 func TestActorDerivation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		ctx            context.Context
@@ -123,6 +125,7 @@ func TestActorDerivation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &captureLogger{}
 
@@ -149,6 +152,8 @@ func TestActorDerivation(t *testing.T) {
 // PAT-derived short-lived session is short-lived first, so a leaked URL token
 // is never logged as if it were the long-lived PAT itself.
 func TestActorDerivation_ShortLivedSession(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		ctx            context.Context
@@ -174,6 +179,7 @@ func TestActorDerivation_ShortLivedSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &captureLogger{}
 
@@ -200,7 +206,10 @@ func TestActorDerivation_ShortLivedSession(t *testing.T) {
 // not clobber it (e.g. LoginSuccess carries the freshly-authenticated user
 // before the session exists in context).
 func TestActorDerivation_PresetAuthMethodNotOverwritten(t *testing.T) {
+	t.Parallel()
+
 	t.Run("login_success_keeps_explicit_actor_even_with_no_session", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		recorder := &captureLogger{}
 
@@ -218,6 +227,7 @@ func TestActorDerivation_PresetAuthMethodNotOverwritten(t *testing.T) {
 	})
 
 	t.Run("preset_auth_method_survives_a_conflicting_context_session", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		recorder := &captureLogger{}
 		// A user session is in context, but LoginSuccess presets the actor.
@@ -239,6 +249,8 @@ func TestActorDerivation_PresetAuthMethodNotOverwritten(t *testing.T) {
 // and unauthenticated. It must be recorded as the attempted_login Extra attr,
 // the actor must stay anonymous, and ActorLogin must remain empty.
 func TestLoginFailureAndBlocked_NeverRecordActorLogin(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		invoke    func(ctx context.Context, l audit.Logger)
@@ -268,6 +280,7 @@ func TestLoginFailureAndBlocked_NeverRecordActorLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &captureLogger{}
 
@@ -294,6 +307,8 @@ func TestLoginFailureAndBlocked_NeverRecordActorLogin(t *testing.T) {
 // Even if a (stale) session lingers in context, a failed login must not be
 // attributed to that principal — it presets AuthMethod=anonymous.
 func TestLoginFailure_DoesNotDeriveActorFromContextSession(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	recorder := &captureLogger{}
 	ctx := userSessionCtx(7, "alice")
@@ -313,6 +328,8 @@ func TestLoginFailure_DoesNotDeriveActorFromContextSession(t *testing.T) {
 // Locks the (type, category, outcome, reason) tuple each thin helper builds
 // so the stable audit contract cannot drift.
 func TestHelpers_EventShape(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		invoke       func(ctx context.Context, l audit.Logger)
@@ -355,6 +372,7 @@ func TestHelpers_EventShape(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &captureLogger{}
 
@@ -376,6 +394,8 @@ func TestHelpers_EventShape(t *testing.T) {
 // AccessDenied runs after authentication, so the denied principal must be
 // derived from context and the targeted resource recorded for forensics.
 func TestAccessDenied_DerivesActorAndCarriesResource(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	recorder := &captureLogger{}
 	ctx := userSessionCtx(2, "bob")
@@ -402,6 +422,8 @@ func TestAccessDenied_DerivesActorAndCarriesResource(t *testing.T) {
 // SensitiveOp records the successful execution of a sensitive operation with
 // the acting principal and the targeted resource/action.
 func TestSensitiveOp_RecordsSuccessWithResource(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	recorder := &captureLogger{}
 	ctx := patSessionCtx(7, "alice", 99)

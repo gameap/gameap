@@ -9,7 +9,11 @@ import (
 )
 
 func TestFallbackGlobalAPIService_Games(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_games_from_embedded_json", func(t *testing.T) {
+		t.Parallel()
+
 		service := NewFallbackGlobalAPIService()
 
 		games, err := service.Games(context.Background())
@@ -32,6 +36,8 @@ func TestFallbackGlobalAPIService_Games(t *testing.T) {
 	})
 
 	t.Run("games_have_valid_structure", func(t *testing.T) {
+		t.Parallel()
+
 		service := NewFallbackGlobalAPIService()
 
 		games, err := service.Games(context.Background())

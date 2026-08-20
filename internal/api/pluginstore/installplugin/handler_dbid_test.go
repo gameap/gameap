@@ -53,6 +53,7 @@ func (m *recordingLoaderManager) GetPlugins() []*pkgplugin.LoadedPlugin { return
 func (m *recordingLoaderManager) Shutdown(_ context.Context) error      { return nil }
 
 func TestInstallPlugin_loader_receives_db_plugin_id(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	mockServer := newUpstreamServer(t, upstreamConfig{
 		pluginDetails: defaultPluginDetails(false),

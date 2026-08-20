@@ -59,6 +59,7 @@ func cleanupRedisKey(t *testing.T, client *redis.Client, key string) {
 }
 
 func TestRedisLocker_Acquire(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		ttl       time.Duration
@@ -71,6 +72,7 @@ func TestRedisLocker_Acquire(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			l, client := setupRedisLocker(t)
 			key := "acquire-" + tt.name
 			cleanupRedisKey(t, client, key)
@@ -93,6 +95,7 @@ func TestRedisLocker_Acquire(t *testing.T) {
 }
 
 func TestRedisLocker_MutualExclusion(t *testing.T) {
+	t.Parallel()
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
 	cleanupRedisKey(t, client, "shared")
@@ -111,6 +114,7 @@ func TestRedisLocker_MutualExclusion(t *testing.T) {
 }
 
 func TestRedisLocker_KeyPrefixApplied(t *testing.T) {
+	t.Parallel()
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
 	cleanupRedisKey(t, client, "prefixed")
@@ -126,6 +130,7 @@ func TestRedisLocker_KeyPrefixApplied(t *testing.T) {
 }
 
 func TestRedisLocker_RefreshLostAfterExpiry(t *testing.T) {
+	t.Parallel()
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
 	cleanupRedisKey(t, client, "expired")

@@ -14,6 +14,7 @@ import (
 )
 
 func TestService_validateAuth(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupNode func(*testing.T, *serviceDeps)
@@ -137,6 +138,7 @@ func TestService_validateAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			svc, deps := newServiceWithDeps(t)
 			tt.setupNode(t, deps)
@@ -166,7 +168,9 @@ func TestService_validateAuth(t *testing.T) {
 // fallback must hash the presented gdaemon API key and constant-time compare
 // it against the at-rest digest (security review findings #4/#6).
 func TestService_validateAuth_nilVerifierFallsBackToNodeAPIKey(t *testing.T) {
+	t.Parallel()
 	t.Run("matching_apikey_succeeds_when_no_verifier_configured", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		// Security finding #4/#6: gdaemon_api_key is persisted hashed. The
 		// fallback path must hash the presented plaintext and constant-time
@@ -191,6 +195,7 @@ func TestService_validateAuth_nilVerifierFallsBackToNodeAPIKey(t *testing.T) {
 	})
 
 	t.Run("plaintext_apikey_stored_at_rest_is_rejected_when_no_verifier_configured", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		// Defense-in-depth: even if a legacy plaintext key somehow remained in
 		// the column, the fallback hashes the presented value before comparing,
@@ -217,6 +222,7 @@ func TestService_validateAuth_nilVerifierFallsBackToNodeAPIKey(t *testing.T) {
 	})
 
 	t.Run("mismatched_apikey_returns_unauthenticated_when_no_verifier_configured", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		// Store the hash of the real key; presenting a different plaintext must
 		// hash to a different digest and be rejected.

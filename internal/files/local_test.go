@@ -17,7 +17,9 @@ import (
 var errBrokenReader = errors.New("boom")
 
 func TestNewLocalFileManager(t *testing.T) {
+	t.Parallel()
 	t.Run("creates_with_valid_path", func(t *testing.T) {
+		t.Parallel()
 		tempDir := t.TempDir()
 
 		fm := NewLocalFileManager(tempDir)
@@ -27,6 +29,7 @@ func TestNewLocalFileManager(t *testing.T) {
 	})
 
 	t.Run("panics_with_invalid_path", func(t *testing.T) {
+		t.Parallel()
 		assert.Panics(t, func() {
 			NewLocalFileManager("/nonexistent/path/that/does/not/exist")
 		})
@@ -34,6 +37,7 @@ func TestNewLocalFileManager(t *testing.T) {
 }
 
 func TestLocalFileManager_Read(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(t *testing.T, tempDir string)
@@ -62,6 +66,7 @@ func TestLocalFileManager_Read(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tempDir := t.TempDir()
 			tt.setup(t, tempDir)
 			fm := NewLocalFileManager(tempDir)
@@ -81,6 +86,7 @@ func TestLocalFileManager_Read(t *testing.T) {
 }
 
 func TestLocalFileManager_Write(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(t *testing.T, tempDir string)
@@ -115,6 +121,7 @@ func TestLocalFileManager_Write(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tempDir := t.TempDir()
 			tt.setup(t, tempDir)
 			fm := NewLocalFileManager(tempDir)
@@ -136,6 +143,7 @@ func TestLocalFileManager_Write(t *testing.T) {
 }
 
 func TestLocalFileManager_Delete(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(t *testing.T, tempDir string)
@@ -161,6 +169,7 @@ func TestLocalFileManager_Delete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tempDir := t.TempDir()
 			tt.setup(t, tempDir)
 			fm := NewLocalFileManager(tempDir)
@@ -180,6 +189,7 @@ func TestLocalFileManager_Delete(t *testing.T) {
 }
 
 func TestLocalFileManager_Exists(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		setup  func(t *testing.T, tempDir string)
@@ -206,6 +216,7 @@ func TestLocalFileManager_Exists(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tempDir := t.TempDir()
 			tt.setup(t, tempDir)
 			fm := NewLocalFileManager(tempDir)
@@ -219,6 +230,7 @@ func TestLocalFileManager_Exists(t *testing.T) {
 }
 
 func TestLocalFileManager_List(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(t *testing.T, tempDir string)
@@ -263,6 +275,7 @@ func TestLocalFileManager_List(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tempDir := t.TempDir()
 			tt.setup(t, tempDir)
 			fm := NewLocalFileManager(tempDir)
@@ -285,6 +298,7 @@ func TestLocalFileManager_List(t *testing.T) {
 }
 
 func TestLocalFileManager_ReadStream(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(t *testing.T, tempDir string)
@@ -322,6 +336,7 @@ func TestLocalFileManager_ReadStream(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			tempDir := t.TempDir()
 			tt.setup(t, tempDir)
@@ -352,6 +367,7 @@ func TestLocalFileManager_ReadStream(t *testing.T) {
 }
 
 func TestLocalFileManager_ReadStreamAt(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(t *testing.T, tempDir string)
@@ -426,6 +442,7 @@ func TestLocalFileManager_ReadStreamAt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			tempDir := t.TempDir()
 			tt.setup(t, tempDir)
@@ -456,6 +473,7 @@ func TestLocalFileManager_ReadStreamAt(t *testing.T) {
 }
 
 func TestLocalFileManager_WriteStream(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setup     func(t *testing.T, tempDir string)
@@ -511,6 +529,7 @@ func TestLocalFileManager_WriteStream(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			tempDir := t.TempDir()
 			tt.setup(t, tempDir)
@@ -538,6 +557,7 @@ func TestLocalFileManager_WriteStream(t *testing.T) {
 }
 
 func TestLocalFileManager_DeleteByPrefix(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		setup          func(t *testing.T, fm *LocalFileManager)
@@ -594,6 +614,7 @@ func TestLocalFileManager_DeleteByPrefix(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			tempDir := t.TempDir()
 			fm := NewLocalFileManager(tempDir)
@@ -627,6 +648,7 @@ func TestLocalFileManager_DeleteByPrefix(t *testing.T) {
 }
 
 func TestLocalFileManager_PathTraversal_Rejected(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	tempDir := t.TempDir()
 	rootDir := filepath.Join(tempDir, "root")

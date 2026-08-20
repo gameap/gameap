@@ -44,6 +44,7 @@ func newCapturingLogger(buf *bytes.Buffer) *slog.Logger {
 }
 
 func TestLoggingInterceptor_Unary_OK_LogsDebug(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	buf := &bytes.Buffer{}
 	interceptor := NewLoggingInterceptor(newCapturingLogger(buf))
@@ -72,6 +73,7 @@ func TestLoggingInterceptor_Unary_OK_LogsDebug(t *testing.T) {
 }
 
 func TestLoggingInterceptor_Unary_Error_LogsWarn(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	buf := &bytes.Buffer{}
 	interceptor := NewLoggingInterceptor(newCapturingLogger(buf))
@@ -95,6 +97,7 @@ func TestLoggingInterceptor_Unary_Error_LogsWarn(t *testing.T) {
 }
 
 func TestLoggingInterceptor_Unary_PeerUnknown_WhenMissing(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	buf := &bytes.Buffer{}
 	interceptor := NewLoggingInterceptor(newCapturingLogger(buf))
@@ -115,6 +118,7 @@ func TestLoggingInterceptor_Unary_PeerUnknown_WhenMissing(t *testing.T) {
 }
 
 func TestLoggingInterceptor_Unary_PeerAddrSet(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	buf := &bytes.Buffer{}
 	interceptor := NewLoggingInterceptor(newCapturingLogger(buf))
@@ -138,6 +142,7 @@ func TestLoggingInterceptor_Unary_PeerAddrSet(t *testing.T) {
 }
 
 func TestLoggingInterceptor_Stream_OK_LogsDebug(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	buf := &bytes.Buffer{}
 	interceptor := NewLoggingInterceptor(newCapturingLogger(buf))
@@ -162,6 +167,7 @@ func TestLoggingInterceptor_Stream_OK_LogsDebug(t *testing.T) {
 }
 
 func TestLoggingInterceptor_Stream_Error_LogsWarn(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	buf := &bytes.Buffer{}
 	interceptor := NewLoggingInterceptor(newCapturingLogger(buf))
@@ -183,6 +189,7 @@ func TestLoggingInterceptor_Stream_Error_LogsWarn(t *testing.T) {
 }
 
 func TestLoggingInterceptor_Stream_Canceled_NotWarn(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	buf := &bytes.Buffer{}
 	interceptor := NewLoggingInterceptor(newCapturingLogger(buf))
@@ -204,6 +211,7 @@ func TestLoggingInterceptor_Stream_Canceled_NotWarn(t *testing.T) {
 }
 
 func TestNewLoggingInterceptor_NilLoggerUsesDefault(t *testing.T) {
+	t.Parallel()
 	// ARRANGE & ACT
 	interceptor := NewLoggingInterceptor(nil)
 

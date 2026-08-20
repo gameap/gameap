@@ -16,6 +16,7 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		gameModID      string
@@ -109,6 +110,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			gameModRepo := inmemory.NewGameModRepository()
 			serverRepo := inmemory.NewServerRepository()
@@ -157,6 +159,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_GameModDeletion(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	gameModRepo := inmemory.NewGameModRepository()
 	serverRepo := inmemory.NewServerRepository()
@@ -239,6 +242,7 @@ func TestHandler_GameModDeletion(t *testing.T) {
 }
 
 func TestHandler_IdempotentDeletion(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	gameModRepo := inmemory.NewGameModRepository()
 	serverRepo := inmemory.NewServerRepository()
@@ -285,6 +289,7 @@ func TestHandler_IdempotentDeletion(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	gameModRepo := inmemory.NewGameModRepository()
 	serverRepo := inmemory.NewServerRepository()
 	responder := api.NewResponder()

@@ -38,6 +38,7 @@ func decodeLogLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
 }
 
 func TestConnectionLogger_TagConn_StoresMetadata(t *testing.T) {
+	t.Parallel()
 	handler := NewConnectionLogger(slog.Default())
 
 	remote := &net.TCPAddr{IP: net.ParseIP("10.0.0.1"), Port: 54321}
@@ -56,6 +57,7 @@ func TestConnectionLogger_TagConn_StoresMetadata(t *testing.T) {
 }
 
 func TestConnectionLogger_TagConn_NilAddrs(t *testing.T) {
+	t.Parallel()
 	handler := NewConnectionLogger(slog.Default())
 
 	ctx := handler.TagConn(context.Background(), &stats.ConnTagInfo{})
@@ -67,6 +69,7 @@ func TestConnectionLogger_TagConn_NilAddrs(t *testing.T) {
 }
 
 func TestConnectionLogger_HandleConn(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		event        stats.ConnStats
@@ -88,6 +91,7 @@ func TestConnectionLogger_HandleConn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var buf bytes.Buffer
 			logger := newBufferLogger(&buf)
 			handler := NewConnectionLogger(logger)
@@ -117,6 +121,7 @@ func TestConnectionLogger_HandleConn(t *testing.T) {
 }
 
 func TestConnectionLogger_HandleConn_NoContextSkipped(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	handler := NewConnectionLogger(newBufferLogger(&buf))
 
@@ -126,6 +131,7 @@ func TestConnectionLogger_HandleConn_NoContextSkipped(t *testing.T) {
 }
 
 func TestConnectionLogger_HandleRPC_NoOp(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	handler := NewConnectionLogger(newBufferLogger(&buf))
 

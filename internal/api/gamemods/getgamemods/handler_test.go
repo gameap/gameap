@@ -15,6 +15,7 @@ import (
 )
 
 func TestGameMods(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		gameMods []domain.GameMod
@@ -164,6 +165,7 @@ func TestGameMods(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := inmemory.NewGameModRepository()
 

@@ -73,6 +73,7 @@ func runWithRequest(t *testing.T, mw *AuthMiddleware, req *http.Request) *httpte
 // PASETO via Authorization header passes, proving the rejection is
 // source-scoped.
 func TestAuthMiddleware_C4_PASETOInQueryRejected(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	hashed, err := auth.HashPassword("password123")
 	require.NoError(t, err)
@@ -94,6 +95,7 @@ func TestAuthMiddleware_C4_PASETOInQueryRejected(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("query_rejected", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/protected?token="+paseto, nil)
 		w := runWithRequest(t, mw, req)
 
@@ -102,6 +104,7 @@ func TestAuthMiddleware_C4_PASETOInQueryRejected(t *testing.T) {
 	})
 
 	t.Run("header_still_works", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 		req.Header.Set("Authorization", "Bearer "+paseto)
 		w := runWithRequest(t, mw, req)
@@ -116,6 +119,7 @@ func TestAuthMiddleware_C4_PASETOInQueryRejected(t *testing.T) {
 // Crucially, an attacker who captures a query log finds a useless string;
 // the same PAT in Authorization keeps working for legitimate API clients.
 func TestAuthMiddleware_C4_PATInQueryRejected(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	hashed, err := auth.HashPassword("password123")
 	require.NoError(t, err)
@@ -143,6 +147,7 @@ func TestAuthMiddleware_C4_PATInQueryRejected(t *testing.T) {
 // machine credentials for the API and must not be carried in a browser
 // `token` cookie. The cookie source still accepts session PASETOs.
 func TestAuthMiddleware_C4_PATInCookieRejected(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	hashed, err := auth.HashPassword("password123")
 	require.NoError(t, err)
@@ -172,6 +177,7 @@ func TestAuthMiddleware_C4_PATInCookieRejected(t *testing.T) {
 // the per-source allow-list. Pinning the matrix here keeps changes to the
 // extraction policy reviewable in one place.
 func TestSourceAllowsTokenType_Matrix(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		source tokenSource
@@ -198,6 +204,7 @@ func TestSourceAllowsTokenType_Matrix(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tc.allow, sourceAllowsTokenType(tc.source, tc.kind))
 		})
 	}

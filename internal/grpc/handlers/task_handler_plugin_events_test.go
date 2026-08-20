@@ -38,6 +38,7 @@ func (f *fakePluginTaskEvents) DispatchTaskEventAsync(
 }
 
 func TestHandleTaskStatusUpdate_PluginTaskEvents(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	tests := []struct {
@@ -68,6 +69,7 @@ func TestHandleTaskStatusUpdate_PluginTaskEvents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			task := &domain.DaemonTask{
 				DedicatedServerID: 1,
 				Task:              domain.DaemonTaskTypeServerStart,
@@ -92,6 +94,7 @@ func TestHandleTaskStatusUpdate_PluginTaskEvents(t *testing.T) {
 }
 
 func TestHandleTaskStatusUpdate_duplicate_terminal_update_dispatches_once(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	task := &domain.DaemonTask{
 		DedicatedServerID: 1,
@@ -119,6 +122,7 @@ func TestHandleTaskStatusUpdate_duplicate_terminal_update_dispatches_once(t *tes
 }
 
 func TestHandleTaskStatusUpdate_concurrent_duplicate_terminal_updates_dispatch_once(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	task := &domain.DaemonTask{
 		DedicatedServerID: 1,
@@ -164,6 +168,7 @@ func TestHandleTaskStatusUpdate_concurrent_duplicate_terminal_updates_dispatch_o
 }
 
 func TestHandleTaskStatusUpdate_terminal_transition_between_statuses_dispatches(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	task := &domain.DaemonTask{
 		DedicatedServerID: 1,
@@ -195,6 +200,7 @@ func TestHandleTaskStatusUpdate_terminal_transition_between_statuses_dispatches(
 }
 
 func TestReconcileWorkingTasks_dispatches_task_failure_event(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	task := &domain.DaemonTask{
 		DedicatedServerID: 3,

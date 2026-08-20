@@ -67,6 +67,7 @@ func (r *failingNodeRepo) FindAll(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		setupAuth        func() context.Context
@@ -413,6 +414,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			nodeRepo := inmemory.NewNodeRepository()
 			mockStatus := &mockStatusService{
 				versionFunc: tt.setupVersionFunc,
@@ -458,6 +460,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	nodeRepo := inmemory.NewNodeRepository()
 	mockStatus := &mockStatusService{}
 	responder := api.NewResponder()
@@ -475,6 +478,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestHandler_CalculateSummary(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		nodes            []domain.Node
@@ -542,6 +546,7 @@ func TestHandler_CalculateSummary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			nodeRepo := inmemory.NewNodeRepository()
 			mockStatus := &mockStatusService{
 				versionFunc: tt.setupVersionFunc,
@@ -602,6 +607,7 @@ func versionOK(_ context.Context, _ *domain.Node) (*daemon.NodeVersion, error) {
 }
 
 func TestHandler_CachesFreshResponse(t *testing.T) {
+	t.Parallel()
 	nodeRepo := inmemory.NewNodeRepository()
 	saveTwoEnabledNodes(t, nodeRepo)
 
@@ -623,6 +629,7 @@ func TestHandler_CachesFreshResponse(t *testing.T) {
 }
 
 func TestHandler_ProactivelyRefreshesBeforeExpiry(t *testing.T) {
+	t.Parallel()
 	nodeRepo := inmemory.NewNodeRepository()
 	saveTwoEnabledNodes(t, nodeRepo)
 
@@ -651,6 +658,7 @@ func TestHandler_ProactivelyRefreshesBeforeExpiry(t *testing.T) {
 }
 
 func TestHandler_ConcurrentColdStartCollapses(t *testing.T) {
+	t.Parallel()
 	nodeRepo := inmemory.NewNodeRepository()
 	saveTwoEnabledNodes(t, nodeRepo)
 
@@ -687,6 +695,7 @@ func TestHandler_ConcurrentColdStartCollapses(t *testing.T) {
 }
 
 func TestHandler_ScheduledRefreshErrorPreservesCache(t *testing.T) {
+	t.Parallel()
 	baseRepo := inmemory.NewNodeRepository()
 	saveTwoEnabledNodes(t, baseRepo)
 	failRepo := &failingNodeRepo{NodeRepository: baseRepo}
@@ -714,6 +723,7 @@ func TestHandler_ScheduledRefreshErrorPreservesCache(t *testing.T) {
 }
 
 func TestHandler_NotAuthenticatedDoesNotConsultCache(t *testing.T) {
+	t.Parallel()
 	nodeRepo := inmemory.NewNodeRepository()
 	saveTwoEnabledNodes(t, nodeRepo)
 

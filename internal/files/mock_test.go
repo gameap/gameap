@@ -17,9 +17,11 @@ var (
 )
 
 func TestMockFileManager_Read(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("calls_custom_func_when_set", func(t *testing.T) {
+		t.Parallel()
 		expectedData := []byte("mock data")
 		mock := &MockFileManager{
 			ReadFunc: func(_ context.Context, path string) ([]byte, error) {
@@ -36,6 +38,7 @@ func TestMockFileManager_Read(t *testing.T) {
 	})
 
 	t.Run("returns_nil_when_func_not_set", func(t *testing.T) {
+		t.Parallel()
 		mock := &MockFileManager{}
 
 		data, err := mock.Read(ctx, "test.txt")
@@ -46,9 +49,11 @@ func TestMockFileManager_Read(t *testing.T) {
 }
 
 func TestMockFileManager_Write(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("calls_custom_func_when_set", func(t *testing.T) {
+		t.Parallel()
 		var capturedPath string
 		var capturedData []byte
 		mock := &MockFileManager{
@@ -68,6 +73,7 @@ func TestMockFileManager_Write(t *testing.T) {
 	})
 
 	t.Run("returns_nil_when_func_not_set", func(t *testing.T) {
+		t.Parallel()
 		mock := &MockFileManager{}
 
 		err := mock.Write(ctx, "test.txt", []byte("data"))
@@ -77,9 +83,11 @@ func TestMockFileManager_Write(t *testing.T) {
 }
 
 func TestMockFileManager_Delete(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("calls_custom_func_when_set", func(t *testing.T) {
+		t.Parallel()
 		var capturedPath string
 		mock := &MockFileManager{
 			DeleteFunc: func(_ context.Context, path string) error {
@@ -96,6 +104,7 @@ func TestMockFileManager_Delete(t *testing.T) {
 	})
 
 	t.Run("returns_nil_when_func_not_set", func(t *testing.T) {
+		t.Parallel()
 		mock := &MockFileManager{}
 
 		err := mock.Delete(ctx, "test.txt")
@@ -105,9 +114,11 @@ func TestMockFileManager_Delete(t *testing.T) {
 }
 
 func TestMockFileManager_Exists(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("calls_custom_func_when_set_returns_true", func(t *testing.T) {
+		t.Parallel()
 		var capturedPath string
 		mock := &MockFileManager{
 			ExistsFunc: func(_ context.Context, path string) bool {
@@ -124,6 +135,7 @@ func TestMockFileManager_Exists(t *testing.T) {
 	})
 
 	t.Run("calls_custom_func_when_set_returns_false", func(t *testing.T) {
+		t.Parallel()
 		mock := &MockFileManager{
 			ExistsFunc: func(_ context.Context, _ string) bool {
 				return false
@@ -136,6 +148,7 @@ func TestMockFileManager_Exists(t *testing.T) {
 	})
 
 	t.Run("returns_false_when_func_not_set", func(t *testing.T) {
+		t.Parallel()
 		mock := &MockFileManager{}
 
 		exists := mock.Exists(ctx, "test.txt")
@@ -145,9 +158,11 @@ func TestMockFileManager_Exists(t *testing.T) {
 }
 
 func TestMockFileManager_List(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("calls_custom_func_when_set", func(t *testing.T) {
+		t.Parallel()
 		expectedFiles := []string{"file1.txt", "file2.txt"}
 		var capturedDir string
 		mock := &MockFileManager{
@@ -166,6 +181,7 @@ func TestMockFileManager_List(t *testing.T) {
 	})
 
 	t.Run("returns_nil_when_func_not_set", func(t *testing.T) {
+		t.Parallel()
 		mock := &MockFileManager{}
 
 		files, err := mock.List(ctx, "test/")
@@ -175,11 +191,13 @@ func TestMockFileManager_List(t *testing.T) {
 	})
 }
 
-func TestMockFileManager_ImplementsInterface(_ *testing.T) {
+func TestMockFileManager_ImplementsInterface(t *testing.T) {
+	t.Parallel()
 	var _ FileManager = (*MockFileManager)(nil)
 }
 
 func TestMockFileManager_MultipleMethodsConfigured(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	mock := &MockFileManager{

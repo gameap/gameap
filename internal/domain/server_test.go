@@ -9,6 +9,8 @@ import (
 )
 
 func TestServer_ReplaceServerShortcodes(t *testing.T) {
+	t.Parallel()
+
 	testUUID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 	queryPort := 27015
 	rconPort := 27016
@@ -179,6 +181,8 @@ func TestServer_ReplaceServerShortcodes(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			result := server.ReplaceServerShortcodes(node, test.command, test.extra)
 
@@ -189,6 +193,8 @@ func TestServer_ReplaceServerShortcodes(t *testing.T) {
 }
 
 func TestServer_ReplaceServerShortcodes_WithNilOptionalFields(t *testing.T) {
+	t.Parallel()
+
 	testUUID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 
 	server := &Server{
@@ -237,6 +243,8 @@ func TestServer_ReplaceServerShortcodes_WithNilOptionalFields(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := server.ReplaceServerShortcodes(node, test.command, nil)
 			assert.Equal(t, test.want, result)
 		})
@@ -244,6 +252,8 @@ func TestServer_ReplaceServerShortcodes_WithNilOptionalFields(t *testing.T) {
 }
 
 func TestServer_ReplaceServerShortcodes_MultipleReplacements(t *testing.T) {
+	t.Parallel()
+
 	testUUID := uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")
 	queryPort := 27015
 
@@ -270,6 +280,8 @@ func TestServer_ReplaceServerShortcodes_MultipleReplacements(t *testing.T) {
 }
 
 func TestServer_IsOnline(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		processActive    bool
@@ -328,6 +340,8 @@ func TestServer_IsOnline(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			server := &Server{
 				ProcessActive:    test.processActive,
 				LastProcessCheck: test.lastProcessCheck,
@@ -340,6 +354,8 @@ func TestServer_IsOnline(t *testing.T) {
 }
 
 func TestServer_RconPassword(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		rcon *string
@@ -364,6 +380,8 @@ func TestServer_RconPassword(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			server := &Server{Rcon: test.rcon}
 
@@ -377,12 +395,16 @@ func TestServer_RconPassword(t *testing.T) {
 }
 
 func TestServerInstalledStatusConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, ServerInstalledStatus(0), ServerInstalledStatusNotInstalled)
 	assert.Equal(t, ServerInstalledStatus(1), ServerInstalledStatusInstalled)
 	assert.Equal(t, ServerInstalledStatus(2), ServerInstalledStatusInstallationInProg)
 }
 
 func TestServer_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	testUUID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 	queryPort := 27015

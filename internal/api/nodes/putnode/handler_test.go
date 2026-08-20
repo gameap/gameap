@@ -89,6 +89,7 @@ s1PL2QMvr5M=
 -----END CERTIFICATE-----`
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		nodeID           uint
@@ -494,6 +495,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewNodeRepository()
 			fileManager := &files.MockFileManager{}
 			responder := api.NewResponder()
@@ -551,6 +553,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_UpdatedAtTimestamp(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewNodeRepository()
 	fileManager := &files.MockFileManager{}
 	responder := api.NewResponder()
@@ -599,6 +602,7 @@ func TestHandler_UpdatedAtTimestamp(t *testing.T) {
 }
 
 func TestHandler_CertificateFileCleanup(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewNodeRepository()
 	deletedFiles := []string{}
 	fileManager := &files.MockFileManager{
@@ -666,6 +670,7 @@ func TestHandler_CertificateFileCleanup(t *testing.T) {
 // successful node update must emit exactly one node.update event with outcome
 // success, category node_op, and the updated node id as the resource.
 func TestHandler_Audit_SuccessfulNodeUpdateIsRecorded(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	now := time.Now()
@@ -724,6 +729,7 @@ func TestHandler_Audit_SuccessfulNodeUpdateIsRecorded(t *testing.T) {
 // node.update event (the audit trail must not claim a change that did not
 // happen).
 func TestHandler_Audit_FailedNodeUpdateDoesNotEmitNodeUpdate(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	recorder := &auditCapture{}
@@ -756,6 +762,7 @@ func TestHandler_Audit_FailedNodeUpdateDoesNotEmitNodeUpdate(t *testing.T) {
 // (enc:-prefixed, recoverable) and the gdaemon API key must be persisted as
 // a SHA-256 digest. Security review findings #3a/#3b/#6.
 func TestHandler_SecretsAtRest(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	fileManager := &files.MockFileManager{
@@ -840,6 +847,7 @@ func TestHandler_SecretsAtRest(t *testing.T) {
 // fragile ApplyToNode/cipher interaction so a future refactor cannot silently
 // retain the old password on an explicit clear.
 func TestHandler_ClearGdaemonPassword(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	fileManager := &files.MockFileManager{
@@ -909,6 +917,7 @@ func TestHandler_ClearGdaemonPassword(t *testing.T) {
 // daemon presenting that value would be hashed on the auth path and never
 // match, silently breaking authentication.
 func TestHandler_APIKeyHashedEvenWhen64HexInput(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	fileManager := &files.MockFileManager{

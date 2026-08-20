@@ -61,6 +61,8 @@ func countEvents(events []audit.Event, t audit.EventType) int {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	testUser := &domain.User{
@@ -161,6 +163,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tokensRepo := inmemory.NewPersonalAccessTokenRepository()
 			responder := api.NewResponder()
 
@@ -239,6 +243,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 // outcome success, category token_op, the revoked token id as the resource,
 // and the acting user as the actor.
 func TestHandler_Audit_SuccessfulRevokeIsRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	now := time.Now()
 	owner := &domain.User{ID: 1, Login: "testuser", Email: "test@example.com"}
@@ -289,6 +295,8 @@ func TestHandler_Audit_SuccessfulRevokeIsRecorded(t *testing.T) {
 // An attempt to revoke another user's token is refused before deletion and
 // must NOT emit a token.pat.revoke event.
 func TestHandler_Audit_ForbiddenRevokeIsNotRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	now := time.Now()
 	attacker := &domain.User{ID: 1, Login: "testuser"}

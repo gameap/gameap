@@ -12,7 +12,9 @@ import (
 )
 
 func TestService_buildRegisterAck(t *testing.T) {
+	t.Parallel()
 	t.Run("empty_repos_yields_zero_length_collections", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 
@@ -33,6 +35,7 @@ func TestService_buildRegisterAck(t *testing.T) {
 	})
 
 	t.Run("filters_servers_to_node_and_includes_settings_and_mods", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		ctx := context.Background()
@@ -120,6 +123,7 @@ func TestService_buildRegisterAck(t *testing.T) {
 	})
 
 	t.Run("pending_tasks_propagated_from_task_handler", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		deps.taskHandler.pendingTasks = []*proto.DaemonTask{
@@ -138,6 +142,7 @@ func TestService_buildRegisterAck(t *testing.T) {
 	})
 
 	t.Run("pending_tasks_handler_error_does_not_fail_ack", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		deps.taskHandler.pendingErr = errSentinel
@@ -152,6 +157,7 @@ func TestService_buildRegisterAck(t *testing.T) {
 	})
 
 	t.Run("nil_task_handler_yields_no_pending_tasks", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _ := newServiceWithDeps(t)
 		svc.taskHandler = nil
@@ -165,6 +171,7 @@ func TestService_buildRegisterAck(t *testing.T) {
 	})
 
 	t.Run("windows_node_uses_windows_start_command", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, deps := newServiceWithDeps(t)
 		ctx := context.Background()

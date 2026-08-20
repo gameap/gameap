@@ -18,6 +18,8 @@ import (
 const testPASETOKey = "0123456789abcdef0123456789abcdef" // exactly 32 bytes
 
 func TestPASETOService_GenerateMFAEnrollmentToken_CarriesScope(t *testing.T) {
+	t.Parallel()
+
 	svc, err := NewPASETOService([]byte(testPASETOKey))
 	require.NoError(t, err)
 
@@ -33,6 +35,8 @@ func TestPASETOService_GenerateMFAEnrollmentToken_CarriesScope(t *testing.T) {
 }
 
 func TestPASETOService_GenerateTokenForUser_HasNoScope(t *testing.T) {
+	t.Parallel()
+
 	svc, err := NewPASETOService([]byte(testPASETOKey))
 	require.NoError(t, err)
 
@@ -48,6 +52,8 @@ func TestPASETOService_GenerateTokenForUser_HasNoScope(t *testing.T) {
 }
 
 func TestJWTService_GenerateMFAEnrollmentToken_CarriesScope(t *testing.T) {
+	t.Parallel()
+
 	svc := NewJWTService([]byte("test-secret-key"))
 
 	token, err := svc.GenerateMFAEnrollmentToken(&domain.User{Login: "admin"}, time.Hour)
@@ -62,6 +68,8 @@ func TestJWTService_GenerateMFAEnrollmentToken_CarriesScope(t *testing.T) {
 }
 
 func TestJWTService_GenerateTokenForUser_HasNoScope(t *testing.T) {
+	t.Parallel()
+
 	svc := NewJWTService([]byte("test-secret-key"))
 
 	token, err := svc.GenerateTokenForUser(&domain.User{Login: "admin"}, time.Hour)
@@ -80,6 +88,8 @@ func TestJWTService_GenerateTokenForUser_HasNoScope(t *testing.T) {
 // claim confines it. The auth middleware reads the subject as "user:login:<login>"
 // to resolve the user, so that mapping must hold for the scoped token too.
 func TestPASETOService_GenerateMFAEnrollmentToken_StillAuthenticates(t *testing.T) {
+	t.Parallel()
+
 	svc, err := NewPASETOService([]byte(testPASETOKey))
 	require.NoError(t, err)
 
@@ -99,6 +109,8 @@ func TestPASETOService_GenerateMFAEnrollmentToken_StillAuthenticates(t *testing.
 // expired enrollment token is refused by ValidateToken exactly like any other
 // session token — the scope claim does not exempt it from expiry checks.
 func TestPASETOService_GenerateMFAEnrollmentToken_ExpiredIsRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, err := NewPASETOService([]byte(testPASETOKey))
 	require.NoError(t, err)
 

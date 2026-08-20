@@ -78,6 +78,8 @@ func extraString(e audit.Event, key string) (string, bool) {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		requestBody      any
@@ -559,6 +561,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 			rbacRepo := inmemory.NewRBACRepository()
 			if tt.setupRBAC != nil {
@@ -615,6 +619,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_TokenUniqueness(t *testing.T) {
+	t.Parallel()
+
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
@@ -663,6 +669,8 @@ func TestHandler_TokenUniqueness(t *testing.T) {
 }
 
 func TestHandler_ConcurrentTokenCreation(t *testing.T) {
+	t.Parallel()
+
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
@@ -713,6 +721,8 @@ func TestHandler_ConcurrentTokenCreation(t *testing.T) {
 }
 
 func TestHandler_TokenStorageVerification(t *testing.T) {
+	t.Parallel()
+
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
@@ -811,6 +821,8 @@ func generateManyAbilities(count int) []string {
 // resource, the acting user as the actor, and must NOT leak the plaintext
 // token value into any audit field.
 func TestHandler_Audit_SuccessfulTokenCreationIsRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -879,6 +891,8 @@ func TestHandler_Audit_SuccessfulTokenCreationIsRecorded(t *testing.T) {
 // emit a token.pat.create event — the audit trail must not claim a token was
 // issued when none was.
 func TestHandler_Audit_RejectedTokenCreationIsNotRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	tokenRepo := inmemory.NewPersonalAccessTokenRepository()
 	rbacRepo := inmemory.NewRBACRepository()

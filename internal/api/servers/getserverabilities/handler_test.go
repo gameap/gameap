@@ -33,6 +33,7 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		serverID        string
@@ -231,6 +232,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			rbacRepo := inmemory.NewRBACRepository()
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
@@ -269,6 +271,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_AdminHasAllAbilities(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
@@ -340,6 +343,7 @@ func TestHandler_AdminHasAllAbilities(t *testing.T) {
 }
 
 func TestHandler_RegularUserHasLimitedAbilities(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
@@ -422,6 +426,7 @@ func TestHandler_RegularUserHasLimitedAbilities(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	rbacRepo := inmemory.NewRBACRepository()
 	rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
@@ -435,6 +440,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestNewAbilitiesResponse(t *testing.T) {
+	t.Parallel()
 	abilities := map[domain.AbilityName]bool{
 		domain.AbilityNameGameServerCommon:      true,
 		domain.AbilityNameGameServerStart:       true,

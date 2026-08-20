@@ -19,6 +19,8 @@ import (
 )
 
 func TestCheckNotInstalled(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	tests := []struct {
@@ -52,6 +54,8 @@ func TestCheckNotInstalled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewPluginRepository()
 			tt.setupRepo(repo)
 
@@ -73,6 +77,8 @@ func TestCheckNotInstalled(t *testing.T) {
 }
 
 func TestBuildPluginRecord(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		dbID       domain.Uint64ID
@@ -117,6 +123,8 @@ func TestBuildPluginRecord(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			record := plugininstall.BuildPluginRecord(tt.dbID, tt.loaded, tt.filename, tt.source)
 
 			assert.Equal(t, tt.dbID, record.ID)
@@ -136,6 +144,8 @@ func TestBuildPluginRecord(t *testing.T) {
 }
 
 func TestBuildPluginRecord_permissions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		declared []string
@@ -168,6 +178,8 @@ func TestBuildPluginRecord_permissions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			record := plugininstall.BuildPluginRecord(1, &pkgplugin.LoadedPlugin{
 				Info: &proto.PluginInfo{
 					Name:                "Test Plugin",
@@ -230,6 +242,8 @@ func (f *fakeLoaderManager) GetPlugins() []*pkgplugin.LoadedPlugin { return nil 
 func (f *fakeLoaderManager) Shutdown(_ context.Context) error { return nil }
 
 func TestTryLoadPlugin(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	const pluginsDir = "plugins"
 	const wasmFilename = "test-plugin.wasm"
@@ -377,6 +391,8 @@ func TestTryLoadPlugin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewPluginRepository()
 			fileManager := files.NewInMemoryFileManager()
 			if tt.writeWASMFile {
@@ -417,6 +433,8 @@ func TestTryLoadPlugin(t *testing.T) {
 }
 
 func TestCheckNotInstalled_returns_409_status(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	repo := inmemory.NewPluginRepository()
 

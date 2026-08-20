@@ -9,6 +9,8 @@ import (
 )
 
 func Test_ParseNodeOS(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		input      string
@@ -122,6 +124,8 @@ func Test_ParseNodeOS(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := ParseNodeOS(test.input)
 			assert.Equal(t, test.expectedOS, result)
 		})
@@ -129,6 +133,8 @@ func Test_ParseNodeOS(t *testing.T) {
 }
 
 func TestNodeOS_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    NodeOS
@@ -168,6 +174,8 @@ func TestNodeOS_Value(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := test.input.Value()
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, result)
@@ -176,6 +184,8 @@ func TestNodeOS_Value(t *testing.T) {
 }
 
 func TestNodeOS_Scan(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -260,6 +270,8 @@ func TestNodeOS_Scan(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE — start from a non-zero receiver distinct from any expected value
 			// so the test can detect missing assignments in any branch.
 			result := NodeOS("__sentinel__")
@@ -275,6 +287,8 @@ func TestNodeOS_Scan(t *testing.T) {
 }
 
 func TestNodePreferInstallMethod_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    NodePreferInstallMethod
@@ -324,6 +338,8 @@ func TestNodePreferInstallMethod_Value(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := test.input.Value()
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, result)
@@ -332,6 +348,8 @@ func TestNodePreferInstallMethod_Value(t *testing.T) {
 }
 
 func TestIPList_Scan(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -411,6 +429,8 @@ func TestIPList_Scan(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE — start from a prefilled receiver to detect missing assignments.
 			result := IPList{"preexisting"}
 
@@ -427,6 +447,8 @@ func TestIPList_Scan(t *testing.T) {
 }
 
 func TestIPList_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    IPList
@@ -466,6 +488,8 @@ func TestIPList_Value(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := test.input.Value()
 			require.NoError(t, err)
 			assert.JSONEq(t, test.expected, result.(string))
@@ -474,6 +498,8 @@ func TestIPList_Value(t *testing.T) {
 }
 
 func TestNodeOS_ScanAndValue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []NodeOS{
 		NodeOSLinux,
 		NodeOSWindows,
@@ -483,6 +509,8 @@ func TestNodeOS_ScanAndValue_RoundTrip(t *testing.T) {
 
 	for _, original := range tests {
 		t.Run(string(original), func(t *testing.T) {
+			t.Parallel()
+
 			value, err := original.Value()
 			require.NoError(t, err)
 
@@ -496,6 +524,8 @@ func TestNodeOS_ScanAndValue_RoundTrip(t *testing.T) {
 }
 
 func TestIPList_ScanAndValue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input IPList
@@ -524,6 +554,8 @@ func TestIPList_ScanAndValue_RoundTrip(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			value, err := test.input.Value()
 			require.NoError(t, err)
 

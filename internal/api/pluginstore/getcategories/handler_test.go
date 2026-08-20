@@ -16,6 +16,7 @@ import (
 )
 
 func TestGetCategories(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		mockServer func() *httptest.Server
@@ -67,6 +68,7 @@ func TestGetCategories(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mockServer := tt.mockServer()
 			defer mockServer.Close()
 
@@ -96,6 +98,7 @@ func TestGetCategories(t *testing.T) {
 }
 
 func TestGetCategories_with_language_query_param(t *testing.T) {
+	t.Parallel()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "ru", r.Header.Get("Accept-Language"))
 

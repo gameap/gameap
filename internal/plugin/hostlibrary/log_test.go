@@ -19,6 +19,7 @@ type logEntry struct {
 }
 
 func TestLogService_Log(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		level     string
@@ -82,6 +83,7 @@ func TestLogService_Log(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var buf bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
 				Level: slog.LevelDebug,
@@ -108,6 +110,7 @@ func TestLogService_Log(t *testing.T) {
 }
 
 func TestLogService_LogFieldsPresent(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -132,6 +135,7 @@ func TestLogService_LogFieldsPresent(t *testing.T) {
 }
 
 func TestLogService_LogEmptyMessage(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -153,6 +157,7 @@ func TestLogService_LogEmptyMessage(t *testing.T) {
 }
 
 func TestLogService_LogNilFields(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -175,6 +180,7 @@ func TestLogService_LogNilFields(t *testing.T) {
 }
 
 func TestNewLogHostLibrary(t *testing.T) {
+	t.Parallel()
 	logger := slog.Default()
 	lib := NewLogHostLibrary(logger)
 

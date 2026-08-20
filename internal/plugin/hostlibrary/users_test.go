@@ -13,6 +13,7 @@ import (
 )
 
 func TestUsersService_FindUsers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.UserRepository)
@@ -108,6 +109,7 @@ func TestUsersService_FindUsers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewUserRepository()
 			tt.setupRepo(repo)
 
@@ -126,6 +128,7 @@ func TestUsersService_FindUsers(t *testing.T) {
 }
 
 func TestUsersService_GetUser(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.UserRepository)
@@ -164,6 +167,7 @@ func TestUsersService_GetUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewUserRepository()
 			tt.setupRepo(repo)
 
@@ -185,6 +189,7 @@ func TestUsersService_GetUser(t *testing.T) {
 }
 
 func TestConvertUserToProto(t *testing.T) {
+	t.Parallel()
 	user := &domain.User{
 		ID:    42,
 		Login: "testlogin",
@@ -202,6 +207,7 @@ func TestConvertUserToProto(t *testing.T) {
 }
 
 func TestConvertUserToProto_NilName(t *testing.T) {
+	t.Parallel()
 	user := &domain.User{
 		ID:    1,
 		Login: "noname",
@@ -216,6 +222,7 @@ func TestConvertUserToProto_NilName(t *testing.T) {
 }
 
 func TestNewUsersHostLibrary(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewUserRepository()
 	lib := NewUsersHostLibrary(repo)
 

@@ -132,6 +132,7 @@ func newServeHTTPHandler(
 // ---------- ServeHTTP gates ----------
 
 func TestHandler_ServeHTTP_unauthenticated_returns401(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	h, _, _, responder := newServeHTTPHandler(t, allowAllRBAC{})
 	rec := httptest.NewRecorder()
@@ -148,6 +149,7 @@ func TestHandler_ServeHTTP_unauthenticated_returns401(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_invalidServerID_returns400(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	h, _, _, responder := newServeHTTPHandler(t, allowAllRBAC{})
 	rec := httptest.NewRecorder()
@@ -168,6 +170,7 @@ func TestHandler_ServeHTTP_invalidServerID_returns400(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_unknownServer_returns404(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	h, _, _, responder := newServeHTTPHandler(t, allowAllRBAC{})
 	rec := httptest.NewRecorder()
@@ -183,6 +186,7 @@ func TestHandler_ServeHTTP_unknownServer_returns404(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_serverFinderError_propagates(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	h, _, _, responder := newServeHTTPHandler(t, errorRBAC{err: errors.New("rbac broken")})
 	rec := httptest.NewRecorder()
@@ -197,6 +201,7 @@ func TestHandler_ServeHTTP_serverFinderError_propagates(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_lacksConsoleViewPermission_returns403(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — server exists but RBAC denies all abilities.
 	h, serverRepo, _, responder := newServeHTTPHandler(t, denyAllRBAC{})
 
@@ -220,6 +225,7 @@ func TestHandler_ServeHTTP_lacksConsoleViewPermission_returns403(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_unknownNode_returns404(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — admin can find any server; but the node referenced by DSID
 	// does not exist so findNode must 404.
 	h, serverRepo, _, responder := newServeHTTPHandler(t, allowAllRBAC{})
@@ -241,6 +247,7 @@ func TestHandler_ServeHTTP_unknownNode_returns404(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_validRequest_doesNotWriteError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — admin RBAC, valid server, valid node, but no gRPC session
 	// registered for the node. After legacy removal the handler must refuse
 	// with 503 before attempting the WebSocket upgrade.
@@ -269,6 +276,7 @@ func TestHandler_ServeHTTP_validRequest_doesNotWriteError(t *testing.T) {
 // ---------- findNode ----------
 
 func TestHandler_findNode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		nodes     []domain.Node
@@ -294,6 +302,7 @@ func TestHandler_findNode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := inmemory.NewNodeRepository()
 			for i := range tt.nodes {
@@ -325,6 +334,7 @@ func TestHandler_findNode(t *testing.T) {
 // ---------- NewHandler ----------
 
 func TestNewHandler_assemblesAllDependencies(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	mem := memory.New()
 	t.Cleanup(func() { _ = mem.Close() })
@@ -418,6 +428,7 @@ func newConsoleLogTestHandler(logSvc consoleLogService, dc daemonCommands) *Hand
 }
 
 func TestHandler_sendConsoleHistory(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 
@@ -494,6 +505,7 @@ func TestHandler_sendConsoleHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			d := dialConsoleClient(t)
 			h := newConsoleLogTestHandler(tt.logSvc, tt.dc)
@@ -533,6 +545,7 @@ func TestHandler_sendConsoleHistory(t *testing.T) {
 // ---------- getConsoleLog ----------
 
 func TestHandler_getConsoleLog(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 
@@ -594,6 +607,7 @@ func TestHandler_getConsoleLog(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			var logSvcArg consoleLogService
 			if tt.logSvc != nil {
@@ -637,6 +651,7 @@ func TestHandler_getConsoleLog(t *testing.T) {
 // ---------- canSendCommands ----------
 
 func TestHandler_canSendCommands(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		rbac base.RBAC
@@ -656,6 +671,7 @@ func TestHandler_canSendCommands(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			h := &Handler{
 				abilityChecker: newAbilityCheckerWithRBAC(tt.rbac),

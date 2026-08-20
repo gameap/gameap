@@ -20,6 +20,8 @@ import (
 // dependencies, so the table feeds Recommendation values directly and asserts
 // on every field of the resulting *View (or that it is nil).
 func TestNewView(t *testing.T) {
+	t.Parallel()
+
 	hardFailAt := time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -72,6 +74,8 @@ func TestNewView(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			got := mfanudge.NewView(tt.rec)
 

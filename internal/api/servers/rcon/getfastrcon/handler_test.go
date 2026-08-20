@@ -54,6 +54,7 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		serverID       string
@@ -403,6 +404,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -443,6 +445,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_FastRconContent(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -520,6 +523,7 @@ func TestHandler_FastRconContent(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -535,6 +539,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestNewFastRconResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		fastRcon domain.GameModFastRconList
@@ -562,6 +567,7 @@ func TestNewFastRconResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			response := newFastRconResponse(tt.fastRcon)
 
 			assert.Len(t, response, tt.want)

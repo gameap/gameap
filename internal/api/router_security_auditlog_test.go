@@ -98,6 +98,8 @@ func setupAuditRouterEnv(t *testing.T) (*securityTestEnv, *auditCapture) {
 // API2:2023 / API8:2023. An unauthenticated request to a protected route must
 // be rejected (401) AND leave an auth.token.rejected audit event with outcome
 // failure and a stable, non-empty reason.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_AuditLog_UnauthenticatedRequestIsRecorded(t *testing.T) {
 	// ARRANGE
 	env, recorder := setupAuditRouterEnv(t)
@@ -120,6 +122,8 @@ func TestRouterSecurity_AuditLog_UnauthenticatedRequestIsRecorded(t *testing.T) 
 // API5:2023 / API8:2023. An authenticated non-admin hitting an admin-only
 // route must be denied (403) AND leave an access.denied audit event with
 // outcome denied attributed to the authenticated principal.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_AuditLog_AdminGateDenialIsRecorded(t *testing.T) {
 	// ARRANGE
 	env, recorder := setupAuditRouterEnv(t)
@@ -148,6 +152,8 @@ func TestRouterSecurity_AuditLog_AdminGateDenialIsRecorded(t *testing.T) {
 // API8:2023. A successful sensitive operation (PAT creation) must be recorded
 // with outcome success and the acting principal so token issuance is
 // auditable (OWASP ASVS §7.2.1).
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_AuditLog_SensitiveOpSuccessIsRecorded(t *testing.T) {
 	// ARRANGE
 	env, recorder := setupAuditRouterEnv(t)

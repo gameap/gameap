@@ -35,6 +35,7 @@ func clearCloudflareEnv(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // uses t.Setenv to mutate Cloudflare credential environment variables
 func TestBuiltinRegistry_Resolve(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -103,6 +104,8 @@ func TestBuiltinRegistry_Resolve_CloudflareWithToken(t *testing.T) {
 }
 
 func TestBuiltinRegistry_Resolve_PluginPrefixDetectedRegardlessOfName(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: any identifier containing ":" must be rejected as plugin-prefixed,
 	// even if the suffix is a valid built-in name.
 	tests := []string{
@@ -114,6 +117,8 @@ func TestBuiltinRegistry_Resolve_PluginPrefixDetectedRegardlessOfName(t *testing
 
 	for _, id := range tests {
 		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+
 			r := dnsprovider.NewBuiltinRegistry()
 
 			provider, err := r.Resolve(context.Background(), id)

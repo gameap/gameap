@@ -15,6 +15,8 @@ import (
 )
 
 func TestGameModRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewGameModRepositorySuite(
 		func(_ *testing.T) repositories.GameModRepository {
 			return inmemory.NewGameModRepository()
@@ -23,6 +25,8 @@ func TestGameModRepository(t *testing.T) {
 }
 
 func TestGameModRepository_FindByNames(t *testing.T) {
+	t.Parallel()
+
 	repo := inmemory.NewGameModRepository()
 
 	gameMod1 := &domain.GameMod{
@@ -43,6 +47,8 @@ func TestGameModRepository_FindByNames(t *testing.T) {
 	require.NoError(t, repo.Save(context.Background(), gameMod3))
 
 	t.Run("Find_by_single_name_returns_one_game_mod", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindGameMod{
 			Names: []string{"Counter-Strike"},
 		}
@@ -54,6 +60,8 @@ func TestGameModRepository_FindByNames(t *testing.T) {
 	})
 
 	t.Run("Find_by_multiple_names_returns_multiple_game_mods", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindGameMod{
 			Names: []string{"Counter-Strike", "Day of Defeat"},
 		}
@@ -70,6 +78,8 @@ func TestGameModRepository_FindByNames(t *testing.T) {
 	})
 
 	t.Run("Find_by_nonexistent_name_returns_empty", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindGameMod{
 			Names: []string{"Nonexistent Game"},
 		}
@@ -79,6 +89,8 @@ func TestGameModRepository_FindByNames(t *testing.T) {
 	})
 
 	t.Run("Find_by_empty_names_returns_all_game_mods", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindGameMod{
 			Names: []string{},
 		}
@@ -88,6 +100,8 @@ func TestGameModRepository_FindByNames(t *testing.T) {
 	})
 
 	t.Run("Find_combines_name_and_game_code_filters", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindGameMod{
 			Names:     []string{"Counter-Strike", "Day of Defeat"},
 			GameCodes: []string{"cstrike"},

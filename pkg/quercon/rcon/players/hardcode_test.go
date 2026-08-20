@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewPlayerManagerByGameCode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		gameCode  string
@@ -29,6 +30,7 @@ func TestNewPlayerManagerByGameCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr, err := NewPlayerManagerByGameCode(tt.gameCode)
 
 			if tt.wantError != "" {
@@ -46,6 +48,7 @@ func TestNewPlayerManagerByGameCode(t *testing.T) {
 }
 
 func TestNewPlayerManagerByEngine(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		engine    string
@@ -75,6 +78,7 @@ func TestNewPlayerManagerByEngine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr, err := NewPlayerManagerByEngine(tt.engine)
 
 			if tt.wantError != "" {

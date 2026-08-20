@@ -46,8 +46,10 @@ func embeddedCatalogue(t *testing.T) []domain.Game {
 }
 
 func TestDetermineProtocol_CoversEmbeddedCatalogue(t *testing.T) {
+	t.Parallel()
 	for _, game := range embeddedCatalogue(t) {
 		t.Run(game.Code, func(t *testing.T) {
+			t.Parallel()
 			protocol, err := DetermineProtocol(game)
 
 			if _, expected := gamesWithoutRcon[game.Code]; expected {
@@ -67,6 +69,7 @@ func TestDetermineProtocol_CoversEmbeddedCatalogue(t *testing.T) {
 }
 
 func TestDeterminePlayerManager(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		game      domain.Game
@@ -123,6 +126,7 @@ func TestDeterminePlayerManager(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			manager, err := DeterminePlayerManager(tt.game)
 
 			if tt.wantError != "" {

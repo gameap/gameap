@@ -16,6 +16,7 @@ func newTestAdapter(buf *bytes.Buffer, verbosity int) *grpclogAdapter {
 }
 
 func TestGrpclogAdapter_Info(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		call    func(a *grpclogAdapter)
@@ -40,6 +41,7 @@ func TestGrpclogAdapter_Info(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var buf bytes.Buffer
 			a := newTestAdapter(&buf, 0)
 
@@ -55,6 +57,7 @@ func TestGrpclogAdapter_Info(t *testing.T) {
 }
 
 func TestGrpclogAdapter_Warning(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	a := newTestAdapter(&buf, 0)
 
@@ -75,6 +78,7 @@ func TestGrpclogAdapter_Warning(t *testing.T) {
 }
 
 func TestGrpclogAdapter_Error(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	a := newTestAdapter(&buf, 0)
 
@@ -95,6 +99,7 @@ func TestGrpclogAdapter_Error(t *testing.T) {
 }
 
 func TestGrpclogAdapter_V(t *testing.T) {
+	t.Parallel()
 	a := newTestAdapter(&bytes.Buffer{}, 1)
 
 	assert.True(t, a.V(0))
@@ -103,6 +108,7 @@ func TestGrpclogAdapter_V(t *testing.T) {
 }
 
 func TestTrimNewline(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "hello", trimNewline("hello\n"))
 	assert.Equal(t, "hello", trimNewline("hello\n\n"))
 	assert.Equal(t, "hello", trimNewline("hello"))

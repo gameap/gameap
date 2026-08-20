@@ -15,6 +15,8 @@ import (
 
 // TestValidatePath — OWASP API1:2023 Broken Object Level Authorization.
 func TestValidatePath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		path      string
@@ -99,6 +101,8 @@ func TestValidatePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := filemanagerpath.ValidatePath(tt.path)
 
 			if tt.wantError != "" {
@@ -116,6 +120,8 @@ func TestValidatePath(t *testing.T) {
 // that relocate or remove their target must not be able to address the server
 // root itself).
 func TestIsRoot(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		path string
@@ -180,6 +186,8 @@ func TestIsRoot(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, filemanagerpath.IsRoot(tt.path))
 		})
 	}
@@ -187,6 +195,8 @@ func TestIsRoot(t *testing.T) {
 
 // TestValidateFilename — OWASP API1:2023 Broken Object Level Authorization.
 func TestValidateFilename(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		filename  string
@@ -238,6 +248,8 @@ func TestValidateFilename(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := filemanagerpath.ValidateFilename(tt.filename)
 
 			if tt.wantError != "" {
