@@ -99,7 +99,11 @@ const modalConfig = computed(() => ({
     AudioPlayerModal: { title: lang.value.modal.audioPlayer.title, width: '600px' },
     VideoPlayerModal: { title: lang.value.modal.videoPlayer.title, width: '800px' },
     AboutModal: { title: lang.value.modal.about.title, width: '600px' },
-    PluginEditorModal: { title: pluginsStore.resolvePluginText(modal.pluginEditorState?.pluginId, modal.pluginEditorState?.editor?.name) || lang.value.modal.editor.title, width: '1000px' },
+    // The width comes off the editor definition rather than from this map:
+    // a plugin that shows two panes side by side needs more room than one that
+    // shows a form, and the store is filled before the modal renders, so there
+    // is no resize on the first frame.
+    PluginEditorModal: { title: pluginsStore.resolvePluginText(modal.pluginEditorState?.pluginId, modal.pluginEditorState?.editor?.name) || lang.value.modal.editor.title, width: modal.pluginEditorState?.editor?.width || '1000px' },
     HashModal: { title: lang.value.modal.hash.title, width: '700px' },
     ZipModal: { title: lang.value.modal.zip.title, width: '600px' },
     UnzipModal: { title: lang.value.modal.unzip.title, width: '600px' },

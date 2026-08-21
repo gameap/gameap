@@ -169,7 +169,7 @@ export const myPlugin: PluginDefinition = {
                 fileName: 'server.cfg',
                 gameCode: 'cstrike'
             },
-            icon: 'fa-solid fa-gear'
+            icon: 'gear'
         },
         {
             id: 'ini-editor',
@@ -187,7 +187,7 @@ export const myPlugin: PluginDefinition = {
                 allFiles: true
             },
             contentType: 'binary',
-            icon: 'fa-solid fa-memory'
+            icon: 'memory'
         }
     ]
 };
@@ -201,9 +201,42 @@ export const myPlugin: PluginDefinition = {
 | `name` | `string` | Yes | Display name shown in context menu |
 | `component` | `Component` | Yes | Vue component that renders the editor |
 | `match` | `EditorMatchRules` | Yes | Rules for when this editor is available |
-| `contentType` | `'text' \| 'binary'` | No | Content type (default: 'text') |
+| `contentType` | `'text' \| 'binary' \| 'none'` | No | Content type (default: 'text') |
 | `readOnly` | `boolean` | No | If true, editor is view-only (no save) |
-| `icon` | `string` | No | Font Awesome icon class for context menu |
+| `icon` | `string` | No | Icon name from the `@gameap/ui` registry, e.g. `'file-archive'` |
+| `contextMenuOnly` | `boolean` | No | Offer in the context menu only; never open on a double click |
+| `menuLabel` | `string` | No | Caption of the context menu item instead of "Edit with …"; supports `@:key` |
+| `menuGroup` | `'top' \| 'open' \| 'modify' \| 'danger' \| 'info'` | No | Which block of the context menu the item joins (default: `'top'`, a block of its own above the rest) |
+| `checkPermission` | `PermissionCheck` | No | Hide the item unless the user holds these server abilities |
+| `width` | `string` | No | Modal width as a CSS length, e.g. `'min(1400px, 95vw)'` (default `1000px`) |
+| `hideFooter` | `boolean` | No | Drop the modal's footer; the editor draws its own actions |
+| `keepOpenOnSave` | `boolean` | No | Leave the modal open after a save; the editor's `onSaved()` is called either way |
+
+### How tall an editor may be
+
+The modal caps the editor's body at `--gameap-plugin-editor-height` and scrolls
+whatever is taller. There is no `height` field to set: the cap depends on the
+viewport, not on the editor.
+
+An editor that scrolls something of its own — a log, a pane of code, a table —
+should size that scroller from the same variable rather than from a constant,
+or the modal ends up with two scrollbars and the editor's own buttons below the
+fold:
+
+```css
+.my-editor-pane {
+    /* the cap, less what this editor spends on everything that is not the
+       scroller: its toolbar, its labels, its actions */
+    height: min(
+        var(--my-content-height),
+        max(9rem, calc(var(--gameap-plugin-editor-height, calc(100vh - 250px)) - 10rem))
+    );
+    overflow: auto;
+}
+```
+
+Keep the fallback: a panel older than this variable applies the same cap without
+publishing it.
 
 ### Matching Rules
 
@@ -228,6 +261,7 @@ When multiple editors match a file:
 - Specificity order: `fullPath` > `pathContains` > `fileName` > `fileNameRegexp` > `extensions` > `allFiles`
 - Game filters (`gameCode`/`gameName`) add to specificity score
 - `allFiles: true` has the lowest specificity (score=1), useful for generic editors like hex viewers
+- An editor with `contextMenuOnly: true` is never the default and never opens on a double click
 
 ### Editor Component Props
 
@@ -235,15 +269,22 @@ Editor components receive these props:
 
 ```typescript
 interface FileEditorProps {
-    content: string | ArrayBuffer;  // File content
+    content?: string | ArrayBuffer; // File content; absent for contentType: 'none'
     filePath: string;               // Full file path
     fileName: string;               // File name with extension
     extension: string;              // File extension (without dot)
     gameCode?: string;              // Current server's game code
     gameName?: string;              // Current server's game name
+    fileSize?: number;              // Size in bytes, as the listing reported it
+    fileMtime?: number;             // Modification time in unix seconds
+    disk?: string;                  // File manager disk the file lives on
     pluginId: string;               // Plugin ID
 }
 ```
+
+The server the file belongs to is not a prop: read it with `useServerId()` /
+`useServer()` from this SDK. Both throw when no plugin context is provided, so
+wrap the call if your component can be mounted outside one.
 
 ### Editor Component Events
 
@@ -313,6 +354,101 @@ fileEditors: [
 ```
 
 The `content` prop will be an `ArrayBuffer` instead of a string.
+
+### Editors that load their own content
+
+The modal downloads the file before it mounts the editor, and the file manager
+refuses to open a file larger than 1 MB that way. An editor that does not need
+the whole file — one that reports on it, compares it, or fetches only the part
+it shows — declares `contentType: 'none'` instead: no `content` prop arrives,
+the size cap does not apply, and the editor decides what to read.
+
+```typescript
+fileEditors: [
+    {
+        id: 'file-report',
+        name: 'File report',
+        component: FileReport,
+        match: { allFiles: true },
+        contentType: 'none',
+        contextMenuOnly: true,
+        readOnly: true
+    }
+]
+```
+
+`fileSize` and `fileMtime` come from the directory listing, so such an editor
+can describe the file without downloading it. Saving still works: emit `save`
+with the new content and the file manager writes it.
+
+### Context-menu-only editors
+
+The most specific matching editor is what a double click opens, ahead of the
+file manager's own image, video, pdf and text handling. An editor registered
+with `allFiles: true` therefore takes over every preview in the file manager —
+which is right for a hex editor and wrong for anything that only inspects a
+file. Set `contextMenuOnly: true` to stay out of the double click, and give
+the item its own wording with `menuLabel`:
+
+```typescript
+{
+    id: 'file-versions',
+    name: '@:versions_title',
+    menuLabel: '@:versions_menu',
+    component: FileVersions,
+    match: { allFiles: true },
+    contentType: 'none',
+    contextMenuOnly: true,
+    checkPermission: {
+        type: 'hasServerPermissions',
+        permissions: ['plugin:myplugin:view']
+    }
+}
+```
+
+Without `menuLabel` the item reads "Edit with &lt;name&gt;". `checkPermission` takes
+the same shape as a server tab's, and hides the item rather than letting the
+plugin's own API answer 403.
+
+### Which block the item lands in
+
+The context menu is drawn in blocks with a divider between them. `menuGroup`
+says which one the item joins:
+
+| `menuGroup` | What the block holds                                                  | Where the item lands     |
+|-------------|-----------------------------------------------------------------------|--------------------------|
+| `top`       | Nothing of the file manager's — a block of its own above all the rest | in order of the plugins  |
+| `open`      | Open, Play, View, Edit, Select, Download, Zip, Unzip                  | after the block's items  |
+| `modify`    | Copy, Cut, Rename, Chmod, Paste                                       | after the block's items  |
+| `danger`    | Delete                                                                | after the block's items  |
+| `info`      | Checksums, Properties                                                 | before the block's items |
+
+`info` is the one block a plugin item goes to the top of: Properties is the
+last line of the menu wherever it is opened from, and an item after it reads as
+an afterthought rather than as part of the block.
+
+`top` is the default, so an editor that names no block sits where every plugin
+item sat before the field existed. It is also the fallback: an item whose block
+this panel does not recognise goes there rather than nowhere, which is what
+makes a block added by a later panel safe to name.
+
+An editor that reads a file rather than acting on it — its history, its
+checksums, where it came from — reads better beside Checksums and Properties
+than above Open:
+
+```typescript
+{
+    id: 'file-versions',
+    menuLabel: '@:versions_menu',
+    menuGroup: 'info',
+    contextMenuOnly: true,
+    // …
+}
+```
+
+A panel older than this field ignores it and leaves the item at the top, which
+is where it would have been anyway — so there is nothing to guard against a
+version.
 
 ## Internationalization (i18n)
 

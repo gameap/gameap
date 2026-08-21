@@ -1336,3 +1336,39 @@ pkg/plugin/
 ├── errors.go                 # Error definitions
 └── README.md                 # This file
 ```
+
+## Backward Compatibility Testing
+
+A plugin compiled against an older panel must keep loading and working on
+newer panels, and a plugin that imports host modules the panel does not
+provide must be rejected cleanly instead of crashing at call time. The
+`pkg/plugin/compatrust/` package guards both directions:
+
+- Test plugins are Rust projects in the sibling `../test-plugins` repository.
+  They are compiled to WebAssembly and committed here as gzipped fixtures
+  under `pkg/plugin/compatrust/testdata/*.wasm.gz`.
+- The tests load every fixture through `plugin.Manager` and assert the
+  expected outcome: the plugin loads and answers calls, or it fails to load
+  with a clear error.
+- The CI workflow `.github/workflows/plugin-compat.yaml` runs the package on
+  a matrix of panel versions: `HEAD`, the latest 4.4 release (`v4.4.1`) and
+  the latest 4.3 release (`v4.3.5`). For the tagged legs the workflow
+  overlays the test package from `HEAD` onto the tagged tree, so the same
+  tests and fixtures run against every supported panel codebase.
+  Version-specific test files are trimmed per leg (`*_v44_test.go` is
+  dropped on 4.3.x, `compat_v43only_test.go` is dropped everywhere except
+  4.3.x) — see `pkg/plugin/compatrust/README.md`.
+
+Updating the fixtures after changing a test plugin:
+
+```bash
+cd ../test-plugins && make build
+cp dist/*.wasm.gz <panel-repo>/pkg/plugin/compatrust/testdata/
+```
+
+Rules:
+
+- A green matrix run is **mandatory** for any change to the plugin contracts
+  in `pkg/plugin/proto` or `pkg/plugin/sdk`.
+- When a new minor panel release is cut, add its latest patch tag to the
+  workflow matrix and remove the tag of the version that goes EOL.

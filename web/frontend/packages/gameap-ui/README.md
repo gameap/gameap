@@ -809,7 +809,7 @@ The package includes 150+ predefined icon mappings:
 `user`, `users`, `user-edit`, `login`, `logout`, `key`, `lock`, `address-card`, `profile`
 
 **File Icons:**
-`file`, `file-code`, `file-text`, `file-pdf`, `file-word`, `file-excel`, `folder`, `folder-open`, `clipboard`, `ftp`
+`file`, `file-code`, `file-text`, `file-pdf`, `file-word`, `file-excel`, `file-archive`, `file-stack`, `folder`, `folder-open`, `clipboard`, `ftp`
 
 **Brand Icons:**
 `linux`, `windows`, `apple`, `telegram`, `discord`, `vk`, `reddit`, `patreon`, `teamspeak`
