@@ -245,6 +245,20 @@ export interface DashboardWidgetProps {
 export type EditorContentType = 'text' | 'binary' | 'none';
 
 /**
+ * A block of the file manager's context menu, as its dividers separate them.
+ *
+ * - `top` — a block of its own above the built-in ones. Nothing of the file
+ *   manager's is in it; it is where plugin items went before there was a
+ *   choice, so it is what an editor gets when it names no block, and what it
+ *   gets when it names one the panel has never heard of.
+ * - `open` — Open, Play, View, Edit, Select, Download, Zip, Unzip.
+ * - `modify` — Copy, Cut, Rename, Chmod, Paste.
+ * - `danger` — Delete.
+ * - `info` — Checksums, Properties.
+ */
+export type EditorMenuGroup = 'top' | 'open' | 'modify' | 'danger' | 'info';
+
+/**
  * Matching rules for when a file editor should be available.
  * Multiple rules can be specified - all provided rules must match (AND logic).
  */
@@ -327,6 +341,14 @@ export interface PluginFileEditor {
      * translations.
      */
     menuLabel?: string;
+    /**
+     * Which block of the context menu the item joins, after that block's own
+     * items. The default is `top`, a block of its own above the rest, which is
+     * where every plugin item sat before this field existed — so leaving it
+     * out keeps an editor exactly where it was, and a panel older than the
+     * field puts it there whatever is named.
+     */
+    menuGroup?: EditorMenuGroup;
     /**
      * Permission check - the file manager hides the item when it fails, so a
      * plugin does not offer what its own API would answer 403 to.

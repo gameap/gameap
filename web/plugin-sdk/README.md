@@ -206,6 +206,7 @@ export const myPlugin: PluginDefinition = {
 | `icon` | `string` | No | Icon name from the `@gameap/ui` registry, e.g. `'file-archive'` |
 | `contextMenuOnly` | `boolean` | No | Offer in the context menu only; never open on a double click |
 | `menuLabel` | `string` | No | Caption of the context menu item instead of "Edit with …"; supports `@:key` |
+| `menuGroup` | `'top' \| 'open' \| 'modify' \| 'danger' \| 'info'` | No | Which block of the context menu the item joins (default: `'top'`, a block of its own above the rest) |
 | `checkPermission` | `PermissionCheck` | No | Hide the item unless the user holds these server abilities |
 | `width` | `string` | No | Modal width as a CSS length, e.g. `'min(1400px, 95vw)'` (default `1000px`) |
 | `hideFooter` | `boolean` | No | Drop the modal's footer; the editor draws its own actions |
@@ -408,6 +409,42 @@ the item its own wording with `menuLabel`:
 Without `menuLabel` the item reads "Edit with &lt;name&gt;". `checkPermission` takes
 the same shape as a server tab's, and hides the item rather than letting the
 plugin's own API answer 403.
+
+### Which block the item lands in
+
+The context menu is drawn in blocks with a divider between them. `menuGroup`
+says which one the item joins, after that block's own items:
+
+| `menuGroup` | What the block holds |
+|-------------|----------------------|
+| `top` | Nothing of the file manager's — a block of its own above all the rest |
+| `open` | Open, Play, View, Edit, Select, Download, Zip, Unzip |
+| `modify` | Copy, Cut, Rename, Chmod, Paste |
+| `danger` | Delete |
+| `info` | Checksums, Properties |
+
+`top` is the default, so an editor that names no block sits where every plugin
+item sat before the field existed. It is also the fallback: an item whose block
+this panel does not recognise goes there rather than nowhere, which is what
+makes a block added by a later panel safe to name.
+
+An editor that reads a file rather than acting on it — its history, its
+checksums, where it came from — reads better beside Checksums and Properties
+than above Open:
+
+```typescript
+{
+    id: 'file-versions',
+    menuLabel: '@:versions_menu',
+    menuGroup: 'info',
+    contextMenuOnly: true,
+    // …
+}
+```
+
+A panel older than this field ignores it and leaves the item at the top, which
+is where it would have been anyway — so there is nothing to guard against a
+version.
 
 ## Internationalization (i18n)
 

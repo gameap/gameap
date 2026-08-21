@@ -7,26 +7,24 @@
         class="fm-context-menu"
         tabindex="-1"
     >
-        <ul v-if="pluginEditorItems.length > 0" class="list-unstyled">
-          <li
-              v-for="(editorItem, idx) in pluginEditorItems"
-              :key="`pe-${idx}`"
-              :class="{ disabled: editorItem.disabled }"
-              :title="editorItem.disabled ? lang.contextMenu.fileTooLarge : ''"
-              @click="!editorItem.disabled && openPluginEditor(editorItem)"
-          >
-            <span class="fm-context-menu-icon"><GIcon :name="editorItem.editor.icon || 'edit'" /></span>
-            {{ getEditorMenuLabel(editorItem) }}
-          </li>
-        </ul>
-        <ul v-for="(group, index) in menu" v-bind:key="`g-${index}`" class="list-unstyled">
-            <template v-for="(item, idx) in group">
-                <li v-if="showMenuItem(item.name)" v-on:click="menuAction(item.name)" v-bind:key="`i-${idx}`">
+        <template v-for="block in menuBlocks" v-bind:key="`g-${block.group}`">
+            <ul v-if="block.items.length || block.editors.length" class="list-unstyled">
+                <li v-for="item in block.items" v-on:click="menuAction(item.name)" v-bind:key="`i-${item.name}`">
                     <span class="fm-context-menu-icon"><GIcon :name="item.icon" :class="item.iconClass" /></span>
                     {{ lang.contextMenu[item.name] }}
                 </li>
-            </template>
-        </ul>
+                <li
+                    v-for="(editorItem, idx) in block.editors"
+                    :key="`pe-${idx}`"
+                    :class="{ disabled: editorItem.disabled }"
+                    :title="editorItem.disabled ? lang.contextMenu.fileTooLarge : ''"
+                    @click="!editorItem.disabled && openPluginEditor(editorItem)"
+                >
+                    <span class="fm-context-menu-icon"><GIcon :name="editorItem.editor.icon || 'edit'" /></span>
+                    {{ getEditorMenuLabel(editorItem) }}
+                </li>
+            </ul>
+        </template>
     </div>
 </template>
 
@@ -56,7 +54,6 @@ const menuStyle = ref({
     left: 0,
 })
 
-const menu = computed(() => settings.contextMenu)
 const selectedDisk = computed(() => fm.selectedDisk)
 const selectedItems = computed(() => fm.selectedItems)
 const selectedDiskDriver = computed(() => fm.disks[selectedDisk.value]?.driver)
@@ -360,6 +357,29 @@ const pluginEditorItems = computed(() => {
         // The size cap is about handing the editor the file's content; an
         // editor that loads what it needs itself is offered whatever the size.
         disabled: fileTooLarge && !loadsOwnContent(item.editor)
+    }))
+})
+
+// Where a plugin item goes when it names no block, and when it names one this
+// panel does not know: the block plugin items had to themselves before there
+// was a choice of any. An item in an unexpected block is still an item, a
+// dropped one is a bug.
+const PLUGIN_GROUP = 'top'
+
+const menuBlocks = computed(() => {
+    const editors = new Map(
+        [PLUGIN_GROUP, ...settings.contextMenu.map((block) => block.group)].map((group) => [group, []])
+    )
+    for (const item of pluginEditorItems.value) {
+        const named = item.editor.menuGroup
+        editors.get(editors.has(named) ? named : PLUGIN_GROUP).push(item)
+    }
+    return [{ group: PLUGIN_GROUP, items: [] }, ...settings.contextMenu].map(({ group, items }) => ({
+        group,
+        // Filtered here rather than in the template, so a block left with
+        // nothing to show goes away together with the divider it would draw.
+        items: items.filter((item) => showMenuItem(item.name)),
+        editors: editors.get(group),
     }))
 })
 
