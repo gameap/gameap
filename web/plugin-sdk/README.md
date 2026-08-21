@@ -413,15 +413,19 @@ plugin's own API answer 403.
 ### Which block the item lands in
 
 The context menu is drawn in blocks with a divider between them. `menuGroup`
-says which one the item joins, after that block's own items:
+says which one the item joins:
 
-| `menuGroup` | What the block holds |
-|-------------|----------------------|
-| `top` | Nothing of the file manager's — a block of its own above all the rest |
-| `open` | Open, Play, View, Edit, Select, Download, Zip, Unzip |
-| `modify` | Copy, Cut, Rename, Chmod, Paste |
-| `danger` | Delete |
-| `info` | Checksums, Properties |
+| `menuGroup` | What the block holds                                                  | Where the item lands     |
+|-------------|-----------------------------------------------------------------------|--------------------------|
+| `top`       | Nothing of the file manager's — a block of its own above all the rest | in order of the plugins  |
+| `open`      | Open, Play, View, Edit, Select, Download, Zip, Unzip                  | after the block's items  |
+| `modify`    | Copy, Cut, Rename, Chmod, Paste                                       | after the block's items  |
+| `danger`    | Delete                                                                | after the block's items  |
+| `info`      | Checksums, Properties                                                 | before the block's items |
+
+`info` is the one block a plugin item goes to the top of: Properties is the
+last line of the menu wherever it is opened from, and an item after it reads as
+an afterthought rather than as part of the block.
 
 `top` is the default, so an editor that names no block sits where every plugin
 item sat before the field existed. It is also the fallback: an item whose block

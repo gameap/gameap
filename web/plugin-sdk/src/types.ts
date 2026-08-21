@@ -254,7 +254,8 @@ export type EditorContentType = 'text' | 'binary' | 'none';
  * - `open` — Open, Play, View, Edit, Select, Download, Zip, Unzip.
  * - `modify` — Copy, Cut, Rename, Chmod, Paste.
  * - `danger` — Delete.
- * - `info` — Checksums, Properties.
+ * - `info` — Checksums, Properties. The one block whose plugin items go above
+ *   its own, so that Properties stays the last line of the menu.
  */
 export type EditorMenuGroup = 'top' | 'open' | 'modify' | 'danger' | 'info';
 
@@ -342,11 +343,13 @@ export interface PluginFileEditor {
      */
     menuLabel?: string;
     /**
-     * Which block of the context menu the item joins, after that block's own
-     * items. The default is `top`, a block of its own above the rest, which is
-     * where every plugin item sat before this field existed — so leaving it
-     * out keeps an editor exactly where it was, and a panel older than the
-     * field puts it there whatever is named.
+     * Which block of the context menu the item joins. It lands after that
+     * block's own items, except in `info`, where it goes above them so that
+     * Properties stays the last line of the menu. The default is `top`, a
+     * block of its own above the rest, which is where every plugin item sat
+     * before this field existed — so leaving it out keeps an editor exactly
+     * where it was, and a panel older than the field puts it there whatever
+     * is named.
      */
     menuGroup?: EditorMenuGroup;
     /**

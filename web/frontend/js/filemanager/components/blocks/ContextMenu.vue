@@ -8,21 +8,22 @@
         tabindex="-1"
     >
         <template v-for="block in menuBlocks" v-bind:key="`g-${block.group}`">
-            <ul v-if="block.items.length || block.editors.length" class="list-unstyled">
-                <li v-for="item in block.items" v-on:click="menuAction(item.name)" v-bind:key="`i-${item.name}`">
-                    <span class="fm-context-menu-icon"><GIcon :name="item.icon" :class="item.iconClass" /></span>
-                    {{ lang.contextMenu[item.name] }}
-                </li>
-                <li
-                    v-for="(editorItem, idx) in block.editors"
-                    :key="`pe-${idx}`"
-                    :class="{ disabled: editorItem.disabled }"
-                    :title="editorItem.disabled ? lang.contextMenu.fileTooLarge : ''"
-                    @click="!editorItem.disabled && openPluginEditor(editorItem)"
-                >
-                    <span class="fm-context-menu-icon"><GIcon :name="editorItem.editor.icon || 'edit'" /></span>
-                    {{ getEditorMenuLabel(editorItem) }}
-                </li>
+            <ul v-if="block.rows.length" class="list-unstyled">
+                <template v-for="row in block.rows" v-bind:key="row.key">
+                    <li v-if="row.item" v-on:click="menuAction(row.item.name)">
+                        <span class="fm-context-menu-icon"><GIcon :name="row.item.icon" :class="row.item.iconClass" /></span>
+                        {{ lang.contextMenu[row.item.name] }}
+                    </li>
+                    <li
+                        v-else
+                        :class="{ disabled: row.editorItem.disabled }"
+                        :title="row.editorItem.disabled ? lang.contextMenu.fileTooLarge : ''"
+                        @click="!row.editorItem.disabled && openPluginEditor(row.editorItem)"
+                    >
+                        <span class="fm-context-menu-icon"><GIcon :name="row.editorItem.editor.icon || 'edit'" /></span>
+                        {{ getEditorMenuLabel(row.editorItem) }}
+                    </li>
+                </template>
             </ul>
         </template>
     </div>
@@ -374,13 +375,19 @@ const menuBlocks = computed(() => {
         const named = item.editor.menuGroup
         editors.get(editors.has(named) ? named : PLUGIN_GROUP).push(item)
     }
-    return [{ group: PLUGIN_GROUP, items: [] }, ...settings.contextMenu].map(({ group, items }) => ({
-        group,
-        // Filtered here rather than in the template, so a block left with
-        // nothing to show goes away together with the divider it would draw.
-        items: items.filter((item) => showMenuItem(item.name)),
-        editors: editors.get(group),
-    }))
+    // One list per block, plugin items and the file manager's own in the order
+    // the block asks for. Filtered here rather than in the template, so a block
+    // left with nothing to show goes away together with the divider it would
+    // draw.
+    return [{ group: PLUGIN_GROUP, items: [] }, ...settings.contextMenu].map(({ group, items, editorsFirst }) => {
+        const own = items
+            .filter((item) => showMenuItem(item.name))
+            .map((item) => ({ key: `i-${item.name}`, item }))
+        const plugins = editors
+            .get(group)
+            .map((editorItem) => ({ key: `pe-${editorItem.pluginId}-${editorItem.editor.id}`, editorItem }))
+        return { group, rows: editorsFirst ? [...plugins, ...own] : [...own, ...plugins] }
+    })
 })
 
 function getEditorMenuLabel(editorItem) {

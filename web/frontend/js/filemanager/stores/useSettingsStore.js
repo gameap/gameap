@@ -63,6 +63,8 @@ export const useSettingsStore = defineStore('fm-settings', () => {
     // under it. The names are what a plugin file editor points `menuGroup` at,
     // so they are a contract with installed plugins: a block may gain or lose
     // items, but renaming one moves somebody's item back to the default block.
+    // `editorsFirst` puts the plugin items above the block's own instead of
+    // under them.
     const contextMenu = ref([
         {
             group: 'open',
@@ -97,6 +99,10 @@ export const useSettingsStore = defineStore('fm-settings', () => {
         },
         {
             group: 'info',
+            // Properties is the last line of the menu wherever it is opened
+            // from, so a plugin item joining this block goes above it rather
+            // than after the end of everything.
+            editorsFirst: true,
             items: [
                 { name: 'hash', icon: 'fingerprint' },
                 { name: 'properties', icon: 'info' },
