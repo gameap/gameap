@@ -277,7 +277,22 @@ watch(() => serverForm.value.gameMod, async (newModId) => {
   }
 
   gameModStore.setModId(newModId)
-  await gameModStore.fetchMod()
+
+  try {
+    await gameModStore.fetchMod()
+  } catch (error) {
+    // Without the definitions the form has no widgets and no defaults, so the
+    // failure is reported instead of leaving an empty settings section behind.
+    errorNotification(error)
+
+    return
+  }
+
+  // The selection may have changed while the mod was loading; seeding then
+  // would fill the form with another mod's switches.
+  if (serverForm.value.gameMod !== newModId) {
+    return
+  }
 
   // Text and number fields stay blank so the placeholder shows the mod default
   // and the backend applies it; a switch has no blank state, so it is seeded.

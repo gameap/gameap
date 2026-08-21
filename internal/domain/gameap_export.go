@@ -274,9 +274,11 @@ func (m *GameExportMod) ToDomainGameMod(gameCode string) *GameMod {
 
 	vars := make(GameModVarList, 0, len(m.Vars))
 	for _, v := range m.Vars {
-		// Clone the rules so the export struct and the domain struct do not
-		// share one pointer.
+		// Clone the rules and the options so the export struct and the domain
+		// struct share neither the pointer nor the option backing array:
+		// Normalize writes to both.
 		v.Rules = v.Rules.Clone()
+		v.Options = v.Options.Clone()
 		v.Normalize()
 		vars = append(vars, v)
 	}
@@ -347,6 +349,7 @@ func newGameExportModFromDomain(mod *GameMod) GameExportMod {
 	vars := make([]GameExportModVar, 0, len(mod.Vars))
 	for _, v := range mod.Vars {
 		v.Rules = v.Rules.Clone()
+		v.Options = v.Options.Clone()
 		v.Normalize()
 		vars = append(vars, v)
 	}

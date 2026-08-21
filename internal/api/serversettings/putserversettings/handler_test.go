@@ -982,7 +982,14 @@ func TestPutServerSettings(t *testing.T) {
 			}
 
 			if test.wantErrorField != "" {
-				assert.Contains(t, recorder.Body.String(), test.wantErrorField, "error body should name the field")
+				// The client highlights each bad field from this object, so the
+				// shape matters as much as the field name being mentioned.
+				var body struct {
+					Errors map[string][]string `json:"errors"`
+				}
+				require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+				require.Contains(t, body.Errors, test.wantErrorField, "error body should name the field")
+				assert.NotEmpty(t, body.Errors[test.wantErrorField])
 			}
 
 			if len(test.wantUnwritten) > 0 {

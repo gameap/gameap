@@ -2,7 +2,7 @@
   <div class="space-y-2" data-testid="var-options-editor">
     <div
       v-for="(row, index) in rows"
-      :key="index"
+      :key="row.id"
       class="space-y-1"
     >
       <div class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_2rem_2rem] gap-2 sm:items-center">
@@ -11,7 +11,7 @@
           size="small"
           :maxlength="64"
           :placeholder="trans('games.var_option_value')"
-          :status="duplicateValues.has(row.value) ? 'error' : undefined"
+          :status="duplicateValues.has(String(row.value).trim()) ? 'error' : undefined"
           @update:value="setValue(index, $event)"
         />
         <n-input
@@ -26,7 +26,7 @@
           size="small"
           :type="row.i18n ? 'primary' : 'default'"
           :title="trans('games.translations')"
-          @click="toggleTranslations(index)"
+          @click="toggleTranslations(row.id)"
         >
           <GIcon name="languages" />
         </n-button>
@@ -37,7 +37,7 @@
 
       <!-- Inline sub-row rather than a nested modal: option translations are
            rare and a modal on top of a modal is fragile to focus and z-index. -->
-      <div v-if="expanded.has(index)" class="pl-2 border-l-2 border-stone-200 dark:border-stone-700">
+      <div v-if="expanded.has(row.id)" class="pl-2 border-l-2 border-stone-200 dark:border-stone-700">
         <I18nEditor
           :fields="[{ key: 'label', label: trans('games.var_option_label'), maxlength: 128 }]"
           :model-value="row.i18n"
@@ -74,12 +74,18 @@ const model = defineModel({ type: Array, default: () => [] })
 const rows = ref([])
 const expanded = ref(new Set())
 
+// Rows are identified by a local id rather than by their index: splicing one out
+// shifts every index after it, which would move an open translations sub-row and
+// the edits inside it onto a different option.
+let nextRowId = 0
+const withId = (row) => ({ ...row, id: (nextRowId += 1) })
+
 watch(model, (value) => {
   if (JSON.stringify(buildModel(rows.value)) === JSON.stringify(value ?? [])) {
     return
   }
 
-  rows.value = normalizeOptions(value)
+  rows.value = normalizeOptions(value).map(withId)
 }, { immediate: true, deep: true })
 
 const duplicateValues = computed(() => {
@@ -116,13 +122,19 @@ function emitModel() {
 }
 
 function addRow() {
-  rows.value.push({ value: '', label: '', i18n: null })
+  rows.value.push(withId({ value: '', label: '', i18n: null }))
   emitModel()
 }
 
 function removeRow(index) {
-  rows.value.splice(index, 1)
-  expanded.value.delete(index)
+  const [removed] = rows.value.splice(index, 1)
+
+  if (removed && expanded.value.has(removed.id)) {
+    const next = new Set(expanded.value)
+    next.delete(removed.id)
+    expanded.value = next
+  }
+
   emitModel()
 }
 
@@ -141,13 +153,13 @@ function setTranslations(index, i18n) {
   emitModel()
 }
 
-function toggleTranslations(index) {
+function toggleTranslations(id) {
   const next = new Set(expanded.value)
 
-  if (next.has(index)) {
-    next.delete(index)
+  if (next.has(id)) {
+    next.delete(id)
   } else {
-    next.add(index)
+    next.add(id)
   }
 
   expanded.value = next

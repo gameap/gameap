@@ -16,7 +16,7 @@
         tag
         size="small"
         :placeholder="trans('games.translations_locale')"
-        :status="row.locale === 'en' ? 'error' : undefined"
+        :status="localeProblem(row) ? 'error' : undefined"
         @update:value="setLocale(index, $event)"
       />
 
@@ -32,8 +32,8 @@
           size="small"
           @update:value="setField(index, field.key, $event)"
         />
-        <small v-if="row.locale === 'en'" class="block text-red-500">
-          {{ trans('games.translations_en_hint') }}
+        <small v-if="localeProblem(row)" class="block text-red-500">
+          {{ localeProblem(row) }}
         </small>
       </div>
 
@@ -84,6 +84,41 @@ watch(model, (value) => {
     values: { ...values },
   }))
 }, { immediate: true, deep: true })
+
+// buildModel keys the payload by locale, so a locale entered twice silently
+// discards every row but the last one. It is reported instead.
+const duplicateLocales = computed(() => {
+  const seen = new Set()
+  const duplicates = new Set()
+
+  for (const row of rows.value) {
+    const locale = normalizeLocale(row.locale)
+    if (!locale) {
+      continue
+    }
+
+    if (seen.has(locale)) {
+      duplicates.add(locale)
+    }
+    seen.add(locale)
+  }
+
+  return duplicates
+})
+
+function localeProblem(row) {
+  const locale = normalizeLocale(row.locale)
+
+  if (locale === 'en') {
+    return trans('games.translations_en_hint')
+  }
+
+  if (duplicateLocales.value.has(locale)) {
+    return trans('games.translations_duplicate')
+  }
+
+  return null
+}
 
 function rowsMatchModel(value) {
   return JSON.stringify(buildModel(rows.value)) === JSON.stringify(value ?? null)

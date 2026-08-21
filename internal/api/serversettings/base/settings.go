@@ -56,14 +56,26 @@ func Normalize(gameMod *domain.GameMod, input []InputSetting, isAdmin bool) ([]N
 	// The input slice is walked in order so both the error order and the write
 	// order are deterministic.
 	normalized := make([]NormalizedSetting, 0, len(input))
+	positions := make(map[string]int, len(input))
 	fieldErrors := make(map[string][]string)
+
+	// A setting row is keyed by name, so the same name submitted twice would be
+	// written twice: once as an update and once as a second row. The last value
+	// wins, at the position the name was first seen.
+	put := func(name string, value domain.ServerSettingValue) {
+		if at, seen := positions[name]; seen {
+			normalized[at].Value = value
+
+			return
+		}
+
+		positions[name] = len(normalized)
+		normalized = append(normalized, NormalizedSetting{Name: name, Value: value})
+	}
 
 	for _, setting := range input {
 		if IsWritableBuiltIn(setting.Name) {
-			normalized = append(normalized, NormalizedSetting{
-				Name:  setting.Name,
-				Value: domain.NewServerSettingValue(readLenientBool(setting.Value)),
-			})
+			put(setting.Name, domain.NewServerSettingValue(readLenientBool(setting.Value)))
 
 			continue
 		}
@@ -84,10 +96,7 @@ func Normalize(gameMod *domain.GameMod, input []InputSetting, isAdmin bool) ([]N
 			continue
 		}
 
-		normalized = append(normalized, NormalizedSetting{
-			Name:  setting.Name,
-			Value: domain.NewServerSettingValue(value),
-		})
+		put(setting.Name, domain.NewServerSettingValue(value))
 	}
 
 	if len(fieldErrors) > 0 {

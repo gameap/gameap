@@ -99,7 +99,13 @@ test('server settings render a widget per variable type and reject a rule violat
     { name: 'maxplayers', value: 100 },
   ]);
   expect(rejected.status).toBe(422);
-  expect(rejected.body).toContain('maxplayers');
+
+  // The 422 carries a per-field error object so the form can highlight every
+  // bad field at once, not just a sentence naming one of them.
+  const rejectedBody = JSON.parse(rejected.body);
+  expect(Array.isArray(rejectedBody.errors?.maxplayers)).toBe(true);
+  expect(rejectedBody.errors.maxplayers.length).toBeGreaterThan(0);
+  expect(rejectedBody.errors.maxplayers.join(' ')).toContain('64');
 
   const afterReject = await getServerSettings(request, adminToken, serverId);
   expect(afterReject.find((s) => s.name === 'motd')?.value).toBe('Hello');

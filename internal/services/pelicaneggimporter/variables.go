@@ -31,6 +31,14 @@ func transformVariables(variables []gamesimport.PelicanEggVariable) domain.GameM
 	vars := make(domain.GameModVarList, 0, len(variables))
 
 	for _, v := range variables {
+		if v.EnvVariable == "" {
+			slog.Warn("skipping pelican egg variable without an env_variable name",
+				slog.String("name", v.Name),
+			)
+
+			continue
+		}
+
 		if utf8.RuneCountInString(v.EnvVariable) > maxVarNameLength {
 			slog.Warn("skipping pelican egg variable with a name longer than the panel allows",
 				slog.String("variable", v.EnvVariable),
@@ -57,11 +65,14 @@ func transformVariables(variables []gamesimport.PelicanEggVariable) domain.GameM
 				slog.String("error", err.Error()),
 			)
 
+			// Only the rule mapping is dropped; the help text is still the best
+			// description of the variable the egg has.
 			gameModVar = domain.GameModVar{
-				Var:      v.EnvVariable,
-				Default:  domain.GameModVarDefault(v.DefaultValue),
-				Info:     buildVarInfo(v),
-				AdminVar: !v.UserEditable,
+				Var:         v.EnvVariable,
+				Default:     domain.GameModVarDefault(v.DefaultValue),
+				Info:        buildVarInfo(v),
+				AdminVar:    !v.UserEditable,
+				Description: truncateRunes(v.Description, maxVarDescriptionLength),
 			}
 		}
 
@@ -133,7 +144,7 @@ func parsePelicanRules(raw gamesimport.FlexibleRules) []pelicanRule {
 	parsed := make([]pelicanRule, 0, len(raw))
 
 	for _, entry := range raw {
-		for part := range strings.SplitSeq(entry, "|") {
+		for _, part := range splitRuleEntry(entry) {
 			part = strings.TrimSpace(part)
 			if part == "" {
 				continue
@@ -153,6 +164,79 @@ func parsePelicanRules(raw gamesimport.FlexibleRules) []pelicanRule {
 	}
 
 	return parsed
+}
+
+// splitRuleEntry splits the legacy "required|string|max:64" spelling into its
+// rules. A pipe inside a regex rule is part of the pattern rather than a
+// delimiter, so "regex:/^(vanilla|paper)$/" stays one rule — the array form is
+// what an egg is supposed to use for such a rule, and splitting it would leave
+// two fragments that compile into nothing.
+func splitRuleEntry(entry string) []string {
+	parts := make([]string, 0, strings.Count(entry, "|")+1)
+
+	for start := 0; ; {
+		end := ruleEnd(entry, start)
+		parts = append(parts, entry[start:end])
+
+		if end == len(entry) {
+			break
+		}
+
+		start = end + 1
+	}
+
+	return parts
+}
+
+// ruleEnd finds the delimiter that closes the rule starting at start, skipping
+// the body of a regex rule, and returns len(entry) for the last rule.
+func ruleEnd(entry string, start int) int {
+	from := start + regexRuleBodyLength(entry[start:])
+
+	if next := strings.IndexByte(entry[from:], '|'); next >= 0 {
+		return from + next
+	}
+
+	return len(entry)
+}
+
+// regexRuleBodyLength reports how many bytes of s the leading regex rule spans,
+// including its closing delimiter, and 0 when s does not start with one.
+func regexRuleBodyLength(s string) int {
+	trimmed := strings.TrimLeft(s, " \t")
+	lower := strings.ToLower(trimmed)
+
+	prefix := ""
+	for _, candidate := range []string{"regex:", "not_regex:"} {
+		if strings.HasPrefix(lower, candidate) {
+			prefix = candidate
+
+			break
+		}
+	}
+
+	if prefix == "" || len(trimmed) == len(prefix) {
+		return 0
+	}
+
+	offset := len(s) - len(trimmed) + len(prefix)
+	pattern := trimmed[len(prefix):]
+	delimiter := pattern[0]
+
+	for i := 1; i < len(pattern); {
+		switch pattern[i] {
+		case '\\':
+			i += 2
+		case delimiter:
+			return offset + i + 1
+		default:
+			i++
+		}
+	}
+
+	// An unterminated pattern swallows the rest: splitting it would only produce
+	// fragments of a regexp.
+	return len(s)
 }
 
 func applyPelicanInRule(target *domain.GameModVar, argument string) {

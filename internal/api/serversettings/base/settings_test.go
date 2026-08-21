@@ -36,10 +36,13 @@ func TestNormalize(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		input     []InputSetting
-		isAdmin   bool
-		want      map[string]string
+		name    string
+		input   []InputSetting
+		isAdmin bool
+		want    map[string]string
+		// wantLen defaults to len(want): the map assertion cannot see a name that
+		// was normalized twice, so a duplicate case states the count explicitly.
+		wantLen   int
 		wantError string
 	}{
 		{
@@ -50,6 +53,32 @@ func TestNormalize(t *testing.T) {
 				{Name: "pvp", Value: false},
 			},
 			want: map[string]string{"hostname": "My Server", "maxplayers": "32", "pvp": "off"},
+		},
+		{
+			name: "a_plain_json_number_is_canonicalized",
+			input: []InputSetting{
+				{Name: "maxplayers", Value: float64(32)},
+			},
+			want: map[string]string{"maxplayers": "32"},
+		},
+		{
+			name: "a_name_submitted_twice_is_written_once",
+			input: []InputSetting{
+				{Name: "hostname", Value: "First"},
+				{Name: "maxplayers", Value: json.Number("32")},
+				{Name: "hostname", Value: "Last"},
+			},
+			want:    map[string]string{"hostname": "Last", "maxplayers": "32"},
+			wantLen: 2,
+		},
+		{
+			name: "a_built_in_submitted_twice_is_written_once",
+			input: []InputSetting{
+				{Name: "autostart", Value: true},
+				{Name: "autostart", Value: false},
+			},
+			want:    map[string]string{"autostart": "false"},
+			wantLen: 1,
 		},
 		{
 			name:  "built_in_bool_accepts_a_legacy_string",
@@ -121,6 +150,12 @@ func TestNormalize(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+
+			wantLen := test.wantLen
+			if wantLen == 0 {
+				wantLen = len(test.want)
+			}
+			require.Len(t, result, wantLen)
 
 			stored := make(map[string]string, len(result))
 			for _, setting := range result {

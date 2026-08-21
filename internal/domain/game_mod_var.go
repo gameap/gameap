@@ -3,6 +3,7 @@ package domain
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -250,6 +251,16 @@ func (l GameModVarOptions) Contains(value string) bool {
 	}
 
 	return false
+}
+
+// Clone copies the option list. Normalize rewrites the elements in place, so a
+// copy that still shares the backing array would rewrite the source too.
+func (l GameModVarOptions) Clone() GameModVarOptions {
+	if l == nil {
+		return nil
+	}
+
+	return slices.Clone(l)
 }
 
 func (l GameModVarOptions) LabelFor(value string) string {

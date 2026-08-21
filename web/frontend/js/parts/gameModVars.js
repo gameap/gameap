@@ -18,6 +18,11 @@ export const NUMERIC_TYPES = ['int', 'float'];
 
 export const VAR_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
 export const VAR_NAME_MAX_LENGTH = 32;
+export const VAR_PATTERN_MAX_LENGTH = 512;
+
+// The two states a bool variable carries when nothing was customized.
+export const DEFAULT_VAR_TRUE_VALUE = '1';
+export const DEFAULT_VAR_FALSE_VALUE = '0';
 
 // Go's RE2 has neither lookarounds nor backreferences, so a pattern using them
 // would be accepted here and rejected by the panel.
@@ -137,8 +142,8 @@ export function normalizeVarDefinition(raw) {
         default: raw?.default ?? null,
         options: normalizeOptions(raw?.options),
         allowCustom: raw?.allow_custom === true,
-        trueValue: raw?.true_value ?? '1',
-        falseValue: raw?.false_value ?? '0',
+        trueValue: raw?.true_value ?? DEFAULT_VAR_TRUE_VALUE,
+        falseValue: raw?.false_value ?? DEFAULT_VAR_FALSE_VALUE,
         rules: {
             required: rules.required === true,
             min: numberOrNull(rules.min),
@@ -220,6 +225,12 @@ export function isRe2Compatible(pattern) {
 }
 
 export function compilePattern(pattern) {
+    // Mirrors the panel's own limit: a longer pattern is rejected on save, and
+    // compiling an unbounded one costs the browser more than it is worth.
+    if (String(pattern ?? '').length > VAR_PATTERN_MAX_LENGTH) {
+        return null;
+    }
+
     try {
         // The whole value must match, exactly as the panel anchors it.
         return new RegExp(`^(?:${pattern})$`);
@@ -465,8 +476,8 @@ export function denormalizeVar(raw) {
     if (type === 'bool') {
         // Always emitted: an empty false_value is a meaningful flag-style value
         // that any "drop when empty" rule would eat.
-        payload.true_value = String(raw?.true_value ?? '1');
-        payload.false_value = String(raw?.false_value ?? '0');
+        payload.true_value = String(raw?.true_value ?? DEFAULT_VAR_TRUE_VALUE);
+        payload.false_value = String(raw?.false_value ?? DEFAULT_VAR_FALSE_VALUE);
     }
 
     const rules = compactRules(raw?.rules, type, raw?.allow_custom === true);
@@ -521,8 +532,8 @@ export function varDefinitionIssues(raw) {
     }
 
     if (type === 'bool') {
-        const trueValue = String(raw?.true_value ?? '1');
-        const falseValue = String(raw?.false_value ?? '0');
+        const trueValue = String(raw?.true_value ?? DEFAULT_VAR_TRUE_VALUE);
+        const falseValue = String(raw?.false_value ?? DEFAULT_VAR_FALSE_VALUE);
         const defaultValue = String(raw?.default ?? '');
 
         if (defaultValue && defaultValue !== trueValue && defaultValue !== falseValue) {
@@ -549,7 +560,12 @@ export function hasAdvancedSettings(raw) {
     return Boolean(
         String(raw?.description ?? '').trim()
         || (type === 'select' && (raw?.options?.length || raw?.allow_custom))
-        || (type === 'bool' && (raw?.true_value !== undefined || raw?.false_value !== undefined))
+        // The payload always carries true_value/false_value for a bool, so only a
+        // value that differs from the default counts as an advanced setting.
+        || (type === 'bool' && (
+            String(raw?.true_value ?? DEFAULT_VAR_TRUE_VALUE) !== DEFAULT_VAR_TRUE_VALUE
+            || String(raw?.false_value ?? DEFAULT_VAR_FALSE_VALUE) !== DEFAULT_VAR_FALSE_VALUE
+        ))
         || compactRules(raw?.rules, type, raw?.allow_custom === true)
         || compactI18n(raw?.i18n, ['info', 'description']),
     );

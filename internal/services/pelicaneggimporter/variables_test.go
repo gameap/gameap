@@ -1,6 +1,7 @@
 package pelicaneggimporter
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -157,6 +158,53 @@ func TestTransformVariables_RulesMapping(t *testing.T) {
 			},
 		},
 		{
+			name: "regex_alternative_keeps_its_pipe",
+			variable: gamesimport.PelicanEggVariable{
+				Name:        "Mod",
+				EnvVariable: "MOD",
+				Rules:       gamesimport.FlexibleRules{`regex:/^(vanilla|paper)$/`},
+			},
+			want: domain.GameModVar{
+				Var:      "MOD",
+				Info:     "Mod",
+				AdminVar: true,
+				Rules:    &domain.GameModVarRules{Pattern: `(vanilla|paper)`},
+			},
+		},
+		{
+			name: "regex_alternative_inside_a_piped_rule_string",
+			variable: gamesimport.PelicanEggVariable{
+				Name:        "Mod",
+				EnvVariable: "MOD",
+				Rules:       gamesimport.FlexibleRules{`required|regex:/^(vanilla|paper)$/|max:32`},
+			},
+			want: domain.GameModVar{
+				Var:      "MOD",
+				Info:     "Mod",
+				AdminVar: true,
+				Rules: &domain.GameModVarRules{
+					Required:  new(true),
+					MaxLength: new(32),
+					Pattern:   `(vanilla|paper)`,
+				},
+			},
+		},
+		{
+			name: "description_survives_an_invalid_rule_mapping",
+			variable: gamesimport.PelicanEggVariable{
+				Name:        "Mod",
+				EnvVariable: "MOD",
+				Description: "Which server jar to run",
+				Rules:       gamesimport.FlexibleRules{"in:vanilla,vanilla"},
+			},
+			want: domain.GameModVar{
+				Var:         "MOD",
+				Info:        "Mod",
+				AdminVar:    true,
+				Description: "Which server jar to run",
+			},
+		},
+		{
 			name: "lookahead_regex_is_dropped",
 			variable: gamesimport.PelicanEggVariable{
 				Name:        "Map",
@@ -195,6 +243,95 @@ func TestTransformVariables_RulesMapping(t *testing.T) {
 			require.Len(t, result, 1)
 			assert.Equal(t, test.want, result[0])
 			require.NoError(t, result[0].Validate())
+		})
+	}
+}
+
+func TestTransformVariables_SkipsVariablesThatCannotBeStored(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		variable gamesimport.PelicanEggVariable
+	}{
+		{
+			name: "no_env_variable_name",
+			variable: gamesimport.PelicanEggVariable{
+				Name:        "Nameless",
+				EnvVariable: "",
+			},
+		},
+		{
+			name: "env_variable_name_longer_than_the_column",
+			variable: gamesimport.PelicanEggVariable{
+				Name:        "Too long",
+				EnvVariable: strings.Repeat("A", maxVarNameLength+1),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ACT
+			result := transformVariables([]gamesimport.PelicanEggVariable{test.variable})
+
+			// ASSERT
+			assert.Empty(t, result)
+		})
+	}
+}
+
+func TestSplitRuleEntry(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		entry string
+		want  []string
+	}{
+		{
+			name:  "plain_rules",
+			entry: "required|string|max:64",
+			want:  []string{"required", "string", "max:64"},
+		},
+		{
+			name:  "regex_alternative_is_not_a_delimiter",
+			entry: `required|regex:/^(vanilla|paper)$/|max:32`,
+			want:  []string{"required", `regex:/^(vanilla|paper)$/`, "max:32"},
+		},
+		{
+			name:  "not_regex_is_handled_too",
+			entry: `not_regex:/(a|b)/|nullable`,
+			want:  []string{`not_regex:/(a|b)/`, "nullable"},
+		},
+		{
+			name:  "escaped_delimiter_stays_inside_the_pattern",
+			entry: `regex:/^a\/b|c$/i|string`,
+			want:  []string{`regex:/^a\/b|c$/i`, "string"},
+		},
+		{
+			name:  "unterminated_pattern_swallows_the_rest",
+			entry: `regex:/^(a|b)$`,
+			want:  []string{`regex:/^(a|b)$`},
+		},
+		{
+			name:  "empty_entry",
+			entry: "",
+			want:  []string{""},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ACT
+			result := splitRuleEntry(test.entry)
+
+			// ASSERT
+			assert.Equal(t, test.want, result)
 		})
 	}
 }

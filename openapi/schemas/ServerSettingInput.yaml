@@ -14,5 +14,13 @@ properties:
     description: Setting machine name (a game mod variable, `autostart` or `update_before_start`)
     example: "maxplayers"
   value:
-    description: Setting value; see the description above.
+    type:
+      - boolean
+      - number
+      - string
+      - "null"
+    description: |
+      Setting value; see the description above. `null` clears the value, which
+      is what the panel sends for an emptied number field. An object or an
+      array is rejected with 422.
     example: 32

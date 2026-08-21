@@ -25,28 +25,35 @@ type VarInput struct {
 	I18n        domain.GameModVarI18n    `json:"i18n,omitempty"`
 }
 
-func (v *VarInput) ToDomain() domain.GameModVar {
-	gameModVar := domain.GameModVar{
+func (v *VarInput) toGameModVar() domain.GameModVar {
+	return domain.GameModVar{
 		Var:         v.Var,
 		Default:     v.Default,
 		Info:        v.Info,
 		AdminVar:    v.AdminVar.Bool(),
 		Type:        v.Type,
 		Description: v.Description,
-		Options:     v.Options,
+		Options:     v.Options.Clone(),
 		AllowCustom: v.AllowCustom.Bool(),
 		TrueValue:   v.TrueValue,
 		FalseValue:  v.FalseValue,
 		Rules:       v.Rules.Clone(),
 		I18n:        v.I18n,
 	}
+}
+
+func (v *VarInput) ToDomain() domain.GameModVar {
+	gameModVar := v.toGameModVar()
 	gameModVar.Normalize()
 
 	return gameModVar
 }
 
+// Validate checks what was submitted, not what survives Normalize: options on
+// an int variable or a true_value on a string one are a mistake the client
+// should hear about instead of having the field silently dropped.
 func (v *VarInput) Validate() error {
-	gameModVar := v.ToDomain()
+	gameModVar := v.toGameModVar()
 	if err := gameModVar.Validate(); err != nil {
 		return api.NewValidationError(err.Error())
 	}

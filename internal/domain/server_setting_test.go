@@ -378,6 +378,11 @@ func TestServerSettingValue_MarshalJSON(t *testing.T) {
 			value: ServerSettingValue{value: "test", tp: serverSettingTypeUnknown},
 			want:  `null`,
 		},
+		{
+			name:  "scanned_null_column",
+			value: scanValue(nil),
+			want:  `null`,
+		},
 	}
 
 	for _, test := range tests {
@@ -458,14 +463,14 @@ func TestServerSettingValue_Scan(t *testing.T) {
 			receiver:  ServerSettingValue{},
 			input:     nil,
 			wantValue: nil,
-			wantType:  serverSettingTypeString,
+			wantType:  serverSettingTypeUnknown,
 		},
 		{
 			name:      "nil_value_overwrites_string",
 			receiver:  NewServerSettingValue("preexisting_string"),
 			input:     nil,
 			wantValue: nil,
-			wantType:  serverSettingTypeString,
+			wantType:  serverSettingTypeUnknown,
 		},
 		{
 			name:      "byte_slice_true",
@@ -815,6 +820,12 @@ func TestServerSettingValue_Raw(t *testing.T) {
 			wantRaw: "",
 			wantOK:  false,
 		},
+		{
+			name:    "scanned_null_column_is_absent",
+			setup:   func() ServerSettingValue { return scanValue(nil) },
+			wantRaw: "",
+			wantOK:  false,
+		},
 	}
 
 	for _, test := range tests {
@@ -839,7 +850,7 @@ func TestServerSettingValue_ValuePreservesRawText(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		input []byte
+		input any
 		want  driver.Value
 	}{
 		{
@@ -867,6 +878,11 @@ func TestServerSettingValue_ValuePreservesRawText(t *testing.T) {
 			input: []byte("null"),
 			want:  nil,
 		},
+		{
+			name:  "null_column",
+			input: nil,
+			want:  nil,
+		},
 	}
 
 	for _, test := range tests {
@@ -886,7 +902,7 @@ func TestServerSettingValue_ValuePreservesRawText(t *testing.T) {
 	}
 }
 
-func scanValue(raw []byte) ServerSettingValue {
+func scanValue(raw any) ServerSettingValue {
 	var value ServerSettingValue
 	_ = value.Scan(raw)
 

@@ -1,5 +1,6 @@
 type: string
 enum:
+  - ""
   - string
   - text
   - int
@@ -9,6 +10,7 @@ enum:
   - password
 description: |
   Widget type in the panel and base value format. An omitted or empty value
-  means `string` (a plain input). The stored value is always substituted into
+  means `string` (a plain input) — every game mod written before the type
+  existed carries the empty one. The stored value is always substituted into
   commands as a string.
 example: "int"

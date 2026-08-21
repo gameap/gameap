@@ -118,22 +118,25 @@ func TestGameModVarOption_YAMLRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		input string
-		want  GameModVarOptions
-		yaml  string
+		name string
+		// wantShorthand tells, per option, whether the encoder must emit a bare
+		// scalar rather than a mapping. The encoded text itself is not asserted:
+		// whether "1.20.4" comes back quoted is the YAML library's business.
+		input         string
+		want          GameModVarOptions
+		wantShorthand []bool
 	}{
 		{
-			name:  "shorthand_list_stays_shorthand",
-			input: "- '1.21'\n- '1.20.4'\n",
-			want:  GameModVarOptions{{Value: "1.21"}, {Value: "1.20.4"}},
-			yaml:  "- \"1.21\"\n- 1.20.4\n",
+			name:          "shorthand_list_stays_shorthand",
+			input:         "- '1.21'\n- '1.20.4'\n",
+			want:          GameModVarOptions{{Value: "1.21"}, {Value: "1.20.4"}},
+			wantShorthand: []bool{true, true},
 		},
 		{
-			name:  "object_list_keeps_labels",
-			input: "- {value: paper, label: Paper}\n",
-			want:  GameModVarOptions{{Value: "paper", Label: "Paper"}},
-			yaml:  "- value: paper\n  label: Paper\n",
+			name:          "object_list_keeps_labels",
+			input:         "- {value: paper, label: Paper}\n",
+			want:          GameModVarOptions{{Value: "paper", Label: "Paper"}},
+			wantShorthand: []bool{false},
 		},
 	}
 
@@ -153,7 +156,19 @@ func TestGameModVarOption_YAMLRoundTrip(t *testing.T) {
 			// ASSERT
 			require.NoError(t, encodeErr)
 			assert.Equal(t, test.want, options)
-			assert.Equal(t, test.yaml, string(encoded))
+
+			var shapes []any
+			require.NoError(t, yaml.Unmarshal(encoded, &shapes))
+			require.Len(t, shapes, len(test.wantShorthand))
+
+			for i, wantShorthand := range test.wantShorthand {
+				_, isScalar := shapes[i].(string)
+				assert.Equalf(t, wantShorthand, isScalar, "options[%d] shorthand mismatch: %v", i, shapes[i])
+			}
+
+			var reparsed GameModVarOptions
+			require.NoError(t, yaml.Unmarshal(encoded, &reparsed))
+			assert.Equal(t, test.want, reparsed)
 		})
 	}
 }

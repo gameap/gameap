@@ -1,5 +1,9 @@
 type: array
 description: |
+  Breaking change: the body is an array of typed `ServerSettingInput` items.
+  It used to be an object mapping a setting name to a string value, so a client
+  written against the previous shape has to be migrated.
+
   Server settings to save. Only names known to the server's game mod template
   (plus `autostart` and `update_before_start`) are accepted; anything else is
   ignored. Settings that are not listed keep their current value.

@@ -15,9 +15,17 @@ properties:
     description: Setting machine name
     example: "maxplayers"
   value:
-    description: Current value, typed after `type`.
+    type:
+      - boolean
+      - number
+      - string
+    description: Current value, typed after `type`. Never an array, an object or null.
     example: 32
   default:
+    type:
+      - boolean
+      - number
+      - string
     description: Value from the game mod template, typed after `type`.
     example: 32
   type:

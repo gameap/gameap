@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/pkg/errors"
@@ -24,6 +25,16 @@ const (
 	maxVarBoolValueLength   = 64
 	maxFastRconInfoLength   = 128
 
+	// maxVarPatternLength bounds a rules.pattern: a regexp is compiled and then
+	// kept in the pattern cache, so an unbounded one is paid for on every value
+	// check as well as in memory.
+	maxVarPatternLength = 512
+
+	// maxPatternCacheEntries bounds that cache. Patterns come from stored
+	// definitions and from every catalog the panel imports, so the map would
+	// otherwise grow with every distinct pattern the process ever sees.
+	maxPatternCacheEntries = 1024
+
 	// maxServerSettingValueLength bounds a value that carries no max_length rule
 	// so a single setting cannot grow without limit.
 	maxServerSettingValueLength = 4096
@@ -38,28 +49,33 @@ var varNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 // lookarounds — so the "en is not allowed" half is checked separately.
 var localeRe = regexp.MustCompile(`^[a-z]{2,3}(-[a-z0-9]+)*$`)
 
-var patternCache sync.Map
+var (
+	patternCache      sync.Map
+	patternCacheCount atomic.Int64
+)
 
 // compileVarPattern compiles a rules.pattern anchored so the whole value must
 // match, mirroring the schema wording and the frontend's ^(?:…)$ anchoring.
+//
+// Only a pattern that compiles is cached: a rejected one is never reused, and
+// caching it would let invalid input claim cache entries.
 func compileVarPattern(pattern string) (*regexp.Regexp, error) {
 	if cached, ok := patternCache.Load(pattern); ok {
-		compiled, isRe := cached.(*regexp.Regexp)
-		if !isRe {
-			return nil, errors.Errorf("invalid regular expression: %s", pattern)
+		if compiled, isRe := cached.(*regexp.Regexp); isRe {
+			return compiled, nil
 		}
-
-		return compiled, nil
 	}
 
 	compiled, err := regexp.Compile(`^(?:` + pattern + `)$`)
 	if err != nil {
-		patternCache.Store(pattern, struct{}{})
-
 		return nil, errors.Wrapf(err, "invalid regular expression: %s", pattern)
 	}
 
-	patternCache.Store(pattern, compiled)
+	if patternCacheCount.Load() < maxPatternCacheEntries {
+		if _, loaded := patternCache.LoadOrStore(pattern, compiled); !loaded {
+			patternCacheCount.Add(1)
+		}
+	}
 
 	return compiled, nil
 }
@@ -256,6 +272,10 @@ func (r *GameModVarRules) validate(v *GameModVar) error {
 	}
 
 	if r.Pattern != "" {
+		if utf8.RuneCountInString(r.Pattern) > maxVarPatternLength {
+			return errors.Errorf("rules pattern must be at most %d characters", maxVarPatternLength)
+		}
+
 		if _, err := compileVarPattern(r.Pattern); err != nil {
 			return errors.WithMessage(err, "rules pattern")
 		}

@@ -219,10 +219,13 @@ func (s ServerSettingValue) Float() (float64, bool) {
 //
 
 func (s *ServerSettingValue) Scan(value any) error {
+	// A NULL column is an absent value, exactly like the "null" literal below:
+	// leaving it typed as a string would make Raw report a value that is not
+	// there and make MarshalJSON assert a nil into a string.
 	if value == nil {
 		s.value = nil
 		s.raw = ""
-		s.tp = serverSettingTypeString
+		s.tp = serverSettingTypeUnknown
 
 		return nil
 	}

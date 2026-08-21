@@ -75,7 +75,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	input := &serverInput{}
 
-	err := json.NewDecoder(r.Body).Decode(&input)
+	// UseNumber keeps an integer out of float64, which would silently lose
+	// precision on large setting values before the variable type is even known.
+	decoder := json.NewDecoder(r.Body)
+	decoder.UseNumber()
+
+	err := decoder.Decode(&input)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "invalid request"))
 

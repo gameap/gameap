@@ -108,7 +108,12 @@ const mockGameModVars = [
         type: 'select',
         description: 'The version the server runs',
         allow_custom: true,
-        options: ['1.21', { value: '1.20.4', label: '1.20.4 (LTS)' }],
+        // The API always answers with the object form, even for an option the
+        // template stored as the plain-string shorthand.
+        options: [
+            { value: '1.21', label: '1.21' },
+            { value: '1.20.4', label: '1.20.4 (LTS)' },
+        ],
         i18n: { ru: { info: 'Версия Minecraft' } },
     },
     {

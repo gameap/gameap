@@ -811,6 +811,57 @@ func TestHandler_ServerWithSettings(t *testing.T) {
 	assert.Equal(t, "My Server", hostnameVal)
 }
 
+func TestHandler_SettingKeepsLargeIntegerPrecision(t *testing.T) {
+	t.Parallel()
+	// ARRANGE
+	serverRepo := inmemory.NewServerRepository()
+	nodeRepo := inmemory.NewNodeRepository()
+	gameRepo := inmemory.NewGameRepository()
+	gameModRepo := inmemory.NewGameModRepository()
+	daemonTaskRepo := inmemory.NewDaemonTaskRepository()
+	serverSettingsRepo := inmemory.NewServerSettingRepository()
+	responder := api.NewResponder()
+
+	_ = nodeRepo.Save(context.Background(), &domain.Node{ID: 1, OS: "linux"})
+	_ = gameRepo.Save(context.Background(), &domain.Game{Code: "cstrike"})
+	_ = gameModRepo.Save(context.Background(), &domain.GameMod{
+		ID:       1,
+		GameCode: "cstrike",
+		Vars: []domain.GameModVar{
+			{Var: "seed", Info: "Seed", Type: domain.GameModVarTypeInt},
+		},
+	})
+
+	handler := NewHandler(
+		serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder,
+	)
+
+	// 2^53+1 is the first integer a float64 cannot represent.
+	body := []byte(`{
+		"name": "Server", "game_id": "cstrike", "ds_id": 1, "game_mod_id": 1,
+		"server_ip": "192.168.1.100", "server_port": 27015,
+		"settings": [{"name": "seed", "value": 9007199254740993}]
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/servers", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// ACT
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	settings, err := serverSettingsRepo.Find(context.Background(), nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, settings, 1)
+
+	raw, present := settings[0].Value.Raw()
+	require.True(t, present)
+	assert.Equal(t, "9007199254740993", raw)
+}
+
 func TestHandler_ServerWithoutSettings_BackwardCompatibility(t *testing.T) {
 	t.Parallel()
 	// ARRANGE

@@ -15,8 +15,8 @@
 
       <div v-if="fastRcon" class="gap-x-2 mt-2">
         <button
-            v-for="fastCommand in fastRcon"
-            :key="fastCommand.command"
+            v-for="(fastCommand, index) in fastRcon"
+            :key="`${index}-${fastCommand.command}`"
             type="button"
             v-on:click="setAndSendCommand(fastCommand.command)"
             :title="fastCommand.command"

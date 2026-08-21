@@ -17,6 +17,7 @@
           size="small"
           class="w-full"
           clearable
+          :status="rangeProblem ? 'error' : undefined"
           @update:value="setRule('min', $event)"
         />
       </n-form-item>
@@ -27,10 +28,13 @@
           size="small"
           class="w-full"
           clearable
+          :status="rangeProblem ? 'error' : undefined"
           @update:value="setRule('max', $event)"
         />
       </n-form-item>
     </div>
+
+    <p v-if="rangeProblem" class="text-sm text-red-500">{{ rangeProblem }}</p>
 
     <template v-if="acceptsText">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -42,6 +46,7 @@
             size="small"
             class="w-full"
             clearable
+            :status="lengthRangeProblem ? 'error' : undefined"
             @update:value="setRule('min_length', $event)"
           />
         </n-form-item>
@@ -53,10 +58,13 @@
             size="small"
             class="w-full"
             clearable
+            :status="lengthRangeProblem ? 'error' : undefined"
             @update:value="setRule('max_length', $event)"
           />
         </n-form-item>
       </div>
+
+      <p v-if="lengthRangeProblem" class="text-sm text-red-500">{{ lengthRangeProblem }}</p>
 
       <n-form-item :label="trans('games.var_rule_pattern')" :show-feedback="false">
         <n-input
@@ -93,7 +101,13 @@
 import { computed, ref } from 'vue'
 import { NFormItem, NInput, NInputNumber, NSwitch, NTag } from 'naive-ui'
 import { trans } from '@/i18n/i18n'
-import { NUMERIC_TYPES, TEXTUAL_TYPES, compilePattern, isRe2Compatible } from '@/parts/gameModVars'
+import {
+  NUMERIC_TYPES,
+  TEXTUAL_TYPES,
+  VAR_PATTERN_MAX_LENGTH,
+  compilePattern,
+  isRe2Compatible,
+} from '@/parts/gameModVars'
 
 const props = defineProps({
   type: {
@@ -118,10 +132,30 @@ const acceptsText = computed(
   () => TEXTUAL_TYPES.includes(props.type) || (props.type === 'select' && props.allowCustom),
 )
 
+// The panel rejects a lower bound above its upper bound with a 422, so the two
+// number pairs are checked here as well, the same way the pattern is.
+const rangeProblem = computed(() => boundsProblem(rules.value.min, rules.value.max, 'games.var_rule_range_invalid'))
+
+const lengthRangeProblem = computed(
+  () => boundsProblem(rules.value.min_length, rules.value.max_length, 'games.var_rule_length_range_invalid'),
+)
+
+function boundsProblem(lower, upper, message) {
+  if (typeof lower !== 'number' || typeof upper !== 'number') {
+    return null
+  }
+
+  return lower > upper ? trans(message) : null
+}
+
 const patternProblem = computed(() => {
   const pattern = String(rules.value.pattern ?? '').trim()
   if (!pattern) {
     return null
+  }
+
+  if (pattern.length > VAR_PATTERN_MAX_LENGTH) {
+    return trans('games.var_rule_pattern_too_long')
   }
 
   if (!compilePattern(pattern)) {

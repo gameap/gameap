@@ -24,6 +24,7 @@ properties:
   pattern:
     type: string
     minLength: 1
+    maxLength: 512
     description: |
       `string`/`text`/`password` (and `select` with `allow_custom`): regular
       expression the whole value must match. Must be RE2-compatible: no

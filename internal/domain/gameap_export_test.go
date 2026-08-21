@@ -1314,6 +1314,11 @@ mods:
 	)
 
 	// ACT: the round trip through the domain model and back must not lose a field.
+	// The comparison is made against a second parse: a conversion that mutated
+	// its source would otherwise be compared against its own output.
+	original, originalErr := ParseGameExport([]byte(source))
+	require.NoError(t, originalErr)
+
 	gameMod := export.Mods[0].ToDomainGameMod(export.Game.Code)
 	reexported := NewGameExportFromDomain(export.Game.ToDomainGame(), []GameMod{*gameMod}, "")
 
@@ -1325,8 +1330,57 @@ mods:
 	// ASSERT
 	require.NoError(t, parseErr)
 	require.Len(t, reparsed.Mods, 1)
-	assert.Equal(t, export.Mods[0].Vars, reparsed.Mods[0].Vars)
-	assert.Equal(t, export.Mods[0].FastRcon, reparsed.Mods[0].FastRcon)
+	assert.Equal(t, original.Mods[0].Vars, reparsed.Mods[0].Vars)
+	assert.Equal(t, original.Mods[0].FastRcon, reparsed.Mods[0].FastRcon)
+}
+
+// Normalize rewrites an option in place, so both conversions have to work on a
+// copy of the option list: a shared backing array would let a conversion edit
+// the definition the caller still holds.
+func TestGameExportMod_ConversionsDoNotRewriteTheirSource(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE: a label repeating its value and an en translation are exactly
+	// what Normalize drops.
+	sourceOptions := func() GameModVarOptions {
+		return GameModVarOptions{
+			{Value: "vanilla", Label: "vanilla"},
+			{Value: "paper", Label: "Paper", I18n: GameModVarOptionI18n{"en": {Label: "Paper"}}},
+		}
+	}
+
+	exportMod := GameExportMod{
+		Name: "Vanilla",
+		Vars: []GameExportModVar{
+			{Var: "mod", Default: "vanilla", Info: "Mod", Type: GameModVarTypeSelect, Options: sourceOptions()},
+		},
+	}
+
+	gameMod := GameMod{
+		GameCode: "minecraft",
+		Name:     "Vanilla",
+		Vars: GameModVarList{
+			{Var: "mod", Default: "vanilla", Info: "Mod", Type: GameModVarTypeSelect, Options: sourceOptions()},
+		},
+	}
+
+	// ACT
+	converted := exportMod.ToDomainGameMod("minecraft")
+	exported := NewGameExportFromDomain(&Game{Code: "minecraft"}, []GameMod{gameMod}, "")
+
+	// ASSERT
+	normalized := GameModVarOptions{{Value: "vanilla"}, {Value: "paper", Label: "Paper"}}
+
+	require.Len(t, converted.Vars, 1)
+	assert.Equal(t, normalized, converted.Vars[0].Options)
+	require.Len(t, exportMod.Vars, 1)
+	assert.Equal(t, sourceOptions(), exportMod.Vars[0].Options)
+
+	require.Len(t, exported.Mods, 1)
+	require.Len(t, exported.Mods[0].Vars, 1)
+	assert.Equal(t, normalized, exported.Mods[0].Vars[0].Options)
+	require.Len(t, gameMod.Vars, 1)
+	assert.Equal(t, sourceOptions(), gameMod.Vars[0].Options)
 }
 
 func TestGameExport_Validate_RejectsInvalidVars(t *testing.T) {
