@@ -332,4 +332,22 @@ export interface PluginFileEditor {
      * plugin does not offer what its own API would answer 403 to.
      */
     checkPermission?: PermissionCheck;
+    /**
+     * Width of the modal as a CSS length, e.g. `'min(1400px, 95vw)'`. The
+     * default is 1000px, which is narrow for anything shown side by side. No
+     * max-width is applied, so a viewport-relative value is the safe form.
+     */
+    width?: string;
+    /**
+     * Take the modal's own footer away. An editor that draws its actions
+     * inside gets the height back, and closing stays on the header's cross and
+     * on Escape.
+     */
+    hideFooter?: boolean;
+    /**
+     * Leave the modal open after a successful save instead of closing it. The
+     * editor's exposed `onSaved()` is called either way, which is how an
+     * editor that stays open reports the write it cannot see itself.
+     */
+    keepOpenOnSave?: boolean;
 }

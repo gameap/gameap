@@ -71,7 +71,15 @@ function handleSave(newContent) {
     formData.append('file', blob, file.value.basename)
 
     fm.updateFile(formData).then((response) => {
-        if (response.data.result.status === 'success') {
+        if (response.data.result.status !== 'success') {
+            return
+        }
+
+        // The editor is told either way: an editor that stays open has to be
+        // able to say the file was written, and it cannot see this request.
+        editorRef.value?.onSaved?.()
+
+        if (!editor.value?.keepOpenOnSave) {
             modal.clearModal()
         }
     })
@@ -129,6 +137,13 @@ onMounted(() => {
 
 defineExpose({
     footerButtons: computed(() => {
+        // An editor that draws its own actions gets the footer's height back:
+        // an empty array leaves the slot undefined, and the card then renders
+        // no footer element at all.
+        if (editor.value?.hideFooter) {
+            return []
+        }
+
         const buttons = [{
             label: lang.value.btn.cancel,
             color: 'black',

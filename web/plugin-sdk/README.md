@@ -207,6 +207,9 @@ export const myPlugin: PluginDefinition = {
 | `contextMenuOnly` | `boolean` | No | Offer in the context menu only; never open on a double click |
 | `menuLabel` | `string` | No | Caption of the context menu item instead of "Edit with …"; supports `@:key` |
 | `checkPermission` | `PermissionCheck` | No | Hide the item unless the user holds these server abilities |
+| `width` | `string` | No | Modal width as a CSS length, e.g. `'min(1400px, 95vw)'` (default `1000px`) |
+| `hideFooter` | `boolean` | No | Drop the modal's footer; the editor draws its own actions |
+| `keepOpenOnSave` | `boolean` | No | Leave the modal open after a save; the editor's `onSaved()` is called either way |
 
 ### Matching Rules
 
