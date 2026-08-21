@@ -59,33 +59,55 @@ export const useSettingsStore = defineStore('fm-settings', () => {
 
     const hiddenFiles = ref(false)
 
+    // Each entry is one block of the menu, drawn as its own list with a divider
+    // under it. The names are what a plugin file editor points `menuGroup` at,
+    // so they are a contract with installed plugins: a block may gain or lose
+    // items, but renaming one moves somebody's item back to the default block.
+    // `editorsFirst` puts the plugin items above the block's own instead of
+    // under them.
     const contextMenu = ref([
-        [
-            { name: 'open', icon: 'folder-open' },
-            { name: 'audioPlay', icon: 'play' },
-            { name: 'videoPlay', icon: 'play' },
-            { name: 'view', icon: 'search' },
-            { name: 'edit', icon: 'edit' },
-            { name: 'select', icon: 'file' },
-            { name: 'download', icon: 'download' },
-            { name: 'downloadDir', icon: 'folder-download' },
-            { name: 'zip', icon: 'file-zipper' },
-            { name: 'unzip', icon: 'box-open' },
-        ],
-        [
-            { name: 'copy', icon: 'copy' },
-            { name: 'cut', icon: 'cut' },
-            { name: 'rename', icon: 'edit' },
-            { name: 'chmod', icon: 'lock' },
-            { name: 'paste', icon: 'paste' },
-        ],
-        [
-            { name: 'delete', icon: 'delete', iconClass: 'text-danger' },
-        ],
-        [
-            { name: 'hash', icon: 'fingerprint' },
-            { name: 'properties', icon: 'info' },
-        ],
+        {
+            group: 'open',
+            items: [
+                { name: 'open', icon: 'folder-open' },
+                { name: 'audioPlay', icon: 'play' },
+                { name: 'videoPlay', icon: 'play' },
+                { name: 'view', icon: 'search' },
+                { name: 'edit', icon: 'edit' },
+                { name: 'select', icon: 'file' },
+                { name: 'download', icon: 'download' },
+                { name: 'downloadDir', icon: 'folder-download' },
+                { name: 'zip', icon: 'file-zipper' },
+                { name: 'unzip', icon: 'box-open' },
+            ],
+        },
+        {
+            group: 'modify',
+            items: [
+                { name: 'copy', icon: 'copy' },
+                { name: 'cut', icon: 'cut' },
+                { name: 'rename', icon: 'edit' },
+                { name: 'chmod', icon: 'lock' },
+                { name: 'paste', icon: 'paste' },
+            ],
+        },
+        {
+            group: 'danger',
+            items: [
+                { name: 'delete', icon: 'delete', iconClass: 'text-danger' },
+            ],
+        },
+        {
+            group: 'info',
+            // Properties is the last line of the menu wherever it is opened
+            // from, so a plugin item joining this block goes above it rather
+            // than after the end of everything.
+            editorsFirst: true,
+            items: [
+                { name: 'hash', icon: 'fingerprint' },
+                { name: 'properties', icon: 'info' },
+            ],
+        },
     ])
 
     const imageExtensions = ref(['png', 'jpg', 'jpeg', 'gif', 'webp'])

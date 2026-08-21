@@ -14,6 +14,17 @@ export function isFileTooLarge(file) {
 }
 
 /**
+ * Whether the editor loads the file itself instead of being handed its
+ * content. The size cap exists because the modal downloads the file before
+ * mounting the editor; an editor that downloads nothing is not bound by it.
+ * @param {Object} editor - Registered editor definition
+ * @returns {boolean} True if the modal hands the editor no content
+ */
+export function loadsOwnContent(editor) {
+    return editor?.contentType === 'none'
+}
+
+/**
  * Composable for plugin file editor functionality in file manager.
  * Provides access to registered file editors and matching logic.
  */
@@ -23,6 +34,21 @@ export function useFileEditors() {
 
     const gameCode = computed(() => serverStore.server?.game_id || null)
     const gameName = computed(() => serverStore.server?.game?.name || null)
+
+    /**
+     * Whether the current user satisfies an editor's permission check. Same
+     * shape the server tabs use, so a plugin declares access the one way.
+     * @param {Object} editor - Registered editor definition
+     * @returns {boolean} True when the editor may be offered
+     */
+    function isPermitted(editor) {
+        const check = editor.checkPermission
+        if (!check) return true
+        if (check.type === 'hasServerPermissions') {
+            return check.permissions.every(perm => serverStore.abilities[perm] === true)
+        }
+        return true
+    }
 
     /**
      * Get file info object from a file item.
@@ -44,10 +70,17 @@ export function useFileEditors() {
      */
     function getMatchingEditors(file) {
         const fileInfo = getFileInfo(file)
-        return pluginsStore.getMatchingEditors(fileInfo, {
+        const permitted = pluginsStore.getMatchingEditors(fileInfo, {
             gameCode: gameCode.value,
             gameName: gameName.value
-        })
+        }).filter(item => isPermitted(item.editor))
+
+        // The store marks the default before permissions are known, so the one
+        // it picked may be the one just filtered out. The default is the most
+        // specific editor a double click can actually open.
+        const preferred = permitted.find(item => !item.editor.contextMenuOnly)
+
+        return permitted.map(item => ({ ...item, isDefault: item === preferred }))
     }
 
     /**
@@ -56,11 +89,7 @@ export function useFileEditors() {
      * @returns {Object|null} The default editor or null if no custom editor matches
      */
     function getDefaultEditor(file) {
-        const fileInfo = getFileInfo(file)
-        return pluginsStore.getDefaultEditor(fileInfo, {
-            gameCode: gameCode.value,
-            gameName: gameName.value
-        })
+        return getMatchingEditors(file).find(item => item.isDefault) ?? null
     }
 
     /**
@@ -78,7 +107,10 @@ export function useFileEditors() {
      * @returns {boolean} True if file can be edited (has editors and not too large)
      */
     function canEditWithPlugin(file) {
-        return !isFileTooLarge(file) && hasCustomEditors(file)
+        if (!isFileTooLarge(file)) {
+            return hasCustomEditors(file)
+        }
+        return getMatchingEditors(file).some(item => loadsOwnContent(item.editor))
     }
 
     return {
@@ -89,6 +121,7 @@ export function useFileEditors() {
         getDefaultEditor,
         hasCustomEditors,
         canEditWithPlugin,
-        isFileTooLarge
+        isFileTooLarge,
+        loadsOwnContent
     }
 }

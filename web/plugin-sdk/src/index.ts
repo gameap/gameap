@@ -40,6 +40,7 @@ export type {
     DashboardWidgetProps,
     EditorContentType,
     EditorMatchRules,
+    EditorMenuGroup,
     FileEditorProps,
 } from './types';
 
