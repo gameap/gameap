@@ -293,16 +293,20 @@ export const usePluginsStore = defineStore('plugins', () => {
 
         matches.sort((a, b) => b.score - a.score)
 
-        if (matches.length > 0) {
-            matches[0].isDefault = true
+        // A context-menu-only editor never opens on a double click, so it must
+        // not carry the "(default)" mark either: the most specific editor that
+        // does open is the default, and a file that has none keeps the file
+        // manager's own preview.
+        const preferred = matches.find(m => !m.editor.contextMenuOnly)
+        if (preferred) {
+            preferred.isDefault = true
         }
 
         return matches
     }
 
     function getDefaultEditor(fileInfo, serverContext = null) {
-        const matches = getMatchingEditors(fileInfo, serverContext)
-        return matches.length > 0 ? matches[0] : null
+        return getMatchingEditors(fileInfo, serverContext).find(m => m.isDefault) ?? null
     }
 
     function unregisterPlugin(pluginId) {

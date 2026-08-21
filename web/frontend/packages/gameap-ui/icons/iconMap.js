@@ -1,4 +1,5 @@
 import FileNetworkIcon from './svg/FileNetworkIcon.vue'
+import FileStackIcon from './svg/FileStackIcon.vue'
 import FolderDownloadIcon from './svg/FolderDownloadIcon.vue'
 import MaximizeIcon from './svg/MaximizeIcon.vue'
 import { svgAsset } from './svgAssets.js'
@@ -122,6 +123,7 @@ export const defaultIconMap = {
   "file-audio": "fa-regular fa-file-audio",
   "file-archive": "fa-solid fa-file-zipper",
   "file-zipper": "fa-solid fa-file-zipper",
+  "file-stack": FileStackIcon,
   "box-open": "fa-solid fa-box-open",
   "fingerprint": "fa-solid fa-fingerprint",
   "folder": "fa-regular fa-folder",

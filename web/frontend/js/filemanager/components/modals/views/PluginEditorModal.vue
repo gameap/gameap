@@ -4,12 +4,15 @@
             <component
                 ref="editorRef"
                 :is="editorComponent"
-                :content="content"
+                v-bind="contentBinding"
                 :file-path="filePath"
                 :file-name="fileName"
                 :extension="extension"
                 :game-code="gameCode"
                 :game-name="gameName"
+                :file-size="fileSize"
+                :file-mtime="fileMtime"
+                :disk="selectedDisk"
                 :plugin-id="pluginId"
                 @save="handleSave"
                 @close="handleClose"
@@ -44,9 +47,15 @@ const file = computed(() => editorState.value?.file)
 const fileName = computed(() => file.value?.basename || '')
 const filePath = computed(() => file.value?.path || '')
 const extension = computed(() => file.value?.extension || '')
+const fileSize = computed(() => file.value?.size)
+const fileMtime = computed(() => file.value?.timestamp)
 const editorComponent = computed(() => editor.value?.component ? markRaw(editor.value.component) : null)
 const isReadOnly = computed(() => editor.value?.readOnly || false)
 const contentType = computed(() => editor.value?.contentType || 'text')
+
+// An editor that loads its own content gets no `content` prop at all: passing
+// null would override whatever default the component declares for it.
+const contentBinding = computed(() => contentType.value === 'none' ? {} : { content: content.value })
 
 const selectedDisk = computed(() => fm.selectedDisk)
 
@@ -62,7 +71,15 @@ function handleSave(newContent) {
     formData.append('file', blob, file.value.basename)
 
     fm.updateFile(formData).then((response) => {
-        if (response.data.result.status === 'success') {
+        if (response.data.result.status !== 'success') {
+            return
+        }
+
+        // The editor is told either way: an editor that stays open has to be
+        // able to say the file was written, and it cannot see this request.
+        editorRef.value?.onSaved?.()
+
+        if (!editor.value?.keepOpenOnSave) {
             modal.clearModal()
         }
     })
@@ -81,6 +98,13 @@ function handleClose() {
 onMounted(() => {
     if (!file.value || !editor.value) {
         modal.clearModal()
+        return
+    }
+
+    // An editor that declares 'none' is handed no content: it decides what to
+    // read, which is the only way to work on a file past the edit size cap.
+    if (contentType.value === 'none') {
+        contentLoaded.value = true
         return
     }
 
@@ -113,6 +137,13 @@ onMounted(() => {
 
 defineExpose({
     footerButtons: computed(() => {
+        // An editor that draws its own actions gets the footer's height back:
+        // an empty array leaves the slot undefined, and the card then renders
+        // no footer element at all.
+        if (editor.value?.hideFooter) {
+            return []
+        }
+
         const buttons = [{
             label: lang.value.btn.cancel,
             color: 'black',
@@ -136,7 +167,11 @@ defineExpose({
 
 <style scoped>
 .plugin-editor-container {
-    max-height: calc(100vh - 250px);
+    /* Published rather than only applied: an editor that scrolls its own
+       content has to know how much room it was given, and the alternative is
+       every plugin repeating this number and drifting from it. */
+    --gameap-plugin-editor-height: calc(100vh - 250px);
+    max-height: var(--gameap-plugin-editor-height);
     overflow: auto;
 }
 </style>
