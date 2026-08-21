@@ -28,7 +28,18 @@ properties:
   installed_at:
     type: string
     format: date-time
-    description: Installation timestamp
+    description: |
+      Installation timestamp. On update it keeps the original install time.
+  updated:
+    type: boolean
+    description: |
+      True when the request replaced an already installed plugin instead of
+      installing a new one.
+    example: false
+  previous_version:
+    type: string
+    description: Version that was replaced, only present on update
+    example: "1.1.0"
 required:
   - id
   - name

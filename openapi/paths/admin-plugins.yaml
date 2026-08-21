@@ -29,7 +29,9 @@
             schema:
               $ref: '../schemas/PluginDryRunResponse.yaml'
       '400':
-        description: Invalid request or WASM file
+        description: |
+          Invalid request, not a WASM file, or a build that does not compile.
+          `title` carries the translation key `plugins.validation_failed_title`.
         content:
           application/json:
             schema:
@@ -46,20 +48,25 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
-      '422':
-        description: Plugin validation failed
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
 
 /api/admin/plugins/upload/install:
   post:
     tags:
       - PluginStore
-    summary: Install WASM plugin from file
+    summary: Install or update WASM plugin from file
     description: |
       Uploads a WASM plugin file, saves it, and installs the plugin.
+
+      When a plugin with the same ID is already installed the request is
+      rejected with 409 unless `update` is set. With `update` the uploaded
+      build replaces the installed one in place: the plugin's storage,
+      secrets and scheduled tasks are kept, `installed_at` and the operator
+      managed fields (priority, config, source) are preserved, and the
+      manifest's `required_permissions` are added to the existing grants.
+      Any version may be uploaded, including the installed one or an older
+      one. If the new build fails to load, the previous version is restored
+      and 422 is returned.
+
       Admin only.
     operationId: installPluginFromFile
     requestBody:
@@ -78,15 +85,26 @@
               config:
                 type: string
                 description: Optional JSON configuration for the plugin
+              update:
+                type: boolean
+                description: |
+                  Replace the already installed plugin with the uploaded
+                  build instead of failing with 409. Ignored when the plugin
+                  is not installed yet.
+                example: true
     responses:
       '200':
-        description: Plugin installed successfully
+        description: |
+          Plugin installed successfully, or updated in place when `update`
+          was set (`updated` is true and `previous_version` is filled).
         content:
           application/json:
             schema:
               $ref: '../schemas/PluginInstallResponse.yaml'
       '400':
-        description: Invalid request or WASM file
+        description: |
+          Invalid request, not a WASM file, a build that does not compile, or
+          an `update` value that is not a boolean.
         content:
           application/json:
             schema:
@@ -104,13 +122,17 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '409':
-        description: Plugin already installed
+        description: |
+          Plugin already installed and `update` was not set, or another
+          installed plugin already uses the same name.
         content:
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '422':
-        description: Plugin validation failed
+        description: |
+          Plugin saved but failed to load. On update the previous version is
+          restored and stays loaded.
         content:
           application/json:
             schema:

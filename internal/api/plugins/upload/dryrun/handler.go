@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/services/plugininstall"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
@@ -21,17 +22,20 @@ type LoaderManager interface {
 }
 
 type Handler struct {
-	manager   LoaderManager
-	responder base.Responder
+	manager    LoaderManager
+	pluginRepo repositories.PluginRepository
+	responder  base.Responder
 }
 
 func NewHandler(
 	manager LoaderManager,
+	pluginRepo repositories.PluginRepository,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		manager:   manager,
-		responder: responder,
+		manager:    manager,
+		pluginRepo: pluginRepo,
+		responder:  responder,
 	}
 }
 
@@ -83,7 +87,17 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	subscribedEvents := h.getSubscribedEvents(ctx, loaded)
 
-	h.responder.Write(ctx, rw, newDryRunResponse(loaded, subscribedEvents))
+	// The upload endpoint refuses to overwrite an installed plugin unless the
+	// caller confirms an update, so the answer belongs here — otherwise the
+	// operator only finds out by getting a conflict after picking Install.
+	installed, err := plugininstall.FindInstalled(ctx, h.pluginRepo, pkgplugin.ParsePluginID(loaded.Info.Id))
+	if err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
+	h.responder.Write(ctx, rw, newDryRunResponse(loaded, subscribedEvents, installed))
 }
 
 func (h *Handler) getSubscribedEvents(ctx context.Context, loaded *pkgplugin.LoadedPlugin) []proto.EventType {

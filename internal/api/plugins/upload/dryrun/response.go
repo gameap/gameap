@@ -1,6 +1,8 @@
 package dryrun
 
 import (
+	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/services/plugininstall"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 )
@@ -29,11 +31,21 @@ type dryRunResponse struct {
 	HasFrontendBundle   bool                    `json:"has_frontend_bundle"`
 	FrontendBundleSize  int                     `json:"frontend_bundle_size,omitempty"`
 	HasFrontendStyles   bool                    `json:"has_frontend_styles"`
-	IsValid             bool                    `json:"is_valid"`
-	Errors              []string                `json:"errors"`
+	// Installed and the two fields below describe the plugin this upload
+	// would replace: the version in place, and the permissions the new build
+	// asks for that it has not been granted yet.
+	Installed        bool     `json:"installed"`
+	InstalledVersion string   `json:"installed_version,omitempty"`
+	NewPermissions   []string `json:"new_permissions,omitempty"`
+	IsValid          bool     `json:"is_valid"`
+	Errors           []string `json:"errors"`
 }
 
-func newDryRunResponse(loaded *pkgplugin.LoadedPlugin, subscribedEvents []proto.EventType) *dryRunResponse {
+func newDryRunResponse(
+	loaded *pkgplugin.LoadedPlugin,
+	subscribedEvents []proto.EventType,
+	installed *domain.Plugin,
+) *dryRunResponse {
 	resp := &dryRunResponse{
 		ID:                 pkgplugin.CompactPluginID(pkgplugin.ParsePluginID(loaded.Info.Id)),
 		Name:               loaded.Info.Name,
@@ -77,6 +89,12 @@ func newDryRunResponse(loaded *pkgplugin.LoadedPlugin, subscribedEvents []proto.
 		for _, event := range subscribedEvents {
 			resp.SubscribedEvents = append(resp.SubscribedEvents, proto.EventType_name[int32(event)])
 		}
+	}
+
+	if installed != nil {
+		resp.Installed = true
+		resp.InstalledVersion = installed.Version
+		resp.NewPermissions = plugininstall.MissingPermissions(installed, loaded.Info.RequiredPermissions)
 	}
 
 	return resp

@@ -123,3 +123,51 @@ func (r *QueryReader) ReadUintList(key string) ([]uint, error) {
 
 	return res, nil
 }
+
+// FormReader reads values submitted in a request body form. It is meant for
+// multipart uploads that carry flags next to the file, so it must be created
+// after the form has been parsed (ParseForm / ParseMultipartForm) — before
+// that the request carries no values and every read returns the zero value.
+type FormReader struct {
+	values map[string][]string
+}
+
+func NewFormReader(request *http.Request) *FormReader {
+	values := request.Form
+	if request.MultipartForm != nil {
+		values = request.MultipartForm.Value
+	}
+
+	return &FormReader{values: values}
+}
+
+func (r *FormReader) ReadString(key string) (string, error) {
+	res := r.values[key]
+
+	if len(res) == 0 {
+		return "", nil
+	}
+
+	return res[0], nil
+}
+
+// ReadBool treats a missing or empty value as false so an optional flag can be
+// omitted entirely. Anything strconv.ParseBool does not understand is an
+// explicit error rather than a silent false.
+func (r *FormReader) ReadBool(key string) (bool, error) {
+	value, err := r.ReadString(key)
+	if err != nil {
+		return false, err
+	}
+
+	if value == "" {
+		return false, nil
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, ErrInvalidValue
+	}
+
+	return parsed, nil
+}

@@ -14,6 +14,10 @@ type installResponse struct {
 	Author      string          `json:"author"`
 	Status      string          `json:"status"`
 	InstalledAt time.Time       `json:"installed_at"`
+	// Updated tells the caller the upload replaced an installed plugin
+	// instead of adding one; PreviousVersion is what it replaced.
+	Updated         bool   `json:"updated"`
+	PreviousVersion string `json:"previous_version,omitempty"`
 }
 
 func newInstallResponse(plugin *domain.Plugin) *installResponse {
@@ -31,4 +35,12 @@ func newInstallResponse(plugin *domain.Plugin) *installResponse {
 		Status:      string(plugin.Status),
 		InstalledAt: installedAt,
 	}
+}
+
+func newUpdateResponse(plugin *domain.Plugin, previousVersion string) *installResponse {
+	resp := newInstallResponse(plugin)
+	resp.Updated = true
+	resp.PreviousVersion = previousVersion
+
+	return resp
 }

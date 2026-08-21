@@ -562,7 +562,11 @@
     "install_from_file_success": "Plugin erfolgreich aus Datei installiert",
     "features": "Funktionen",
     "validation_failed_title": "Plugin-Validierung fehlgeschlagen",
-    "installation_failed_title": "Plugin-Installation fehlgeschlagen"
+    "installation_failed_title": "Plugin-Installation fehlgeschlagen",
+    "upload_new_version": "Neue Version hochladen",
+    "update_from_file_success": "Plugin erfolgreich aus Datei aktualisiert",
+    "update_replaces_installed": "Dieses Plugin ist bereits installiert. Das Hochladen ersetzt es; seine Daten und Einstellungen bleiben erhalten.",
+    "new_permissions_warning": "Die neue Version fordert Berechtigungen an, die das Plugin noch nicht hat:"
   },
   "navbar": {
     "main": "Startseite",

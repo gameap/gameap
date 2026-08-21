@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gameap/gameap/internal/api/pluginstore/updateplugin"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
@@ -190,6 +193,7 @@ func executeUpdate(
 		nil,
 		"plugins",
 		api.NewResponder(),
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 
@@ -398,6 +402,7 @@ func TestUpdatePlugin_not_installed(t *testing.T) {
 		nil,
 		"plugins",
 		api.NewResponder(),
+		nil,
 	)
 	recorder := httptest.NewRecorder()
 
@@ -779,6 +784,7 @@ func TestUpdatePlugin_pipeline_failures(t *testing.T) {
 				nil,
 				"plugins",
 				api.NewResponder(),
+				nil,
 			)
 			recorder := httptest.NewRecorder()
 
@@ -816,4 +822,99 @@ func TestUpdatePlugin_pipeline_failures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// auditCapture is a concurrency-safe audit.Logger that records every event
+// the handler emits.
+type auditCapture struct {
+	mu     sync.Mutex
+	events []audit.Event
+}
+
+func (a *auditCapture) Record(_ context.Context, e audit.Event) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.events = append(a.events, e)
+}
+
+func (a *auditCapture) snapshot() []audit.Event {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return append([]audit.Event(nil), a.events...)
+}
+
+func extraString(e audit.Event, key string) (string, bool) {
+	for _, a := range e.Extra {
+		if a.Key == key {
+			return a.Value.String(), true
+		}
+	}
+
+	return "", false
+}
+
+// ---------------------------------------------------------------------------
+// Security audit-trail tests.
+//
+// OWASP API Security Top 10:2023:
+//   - API8:2023 Security Misconfiguration — updating a plugin swaps the
+//     executable code the platform runs, so it must be recorded (OWASP ASVS
+//     §7.2.1) together with the version it replaced.
+//
+// Reference: https://owasp.org/API-Security/editions/2023/
+// ---------------------------------------------------------------------------
+
+func TestUpdatePlugin_Audit_UpdateIsRecorded(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	server := newMockServer(t, defaultMockHandler(t))
+
+	storeService := pluginstore.NewService(server.URL, "", cache.NewInMemory())
+	pluginRepo := inmemory.NewPluginRepository()
+	fileManager := files.NewInMemoryFileManager()
+
+	saveExistingPlugin(t, pluginRepo)
+
+	auditRecorder := &auditCapture{}
+	h := updateplugin.NewHandler(
+		storeService,
+		pluginRepo,
+		fileManager,
+		nil,
+		nil,
+		"plugins",
+		api.NewResponder(),
+		auditRecorder,
+	)
+	recorder := httptest.NewRecorder()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/plugin-store/plugins/"+testPluginID+"/update", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": testPluginID})
+
+	// ACT
+	h.ServeHTTP(recorder, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, recorder.Code, "body=%s", recorder.Body.String())
+
+	events := auditRecorder.snapshot()
+	require.Len(t, events, 1)
+
+	event := events[0]
+	assert.Equal(t, audit.EventPluginUpdate, event.Type)
+	assert.Equal(t, audit.CategoryPluginOp, event.Category)
+	assert.Equal(t, audit.OutcomeSuccess, event.Outcome)
+	assert.Equal(t, "plugin", event.ResourceType)
+	assert.Equal(t, strconv.FormatUint(uint64(pkgplugin.ParsePluginID(testPluginID)), 10), event.ResourceID)
+	assert.Equal(t, "update", event.Action)
+
+	previous, ok := extraString(event, "previous_version")
+	require.True(t, ok, "the replaced version must be recorded for provenance")
+	assert.Equal(t, "1.0.0", previous)
+
+	version, ok := extraString(event, "version")
+	require.True(t, ok)
+	assert.Equal(t, "2.0.0", version)
 }

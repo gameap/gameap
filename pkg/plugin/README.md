@@ -1098,13 +1098,39 @@ that list before anything is installed, and confirming the install records the
 grant. Unknown permission names are dropped rather than stored.
 
 Grants are re-read from the database on every call, so revoking one takes
-effect without restarting the panel. Updating a plugin does not widen its
-grants: a plugin that starts requiring `manage_rbac` after an update is denied
-(with a warning in the log naming the missing permission) until it is
-reinstalled.
+effect without restarting the panel. Updating from the store does not widen
+them: the store API carries no manifest, so a plugin that starts requiring
+`manage_rbac` after such an update is denied (with a warning in the log naming
+the missing permission) until it is reinstalled. Updating from a file does
+widen them, because there the manifest is read up front — the dry-run reports
+the plugin as installed and lists the permissions it does not hold yet in
+`new_permissions`, so the operator sees the delta before confirming. Grants are
+only ever added; nothing an operator or a migration granted is taken away.
 
 Modules not listed above — including `gameap-authz`, which only reads — are
 available to every plugin.
+
+### Updating a plugin from a file
+
+`POST /api/admin/plugins/upload/install` installs a new plugin and, with the
+form field `update=true`, replaces one that is already installed. Without the
+flag an upload of an installed plugin is refused with 409, so nothing is
+overwritten by accident.
+
+An update keeps everything that is not part of the build: the plugin's storage,
+secrets and scheduled tasks (all keyed by plugin ID), its `installed_at`, and
+the operator-managed `priority`, `config`, `category` and `source` — a plugin
+installed from the store stays updatable from the store. Name, version,
+description, author, API version and required permissions come from the new
+manifest, and the plugin keeps the file it already uses.
+
+Any version may be uploaded, including the installed one or an older one, so a
+broken build can be rolled back by uploading the previous one. If the new build
+fails to load, the panel puts the previous file, record and running module back
+and answers 422.
+
+Other panel instances keep the module they loaded at startup until they are
+restarted — the same as for install and uninstall.
 
 ## Configuration
 

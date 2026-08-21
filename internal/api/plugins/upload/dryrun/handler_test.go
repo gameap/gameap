@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/gameap/gameap/internal/api/plugins/upload/dryrun"
+	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -106,16 +108,18 @@ func TestDryRun(t *testing.T) {
 			wantVersion: "1.0.0",
 		},
 		{
-			name:        "invalid_wasm_magic",
-			wasmContent: []byte{0x01, 0x02, 0x03, 0x04},
-			mockManager: &mockLoaderManager{},
-			wantStatus:  http.StatusInternalServerError,
+			name:           "invalid_wasm_magic",
+			wasmContent:    []byte{0x01, 0x02, 0x03, 0x04},
+			mockManager:    &mockLoaderManager{},
+			wantStatus:     http.StatusBadRequest,
+			wantErrorMatch: "invalid WASM magic number",
 		},
 		{
-			name:        "wasm_too_small",
-			wasmContent: []byte{0x00, 0x61},
-			mockManager: &mockLoaderManager{},
-			wantStatus:  http.StatusInternalServerError,
+			name:           "wasm_too_small",
+			wasmContent:    []byte{0x00, 0x61},
+			mockManager:    &mockLoaderManager{},
+			wantStatus:     http.StatusBadRequest,
+			wantErrorMatch: "file too small to be valid WASM",
 		},
 		{
 			name:        "load_returns_error",
@@ -132,7 +136,7 @@ func TestDryRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			h := dryrun.NewHandler(tt.mockManager, api.NewResponder())
+			h := dryrun.NewHandler(tt.mockManager, inmemory.NewPluginRepository(), api.NewResponder())
 			recorder := httptest.NewRecorder()
 
 			req := createMultipartRequest(t, "plugin.wasm", tt.wasmContent)
@@ -161,7 +165,7 @@ func TestDryRun(t *testing.T) {
 
 func TestDryRun_no_file_uploaded(t *testing.T) {
 	t.Parallel()
-	h := dryrun.NewHandler(&mockLoaderManager{}, api.NewResponder())
+	h := dryrun.NewHandler(&mockLoaderManager{}, inmemory.NewPluginRepository(), api.NewResponder())
 	recorder := httptest.NewRecorder()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/admin/plugins/upload/dry-run", nil)
@@ -170,4 +174,121 @@ func TestDryRun_no_file_uploaded(t *testing.T) {
 	h.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
+func TestDryRun_installed_state(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name                 string
+		declaredPermissions  []string
+		setupRepo            func(*inmemory.PluginRepository)
+		wantInstalled        bool
+		wantInstalledVersion string
+		wantNewPermissions   []any
+	}{
+		{
+			name:          "new_plugin_is_not_installed",
+			setupRepo:     func(_ *inmemory.PluginRepository) {},
+			wantInstalled: false,
+		},
+		{
+			name: "installed_plugin_reports_its_version",
+			setupRepo: func(repo *inmemory.PluginRepository) {
+				_ = repo.Save(ctx, &domain.Plugin{
+					ID:      pkgplugin.ParsePluginID("testplugin"),
+					Name:    "Test Plugin",
+					Version: "0.9.0",
+					Status:  domain.PluginStatusActive,
+				})
+			},
+			wantInstalled:        true,
+			wantInstalledVersion: "0.9.0",
+		},
+		{
+			name:                "permissions_the_plugin_does_not_hold_yet_are_listed",
+			declaredPermissions: []string{"files", "secrets"},
+			setupRepo: func(repo *inmemory.PluginRepository) {
+				_ = repo.Save(ctx, &domain.Plugin{
+					ID:      pkgplugin.ParsePluginID("testplugin"),
+					Name:    "Test Plugin",
+					Version: "0.9.0",
+					Status:  domain.PluginStatusActive,
+					AllowedPermissions: []domain.PluginPermission{
+						domain.PluginPermissionFiles,
+					},
+				})
+			},
+			wantInstalled:        true,
+			wantInstalledVersion: "0.9.0",
+			wantNewPermissions:   []any{"secrets"},
+		},
+		{
+			name:                "granted_permissions_are_not_listed_as_new",
+			declaredPermissions: []string{"files"},
+			setupRepo: func(repo *inmemory.PluginRepository) {
+				_ = repo.Save(ctx, &domain.Plugin{
+					ID:      pkgplugin.ParsePluginID("testplugin"),
+					Name:    "Test Plugin",
+					Version: "0.9.0",
+					Status:  domain.PluginStatusActive,
+					AllowedPermissions: []domain.PluginPermission{
+						domain.PluginPermissionFiles,
+					},
+				})
+			},
+			wantInstalled:        true,
+			wantInstalledVersion: "0.9.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			repo := inmemory.NewPluginRepository()
+			tt.setupRepo(repo)
+
+			manager := &mockLoaderManager{
+				loadFunc: func(_ context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
+					return &pkgplugin.LoadedPlugin{
+						Info: &proto.PluginInfo{
+							Id:                  "testplugin",
+							Name:                "Test Plugin",
+							Version:             "1.0.0",
+							ApiVersion:          "v1",
+							RequiredPermissions: tt.declaredPermissions,
+						},
+						Instance: &mockPluginService{},
+					}, nil
+				},
+			}
+
+			h := dryrun.NewHandler(manager, repo, api.NewResponder())
+			recorder := httptest.NewRecorder()
+
+			h.ServeHTTP(recorder, createMultipartRequest(t, "plugin.wasm", validWASMBytes()))
+
+			require.Equal(t, http.StatusOK, recorder.Code, "body=%s", recorder.Body.String())
+
+			var resp map[string]any
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+
+			assert.Equal(t, tt.wantInstalled, resp["installed"])
+
+			if tt.wantInstalledVersion == "" {
+				assert.NotContains(t, resp, "installed_version")
+			} else {
+				assert.Equal(t, tt.wantInstalledVersion, resp["installed_version"])
+			}
+
+			if tt.wantNewPermissions == nil {
+				assert.NotContains(t, resp, "new_permissions")
+			} else {
+				assert.Equal(t, tt.wantNewPermissions, resp["new_permissions"])
+			}
+		})
+	}
 }

@@ -78,6 +78,7 @@ const (
 	EventFileArchiveExtract   EventType = "file.archive.extract"
 	EventFileArchiveCancel    EventType = "file.archive.cancel"
 	EventPluginInstall        EventType = "plugin.install"
+	EventPluginUpdate         EventType = "plugin.update"
 	EventPluginUninstall      EventType = "plugin.uninstall"
 )
 

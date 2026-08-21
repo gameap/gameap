@@ -147,10 +147,11 @@ func TestInstall(t *testing.T) {
 			wantVersion: "1.0.0",
 		},
 		{
-			name:        "invalid_wasm_magic",
-			wasmContent: []byte{0x01, 0x02, 0x03, 0x04},
-			mockManager: &mockLoaderManager{},
-			wantStatus:  http.StatusInternalServerError,
+			name:           "invalid_wasm_magic",
+			wasmContent:    []byte{0x01, 0x02, 0x03, 0x04},
+			mockManager:    &mockLoaderManager{},
+			wantStatus:     http.StatusBadRequest,
+			wantErrorMatch: "invalid WASM magic number",
 		},
 		{
 			name:        "load_returns_error",
@@ -160,7 +161,9 @@ func TestInstall(t *testing.T) {
 					return nil, errors.New("failed to compile WASM")
 				},
 			},
-			wantStatus: http.StatusInternalServerError,
+			wantStatus: http.StatusBadRequest,
+			// SanitizeLoadError keeps runtime internals out of the response.
+			wantErrorMatch: "failed to load plugin",
 		},
 	}
 
@@ -214,7 +217,7 @@ func TestInstall(t *testing.T) {
 	}
 }
 
-func TestInstall_already_installed_returns_409(t *testing.T) {
+func TestInstall_already_installed_without_update_flag_returns_409(t *testing.T) {
 	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()

@@ -1,6 +1,8 @@
 package api //nolint:revive,nolintlint
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -439,4 +441,123 @@ func TestQueryReader_ReadUintList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newMultipartRequest(t *testing.T, fields map[string]string) *http.Request {
+	t.Helper()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", "plugin.wasm")
+	require.NoError(t, err)
+	_, err = part.Write([]byte{0x00, 0x61, 0x73, 0x6d})
+	require.NoError(t, err)
+
+	for key, value := range fields {
+		require.NoError(t, writer.WriteField(key, value))
+	}
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	require.NoError(t, req.ParseMultipartForm(1<<20))
+
+	return req
+}
+
+func TestFormReader_ReadBool(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		fields    map[string]string
+		key       string
+		expected  bool
+		wantError string
+	}{
+		{
+			name:     "missing_key_is_false",
+			fields:   nil,
+			key:      "update",
+			expected: false,
+		},
+		{
+			name:     "empty_value_is_false",
+			fields:   map[string]string{"update": ""},
+			key:      "update",
+			expected: false,
+		},
+		{
+			name:     "true_literal",
+			fields:   map[string]string{"update": "true"},
+			key:      "update",
+			expected: true,
+		},
+		{
+			name:     "numeric_one_is_true",
+			fields:   map[string]string{"update": "1"},
+			key:      "update",
+			expected: true,
+		},
+		{
+			name:     "false_literal",
+			fields:   map[string]string{"update": "false"},
+			key:      "update",
+			expected: false,
+		},
+		{
+			name:      "unparsable_value_is_rejected",
+			fields:    map[string]string{"update": "maybe"},
+			key:       "update",
+			wantError: "value is invalid",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := NewFormReader(newMultipartRequest(t, tt.fields))
+
+			result, err := reader.ReadBool(tt.key)
+
+			if tt.wantError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantError)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFormReader_ReadString(t *testing.T) {
+	t.Parallel()
+
+	reader := NewFormReader(newMultipartRequest(t, map[string]string{"config": `{"a":1}`}))
+
+	value, err := reader.ReadString("config")
+	require.NoError(t, err)
+	assert.Equal(t, `{"a":1}`, value)
+
+	missing, err := reader.ReadString("absent")
+	require.NoError(t, err)
+	assert.Empty(t, missing)
+}
+
+// TestFormReader_unparsed_request reads nothing rather than panicking: the
+// caller is expected to parse the form first, and a handler that forgets must
+// not take the process down.
+func TestFormReader_unparsed_request(t *testing.T) {
+	t.Parallel()
+
+	reader := NewFormReader(httptest.NewRequest(http.MethodPost, "/upload", nil))
+
+	value, err := reader.ReadBool("update")
+	require.NoError(t, err)
+	assert.False(t, value)
 }

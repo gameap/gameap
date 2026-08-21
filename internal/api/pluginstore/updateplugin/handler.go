@@ -6,9 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/filters"
@@ -29,6 +31,7 @@ type Handler struct {
 	subscriptions plugininstall.SubscriptionRefresher
 	pluginsDir    string
 	responder     base.Responder
+	audit         audit.Logger
 }
 
 func NewHandler(
@@ -39,7 +42,12 @@ func NewHandler(
 	subscriptions plugininstall.SubscriptionRefresher,
 	pluginsDir string,
 	responder base.Responder,
+	auditLogger audit.Logger,
 ) *Handler {
+	if auditLogger == nil {
+		auditLogger = audit.NopLogger{}
+	}
+
 	return &Handler{
 		storeService:  storeService,
 		pluginRepo:    pluginRepo,
@@ -48,6 +56,7 @@ func NewHandler(
 		subscriptions: subscriptions,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
+		audit:         auditLogger,
 	}
 }
 
@@ -88,7 +97,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.unloadPlugin(ctx, dbID); err != nil {
+	if err := plugininstall.UnloadPlugin(ctx, h.loader, dbID); err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
 		return
@@ -118,6 +127,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	previousVersion := pluginRecord.Version
+
 	h.updatePluginRecord(pluginRecord, selectedVersion, filename)
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
@@ -134,6 +145,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	audit.SensitiveOp(ctx, h.audit, audit.EventPluginUpdate, audit.CategoryPluginOp,
+		"plugin", strconv.FormatUint(uint64(dbID), 10), "update",
+		slog.String("plugin", storePluginID),
+		slog.String("previous_version", previousVersion),
+		slog.String("version", pluginRecord.Version))
 
 	h.responder.Write(ctx, rw, newUpdateResponse(pluginRecord))
 }
@@ -163,27 +180,6 @@ func (h *Handler) findInstalledPlugin(ctx context.Context, dbID domain.Uint64ID)
 	}
 
 	return &installedPlugins[0], nil
-}
-
-func (h *Handler) unloadPlugin(ctx context.Context, dbID domain.Uint64ID) error {
-	if h.loader == nil {
-		return nil
-	}
-
-	managerID, ok := h.loader.GetPluginManagerID(dbID)
-	if !ok {
-		managerID = pkgplugin.CompactPluginID(dbID)
-	}
-
-	if err := h.loader.Unload(ctx, managerID); err != nil {
-		if errors.Is(err, pkgplugin.ErrPluginNotFound) {
-			return nil
-		}
-
-		return errors.WithMessage(err, "failed to unload plugin")
-	}
-
-	return nil
 }
 
 func (h *Handler) selectVersion(

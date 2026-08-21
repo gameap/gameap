@@ -1,7 +1,7 @@
 <template>
   <GModal
     v-model:show="visible"
-    :title="trans('plugins.upload_plugin')"
+    :title="isUpdate ? trans('plugins.upload_new_version') : trans('plugins.upload_plugin')"
     style="width: 600px; max-width: 90vw;"
   >
     <n-spin :show="loading">
@@ -35,7 +35,12 @@
           <GIcon name="puzzle-piece" class="text-4xl text-stone-400" />
           <div>
             <h3 class="text-lg font-bold">{{ uploadResult.name }}</h3>
-            <span class="text-sm text-stone-500">v{{ uploadResult.version }}</span>
+            <span v-if="isUpdate" class="text-sm text-stone-500">
+              v{{ uploadResult.installed_version }}
+              <span class="mx-1">&rarr;</span>
+              <span class="text-orange-500 font-medium">v{{ uploadResult.version }}</span>
+            </span>
+            <span v-else class="text-sm text-stone-500">v{{ uploadResult.version }}</span>
           </div>
           <span v-if="uploadResult.is_valid" class="ml-auto px-2 py-1 text-xs rounded-full bg-success-soft text-success-soft-text">
             {{ trans('plugins.valid') }}
@@ -72,6 +77,20 @@
           </div>
         </div>
 
+        <div v-if="isUpdate" class="mb-4 p-3 bg-info-soft text-info-soft-text rounded-lg text-sm">
+          {{ trans('plugins.update_replaces_installed') }}
+        </div>
+
+        <div
+            v-if="uploadResult.new_permissions?.length"
+            class="mb-4 p-3 bg-warning-soft text-warning-soft-text rounded-lg"
+        >
+          <p class="text-sm font-medium mb-1">{{ trans('plugins.new_permissions_warning') }}</p>
+          <ul class="list-disc list-inside text-sm">
+            <li v-for="permission in uploadResult.new_permissions" :key="permission">{{ permission }}</li>
+          </ul>
+        </div>
+
         <div v-if="uploadResult.errors?.length" class="mb-4 p-3 bg-red-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-red-900)_20%,transparent)] rounded-lg">
           <p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">{{ trans('plugins.validation_errors') }}</p>
           <ul class="list-disc list-inside text-sm text-red-700 dark:text-red-400">
@@ -82,12 +101,12 @@
         <div class="flex justify-end gap-2 mt-4">
           <GButton color="gray" @click="resetUpload">{{ trans('main.back') }}</GButton>
           <GButton
-            color="green"
+            :color="isUpdate ? 'blue' : 'green'"
             :disabled="!uploadResult.is_valid"
             @click="installPlugin"
           >
-            <GIcon name="download" class="mr-1" />
-            {{ trans('plugins.install') }}
+            <GIcon :name="isUpdate ? 'sync' : 'download'" class="mr-1" />
+            {{ isUpdate ? trans('plugins.update') : trans('plugins.install') }}
           </GButton>
         </div>
       </div>
@@ -124,6 +143,10 @@ const visible = computed({
   set: (val) => emit('update:show', val)
 })
 
+// The dry-run tells us whether this plugin is already installed, so the modal
+// can offer an update instead of running into a conflict on install.
+const isUpdate = computed(() => uploadResult.value?.installed === true)
+
 watch(visible, (val) => {
   if (!val) {
     resetUpload()
@@ -147,10 +170,14 @@ async function validatePlugin() {
 async function installPlugin() {
   if (!selectedFile.value) return
 
+  const update = isUpdate.value
+
   try {
-    await pluginStore.installFromFile(selectedFile.value)
+    await pluginStore.installFromFile(selectedFile.value, { update })
     notification({
-      content: trans('plugins.install_from_file_success'),
+      content: update
+          ? trans('plugins.update_from_file_success')
+          : trans('plugins.install_from_file_success'),
       type: 'success'
     })
     emit('installed')

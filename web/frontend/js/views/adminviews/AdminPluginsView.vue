@@ -66,6 +66,7 @@
           :loaded-info="currentLoadedInfo"
           @install="onInstall"
           @update="onUpdate"
+          @upload="onUploadNewVersion"
           @uninstall="onUninstall"
           @close="closeDetailsModal"
       />
@@ -260,6 +261,16 @@ const createInstalledColumns = () => {
                 size: 'small',
                 onClick: () => onShowDetailsForUpdate(row)
               }, () => [h(GIcon, { name: 'sync' })])
+              : null,
+          // A plugin installed from a file has no store version to compare
+          // against, so its only way forward is uploading the new build.
+          row.isFilePlugin
+              ? h(GButton, {
+                color: 'blue',
+                size: 'small',
+                title: trans('plugins.upload_new_version'),
+                onClick: showUploadModal
+              }, () => [h(GIcon, { name: 'upload' })])
               : null,
           h(GButton, {
             color: 'red',
@@ -563,6 +574,11 @@ function onClickUninstall(row) {
 function refreshData() {
   pluginStore.fetchPlugins({ page: 1, perPage: 100 }).catch(errorNotification)
   pluginStore.fetchLoadedPlugins().catch(errorNotification)
+}
+
+function onUploadNewVersion() {
+  closeDetailsModal()
+  showUploadModal()
 }
 
 function showUploadModal() {

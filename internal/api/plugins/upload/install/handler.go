@@ -2,6 +2,8 @@ package install
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
 	"path"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/audit"
+	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/repositories"
@@ -20,6 +23,10 @@ import (
 )
 
 const extendedWriteDeadline = 5 * time.Minute
+
+// installFailedTitle is a translation key the frontend resolves; without it a
+// rejected upload is reported under the raw HTTP status text.
+const installFailedTitle = "plugins.installation_failed_title"
 
 type LoaderManager interface {
 	LoadTransient(
@@ -85,9 +92,33 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read after ReadWASMFromMultipart: it is what parses the form.
+	updateRequested, err := api.NewFormReader(r).ReadBool("update")
+	if err != nil {
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to read update flag"))
+
+		return
+	}
+
+	// The transient load compiles and initializes the uploaded build before
+	// anything on disk or in the database is touched, so a broken upload can
+	// never take down the running plugin.
 	loaded, err := h.manager.LoadTransient(ctx, wasmBytes, nil, 0)
 	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to load plugin for validation"))
+		wasmHash := sha256.Sum256(wasmBytes)
+
+		slog.WarnContext(ctx, "failed to load uploaded wasm file",
+			slog.String("wasm_hash", hex.EncodeToString(wasmHash[:])),
+			slog.String("error", err.Error()))
+
+		// A build that does not compile is the caller's problem, reported the
+		// same way the dry-run endpoint reports it — a bare 500 hides both the
+		// status and the reason from whoever uploaded it.
+		h.responder.WriteError(ctx, rw, api.WrapHTTPErrorWithTitle(
+			pkgplugin.SanitizeLoadError(err),
+			http.StatusBadRequest,
+			"plugins.validation_failed_title",
+		))
 
 		return
 	}
@@ -101,13 +132,46 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	dbID := pkgplugin.ParsePluginID(loaded.Info.Id)
 
-	if err := plugininstall.CheckNotInstalled(ctx, h.pluginRepo, dbID); err != nil {
+	installed, err := plugininstall.FindInstalled(ctx, h.pluginRepo, dbID)
+	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}
 
-	filename := strconv.FormatUint(uint64(dbID), 10) + ".wasm"
+	if installed != nil && !updateRequested {
+		h.responder.WriteError(ctx, rw, api.WrapHTTPErrorWithTitle(
+			plugininstall.ErrPluginAlreadyInstalled,
+			http.StatusConflict,
+			installFailedTitle,
+		))
+
+		return
+	}
+
+	if err := plugininstall.CheckNameAvailable(ctx, h.pluginRepo, dbID, loaded.Info.Name); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
+	if installed != nil {
+		h.update(ctx, rw, installed, loaded, wasmBytes, dbID)
+
+		return
+	}
+
+	h.install(ctx, rw, loaded, wasmBytes, dbID)
+}
+
+func (h *Handler) install(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	loaded *pkgplugin.LoadedPlugin,
+	wasmBytes []byte,
+	dbID domain.Uint64ID,
+) {
+	filename := plugininstall.ResolvePluginFilename(nil, dbID)
 	pluginPath := path.Join(h.pluginsDir, filename)
 
 	if err := h.fileManager.Write(ctx, pluginPath, wasmBytes); err != nil {
@@ -130,9 +194,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		slog.String("plugin", loaded.Info.Id))
 
 	if _, err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
+		h.responder.WriteError(ctx, rw, api.WrapHTTPErrorWithTitle(
 			errors.WithMessage(err, "plugin installed but failed to load"),
 			http.StatusUnprocessableEntity,
+			installFailedTitle,
 		))
 
 		return

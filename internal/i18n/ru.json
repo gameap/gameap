@@ -563,7 +563,11 @@
     "install_from_file_success": "Плагин успешно установлен из файла",
     "features": "Функции",
     "validation_failed_title": "Ошибка валидации плагина",
-    "installation_failed_title": "Ошибка установки плагина"
+    "installation_failed_title": "Ошибка установки плагина",
+    "upload_new_version": "Загрузить новую версию",
+    "update_from_file_success": "Плагин успешно обновлён из файла",
+    "update_replaces_installed": "Плагин уже установлен. Загрузка заменит его, данные и настройки плагина сохранятся.",
+    "new_permissions_warning": "Новая версия запрашивает права, которых у плагина ещё нет:"
   },
   "navbar": {
     "main": "Главная",

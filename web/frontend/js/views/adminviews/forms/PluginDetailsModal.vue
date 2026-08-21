@@ -108,6 +108,15 @@
             {{ trans('plugins.update') }}
           </GButton>
           <GButton
+              v-if="plugin.installed && isFilePlugin"
+              color="blue"
+              :size="isSmallScreen ? 'small' : 'medium'"
+              @click="$emit('upload')"
+          >
+            <GIcon name="upload" class="mr-1" />
+            {{ trans('plugins.upload_new_version') }}
+          </GButton>
+          <GButton
               v-if="plugin.installed"
               color="red"
               :size="isSmallScreen ? 'small' : 'medium'"
@@ -234,7 +243,7 @@ const props = defineProps({
 
 const isFilePlugin = computed(() => props.loadedInfo?.source_type === 'file' || props.plugin?.source_type === 'file')
 
-const emit = defineEmits(['install', 'update', 'uninstall'])
+const emit = defineEmits(['install', 'update', 'uninstall', 'upload'])
 
 const selectedVersion = ref(null)
 const isSmallScreen = ref(window.innerWidth < 768)

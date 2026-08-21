@@ -562,7 +562,11 @@
     "install_from_file_success": "Plugin instalado desde archivo correctamente",
     "features": "Características",
     "validation_failed_title": "Error de validación del plugin",
-    "installation_failed_title": "Error de instalación del plugin"
+    "installation_failed_title": "Error de instalación del plugin",
+    "upload_new_version": "Subir nueva versión",
+    "update_from_file_success": "Plugin actualizado desde archivo correctamente",
+    "update_replaces_installed": "Este plugin ya está instalado. Al subirlo lo reemplazas; sus datos y ajustes se conservan.",
+    "new_permissions_warning": "La nueva versión solicita permisos que el plugin aún no tiene:"
   },
   "navbar": {
     "main": "Inicio",

@@ -269,6 +269,14 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: |
+          Plugin already installed. Use /api/plugin-store/plugins/{id}/update
+          to move it to another version.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
 
 /api/plugin-store/plugins/{id}/update:
   post:

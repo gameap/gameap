@@ -290,11 +290,16 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         }
     }
 
-    async function installFromFile(file) {
+    // update=true confirms replacing an already installed plugin; without it
+    // the endpoint answers 409 so nothing is overwritten by accident.
+    async function installFromFile(file, { update = false } = {}) {
         apiProcesses.value++
         try {
             const formData = new FormData()
             formData.append('file', file)
+            if (update) {
+                formData.append('update', 'true')
+            }
             const response = await axios.post('/api/admin/plugins/upload/install', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             })

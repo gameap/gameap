@@ -13,6 +13,12 @@ properties:
     type: string
     description: Error message (backward compatibility)
     example: Invalid credentials
+  title:
+    type: string
+    description: |
+      Translation key for the error title, resolved by the frontend. Only
+      present when the handler supplies one.
+    example: plugins.installation_failed_title
   http_code:
     type: integer
     description: HTTP status code (backward compatibility)

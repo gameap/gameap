@@ -1910,6 +1910,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginDispatcher(),
 				c.PluginsDir(),
 				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -1937,6 +1938,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/admin/plugins/upload/dry-run",
 			Handler: pluginuploaddryrun.NewHandler(
 				c.PluginManager(),
+				c.PluginRepository(),
 				c.Responder(),
 			),
 			AdminOnly: true,

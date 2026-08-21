@@ -75,6 +75,26 @@ properties:
     type: boolean
     description: Whether the plugin has frontend styles
     example: false
+  installed:
+    type: boolean
+    description: |
+      Whether a plugin with this ID is already installed. When true the
+      upload has to be confirmed as an update (`update=true` on
+      /api/admin/plugins/upload/install).
+    example: false
+  installed_version:
+    type: string
+    description: Version currently installed, empty when the plugin is new
+    example: "1.0.0"
+  new_permissions:
+    type: array
+    description: |
+      Permissions the uploaded build requires that the installed plugin has
+      not been granted yet. Only filled when `installed` is true; confirming
+      the update grants them.
+    items:
+      type: string
+    example: ["secrets"]
   is_valid:
     type: boolean
     description: Whether the plugin is valid and can be installed
@@ -89,5 +109,6 @@ required:
   - id
   - name
   - version
+  - installed
   - is_valid
   - errors
