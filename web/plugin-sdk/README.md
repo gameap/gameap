@@ -211,6 +211,32 @@ export const myPlugin: PluginDefinition = {
 | `hideFooter` | `boolean` | No | Drop the modal's footer; the editor draws its own actions |
 | `keepOpenOnSave` | `boolean` | No | Leave the modal open after a save; the editor's `onSaved()` is called either way |
 
+### How tall an editor may be
+
+The modal caps the editor's body at `--gameap-plugin-editor-height` and scrolls
+whatever is taller. There is no `height` field to set: the cap depends on the
+viewport, not on the editor.
+
+An editor that scrolls something of its own — a log, a pane of code, a table —
+should size that scroller from the same variable rather than from a constant,
+or the modal ends up with two scrollbars and the editor's own buttons below the
+fold:
+
+```css
+.my-editor-pane {
+    /* the cap, less what this editor spends on everything that is not the
+       scroller: its toolbar, its labels, its actions */
+    height: min(
+        var(--my-content-height),
+        max(9rem, calc(var(--gameap-plugin-editor-height, calc(100vh - 250px)) - 10rem))
+    );
+    overflow: auto;
+}
+```
+
+Keep the fallback: a panel older than this variable applies the same cap without
+publishing it.
+
 ### Matching Rules
 
 Editors match files based on these rules (all specified rules must match):

@@ -167,7 +167,11 @@ defineExpose({
 
 <style scoped>
 .plugin-editor-container {
-    max-height: calc(100vh - 250px);
+    /* Published rather than only applied: an editor that scrolls its own
+       content has to know how much room it was given, and the alternative is
+       every plugin repeating this number and drifting from it. */
+    --gameap-plugin-editor-height: calc(100vh - 250px);
+    max-height: var(--gameap-plugin-editor-height);
     overflow: auto;
 }
 </style>
