@@ -33,8 +33,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if h.config.Captcha.Provider != "" {
 		resp.Captcha = &CaptchaConfig{
-			Provider: h.config.Captcha.Provider,
-			SiteKey:  h.config.Captcha.SiteKey,
+			Provider:    h.config.Captcha.Provider,
+			SiteKey:     h.config.Captcha.SiteKey,
+			InstanceURL: h.config.Captcha.InstanceURL,
 		}
 	}
 

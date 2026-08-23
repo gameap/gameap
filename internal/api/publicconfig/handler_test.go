@@ -84,8 +84,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 // TestHandler_ServeHTTP_Captcha pins that the public config advertises the
-// provider and site key when captcha is configured, never the secret, and
-// stays absent when no provider is set.
+// provider, site key and optional instance URL when captcha is configured,
+// never the secret, and stays absent when no provider is set.
 func TestHandler_ServeHTTP_Captcha(t *testing.T) {
 	t.Run("captcha_absent_when_provider_unset", func(t *testing.T) {
 		cfg := &config.Config{}
@@ -102,11 +102,12 @@ func TestHandler_ServeHTTP_Captcha(t *testing.T) {
 		assert.Nil(t, resp.Captcha)
 	})
 
-	t.Run("captcha_exposes_provider_and_site_key_only", func(t *testing.T) {
+	t.Run("captcha_exposes_public_widget_configuration_only", func(t *testing.T) {
 		cfg := &config.Config{}
-		cfg.Captcha.Provider = "turnstile"
+		cfg.Captcha.Provider = "fcaptcha"
 		cfg.Captcha.SiteKey = "site-key-123"
 		cfg.Captcha.SecretKey = "secret-key-should-not-leak"
+		cfg.Captcha.InstanceURL = "https://captcha.example.com"
 
 		responder := &mockResponder{}
 		NewHandler(cfg, responder).ServeHTTP(
@@ -117,8 +118,9 @@ func TestHandler_ServeHTTP_Captcha(t *testing.T) {
 		resp, ok := responder.lastResult.(Response)
 		require.True(t, ok)
 		require.NotNil(t, resp.Captcha)
-		assert.Equal(t, "turnstile", resp.Captcha.Provider)
+		assert.Equal(t, "fcaptcha", resp.Captcha.Provider)
 		assert.Equal(t, "site-key-123", resp.Captcha.SiteKey)
+		assert.Equal(t, "https://captcha.example.com", resp.Captcha.InstanceURL)
 
 		body, err := json.Marshal(resp)
 		require.NoError(t, err)

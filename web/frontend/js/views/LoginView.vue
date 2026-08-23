@@ -35,6 +35,7 @@
                   ref="captchaRef"
                   :provider="captcha.provider"
                   :site-key="captcha.site_key"
+                  :instance-url="captcha.instance_url"
               />
             </form>
           </div>
@@ -72,7 +73,7 @@ const email = ref(null)
 const password = ref(null)
 const remember = ref(false)
 const twoFactorRequired = ref(false)
-const captcha = ref({provider: null, site_key: null})
+const captcha = ref({provider: null, site_key: null, instance_url: null})
 const captchaRef = ref(null)
 
 onMounted(async () => {

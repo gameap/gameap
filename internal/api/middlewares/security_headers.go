@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gameap/gameap/internal/config"
@@ -228,7 +229,10 @@ func buildPolicy(cfg *config.Config, staticFS fs.FS) (string, error) {
 func buildGeneratedCSP(cfg *config.Config, scriptHashes []string) string {
 	csp := &cfg.Security.CSP
 
-	captchaScript, captchaFrame := captchaCSPSources(cfg.Captcha.Provider)
+	captchaScript, captchaFrame, captchaConnect := captchaCSPSources(
+		cfg.Captcha.Provider,
+		cfg.Captcha.InstanceURL,
+	)
 
 	directives := []string{
 		"default-src 'self'",
@@ -245,7 +249,7 @@ func buildGeneratedCSP(cfg *config.Config, scriptHashes []string) string {
 		joinTokens("style-src", []string{"'self'", "'unsafe-inline'"}, csp.ExtraStyleSrc),
 		joinTokens("img-src", []string{"'self'", "data:", "blob:"}, csp.ExtraImgSrc),
 		joinTokens("font-src", []string{"'self'"}, csp.ExtraFontSrc),
-		joinTokens("connect-src", []string{"'self'"}, csp.ExtraConnectSrc),
+		joinTokens("connect-src", []string{"'self'"}, captchaConnect, csp.ExtraConnectSrc),
 		joinTokens("frame-src", []string{"'self'"}, captchaFrame, csp.ExtraFrameSrc),
 		joinTokens("worker-src", []string{"'self'", "blob:"}),
 	}
@@ -257,15 +261,31 @@ func buildGeneratedCSP(cfg *config.Config, scriptHashes []string) string {
 	return strings.Join(directives, "; ")
 }
 
-func captchaCSPSources(provider string) (script, frame []string) {
+func captchaCSPSources(provider, instanceURL string) (script, frame, connect []string) {
 	switch captcha.Provider(provider) {
 	case captcha.ProviderReCAPTCHAV2, captcha.ProviderReCAPTCHAV3:
-		return recaptchaScriptSrc, recaptchaFrameSrc
+		return recaptchaScriptSrc, recaptchaFrameSrc, nil
 	case captcha.ProviderTurnstile:
-		return turnstileScriptSrc, turnstileFrameSrc
+		return turnstileScriptSrc, turnstileFrameSrc, nil
+	case captcha.ProviderFCaptcha:
+		origin := captchaInstanceOrigin(instanceURL)
+		if origin == "" {
+			return nil, nil, nil
+		}
+
+		return []string{origin}, nil, []string{origin}
 	default:
-		return nil, nil
+		return nil, nil, nil
 	}
+}
+
+func captchaInstanceOrigin(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return ""
+	}
+
+	return u.Scheme + "://" + u.Host
 }
 
 // joinTokens writes "<name> <token1> <token2> …" by flattening any number of

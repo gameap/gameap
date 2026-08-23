@@ -65,6 +65,18 @@ func TestService_Enabled(t *testing.T) {
 			cfg:  Config{Provider: ProviderReCAPTCHAV2, SecretKey: "secret"},
 			want: true,
 		},
+		{
+			name: "enabled_fcaptcha",
+			cfg: Config{
+				Provider: ProviderFCaptcha, SecretKey: "secret", InstanceURL: "https://captcha.example.com",
+			},
+			want: true,
+		},
+		{
+			name: "disabled_fcaptcha_without_instance_url",
+			cfg:  Config{Provider: ProviderFCaptcha, SecretKey: "secret"},
+			want: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -111,6 +123,16 @@ func TestService_Verify(t *testing.T) {
 		{
 			name:         "turnstile_success",
 			cfg:          Config{Provider: ProviderTurnstile, SecretKey: "secret"},
+			token:        "tok",
+			serverStatus: http.StatusOK,
+			serverBody:   verifyResponse{Success: true},
+			wantError:    "",
+		},
+		{
+			name: "fcaptcha_success",
+			cfg: Config{
+				Provider: ProviderFCaptcha, SecretKey: "secret", InstanceURL: "https://captcha.example.com",
+			},
 			token:        "tok",
 			serverStatus: http.StatusOK,
 			serverBody:   verifyResponse{Success: true},
@@ -207,6 +229,7 @@ func TestResolveVerifyURL(t *testing.T) {
 		name     string
 		provider Provider
 		override string
+		instance string
 		want     string
 	}{
 		{
@@ -223,6 +246,29 @@ func TestResolveVerifyURL(t *testing.T) {
 			name:     "recaptcha_v3_default_endpoint",
 			provider: ProviderReCAPTCHAV3,
 			want:     "https://www.google.com/recaptcha/api/siteverify",
+		},
+		{
+			name:     "fcaptcha_uses_instance_endpoint",
+			provider: ProviderFCaptcha,
+			instance: "https://captcha.example.com/base/",
+			want:     "https://captcha.example.com/base/turnstile/v0/siteverify",
+		},
+		{
+			name:     "fcaptcha_rejects_instance_query",
+			provider: ProviderFCaptcha,
+			instance: "https://captcha.example.com?tenant=1",
+			want:     "",
+		},
+		{
+			name:     "fcaptcha_rejects_non_http_instance",
+			provider: ProviderFCaptcha,
+			instance: "javascript:alert(1)",
+			want:     "",
+		},
+		{
+			name:     "fcaptcha_without_instance_has_no_endpoint",
+			provider: ProviderFCaptcha,
+			want:     "",
 		},
 		{
 			name:     "provider_none_has_no_endpoint",
@@ -257,7 +303,7 @@ func TestResolveVerifyURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// ACT
-			got := resolveVerifyURL(tt.provider, tt.override)
+			got := resolveVerifyURL(tt.provider, tt.override, tt.instance)
 
 			// ASSERT
 			assert.Equal(t, tt.want, got, "resolved siteverify endpoint mismatch")

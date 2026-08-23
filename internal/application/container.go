@@ -1696,12 +1696,13 @@ func (c *Container) createCaptchaVerifier() *captcha.Service {
 	cfg := c.Config().Captcha
 
 	return captcha.NewService(captcha.Config{
-		Provider:  captcha.Provider(cfg.Provider),
-		SiteKey:   cfg.SiteKey,
-		SecretKey: cfg.SecretKey,
-		MinScore:  cfg.MinScore,
-		FailOpen:  cfg.FailOpen,
-		VerifyURL: cfg.VerifyURL,
+		Provider:    captcha.Provider(cfg.Provider),
+		SiteKey:     cfg.SiteKey,
+		SecretKey:   cfg.SecretKey,
+		MinScore:    cfg.MinScore,
+		FailOpen:    cfg.FailOpen,
+		VerifyURL:   cfg.VerifyURL,
+		InstanceURL: cfg.InstanceURL,
 	})
 }
 

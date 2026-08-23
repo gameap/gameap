@@ -9,6 +9,7 @@ type Response struct {
 // the login form needs to render the widget. The secret key is never
 // included here.
 type CaptchaConfig struct {
-	Provider string `json:"provider"`
-	SiteKey  string `json:"site_key"`
+	Provider    string `json:"provider"`
+	SiteKey     string `json:"site_key"`
+	InstanceURL string `json:"instance_url,omitempty"`
 }
