@@ -121,7 +121,16 @@ func resolveVerifyURL(provider Provider, override, instanceURL string) string {
 			return ""
 		}
 
-		return strings.TrimRight(instanceURL, "/") + "/turnstile/v0/siteverify"
+		u, err := url.Parse(instanceURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+			u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return ""
+		}
+
+		u.Path = strings.TrimRight(u.Path, "/") + "/turnstile/v0/siteverify"
+		u.RawPath = ""
+
+		return u.String()
 	case ProviderNone:
 		return ""
 	default:

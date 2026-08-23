@@ -250,8 +250,20 @@ func TestResolveVerifyURL(t *testing.T) {
 		{
 			name:     "fcaptcha_uses_instance_endpoint",
 			provider: ProviderFCaptcha,
-			instance: "https://captcha.example.com/",
-			want:     "https://captcha.example.com/turnstile/v0/siteverify",
+			instance: "https://captcha.example.com/base/",
+			want:     "https://captcha.example.com/base/turnstile/v0/siteverify",
+		},
+		{
+			name:     "fcaptcha_rejects_instance_query",
+			provider: ProviderFCaptcha,
+			instance: "https://captcha.example.com?tenant=1",
+			want:     "",
+		},
+		{
+			name:     "fcaptcha_rejects_non_http_instance",
+			provider: ProviderFCaptcha,
+			instance: "javascript:alert(1)",
+			want:     "",
 		},
 		{
 			name:     "fcaptcha_without_instance_has_no_endpoint",

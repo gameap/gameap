@@ -59,6 +59,16 @@ const waitFor = (predicate, timeout = 10000) =>
     tick()
   })
 
+const normalizeInstanceUrl = (rawUrl) => {
+  const url = new URL(rawUrl)
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+    throw new Error("FCaptcha instance URL must be an HTTP(S) base URL")
+  }
+
+  url.pathname = url.pathname.replace(/\/+$/, "")
+  return url.toString().replace(/\/$/, "")
+}
+
 const renderRecaptchaV2 = async () => {
   await loadScript("https://www.google.com/recaptcha/api.js?render=explicit")
   await waitFor(() => window.grecaptcha && window.grecaptcha.render)
@@ -96,7 +106,7 @@ const renderTurnstile = async () => {
 }
 
 const renderFCaptcha = async () => {
-  const instanceUrl = props.instanceUrl.replace(/\/+$/, "")
+  const instanceUrl = normalizeInstanceUrl(props.instanceUrl)
   if (!instanceUrl) {
     throw new Error("FCaptcha instance URL is not configured")
   }
