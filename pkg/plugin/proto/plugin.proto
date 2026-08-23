@@ -230,8 +230,9 @@ message HTTPResponse {
 // FileRef points at a file on a node for HTTPResponse.file. The panel owns
 // Content-Length and Content-Disposition (always an attachment); of the
 // HTTPResponse.headers only Content-Type, Content-Language, Cache-Control,
-// Expires, Pragma, Last-Modified, ETag, Vary and custom X-* headers reach
-// the client.
+// Expires, Pragma, Last-Modified, ETag, Vary and the plugin metadata
+// headers X-Plugin and X-Plugin-* reach the client. Other X-* names
+// (X-Accel-*, X-Sendfile, X-Frame-Options, …) are dropped like the rest.
 message FileRef {
   uint64 node_id = 1;
   // Absolute node path, the same form gameap-nodefs accepts; ".." segments

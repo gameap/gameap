@@ -36,7 +36,7 @@ type mockFileService struct {
 	mkDirFunc       func(ctx context.Context, node *domain.Node, path string) error
 	copyFunc        func(ctx context.Context, node *domain.Node, src, dst string) error
 	moveFunc        func(ctx context.Context, node *domain.Node, src, dst string) error
-	downloadFunc    func(ctx context.Context, node *domain.Node, path string) ([]byte, error)
+	downloadFunc    func(ctx context.Context, node *domain.Node, path string, limit uint64) ([]byte, error)
 	uploadFunc      func(ctx context.Context, node *domain.Node, path string, content []byte, perm os.FileMode) error
 	removeFunc      func(ctx context.Context, node *domain.Node, path string, recursive bool) error
 	getFileInfoFunc func(ctx context.Context, node *domain.Node, path string) (*daemon.FileDetails, error)
@@ -80,9 +80,11 @@ func (m *mockFileService) Move(ctx context.Context, node *domain.Node, src, dst 
 	return nil
 }
 
-func (m *mockFileService) Download(ctx context.Context, node *domain.Node, path string) ([]byte, error) {
+func (m *mockFileService) DownloadLimited(
+	ctx context.Context, node *domain.Node, path string, limit uint64,
+) ([]byte, error) {
 	if m.downloadFunc != nil {
-		return m.downloadFunc(ctx, node, path)
+		return m.downloadFunc(ctx, node, path, limit)
 	}
 
 	return nil, nil
@@ -605,7 +607,7 @@ func TestNodeFSService_Download(t *testing.T) {
 			setupRepo: seedTestNode,
 			setupFS: func() *mockFileService {
 				return &mockFileService{
-					downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
+					downloadFunc: func(_ context.Context, _ *domain.Node, _ string, _ uint64) ([]byte, error) {
 						return []byte("file content"), nil
 					},
 				}
@@ -621,7 +623,7 @@ func TestNodeFSService_Download(t *testing.T) {
 			setupRepo: seedTestNode,
 			setupFS: func() *mockFileService {
 				return &mockFileService{
-					downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
+					downloadFunc: func(_ context.Context, _ *domain.Node, _ string, _ uint64) ([]byte, error) {
 						return nil, errFileNotFoundInternal
 					},
 				}

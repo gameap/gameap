@@ -908,9 +908,10 @@ Rules:
 - `Body` is ignored when `File` is set. `StatusCode` (default `200`) is the
   plugin's. Of the plugin's headers only `Content-Type`, `Content-Language`,
   `Cache-Control`, `Expires`, `Pragma`, `Last-Modified`, `ETag`, `Vary` and
-  custom `X-*` headers reach the client — everything else (`Set-Cookie`,
-  `Location`, `WWW-Authenticate`, CSP, …) is dropped, as the response is served
-  from the panel origin. The panel owns `Content-Length` and
+  the plugin metadata headers `X-Plugin` / `X-Plugin-*` reach the client —
+  everything else (`Set-Cookie`, `Location`, `WWW-Authenticate`, CSP, other
+  `X-*` names such as `X-Accel-Redirect`, …) is dropped, as the response is
+  served from the panel origin. The panel owns `Content-Length` and
   `Content-Disposition` (always an attachment).
 - Range requests are not supported (`Accept-Ranges: none`); `..` path segments
   are rejected.

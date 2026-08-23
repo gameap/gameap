@@ -37,6 +37,7 @@ var (
 	errPathIsDirectory         = errors.New("path is a directory")
 	errFilesPermissionRequired = errors.New("plugin permission " + string(domain.PluginPermissionFiles) + " required")
 	errAuthenticationRequired  = errors.New("authentication required for file responses")
+	errInvalidStatusCode       = errors.New("invalid plugin status code")
 )
 
 // allowedPluginHeaders is the only set of plugin-provided headers that
@@ -57,9 +58,14 @@ var allowedPluginHeaders = map[string]struct{}{
 	"Vary":             {},
 }
 
-// customHeaderPrefix admits plugin metadata headers (X-Plugin-Version and
-// the like); the panel's own X-Content-Type-Options is set afterwards.
-const customHeaderPrefix = "X-"
+// Plugin metadata headers (X-Plugin, X-Plugin-Version and the like) pass as
+// well. The namespace is deliberately this narrow: other X-* names are
+// reverse-proxy controls (X-Accel-Redirect, X-Sendfile) or browser policy
+// (X-Frame-Options), none of which a plugin may set on the panel origin.
+const (
+	customHeader       = "X-Plugin"
+	customHeaderPrefix = customHeader + "-"
+)
 
 type Server struct {
 	files   FileService
@@ -93,6 +99,13 @@ func (s *Server) ServeFileRef(w http.ResponseWriter, r *http.Request, req pkgplu
 
 	if err := validateRef(req.Ref); err != nil {
 		return api.WrapHTTPError(err, http.StatusBadRequest)
+	}
+
+	// The status is the plugin's, and net/http panics on one it cannot
+	// write: a plugin bug becomes a controlled answer before anything is
+	// opened on its behalf.
+	if err := validateStatusCode(req.StatusCode); err != nil {
+		return api.WrapHTTPError(err, http.StatusBadGateway)
 	}
 
 	// Node files never go to anonymous clients, whatever the plugin route's
@@ -209,7 +222,7 @@ func pluginHeaderAllowed(name string) bool {
 		return true
 	}
 
-	return strings.HasPrefix(canonical, customHeaderPrefix) && canonical != "X-Content-Type-Options"
+	return canonical == customHeader || strings.HasPrefix(canonical, customHeaderPrefix)
 }
 
 func attachmentName(ref *proto.FileRef) string {
@@ -218,6 +231,16 @@ func attachmentName(ref *proto.FileRef) string {
 	}
 
 	return path.Base(strings.ReplaceAll(ref.Path, "\\", "/"))
+}
+
+// validateStatusCode accepts 0 (meaning 200) and the range
+// http.ResponseWriter.WriteHeader can emit.
+func validateStatusCode(code int) error {
+	if code == 0 || (code >= 100 && code <= 999) {
+		return nil
+	}
+
+	return errors.WithMessage(errInvalidStatusCode, strconv.Itoa(code))
 }
 
 func validateRef(ref *proto.FileRef) error {

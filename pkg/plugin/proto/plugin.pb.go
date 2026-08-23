@@ -870,8 +870,9 @@ func (x *HTTPResponse) GetFile() *FileRef {
 // FileRef points at a file on a node for HTTPResponse.file. The panel owns
 // Content-Length and Content-Disposition (always an attachment); of the
 // HTTPResponse.headers only Content-Type, Content-Language, Cache-Control,
-// Expires, Pragma, Last-Modified, ETag, Vary and custom X-* headers reach
-// the client.
+// Expires, Pragma, Last-Modified, ETag, Vary and the plugin metadata
+// headers X-Plugin and X-Plugin-* reach the client. Other X-* names
+// (X-Accel-*, X-Sendfile, X-Frame-Options, …) are dropped like the rest.
 type FileRef struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

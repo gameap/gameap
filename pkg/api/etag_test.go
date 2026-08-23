@@ -36,7 +36,10 @@ func TestIfNoneMatchSatisfied(t *testing.T) {
 		{name: "wildcard", header: "*", want: true},
 		{name: "mismatch", header: `"def456"`, want: false},
 		{name: "unquoted_does_not_match", header: `abc123`, want: false},
-		{name: "wildcard_in_list", header: `"other", *`, want: true},
+		{name: "wildcard_in_list", header: `"other", *`, want: false},
+		{name: "wildcard_next_to_match", header: `"abc123", *`, want: false},
+		{name: "wildcard_with_empty_members", header: `*, ,`, want: true},
+		{name: "empty_members_around_match", header: `, "abc123",`, want: true},
 	}
 
 	for _, tt := range tests {
@@ -61,4 +64,13 @@ func TestIfNoneMatchSatisfied_multiple_header_lines(t *testing.T) {
 	assert.True(t, api.IfNoneMatchSatisfied(req, `"second"`), "every field line is considered")
 	assert.True(t, api.IfNoneMatchSatisfied(req, `"first"`))
 	assert.False(t, api.IfNoneMatchSatisfied(req, `"third"`))
+}
+
+func TestIfNoneMatchSatisfied_wildcard_on_its_own_line_is_still_mixed(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequest(http.MethodGet, "/plugins.js", nil)
+	req.Header.Add("If-None-Match", `"first"`)
+	req.Header.Add("If-None-Match", "*")
+
+	assert.False(t, api.IfNoneMatchSatisfied(req, `"first"`), "the field lines form one malformed list")
 }

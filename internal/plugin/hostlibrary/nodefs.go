@@ -245,20 +245,31 @@ func (s *NodeFSServiceImpl) Download(
 		return &nodefs.DownloadResponse{Error: new(msg)}, nil
 	}
 
-	content, err := s.fileService.Download(ctx, node, req.Path)
+	// The stat above is advisory (the file may have grown since), so the
+	// read itself stops one byte past the cap: the guest never receives
+	// more than the cap and the panel never buffers much more than it.
+	content, err := s.fileService.DownloadLimited(ctx, node, req.Path, s.inlineReadLimit())
 	if err != nil {
 		return &nodefs.DownloadResponse{Error: new(err.Error())}, nil
 	}
 
-	// The stat above is advisory (the file may have grown since); the
-	// guest never receives more than the cap regardless.
 	if s.maxInlineBytes > 0 && uint64(len(content)) > s.maxInlineBytes {
 		return &nodefs.DownloadResponse{Error: new(fmt.Sprintf(
-			"file too large: %d bytes exceeds the inline download limit of %d bytes",
-			len(content), s.maxInlineBytes))}, nil
+			"file too large: content exceeds the inline download limit of %d bytes", s.maxInlineBytes))}, nil
 	}
 
 	return &nodefs.DownloadResponse{Content: content}, nil
+}
+
+// inlineReadLimit is how much Download asks the node for: one byte past
+// the cap, enough to tell an oversized file from one exactly at the limit;
+// without a cap the whole file.
+func (s *NodeFSServiceImpl) inlineReadLimit() uint64 {
+	if s.maxInlineBytes == 0 {
+		return 0
+	}
+
+	return s.maxInlineBytes + 1
 }
 
 // checkInlineDownloadSize refuses a download that would exceed the inline

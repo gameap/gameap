@@ -496,6 +496,49 @@ func TestLoader_reload_honours_cancellation_without_marking_error(t *testing.T) 
 	assert.Equal(t, "http handler timed out", *row.LastError, "the previous reason is kept")
 }
 
+// deadlineCheckingRepo refuses writes on a done context, as a database
+// driver would.
+type deadlineCheckingRepo struct {
+	*inmemory.PluginRepository
+}
+
+func (r deadlineCheckingRepo) Save(ctx context.Context, plugin *domain.Plugin) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	return r.PluginRepository.Save(ctx, plugin)
+}
+
+func TestLoader_reload_records_expired_deadline_as_error(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	fileManager := files.NewInMemoryFileManager()
+	repo := inmemory.NewPluginRepository()
+
+	plugin := seedPlugin(ctx, t, repo, 609, domain.PluginStatusActive)
+	require.NoError(t, fileManager.Write(ctx, "plugins/"+*plugin.Filename, []byte("slow")))
+
+	manager := failingManager()
+	manager.loadFunc = func(ctx context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
+		return nil, errors.Wrap(ctx.Err(), "module start")
+	}
+	loader := NewLoader(manager, fileManager, deadlineCheckingRepo{repo}, nil, "plugins")
+
+	// The supervisor's budget runs out before the loader's own: the reload
+	// sees a deadline, not a cancellation.
+	expired, cancel := context.WithDeadline(ctx, time.Now().Add(-time.Second))
+	defer cancel()
+
+	_, _, err := loader.reload(expired, plugin.ID)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	row := findPlugin(ctx, t, repo, plugin.ID)
+	assert.Equal(t, domain.PluginStatusError, row.Status, "a reload that ran out of time is the plugin's failure")
+	require.NotNil(t, row.LastError)
+	assert.Contains(t, *row.LastError, "module start: context deadline exceeded")
+}
+
 func TestLoader_Reload_is_detached_from_caller_cancellation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

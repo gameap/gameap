@@ -192,6 +192,15 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+      '500':
+        description: |
+          Uninstall aborted: the plugin could not be unloaded, or its data,
+          file or record could not be deleted. The record is kept, so the
+          request can be retried.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
 
 /api/admin/plugins/{id}/reload:
   post:

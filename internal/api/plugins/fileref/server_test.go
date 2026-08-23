@@ -271,6 +271,31 @@ func TestServeFileRef_header_contract(t *testing.T) {
 				"X-Plugin-Version":            "1.2.3",
 			},
 		},
+		{
+			name: "x_headers_outside_the_plugin_namespace_are_dropped",
+			ref:  &proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/a.bin"},
+			headers: map[string]string{
+				"X-Accel-Redirect":   "/internal/secret.bin",
+				"X-Accel-Buffering":  "no",
+				"x-accel-limit-rate": "1",
+				"X-Sendfile":         "/etc/passwd",
+				"X-Frame-Options":    "ALLOWALL",
+				"X-Pluginx":          "1",
+				"x-plugin":           "exporter",
+				"X-Plugin-Version":   "1.2.3",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"X-Accel-Redirect":   "",
+				"X-Accel-Buffering":  "",
+				"X-Accel-Limit-Rate": "",
+				"X-Sendfile":         "",
+				"X-Frame-Options":    "",
+				"X-Pluginx":          "",
+				"X-Plugin":           "exporter",
+				"X-Plugin-Version":   "1.2.3",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -299,6 +324,7 @@ func TestServeFileRef_refusals(t *testing.T) {
 	tests := []struct {
 		name        string
 		ref         *proto.FileRef
+		status      int
 		pluginID    uint64
 		checker     fakeChecker
 		files       *fakeFileService
@@ -339,6 +365,24 @@ func TestServeFileRef_refusals(t *testing.T) {
 			files:      &fakeFileService{info: csvFile()},
 			wantStatus: http.StatusBadRequest,
 			wantError:  "path contains invalid directory traversal",
+		},
+		{
+			name:       "status_code_below_100",
+			ref:        validRef,
+			status:     99,
+			checker:    fakeChecker{allowed: true},
+			files:      &fakeFileService{info: csvFile()},
+			wantStatus: http.StatusBadGateway,
+			wantError:  "99: invalid plugin status code",
+		},
+		{
+			name:       "status_code_above_999",
+			ref:        validRef,
+			status:     1000,
+			checker:    fakeChecker{allowed: true},
+			files:      &fakeFileService{info: csvFile()},
+			wantStatus: http.StatusBadGateway,
+			wantError:  "1000: invalid plugin status code",
 		},
 		{
 			name:       "denied_without_files_permission",
@@ -421,7 +465,7 @@ func TestServeFileRef_refusals(t *testing.T) {
 			w := httptest.NewRecorder()
 			req := authenticatedRequest()
 
-			request := fileRequest(tt.ref, nil, 0)
+			request := fileRequest(tt.ref, nil, tt.status)
 			if tt.unsetPlugin {
 				request.PluginID = 0
 			}

@@ -24,6 +24,10 @@ import (
 // budgets, this is only the outer guard.
 const reloadTimeout = 2 * time.Minute
 
+// markErrorTimeout bounds recording a failed load once the reload's own
+// context may already be gone.
+const markErrorTimeout = 15 * time.Second
+
 type LoaderOption func(*Loader)
 
 // WithStrictLoad makes LoadAll fail when any plugin fails to load, which the
@@ -261,9 +265,13 @@ func (l *Loader) reload(ctx context.Context, dbID domain.Uint64ID) (*domain.Plug
 	loaded, err := l.loadWithID(ctx, l.resolvePluginFilename(plugin), uint64(dbID))
 	if err != nil {
 		// A cancelled reload (panel shutting down) is not the plugin's
-		// failure; the row keeps its previous state.
-		if ctx.Err() == nil {
-			l.markError(ctx, plugin, err)
+		// failure; the row keeps its previous state. A reload that ran out
+		// of time is one, and is recorded on a fresh context: the expired
+		// one could not reach the database any more.
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			markCtx, markCancel := context.WithTimeout(context.WithoutCancel(ctx), markErrorTimeout)
+			l.markError(markCtx, plugin, err)
+			markCancel()
 		}
 
 		return plugin, nil, err

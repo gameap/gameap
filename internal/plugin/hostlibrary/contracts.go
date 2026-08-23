@@ -27,7 +27,9 @@ type NodeFileService interface {
 	MkDir(ctx context.Context, node *domain.Node, directory string, owner daemon.OwnerOptions) error
 	Copy(ctx context.Context, node *domain.Node, source, destination string) error
 	Move(ctx context.Context, node *domain.Node, source, destination string) error
-	Download(ctx context.Context, node *domain.Node, filePath string) ([]byte, error)
+	// DownloadLimited reads at most limit bytes from the start of the file;
+	// 0 reads the whole file.
+	DownloadLimited(ctx context.Context, node *domain.Node, filePath string, limit uint64) ([]byte, error)
 	Upload(
 		ctx context.Context,
 		node *domain.Node,

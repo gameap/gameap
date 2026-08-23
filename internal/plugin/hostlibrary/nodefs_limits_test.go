@@ -33,20 +33,23 @@ func TestNodeFSService_Download_inline_limit(t *testing.T) {
 		statErr      error
 		wantError    string
 		wantDownload bool
+		wantLimit    uint64
 		wantStat     bool
 	}{
 		{
-			name:         "no_cap_skips_stat",
+			name:         "no_cap_skips_stat_and_reads_everything",
 			maxInline:    0,
 			fileSize:     1 << 30,
 			wantDownload: true,
+			wantLimit:    0,
 			wantStat:     false,
 		},
 		{
-			name:         "under_cap_downloads",
+			name:         "under_cap_reads_one_byte_past_the_cap",
 			maxInline:    1024,
 			fileSize:     1024,
 			wantDownload: true,
+			wantLimit:    1025,
 			wantStat:     true,
 		},
 		{
@@ -69,6 +72,7 @@ func TestNodeFSService_Download_inline_limit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var statCalls, downloadCalls atomic.Int32
+			var gotLimit atomic.Uint64
 			fs := &mockFileService{
 				getFileInfoFunc: func(_ context.Context, _ *domain.Node, _ string) (*daemon.FileDetails, error) {
 					statCalls.Add(1)
@@ -79,8 +83,9 @@ func TestNodeFSService_Download_inline_limit(t *testing.T) {
 
 					return &daemon.FileDetails{Name: "file.bin", Size: tt.fileSize}, nil
 				},
-				downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
+				downloadFunc: func(_ context.Context, _ *domain.Node, _ string, limit uint64) ([]byte, error) {
 					downloadCalls.Add(1)
+					gotLimit.Store(limit)
 
 					return []byte("content"), nil
 				},
@@ -92,6 +97,9 @@ func TestNodeFSService_Download_inline_limit(t *testing.T) {
 
 			assert.Equal(t, tt.wantStat, statCalls.Load() == 1)
 			assert.Equal(t, tt.wantDownload, downloadCalls.Load() == 1)
+			if tt.wantDownload {
+				assert.Equal(t, tt.wantLimit, gotLimit.Load(), "the read must be bounded by the cap")
+			}
 
 			if tt.wantError != "" {
 				require.NotNil(t, resp.Error)
@@ -110,13 +118,19 @@ func TestNodeFSService_Download_inline_limit(t *testing.T) {
 func TestNodeFSService_Download_enforces_limit_after_read(t *testing.T) {
 	t.Parallel()
 	// The file grew between stat and read: the stat passed, the content is
-	// over the cap and must not reach the guest.
+	// over the cap and must not reach the guest. The node is asked for one
+	// byte past the cap only, so the rest of the file is never buffered.
+	const grownSize = 1 << 20
+
+	var gotLimit atomic.Uint64
 	fs := &mockFileService{
 		getFileInfoFunc: func(_ context.Context, _ *domain.Node, _ string) (*daemon.FileDetails, error) {
 			return &daemon.FileDetails{Name: "log.txt", Size: 10}, nil
 		},
-		downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
-			return make([]byte, 1025), nil
+		downloadFunc: func(_ context.Context, _ *domain.Node, _ string, limit uint64) ([]byte, error) {
+			gotLimit.Store(limit)
+
+			return make([]byte, min(limit, grownSize)), nil
 		},
 	}
 	svc := newCappedNodeFSService(fs, 1024)
@@ -124,8 +138,9 @@ func TestNodeFSService_Download_enforces_limit_after_read(t *testing.T) {
 	resp, err := svc.Download(context.Background(), &nodefs.DownloadRequest{NodeId: 1, Path: "/home/log.txt"})
 	require.NoError(t, err)
 
+	assert.Equal(t, uint64(1025), gotLimit.Load(), "the read stops one byte past the cap")
 	require.NotNil(t, resp.Error)
-	assert.Contains(t, *resp.Error, "file too large: 1025 bytes exceeds the inline download limit of 1024 bytes")
+	assert.Contains(t, *resp.Error, "file too large: content exceeds the inline download limit of 1024 bytes")
 	assert.Nil(t, resp.Content)
 }
 
