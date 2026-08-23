@@ -33,7 +33,11 @@ const loadScript = (src) => {
     el.async = true
     el.defer = true
     el.onload = () => resolve()
-    el.onerror = () => reject(new Error(`failed to load ${src}`))
+    el.onerror = () => {
+      delete scriptCache[src]
+      el.remove()
+      reject(new Error(`failed to load ${src}`))
+    }
     document.head.appendChild(el)
   })
 
