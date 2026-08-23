@@ -351,6 +351,16 @@ func (m *StorageListRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.Offset != nil {
+		i = encodeVarint(dAtA, i, uint64(*m.Offset))
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.Limit != nil {
+		i = encodeVarint(dAtA, i, uint64(*m.Limit))
+		i--
+		dAtA[i] = 0x20
+	}
 	if m.EntityId != nil {
 		i = encodeVarint(dAtA, i, uint64(*m.EntityId))
 		i--
@@ -400,6 +410,16 @@ func (m *StorageListResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.HasMore {
+		i--
+		if m.HasMore {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x10
 	}
 	if len(m.Entries) > 0 {
 		for iNdEx := len(m.Entries) - 1; iNdEx >= 0; iNdEx-- {
@@ -611,6 +631,12 @@ func (m *StorageListRequest) SizeVT() (n int) {
 	if m.EntityId != nil {
 		n += 1 + sov(uint64(*m.EntityId))
 	}
+	if m.Limit != nil {
+		n += 1 + sov(uint64(*m.Limit))
+	}
+	if m.Offset != nil {
+		n += 1 + sov(uint64(*m.Offset))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -626,6 +652,9 @@ func (m *StorageListResponse) SizeVT() (n int) {
 			l = e.SizeVT()
 			n += 1 + l + sov(uint64(l))
 		}
+	}
+	if m.HasMore {
+		n += 2
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1446,6 +1475,46 @@ func (m *StorageListRequest) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.EntityId = &v
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Limit", wireType)
+			}
+			var v uint32
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Limit = &v
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Offset", wireType)
+			}
+			var v uint32
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Offset = &v
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -1531,6 +1600,26 @@ func (m *StorageListResponse) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HasMore", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.HasMore = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])

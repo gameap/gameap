@@ -74,6 +74,7 @@ import (
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskreaper"
+	"github.com/gameap/gameap/internal/telemetry"
 	"github.com/gameap/gameap/internal/transfers"
 	"github.com/gameap/gameap/internal/upload"
 	"github.com/gameap/gameap/internal/ws"
@@ -208,6 +209,9 @@ type Container struct {
 	// Plugins
 	pluginManager    *pkgplugin.Manager
 	pluginDispatcher *pkgplugin.Dispatcher
+	pluginGuard      *hostlibrary.Guard
+	telemetry        *telemetry.Registry
+	pluginMetrics    *telemetry.PluginMetrics
 	pluginRepository repositories.PluginRepository
 	pluginLoader     *internalplugin.Loader
 	pluginRecovery   *internalplugin.Supervisor
@@ -2145,23 +2149,28 @@ func (c *Container) connRegistry() *pkgplugin.ConnRegistry {
 }
 
 func (c *Container) createPluginManager() *pkgplugin.Manager {
+	guard := c.PluginGuard()
+
 	factories := []pkgplugin.HostLibraryFactory{
-		hostlibrary.NewStorageHostLibraryFactory(c.PluginStorageRepository()),
+		hostlibrary.NewStorageHostLibraryFactory(
+			c.PluginStorageRepository(),
+			hostlibrary.WithStorageQuotas(hostlibrary.StorageConfig{
+				MaxKeysPerPlugin: c.config.Plugin.Storage.MaxKeysPerPlugin,
+				MaxValueBytes:    int(c.config.Plugin.Storage.MaxValueBytes.Uint64()), //nolint:gosec
+				MaxTotalBytes:    c.config.Plugin.Storage.MaxTotalBytes.Uint64(),
+			}),
+		),
 		hostlibrary.NewLogHostLibraryFactory(slog.Default()),
 		// Per-plugin: the module is gated on the plugin's own
 		// manage_rbac grant, so it needs to know which plugin it serves.
-		hostlibrary.NewRBACHostLibraryFactory(
-			c.RBAC(),
-			c.RBACRepository(),
-			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
-		),
+		hostlibrary.NewRBACHostLibraryFactory(c.RBAC(), c.RBACRepository(), guard),
 		hostlibrary.NewSchedulerHostLibraryFactory(&lazyTaskScheduler{container: c}),
 		// Per-plugin: secrets are scoped to the owning plugin and the module
 		// is gated on its own secrets grant.
 		hostlibrary.NewSecretsHostLibraryFactory(
 			c.PluginSecretRepository(),
 			c.SecretCipher(),
-			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			guard,
 			hostlibrary.SecretsConfig{
 				MaxKeysPerPlugin:  c.config.Plugin.Secrets.MaxKeysPerPlugin,
 				MaxValueBytes:     c.config.Plugin.Secrets.MaxValueBytes,
@@ -2175,9 +2184,35 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			c.NodeRepository(),
 			c.DaemonArchive(),
 			&lazyArchiveEvents{container: c},
-			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			guard,
 			hostlibrary.WithNodeFSMaxInlineBytes(c.config.Plugin.NodeFS.MaxInlineBytes.Uint64()),
 		),
+		// Per-plugin: writes are gated on manage_servers / node_commands,
+		// rate limited and audited with the plugin as the actor.
+		hostlibrary.NewServersHostLibraryFactory(c.ServerRepository(), guard),
+		hostlibrary.NewDaemonTasksHostLibraryFactory(c.DaemonTaskRepository(), c.TaskDispatcher(), guard),
+		hostlibrary.NewServerSettingsHostLibraryFactory(c.ServerSettingRepository(), guard),
+		hostlibrary.NewServerControlHostLibraryFactory(
+			c.ServerRepository(),
+			&lazyServerController{container: c},
+			guard,
+		),
+		hostlibrary.NewNodeCmdHostLibraryFactory(c.DaemonCommands(), c.NodeRepository(), guard),
+		// Per-plugin: every plugin gets its own cache namespace.
+		hostlibrary.NewCacheHostLibraryFactory(
+			c.Cache(),
+			"plugin:",
+			hostlibrary.WithCacheMaxValueBytes(int(c.config.Plugin.Cache.MaxValueBytes.Uint64())), //nolint:gosec
+		),
+		// Per-plugin: outbound requests are rate limited per plugin.
+		hostlibrary.NewHTTPHostLibraryFactory(hostlibrary.HTTPConfig{
+			BlockPrivateIPs:         c.config.Plugin.HTTP.BlockPrivateIPs,
+			AllowedSchemes:          c.config.Plugin.HTTP.AllowedSchemes,
+			AllowedHosts:            c.config.Plugin.HTTP.AllowedHosts,
+			MaxTimeoutSeconds:       c.config.Plugin.HTTP.MaxTimeoutSeconds,
+			MaxRedirects:            c.config.Plugin.HTTP.MaxRedirects,
+			ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
+		}, guard),
 	}
 
 	if c.config.Plugin.Net.Enabled {
@@ -2190,29 +2225,16 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		))
 	}
 
+	metrics := c.PluginMetrics()
+	recovery := &lazyPluginRecovery{container: c}
+
 	return pkgplugin.NewManager(pkgplugin.ManagerConfig{
+		// Read-only modules need no plugin binding.
 		Libraries: []pkgplugin.HostLibrary{
-			hostlibrary.NewServersHostLibrary(c.ServerRepository()),
 			hostlibrary.NewUsersHostLibrary(c.UserRepository()),
 			hostlibrary.NewNodesHostLibrary(c.NodeRepository()),
 			hostlibrary.NewGamesHostLibrary(c.GameRepository()),
 			hostlibrary.NewGameModsHostLibrary(c.GameModRepository()),
-			hostlibrary.NewDaemonTasksHostLibrary(c.DaemonTaskRepository(), c.TaskDispatcher()),
-			hostlibrary.NewServerSettingsHostLibrary(c.ServerSettingRepository()),
-			hostlibrary.NewServerControlHostLibrary(
-				c.ServerRepository(),
-				&lazyServerController{container: c},
-			),
-			hostlibrary.NewCacheHostLibrary(c.Cache(), "plugin:"),
-			hostlibrary.NewHTTPHostLibrary(hostlibrary.HTTPConfig{
-				BlockPrivateIPs:         c.config.Plugin.HTTP.BlockPrivateIPs,
-				AllowedSchemes:          c.config.Plugin.HTTP.AllowedSchemes,
-				AllowedHosts:            c.config.Plugin.HTTP.AllowedHosts,
-				MaxTimeoutSeconds:       c.config.Plugin.HTTP.MaxTimeoutSeconds,
-				MaxRedirects:            c.config.Plugin.HTTP.MaxRedirects,
-				ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
-			}),
-			hostlibrary.NewNodeCmdHostLibrary(c.DaemonCommands(), c.NodeRepository()),
 			hostlibrary.NewCryptoHostLibrary(),
 			hostlibrary.NewAuthzHostLibrary(c.RBAC()),
 		},
@@ -2223,10 +2245,87 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		CompilationCacheDir:     c.config.Plugins.Cache.Dir,
 		DisableCompilationCache: !c.config.Plugins.Cache.Enabled,
 		GuestLogger:             slog.Default(),
+		Observer:                metrics,
 		// Resolved at call time: the supervisor is created by PluginLoader(),
 		// which depends on the manager built here.
-		OnPluginDisabled: (&lazyPluginRecovery{container: c}).OnPluginDisabled,
+		OnPluginDisabled: func(pluginID string, dbID uint64, reason string) {
+			metrics.OnPluginDisabled(pluginID, dbID, reason)
+			recovery.OnPluginDisabled(pluginID, dbID, reason)
+		},
 	})
+}
+
+// PluginGuard is the shared grant / rate-limit / audit enforcement in front
+// of the privileged plugin host libraries.
+func (c *Container) PluginGuard() *hostlibrary.Guard {
+	if c.pluginGuard == nil {
+		limits := c.config.Plugin.RateLimit
+
+		c.pluginGuard = hostlibrary.NewGuard(
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			hostlibrary.WithGuardRateLimits(map[hostlibrary.RateClass]hostlibrary.RateLimit{
+				hostlibrary.RateClassNodeCmd:       {RPS: limits.NodeCmd.RPS, Burst: limits.NodeCmd.Burst},
+				hostlibrary.RateClassServerControl: {RPS: limits.ServerControl.RPS, Burst: limits.ServerControl.Burst},
+				hostlibrary.RateClassNodeFS:        {RPS: limits.NodeFS.RPS, Burst: limits.NodeFS.Burst},
+				hostlibrary.RateClassHTTP:          {RPS: limits.HTTP.RPS, Burst: limits.HTTP.Burst},
+				hostlibrary.RateClassRBAC:          {RPS: limits.RBAC.RPS, Burst: limits.RBAC.Burst},
+			}),
+			hostlibrary.WithGuardAudit(c.AuditLogger()),
+			hostlibrary.WithGuardObserver(c.PluginMetrics()),
+		)
+	}
+
+	return c.pluginGuard
+}
+
+// Telemetry is the panel's Prometheus registry.
+func (c *Container) Telemetry() *telemetry.Registry {
+	if c.telemetry == nil {
+		c.telemetry = telemetry.New()
+	}
+
+	return c.telemetry
+}
+
+// PluginMetrics collects the plugin runtime metrics. The manager and the
+// dispatcher are resolved lazily at scrape time: both depend on the metrics
+// (as observer) while being built.
+func (c *Container) PluginMetrics() *telemetry.PluginMetrics {
+	if c.pluginMetrics == nil {
+		c.pluginMetrics = telemetry.NewPluginMetrics(
+			c.Telemetry(),
+			&lazyPluginLister{container: c},
+			&lazyPluginBacklog{container: c},
+		)
+	}
+
+	return c.pluginMetrics
+}
+
+// lazyPluginLister resolves the plugin manager at scrape time.
+type lazyPluginLister struct {
+	container *Container
+}
+
+func (l *lazyPluginLister) GetPlugins() []*pkgplugin.LoadedPlugin {
+	if l.container.pluginManager == nil {
+		return nil
+	}
+
+	return l.container.pluginManager.GetPlugins()
+}
+
+// lazyPluginBacklog resolves the plugin dispatcher at scrape time.
+type lazyPluginBacklog struct {
+	container *Container
+}
+
+func (l *lazyPluginBacklog) AsyncBacklog() int {
+	if l.container.pluginDispatcher == nil {
+		return 0
+	}
+
+	return l.container.pluginDispatcher.AsyncBacklog()
 }
 
 // pluginMemoryLimitBytes converts the configured megabytes to the manager's
@@ -2350,7 +2449,26 @@ func (l *lazyServerController) Reinstall(ctx context.Context, server *domain.Ser
 
 func (c *Container) PluginDispatcher() *pkgplugin.Dispatcher {
 	if c.pluginDispatcher == nil {
-		c.pluginDispatcher = pkgplugin.NewDispatcher(c.PluginManager(), slog.Default())
+		checker := hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository())
+
+		c.pluginDispatcher = pkgplugin.NewDispatcher(
+			c.PluginManager(),
+			slog.Default(),
+			pkgplugin.WithDispatcherObserver(c.PluginMetrics()),
+			// Event subscriptions are gated on the plugin's listen_events grant.
+			pkgplugin.WithSubscriptionGate(func(ctx context.Context, plugin *pkgplugin.LoadedPlugin) bool {
+				allowed, err := checker.Has(ctx, plugin.DBID, domain.PluginPermissionListenEvents)
+				if err != nil {
+					slog.ErrorContext(ctx, "failed to check plugin listen_events permission",
+						slog.Uint64("plugin_id", plugin.DBID),
+						slog.String("error", err.Error()))
+
+					return false
+				}
+
+				return allowed
+			}),
+		)
 	}
 
 	return c.pluginDispatcher

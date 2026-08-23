@@ -375,6 +375,24 @@ Used by the resumable file-manager upload endpoints
 - `PLUGIN_RECOVERY_MAX_DELAY` - Cap for the backoff (default: `10m`)
 - `PLUGIN_RECOVERY_MAX_ATTEMPTS` - Consecutive reloads before the plugin stays in status `error` until an operator reloads it (default: `5`)
 - `PLUGIN_NODEFS_MAX_INLINE_BYTES` - Largest file a plugin may download or upload in one `gameap-nodefs` call (default: `32M`, `0` = unlimited)
+- `PLUGIN_STORAGE_MAX_KEYS_PER_PLUGIN` - Entries one plugin may keep in `gameap-storage` (default: `10000`)
+- `PLUGIN_STORAGE_MAX_VALUE_BYTES` - Largest single `gameap-storage` payload (default: `1M`)
+- `PLUGIN_STORAGE_MAX_TOTAL_BYTES` - Sum of all `gameap-storage` payloads of one plugin (default: `64M`)
+- `PLUGIN_CACHE_MAX_VALUE_BYTES` - Largest single `gameap-cache` value (default: `1M`, `0` = unlimited); every plugin has its own cache namespace
+- `PLUGIN_RATELIMIT_NODECMD_RPS` / `PLUGIN_RATELIMIT_NODECMD_BURST` - Per-plugin token bucket for `gameap-nodecmd` (default: `5` / `20`; RPS `0` = no limit)
+- `PLUGIN_RATELIMIT_SERVERCONTROL_RPS` / `PLUGIN_RATELIMIT_SERVERCONTROL_BURST` - Server control, daemon task creation, server and server-setting writes (default: `5` / `20`)
+- `PLUGIN_RATELIMIT_NODEFS_RPS` / `PLUGIN_RATELIMIT_NODEFS_BURST` - Every `gameap-nodefs` operation (default: `50` / `200`)
+- `PLUGIN_RATELIMIT_HTTP_RPS` / `PLUGIN_RATELIMIT_HTTP_BURST` - `gameap-http` requests (default: `20` / `50`)
+- `PLUGIN_RATELIMIT_RBAC_RPS` / `PLUGIN_RATELIMIT_RBAC_BURST` - `gameap-rbac` calls (default: `10` / `50`)
+
+Rate limits are per panel instance; a refused call answers with a `rate limited: ...` error in the host
+response and the plugin keeps running. Plugin grants (`manage_servers`, `node_commands`, `files`,
+`listen_events`, `manage_rbac`, `secrets`) are managed per plugin in the admin UI or through
+`PUT /api/admin/plugins/{id}/permissions`; see `pkg/plugin/README.md`.
+
+### Metrics
+
+- `METRICS_TOKEN` - Bearer token for the Prometheus scrape endpoint `GET /metrics`; empty (default) leaves the endpoint unregistered. The endpoint exposes `gameap_plugin_*` metrics (host/guest calls, refusals, events, disables, memory) plus the Go runtime and process collectors.
 
 ### Plugin Store Configuration
 

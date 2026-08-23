@@ -475,6 +475,73 @@ type Config struct {
 			// panel's own streaming endpoints (0 = unlimited).
 			MaxInlineBytes ByteSize `env:"PLUGIN_NODEFS_MAX_INLINE_BYTES" envDefault:"32M"`
 		}
+
+		// Storage bounds what one plugin may keep in gameap-storage (the
+		// panel database). Non-positive values fall back to the built-in
+		// defaults; quotas cannot be switched off.
+		Storage struct {
+			// MaxKeysPerPlugin caps the number of entries one plugin owns.
+			MaxKeysPerPlugin int `env:"PLUGIN_STORAGE_MAX_KEYS_PER_PLUGIN" envDefault:"10000"`
+
+			// MaxValueBytes caps a single payload.
+			MaxValueBytes ByteSize `env:"PLUGIN_STORAGE_MAX_VALUE_BYTES" envDefault:"1M"`
+
+			// MaxTotalBytes caps the sum of all payloads one plugin owns.
+			MaxTotalBytes ByteSize `env:"PLUGIN_STORAGE_MAX_TOTAL_BYTES" envDefault:"64M"`
+		}
+
+		// Cache bounds the gameap-cache host library. Every plugin gets its
+		// own key namespace; the backend (memory, Redis, database) is the
+		// panel's cache and is not cleaned when a plugin is uninstalled.
+		Cache struct {
+			// MaxValueBytes caps a single cached value (0 = unlimited).
+			MaxValueBytes ByteSize `env:"PLUGIN_CACHE_MAX_VALUE_BYTES" envDefault:"1M"`
+		}
+
+		// RateLimit bounds how often one plugin may invoke the expensive host
+		// libraries, per panel instance, as a token bucket (sustained rate
+		// plus burst). A refused call answers with a "rate limited" error in
+		// the response; the plugin is never disabled for it. RPS 0 = no limit
+		// for that class.
+		RateLimit struct {
+			// NodeCmd: gameap-nodecmd (commands on nodes).
+			NodeCmd struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_NODECMD_RPS" envDefault:"5"`
+				Burst int     `env:"PLUGIN_RATELIMIT_NODECMD_BURST" envDefault:"20"`
+			}
+
+			// ServerControl: gameap-servercontrol, daemon task creation,
+			// server and server-setting writes.
+			ServerControl struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_SERVERCONTROL_RPS" envDefault:"5"`
+				Burst int     `env:"PLUGIN_RATELIMIT_SERVERCONTROL_BURST" envDefault:"20"`
+			}
+
+			// NodeFS: every gameap-nodefs operation.
+			NodeFS struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_NODEFS_RPS" envDefault:"50"`
+				Burst int     `env:"PLUGIN_RATELIMIT_NODEFS_BURST" envDefault:"200"`
+			}
+
+			// HTTP: gameap-http outbound requests.
+			HTTP struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_HTTP_RPS" envDefault:"20"`
+				Burst int     `env:"PLUGIN_RATELIMIT_HTTP_BURST" envDefault:"50"`
+			}
+
+			// RBAC: gameap-rbac role and ability writes.
+			RBAC struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_RBAC_RPS" envDefault:"10"`
+				Burst int     `env:"PLUGIN_RATELIMIT_RBAC_BURST" envDefault:"50"`
+			}
+		}
+	}
+
+	// Metrics exposes the Prometheus endpoint.
+	Metrics struct {
+		// Token is the bearer token a scraper must present on GET /metrics;
+		// empty leaves the endpoint unregistered.
+		Token string `env:"METRICS_TOKEN" envDefault:""`
 	}
 
 	PubSub struct {

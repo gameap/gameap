@@ -72,6 +72,28 @@
           </div>
         </div>
 
+        <div v-if="uploadResult.required_permissions?.length" class="mb-4" data-testid="dry-run-permissions">
+          <span class="text-xs text-stone-500">{{ trans('plugins.required_permissions') }}</span>
+          <div class="flex flex-wrap gap-1 mt-1">
+            <span
+              v-for="permission in uploadResult.required_permissions"
+              :key="permission"
+              class="px-2 py-0.5 text-xs font-medium rounded-full bg-info-soft text-info-soft-text"
+            >
+              {{ permissionLabel(permission) }}
+            </span>
+          </div>
+        </div>
+
+        <div
+          v-if="uploadResult.undeclared_permissions?.length"
+          class="mb-4 p-3 rounded-lg bg-warning-soft text-warning-soft-text text-sm break-words"
+          data-testid="dry-run-undeclared-permissions"
+        >
+          {{ trans('plugins.permissions_undeclared_warning') }}
+          <span class="font-medium">{{ uploadResult.undeclared_permissions.map(permissionLabel).join(', ') }}</span>
+        </div>
+
         <div v-if="uploadResult.errors?.length" class="mb-4 p-3 bg-red-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-red-900)_20%,transparent)] rounded-lg">
           <p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">{{ trans('plugins.validation_errors') }}</p>
           <ul class="list-disc list-inside text-sm text-red-700 dark:text-red-400">
@@ -169,10 +191,14 @@ function close() {
   visible.value = false
 }
 
+function permissionLabel(permission) {
+  return trans('plugins.permission_' + permission)
+}
+
 function formatFeatures(result) {
   const features = []
-  if (result.has_http_handlers) features.push('HTTP')
-  if (result.has_game_server_commands) features.push('Commands')
+  if (result.http_routes?.length > 0) features.push('HTTP')
+  if (result.server_abilities?.length > 0) features.push('Commands')
   if (result.has_frontend_bundle) features.push('Frontend')
   return features.length > 0 ? features.join(', ') : '-'
 }

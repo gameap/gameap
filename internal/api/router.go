@@ -84,6 +84,7 @@ import (
 	pluginsloaded "github.com/gameap/gameap/internal/api/plugins/getloaded"
 	pluginreload "github.com/gameap/gameap/internal/api/plugins/reload"
 	pluginuninstall "github.com/gameap/gameap/internal/api/plugins/uninstall"
+	pluginupdatepermissions "github.com/gameap/gameap/internal/api/plugins/updatepermissions"
 	pluginuploaddryrun "github.com/gameap/gameap/internal/api/plugins/upload/dryrun"
 	pluginuploadinstall "github.com/gameap/gameap/internal/api/plugins/upload/install"
 	"github.com/gameap/gameap/internal/api/pluginstore/getcategories"
@@ -181,6 +182,7 @@ import (
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
+	"github.com/gameap/gameap/internal/telemetry"
 	uploadservice "github.com/gameap/gameap/internal/upload"
 	"github.com/gameap/gameap/internal/ws"
 	"github.com/gameap/gameap/pkg/api"
@@ -240,6 +242,7 @@ type container interface {
 	PluginStorageRepository() repositories.PluginStorageRepository
 	PluginSecretRepository() repositories.PluginSecretRepository
 	PluginLoader() *internalplugin.Loader
+	Telemetry() *telemetry.Registry
 	PluginScheduler() *pluginscheduler.Service
 	PluginArchiveEvents() *pluginarchive.Service
 	PluginStoreService() *pluginstore.Service
@@ -294,7 +297,19 @@ func CreateRouter(c container) *http.ServeMux {
 		serverMux.Handle("/plugins.css", frontendPluginsStylesHandler(c))
 	}
 
+	// The scrape endpoint exists only when a token is configured.
+	if token := c.Config().Metrics.Token; token != "" {
+		serverMux.Handle("/metrics", metricsHandler(c, token))
+	}
+
 	return serverMux
+}
+
+func metricsHandler(c container, token string) http.Handler {
+	tokenMiddleware := middlewares.NewMetricsTokenMiddleware(token, c.AuditLogger())
+	recoveryMiddleware := middlewares.NewRecoveryMiddleware(c.Responder())
+
+	return recoveryMiddleware.Middleware(tokenMiddleware.Middleware(c.Telemetry().Handler()))
 }
 
 func frontendPluginsHandler(c container) http.Handler {
@@ -1979,6 +1994,19 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/admin/plugins/{id}/reload",
 			Handler: pluginreload.NewHandler(
 				c.PluginLoader(),
+				c.Responder(),
+				c.AuditLogger(),
+			),
+			AdminOnly: true,
+		},
+		{
+			Method: http.MethodPut,
+			Path:   "/api/admin/plugins/{id}/permissions",
+			Handler: pluginupdatepermissions.NewHandler(
+				c.PluginRepository(),
+				c.PluginManager(),
+				c.PluginLoader(),
+				c.PluginDispatcher(),
 				c.Responder(),
 				c.AuditLogger(),
 			),

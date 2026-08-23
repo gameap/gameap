@@ -251,6 +251,64 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+
+/api/admin/plugins/{id}/permissions:
+  put:
+    tags:
+      - PluginStore
+    summary: Update plugin permissions
+    description: |
+      Replaces the permissions an installed plugin holds. Grants are re-read
+      by the host libraries on every call, so the change takes effect at once
+      on every panel instance; event subscriptions are refreshed on this
+      instance when `listen_events` changes. The declared permissions of the
+      manifest are informational — an operator may grant more or less. Admin
+      only; recorded in the audit log as `plugin.permissions.update`.
+    operationId: updatePluginPermissions
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Plugin ID (compact ID; database ID is decoded server-side)
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/PluginPermissionsUpdateRequest.yaml'
+    responses:
+      '200':
+        description: Permissions updated
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/PluginPermissionsResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Plugin not installed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: Unknown permission name
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '422':
         description: Plugin failed to load; the plugin stays installed with status `error`
         content:

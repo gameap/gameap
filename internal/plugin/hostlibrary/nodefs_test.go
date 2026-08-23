@@ -322,7 +322,7 @@ func newNodeFSService(
 
 	return NewNodeFSService(
 		testPluginID, fs, nodeRepo, newMockArchiveService(), &mockRegistrar{},
-		stubPermissionChecker{allowed: true},
+		allowAllGuard(testPluginID),
 	)
 }
 
@@ -337,7 +337,7 @@ func newArchiveNodeFSService(
 ) *NodeFSServiceImpl {
 	return NewNodeFSService(
 		testPluginID, &mockFileService{}, repo, archive, registrar,
-		stubPermissionChecker{allowed: true},
+		allowAllGuard(testPluginID),
 	)
 }
 
@@ -1355,7 +1355,7 @@ func TestNodeFSHostLibraryFactory_Create(t *testing.T) {
 	repo := inmemory.NewNodeRepository()
 	factory := NewNodeFSHostLibraryFactory(
 		&mockFileService{}, repo, newMockArchiveService(), &mockRegistrar{},
-		stubPermissionChecker{allowed: true},
+		NewGuard(stubPermissionChecker{allowed: true}),
 	)
 
 	lib := factory.Create(42)
@@ -1374,7 +1374,7 @@ func TestNodeFSService_FilesPermissionGatesEveryOperation(t *testing.T) {
 	registrar := &mockRegistrar{}
 	svc := NewNodeFSService(
 		testPluginID, &mockFileService{}, repo, archive, registrar,
-		&stubPermissionChecker{allowed: false},
+		NewGuard(&stubPermissionChecker{allowed: false}).For(testPluginID),
 	)
 	ctx := context.Background()
 

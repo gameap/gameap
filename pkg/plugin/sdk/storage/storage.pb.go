@@ -214,6 +214,10 @@ type StorageListRequest struct {
 	KeyPrefix  *string           `protobuf:"bytes,1,opt,name=key_prefix,json=keyPrefix,proto3,oneof" json:"key_prefix,omitempty"`
 	EntityType *proto.EntityType `protobuf:"varint,2,opt,name=entity_type,json=entityType,proto3,enum=gameap.EntityType,oneof" json:"entity_type,omitempty"`
 	EntityId   *uint64           `protobuf:"varint,3,opt,name=entity_id,json=entityId,proto3,oneof" json:"entity_id,omitempty"`
+	// Page window over the matching entries, in insertion order. limit 0 (or
+	// a plugin built before these fields existed) returns every entry.
+	Limit  *uint32 `protobuf:"varint,4,opt,name=limit,proto3,oneof" json:"limit,omitempty"`
+	Offset *uint32 `protobuf:"varint,5,opt,name=offset,proto3,oneof" json:"offset,omitempty"`
 }
 
 func (x *StorageListRequest) ProtoReflect() protoreflect.Message {
@@ -241,12 +245,29 @@ func (x *StorageListRequest) GetEntityId() uint64 {
 	return 0
 }
 
+func (x *StorageListRequest) GetLimit() uint32 {
+	if x != nil && x.Limit != nil {
+		return *x.Limit
+	}
+	return 0
+}
+
+func (x *StorageListRequest) GetOffset() uint32 {
+	if x != nil && x.Offset != nil {
+		return *x.Offset
+	}
+	return 0
+}
+
 type StorageListResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	Entries []*StorageEntry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	// has_more is set when a limit was given and entries remain beyond the
+	// window.
+	HasMore bool `protobuf:"varint,2,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
 }
 
 func (x *StorageListResponse) ProtoReflect() protoreflect.Message {
@@ -258,6 +279,13 @@ func (x *StorageListResponse) GetEntries() []*StorageEntry {
 		return x.Entries
 	}
 	return nil
+}
+
+func (x *StorageListResponse) GetHasMore() bool {
+	if x != nil {
+		return x.HasMore
+	}
+	return false
 }
 
 type StorageEntry struct {

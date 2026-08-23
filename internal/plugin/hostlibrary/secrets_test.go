@@ -45,7 +45,7 @@ func newSecretsEnv(
 	repo := inmemory.NewPluginSecretRepository()
 
 	return secretsTestEnv{
-		service: NewSecretsService(pluginID, repo, cipher, checker, cfg),
+		service: NewSecretsService(pluginID, repo, cipher, NewGuard(checker).For(pluginID), cfg),
 		repo:    repo,
 		cipher:  cipher,
 	}
@@ -436,7 +436,7 @@ func TestSecretsService_PermissionGate(t *testing.T) {
 		{
 			name:      "grant_missing",
 			checker:   stubPermissionChecker{allowed: false},
-			wantError: secretsPermissionDeniedMessage,
+			wantError: PermissionDeniedMessage(domain.PluginPermissionSecrets),
 		},
 		{
 			name:      "grant_lookup_broken",
@@ -501,7 +501,7 @@ func TestSecretsService_TransientLoadIsDenied(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, resp.Success)
 	require.NotNil(t, resp.Error)
-	assert.Contains(t, *resp.Error, secretsPermissionDeniedMessage)
+	assert.Contains(t, *resp.Error, PermissionDeniedMessage(domain.PluginPermissionSecrets))
 }
 
 // TestSecretsService_Set_RequiresEncryption — OWASP API8:2023: with no
@@ -568,7 +568,7 @@ func TestSecretsService_Set_RequiresEncryption(t *testing.T) {
 func TestSecretsService_ConfigDefaults(t *testing.T) {
 	t.Parallel()
 	service := NewSecretsService(secretsTestPluginID, inmemory.NewPluginSecretRepository(),
-		secret.Disabled(), stubPermissionChecker{allowed: true}, SecretsConfig{})
+		secret.Disabled(), allowAllGuard(secretsTestPluginID), SecretsConfig{})
 
 	assert.Equal(t, defaultMaxSecretsPerPlugin, service.cfg.MaxKeysPerPlugin)
 	assert.Equal(t, defaultMaxSecretValueBytes, service.cfg.MaxValueBytes)
@@ -588,7 +588,7 @@ func TestSecretsHostLibrary_Instantiate(t *testing.T) {
 	})
 
 	library := NewSecretsHostLibrary(secretsTestPluginID, inmemory.NewPluginSecretRepository(),
-		secret.Disabled(), stubPermissionChecker{allowed: true}, SecretsConfig{})
+		secret.Disabled(), allowAllGuard(secretsTestPluginID), SecretsConfig{})
 
 	require.NoError(t, library.Instantiate(ctx, runtime))
 
@@ -654,7 +654,7 @@ func TestSecretsService_StorageErrorsAreNotLeaked(t *testing.T) {
 	}
 
 	service := NewSecretsService(secretsTestPluginID, repo, cipher,
-		stubPermissionChecker{allowed: true}, SecretsConfig{RequireEncryption: true})
+		allowAllGuard(secretsTestPluginID), SecretsConfig{RequireEncryption: true})
 	ctx := context.Background()
 
 	tests := []struct {

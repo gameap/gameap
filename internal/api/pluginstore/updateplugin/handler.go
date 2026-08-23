@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"slices"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
@@ -126,7 +127,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
+	loaded, err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename)
+	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "plugin installed but failed to load"),
 			http.StatusUnprocessableEntity,
@@ -135,7 +137,41 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.recordDeclaredPermissions(ctx, pluginRecord, loaded)
+
 	h.responder.Write(ctx, rw, newUpdateResponse(pluginRecord))
+}
+
+// recordDeclaredPermissions keeps required_permissions in step with the new
+// build. Grants are not widened: a version that starts needing more is
+// denied those calls until an operator grants them, which the warning and
+// the admin UI point out.
+func (h *Handler) recordDeclaredPermissions(
+	ctx context.Context,
+	pluginRecord *domain.Plugin,
+	loaded *pkgplugin.LoadedPlugin,
+) {
+	if loaded == nil || loaded.Info == nil {
+		return
+	}
+
+	declared := domain.ParsePluginPermissions(loaded.Info.RequiredPermissions)
+	if !slices.Equal(declared, pluginRecord.RequiredPermissions) {
+		pluginRecord.RequiredPermissions = declared
+
+		if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
+			slog.WarnContext(ctx, "failed to record the updated plugin's declared permissions",
+				slog.Uint64("plugin_id", uint64(pluginRecord.ID)),
+				slog.String("error", err.Error()))
+		}
+	}
+
+	used := plugin.UsedPermissions(loaded.HostImports, loaded.SubscribedEvents)
+	if missing := plugin.MissingPermissions(used, pluginRecord.AllowedPermissions); len(missing) > 0 {
+		slog.WarnContext(ctx, "updated plugin uses permissions it is not granted; those calls will be refused",
+			slog.Uint64("plugin_id", uint64(pluginRecord.ID)),
+			slog.Any("missing_permissions", plugin.PermissionNames(missing)))
+	}
 }
 
 func (h *Handler) parseInput(r *http.Request) (input, error) {

@@ -2,10 +2,13 @@ package hostlibrary
 
 import (
 	"context"
+	"log/slog"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/sdk/daemontasks"
 	"github.com/gameap/gameap/pkg/proto"
 	"github.com/samber/lo"
@@ -54,18 +57,24 @@ type TaskDispatcher interface {
 	Dispatch(ctx context.Context, task *domain.DaemonTask) error
 }
 
+// DaemonTasksServiceImpl is per plugin: reading tasks is open, creating one
+// is gated on manage_servers (and node_commands for cmdexec, which runs an
+// arbitrary command on the node), rate limited and audited.
 type DaemonTasksServiceImpl struct {
 	daemonTaskRepo repositories.DaemonTaskRepository
 	taskDispatcher TaskDispatcher
+	guard          *PluginGuard
 }
 
 func NewDaemonTasksService(
 	daemonTaskRepo repositories.DaemonTaskRepository,
 	taskDispatcher TaskDispatcher,
+	guard *PluginGuard,
 ) *DaemonTasksServiceImpl {
 	return &DaemonTasksServiceImpl{
 		daemonTaskRepo: daemonTaskRepo,
 		taskDispatcher: taskDispatcher,
+		guard:          guard,
 	}
 }
 
@@ -109,12 +118,25 @@ func (s *DaemonTasksServiceImpl) CreateDaemonTask(
 	ctx context.Context,
 	req *daemontasks.CreateDaemonTaskRequest,
 ) (*daemontasks.CreateDaemonTaskResponse, error) {
+	if msg := s.guard.Check(ctx, ModuleDaemonTasks, "create_daemon_task"); msg != "" {
+		return &daemontasks.CreateDaemonTaskResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	taskType, ok := protoToDomainType[req.TaskType]
 	if !ok {
 		return &daemontasks.CreateDaemonTaskResponse{
 			Success: false,
 			Error:   new("invalid task type"),
 		}, nil
+	}
+
+	// A cmdexec task is a shell command on the node: the same capability as
+	// gameap-nodecmd, gated by the same grant.
+	if taskType == domain.DaemonTaskTypeCmdExec {
+		if msg := s.guard.Require(ctx, ModuleDaemonTasks, "create_daemon_task",
+			domain.PluginPermissionNodeCommands); msg != "" {
+			return &daemontasks.CreateDaemonTaskResponse{Success: false, Error: new(msg)}, nil
+		}
 	}
 
 	task := &domain.DaemonTask{
@@ -143,6 +165,17 @@ func (s *DaemonTasksServiceImpl) CreateDaemonTask(
 	} else {
 		err = s.daemonTaskRepo.Save(ctx, task)
 	}
+
+	attrs := []slog.Attr{slog.String("task_type", string(taskType))}
+	if task.ServerID != nil {
+		attrs = append(attrs, slog.Uint64("server_id", uint64(*task.ServerID)))
+	}
+	if err == nil {
+		attrs = append(attrs, slog.Uint64("task_id", uint64(task.ID)))
+	}
+
+	s.guard.Audit(ctx, audit.EventPluginTaskCreate, "create", "node", nodeResourceID(req.NodeId), err, attrs...)
+
 	if err != nil {
 		return &daemontasks.CreateDaemonTaskResponse{
 			Success: false,
@@ -203,15 +236,32 @@ type DaemonTasksHostLibrary struct {
 	impl *DaemonTasksServiceImpl
 }
 
-func NewDaemonTasksHostLibrary(
+func (l *DaemonTasksHostLibrary) Instantiate(ctx context.Context, r wazero.Runtime) error {
+	return daemontasks.Instantiate(ctx, r, l.impl)
+}
+
+// DaemonTasksHostLibraryFactory builds a per-plugin daemontasks module bound
+// to the plugin's guard.
+type DaemonTasksHostLibraryFactory struct {
+	daemonTaskRepo repositories.DaemonTaskRepository
+	taskDispatcher TaskDispatcher
+	guard          *Guard
+}
+
+func NewDaemonTasksHostLibraryFactory(
 	daemonTaskRepo repositories.DaemonTaskRepository,
 	taskDispatcher TaskDispatcher,
-) *DaemonTasksHostLibrary {
-	return &DaemonTasksHostLibrary{
-		impl: NewDaemonTasksService(daemonTaskRepo, taskDispatcher),
+	guard *Guard,
+) *DaemonTasksHostLibraryFactory {
+	return &DaemonTasksHostLibraryFactory{
+		daemonTaskRepo: daemonTaskRepo,
+		taskDispatcher: taskDispatcher,
+		guard:          guard,
 	}
 }
 
-func (l *DaemonTasksHostLibrary) Instantiate(ctx context.Context, r wazero.Runtime) error {
-	return daemontasks.Instantiate(ctx, r, l.impl)
+func (f *DaemonTasksHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
+	return &DaemonTasksHostLibrary{
+		impl: NewDaemonTasksService(f.daemonTaskRepo, f.taskDispatcher, f.guard.For(pluginID)),
+	}
 }

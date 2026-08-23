@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
+	internalplugin "github.com/gameap/gameap/internal/plugin"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 )
@@ -37,6 +38,14 @@ type loadedPluginResponse struct {
 	HTTPRoutes        []httpRouteResponse     `json:"http_routes,omitempty"`
 	ServerAbilities   []serverAbilityResponse `json:"server_abilities,omitempty"`
 	HasFrontendBundle bool                    `json:"has_frontend_bundle"`
+	// RequiredPermissions is what the manifest declares, AllowedPermissions
+	// what the operator granted. UsedPermissions is derived from the module's
+	// host imports and subscriptions (known when loaded on this instance);
+	// MissingPermissions are the used ones the plugin does not hold.
+	RequiredPermissions []string `json:"required_permissions"`
+	AllowedPermissions  []string `json:"allowed_permissions"`
+	UsedPermissions     []string `json:"used_permissions,omitempty"`
+	MissingPermissions  []string `json:"missing_permissions,omitempty"`
 }
 
 type listResponse struct {
@@ -67,6 +76,15 @@ func newLoadedPluginResponse(
 	}
 
 	resp.Status, resp.Error, resp.ErrorAt = runtimeState(loaded, record)
+	resp.RequiredPermissions, resp.AllowedPermissions = recordPermissions(record)
+
+	used := internalplugin.UsedPermissions(loaded.HostImports, loaded.SubscribedEvents)
+	resp.UsedPermissions = internalplugin.PermissionNames(used)
+
+	if record != nil {
+		resp.MissingPermissions = internalplugin.PermissionNames(
+			internalplugin.MissingPermissions(used, record.AllowedPermissions))
+	}
 
 	if size, ok := loaded.MemorySize(); ok {
 		resp.MemoryBytes = new(size)
@@ -122,7 +140,7 @@ func newInstalledPluginResponse(record *domain.Plugin) *loadedPluginResponse {
 		source = *record.Source
 	}
 
-	return &loadedPluginResponse{
+	resp := &loadedPluginResponse{
 		ID:          pkgplugin.CompactPluginID(record.ID),
 		Name:        record.Name,
 		Version:     record.Version,
@@ -135,6 +153,21 @@ func newInstalledPluginResponse(record *domain.Plugin) *loadedPluginResponse {
 		Error:       record.LastError,
 		ErrorAt:     record.LastErrorAt,
 	}
+
+	resp.RequiredPermissions, resp.AllowedPermissions = recordPermissions(record)
+
+	return resp
+}
+
+// recordPermissions reads the declared and granted permissions; both are
+// empty lists rather than null for a plugin without a record.
+func recordPermissions(record *domain.Plugin) ([]string, []string) {
+	if record == nil {
+		return []string{}, []string{}
+	}
+
+	return internalplugin.PermissionNames(record.RequiredPermissions),
+		internalplugin.PermissionNames(record.AllowedPermissions)
 }
 
 func convertHTTPRoutes(routes []*proto.HTTPRoute) []httpRouteResponse {

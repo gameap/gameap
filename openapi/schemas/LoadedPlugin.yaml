@@ -99,6 +99,35 @@ properties:
     type: boolean
     description: Whether the plugin has a frontend bundle
     example: true
+  required_permissions:
+    type: array
+    description: Permissions the plugin declares in its manifest
+    items:
+      $ref: './PluginPermission.yaml'
+    example: ["files", "listen_events"]
+  allowed_permissions:
+    type: array
+    description: Permissions the operator granted; the runtime source of truth
+    items:
+      $ref: './PluginPermission.yaml'
+    example: ["files", "listen_events"]
+  used_permissions:
+    type: array
+    description: |
+      Permissions the module can exercise, derived from the host functions
+      it imports and its event subscriptions. Only known for plugins loaded
+      on this instance.
+    items:
+      $ref: './PluginPermission.yaml'
+    example: ["files", "node_commands", "listen_events"]
+  missing_permissions:
+    type: array
+    description: |
+      Used permissions the plugin does not hold: every call behind them is
+      refused until an operator grants them.
+    items:
+      $ref: './PluginPermission.yaml'
+    example: ["node_commands"]
 required:
   - id
   - name

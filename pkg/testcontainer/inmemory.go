@@ -46,6 +46,7 @@ import (
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
+	"github.com/gameap/gameap/internal/telemetry"
 	"github.com/gameap/gameap/internal/upload"
 	"github.com/gameap/gameap/internal/ws"
 	pkgapi "github.com/gameap/gameap/pkg/api"
@@ -60,6 +61,7 @@ import (
 
 type InmemoryContainer struct {
 	cfg                     *config.Config
+	telemetry               *telemetry.Registry
 	responder               *pkgapi.Responder
 	gameRepo                repositories.GameRepository
 	gameModRepo             repositories.GameModRepository
@@ -189,6 +191,16 @@ func (c *InmemoryContainer) PluginSecretRepository() repositories.PluginSecretRe
 	return inmemory.NewPluginSecretRepository()
 }
 func (c *InmemoryContainer) PluginLoader() *internalplugin.Loader { return nil }
+
+// Telemetry is a fresh registry per container so tests never share metric
+// state.
+func (c *InmemoryContainer) Telemetry() *telemetry.Registry {
+	if c.telemetry == nil {
+		c.telemetry = telemetry.New()
+	}
+
+	return c.telemetry
+}
 
 // PluginScheduler is cached so every caller shares one task store: a handler
 // registering tasks and one cleaning them up on uninstall must see the same

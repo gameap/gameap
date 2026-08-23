@@ -344,6 +344,10 @@ type PluginStorageRepository interface {
 	DeleteByPlugin(ctx context.Context, pluginID uint64) error
 
 	DeleteByFilter(ctx context.Context, filter *filters.FindPluginStorage) error
+
+	// UsageByPlugin counts the plugin's entries and sums their payload sizes
+	// in one query; it backs the per-plugin quotas.
+	UsageByPlugin(ctx context.Context, pluginID uint64) (domain.PluginStorageUsage, error)
 }
 
 type PluginSecretRepository interface {

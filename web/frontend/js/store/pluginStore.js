@@ -65,6 +65,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
                 error: loaded.error ?? null,
                 error_at: loaded.error_at ?? null,
                 memory_bytes: loaded.memory_bytes ?? null,
+                missing_permissions: loaded.missing_permissions ?? [],
 
                 summary: storePlugin?.summary || loaded.description || '',
                 description: loaded.description || '',
@@ -290,6 +291,30 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         }
     }
 
+    async function updatePluginPermissions(id, permissions) {
+        apiProcesses.value++
+        try {
+            const response = await axios.put(`/api/admin/plugins/${id}/permissions`, {
+                allowed_permissions: permissions,
+            })
+
+            const updated = response.data
+            loadedPlugins.value = loadedPlugins.value.map(plugin => plugin.id === updated.id
+                ? {
+                    ...plugin,
+                    required_permissions: updated.required_permissions,
+                    allowed_permissions: updated.allowed_permissions,
+                    used_permissions: updated.used_permissions,
+                    missing_permissions: updated.missing_permissions,
+                }
+                : plugin)
+
+            return updated
+        } finally {
+            apiProcesses.value--
+        }
+    }
+
     async function dryRunUpload(file) {
         apiProcesses.value++
         try {
@@ -367,6 +392,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         setCurrentPluginFromLoaded,
         fetchLoadedPlugins,
         reloadPlugin,
+        updatePluginPermissions,
         dryRunUpload,
         installFromFile,
         clearUpload,

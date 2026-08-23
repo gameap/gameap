@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -18,10 +19,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/tetratelabs/wazero"
 )
-
-// filesPermissionDeniedMessage is what a plugin without the grant sees. It
-// names the missing permission so plugin authors know what to declare.
-const filesPermissionDeniedMessage = "plugin permission " + string(domain.PluginPermissionFiles) + " required"
 
 // syncWaitGuestDeadlineGrace keeps the blocking archive wait strictly inside
 // the guest call deadline: hitting the call deadline itself would close the
@@ -40,7 +37,7 @@ type NodeFSServiceImpl struct {
 	nodeRepo    repositories.NodeRepository
 	archive     NodeArchiveService
 	events      ArchiveEventRegistrar
-	checker     PluginPermissionChecker
+	guard       *PluginGuard
 	// maxInlineBytes caps Download/Upload payloads, which are materialized
 	// in panel memory and then copied into the guest; 0 = unlimited.
 	maxInlineBytes uint64
@@ -63,7 +60,7 @@ func NewNodeFSService(
 	nodeRepo repositories.NodeRepository,
 	archive NodeArchiveService,
 	events ArchiveEventRegistrar,
-	checker PluginPermissionChecker,
+	guard *PluginGuard,
 	opts ...NodeFSOption,
 ) *NodeFSServiceImpl {
 	service := &NodeFSServiceImpl{
@@ -72,7 +69,7 @@ func NewNodeFSService(
 		nodeRepo:    nodeRepo,
 		archive:     archive,
 		events:      events,
-		checker:     checker,
+		guard:       guard,
 	}
 
 	for _, opt := range opts {
@@ -82,27 +79,27 @@ func NewNodeFSService(
 	return service
 }
 
-// authorize gates every method of this module on the "files" grant. Plugin
-// ID 0 (transient dry-run loads) is never granted anything.
-func (s *NodeFSServiceImpl) authorize(ctx context.Context) (bool, string) {
-	allowed, err := s.checker.Has(ctx, s.pluginID, domain.PluginPermissionFiles)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to check plugin files permission",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("error", err.Error()))
-
-		return false, "failed to check plugin permission: " + err.Error()
-	}
-
-	if !allowed {
-		slog.WarnContext(ctx, "plugin denied access to the nodefs host library",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("permission", string(domain.PluginPermissionFiles)))
-
-		return false, filesPermissionDeniedMessage
+// authorize gates every method of this module on the "files" grant and the
+// nodefs rate limit. Plugin ID 0 (transient dry-run loads) is never granted
+// anything.
+func (s *NodeFSServiceImpl) authorize(ctx context.Context, export string) (bool, string) {
+	if msg := s.guard.Check(ctx, ModuleNodeFS, export); msg != "" {
+		return false, msg
 	}
 
 	return true, ""
+}
+
+// auditFileOp records a write to a node's filesystem with the plugin as the
+// actor.
+func (s *NodeFSServiceImpl) auditFileOp(
+	ctx context.Context,
+	action string,
+	nodeID uint64,
+	err error,
+	attrs ...slog.Attr,
+) {
+	s.guard.Audit(ctx, audit.EventPluginNodeFile, action, "node", nodeResourceID(nodeID), err, attrs...)
 }
 
 func (s *NodeFSServiceImpl) initiator() string {
@@ -126,7 +123,7 @@ func (s *NodeFSServiceImpl) ReadDir(
 	ctx context.Context,
 	req *nodefs.ReadDirRequest,
 ) (*nodefs.ReadDirResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "read_dir"); !allowed {
 		return &nodefs.ReadDirResponse{Error: new(msg)}, nil
 	}
 
@@ -153,7 +150,7 @@ func (s *NodeFSServiceImpl) MkDir(
 	ctx context.Context,
 	req *nodefs.MkDirRequest,
 ) (*nodefs.MkDirResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "mk_dir"); !allowed {
 		return &nodefs.MkDirResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -167,6 +164,7 @@ func (s *NodeFSServiceImpl) MkDir(
 	}
 
 	err = s.fileService.MkDir(ctx, node, req.Path, daemon.OwnerOptions{})
+	s.auditFileOp(ctx, "mkdir", req.NodeId, err, slog.String("path", req.Path))
 	if err != nil {
 		return &nodefs.MkDirResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -178,7 +176,7 @@ func (s *NodeFSServiceImpl) Copy(
 	ctx context.Context,
 	req *nodefs.CopyRequest,
 ) (*nodefs.CopyResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "copy"); !allowed {
 		return &nodefs.CopyResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -192,6 +190,8 @@ func (s *NodeFSServiceImpl) Copy(
 	}
 
 	err = s.fileService.Copy(ctx, node, req.Source, req.Destination)
+	s.auditFileOp(ctx, "copy", req.NodeId, err,
+		slog.String("source", req.Source), slog.String("destination", req.Destination))
 	if err != nil {
 		return &nodefs.CopyResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -203,7 +203,7 @@ func (s *NodeFSServiceImpl) Move(
 	ctx context.Context,
 	req *nodefs.MoveRequest,
 ) (*nodefs.MoveResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "move"); !allowed {
 		return &nodefs.MoveResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -217,6 +217,8 @@ func (s *NodeFSServiceImpl) Move(
 	}
 
 	err = s.fileService.Move(ctx, node, req.Source, req.Destination)
+	s.auditFileOp(ctx, "move", req.NodeId, err,
+		slog.String("source", req.Source), slog.String("destination", req.Destination))
 	if err != nil {
 		return &nodefs.MoveResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -228,7 +230,7 @@ func (s *NodeFSServiceImpl) Download(
 	ctx context.Context,
 	req *nodefs.DownloadRequest,
 ) (*nodefs.DownloadResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "download"); !allowed {
 		return &nodefs.DownloadResponse{Error: new(msg)}, nil
 	}
 
@@ -301,7 +303,7 @@ func (s *NodeFSServiceImpl) Upload(
 	ctx context.Context,
 	req *nodefs.UploadRequest,
 ) (*nodefs.UploadResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "upload"); !allowed {
 		return &nodefs.UploadResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -323,6 +325,8 @@ func (s *NodeFSServiceImpl) Upload(
 	}
 
 	err = s.fileService.Upload(ctx, node, req.Path, req.Content, os.FileMode(req.Permissions), daemon.OwnerOptions{})
+	s.auditFileOp(ctx, "upload", req.NodeId, err,
+		slog.String("path", req.Path), slog.Int("size", len(req.Content)))
 	if err != nil {
 		return &nodefs.UploadResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -334,7 +338,7 @@ func (s *NodeFSServiceImpl) Remove(
 	ctx context.Context,
 	req *nodefs.RemoveRequest,
 ) (*nodefs.RemoveResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "remove"); !allowed {
 		return &nodefs.RemoveResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -348,6 +352,8 @@ func (s *NodeFSServiceImpl) Remove(
 	}
 
 	err = s.fileService.Remove(ctx, node, req.Path, req.Recursive)
+	s.auditFileOp(ctx, "remove", req.NodeId, err,
+		slog.String("path", req.Path), slog.Bool("recursive", req.Recursive))
 	if err != nil {
 		return &nodefs.RemoveResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -359,7 +365,7 @@ func (s *NodeFSServiceImpl) GetFileInfo(
 	ctx context.Context,
 	req *nodefs.GetFileInfoRequest,
 ) (*nodefs.GetFileInfoResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "get_file_info"); !allowed {
 		return &nodefs.GetFileInfoResponse{Found: false, Error: new(msg)}, nil
 	}
 
@@ -387,7 +393,7 @@ func (s *NodeFSServiceImpl) Chmod(
 	ctx context.Context,
 	req *nodefs.ChmodRequest,
 ) (*nodefs.ChmodResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "chmod"); !allowed {
 		return &nodefs.ChmodResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -401,6 +407,8 @@ func (s *NodeFSServiceImpl) Chmod(
 	}
 
 	err = s.fileService.Chmod(ctx, node, req.Path, req.Permissions)
+	s.auditFileOp(ctx, "chmod", req.NodeId, err,
+		slog.String("path", req.Path), slog.Uint64("permissions", uint64(req.Permissions)))
 	if err != nil {
 		return &nodefs.ChmodResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -412,7 +420,7 @@ func (s *NodeFSServiceImpl) Hash(
 	ctx context.Context,
 	req *nodefs.HashRequest,
 ) (*nodefs.HashResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "hash"); !allowed {
 		return &nodefs.HashResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -462,7 +470,7 @@ func (s *NodeFSServiceImpl) CreateArchive(
 ) (*nodefs.ArchiveSyncResponse, error) {
 	// Blocking calls never deliver progress callbacks: the guest is parked
 	// inside this host function and cannot be re-entered.
-	operationID, errMsg := s.startCreate(ctx, req, false)
+	operationID, errMsg := s.startCreate(ctx, "create_archive", req, false)
 	if errMsg != "" {
 		return &nodefs.ArchiveSyncResponse{Success: false, Error: new(errMsg)}, nil
 	}
@@ -474,7 +482,7 @@ func (s *NodeFSServiceImpl) ExtractArchive(
 	ctx context.Context,
 	req *nodefs.ExtractArchiveRequest,
 ) (*nodefs.ArchiveSyncResponse, error) {
-	operationID, errMsg := s.startExtract(ctx, req, false)
+	operationID, errMsg := s.startExtract(ctx, "extract_archive", req, false)
 	if errMsg != "" {
 		return &nodefs.ArchiveSyncResponse{Success: false, Error: new(errMsg)}, nil
 	}
@@ -486,7 +494,7 @@ func (s *NodeFSServiceImpl) StartCreateArchive(
 	ctx context.Context,
 	req *nodefs.CreateArchiveRequest,
 ) (*nodefs.StartArchiveResponse, error) {
-	operationID, errMsg := s.startCreate(ctx, req, req.ReportProgress)
+	operationID, errMsg := s.startCreate(ctx, "start_create_archive", req, req.ReportProgress)
 	if errMsg != "" {
 		return &nodefs.StartArchiveResponse{Success: false, Error: new(errMsg)}, nil
 	}
@@ -498,7 +506,7 @@ func (s *NodeFSServiceImpl) StartExtractArchive(
 	ctx context.Context,
 	req *nodefs.ExtractArchiveRequest,
 ) (*nodefs.StartArchiveResponse, error) {
-	operationID, errMsg := s.startExtract(ctx, req, req.ReportProgress)
+	operationID, errMsg := s.startExtract(ctx, "start_extract_archive", req, req.ReportProgress)
 	if errMsg != "" {
 		return &nodefs.StartArchiveResponse{Success: false, Error: new(errMsg)}, nil
 	}
@@ -510,7 +518,7 @@ func (s *NodeFSServiceImpl) CancelArchive(
 	ctx context.Context,
 	req *nodefs.CancelArchiveRequest,
 ) (*nodefs.CancelArchiveResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "cancel_archive"); !allowed {
 		return &nodefs.CancelArchiveResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -530,6 +538,7 @@ func (s *NodeFSServiceImpl) CancelArchive(
 	}
 
 	err = s.archive.Cancel(ctx, node, req.OperationId, req.Reason)
+	s.auditFileOp(ctx, "archive_cancel", snapshot.NodeID, err, slog.String("operation_id", req.OperationId))
 	if err != nil {
 		return &nodefs.CancelArchiveResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -541,7 +550,7 @@ func (s *NodeFSServiceImpl) GetArchiveOperation(
 	ctx context.Context,
 	req *nodefs.GetArchiveOperationRequest,
 ) (*nodefs.GetArchiveOperationResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "get_archive_operation"); !allowed {
 		return &nodefs.GetArchiveOperationResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -578,10 +587,11 @@ func (s *NodeFSServiceImpl) GetArchiveOperation(
 
 func (s *NodeFSServiceImpl) startCreate(
 	ctx context.Context,
+	export string,
 	req *nodefs.CreateArchiveRequest,
 	reportProgress bool,
 ) (string, string) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, export); !allowed {
 		return "", msg
 	}
 
@@ -608,6 +618,8 @@ func (s *NodeFSServiceImpl) startCreate(
 			Timeout:   time.Duration(req.TimeoutSeconds) * time.Second,
 		},
 	})
+	s.auditFileOp(ctx, "archive_create", req.NodeId, err,
+		slog.String("archive_path", req.ArchivePath), slog.Int("sources", len(req.Sources)))
 	if err != nil {
 		return "", err.Error()
 	}
@@ -619,10 +631,11 @@ func (s *NodeFSServiceImpl) startCreate(
 
 func (s *NodeFSServiceImpl) startExtract(
 	ctx context.Context,
+	export string,
 	req *nodefs.ExtractArchiveRequest,
 	reportProgress bool,
 ) (string, string) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, export); !allowed {
 		return "", msg
 	}
 
@@ -649,6 +662,8 @@ func (s *NodeFSServiceImpl) startExtract(
 			Timeout:   time.Duration(req.TimeoutSeconds) * time.Second,
 		},
 	})
+	s.auditFileOp(ctx, "archive_extract", req.NodeId, err,
+		slog.String("archive_path", req.ArchivePath), slog.String("destination", req.Destination))
 	if err != nil {
 		return "", err.Error()
 	}
@@ -850,7 +865,7 @@ type NodeFSHostLibraryFactory struct {
 	nodeRepo    repositories.NodeRepository
 	archive     NodeArchiveService
 	events      ArchiveEventRegistrar
-	checker     PluginPermissionChecker
+	guard       *Guard
 	opts        []NodeFSOption
 }
 
@@ -859,7 +874,7 @@ func NewNodeFSHostLibraryFactory(
 	nodeRepo repositories.NodeRepository,
 	archive NodeArchiveService,
 	events ArchiveEventRegistrar,
-	checker PluginPermissionChecker,
+	guard *Guard,
 	opts ...NodeFSOption,
 ) *NodeFSHostLibraryFactory {
 	return &NodeFSHostLibraryFactory{
@@ -867,13 +882,13 @@ func NewNodeFSHostLibraryFactory(
 		nodeRepo:    nodeRepo,
 		archive:     archive,
 		events:      events,
-		checker:     checker,
+		guard:       guard,
 		opts:        opts,
 	}
 }
 
 func (f *NodeFSHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
 	return &NodeFSHostLibrary{
-		impl: NewNodeFSService(pluginID, f.fileService, f.nodeRepo, f.archive, f.events, f.checker, f.opts...),
+		impl: NewNodeFSService(pluginID, f.fileService, f.nodeRepo, f.archive, f.events, f.guard.For(pluginID), f.opts...),
 	}
 }

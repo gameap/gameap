@@ -67,6 +67,7 @@
           @install="onInstall"
           @update="onUpdate"
           @uninstall="onUninstall"
+          @save-permissions="onSavePermissions"
           @close="closeDetailsModal"
       />
     </n-spin>
@@ -182,6 +183,14 @@ const createInstalledColumns = () => {
           badges.push(h('span', {
             class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-warning-soft text-warning-soft-text'
           }, trans('plugins.update_available')))
+        }
+
+        if (row.missing_permissions?.length > 0) {
+          badges.push(h('span', {
+            class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-warning-soft text-warning-soft-text',
+            title: row.missing_permissions.map(permission => trans('plugins.permission_' + permission)).join(', '),
+            'data-testid': 'plugin-missing-permissions-badge',
+          }, trans('plugins.permissions') + ': ' + row.missing_permissions.length))
         }
 
         if (!isSmallScreen.value && row.labels?.length > 0) {
@@ -540,6 +549,24 @@ function onUpdate(version) {
           content: trans('plugins.update_success_msg'),
           type: 'success'
         }, () => window.location.reload())
+      })
+      .catch(errorNotification)
+      .finally(() => {
+        actionLoading.value = false
+      })
+}
+
+function onSavePermissions(permissions) {
+  if (!currentPlugin.value) return
+  if (actionLoading.value) return
+
+  actionLoading.value = true
+  pluginStore.updatePluginPermissions(currentPlugin.value.id, permissions)
+      .then(() => {
+        notification({
+          content: trans('plugins.permissions_saved'),
+          type: 'success'
+        })
       })
       .catch(errorNotification)
       .finally(() => {

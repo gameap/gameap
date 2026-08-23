@@ -1,0 +1,31 @@
+type: object
+description: The plugin's permissions after the update
+properties:
+  id:
+    type: string
+    description: Plugin compact ID
+    example: "myplugin_com_example"
+  required_permissions:
+    type: array
+    description: Permissions the plugin declares in its manifest
+    items:
+      $ref: './PluginPermission.yaml'
+  allowed_permissions:
+    type: array
+    description: Permissions the plugin holds now
+    items:
+      $ref: './PluginPermission.yaml'
+  used_permissions:
+    type: array
+    description: Permissions the module can exercise (known when loaded on this instance)
+    items:
+      $ref: './PluginPermission.yaml'
+  missing_permissions:
+    type: array
+    description: Used permissions the plugin does not hold
+    items:
+      $ref: './PluginPermission.yaml'
+required:
+  - id
+  - required_permissions
+  - allowed_permissions

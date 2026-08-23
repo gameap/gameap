@@ -444,3 +444,61 @@ func TestSensitiveOp_RecordsSuccessWithResource(t *testing.T) {
 	assert.Equal(t, "42", got.ResourceID)
 	assert.Equal(t, "create", got.Action)
 }
+
+func TestPluginOp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("actor_is_the_plugin", func(t *testing.T) {
+		t.Parallel()
+
+		logger := &captureLogger{}
+
+		audit.PluginOp(context.Background(), logger, audit.EventPluginNodeCommand, audit.CategoryPluginOp,
+			audit.OutcomeSuccess, audit.PluginActor{ID: 42, Name: "fwgfo26jzwnm4"},
+			"node", "3", "execute", "", slog.Int("exit_code", 0))
+
+		event, ok := logger.last()
+		require.True(t, ok)
+		assert.Equal(t, audit.EventPluginNodeCommand, event.Type)
+		assert.Equal(t, audit.AuthMethodPlugin, event.AuthMethod)
+		assert.Equal(t, uint(42), event.ActorID)
+		assert.Equal(t, "fwgfo26jzwnm4", event.ActorLogin)
+		assert.Equal(t, "node", event.ResourceType)
+		assert.Equal(t, "3", event.ResourceID)
+		assert.Equal(t, "execute", event.Action)
+		assert.Equal(t, audit.OutcomeSuccess, event.Outcome)
+
+		_, hasUser := extraString(event, "on_behalf_of_user_id")
+		assert.False(t, hasUser, "no session in context, no initiator")
+
+		exitCode, ok := extraString(event, "exit_code")
+		require.True(t, ok)
+		assert.Equal(t, "0", exitCode)
+	})
+
+	t.Run("session_in_context_becomes_the_initiator_not_the_actor", func(t *testing.T) {
+		t.Parallel()
+
+		logger := &captureLogger{}
+		ctx := auth.ContextWithSession(context.Background(), &auth.Session{
+			User: &domain.User{ID: 7, Login: "operator"},
+		})
+
+		audit.PluginOp(ctx, logger, audit.EventAccessDenied, audit.CategoryAuthorization,
+			audit.OutcomeDenied, audit.PluginActor{ID: 42, Name: "plugin"},
+			"host_function", "gameap-nodecmd.execute_command", "execute_command", "plugin_permission_missing")
+
+		event, ok := logger.last()
+		require.True(t, ok)
+		assert.Equal(t, audit.AuthMethodPlugin, event.AuthMethod)
+		assert.Equal(t, uint(42), event.ActorID, "the plugin stays the actor")
+
+		userID, ok := extraString(event, "on_behalf_of_user_id")
+		require.True(t, ok)
+		assert.Equal(t, "7", userID)
+
+		login, ok := extraString(event, "on_behalf_of_login")
+		require.True(t, ok)
+		assert.Equal(t, "operator", login)
+	})
+}
