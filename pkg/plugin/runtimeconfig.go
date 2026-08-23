@@ -30,15 +30,16 @@ func (m *Manager) runtimeConfig() wazero.RuntimeConfig {
 }
 
 // memoryLimitPages converts the configured byte cap to wasm pages; 0 keeps
-// the wazero default (4 GiB). A module declaring a larger maximum is clamped
-// to the limit; only a module whose initial memory already exceeds it fails
-// to load.
+// the wazero default (4 GiB), any other value is at least one page so a
+// tiny cap never silently means "unlimited". A module declaring a larger
+// maximum is clamped to the limit; only a module whose initial memory
+// already exceeds it fails to load.
 func memoryLimitPages(maxBytes uint64) uint32 {
 	if maxBytes == 0 {
 		return 0
 	}
 
-	pages := min(maxBytes/wasmPageSize, wasmMaxPages)
+	pages := min(max(maxBytes/wasmPageSize, 1), wasmMaxPages)
 
 	return uint32(pages) //nolint:gosec // bounded by wasmMaxPages above
 }

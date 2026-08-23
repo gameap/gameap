@@ -107,6 +107,28 @@ func TestNodeFSService_Download_inline_limit(t *testing.T) {
 	}
 }
 
+func TestNodeFSService_Download_enforces_limit_after_read(t *testing.T) {
+	t.Parallel()
+	// The file grew between stat and read: the stat passed, the content is
+	// over the cap and must not reach the guest.
+	fs := &mockFileService{
+		getFileInfoFunc: func(_ context.Context, _ *domain.Node, _ string) (*daemon.FileDetails, error) {
+			return &daemon.FileDetails{Name: "log.txt", Size: 10}, nil
+		},
+		downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
+			return make([]byte, 1025), nil
+		},
+	}
+	svc := newCappedNodeFSService(fs, 1024)
+
+	resp, err := svc.Download(context.Background(), &nodefs.DownloadRequest{NodeId: 1, Path: "/home/log.txt"})
+	require.NoError(t, err)
+
+	require.NotNil(t, resp.Error)
+	assert.Contains(t, *resp.Error, "file too large: 1025 bytes exceeds the inline download limit of 1024 bytes")
+	assert.Nil(t, resp.Content)
+}
+
 func TestNodeFSService_Upload_inline_limit(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -398,6 +398,11 @@ func (s *Supervisor) attempt(dbID domain.Uint64ID) {
 	}
 
 	if _, _, err := s.loader.reload(ctx, dbID); err != nil {
+		if s.ctx.Err() != nil {
+			// Interrupted by Stop: not a plugin failure, nothing to record.
+			return
+		}
+
 		s.logger.Error("automatic plugin reload failed",
 			slog.Uint64("plugin_id", uint64(dbID)),
 			slog.String("plugin", pluginID),

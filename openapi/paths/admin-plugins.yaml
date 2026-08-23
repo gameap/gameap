@@ -158,10 +158,11 @@
       - PluginStore
     summary: Uninstall plugin
     description: |
-      Unloads a WASM plugin, deletes its file from the plugins directory,
-      and removes the plugin record from the database together with the
-      plugin's scheduled tasks, its gameap-storage entries and its encrypted
-      secrets. Admin only.
+      Unloads a WASM plugin, deletes its gameap-storage entries and its
+      encrypted secrets, then deletes its file from the plugins directory and
+      removes the plugin record and its scheduled tasks. A failure to delete
+      the plugin's data aborts the uninstall before the record is removed, so
+      the request can be retried. Admin only.
     operationId: uninstallPlugin
     parameters:
       - name: id

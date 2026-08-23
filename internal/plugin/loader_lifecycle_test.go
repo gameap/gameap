@@ -466,3 +466,59 @@ func TestLoader_Forget_without_supervisor_is_safe(t *testing.T) {
 
 	loader.Forget(1)
 }
+
+func TestLoader_reload_honours_cancellation_without_marking_error(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	fileManager := files.NewInMemoryFileManager()
+	repo := inmemory.NewPluginRepository()
+
+	plugin := seedPlugin(ctx, t, repo, 607, domain.PluginStatusError)
+	plugin.LastError = new("http handler timed out")
+	require.NoError(t, repo.Save(ctx, plugin))
+	require.NoError(t, fileManager.Write(ctx, "plugins/"+*plugin.Filename, []byte("fine")))
+
+	manager := failingManager()
+	manager.loadFunc = func(ctx context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
+		return nil, ctx.Err()
+	}
+	loader := NewLoader(manager, fileManager, repo, nil, "plugins")
+
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+
+	_, _, err := loader.reload(cancelled, plugin.ID)
+	require.ErrorIs(t, err, context.Canceled)
+
+	row := findPlugin(ctx, t, repo, plugin.ID)
+	assert.Equal(t, domain.PluginStatusError, row.Status)
+	require.NotNil(t, row.LastError)
+	assert.Equal(t, "http handler timed out", *row.LastError, "the previous reason is kept")
+}
+
+func TestLoader_Reload_is_detached_from_caller_cancellation(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	fileManager := files.NewInMemoryFileManager()
+	repo := inmemory.NewPluginRepository()
+
+	plugin := seedPlugin(ctx, t, repo, 608, domain.PluginStatusActive)
+	require.NoError(t, fileManager.Write(ctx, "plugins/"+*plugin.Filename, []byte("fine")))
+
+	manager := failingManager()
+	manager.loadFunc = func(ctx context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
+		return loadedPluginNamed("fresh"), nil
+	}
+	loader := NewLoader(manager, fileManager, repo, nil, "plugins")
+
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+
+	_, loaded, err := loader.Reload(cancelled, plugin.ID)
+	require.NoError(t, err, "an operator's dropped request must not abort the reload")
+	assert.NotNil(t, loaded)
+}

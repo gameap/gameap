@@ -486,3 +486,28 @@ func TestSupervisor_reload_disabled_keeps_bookkeeping(t *testing.T) {
 	assert.Len(t, env.audit.ofType(audit.EventPluginDisabled), 1)
 	assert.Empty(t, env.timers.delays(), "no reload is scheduled")
 }
+
+func TestSupervisor_Stop_during_attempt_records_nothing(t *testing.T) {
+	t.Parallel()
+	manager := failingManager()
+	env := newRecoveryEnv(t, manager, RecoveryOptions{})
+	plugin := env.installPlugin(t, 1014, "fine")
+
+	// The reload observes the supervisor's context: simulate Stop racing
+	// the attempt by cancelling it from inside the load.
+	manager.loadFunc = func(ctx context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
+		env.recovery.cancel()
+
+		return nil, ctx.Err()
+	}
+
+	env.recovery.OnPluginDisabled("instance", uint64(plugin.ID), "http handler timed out")
+	env.timers.fire(t)
+
+	assert.Empty(t, env.audit.ofType(audit.EventPluginReloaded), "a reload cut short by shutdown is not a failure")
+	assert.Len(t, env.timers.delays(), 1, "no further attempt is scheduled")
+
+	row := env.row(t, plugin.ID)
+	require.NotNil(t, row.LastError)
+	assert.Equal(t, "http handler timed out", *row.LastError)
+}

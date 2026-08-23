@@ -829,7 +829,8 @@ type HTTPResponse struct {
 	Body       []byte            `protobuf:"bytes,3,opt,name=body,proto3" json:"body,omitempty"`
 	// When set, body is ignored: the panel streams the referenced node file to
 	// the client itself, so the bytes never pass through the plugin. Requires
-	// the plugin's "files" grant; the panel answers 403 without it. Panels that
+	// the plugin's "files" grant (403 without it) and an authenticated client
+	// (401 otherwise, whatever the route's requires_auth says). Panels that
 	// predate this field ignore it and send an empty body.
 	File *FileRef `protobuf:"bytes,4,opt,name=file,proto3,oneof" json:"file,omitempty"`
 }
@@ -867,8 +868,10 @@ func (x *HTTPResponse) GetFile() *FileRef {
 }
 
 // FileRef points at a file on a node for HTTPResponse.file. The panel owns
-// Content-Length and Content-Disposition (always an attachment); the plugin
-// may set Content-Type and Cache-Control through HTTPResponse.headers.
+// Content-Length and Content-Disposition (always an attachment); of the
+// HTTPResponse.headers only Content-Type, Content-Language, Cache-Control,
+// Expires, Pragma, Last-Modified, ETag, Vary and custom X-* headers reach
+// the client.
 type FileRef struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

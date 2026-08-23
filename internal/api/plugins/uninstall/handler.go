@@ -104,6 +104,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Plugin data goes first and a failure aborts the uninstall: the record
+	// is still there, so the operator can retry, and a plugin reinstalled
+	// under the same ID never inherits stale secrets.
+	secretsRemoved, err := h.cleanupPluginData(ctx, dbID)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	filename := storePluginID + ".wasm"
 	if pluginRecord.Filename != nil && *pluginRecord.Filename != "" {
 		filename = *pluginRecord.Filename
@@ -139,8 +149,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.archiveEvents.RemovePlugin(uint64(dbID))
 	}
 
-	secretsRemoved := h.cleanupPluginData(ctx, dbID)
-
 	audit.SensitiveOp(ctx, h.audit, audit.EventPluginUninstall, audit.CategoryPluginOp,
 		"plugin", strconv.FormatUint(uint64(dbID), 10), "uninstall",
 		slog.Int("secrets_removed", secretsRemoved))
@@ -148,32 +156,27 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// cleanupPluginData drops the plugin's storage entries and secrets. Both are
-// best effort like the task cleanup: the plugin is already gone, and an
-// orphaned row is harmless (it is only ever looked up by plugin ID).
-func (h *Handler) cleanupPluginData(ctx context.Context, dbID domain.Uint64ID) int {
+// cleanupPluginData drops the plugin's storage entries and secrets and
+// reports how many secrets went. Unlike the task cleanup it is not best
+// effort: the caller runs it while the plugin record still exists, so a
+// failure leaves a retryable uninstall instead of orphaned credentials.
+func (h *Handler) cleanupPluginData(ctx context.Context, dbID domain.Uint64ID) (int, error) {
 	if h.storage != nil {
 		if err := h.storage.DeleteByPlugin(ctx, uint64(dbID)); err != nil {
-			slog.WarnContext(ctx, "failed to remove plugin storage entries",
-				slog.Uint64("plugin_id", uint64(dbID)),
-				slog.String("error", err.Error()))
+			return 0, errors.WithMessage(err, "failed to remove plugin storage entries")
 		}
 	}
 
 	if h.secrets == nil {
-		return 0
+		return 0, nil
 	}
 
 	removed, err := h.secrets.DeleteByPlugin(ctx, dbID)
 	if err != nil {
-		slog.WarnContext(ctx, "failed to remove plugin secrets",
-			slog.Uint64("plugin_id", uint64(dbID)),
-			slog.String("error", err.Error()))
-
-		return 0
+		return 0, errors.WithMessage(err, "failed to remove plugin secrets")
 	}
 
-	return removed
+	return removed, nil
 }
 
 func (h *Handler) unloadPlugin(ctx context.Context, dbID domain.Uint64ID) error {

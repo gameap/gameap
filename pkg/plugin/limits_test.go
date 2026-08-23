@@ -84,7 +84,7 @@ func TestMemoryLimitPages(t *testing.T) {
 		want     uint32
 	}{
 		{name: "zero_keeps_default", maxBytes: 0, want: 0},
-		{name: "below_one_page_is_zero", maxBytes: 1000, want: 0},
+		{name: "below_one_page_rounds_up_to_one", maxBytes: 1000, want: 1},
 		{name: "exact_pages", maxBytes: 256 << 20, want: 4096},
 		{name: "rounds_down", maxBytes: 256<<20 + 1, want: 4096},
 		{name: "clamped_to_wasm_maximum", maxBytes: 16 << 30, want: wasmMaxPages},

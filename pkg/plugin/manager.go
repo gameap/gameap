@@ -157,8 +157,11 @@ type Manager struct {
 	config  ManagerConfig
 	// cache shares compiled code between runtimes for the manager's
 	// lifetime, so validating and then installing the same wasm (or
-	// reloading it) compiles it only once. In-memory; reclaimed at process
-	// exit, deliberately never closed while transient modules may be alive.
+	// reloading it) compiles it only once. In-memory or directory-backed
+	// (see newCompilationCache; the directory is written at compile time).
+	// Deliberately never closed: Close tears down the shared engines while
+	// transient modules handed to callers may still be alive; nil when
+	// caching is disabled.
 	cache  wazero.CompilationCache
 	closed bool
 }

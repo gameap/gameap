@@ -68,10 +68,13 @@ func TestRecovery_end_to_end_with_real_runtime(t *testing.T) {
 	require.Error(t, err)
 	assert.False(t, loaded.IsEnabled())
 
+	// The fresh instance is registered before the audit record is written,
+	// so wait for both side effects of the reload.
 	require.Eventually(t, func() bool {
 		current, exists := manager.GetPlugin("misbehaving")
 
-		return exists && current != loaded && current.IsEnabled()
+		return exists && current != loaded && current.IsEnabled() &&
+			len(recorder.ofType(audit.EventPluginReloaded)) == 1
 	}, 5*time.Second, 10*time.Millisecond, "the supervisor must reload the plugin into a fresh enabled instance")
 
 	row := findPlugin(ctx, t, repo, dbID)

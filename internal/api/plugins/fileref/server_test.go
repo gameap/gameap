@@ -14,6 +14,7 @@ import (
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	"github.com/gameap/gameap/pkg/auth"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
@@ -127,6 +128,15 @@ func newTestServer(t *testing.T, files *fakeFileService, checker fakeChecker, re
 	return fileref.NewServer(files, nodes, checker, auditLogger)
 }
 
+// authenticatedRequest carries the session of user 9: file responses are
+// refused for anonymous requests.
+func authenticatedRequest() *http.Request {
+	req := httptest.NewRequest(http.MethodGet, "/api/plugins/exporter/report", nil)
+	session := &auth.Session{User: &domain.User{ID: 9, Login: "admin"}}
+
+	return req.WithContext(auth.ContextWithSession(req.Context(), session))
+}
+
 func fileRequest(ref *proto.FileRef, headers map[string]string, status int) pkgplugin.FileRefRequest {
 	return pkgplugin.FileRefRequest{
 		PluginID:   42,
@@ -146,7 +156,7 @@ func TestServeFileRef_streams_attachment(t *testing.T) {
 	files := &fakeFileService{info: csvFile(), content: "a,b\n1"}
 	server := newTestServer(t, files, fakeChecker{allowed: true}, nil)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/plugins/exporter/report", nil)
+	req := authenticatedRequest()
 
 	err := server.ServeFileRef(w, req, fileRequest(
 		&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/servers/cs2/report.csv", Filename: "report.csv"},
@@ -233,6 +243,34 @@ func TestServeFileRef_header_contract(t *testing.T) {
 				"Transfer-Encoding":   "",
 			},
 		},
+		{
+			name: "origin_affecting_headers_are_dropped",
+			ref:  &proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/a.bin"},
+			headers: map[string]string{
+				"Set-Cookie":                  "session=attacker; Path=/",
+				"set-cookie":                  "other=1",
+				"Location":                    "https://evil.example/",
+				"WWW-Authenticate":            "Basic realm=x",
+				"Content-Security-Policy":     "default-src *",
+				"X-Content-Type-Options":      "none",
+				"Access-Control-Allow-Origin": "*",
+				"Last-Modified":               "Wed, 21 Oct 2015 07:28:00 GMT",
+				"etag":                        `"v1"`,
+				"X-Plugin-Version":            "1.2.3",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Set-Cookie":                  "",
+				"Location":                    "",
+				"Www-Authenticate":            "",
+				"Content-Security-Policy":     "sandbox",
+				"X-Content-Type-Options":      "nosniff",
+				"Access-Control-Allow-Origin": "",
+				"Last-Modified":               "Wed, 21 Oct 2015 07:28:00 GMT",
+				"Etag":                        `"v1"`,
+				"X-Plugin-Version":            "1.2.3",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -241,7 +279,7 @@ func TestServeFileRef_header_contract(t *testing.T) {
 			files := &fakeFileService{info: csvFile(), content: "a,b\n1"}
 			server := newTestServer(t, files, fakeChecker{allowed: true}, nil)
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/api/plugins/exporter/report", nil)
+			req := authenticatedRequest()
 
 			err := server.ServeFileRef(w, req, fileRequest(tt.ref, tt.headers, tt.status))
 			require.NoError(t, err)
@@ -381,7 +419,7 @@ func TestServeFileRef_refusals(t *testing.T) {
 			recorder := &auditCapture{}
 			server := newTestServer(t, tt.files, tt.checker, recorder)
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/api/plugins/exporter/report", nil)
+			req := authenticatedRequest()
 
 			request := fileRequest(tt.ref, nil, 0)
 			if tt.unsetPlugin {
@@ -423,7 +461,7 @@ func TestServeFileRef_copy_error_after_headers(t *testing.T) {
 	files := &fakeFileService{info: csvFile(), reader: failingReader{}}
 	server := newTestServer(t, files, fakeChecker{allowed: true}, nil)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/plugins/exporter/report", nil)
+	req := authenticatedRequest()
 
 	err := server.ServeFileRef(w, req, fileRequest(&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/a.bin"}, nil, 0))
 
@@ -431,4 +469,26 @@ func TestServeFileRef_copy_error_after_headers(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, files.streamOpen)
 	assert.True(t, files.streamOpen.closed)
+}
+
+func TestServeFileRef_anonymous_request_is_refused(t *testing.T) {
+	t.Parallel()
+	files := &fakeFileService{info: csvFile(), content: "a,b\n1"}
+	recorder := &auditCapture{}
+	server := newTestServer(t, files, fakeChecker{allowed: true}, recorder)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/plugins/exporter/report", nil)
+
+	err := server.ServeFileRef(w, req, fileRequest(&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/a.bin"}, nil, 0))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authentication required")
+
+	var withStatus interface{ HTTPStatus() int }
+	require.ErrorAs(t, err, &withStatus)
+	assert.Equal(t, http.StatusUnauthorized, withStatus.HTTPStatus())
+
+	assert.Empty(t, w.Body.String())
+	assert.Equal(t, 0, files.infoCalls, "no daemon round trip for an anonymous request")
+	assert.Empty(t, recorder.snapshot())
 }

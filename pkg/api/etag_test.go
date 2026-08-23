@@ -36,6 +36,7 @@ func TestIfNoneMatchSatisfied(t *testing.T) {
 		{name: "wildcard", header: "*", want: true},
 		{name: "mismatch", header: `"def456"`, want: false},
 		{name: "unquoted_does_not_match", header: `abc123`, want: false},
+		{name: "wildcard_in_list", header: `"other", *`, want: true},
 	}
 
 	for _, tt := range tests {
@@ -49,4 +50,15 @@ func TestIfNoneMatchSatisfied(t *testing.T) {
 			assert.Equal(t, tt.want, api.IfNoneMatchSatisfied(req, etag))
 		})
 	}
+}
+
+func TestIfNoneMatchSatisfied_multiple_header_lines(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequest(http.MethodGet, "/plugins.js", nil)
+	req.Header.Add("If-None-Match", `"first"`)
+	req.Header.Add("If-None-Match", `"second"`)
+
+	assert.True(t, api.IfNoneMatchSatisfied(req, `"second"`), "every field line is considered")
+	assert.True(t, api.IfNoneMatchSatisfied(req, `"first"`))
+	assert.False(t, api.IfNoneMatchSatisfied(req, `"third"`))
 }

@@ -903,10 +903,15 @@ Rules:
 - Requires the `files` grant (the same one that gates `gameap-nodefs`); without
   it the panel answers `403` and records an `access.denied` audit event. The check
   happens on every request, at the moment the file is served.
-- `Body` is ignored when `File` is set. `StatusCode` (default `200`),
-  `Content-Type`, `Cache-Control` and custom headers are taken from the plugin;
-  the panel owns `Content-Length` and `Content-Disposition` (always an
-  attachment), and drops `Content-Encoding`/`Transfer-Encoding`.
+- Only authenticated clients receive files: on a route with `RequiresAuth:
+  false` an anonymous request gets `401`, whatever the plugin answered.
+- `Body` is ignored when `File` is set. `StatusCode` (default `200`) is the
+  plugin's. Of the plugin's headers only `Content-Type`, `Content-Language`,
+  `Cache-Control`, `Expires`, `Pragma`, `Last-Modified`, `ETag`, `Vary` and
+  custom `X-*` headers reach the client — everything else (`Set-Cookie`,
+  `Location`, `WWW-Authenticate`, CSP, …) is dropped, as the response is served
+  from the panel origin. The panel owns `Content-Length` and
+  `Content-Disposition` (always an attachment).
 - Range requests are not supported (`Accept-Ranges: none`); `..` path segments
   are rejected.
 - Panels that predate this field ignore it and send an empty body, so a plugin
@@ -1189,7 +1194,9 @@ configurable through environment variables (`internal/config`).
   `PLUGINS_STRICT_LOAD=true` restores the old behaviour (startup fails).
 - Plugins with status `active` **and** `error` are attempted on every panel
   start — the cause may be gone. `disabled` is the operator's state and is
-  never loaded; `updating` is skipped.
+  never loaded; `updating` is skipped. The one exception is `PLUGINS_AUTOLOAD`:
+  a plugin named there is the operator's explicit instruction and is set back
+  to `active` at startup whatever its status (unchanged behaviour).
 - `PLUGINS_CACHE_DIR` persists compiled wasm on local disk (keyed by module
   hash and wazero version) so restarts do not recompile every plugin;
   `PLUGINS_CACHE_ENABLED=false` turns caching off entirely.

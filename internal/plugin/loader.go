@@ -222,20 +222,22 @@ func (l *Loader) Unload(ctx context.Context, pluginID string) error {
 // Reload restarts an installed plugin on demand: the running instance is
 // unloaded, the wasm file is loaded again and the database row records the
 // outcome. Any pending automatic recovery is dropped first. Returns the
-// updated row together with the loaded instance.
+// updated row together with the loaded instance. The work is detached from
+// the caller's cancellation: an operator closing the browser tab must not
+// leave the plugin half reloaded.
 func (l *Loader) Reload(ctx context.Context, dbID domain.Uint64ID) (*domain.Plugin, *pkgplugin.LoadedPlugin, error) {
 	l.Forget(dbID)
 
-	return l.reload(ctx, dbID)
+	return l.reload(context.WithoutCancel(ctx), dbID)
 }
 
+// reload honours the caller's context (the recovery supervisor cancels it on
+// shutdown) and adds the outer deadline.
 func (l *Loader) reload(ctx context.Context, dbID domain.Uint64ID) (*domain.Plugin, *pkgplugin.LoadedPlugin, error) {
 	unlock := l.lockPlugin(dbID)
 	defer unlock()
 
-	// Detached from the caller: an operator closing the browser tab must
-	// not leave the plugin half reloaded.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), reloadTimeout)
+	ctx, cancel := context.WithTimeout(ctx, reloadTimeout)
 	defer cancel()
 
 	plugin, err := l.findPlugin(ctx, dbID)
@@ -258,7 +260,11 @@ func (l *Loader) reload(ctx context.Context, dbID domain.Uint64ID) (*domain.Plug
 
 	loaded, err := l.loadWithID(ctx, l.resolvePluginFilename(plugin), uint64(dbID))
 	if err != nil {
-		l.markError(ctx, plugin, err)
+		// A cancelled reload (panel shutting down) is not the plugin's
+		// failure; the row keeps its previous state.
+		if ctx.Err() == nil {
+			l.markError(ctx, plugin, err)
+		}
 
 		return plugin, nil, err
 	}

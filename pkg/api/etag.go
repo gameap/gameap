@@ -17,23 +17,20 @@ func StrongETag(body []byte) string {
 
 // IfNoneMatchSatisfied reports whether the request's If-None-Match header
 // names etag, so the handler may answer 304 Not Modified. The header is a
-// comma-separated list or "*"; a weak validator prefix (W/) is tolerated,
-// which is the weak comparison RFC 9110 §13.1.2 prescribes for GET.
+// comma-separated list (possibly split over several field lines) or "*"; a
+// weak validator prefix (W/) is tolerated, which is the weak comparison
+// RFC 9110 §13.1.2 prescribes for GET.
 func IfNoneMatchSatisfied(r *http.Request, etag string) bool {
-	header := strings.TrimSpace(r.Header.Get("If-None-Match"))
+	header := strings.TrimSpace(strings.Join(r.Header.Values("If-None-Match"), ","))
 	if header == "" {
 		return false
-	}
-
-	if header == "*" {
-		return true
 	}
 
 	want := strings.TrimPrefix(etag, "W/")
 
 	for candidate := range strings.SplitSeq(header, ",") {
-		candidate = strings.TrimPrefix(strings.TrimSpace(candidate), "W/")
-		if candidate == want {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "*" || strings.TrimPrefix(candidate, "W/") == want {
 			return true
 		}
 	}

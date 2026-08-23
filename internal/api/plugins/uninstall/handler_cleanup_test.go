@@ -175,38 +175,69 @@ func TestUninstall_RemovesStorageAndSecrets(t *testing.T) {
 	assert.Equal(t, int64(1), event.Extra[0].Value.Int64())
 }
 
-func TestUninstall_CleanupErrorsDoNotBreakUninstall(t *testing.T) {
+func TestUninstall_CleanupErrorKeepsPluginInstalled(t *testing.T) {
 	t.Parallel()
-	pluginRepo := inmemory.NewPluginRepository()
-	existing := installedPlugin(t, pluginRepo)
-	storage := &fakeStorageCleaner{err: errors.New("storage unavailable")}
-	secrets := &fakeSecretCleaner{err: errors.New("secrets unavailable")}
+	tests := []struct {
+		name        string
+		storage     *fakeStorageCleaner
+		secrets     *fakeSecretCleaner
+		wantSecrets bool
+	}{
+		{
+			name:    "storage_cleanup_error",
+			storage: &fakeStorageCleaner{err: errors.New("storage unavailable")},
+			secrets: &fakeSecretCleaner{},
+		},
+		{
+			name:        "secrets_cleanup_error",
+			storage:     &fakeStorageCleaner{},
+			secrets:     &fakeSecretCleaner{err: errors.New("secrets unavailable")},
+			wantSecrets: true,
+		},
+	}
 
-	h := uninstall.NewHandler(
-		pluginRepo,
-		files.NewInMemoryFileManager(),
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		storage,
-		secrets,
-		"plugins",
-		api.NewResponder(),
-		nil,
-	)
-	w := httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			pluginRepo := inmemory.NewPluginRepository()
+			fileManager := files.NewInMemoryFileManager()
+			existing := installedPlugin(t, pluginRepo)
+			require.NoError(t, fileManager.Write(ctx, "plugins/testplugin123.wasm", []byte("wasm")))
+			recorder := &auditCapture{}
 
-	h.ServeHTTP(w, uninstallRequest())
+			h := uninstall.NewHandler(
+				pluginRepo,
+				fileManager,
+				nil,
+				nil,
+				nil,
+				nil,
+				nil,
+				tt.storage,
+				tt.secrets,
+				"plugins",
+				api.NewResponder(),
+				recorder,
+			)
+			w := httptest.NewRecorder()
 
-	require.Equal(t, http.StatusNoContent, w.Code, w.Body.String())
-	assert.Equal(t, []uint64{uint64(existing.ID)}, storage.snapshot())
-	assert.Equal(t, []domain.Uint64ID{existing.ID}, secrets.snapshot())
+			h.ServeHTTP(w, uninstallRequest())
 
-	plugins, err := pluginRepo.FindAll(context.Background(), nil, nil)
-	require.NoError(t, err)
-	assert.Empty(t, plugins, "the plugin record is gone even though the data cleanup failed")
+			// Internal failures are not echoed to the client (responder contract);
+			// the cause is logged.
+			require.Equal(t, http.StatusInternalServerError, w.Code, w.Body.String())
+			assert.Equal(t, []uint64{uint64(existing.ID)}, tt.storage.snapshot())
+			assert.Equal(t, tt.wantSecrets, len(tt.secrets.snapshot()) == 1)
+
+			// Nothing was torn down: the operator can retry the uninstall.
+			plugins, err := pluginRepo.FindAll(ctx, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, plugins, 1)
+			assert.True(t, fileManager.Exists(ctx, "plugins/testplugin123.wasm"))
+			assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventPluginUninstall))
+		})
+	}
 }
 
 func TestUninstall_NotInstalledSkipsCleanup(t *testing.T) {

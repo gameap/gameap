@@ -48,7 +48,7 @@
           >
             <span class="font-medium">{{ trans('plugins.last_error') }}:</span>
             {{ loadedInfo.error }}
-            <span v-if="loadedInfo.error_at" class="text-xs opacity-75">({{ formatDate(loadedInfo.error_at) }})</span>
+            <span v-if="loadedInfo.error_at" class="text-xs opacity-75">({{ formatDateTime(loadedInfo.error_at) }})</span>
           </div>
 
           <div v-if="plugin.summary" class="mb-4 text-stone-600 dark:text-stone-400">
@@ -330,5 +330,11 @@ function formatDate(dateString) {
   if (!dateString) return ''
   const date = new Date(dateString)
   return date.toLocaleDateString()
+}
+
+function formatDateTime(dateString) {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleString()
 }
 </script>

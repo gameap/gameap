@@ -36,13 +36,30 @@ var (
 	errNodeNotFound            = errors.New("node not found")
 	errPathIsDirectory         = errors.New("path is a directory")
 	errFilesPermissionRequired = errors.New("plugin permission " + string(domain.PluginPermissionFiles) + " required")
+	errAuthenticationRequired  = errors.New("authentication required for file responses")
 )
 
-// reservedHeaders are owned by the panel: a plugin cannot lie about the
-// length or make the browser render the file inline.
-var reservedHeaders = []string{
-	"Content-Length", "Content-Disposition", "Content-Encoding", "Transfer-Encoding",
+// allowedPluginHeaders is the only set of plugin-provided headers that
+// reaches the client. The response is served from the panel origin to the
+// admin's browser, so anything that could act on that origin (Set-Cookie,
+// Location, WWW-Authenticate, CSP, …) is dropped; the panel owns
+// Content-Length, Content-Disposition and the content-sniffing headers. An
+// allowlist (not a denylist) is deliberate, as in the gameap-http host
+// library: a header invented next year defaults to "stripped".
+var allowedPluginHeaders = map[string]struct{}{
+	"Content-Type":     {},
+	"Content-Language": {},
+	"Cache-Control":    {},
+	"Expires":          {},
+	"Pragma":           {},
+	"Last-Modified":    {},
+	"Etag":             {},
+	"Vary":             {},
 }
+
+// customHeaderPrefix admits plugin metadata headers (X-Plugin-Version and
+// the like); the panel's own X-Content-Type-Options is set afterwards.
+const customHeaderPrefix = "X-"
 
 type Server struct {
 	files   FileService
@@ -76,6 +93,13 @@ func (s *Server) ServeFileRef(w http.ResponseWriter, r *http.Request, req pkgplu
 
 	if err := validateRef(req.Ref); err != nil {
 		return api.WrapHTTPError(err, http.StatusBadRequest)
+	}
+
+	// Node files never go to anonymous clients, whatever the plugin route's
+	// own auth setting says: the panel's file endpoints require a session
+	// too, and a plugin must not be able to relax that.
+	if !auth.SessionFromContext(ctx).IsAuthenticated() {
+		return api.WrapHTTPError(errAuthenticationRequired, http.StatusUnauthorized)
 	}
 
 	if err := s.authorize(ctx, req); err != nil {
@@ -157,16 +181,14 @@ func (s *Server) stream(
 	}
 }
 
-// applyHeaders lets the plugin set anything it likes (Content-Type,
-// Cache-Control, custom headers) and then overrides the reserved set: the
-// file is always an attachment with the panel's length.
+// applyHeaders copies the plugin headers the allowlist admits and then
+// sets the ones the panel owns: the file is always an attachment with the
+// panel's length.
 func applyHeaders(header http.Header, req pkgplugin.FileRefRequest, info *daemon.FileDetails) {
 	for name, value := range req.Headers {
-		header.Set(name, value)
-	}
-
-	for _, name := range reservedHeaders {
-		header.Del(name)
+		if pluginHeaderAllowed(name) {
+			header.Set(name, value)
+		}
 	}
 
 	filemanagerhttp.AttachmentContentHeaders(header, attachmentName(req.Ref), header.Get("Content-Type"))
@@ -179,6 +201,15 @@ func applyHeaders(header http.Header, req pkgplugin.FileRefRequest, info *daemon
 	if info.Size > 0 {
 		header.Set("Content-Length", strconv.FormatUint(info.Size, 10))
 	}
+}
+
+func pluginHeaderAllowed(name string) bool {
+	canonical := http.CanonicalHeaderKey(name)
+	if _, ok := allowedPluginHeaders[canonical]; ok {
+		return true
+	}
+
+	return strings.HasPrefix(canonical, customHeaderPrefix) && canonical != "X-Content-Type-Options"
 }
 
 func attachmentName(ref *proto.FileRef) string {
@@ -243,11 +274,11 @@ func (s *Server) findNode(ctx context.Context, nodeID uint64) (*domain.Node, err
 	return &nodes[0], nil
 }
 
-// requestUserID is the authenticated user behind the request, 0 on a
-// plugin route that does not require authentication.
+// requestUserID is the authenticated user behind the request (ServeFileRef
+// refuses anonymous requests before this point).
 func requestUserID(ctx context.Context) uint64 {
 	session := auth.SessionFromContext(ctx)
-	if session == nil || !session.IsAuthenticated() || session.User == nil {
+	if !session.IsAuthenticated() {
 		return 0
 	}
 
