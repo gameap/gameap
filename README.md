@@ -379,9 +379,10 @@ set. The login form discovers the provider and public site key through
 is sent as the `captcha` field of the login request and is verified before
 the user lookup.
 
-- `CAPTCHA_PROVIDER` - CAPTCHA provider (options: `recaptcha_v2`, `recaptcha_v3`, `turnstile`; empty disables CAPTCHA, default: empty)
+- `CAPTCHA_PROVIDER` - CAPTCHA provider (options: `recaptcha_v2`, `recaptcha_v3`, `turnstile`, `fcaptcha`; empty disables CAPTCHA, default: empty)
 - `CAPTCHA_SITE_KEY` - Public site key for the provider widget (safe to expose to browsers)
 - `CAPTCHA_SECRET_KEY` - Server-side secret key used to verify tokens (kept server-side)
+- `CAPTCHA_INSTANCE_URL` - Public base URL of the self-hosted FCaptcha server; required when `CAPTCHA_PROVIDER=fcaptcha`
 - `CAPTCHA_MIN_SCORE` - Pass threshold for reCAPTCHA v3 only, `0.0`–`1.0`; ignored by the checkbox/Turnstile providers (default: `0.5`)
 - `CAPTCHA_FAIL_OPEN` - Allow login when the provider's verify call itself fails (network/5xx). Default `false` (fail-closed: a verification outage blocks login with `503`)
 - `CAPTCHA_VERIFY_URL` - Override the provider's `siteverify` endpoint (egress proxies, testing). Empty uses the provider default
@@ -396,7 +397,8 @@ can extend the policy without patching the binary.
 
 The generated CSP automatically allow-lists exactly the origins required by
 the configured CAPTCHA provider (Google reCAPTCHA scripts/iframes for
-`recaptcha_v2`/`recaptcha_v3`; `challenges.cloudflare.com` for `turnstile`); with
+`recaptcha_v2`/`recaptcha_v3`; `challenges.cloudflare.com` for `turnstile`;
+the configured self-hosted origin for `fcaptcha`); with
 CAPTCHA disabled no third-party origins appear in the policy.
 
 HSTS is only emitted on TLS requests (`r.TLS != nil`, `X-Forwarded-Proto: https`
@@ -499,9 +501,10 @@ LOGGER_LEVEL=info
 # PLUGIN_STORE_LICENSE_KEY=your-license-key
 
 # CAPTCHA (login protection) — leave CAPTCHA_PROVIDER empty to disable
-# CAPTCHA_PROVIDER=turnstile          # recaptcha_v2 | recaptcha_v3 | turnstile
+# CAPTCHA_PROVIDER=turnstile          # recaptcha_v2 | recaptcha_v3 | turnstile | fcaptcha
 # CAPTCHA_SITE_KEY=your-public-site-key
 # CAPTCHA_SECRET_KEY=your-server-side-secret-key
+# CAPTCHA_INSTANCE_URL=https://captcha.example.com  # required for fcaptcha
 # CAPTCHA_MIN_SCORE=0.5               # reCAPTCHA v3 only
 # CAPTCHA_FAIL_OPEN=false             # true = allow login if the provider is unreachable
 

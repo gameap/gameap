@@ -314,12 +314,21 @@ func TestSecurityHeaders_CSPCaptchaProviderMatrix(t *testing.T) {
 			wantTokens: []string{"https://challenges.cloudflare.com"},
 			forbidden:  []string{"google.com", "gstatic.com"},
 		},
+		{
+			name:       "fcaptcha_allows_configured_instance_only",
+			provider:   string(captcha.ProviderFCaptcha),
+			wantTokens: []string{"https://captcha.example.com"},
+			forbidden:  []string{"google.com", "gstatic.com", "challenges.cloudflare.com"},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := baseSecureConfig()
 			cfg.Captcha.Provider = tc.provider
+			if tc.provider == string(captcha.ProviderFCaptcha) {
+				cfg.Captcha.InstanceURL = "https://captcha.example.com/path"
+			}
 
 			resp := runMiddleware(t, cfg, newTestFS(t), nil, nil)
 			csp := resp.Get("Content-Security-Policy")

@@ -8,16 +8,17 @@ import { onMounted, ref } from "vue"
 const props = defineProps({
   provider: { type: String, required: true },
   siteKey: { type: String, required: true },
+  instanceUrl: { type: String, default: "" },
 })
 
 const containerRef = ref(null)
 const token = ref("")
 let widgetId = null
 
-// recaptcha_v2 and turnstile render a visible challenge and report the
+// recaptcha_v2, turnstile and fcaptcha render a visible challenge and report the
 // solution through a callback; recaptcha_v3 is invisible and produces a
 // fresh token on demand at submit time.
-const isWidget = props.provider === "recaptcha_v2" || props.provider === "turnstile"
+const isWidget = ["recaptcha_v2", "turnstile", "fcaptcha"].includes(props.provider)
 
 const scriptCache = {}
 
@@ -90,6 +91,27 @@ const renderTurnstile = async () => {
   })
 }
 
+const renderFCaptcha = async () => {
+  const instanceUrl = props.instanceUrl.replace(/\/+$/, "")
+  if (!instanceUrl) {
+    throw new Error("FCaptcha instance URL is not configured")
+  }
+
+  await loadScript(`${instanceUrl}/fcaptcha.js`)
+  await waitFor(() => window.FCaptcha && window.FCaptcha.render)
+
+  window.FCaptcha.configure({ serverUrl: instanceUrl })
+  widgetId = window.FCaptcha.render(containerRef.value, {
+    siteKey: props.siteKey,
+    callback: (t) => {
+      token.value = t
+    },
+    errorCallback: () => {
+      token.value = ""
+    },
+  })
+}
+
 const loadRecaptchaV3 = async () => {
   await loadScript(`https://www.google.com/recaptcha/api.js?render=${props.siteKey}`)
   await waitFor(() => window.grecaptcha && window.grecaptcha.execute)
@@ -100,6 +122,8 @@ onMounted(() => {
     renderRecaptchaV2().catch((e) => console.error(e))
   } else if (props.provider === "turnstile") {
     renderTurnstile().catch((e) => console.error(e))
+  } else if (props.provider === "fcaptcha") {
+    renderFCaptcha().catch((e) => console.error(e))
   } else if (props.provider === "recaptcha_v3") {
     loadRecaptchaV3().catch((e) => console.error(e))
   }
@@ -130,6 +154,8 @@ const reset = () => {
     window.grecaptcha.reset(widgetId)
   } else if (props.provider === "turnstile" && window.turnstile) {
     window.turnstile.reset(widgetId)
+  } else if (props.provider === "fcaptcha" && window.FCaptcha) {
+    window.FCaptcha.reset(widgetId)
   }
 }
 

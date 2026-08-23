@@ -18,11 +18,17 @@ properties:
           - recaptcha_v2
           - recaptcha_v3
           - turnstile
+          - fcaptcha
         example: "turnstile"
       site_key:
         type: string
         description: Public site key for the provider widget
         example: "1x00000000000000000000AA"
+      instance_url:
+        type: string
+        format: uri
+        description: Public base URL of the self-hosted CAPTCHA service; present for FCaptcha
+        example: "https://captcha.example.com"
     required:
       - provider
       - site_key

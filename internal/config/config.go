@@ -241,10 +241,13 @@ type Config struct {
 	// stuffing. Empty Provider disables it; SecretKey stays server-side and
 	// is never exposed through /api/config/public.
 	Captcha struct {
-		// Provider: "" (disabled), "recaptcha_v2", "recaptcha_v3" or "turnstile".
+		// Provider: "" (disabled), "recaptcha_v2", "recaptcha_v3", "turnstile" or "fcaptcha".
 		Provider  string `env:"CAPTCHA_PROVIDER" envDefault:""`
 		SiteKey   string `env:"CAPTCHA_SITE_KEY" envDefault:""`
 		SecretKey string `env:"CAPTCHA_SECRET_KEY" envDefault:""`
+		// InstanceURL is the public base URL of a self-hosted CAPTCHA service.
+		// It is required by FCaptcha and exposed through /api/config/public.
+		InstanceURL string `env:"CAPTCHA_INSTANCE_URL" envDefault:""`
 		// MinScore is the reCAPTCHA v3 pass threshold (0.0–1.0); ignored by
 		// the checkbox/Turnstile providers that only return success.
 		MinScore float64 `env:"CAPTCHA_MIN_SCORE" envDefault:"0.5"`

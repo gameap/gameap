@@ -22,6 +22,7 @@ const (
 	ProviderReCAPTCHAV2 Provider = "recaptcha_v2"
 	ProviderReCAPTCHAV3 Provider = "recaptcha_v3"
 	ProviderTurnstile   Provider = "turnstile"
+	ProviderFCaptcha    Provider = "fcaptcha"
 )
 
 const (
@@ -44,12 +45,13 @@ var (
 // anonymous struct in internal/config so this package stays import-light and
 // independently testable.
 type Config struct {
-	Provider  Provider
-	SiteKey   string
-	SecretKey string
-	MinScore  float64
-	FailOpen  bool
-	VerifyURL string
+	Provider    Provider
+	SiteKey     string
+	SecretKey   string
+	MinScore    float64
+	FailOpen    bool
+	VerifyURL   string
+	InstanceURL string
 }
 
 // Option customises the service at construction time (test seams).
@@ -91,7 +93,7 @@ func NewService(cfg Config, opts ...Option) *Service {
 		secretKey: cfg.SecretKey,
 		minScore:  cfg.MinScore,
 		failOpen:  cfg.FailOpen,
-		verifyURL: resolveVerifyURL(cfg.Provider, cfg.VerifyURL),
+		verifyURL: resolveVerifyURL(cfg.Provider, cfg.VerifyURL, cfg.InstanceURL),
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 		},
@@ -104,7 +106,7 @@ func NewService(cfg Config, opts ...Option) *Service {
 	return s
 }
 
-func resolveVerifyURL(provider Provider, override string) string {
+func resolveVerifyURL(provider Provider, override, instanceURL string) string {
 	if override != "" {
 		return override
 	}
@@ -114,6 +116,12 @@ func resolveVerifyURL(provider Provider, override string) string {
 		return turnstileVerifyURL
 	case ProviderReCAPTCHAV2, ProviderReCAPTCHAV3:
 		return recaptchaVerifyURL
+	case ProviderFCaptcha:
+		if instanceURL == "" {
+			return ""
+		}
+
+		return strings.TrimRight(instanceURL, "/") + "/turnstile/v0/siteverify"
 	case ProviderNone:
 		return ""
 	default:
