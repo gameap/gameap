@@ -162,7 +162,10 @@
       encrypted secrets, then deletes its file from the plugins directory and
       removes the plugin record and its scheduled tasks. A failure to delete
       the plugin's data aborts the uninstall before the record is removed, so
-      the request can be retried. Admin only.
+      the request can be retried. Scheduled-task cleanup is best effort: a
+      failure there does not abort the uninstall — the request still completes
+      with 204, and any leftover task rows are harmless (their fires are
+      skipped once the plugin is gone). Admin only.
     operationId: uninstallPlugin
     parameters:
       - name: id
@@ -251,6 +254,16 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: |
+          Reload failed. When the plugin itself failed to load, it stays
+          installed with status `error`; an operational failure (the running
+          module could not be unloaded, or the plugin record could not be
+          read) leaves the plugin status unchanged.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
 
 /api/admin/plugins/{id}/permissions:
   put:
@@ -305,12 +318,6 @@
               $ref: '../schemas/ErrorResponse.yaml'
       '422':
         description: Unknown permission name
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
-      '422':
-        description: Plugin failed to load; the plugin stays installed with status `error`
         content:
           application/json:
             schema:

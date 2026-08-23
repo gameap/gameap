@@ -169,7 +169,7 @@ func TestServeFileRef_streams_attachment(t *testing.T) {
 	assert.Equal(t, "a,b\n1", w.Body.String())
 	assert.Equal(t, "text/csv; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Equal(t, `attachment; filename=report.csv; filename*=UTF-8''report.csv`, w.Header().Get("Content-Disposition"))
-	assert.Equal(t, "5", w.Header().Get("Content-Length"))
+	assert.Empty(t, w.Header().Get("Content-Length"), "length is not declared: the stream may not match the stat")
 	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
 	assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
 	assert.Equal(t, "none", w.Header().Get("Accept-Ranges"))
@@ -237,7 +237,7 @@ func TestServeFileRef_header_contract(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			wantHeaders: map[string]string{
-				"Content-Length":      "5",
+				"Content-Length":      "",
 				"Content-Disposition": `attachment; filename=a.bin; filename*=UTF-8''a.bin`,
 				"Content-Encoding":    "",
 				"Transfer-Encoding":   "",
@@ -374,6 +374,24 @@ func TestServeFileRef_refusals(t *testing.T) {
 			files:      &fakeFileService{info: csvFile()},
 			wantStatus: http.StatusBadGateway,
 			wantError:  "99: invalid plugin status code",
+		},
+		{
+			name:       "status_code_informational_100",
+			ref:        validRef,
+			status:     http.StatusContinue,
+			checker:    fakeChecker{allowed: true},
+			files:      &fakeFileService{info: csvFile()},
+			wantStatus: http.StatusBadGateway,
+			wantError:  "100: invalid plugin status code",
+		},
+		{
+			name:       "status_code_informational_103",
+			ref:        validRef,
+			status:     http.StatusEarlyHints,
+			checker:    fakeChecker{allowed: true},
+			files:      &fakeFileService{info: csvFile()},
+			wantStatus: http.StatusBadGateway,
+			wantError:  "103: invalid plugin status code",
 		},
 		{
 			name:       "status_code_above_999",
