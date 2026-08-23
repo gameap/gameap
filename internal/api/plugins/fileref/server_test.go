@@ -13,6 +13,7 @@ import (
 	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/plugin/hostlibrary"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/auth"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
@@ -390,7 +391,7 @@ func TestServeFileRef_refusals(t *testing.T) {
 			checker:    fakeChecker{allowed: false},
 			files:      &fakeFileService{info: csvFile()},
 			wantStatus: http.StatusForbidden,
-			wantError:  "plugin permission files required",
+			wantError:  "plugin permission files_read required",
 			wantDenied: true,
 		},
 		{
@@ -400,7 +401,7 @@ func TestServeFileRef_refusals(t *testing.T) {
 			checker:     fakeChecker{allowed: true},
 			files:       &fakeFileService{info: csvFile()},
 			wantStatus:  http.StatusForbidden,
-			wantError:   "plugin permission files required",
+			wantError:   "plugin permission files_read required",
 			wantDenied:  true,
 		},
 		{
@@ -535,4 +536,56 @@ func TestServeFileRef_anonymous_request_is_refused(t *testing.T) {
 	assert.Empty(t, w.Body.String())
 	assert.Equal(t, 0, files.infoCalls, "no daemon round trip for an anonymous request")
 	assert.Empty(t, recorder.snapshot())
+}
+
+func TestServeFileRef_path_policy(t *testing.T) {
+	t.Parallel()
+
+	policy, err := hostlibrary.NewPathPolicy(hostlibrary.PathPolicyConfig{Mode: hostlibrary.PathPolicyNodeWorkPath}, nil)
+	require.NoError(t, err)
+
+	t.Run("outside_the_work_path_is_refused_and_audited", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := &auditCapture{}
+		files := &fakeFileService{info: csvFile()}
+		nodes := inmemory.NewNodeRepository()
+		require.NoError(t, nodes.Save(context.Background(),
+			&domain.Node{Name: "node-1", OS: domain.NodeOSLinux, WorkPath: "/srv/gameap"}))
+
+		server := fileref.NewServer(files, nodes, fakeChecker{allowed: true}, recorder, fileref.WithPathPolicy(policy))
+
+		w := httptest.NewRecorder()
+		err := server.ServeFileRef(w, authenticatedRequest(),
+			fileRequest(&proto.FileRef{NodeId: testNodeID, Path: "/etc/passwd"}, nil, 0))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "path policy: path outside allowed roots (node_workpath)")
+
+		var withStatus interface{ HTTPStatus() int }
+		require.ErrorAs(t, err, &withStatus)
+		assert.Equal(t, http.StatusForbidden, withStatus.HTTPStatus())
+		assert.Equal(t, 0, files.infoCalls, "no daemon round trip for a refused path")
+
+		events := recorder.snapshot()
+		require.Len(t, events, 1)
+		assert.Equal(t, audit.EventAccessDenied, events[0].Type)
+		assert.Equal(t, "plugin_path_policy", events[0].Reason)
+	})
+
+	t.Run("inside_the_work_path_is_served", func(t *testing.T) {
+		t.Parallel()
+
+		files := &fakeFileService{info: csvFile(), content: "a,b\n"}
+		nodes := inmemory.NewNodeRepository()
+		require.NoError(t, nodes.Save(context.Background(),
+			&domain.Node{Name: "node-1", OS: domain.NodeOSLinux, WorkPath: "/srv/gameap"}))
+
+		server := fileref.NewServer(files, nodes, fakeChecker{allowed: true}, nil, fileref.WithPathPolicy(policy))
+
+		w := httptest.NewRecorder()
+		err := server.ServeFileRef(w, authenticatedRequest(),
+			fileRequest(&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/servers/cs2/report.csv"}, nil, 0))
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }

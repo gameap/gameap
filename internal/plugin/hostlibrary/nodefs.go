@@ -41,6 +41,7 @@ type NodeFSServiceImpl struct {
 	// maxInlineBytes caps Download/Upload payloads, which are materialized
 	// in panel memory and then copied into the guest; 0 = unlimited.
 	maxInlineBytes uint64
+	policy         *PathPolicy
 }
 
 // NodeFSOption tunes a NodeFSServiceImpl.
@@ -51,6 +52,16 @@ type NodeFSOption func(*NodeFSServiceImpl)
 func WithNodeFSMaxInlineBytes(maxBytes uint64) NodeFSOption {
 	return func(s *NodeFSServiceImpl) {
 		s.maxInlineBytes = maxBytes
+	}
+}
+
+// WithNodeFSPathPolicy confines the paths the plugin may name; nil keeps
+// the unrestricted policy.
+func WithNodeFSPathPolicy(policy *PathPolicy) NodeFSOption {
+	return func(s *NodeFSServiceImpl) {
+		if policy != nil {
+			s.policy = policy
+		}
 	}
 }
 
@@ -70,6 +81,7 @@ func NewNodeFSService(
 		archive:     archive,
 		events:      events,
 		guard:       guard,
+		policy:      DefaultPathPolicy(),
 	}
 
 	for _, opt := range opts {
@@ -88,6 +100,31 @@ func (s *NodeFSServiceImpl) authorize(ctx context.Context, export string) (bool,
 	}
 
 	return true, ""
+}
+
+// checkPaths refuses the call before any daemon round trip when one of the
+// paths falls outside the node path policy; the answer is the message to
+// hand the guest, "" when every path is allowed.
+func (s *NodeFSServiceImpl) checkPaths(ctx context.Context, export string, node *domain.Node, paths ...string) string {
+	scope, err := s.policy.ScopeFor(ctx, node)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to resolve the node path policy, refusing the call",
+			slog.Uint64("plugin_id", s.pluginID),
+			slog.Uint64("node_id", uint64(node.ID)),
+			slog.String("error", err.Error()))
+
+		return "path policy: " + err.Error()
+	}
+
+	for _, raw := range paths {
+		if denial := scope.Check(raw); denial != nil {
+			s.guard.DenyPath(ctx, ModuleNodeFS, export, uint64(node.ID), denial)
+
+			return denial.Error()
+		}
+	}
+
+	return ""
 }
 
 // auditFileOp records a write to a node's filesystem with the plugin as the
@@ -136,6 +173,10 @@ func (s *NodeFSServiceImpl) ReadDir(
 		return &nodefs.ReadDirResponse{Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "read_dir", node, req.Path); msg != "" {
+		return &nodefs.ReadDirResponse{Error: new(msg)}, nil
+	}
+
 	files, err := s.fileService.ReadDir(ctx, node, req.Path)
 	if err != nil {
 		return &nodefs.ReadDirResponse{Error: new(err.Error())}, nil
@@ -163,6 +204,10 @@ func (s *NodeFSServiceImpl) MkDir(
 		return &nodefs.MkDirResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "mk_dir", node, req.Path); msg != "" {
+		return &nodefs.MkDirResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	err = s.fileService.MkDir(ctx, node, req.Path, daemon.OwnerOptions{})
 	s.auditFileOp(ctx, "mkdir", req.NodeId, err, slog.String("path", req.Path))
 	if err != nil {
@@ -187,6 +232,10 @@ func (s *NodeFSServiceImpl) Copy(
 
 	if node == nil {
 		return &nodefs.CopyResponse{Success: false, Error: new("node not found")}, nil
+	}
+
+	if msg := s.checkPaths(ctx, "copy", node, req.Source, req.Destination); msg != "" {
+		return &nodefs.CopyResponse{Success: false, Error: new(msg)}, nil
 	}
 
 	err = s.fileService.Copy(ctx, node, req.Source, req.Destination)
@@ -216,6 +265,10 @@ func (s *NodeFSServiceImpl) Move(
 		return &nodefs.MoveResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "move", node, req.Source, req.Destination); msg != "" {
+		return &nodefs.MoveResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	err = s.fileService.Move(ctx, node, req.Source, req.Destination)
 	s.auditFileOp(ctx, "move", req.NodeId, err,
 		slog.String("source", req.Source), slog.String("destination", req.Destination))
@@ -241,6 +294,10 @@ func (s *NodeFSServiceImpl) Download(
 
 	if node == nil {
 		return &nodefs.DownloadResponse{Error: new("node not found")}, nil
+	}
+
+	if msg := s.checkPaths(ctx, "download", node, req.Path); msg != "" {
+		return &nodefs.DownloadResponse{Error: new(msg)}, nil
 	}
 
 	if msg := s.checkInlineDownloadSize(ctx, node, req.Path); msg != "" {
@@ -316,6 +373,10 @@ func (s *NodeFSServiceImpl) Upload(
 		return &nodefs.UploadResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "upload", node, req.Path); msg != "" {
+		return &nodefs.UploadResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	if s.maxInlineBytes > 0 && uint64(len(req.Content)) > s.maxInlineBytes {
 		return &nodefs.UploadResponse{
 			Success: false,
@@ -351,6 +412,10 @@ func (s *NodeFSServiceImpl) Remove(
 		return &nodefs.RemoveResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "remove", node, req.Path); msg != "" {
+		return &nodefs.RemoveResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	err = s.fileService.Remove(ctx, node, req.Path, req.Recursive)
 	s.auditFileOp(ctx, "remove", req.NodeId, err,
 		slog.String("path", req.Path), slog.Bool("recursive", req.Recursive))
@@ -376,6 +441,10 @@ func (s *NodeFSServiceImpl) GetFileInfo(
 
 	if node == nil {
 		return &nodefs.GetFileInfoResponse{Found: false, Error: new("node not found")}, nil
+	}
+
+	if msg := s.checkPaths(ctx, "get_file_info", node, req.Path); msg != "" {
+		return &nodefs.GetFileInfoResponse{Found: false, Error: new(msg)}, nil
 	}
 
 	details, err := s.fileService.GetFileInfo(ctx, node, req.Path)
@@ -406,6 +475,10 @@ func (s *NodeFSServiceImpl) Chmod(
 		return &nodefs.ChmodResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "chmod", node, req.Path); msg != "" {
+		return &nodefs.ChmodResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	err = s.fileService.Chmod(ctx, node, req.Path, req.Permissions)
 	s.auditFileOp(ctx, "chmod", req.NodeId, err,
 		slog.String("path", req.Path), slog.Uint64("permissions", uint64(req.Permissions)))
@@ -431,6 +504,10 @@ func (s *NodeFSServiceImpl) Hash(
 
 	if node == nil {
 		return &nodefs.HashResponse{Success: false, Error: new("node not found")}, nil
+	}
+
+	if msg := s.checkPaths(ctx, "hash", node, req.Paths...); msg != "" {
+		return &nodefs.HashResponse{Success: false, Error: new(msg)}, nil
 	}
 
 	// Membership check instead of comparing against UNSPECIFIED: any value
@@ -604,6 +681,11 @@ func (s *NodeFSServiceImpl) startCreate(
 		return "", "node not found"
 	}
 
+	paths := append([]string{req.ArchivePath, req.BasePath}, req.Sources...)
+	if msg := s.checkPaths(ctx, export, node, paths...); msg != "" {
+		return "", msg
+	}
+
 	operationID, err := s.archive.StartCreate(ctx, node, daemon.CreateArchiveParams{
 		ArchivePath:      req.ArchivePath,
 		BasePath:         req.BasePath,
@@ -646,6 +728,10 @@ func (s *NodeFSServiceImpl) startExtract(
 
 	if node == nil {
 		return "", "node not found"
+	}
+
+	if msg := s.checkPaths(ctx, export, node, req.ArchivePath, req.Destination); msg != "" {
+		return "", msg
 	}
 
 	operationID, err := s.archive.StartExtract(ctx, node, daemon.ExtractArchiveParams{

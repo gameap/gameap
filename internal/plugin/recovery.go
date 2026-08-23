@@ -209,6 +209,8 @@ func (s *Supervisor) OnPluginDisabled(pluginID string, dbID uint64, reason strin
 		"plugin", strconv.FormatUint(dbID, 10), "disable", disableAuditReason(reason),
 		slog.String("plugin", pluginID), slog.String("detail", reason))
 
+	s.loader.emitRuntimeError(ctx, plugin, reason)
+
 	if s.opts.DisableReload {
 		s.logger.Warn("plugin disabled at runtime, automatic reload is off",
 			slog.Uint64("plugin_id", dbID),
@@ -397,7 +399,7 @@ func (s *Supervisor) attempt(dbID domain.Uint64ID) {
 		return
 	}
 
-	if _, _, err := s.loader.reload(ctx, dbID); err != nil {
+	if _, _, err := s.loader.reload(ctx, dbID, TriggerRecovery, false); err != nil {
 		if s.ctx.Err() != nil {
 			// Interrupted by Stop: not a plugin failure, nothing to record.
 			return
@@ -446,7 +448,7 @@ func (s *Supervisor) findPlugin(ctx context.Context, dbID domain.Uint64ID) (*dom
 }
 
 func (s *Supervisor) save(ctx context.Context, plugin *domain.Plugin) {
-	if err := s.repo.Save(ctx, plugin); err != nil {
+	if err := s.repo.UpdateLoadState(ctx, plugin.ID, plugin.LoadState()); err != nil {
 		s.logger.Warn("failed to record plugin error state",
 			slog.Uint64("plugin_id", uint64(plugin.ID)),
 			slog.String("error", err.Error()))

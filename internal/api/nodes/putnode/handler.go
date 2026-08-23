@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
@@ -15,6 +16,7 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/secret"
 	"github.com/pkg/errors"
 	"github.com/rs/xid"
@@ -28,12 +30,24 @@ var (
 	ErrNodeNotFound            = errors.New("node not found")
 )
 
+// PluginDispatcher publishes node events to plugins; satisfied by
+// *plugin.Dispatcher.
+type PluginDispatcher interface {
+	DispatchNodeEventAsync(
+		ctx context.Context,
+		eventType pluginproto.EventType,
+		node *domain.Node,
+		extraData map[string]string,
+	)
+}
+
 type Handler struct {
-	repo        repositories.NodeRepository
-	fileManager files.FileManager
-	cipher      *secret.Cipher
-	responder   base.Responder
-	audit       audit.Logger
+	repo             repositories.NodeRepository
+	fileManager      files.FileManager
+	cipher           *secret.Cipher
+	responder        base.Responder
+	audit            audit.Logger
+	pluginDispatcher PluginDispatcher
 }
 
 func NewHandler(
@@ -42,17 +56,19 @@ func NewHandler(
 	cipher *secret.Cipher,
 	responder base.Responder,
 	auditLogger audit.Logger,
+	pluginDispatcher PluginDispatcher,
 ) *Handler {
 	if auditLogger == nil {
 		auditLogger = audit.NopLogger{}
 	}
 
 	return &Handler{
-		repo:        repo,
-		fileManager: fileManager,
-		cipher:      cipher,
-		responder:   responder,
-		audit:       auditLogger,
+		repo:             repo,
+		fileManager:      fileManager,
+		cipher:           cipher,
+		responder:        responder,
+		audit:            auditLogger,
+		pluginDispatcher: pluginDispatcher,
 	}
 }
 
@@ -108,6 +124,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	audit.SensitiveOp(ctx, h.audit, audit.EventNodeUpdate, audit.CategoryNodeOp,
 		"node", strconv.FormatUint(uint64(nodeID), 10), "update")
+
+	if h.pluginDispatcher != nil {
+		h.pluginDispatcher.DispatchNodeEventAsync(ctx, pluginproto.EventType_EVENT_TYPE_NODE_UPDATED, updatedNode,
+			map[string]string{"changed_fields": strings.Join(updateInput.changedFields(), ",")})
+	}
 
 	response := newNodeResponse(updatedNode)
 	h.responder.Write(ctx, rw, response)

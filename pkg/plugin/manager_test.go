@@ -13,6 +13,7 @@ import (
 // mockPluginService implements proto.PluginService for testing.
 type mockPluginService struct {
 	infoFunc                func(ctx context.Context, req *proto.GetInfoRequest) (*proto.PluginInfo, error)
+	initializeFunc          func(ctx context.Context, req *proto.InitializeRequest) (*proto.InitializeResponse, error)
 	shutdownFunc            func(ctx context.Context, req *proto.ShutdownRequest) (*proto.ShutdownResponse, error)
 	handleEventFunc         func(ctx context.Context, event *proto.Event) (*proto.EventResult, error)
 	getSubscribedEventsFunc func(ctx context.Context, req *proto.GetSubscribedEventsRequest) (*proto.GetSubscribedEventsResponse, error)
@@ -31,9 +32,13 @@ func (m *mockPluginService) GetInfo(
 }
 
 func (m *mockPluginService) Initialize(
-	_ context.Context,
-	_ *proto.InitializeRequest,
+	ctx context.Context,
+	req *proto.InitializeRequest,
 ) (*proto.InitializeResponse, error) {
+	if m.initializeFunc != nil {
+		return m.initializeFunc(ctx, req)
+	}
+
 	return &proto.InitializeResponse{}, nil
 }
 

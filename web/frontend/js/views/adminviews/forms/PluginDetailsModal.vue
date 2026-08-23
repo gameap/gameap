@@ -40,6 +40,27 @@
             >
               {{ trans('plugins.status_' + loadedStatus) }}
             </span>
+            <span
+              v-if="health"
+              class="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
+              :class="health.class"
+              :title="health.title"
+              data-testid="plugin-health-badge"
+            >
+              <GIcon name="heart-pulse" />
+              {{ health.label }}
+            </span>
+          </div>
+
+          <div
+            v-if="health?.message"
+            class="mb-4 p-2 rounded-lg text-sm break-words"
+            :class="health.class"
+            data-testid="plugin-health-message"
+          >
+            <span class="font-medium">{{ trans('plugins.health') }}:</span>
+            {{ health.message }}
+            <span v-if="loadedInfo.health.reported_at" class="text-xs opacity-75">({{ formatDateTime(loadedInfo.health.reported_at) }})</span>
           </div>
 
           <div
@@ -247,6 +268,25 @@
         </div>
       </div>
 
+      <div v-if="plugin.installed && loadedInfo" class="mb-4" data-testid="plugin-configuration">
+        <h3 class="font-semibold mb-1">{{ trans('plugins.configuration') }}</h3>
+        <p class="text-xs text-stone-500 mb-3">{{ trans('plugins.config_hint') }}</p>
+
+        <div
+          v-if="loadedInfo.config_schema_error"
+          class="mb-3 p-2 rounded-lg bg-warning-soft text-warning-soft-text text-sm break-words"
+        >
+          <span class="font-medium">{{ trans('plugins.config_schema_invalid') }}:</span>
+          {{ loadedInfo.config_schema_error }}
+        </div>
+
+        <PluginConfigForm
+          :plugin-id="plugin.id"
+          :loaded-info="loadedInfo"
+          @saved="$emit('config-saved', $event)"
+        />
+      </div>
+
       <div v-if="plugin.installed" class="flex justify-center gap-6 mb-4 p-3 bg-stone-100 dark:bg-stone-800 rounded-lg">
         <div class="flex flex-col items-center text-center">
           <GIcon name="box" class="text-xl text-lime-500 mb-1" />
@@ -274,8 +314,10 @@ import { trans } from '@/i18n/i18n'
 import { GIcon, Loading } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
 import PluginIcon from '@/components/plugins/PluginIcon.vue'
+import PluginConfigForm from '@/components/plugins/PluginConfigForm.vue'
 import { NSelect, NCheckbox, NCheckboxGroup } from 'naive-ui'
 import { PLUGIN_PERMISSIONS } from '@/parts/pluginPermissions'
+import { pluginHealthBadge } from '@/parts/pluginHealth'
 
 const props = defineProps({
   plugin: {
@@ -313,7 +355,9 @@ const loadedStatus = computed(() => {
 
 const loadedStatusClass = computed(() => loadedStatusClasses[loadedStatus.value])
 
-const emit = defineEmits(['install', 'update', 'uninstall', 'save-permissions'])
+const emit = defineEmits(['install', 'update', 'uninstall', 'save-permissions', 'config-saved'])
+
+const health = computed(() => pluginHealthBadge(props.loadedInfo?.health))
 
 const requiredPermissions = computed(() => props.loadedInfo?.required_permissions ?? [])
 const allowedPermissions = computed(() => props.loadedInfo?.allowed_permissions ?? [])

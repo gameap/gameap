@@ -78,7 +78,14 @@ func (r *denialRecorder) all() []string {
 type grantSet map[domain.PluginPermission]bool
 
 func (g grantSet) Has(_ context.Context, _ uint64, permission domain.PluginPermission) (bool, error) {
-	return g[permission], nil
+	granted := make([]domain.PluginPermission, 0, len(g))
+	for name, ok := range g {
+		if ok {
+			granted = append(granted, name)
+		}
+	}
+
+	return domain.PermissionSatisfied(permission, granted), nil
 }
 
 func TestPluginGuard_Check_enforces_policy_table(t *testing.T) {
@@ -127,10 +134,31 @@ func TestPluginGuard_Check_enforces_policy_table(t *testing.T) {
 			wantError: "",
 		},
 		{
-			name:      "nodefs_read_needs_files",
+			name:      "nodefs_read_needs_files_read",
 			module:    ModuleNodeFS,
 			export:    "read_dir",
 			grants:    grantSet{domain.PluginPermissionNodeCommands: true},
+			wantError: "plugin permission files_read required",
+		},
+		{
+			name:      "nodefs_read_satisfied_by_files",
+			module:    ModuleNodeFS,
+			export:    "read_dir",
+			grants:    grantSet{domain.PluginPermissionFiles: true},
+			wantError: "",
+		},
+		{
+			name:      "nodefs_read_satisfied_by_files_read",
+			module:    ModuleNodeFS,
+			export:    "download",
+			grants:    grantSet{domain.PluginPermissionFilesRead: true},
+			wantError: "",
+		},
+		{
+			name:      "nodefs_write_needs_files",
+			module:    ModuleNodeFS,
+			export:    "upload",
+			grants:    grantSet{domain.PluginPermissionFilesRead: true},
 			wantError: "plugin permission files required",
 		},
 		{
@@ -425,14 +453,20 @@ func TestHostRPCPolicies_cover_generated_exports(t *testing.T) {
 		ModuleDaemonTasks:    "daemontasks",
 		ModuleServers:        "servers",
 		ModuleServerSettings: "serversettings",
+		ModuleHost:           "host",
 	}
 
-	// Read-only functions of mixed modules that deliberately need no grant.
+	// Read-only functions of mixed modules that deliberately need no grant,
+	// and the introspection module, open as a whole.
 	open := map[HostRPC]struct{}{
 		{ModuleDaemonTasks, "find_daemon_tasks"}:       {},
 		{ModuleServers, "find_servers"}:                {},
 		{ModuleServers, "get_server"}:                  {},
 		{ModuleServerSettings, "find_server_settings"}: {},
+		{ModuleHost, "get_grants"}:                     {},
+		{ModuleHost, "get_config"}:                     {},
+		{ModuleHost, "get_host_info"}:                  {},
+		{ModuleHost, "report_status"}:                  {},
 	}
 
 	for module, dir := range modules {

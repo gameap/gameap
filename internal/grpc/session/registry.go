@@ -20,6 +20,7 @@ type Registry struct {
 	pubsub         pubsub.PubSub
 	instanceID     string
 	metricsWaiters MetricsWaiterRegistrar
+	observer       Observer
 	logger         *slog.Logger
 
 	mu            sync.RWMutex
@@ -27,6 +28,17 @@ type Registry struct {
 
 	globalMu    sync.RWMutex
 	globalNodes map[uint64]string
+}
+
+// Observer is told about the daemon sessions this instance owns:
+// SessionRegistered when a daemon connects here (reconnect is set when it
+// replaced a live session of the same node), SessionUnregistered when the
+// session this instance held went away. Sessions owned by other instances,
+// which reach this registry only through pub/sub, are not reported, so every
+// transition is observed exactly once cluster-wide.
+type Observer interface {
+	SessionRegistered(ctx context.Context, nodeID uint64, version string, reconnect bool)
+	SessionUnregistered(ctx context.Context, nodeID uint64, version string, connectedAt time.Time)
 }
 
 // MetricsWaiterRegistrar lets the registry register cross-instance
@@ -49,6 +61,12 @@ func NewRegistry(ps pubsub.PubSub, instanceID string, logger *slog.Logger) *Regi
 		localSessions: make(map[uint64]*Session),
 		globalNodes:   make(map[uint64]string),
 	}
+}
+
+// SetSessionObserver wires the observer of local session transitions.
+// Called once during application bootstrap.
+func (r *Registry) SetSessionObserver(observer Observer) {
+	r.observer = observer
 }
 
 // SetMetricsWaiterRegistrar wires the metrics handler used to track
@@ -91,7 +109,8 @@ func (r *Registry) Start(ctx context.Context) error {
 
 func (r *Registry) Register(ctx context.Context, session *Session) error {
 	r.mu.Lock()
-	if old, ok := r.localSessions[session.NodeID]; ok {
+	old, reconnect := r.localSessions[session.NodeID]
+	if reconnect {
 		old.Cancel()
 		r.logger.Info("closed existing session for reconnecting daemon",
 			"node_id", session.NodeID,
@@ -99,6 +118,10 @@ func (r *Registry) Register(ctx context.Context, session *Session) error {
 	}
 	r.localSessions[session.NodeID] = session
 	r.mu.Unlock()
+
+	if r.observer != nil {
+		r.observer.SessionRegistered(ctx, session.NodeID, session.Version, reconnect)
+	}
 
 	msg, err := messages.NewMessage(
 		channels.DaemonSessionConnected,
@@ -169,6 +192,10 @@ func (r *Registry) UnregisterSession(ctx context.Context, sess *Session) error {
 }
 
 func (r *Registry) publishSessionClosed(ctx context.Context, session *Session) error {
+	if r.observer != nil {
+		r.observer.SessionUnregistered(ctx, session.NodeID, session.Version, session.ConnectedAt)
+	}
+
 	msg, err := messages.NewMessage(
 		channels.DaemonSessionClosed,
 		messages.TypeDaemonClosed,

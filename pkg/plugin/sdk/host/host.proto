@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.host;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/host";
+
+// HostService lets a plugin introspect itself and the panel it runs on: the
+// grants it holds, its effective configuration, what the host provides, and a
+// channel to report its own health to operators. Open to every plugin (no
+// grant, no rate limit). Transient loads (dry-run) answer empty grants and
+// configuration, and their status reports are ignored.
+// go:plugin type=host module=gameap-host
+service HostService {
+  // GetGrants answers the permissions the operator granted this plugin,
+  // read live from the panel database.
+  rpc GetGrants(GetGrantsRequest) returns (GetGrantsResponse);
+
+  // GetConfig answers the same map Initialize received (schema defaults
+  // overlaid by the operator's values, secrets decrypted), read fresh from
+  // the panel database so a plugin can re-read it without a reload.
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+
+  // GetHostInfo describes the panel and the host modules instantiated for
+  // this plugin, so a plugin can degrade gracefully instead of failing calls.
+  rpc GetHostInfo(GetHostInfoRequest) returns (GetHostInfoResponse);
+
+  // ReportStatus publishes the plugin's self-diagnosis; the panel shows it in
+  // the admin UI and exposes it as a metric. Per panel instance.
+  rpc ReportStatus(ReportStatusRequest) returns (ReportStatusResponse);
+}
+
+message GetGrantsRequest {}
+
+message GetGrantsResponse {
+  repeated string permissions = 1;
+}
+
+message GetConfigRequest {}
+
+message GetConfigResponse {
+  map<string, string> values = 1;
+  // found is false for transient loads and when the plugin row is gone.
+  bool found = 2;
+  // has_schema reports whether the manifest declares a config_schema.
+  bool has_schema = 3;
+  // error is set when the configuration could not be read (for example a
+  // secret that no longer decrypts); values is then empty.
+  optional string error = 4;
+}
+
+message GetHostInfoRequest {}
+
+message GetHostInfoResponse {
+  string panel_version = 1;
+  uint32 plugin_api_version = 2;
+  // Host modules instantiated for this plugin ("gameap-nodefs", ...), sorted.
+  repeated string modules = 3;
+  // Identifier of the panel instance answering the call.
+  string instance_id = 4;
+}
+
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+  HEALTH_STATUS_HEALTHY = 1;
+  HEALTH_STATUS_DEGRADED = 2;
+  HEALTH_STATUS_UNHEALTHY = 3;
+}
+
+message ReportStatusRequest {
+  HealthStatus status = 1;
+  // Short human-readable reason; truncated to 512 bytes.
+  string message = 2;
+  // Optional key/value details; at most 16 entries, keys up to 64 bytes,
+  // values up to 256 bytes.
+  map<string, string> details = 3;
+}
+
+message ReportStatusResponse {
+  // accepted is false when the report was ignored (transient load).
+  bool accepted = 1;
+}

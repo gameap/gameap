@@ -187,6 +187,10 @@ func TestLoader_ProcessAutoLoad_AddsToDatabase(t *testing.T) {
 	assert.Equal(t, "test-plugin", plugins[0].Name)
 	assert.Equal(t, domain.PluginStatusActive, plugins[0].Status)
 	assert.NotNil(t, plugins[0].InstalledAt)
+	require.NotNil(t, plugins[0].Source)
+	assert.Equal(t, "file://new-plugin.wasm", *plugins[0].Source, "an autoloaded file is a local plugin, not a store one")
+	require.NotNil(t, plugins[0].Checksum)
+	assert.Equal(t, FileChecksum([]byte("wasm-content")), *plugins[0].Checksum)
 }
 
 func TestLoader_ProcessAutoLoad_ActivatesExisting(t *testing.T) {

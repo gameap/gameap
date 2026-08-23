@@ -14,6 +14,10 @@ var (
 	// loaded or reloaded until the status changes.
 	ErrPluginDisabled = errors.New("plugin is disabled")
 	ErrPluginUpdating = errors.New("plugin is being updated")
+	// ErrPluginHeld: a handler is in the middle of a multi-step operation on
+	// the plugin (update, uninstall, configuration); the reconciler must not
+	// touch it until the hold is released.
+	ErrPluginHeld = errors.New("plugin is held by an operation in progress")
 )
 
 // maxLoadErrorLen bounds the reason persisted in plugins.last_error and shown

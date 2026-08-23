@@ -23,6 +23,7 @@ runs `go test -race -v -count=1 ./pkg/plugin/compatrust/...`.
 | `compat_v44_test.go` | v4.4+ only | Fixtures importing 4.4 modules must load on 4.4+ |
 | `compat_v43only_test.go` | v4.3.5 only | Fixtures importing 4.4 modules must be **rejected** by 4.3.x |
 | `stubs_head_test.go` | `HEAD` only | Stub methods for host-module RPCs added after the latest release (nodefs hash/archive) — dropped on every tagged leg, where the interface does not have them |
+| `compat_head_test.go` | `HEAD` only | The `introspection` fixture: `PluginInfo.config_schema` defaults, the `gameap-host` module (real `hostlibrary` implementation) and the post-4.4.2 event catalog — dropped on every tagged leg |
 
 The workflow deletes the files that do not apply to the matrix leg under
 test, so these files must never reference each other across version groups —
@@ -35,7 +36,10 @@ each leg compiles as if the removed files had never existed.
 3. Reference the fixture from the test file matching its host-module imports:
    - `compat_test.go` — loads on every supported panel;
    - `compat_v44_test.go` — loads only on 4.4+;
-   - `compat_v43only_test.go` — must be rejected by 4.3.x.
+   - `compat_v43only_test.go` — must be rejected by 4.3.x;
+   - `compat_head_test.go` — needs modules or contract fields that exist
+     only on the development panel (add the file to the workflow's HEAD-only
+     trim rule when creating a new one).
 4. Run `go test -race -count=1 ./pkg/plugin/compatrust/...` locally and make
    sure the **Plugin Compatibility** workflow stays green on every matrix
    leg before merging.

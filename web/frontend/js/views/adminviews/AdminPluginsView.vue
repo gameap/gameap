@@ -68,6 +68,7 @@
           @update="onUpdate"
           @uninstall="onUninstall"
           @save-permissions="onSavePermissions"
+          @config-saved="onConfigSaved"
           @close="closeDetailsModal"
       />
     </n-spin>
@@ -92,6 +93,7 @@ import GButton from "@/components/GButton.vue"
 import PluginIcon from "@/components/plugins/PluginIcon.vue"
 import { usePluginStoreStore } from "@/store/pluginStore"
 import { errorNotification, notification } from "@/parts/dialogs"
+import { pluginHealthBadge } from "@/parts/pluginHealth"
 import {
   NTabs,
   NTabPane,
@@ -191,6 +193,33 @@ const createInstalledColumns = () => {
             title: row.missing_permissions.map(permission => trans('plugins.permission_' + permission)).join(', '),
             'data-testid': 'plugin-missing-permissions-badge',
           }, trans('plugins.permissions') + ': ' + row.missing_permissions.length))
+        }
+
+        const health = pluginHealthBadge(row.health)
+        if (health) {
+          badges.push(h('span', {
+            class: 'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ' + health.class,
+            title: health.title,
+            'data-testid': 'plugin-health-badge',
+          }, [h(GIcon, { name: 'heart-pulse' }), health.label]))
+        }
+
+        if (row.has_config_schema) {
+          badges.push(h('span', {
+            class: 'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300',
+            title: trans('plugins.config_hint'),
+            'data-testid': 'plugin-configurable-badge',
+          }, [h(GIcon, { name: 'gear' }), trans('plugins.configurable')]))
+        }
+
+        if (row.sync && row.sync.state !== 'in_sync') {
+          badges.push(h('span', {
+            class: 'px-2 py-0.5 text-xs font-medium rounded-full ' + (row.sync.state === 'failed'
+              ? 'bg-danger-soft text-danger-soft-text'
+              : 'bg-warning-soft text-warning-soft-text'),
+            title: row.sync.error || undefined,
+            'data-testid': 'plugin-sync-badge',
+          }, trans('plugins.sync_' + row.sync.state)))
         }
 
         if (!isSmallScreen.value && row.labels?.length > 0) {
@@ -572,6 +601,10 @@ function onSavePermissions(permissions) {
       .finally(() => {
         actionLoading.value = false
       })
+}
+
+function onConfigSaved() {
+  pluginStore.fetchLoadedPlugins().catch(errorNotification)
 }
 
 function onUninstall() {

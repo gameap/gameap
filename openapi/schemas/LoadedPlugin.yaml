@@ -128,6 +128,44 @@ properties:
     items:
       $ref: './PluginPermission.yaml'
     example: ["node_commands"]
+  has_config_schema:
+    type: boolean
+    description: Whether the manifest declares a configuration schema (the admin UI offers a form)
+  config_keys:
+    type: array
+    description: Names of the stored configuration keys; values are never listed here
+    items:
+      type: string
+    example: ["api_key", "port"]
+  config_schema_error:
+    type: string
+    description: Why the manifest's configuration schema could not be parsed
+  health:
+    $ref: './PluginHealth.yaml'
+  sync:
+    type: object
+    description: |
+      What the multi-instance reconciler did for the plugin on the answering
+      instance. Absent when `PLUGIN_SYNC_DISABLED` is set or the reconciler
+      never touched the plugin. Per instance — not aggregated across the
+      fleet. For a plugin this instance could not load, `status` and `error`
+      report this instance's failure even though a peer may run it.
+    properties:
+      state:
+        type: string
+        enum: [in_sync, retrying, failed]
+      error:
+        type: string
+      failures:
+        type: integer
+      last_attempt_at:
+        type: string
+        format: date-time
+      next_retry_at:
+        type: string
+        format: date-time
+    required:
+      - state
 required:
   - id
   - name

@@ -60,7 +60,7 @@ func TestHandleTaskStatusUpdate_PluginTaskEvents(t *testing.T) {
 			wantStatuses: []string{string(domain.DaemonTaskStatusError)},
 		},
 		{
-			name:         "working_dispatches_nothing",
+			name:         "repeated_working_dispatches_nothing",
 			updateStatus: proto.DaemonTaskStatus_DAEMON_TASK_STATUS_WORKING,
 			wantEvents:   nil,
 			wantStatuses: nil,
@@ -91,6 +91,44 @@ func TestHandleTaskStatusUpdate_PluginTaskEvents(t *testing.T) {
 			assert.Equal(t, tt.wantStatuses, pluginEvents.statuses)
 		})
 	}
+}
+
+func TestHandleTaskStatusUpdate_waiting_to_working_dispatches_started_once(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	task := &domain.DaemonTask{
+		DedicatedServerID: 1,
+		Task:              domain.DaemonTaskTypeServerStart,
+		Status:            domain.DaemonTaskStatusWaiting,
+		CreatedAt:         &now,
+		UpdatedAt:         &now,
+	}
+	repo := setupDaemonTaskRepo(t, task)
+	pluginEvents := &fakePluginTaskEvents{}
+	handler := NewTaskHandler(repo, nil, nil, pluginEvents, slog.Default())
+
+	update := &proto.TaskStatusUpdate{
+		TaskId: uint64(task.ID),
+		Status: proto.DaemonTaskStatus_DAEMON_TASK_STATUS_WORKING,
+	}
+
+	require.NoError(t, handler.HandleTaskStatusUpdate(context.Background(), 1, update))
+	require.NoError(t, handler.HandleTaskStatusUpdate(context.Background(), 1, update))
+
+	assert.Equal(t,
+		[]pluginproto.EventType{pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_STARTED},
+		pluginEvents.events)
+	assert.Equal(t, []string{string(domain.DaemonTaskStatusWorking)}, pluginEvents.statuses)
+
+	require.NoError(t, handler.HandleTaskStatusUpdate(context.Background(), 1, &proto.TaskStatusUpdate{
+		TaskId: uint64(task.ID),
+		Status: proto.DaemonTaskStatus_DAEMON_TASK_STATUS_SUCCESS,
+	}))
+
+	assert.Equal(t, []pluginproto.EventType{
+		pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_STARTED,
+		pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED,
+	}, pluginEvents.events)
 }
 
 func TestHandleTaskStatusUpdate_duplicate_terminal_update_dispatches_once(t *testing.T) {

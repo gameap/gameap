@@ -19,6 +19,9 @@ const (
 	PluginEvents       = PluginPrefix + "events"
 	PluginServerEvents = PluginPrefix + "events:server"
 	PluginTaskEvents   = PluginPrefix + "events:task"
+	// PluginSync carries hints that a plugin row changed; receivers re-read
+	// the database rather than trusting the message.
+	PluginSync = PluginPrefix + "sync"
 
 	RealtimePrefix        = Prefix + "realtime:"
 	RealtimeServerStatus  = RealtimePrefix + "server:status"

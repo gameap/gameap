@@ -71,6 +71,16 @@ PluginPermissionsUpdateRequest:
   $ref: './PluginPermissionsUpdateRequest.yaml'
 PluginPermissionsResponse:
   $ref: './PluginPermissionsResponse.yaml'
+PluginConfigSchema:
+  $ref: './PluginConfigSchema.yaml'
+PluginConfigResponse:
+  $ref: './PluginConfigResponse.yaml'
+PluginConfigUpdateRequest:
+  $ref: './PluginConfigUpdateRequest.yaml'
+PluginConfigUpdateResponse:
+  $ref: './PluginConfigUpdateResponse.yaml'
+PluginHealth:
+  $ref: './PluginHealth.yaml'
 
 # Request schemas
 LoginRequest:

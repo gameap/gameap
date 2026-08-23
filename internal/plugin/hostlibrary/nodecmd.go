@@ -22,18 +22,67 @@ type NodeCmdServiceImpl struct {
 	commandService NodeCommandService
 	nodeRepo       repositories.NodeRepository
 	guard          *PluginGuard
+	policy         *PathPolicy
+}
+
+// NodeCmdOption tunes a NodeCmdServiceImpl.
+type NodeCmdOption func(*NodeCmdServiceImpl)
+
+// WithNodeCmdPathPolicy confines the working directory a command may name;
+// nil keeps the unrestricted policy. The policy says nothing about what the
+// command itself does.
+func WithNodeCmdPathPolicy(policy *PathPolicy) NodeCmdOption {
+	return func(s *NodeCmdServiceImpl) {
+		if policy != nil {
+			s.policy = policy
+		}
+	}
 }
 
 func NewNodeCmdService(
 	commandService NodeCommandService,
 	nodeRepo repositories.NodeRepository,
 	guard *PluginGuard,
+	opts ...NodeCmdOption,
 ) *NodeCmdServiceImpl {
-	return &NodeCmdServiceImpl{
+	service := &NodeCmdServiceImpl{
 		commandService: commandService,
 		nodeRepo:       nodeRepo,
 		guard:          guard,
+		policy:         DefaultPathPolicy(),
 	}
+
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	return service
+}
+
+// checkWorkDir refuses a working directory outside the node path policy; a
+// command without one runs in the daemon's default directory and is not
+// subject to the policy.
+func (s *NodeCmdServiceImpl) checkWorkDir(ctx context.Context, node *domain.Node, workDir *string) string {
+	if workDir == nil {
+		return ""
+	}
+
+	scope, err := s.policy.ScopeFor(ctx, node)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to resolve the node path policy, refusing the command",
+			slog.Uint64("node_id", uint64(node.ID)),
+			slog.String("error", err.Error()))
+
+		return "path policy: " + err.Error()
+	}
+
+	if denial := scope.CheckWorkDir(*workDir); denial != nil {
+		s.guard.DenyPath(ctx, ModuleNodeCmd, "execute_command", uint64(node.ID), denial)
+
+		return denial.Error()
+	}
+
+	return ""
 }
 
 func (s *NodeCmdServiceImpl) getNode(ctx context.Context, nodeID uint64) (*domain.Node, error) {
@@ -64,6 +113,10 @@ func (s *NodeCmdServiceImpl) ExecuteCommand(
 
 	if node == nil {
 		return &nodecmd.ExecuteCommandResponse{Error: new("node not found")}, nil
+	}
+
+	if msg := s.checkWorkDir(ctx, node, req.WorkDir); msg != "" {
+		return &nodecmd.ExecuteCommandResponse{Error: new(msg)}, nil
 	}
 
 	var opts []daemon.CommandServiceOption
@@ -104,22 +157,25 @@ type NodeCmdHostLibraryFactory struct {
 	commandService NodeCommandService
 	nodeRepo       repositories.NodeRepository
 	guard          *Guard
+	opts           []NodeCmdOption
 }
 
 func NewNodeCmdHostLibraryFactory(
 	commandService NodeCommandService,
 	nodeRepo repositories.NodeRepository,
 	guard *Guard,
+	opts ...NodeCmdOption,
 ) *NodeCmdHostLibraryFactory {
 	return &NodeCmdHostLibraryFactory{
 		commandService: commandService,
 		nodeRepo:       nodeRepo,
 		guard:          guard,
+		opts:           opts,
 	}
 }
 
 func (f *NodeCmdHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
 	return &NodeCmdHostLibrary{
-		impl: NewNodeCmdService(f.commandService, f.nodeRepo, f.guard.For(pluginID)),
+		impl: NewNodeCmdService(f.commandService, f.nodeRepo, f.guard.For(pluginID), f.opts...),
 	}
 }

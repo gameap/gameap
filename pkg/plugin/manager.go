@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/pkg/mergefs"
+	"github.com/gameap/gameap/pkg/plugin/configschema"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk/protocol"
 	"github.com/pkg/errors"
@@ -82,12 +83,26 @@ type LoadedPlugin struct {
 	// plugin (dry-run, admin UI) without another guest call.
 	SubscribedEvents []proto.EventType
 
+	// HostModules names the host modules instantiated for this module
+	// ("gameap-nodefs", ...), sorted; what gameap-host GetHostInfo reports.
+	HostModules []string
+
+	// ConfigSchemaError explains why the manifest's config_schema could not
+	// be parsed; the plugin still loads, with free-form configuration.
+	ConfigSchemaError string
+
+	// manifestSchema is the config_schema text of the manifest, published
+	// before Initialize runs so gameap-host can overlay the defaults on the
+	// very first load, when the database row does not carry the schema yet.
+	manifestSchema atomic.Pointer[string]
+
 	// disableReason is set by DisableWithReason; nil when the plugin was
 	// disabled silently (unload, shutdown). onDisabled is the manager's
 	// DisableHook, wired by Load for registered plugins only.
 	disableReason atomic.Pointer[string]
 	onDisabled    DisableHook
 	guestLogs     *guestLogs
+	health        atomic.Pointer[HealthReport]
 
 	// disabled is atomic because it is flipped on Unload and on guest call
 	// timeouts while dispatchers concurrently read it without the manager lock.
@@ -179,6 +194,13 @@ type Manager struct {
 	// caching is disabled.
 	cache  wazero.CompilationCache
 	closed bool
+
+	// byDBID indexes registered plugins by database id from the moment a
+	// load starts, under its own lock: host libraries look their plugin up
+	// from inside guest calls that run while mu is held (Initialize), so
+	// this index must never take mu.
+	stateMu sync.RWMutex
+	byDBID  map[uint64]*LoadedPlugin
 }
 
 // NewManager creates a new plugin manager.
@@ -187,6 +209,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 		plugins: make(map[string]*LoadedPlugin),
 		config:  cfg,
 		cache:   newCompilationCache(cfg),
+		byDBID:  make(map[uint64]*LoadedPlugin),
 	}
 }
 
@@ -212,13 +235,15 @@ func (m *Manager) Load(
 		return nil, ErrManagerClosed
 	}
 
-	loadedPlugin, err := m.load(ctx, wasmBytes, config, pluginID)
+	loadedPlugin, rollback, err := m.load(ctx, wasmBytes, config, pluginID, true)
 	if err != nil {
 		return nil, err
 	}
 
 	id := normalizePluginID(loadedPlugin.Info.Id)
 	if _, exists := m.plugins[id]; exists {
+		rollback()
+
 		if closeErr := loadedPlugin.Close(ctx); closeErr != nil {
 			slog.Warn("failed to close duplicate plugin runtime",
 				slog.String("plugin_id", loadedPlugin.Info.Id),
@@ -254,17 +279,28 @@ func (m *Manager) LoadTransient(
 		return nil, ErrManagerClosed
 	}
 
-	return m.load(ctx, wasmBytes, config, pluginID)
+	loadedPlugin, _, err := m.load(ctx, wasmBytes, config, pluginID, false)
+
+	return loadedPlugin, err
 }
 
+// load builds a runtime for the module and initializes the plugin. With
+// register set (Load, not LoadTransient) the plugin is reachable by database
+// id from the moment its runtime starts, so host libraries called during
+// Initialize (gameap-host ReportStatus) already find it; the index entry is
+// rolled back when the load fails, and the returned rollback lets the
+// caller undo it when it rejects the plugin afterwards (duplicate id).
 func (m *Manager) load(
 	ctx context.Context,
 	wasmBytes []byte,
 	config map[string]string,
 	pluginID uint64,
-) (*LoadedPlugin, error) {
+	register bool,
+) (*LoadedPlugin, func(), error) {
+	rollback := func() {}
+
 	if m.config.MaxModuleBytes > 0 && len(wasmBytes) > m.config.MaxModuleBytes {
-		return nil, errors.Wrapf(ErrModuleTooLarge, "%d bytes exceeds the limit of %d bytes",
+		return nil, rollback, errors.Wrapf(ErrModuleTooLarge, "%d bytes exceeds the limit of %d bytes",
 			len(wasmBytes), m.config.MaxModuleBytes)
 	}
 
@@ -276,22 +312,36 @@ func (m *Manager) load(
 
 	logs := newGuestLogs(m.config.GuestLogger)
 
-	r, module, imports, err := m.initializeRuntime(loadCtx, wasmBytes, pluginID, logs)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to initialize runtime")
+	loadedPlugin := &LoadedPlugin{
+		Config:    config,
+		Enabled:   true,
+		DBID:      pluginID,
+		guestLogs: logs,
 	}
 
-	plugin, err := m.createPluginWrapper(module)
-	if err != nil {
-		closeErr := r.Close(ctx)
-		if closeErr != nil {
-			slog.Warn("failed to close runtime after plugin wrapper creation failure",
-				slog.String("error", closeErr.Error()),
-				slog.String("plugin_error", err.Error()),
-			)
-		}
+	if register && pluginID != 0 {
+		previous := m.registerByDBID(loadedPlugin)
+		rollback = func() { m.restoreByDBID(pluginID, loadedPlugin, previous) }
 
-		return nil, errors.WithMessage(err, "failed to create plugin wrapper")
+		defer func() {
+			if loadedPlugin.runtime == nil {
+				rollback()
+			}
+		}()
+	}
+
+	setup, err := m.initializeRuntime(loadCtx, wasmBytes, pluginID, logs)
+	if err != nil {
+		return nil, rollback, errors.WithMessage(err, "failed to initialize runtime")
+	}
+
+	loadedPlugin.HostModules = setup.hostModules
+
+	plugin, err := m.createPluginWrapper(setup.module)
+	if err != nil {
+		closeRuntimeAfterFailure(ctx, setup.runtime, "plugin wrapper creation", err)
+
+		return nil, rollback, errors.WithMessage(err, "failed to create plugin wrapper")
 	}
 
 	if wrapper, ok := plugin.(*pluginServiceWrapper); ok {
@@ -300,23 +350,117 @@ func (m *Manager) load(
 		wrapper.pluginID = pluginID
 	}
 
-	loadedPlugin, err := m.initializePlugin(loadCtx, r, plugin, config, pluginID, logs)
-	if err != nil {
-		closeErr := r.Close(ctx)
-		if closeErr != nil {
-			slog.Warn("failed to close runtime after plugin initialization failure",
-				slog.String("error", closeErr.Error()),
-				slog.String("plugin_error", err.Error()),
-			)
-		}
+	if err := m.initializePlugin(loadCtx, setup.runtime, plugin, loadedPlugin, logs); err != nil {
+		closeRuntimeAfterFailure(ctx, setup.runtime, "plugin initialization", err)
 
-		return nil, err
+		return nil, rollback, err
 	}
 
-	loadedPlugin.HostImports = imports
+	loadedPlugin.HostImports = setup.imports
 	wireGuestHooks(loadedPlugin)
 
-	return loadedPlugin, nil
+	return loadedPlugin, rollback, nil
+}
+
+// registerByDBID indexes a plugin being loaded for its database id and
+// returns the entry it displaces (a module already running for that id).
+func (m *Manager) registerByDBID(plugin *LoadedPlugin) *LoadedPlugin {
+	m.stateMu.Lock()
+	defer m.stateMu.Unlock()
+
+	previous := m.byDBID[plugin.DBID]
+	m.byDBID[plugin.DBID] = plugin
+
+	return previous
+}
+
+// restoreByDBID undoes registerByDBID after a failed load: the displaced
+// entry comes back, or the id is dropped when nothing was running.
+func (m *Manager) restoreByDBID(dbID uint64, failed, previous *LoadedPlugin) {
+	m.stateMu.Lock()
+	defer m.stateMu.Unlock()
+
+	if m.byDBID[dbID] != failed {
+		return
+	}
+
+	if previous == nil {
+		delete(m.byDBID, dbID)
+
+		return
+	}
+
+	m.byDBID[dbID] = previous
+}
+
+// unregisterByDBID drops the index entry when it still points at plugin.
+func (m *Manager) unregisterByDBID(plugin *LoadedPlugin) {
+	if plugin.DBID == 0 {
+		return
+	}
+
+	m.stateMu.Lock()
+	defer m.stateMu.Unlock()
+
+	if m.byDBID[plugin.DBID] == plugin {
+		delete(m.byDBID, plugin.DBID)
+	}
+}
+
+// PluginByDBID reports the plugin registered for the database id, including
+// one whose load is still in progress (Info is nil until GetInfo answered).
+// A nil manager has no plugins.
+func (m *Manager) PluginByDBID(dbID uint64) (*LoadedPlugin, bool) {
+	if m == nil || dbID == 0 {
+		return nil, false
+	}
+
+	m.stateMu.RLock()
+	defer m.stateMu.RUnlock()
+
+	plugin, ok := m.byDBID[dbID]
+
+	return plugin, ok
+}
+
+// SetHealth records a plugin's self-reported status; false when no plugin
+// is registered for the id (transient loads are never registered).
+func (m *Manager) SetHealth(dbID uint64, report HealthReport) bool {
+	plugin, ok := m.PluginByDBID(dbID)
+	if !ok {
+		return false
+	}
+
+	plugin.SetHealth(report)
+
+	return true
+}
+
+// ManifestConfigSchema answers the config_schema the running module
+// declared (empty when it declares none); false when no module runs for
+// the id. Available from the moment GetInfo answered, i.e. inside Initialize.
+func (m *Manager) ManifestConfigSchema(dbID uint64) (string, bool) {
+	plugin, ok := m.PluginByDBID(dbID)
+	if !ok {
+		return "", false
+	}
+
+	schema := plugin.manifestSchema.Load()
+	if schema == nil {
+		return "", true
+	}
+
+	return *schema, true
+}
+
+// HostModules lists the host modules instantiated for the plugin.
+func (m *Manager) HostModules(dbID uint64) ([]string, bool) {
+	plugin, ok := m.PluginByDBID(dbID)
+	if !ok {
+		return nil, false
+	}
+
+	return slices.Clone(plugin.HostModules), true
 }
 
 // wireGuestHooks links the wrapper's runtime signals to the loaded plugin:
@@ -333,6 +477,16 @@ func wireGuestHooks(loadedPlugin *LoadedPlugin) {
 	}
 }
 
+// runtimeSetup is what initializeRuntime hands back: the started module, its
+// runtime, the host functions it imports and the host modules instantiated
+// for it.
+type runtimeSetup struct {
+	runtime     wazero.Runtime
+	module      api.Module
+	imports     []HostImport
+	hostModules []string
+}
+
 // initializeRuntime builds the runtime, registers WASI and every host library,
 // compiles and starts the module. Besides the module it returns the host
 // functions the module imports (see LoadedPlugin.HostImports).
@@ -341,13 +495,13 @@ func (m *Manager) initializeRuntime(
 	wasmBytes []byte,
 	pluginID uint64,
 	logs *guestLogs,
-) (wazero.Runtime, api.Module, []HostImport, error) {
+) (*runtimeSetup, error) {
 	r := wazero.NewRuntimeWithConfig(ctx, m.runtimeConfig())
 
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
 		closeRuntimeAfterFailure(ctx, r, "WASI instantiation", err)
 
-		return nil, nil, nil, errors.Wrap(err, "failed to instantiate WASI")
+		return nil, errors.Wrap(err, "failed to instantiate WASI")
 	}
 
 	// Instantiate the env module for AssemblyScript support
@@ -355,27 +509,30 @@ func (m *Manager) initializeRuntime(
 	if err := envLib.Instantiate(ctx, r); err != nil {
 		closeRuntimeAfterFailure(ctx, r, "env module instantiation", err)
 
-		return nil, nil, nil, errors.Wrap(err, "failed to instantiate env module")
+		return nil, errors.Wrap(err, "failed to instantiate env module")
 	}
 
-	// Host libraries register through the observed runtime so every host
-	// function they export is counted; transient loads are not observed.
-	libraryRuntime := r
+	// Host libraries register through the recording runtime (so the plugin
+	// can be told which modules it has) and, for registered plugins, through
+	// the observed one so every host function they export is counted.
+	recorder := recordHostModules(r)
+
+	var libraryRuntime wazero.Runtime = recorder
 	if pluginID != 0 {
-		libraryRuntime = observeHostCalls(r, m.config.Observer, pluginID)
+		libraryRuntime = observeHostCalls(recorder, m.config.Observer, pluginID)
 	}
 
 	if err := m.instantiateLibraries(ctx, libraryRuntime, pluginID); err != nil {
 		closeRuntimeAfterFailure(ctx, r, "host library instantiation", err)
 
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	code, err := r.CompileModule(ctx, wasmBytes)
 	if err != nil {
 		closeRuntimeAfterFailure(ctx, r, "WASM module compilation", err)
 
-		return nil, nil, nil, errors.Wrap(err, "failed to compile WASM module")
+		return nil, errors.Wrap(err, "failed to compile WASM module")
 	}
 
 	imports := hostImports(code)
@@ -402,19 +559,24 @@ func (m *Manager) initializeRuntime(
 		if errors.As(err, &exitErr) && exitErr.ExitCode() != 0 {
 			closeRuntimeAfterFailure(ctx, r, "module instantiation", err)
 
-			return nil, nil, nil, errors.Wrapf(ErrUnexpectedExitCode, "exit code: %d", exitErr.ExitCode())
+			return nil, errors.Wrapf(ErrUnexpectedExitCode, "exit code: %d", exitErr.ExitCode())
 		} else if !errors.As(err, &exitErr) {
 			closeRuntimeAfterFailure(ctx, r, "module instantiation", err)
 
-			return nil, nil, nil, errors.Wrap(err, "failed to instantiate module")
+			return nil, errors.Wrap(err, "failed to instantiate module")
 		}
 	}
 
 	if err = m.verifyAPIVersion(startCtx, r, module); err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return r, module, imports, nil
+	return &runtimeSetup{
+		runtime:     r,
+		module:      module,
+		imports:     imports,
+		hostModules: recorder.Modules(),
+	}, nil
 }
 
 // HostImport is one host function a module imports.
@@ -489,27 +651,44 @@ func (m *Manager) instantiateLibraries(ctx context.Context, r wazero.Runtime, pl
 	return nil
 }
 
+// initializePlugin runs the guest's initialization sequence and fills the
+// loaded plugin. The configuration handed to Initialize is the caller's map
+// with the manifest's schema defaults underneath it, so a plugin sees its
+// defaults from the very first load.
 func (m *Manager) initializePlugin(
 	ctx context.Context,
 	r wazero.Runtime,
 	plugin proto.PluginService,
-	config map[string]string,
-	pluginID uint64,
+	loaded *LoadedPlugin,
 	logs *guestLogs,
-) (*LoadedPlugin, error) {
+) error {
 	info, err := plugin.GetInfo(ctx, &proto.GetInfoRequest{})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get plugin info")
+		return errors.Wrap(err, "failed to get plugin info")
 	}
 
 	logs.SetPluginID(info.Id)
+
+	loaded.manifestSchema.Store(&info.ConfigSchema)
+
+	schema, err := configschema.Parse(info.ConfigSchema)
+	if err != nil {
+		loaded.ConfigSchemaError = err.Error()
+
+		slog.Warn("plugin declares an invalid config_schema, configuration stays free-form",
+			slog.String("plugin_id", info.Id),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	config := schema.Apply(loaded.Config)
 
 	initResp, err := plugin.Initialize(ctx, &proto.InitializeRequest{
 		Context: &proto.PluginContext{PluginId: info.Id},
 		Config:  config,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "plugin initialization failed")
+		return errors.Wrap(err, "plugin initialization failed")
 	}
 
 	if initResp.Result != nil && !initResp.Result.Success {
@@ -518,75 +697,68 @@ func (m *Manager) initializePlugin(
 			errMsg = *initResp.Result.Error
 		}
 
-		return nil, errors.Wrapf(ErrInitializationFailed, "%s", errMsg)
+		return errors.Wrapf(ErrInitializationFailed, "%s", errMsg)
 	}
 
 	httpRoutes, err := m.fetchAndValidateHTTPRoutes(ctx, plugin, info.Id)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get HTTP routes")
+		return errors.WithMessage(err, "failed to get HTTP routes")
 	}
 
-	var frontendBundle []byte
-	var frontendStyles []byte
+	loaded.Info = info
+	loaded.Instance = plugin
+	loaded.Config = config
+	loaded.HTTPRoutes = httpRoutes
+	loaded.runtime = r
+
+	m.fetchOptionalDescriptors(ctx, plugin, loaded)
+
+	return nil
+}
+
+// fetchOptionalDescriptors reads everything a plugin may but need not
+// provide: frontend bundle, server abilities, protocols, assets and event
+// subscriptions. A missing export is no failure.
+func (m *Manager) fetchOptionalDescriptors(ctx context.Context, plugin proto.PluginService, loaded *LoadedPlugin) {
+	pluginID := loaded.Info.Id
+
 	bundleResp, err := plugin.GetFrontendBundle(ctx, &proto.GetFrontendBundleRequest{})
 	if err != nil {
 		slog.Debug("plugin has no frontend bundle",
-			slog.String("plugin_id", info.Id),
+			slog.String("plugin_id", pluginID),
 			slog.String("error", err.Error()),
 		)
 	} else {
 		if bundleResp.HasBundle && len(bundleResp.Bundle) > 0 {
-			frontendBundle = bundleResp.Bundle
+			loaded.FrontendBundle = bundleResp.Bundle
 		}
 		if bundleResp.HasStyles && len(bundleResp.Styles) > 0 {
-			frontendStyles = bundleResp.Styles
+			loaded.FrontendStyles = bundleResp.Styles
 		}
 	}
 
-	var serverAbilities []*proto.ServerAbility
 	abilitiesResp, err := plugin.GetServerAbilities(ctx, &proto.GetServerAbilitiesRequest{})
 	if err != nil {
 		slog.Debug("plugin has no server abilities",
-			slog.String("plugin_id", info.Id),
+			slog.String("plugin_id", pluginID),
 			slog.String("error", err.Error()),
 		)
 	} else if abilitiesResp != nil && len(abilitiesResp.Abilities) > 0 {
-		serverAbilities = abilitiesResp.Abilities
+		loaded.ServerAbilities = abilitiesResp.Abilities
 	}
 
-	protocolSvc, rconProtocols, queryProtocols := m.fetchProtocols(ctx, plugin, info.Id)
+	loaded.Protocol, loaded.RconProtocols, loaded.QueryProtocols = m.fetchProtocols(ctx, plugin, pluginID)
 
-	i18nFS, frontendFS := m.buildPluginAssets(ctx, plugin, info.Id)
+	loaded.I18nFS, loaded.FrontendFS = m.buildPluginAssets(ctx, plugin, pluginID)
 
-	var subscribedEvents []proto.EventType
 	if resp, err := plugin.GetSubscribedEvents(ctx, &proto.GetSubscribedEventsRequest{}); err != nil {
 		slog.Debug("failed to read plugin event subscriptions",
-			slog.String("plugin_id", info.Id),
+			slog.String("plugin_id", pluginID),
 			slog.String("error", err.Error()),
 		)
 	} else if resp != nil {
-		subscribedEvents = resp.Events
+		loaded.SubscribedEvents = resp.Events
 	}
-
-	return &LoadedPlugin{
-		Info:             info,
-		Instance:         plugin,
-		Config:           config,
-		Enabled:          true,
-		SubscribedEvents: subscribedEvents,
-		HTTPRoutes:       httpRoutes,
-		FrontendBundle:   frontendBundle,
-		FrontendStyles:   frontendStyles,
-		ServerAbilities:  serverAbilities,
-		Protocol:         protocolSvc,
-		RconProtocols:    rconProtocols,
-		QueryProtocols:   queryProtocols,
-		I18nFS:           i18nFS,
-		FrontendFS:       frontendFS,
-		DBID:             pluginID,
-		guestLogs:        logs,
-		runtime:          r,
-	}, nil
 }
 
 // fetchProtocols reads the optional ProtocolService registrations. The module
@@ -867,6 +1039,7 @@ func (m *Manager) Unload(ctx context.Context, pluginID string) error {
 	}
 
 	delete(m.plugins, id)
+	m.unregisterByDBID(plugin)
 
 	return nil
 }
@@ -938,6 +1111,10 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	}
 
 	m.plugins = make(map[string]*LoadedPlugin)
+
+	m.stateMu.Lock()
+	m.byDBID = make(map[uint64]*LoadedPlugin)
+	m.stateMu.Unlock()
 
 	if len(errs) > 0 {
 		return joinErrors(errs)

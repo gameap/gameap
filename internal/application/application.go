@@ -13,6 +13,7 @@ import (
 
 	"github.com/gameap/gameap/internal/application/defaults"
 	"github.com/gameap/gameap/internal/config"
+	"github.com/gameap/gameap/internal/plugin/hostlibrary"
 	"github.com/gameap/gameap/internal/pubsub/integration"
 	"github.com/gameap/gameap/migrations"
 	"github.com/gameap/gameap/pkg/auth"
@@ -95,6 +96,22 @@ func Run(runParams RunParams) {
 	slog.Info("password hashing configured",
 		slog.Int("bcrypt_cost", auth.ActiveBcryptCost()))
 
+	// The node path policy is a security setting: a typo must not silently
+	// fall back to "unrestricted".
+	if _, err := hostlibrary.NewPathPolicy(hostlibrary.PathPolicyConfig{
+		Mode:         hostlibrary.PathPolicyMode(cfg.Plugin.NodeFS.PathPolicy),
+		AllowedPaths: cfg.Plugin.NodeFS.AllowedPaths,
+	}, container.ServerRepository()); err != nil {
+		slog.Error("invalid PLUGIN_NODEFS_PATH_POLICY / PLUGIN_NODEFS_ALLOWED_PATHS", slog.String("error", err.Error()))
+		osExit(1)
+
+		return
+	}
+
+	slog.Info("plugin node path policy configured",
+		slog.String("mode", cfg.Plugin.NodeFS.PathPolicy),
+		slog.Int("allowed_paths", len(cfg.Plugin.NodeFS.AllowedPaths)))
+
 	shutdownDone := make(chan struct{})
 	go func() {
 		defer close(shutdownDone)
@@ -156,6 +173,8 @@ func Run(runParams RunParams) {
 
 			osExit(1)
 		}
+
+		startPluginSync(ctx, container)
 	}
 
 	startPubSub(ctx, container)
@@ -188,10 +207,25 @@ func startPluginServices(ctx context.Context, container *Container) {
 		return
 	}
 
+	// Subscribed before LoadAll so a peer's change during the load window
+	// is not missed; the first pass runs once the subscriptions are built.
+	if err := container.PluginSync().Subscribe(ctx); err != nil {
+		slog.WarnContext(ctx, "Failed to subscribe to plugin sync hints", slog.String("error", err.Error()))
+	}
+
 	if err := container.PluginLoader().LoadAll(ctx); err != nil {
 		slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))
 
 		osExit(1)
+	}
+}
+
+// startPluginSync runs the first reconcile pass (synchronously, so the
+// startup state is recorded before hints arrive) and keeps reconciling in
+// the background. A nil service (sync disabled) is a no-op.
+func startPluginSync(ctx context.Context, container *Container) {
+	if err := container.PluginSync().Start(ctx); err != nil {
+		slog.WarnContext(ctx, "Failed to start plugin sync", slog.String("error", err.Error()))
 	}
 }
 

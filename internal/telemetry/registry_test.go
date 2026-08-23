@@ -27,6 +27,6 @@ func TestRegistries_are_isolated(t *testing.T) {
 	second := New()
 
 	// Registering the same collectors twice would panic on a shared registry.
-	NewPluginMetrics(first, nil, nil)
-	NewPluginMetrics(second, nil, nil)
+	NewPluginMetrics(first, nil, nil, nil)
+	NewPluginMetrics(second, nil, nil, nil)
 }

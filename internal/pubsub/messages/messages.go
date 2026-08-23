@@ -11,6 +11,7 @@ import (
 const (
 	TypeCacheInvalidate = "cache.invalidate"
 	TypePluginEvent     = "plugin.event"
+	TypePluginSync      = "plugin.sync"
 	TypeServerStatus    = "server.status"
 	TypeTaskProgress    = "task.progress"
 	TypeNotification    = "notification"
@@ -69,6 +70,15 @@ type CacheInvalidatePayload struct {
 	EntityType string   `json:"entity_type"`
 	EntityIDs  []string `json:"entity_ids,omitempty"`
 	Pattern    string   `json:"pattern,omitempty"`
+}
+
+// PluginSyncPayload is a hint, not state. The receiving instance always
+// re-reads the plugins table before it decides anything, so a message that is
+// lost, duplicated or delivered out of order costs at most one refresh
+// interval of staleness. The fields exist for logging.
+type PluginSyncPayload struct {
+	PluginID uint64 `json:"plugin_id,omitempty"`
+	Action   string `json:"action,omitempty"`
 }
 
 type PluginEventPayload struct {

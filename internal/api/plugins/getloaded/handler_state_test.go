@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -33,6 +34,10 @@ func (failingPluginRepository) Find(
 }
 
 func (failingPluginRepository) Save(context.Context, *domain.Plugin) error { return nil }
+
+func (failingPluginRepository) UpdateLoadState(context.Context, domain.Uint64ID, domain.PluginLoadState) error {
+	return nil
+}
 
 func (failingPluginRepository) Delete(context.Context, domain.Uint64ID) error { return nil }
 
@@ -286,4 +291,150 @@ func TestLoaded_reports_permissions(t *testing.T) {
 	assert.Equal(t, []any{"secrets"}, data[1]["allowed_permissions"])
 	assert.Nil(t, data[1]["used_permissions"], "unknown for a plugin that is not loaded here")
 	assert.Nil(t, data[1]["missing_permissions"])
+}
+
+func TestLoaded_reports_configuration_and_health(t *testing.T) {
+	t.Parallel()
+	pluginRepo := inmemory.NewPluginRepository()
+
+	configuredID := pkgplugin.ParsePluginID("configured")
+	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
+		ID: configuredID, Name: "Configured", Version: "1.0.0", Status: domain.PluginStatusActive,
+		Config:       map[string]any{"port": float64(9000), "api_key": map[string]any{"$secret": "enc:abc"}},
+		ConfigSchema: new(`{"properties": {"port": {"type": "integer"}}}`),
+	}))
+
+	brokenID := pkgplugin.ParsePluginID("broken-schema-plugin")
+	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
+		ID: brokenID, Name: "Broken", Version: "1.0.0", Status: domain.PluginStatusError,
+		ConfigSchema: new(`{`),
+	}))
+
+	loaded := &pkgplugin.LoadedPlugin{
+		Info: &proto.PluginInfo{Id: "configured", Name: "Configured", Version: "1.0.0"}, Enabled: true,
+		DBID: uint64(configuredID),
+	}
+	loaded.SetHealth(pkgplugin.HealthReport{Status: pkgplugin.HealthDegraded, Message: "warming up",
+		Details: map[string]string{"stage": "cache"}})
+
+	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
+		return []*pkgplugin.LoadedPlugin{loaded}
+	}}, nil, pluginRepo, api.NewResponder())
+
+	data := listPlugins(t, h)
+	require.Len(t, data, 2)
+
+	byName := make(map[string]map[string]any)
+	for _, row := range data {
+		byName[row["name"].(string)] = row //nolint:forcetypeassert
+	}
+
+	configured := byName["Configured"]
+	assert.Equal(t, true, configured["has_config_schema"])
+	assert.Equal(t, []any{"api_key", "port"}, configured["config_keys"], "names only, never values")
+	assert.NotContains(t, configured, "config_schema_error")
+
+	health, ok := configured["health"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "degraded", health["status"])
+	assert.Equal(t, "warming up", health["message"])
+	assert.Equal(t, map[string]any{"stage": "cache"}, health["details"])
+	assert.NotEmpty(t, health["reported_at"])
+
+	broken := byName["Broken"]
+	assert.Equal(t, true, broken["has_config_schema"])
+	assert.NotEmpty(t, broken["config_schema_error"])
+	assert.NotContains(t, broken, "health")
+	assert.NotContains(t, broken, "config_keys")
+
+	body := listBody(t, h)
+	assert.NotContains(t, body, "enc:abc")
+	assert.NotContains(t, body, "9000")
+}
+
+func listBody(t *testing.T, h *getloaded.Handler) string {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	h.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/admin/plugins/loaded", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	return recorder.Body.String()
+}
+
+type fakeSyncStatus struct {
+	snapshot map[domain.Uint64ID]pluginsync.Status
+}
+
+func (f fakeSyncStatus) Snapshot() map[domain.Uint64ID]pluginsync.Status { return f.snapshot }
+
+func TestLoaded_reports_sync_state_and_local_failures(t *testing.T) {
+	t.Parallel()
+	pluginRepo := inmemory.NewPluginRepository()
+
+	runningID := pkgplugin.ParsePluginID("running-plugin")
+	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
+		ID: runningID, Name: "Running", Version: "1.0.0", Status: domain.PluginStatusActive,
+	}))
+
+	brokenID := pkgplugin.ParsePluginID("broken-here-plugin")
+	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
+		ID: brokenID, Name: "BrokenHere", Version: "1.0.0", Status: domain.PluginStatusActive,
+	}))
+
+	attempt := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
+	retry := attempt.Add(30 * time.Second)
+
+	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
+		return []*pkgplugin.LoadedPlugin{{
+			Info: &proto.PluginInfo{Id: "running-plugin", Name: "Running", Version: "1.0.0"}, Enabled: true,
+			DBID: uint64(runningID),
+		}}
+	}}, nil, pluginRepo, api.NewResponder(), getloaded.WithSyncStatus(fakeSyncStatus{snapshot: map[domain.Uint64ID]pluginsync.Status{
+		runningID: {PluginID: runningID, State: pluginsync.StateInSync},
+		brokenID: {
+			PluginID: brokenID, State: pluginsync.StateRetrying, Failures: 2,
+			LastError:   "plugin file is missing and the plugin was not installed from the store",
+			LastAttempt: attempt, NextAttempt: retry,
+		},
+	}}))
+
+	data := listPlugins(t, h)
+	require.Len(t, data, 2)
+
+	byName := make(map[string]map[string]any)
+	for _, row := range data {
+		byName[row["name"].(string)] = row //nolint:forcetypeassert
+	}
+
+	running := byName["Running"]
+	assert.Equal(t, "active", running["status"])
+	assert.Equal(t, map[string]any{"state": "in_sync"}, running["sync"])
+
+	broken := byName["BrokenHere"]
+	assert.Equal(t, "error", broken["status"], "the answering instance's failure is shown, whatever the shared row says")
+	assert.Contains(t, broken["error"], "plugin file is missing")
+	assert.Equal(t, false, broken["loaded"])
+
+	sync, ok := broken["sync"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "retrying", sync["state"])
+	assert.Equal(t, float64(2), sync["failures"])
+	assert.Equal(t, "2026-08-23T12:00:00Z", sync["last_attempt_at"])
+	assert.Equal(t, "2026-08-23T12:00:30Z", sync["next_retry_at"])
+}
+
+func TestLoaded_without_sync_provider_omits_sync(t *testing.T) {
+	t.Parallel()
+	pluginRepo := inmemory.NewPluginRepository()
+	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
+		ID: pkgplugin.ParsePluginID("lonely-plugin"), Name: "Lonely", Version: "1.0.0", Status: domain.PluginStatusActive,
+	}))
+
+	h := getloaded.NewHandler(&mockLoaderManager{}, nil, pluginRepo, api.NewResponder())
+
+	data := listPlugins(t, h)
+	require.Len(t, data, 1)
+	assert.NotContains(t, data[0], "sync")
+	assert.Equal(t, "active", data[0]["status"])
 }

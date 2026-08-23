@@ -27,6 +27,11 @@ type BacklogReporter interface {
 	AsyncBacklog() int
 }
 
+// SyncReporter is the multi-instance reconciler view the collector needs.
+type SyncReporter interface {
+	Pending() int
+}
+
 // PluginMetrics implements pkgplugin.Observer and the host libraries'
 // HostCallObserver, and collects per-plugin gauges on scrape. The plugin
 // label is the compact form of the database ID, the same id the admin API
@@ -43,12 +48,16 @@ type PluginMetrics struct {
 	disabled *prometheus.CounterVec
 
 	backlog     prometheus.GaugeFunc
+	syncPasses  *prometheus.CounterVec
+	syncPending prometheus.GaugeFunc
 	memoryDesc  *prometheus.Desc
 	enabledDesc *prometheus.Desc
+	healthDesc  *prometheus.Desc
 
 	mu         sync.Mutex
 	plugins    PluginLister
 	backlogSrc BacklogReporter
+	syncSrc    SyncReporter
 	// lastMemory keeps the last observed memory size per plugin: MemorySize
 	// is unavailable while a guest call is in flight, and a gauge that
 	// blinks on busy plugins is worse than one a scrape behind.
@@ -57,7 +66,12 @@ type PluginMetrics struct {
 
 // NewPluginMetrics builds and registers the plugin collectors. plugins and
 // backlog may be nil (tests); the gauges they feed are then not collected.
-func NewPluginMetrics(registry *Registry, plugins PluginLister, backlog BacklogReporter) *PluginMetrics {
+func NewPluginMetrics(
+	registry *Registry,
+	plugins PluginLister,
+	backlog BacklogReporter,
+	sync SyncReporter,
+) *PluginMetrics {
 	m := &PluginMetrics{
 		hostCalls: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: Namespace, Subsystem: pluginSubsystem, Name: "host_calls_total",
@@ -97,8 +111,18 @@ func NewPluginMetrics(registry *Registry, plugins PluginLister, backlog BacklogR
 			prometheus.BuildFQName(Namespace, pluginSubsystem, "enabled"),
 			"1 when the plugin is loaded and receiving events on this instance, 0 when disabled.",
 			[]string{"plugin"}, nil),
+		healthDesc: prometheus.NewDesc(
+			prometheus.BuildFQName(Namespace, pluginSubsystem, "health"),
+			"Self-reported plugin health on this instance (gameap-host ReportStatus): "+
+				"1 for the reported status, 0 for the others.",
+			[]string{"plugin", "status"}, nil),
+		syncPasses: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: Namespace, Subsystem: pluginSubsystem, Name: "sync_passes_total",
+			Help: "Multi-instance reconcile passes on this instance by result.",
+		}, []string{"result"}),
 		plugins:    plugins,
 		backlogSrc: backlog,
+		syncSrc:    sync,
 		lastMemory: make(map[string]uint64),
 	}
 
@@ -113,13 +137,29 @@ func NewPluginMetrics(registry *Registry, plugins PluginLister, backlog BacklogR
 		return float64(m.backlogSrc.AsyncBacklog())
 	})
 
+	m.syncPending = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: Namespace, Subsystem: pluginSubsystem, Name: "sync_pending",
+		Help: "Plugins the multi-instance reconciler could not bring in line with the database on this instance.",
+	}, func() float64 {
+		if m.syncSrc == nil {
+			return 0
+		}
+
+		return float64(m.syncSrc.Pending())
+	})
+
 	registry.MustRegister(
 		m.hostCalls, m.hostCallDuration, m.hostCallsDenied,
 		m.guestCalls, m.guestCallDuration,
-		m.events, m.disabled, m.backlog, m,
+		m.events, m.disabled, m.backlog, m.syncPasses, m.syncPending, m,
 	)
 
 	return m
+}
+
+// SyncPass implements pluginsync.PassObserver.
+func (m *PluginMetrics) SyncPass(result string) {
+	m.syncPasses.WithLabelValues(result).Inc()
 }
 
 // PluginLabel is the metric label of a plugin: the compact database ID.
@@ -196,6 +236,13 @@ func (m *PluginMetrics) OnPluginDisabled(_ string, dbID uint64, reason string) {
 func (m *PluginMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.memoryDesc
 	ch <- m.enabledDesc
+	ch <- m.healthDesc
+}
+
+// healthStatuses are the label values of the health gauge, emitted as a
+// state set so a dashboard can select on the status label.
+var healthStatuses = []pkgplugin.HealthStatus{
+	pkgplugin.HealthHealthy, pkgplugin.HealthDegraded, pkgplugin.HealthUnhealthy,
 }
 
 // Collect implements prometheus.Collector.
@@ -227,6 +274,17 @@ func (m *PluginMetrics) Collect(ch chan<- prometheus.Metric) {
 
 		if size, ok := m.lastMemory[label]; ok {
 			ch <- prometheus.MustNewConstMetric(m.memoryDesc, prometheus.GaugeValue, float64(size), label)
+		}
+
+		if report, ok := plugin.Health(); ok {
+			for _, status := range healthStatuses {
+				value := 0.0
+				if report.Status == status {
+					value = 1
+				}
+
+				ch <- prometheus.MustNewConstMetric(m.healthDesc, prometheus.GaugeValue, value, label, status.String())
+			}
 		}
 	}
 }

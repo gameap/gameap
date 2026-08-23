@@ -118,6 +118,7 @@ func TestInstallPlugin(t *testing.T) {
 				fileManager,
 				nil,
 				nil,
+				nil,
 				"plugins",
 				api.NewResponder(),
 			)
@@ -186,6 +187,7 @@ func TestInstallPlugin_already_installed(t *testing.T) {
 		storeService,
 		pluginRepo,
 		fileManager,
+		nil,
 		nil,
 		nil,
 		"plugins",
@@ -346,6 +348,14 @@ func (r *errPluginRepo) Save(ctx context.Context, p *domain.Plugin) error {
 	}
 
 	return r.inner.Save(ctx, p)
+}
+
+func (r *errPluginRepo) UpdateLoadState(ctx context.Context, id domain.Uint64ID, state domain.PluginLoadState) error {
+	if r.saveErr != nil {
+		return r.saveErr
+	}
+
+	return r.inner.UpdateLoadState(ctx, id, state)
 }
 
 func (r *errPluginRepo) Delete(ctx context.Context, id domain.Uint64ID) error {
@@ -655,6 +665,7 @@ func TestInstallPlugin_errors(t *testing.T) {
 				fm,
 				loader,
 				nil,
+				nil,
 				"plugins",
 				api.NewResponder(),
 			)
@@ -717,7 +728,7 @@ func TestInstallPlugin_load_error_keeps_record_with_correct_timestamps(t *testin
 		"plugins",
 	)
 
-	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
+	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, nil, "plugins", api.NewResponder())
 
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -841,7 +852,7 @@ func TestInstallPlugin_records_manifest_permissions(t *testing.T) {
 				"plugins",
 			)
 
-			h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
+			h := installplugin.NewHandler(storeService, repo, fm, loader, nil, nil, "plugins", api.NewResponder())
 
 			req := httptest.NewRequest(
 				http.MethodPost,
@@ -917,7 +928,7 @@ func TestInstallPlugin_permission_save_error_fails_install(t *testing.T) {
 		"plugins",
 	)
 
-	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
+	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, nil, "plugins", api.NewResponder())
 
 	req := httptest.NewRequest(
 		http.MethodPost,

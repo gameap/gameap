@@ -28,6 +28,7 @@ type Handler struct {
 	fileManager   files.FileManager
 	loader        *plugin.Loader
 	subscriptions plugininstall.SubscriptionRefresher
+	sync          plugininstall.SyncNotifier
 	pluginsDir    string
 	responder     base.Responder
 }
@@ -38,6 +39,7 @@ func NewHandler(
 	fileManager files.FileManager,
 	loader *plugin.Loader,
 	subscriptions plugininstall.SubscriptionRefresher,
+	sync plugininstall.SyncNotifier,
 	pluginsDir string,
 	responder base.Responder,
 ) *Handler {
@@ -47,6 +49,7 @@ func NewHandler(
 		fileManager:   fileManager,
 		loader:        loader,
 		subscriptions: subscriptions,
+		sync:          sync,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 	}
@@ -89,6 +92,13 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Held while the module is down and the file is being replaced: the
+	// reconciler must not rebuild the old module in between.
+	if h.loader != nil {
+		release := h.loader.Hold(dbID)
+		defer release()
+	}
+
 	if err := h.unloadPlugin(ctx, dbID); err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -119,7 +129,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.updatePluginRecord(pluginRecord, selectedVersion, filename)
+	h.updatePluginRecord(pluginRecord, selectedVersion, filename, wasmBytes)
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to update plugin record"))
@@ -127,7 +137,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	loaded, err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename)
+	// The row is saved from here on: whatever the load does, peers learn
+	// about the new version.
+	defer plugininstall.Notify(ctx, h.sync, dbID, plugininstall.ActionUpdate)
+
+	loaded, err := plugininstall.TryLoadPlugin(ctx, h.loader, pluginRecord)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "plugin installed but failed to load"),
@@ -279,9 +293,15 @@ func (h *Handler) downloadAndVerify(
 	return wasmBytes, nil
 }
 
-func (h *Handler) updatePluginRecord(record *domain.Plugin, version *pluginstore.PluginVersion, filename string) {
+func (h *Handler) updatePluginRecord(
+	record *domain.Plugin,
+	version *pluginstore.PluginVersion,
+	filename string,
+	wasmBytes []byte,
+) {
 	record.Version = version.Version
 	record.Filename = new(filename)
+	record.Checksum = new(plugin.FileChecksum(wasmBytes))
 	record.Status = domain.PluginStatusActive
 	record.UpdatedAt = new(time.Now())
 }

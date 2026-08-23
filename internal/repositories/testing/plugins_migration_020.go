@@ -3,8 +3,11 @@ package testing
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"strings"
 	"testing"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/gameap/gameap/internal/config"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -24,6 +27,9 @@ const (
 // listen_events gates are grandfathered the grants, whatever their row held
 // before, and nothing already granted is lost. db must be empty; driver is
 // the DATABASE_DRIVER value; newRepo builds the plugin repository over db.
+// Rows are seeded with plain SQL because the repository writes columns that
+// later migrations add; the rows are read back through the repository once
+// the schema is fully migrated (no migration after 020 touches grants).
 func RunGrantRuntimePermissionsMigrationTest(
 	t *testing.T,
 	db *sql.DB,
@@ -43,8 +49,6 @@ func RunGrantRuntimePermissionsMigrationTest(
 	_, err = provider.UpTo(ctx, versionBeforeRuntimeGrants)
 	require.NoError(t, err)
 
-	repo := newRepo(db)
-
 	// Rows as installations from before the gates could have left them:
 	// no grants at all, the "files" grant from 015, a deliberate grant that
 	// must survive, and one that already holds a new grant (no duplicate).
@@ -63,18 +67,16 @@ func RunGrantRuntimePermissionsMigrationTest(
 	}
 
 	for _, seed := range seeds {
-		require.NoError(t, repo.Save(ctx, &domain.Plugin{
-			ID:                 seed.id,
-			Name:               seed.name,
-			Version:            "1.0.0",
-			APIVersion:         "1",
-			AllowedPermissions: seed.allowed,
-			Status:             domain.PluginStatusActive,
-		}))
+		seedPluginRow(ctx, t, db, driver, seed.id, seed.name, seed.allowed)
 	}
 
 	_, err = provider.UpTo(ctx, grantRuntimePermissionsVersion)
 	require.NoError(t, err)
+
+	_, err = provider.Up(ctx)
+	require.NoError(t, err)
+
+	repo := newRepo(db)
 
 	granted := []domain.PluginPermission{
 		domain.PluginPermissionManageServers,
@@ -101,6 +103,56 @@ func RunGrantRuntimePermissionsMigrationTest(
 			assert.Equalf(t, 1, seen[permission], "%s holds %s twice", seed.name, permission)
 		}
 	}
+}
+
+// seedPluginRow inserts a row the way an installation from before migration
+// 020 would have stored it: only the columns of the 002 table, with the
+// grants in the driver's own encoding (a text array on Postgres, JSON
+// elsewhere) and NULL for "never granted".
+func seedPluginRow(
+	ctx context.Context,
+	t *testing.T,
+	db *sql.DB,
+	driver string,
+	id domain.Uint64ID,
+	name string,
+	allowed []domain.PluginPermission,
+) {
+	t.Helper()
+
+	postgres := driver == "postgres" || driver == "pgx"
+
+	var grants *string
+	switch {
+	case allowed == nil:
+	case postgres:
+		if len(allowed) > 0 {
+			elements := make([]string, len(allowed))
+			for i, permission := range allowed {
+				elements[i] = string(permission)
+			}
+
+			grants = new("{" + strings.Join(elements, ",") + "}")
+		}
+	default:
+		encoded, err := json.Marshal(allowed)
+		require.NoError(t, err)
+
+		grants = new(string(encoded))
+	}
+
+	builder := sq.Insert("plugins").
+		Columns("id", "name", "version", "description", "author", "api_version", "allowed_permissions", "status").
+		Values(id, name, "1.0.0", "", "", "1", grants, domain.PluginStatusActive)
+	if postgres {
+		builder = builder.PlaceholderFormat(sq.Dollar)
+	}
+
+	query, args, err := builder.ToSql()
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, query, args...)
+	require.NoError(t, err)
 }
 
 // migrationContainer is the slice of the application container the

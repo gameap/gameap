@@ -17,6 +17,8 @@ const (
 	ModuleHTTP           = "gameap-http"
 	ModuleCache          = "gameap-cache"
 	ModuleStorage        = "gameap-storage"
+	// ModuleHost is open to every plugin (introspection only).
+	ModuleHost = "gameap-host"
 )
 
 // RateClass groups host functions that share one per-plugin token bucket.
@@ -40,8 +42,10 @@ type HostRPC struct {
 
 // RPCPolicy is what the panel enforces before a host function runs.
 type RPCPolicy struct {
-	// Permission the plugin must hold; empty means the function is open to
-	// every plugin.
+	// Permission is the narrowest grant the plugin must hold; empty means
+	// the function is open to every plugin. A broader grant that includes
+	// it (domain.PluginPermissionSupersets, e.g. "files" for "files_read")
+	// satisfies the check as well.
 	Permission domain.PluginPermission
 	// RateClass selects the token bucket; empty means unlimited.
 	RateClass RateClass
@@ -86,11 +90,16 @@ func buildHostRPCPolicies() map[HostRPC]RPCPolicy {
 		RPCPolicy{Permission: domain.PluginPermissionNodeCommands, RateClass: RateClassNodeCmd},
 		"execute_command")
 
+	// Reads need only files_read; "files" (read and write) includes it.
+	add(ModuleNodeFS,
+		RPCPolicy{Permission: domain.PluginPermissionFilesRead, RateClass: RateClassNodeFS},
+		"read_dir", "download", "get_file_info", "hash", "get_archive_operation")
+
 	add(ModuleNodeFS,
 		RPCPolicy{Permission: domain.PluginPermissionFiles, RateClass: RateClassNodeFS},
-		"read_dir", "mk_dir", "copy", "move", "download", "upload", "remove", "get_file_info", "chmod", "hash",
+		"mk_dir", "copy", "move", "upload", "remove", "chmod",
 		"create_archive", "extract_archive", "start_create_archive", "start_extract_archive",
-		"cancel_archive", "get_archive_operation")
+		"cancel_archive")
 
 	add(ModuleRBAC,
 		RPCPolicy{Permission: domain.PluginPermissionManageRBAC, RateClass: RateClassRBAC},

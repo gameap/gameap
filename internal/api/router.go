@@ -79,11 +79,13 @@ import (
 	"github.com/gameap/gameap/internal/api/nodes/putnode"
 	"github.com/gameap/gameap/internal/api/nodes/setupkey"
 	pluginfileref "github.com/gameap/gameap/internal/api/plugins/fileref"
+	plugingetconfig "github.com/gameap/gameap/internal/api/plugins/getconfig"
 	"github.com/gameap/gameap/internal/api/plugins/getfrontendplugins"
 	"github.com/gameap/gameap/internal/api/plugins/getfrontendstyles"
 	pluginsloaded "github.com/gameap/gameap/internal/api/plugins/getloaded"
 	pluginreload "github.com/gameap/gameap/internal/api/plugins/reload"
 	pluginuninstall "github.com/gameap/gameap/internal/api/plugins/uninstall"
+	pluginupdateconfig "github.com/gameap/gameap/internal/api/plugins/updateconfig"
 	pluginupdatepermissions "github.com/gameap/gameap/internal/api/plugins/updatepermissions"
 	pluginuploaddryrun "github.com/gameap/gameap/internal/api/plugins/upload/dryrun"
 	pluginuploadinstall "github.com/gameap/gameap/internal/api/plugins/upload/install"
@@ -178,6 +180,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
@@ -242,6 +245,8 @@ type container interface {
 	PluginStorageRepository() repositories.PluginStorageRepository
 	PluginSecretRepository() repositories.PluginSecretRepository
 	PluginLoader() *internalplugin.Loader
+	PluginPathPolicy() *hostlibrary.PathPolicy
+	PluginSync() *pluginsync.Service
 	Telemetry() *telemetry.Registry
 	PluginScheduler() *pluginscheduler.Service
 	PluginArchiveEvents() *pluginarchive.Service
@@ -526,6 +531,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: putprofile.NewHandler(
 				c.UserService(),
 				c.AuthService(),
+				c.PluginDispatcher(),
 				c.Responder(),
 			),
 		},
@@ -1211,6 +1217,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.GameModRepository(),
 				c.ServerConfigPusher(),
+				c.PluginDispatcher(),
 				c.RBAC(),
 				c.Responder(),
 			),
@@ -1340,6 +1347,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.RBAC(),
 				c.TransactionManager(),
+				c.PluginDispatcher(),
 				c.Responder(),
 			),
 			AdminOnly: true,
@@ -1364,6 +1372,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.TransactionManager(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 		},
@@ -1372,6 +1381,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/users/{id}",
 			Handler: deleteuser.NewHandler(
 				c.UserService(),
+				c.PluginDispatcher(),
 				c.Responder(),
 			),
 			AdminOnly: true,
@@ -1540,6 +1550,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.SecretCipher(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 		},
@@ -1553,6 +1564,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.SecretCipher(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 		},
@@ -1564,6 +1576,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 		},
@@ -1576,6 +1589,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 		},
@@ -1914,6 +1928,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 			),
@@ -1928,6 +1943,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 			),
@@ -1946,6 +1962,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginArchiveEvents(),
 				c.PluginStorageRepository(),
 				c.PluginSecretRepository(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -1972,6 +1989,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -1986,6 +2004,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginLoader(),
 				c.PluginRepository(),
 				c.Responder(),
+				pluginsloaded.WithSyncStatus(c.PluginSync()),
 			),
 			AdminOnly: true,
 		},
@@ -1994,6 +2013,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/admin/plugins/{id}/reload",
 			Handler: pluginreload.NewHandler(
 				c.PluginLoader(),
+				c.PluginSync(),
 				c.Responder(),
 				c.AuditLogger(),
 			),
@@ -2007,6 +2027,31 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
+				c.Responder(),
+				c.AuditLogger(),
+			),
+			AdminOnly: true,
+		},
+		{
+			Method: http.MethodGet,
+			Path:   "/api/admin/plugins/{id}/config",
+			Handler: plugingetconfig.NewHandler(
+				c.PluginRepository(),
+				c.PluginLoader(),
+				c.Responder(),
+			),
+			AdminOnly: true,
+		},
+		{
+			Method: http.MethodPut,
+			Path:   "/api/admin/plugins/{id}/config",
+			Handler: pluginupdateconfig.NewHandler(
+				c.PluginRepository(),
+				c.PluginLoader(),
+				c.SecretCipher(),
+				c.Config().Plugin.Secrets.RequireEncryption,
+				c.PluginSync(),
 				c.Responder(),
 				c.AuditLogger(),
 			),
@@ -2228,13 +2273,15 @@ func registerPluginRoutes(
 		return
 	}
 
-	// File responses reuse the "files" grant check of the nodefs host
-	// library, so a plugin can only stream what it could read itself.
+	// File responses reuse the "files_read" grant check and the path policy
+	// of the nodefs host library, so a plugin can only stream what it could
+	// read itself.
 	fileRefServer := pluginfileref.NewServer(
 		c.DaemonFiles(),
 		c.NodeRepository(),
 		hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
 		c.AuditLogger(),
+		pluginfileref.WithPathPolicy(c.PluginPathPolicy()),
 	)
 
 	pluginHandler := plugin.NewHTTPHandler(

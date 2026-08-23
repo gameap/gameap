@@ -6,7 +6,10 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/plugin/pluginconfig"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/plugin/configschema"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 )
 
@@ -46,6 +49,69 @@ type loadedPluginResponse struct {
 	AllowedPermissions  []string `json:"allowed_permissions"`
 	UsedPermissions     []string `json:"used_permissions,omitempty"`
 	MissingPermissions  []string `json:"missing_permissions,omitempty"`
+	// HasConfigSchema reports whether the manifest declares a configuration
+	// schema; ConfigKeys names the stored configuration keys (never values);
+	// ConfigSchemaError explains a schema the panel could not parse.
+	HasConfigSchema   bool     `json:"has_config_schema"`
+	ConfigKeys        []string `json:"config_keys,omitempty"`
+	ConfigSchemaError string   `json:"config_schema_error,omitempty"`
+	// Health is the plugin's own status report on this instance
+	// (gameap-host ReportStatus).
+	Health *healthResponse `json:"health,omitempty"`
+	// Sync is what the multi-instance reconciler did for the plugin on this
+	// instance; absent when the reconciler is off or never touched it.
+	Sync *syncResponse `json:"sync,omitempty"`
+}
+
+type syncResponse struct {
+	State         string     `json:"state"`
+	Error         string     `json:"error,omitempty"`
+	Failures      int        `json:"failures,omitempty"`
+	LastAttemptAt *time.Time `json:"last_attempt_at,omitempty"`
+	NextRetryAt   *time.Time `json:"next_retry_at,omitempty"`
+}
+
+func newSyncResponse(snapshot map[domain.Uint64ID]pluginsync.Status, dbID domain.Uint64ID) *syncResponse {
+	status, ok := snapshot[dbID]
+	if !ok {
+		return nil
+	}
+
+	resp := &syncResponse{
+		State:    string(status.State),
+		Error:    status.LastError,
+		Failures: status.Failures,
+	}
+
+	if !status.LastAttempt.IsZero() {
+		resp.LastAttemptAt = new(status.LastAttempt)
+	}
+
+	if !status.NextAttempt.IsZero() {
+		resp.NextRetryAt = new(status.NextAttempt)
+	}
+
+	return resp
+}
+
+// applyLocalSyncFailure makes the answering instance's own failure visible
+// on a plugin that is not loaded here: the shared row may say "active"
+// because a peer runs it, but here the operator sees why it does not.
+func (r *loadedPluginResponse) applyLocalSyncFailure() {
+	if r.Sync == nil || r.Sync.Error == "" || r.Loaded {
+		return
+	}
+
+	r.Status = string(domain.PluginStatusError)
+	r.Error = new(r.Sync.Error)
+	r.ErrorAt = r.Sync.LastAttemptAt
+}
+
+type healthResponse struct {
+	Status     string            `json:"status"`
+	Message    string            `json:"message,omitempty"`
+	Details    map[string]string `json:"details,omitempty"`
+	ReportedAt time.Time         `json:"reported_at"`
 }
 
 type listResponse struct {
@@ -77,6 +143,17 @@ func newLoadedPluginResponse(
 
 	resp.Status, resp.Error, resp.ErrorAt = runtimeState(loaded, record)
 	resp.RequiredPermissions, resp.AllowedPermissions = recordPermissions(record)
+	resp.ConfigSchemaError = loaded.ConfigSchemaError
+	applyConfigInfo(resp, record)
+
+	if report, ok := loaded.Health(); ok {
+		resp.Health = &healthResponse{
+			Status:     report.Status.String(),
+			Message:    report.Message,
+			Details:    report.Details,
+			ReportedAt: report.ReportedAt,
+		}
+	}
 
 	used := internalplugin.UsedPermissions(loaded.HostImports, loaded.SubscribedEvents)
 	resp.UsedPermissions = internalplugin.PermissionNames(used)
@@ -155,8 +232,25 @@ func newInstalledPluginResponse(record *domain.Plugin) *loadedPluginResponse {
 	}
 
 	resp.RequiredPermissions, resp.AllowedPermissions = recordPermissions(record)
+	applyConfigInfo(resp, record)
 
 	return resp
+}
+
+// applyConfigInfo describes the row's configuration without exposing values.
+func applyConfigInfo(resp *loadedPluginResponse, record *domain.Plugin) {
+	if record == nil {
+		return
+	}
+
+	resp.HasConfigSchema = record.HasConfigSchema()
+	resp.ConfigKeys = pluginconfig.Keys(record.Config)
+
+	if resp.HasConfigSchema && resp.ConfigSchemaError == "" {
+		if _, err := configschema.Parse(*record.ConfigSchema); err != nil {
+			resp.ConfigSchemaError = err.Error()
+		}
+	}
 }
 
 // recordPermissions reads the declared and granted permissions; both are

@@ -2,20 +2,20 @@ package plugin
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	stderrors "errors"
 	"log/slog"
 	"path"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/plugin/pluginconfig"
 	"github.com/gameap/gameap/internal/repositories"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/plugin/proto"
+	"github.com/gameap/gameap/pkg/secret"
 	"github.com/pkg/errors"
 )
 
@@ -27,6 +27,17 @@ const reloadTimeout = 2 * time.Minute
 // markErrorTimeout bounds recording a failed load once the reload's own
 // context may already be gone.
 const markErrorTimeout = 15 * time.Second
+
+// Triggers recorded on plugin lifecycle events (extra_data "trigger").
+const (
+	TriggerInstall   = "install"
+	TriggerReload    = "reload"
+	TriggerRecovery  = "recovery"
+	TriggerSync      = "sync"
+	TriggerUnload    = "unload"
+	TriggerUninstall = "uninstall"
+	TriggerStartup   = "startup"
+)
 
 type LoaderOption func(*Loader)
 
@@ -47,6 +58,47 @@ func WithSubscriptionRefresher(refresher SubscriptionRefresher) LoaderOption {
 	}
 }
 
+// WithSecretCipher decrypts secret configuration values before they reach
+// Initialize; nil keeps the disabled (passthrough) cipher.
+func WithSecretCipher(cipher *secret.Cipher) LoaderOption {
+	return func(l *Loader) {
+		if cipher != nil {
+			l.cipher = cipher
+		}
+	}
+}
+
+// WithLifecycleEvents publishes PLUGIN_LOADED / PLUGIN_UNLOADED /
+// PLUGIN_ERROR events to the other plugins.
+func WithLifecycleEvents(events LifecycleEvents) LoaderOption {
+	return func(l *Loader) {
+		l.events = events
+	}
+}
+
+// RuntimeState is what this instance knows about one installed plugin: whether
+// a module runs for it, the fingerprint of the row that module was built
+// from, and the fingerprint of the last load attempt (success or failure).
+type RuntimeState struct {
+	Present     bool
+	Enabled     bool
+	Fingerprint string
+	Attempted   string
+}
+
+// applyOptions tunes one pass of apply.
+type applyOptions struct {
+	// force replaces a running module even when its fingerprint matches.
+	force bool
+	// persist writes the outcome (status, last error, generation, schema)
+	// to the row; the reconciler leaves the shared row alone.
+	persist bool
+	// startup suppresses the per-plugin subscription refresh and the loaded
+	// event: LoadAll refreshes once afterwards and no subscriber exists yet.
+	startup bool
+	trigger string
+}
+
 type Loader struct {
 	manager       LoaderManager
 	fileManager   files.FileManager
@@ -55,13 +107,19 @@ type Loader struct {
 	pluginsDir    string
 	strict        bool
 	refresher     SubscriptionRefresher
+	cipher        *secret.Cipher
+	events        LifecycleEvents
 
-	mu        sync.RWMutex
-	pluginIDs map[domain.Uint64ID]string
-	recovery  *Supervisor
+	mu           sync.RWMutex
+	pluginIDs    map[domain.Uint64ID]string
+	fingerprints map[domain.Uint64ID]string
+	attempts     map[domain.Uint64ID]string
+	holds        map[domain.Uint64ID]int
+	recovery     *Supervisor
 
 	// lifecycle serializes unload/load pairs per plugin: an operator reload,
-	// the recovery supervisor and an update must not interleave.
+	// the recovery supervisor, the reconciler and an update must not
+	// interleave.
 	lifecycleMu sync.Mutex
 	lifecycle   map[domain.Uint64ID]*sync.Mutex
 }
@@ -80,7 +138,11 @@ func NewLoader(
 		pluginRepo:    pluginRepo,
 		autoLoadNames: autoLoadNames,
 		pluginsDir:    pluginsDir,
+		cipher:        secret.Disabled(),
 		pluginIDs:     make(map[domain.Uint64ID]string),
+		fingerprints:  make(map[domain.Uint64ID]string),
+		attempts:      make(map[domain.Uint64ID]string),
+		holds:         make(map[domain.Uint64ID]int),
 		lifecycle:     make(map[domain.Uint64ID]*sync.Mutex),
 	}
 
@@ -131,31 +193,244 @@ func (l *Loader) LoadAll(ctx context.Context) error {
 	return nil
 }
 
-// loadRecord loads one installed plugin and persists the outcome on its row.
+// loadRecord loads one installed plugin at startup and persists the outcome.
 func (l *Loader) loadRecord(ctx context.Context, plugin *domain.Plugin) error {
 	unlock := l.lockPlugin(plugin.ID)
 	defer unlock()
 
-	filename := l.resolvePluginFilename(plugin)
+	_, _, err := l.apply(ctx, plugin, applyOptions{persist: true, startup: true, trigger: TriggerStartup})
 
-	loaded, err := l.loadWithID(ctx, filename, uint64(plugin.ID))
+	return err
+}
+
+// LoadRecord loads a freshly installed or updated plugin and persists the
+// outcome on its row. A module already running for the row (the reconciler
+// may have loaded it first) is adopted when it was built from the same row.
+func (l *Loader) LoadRecord(ctx context.Context, plugin *domain.Plugin) (*pkgplugin.LoadedPlugin, error) {
+	unlock := l.lockPlugin(plugin.ID)
+	defer unlock()
+
+	loaded, _, err := l.apply(ctx, plugin, applyOptions{persist: true, trigger: TriggerInstall})
+
+	return loaded, err
+}
+
+// ApplyRecord makes the runtime match the row without writing the row back:
+// loads an absent module, replaces one built from a different row or
+// disabled at runtime, leaves an up-to-date one alone. It is what the
+// multi-instance reconciler calls; a plugin held by a handler (update,
+// uninstall, configuration) answers ErrPluginHeld.
+func (l *Loader) ApplyRecord(ctx context.Context, plugin *domain.Plugin) (bool, error) {
+	unlock := l.lockPlugin(plugin.ID)
+	defer unlock()
+
+	if l.isHeld(plugin.ID) {
+		return false, ErrPluginHeld
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, reloadTimeout)
+	defer cancel()
+
+	_, changed, err := l.apply(ctx, plugin, applyOptions{trigger: TriggerSync})
+
+	return changed, err
+}
+
+// UnloadRecord stops the module running for the row, if any, and drops what
+// this instance remembers about it. The row is left alone; trigger tells the
+// other plugins why (TriggerSync, TriggerUninstall).
+func (l *Loader) UnloadRecord(ctx context.Context, dbID domain.Uint64ID, trigger string) (bool, error) {
+	l.Forget(dbID)
+
+	unlock := l.lockPlugin(dbID)
+	defer unlock()
+
+	managerID := l.managerIDFor(dbID)
+
+	running, present := l.manager.GetPlugin(managerID)
+	if !present {
+		l.forgetRuntime(dbID)
+
+		return false, nil
+	}
+
+	err := l.manager.Unload(ctx, managerID)
+	l.forgetRuntime(dbID)
+
+	if err != nil && !errors.Is(err, pkgplugin.ErrPluginNotFound) {
+		return false, errors.WithMessage(err, "failed to unload plugin")
+	}
+
+	l.refreshSubscriptions(ctx)
+	l.emitUnloaded(ctx, dbID, running.Info, trigger)
+
+	return true, nil
+}
+
+// Hold keeps the reconciler from loading the plugin while a handler runs a
+// multi-step operation on it (unload, replace the file, save the row, load).
+// Nested holds stack; the returned func releases one.
+func (l *Loader) Hold(dbID domain.Uint64ID) func() {
+	l.mu.Lock()
+	l.holds[dbID]++
+	l.mu.Unlock()
+
+	var once sync.Once
+
+	return func() {
+		once.Do(func() {
+			l.mu.Lock()
+			defer l.mu.Unlock()
+
+			if l.holds[dbID] <= 1 {
+				delete(l.holds, dbID)
+
+				return
+			}
+
+			l.holds[dbID]--
+		})
+	}
+}
+
+func (l *Loader) isHeld(dbID domain.Uint64ID) bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	return l.holds[dbID] > 0
+}
+
+// RuntimeState reports what this instance runs for the plugin.
+func (l *Loader) RuntimeState(dbID domain.Uint64ID) RuntimeState {
+	if l == nil {
+		return RuntimeState{}
+	}
+
+	running, present := l.manager.GetPlugin(l.managerIDFor(dbID))
+
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	return RuntimeState{
+		Present:     present,
+		Enabled:     present && running.IsEnabled(),
+		Fingerprint: l.fingerprints[dbID],
+		Attempted:   l.attempts[dbID],
+	}
+}
+
+// apply is the one place a module is built for a row. The caller holds the
+// plugin's lifecycle lock.
+func (l *Loader) apply(
+	ctx context.Context,
+	plugin *domain.Plugin,
+	opts applyOptions,
+) (*pkgplugin.LoadedPlugin, bool, error) {
+	fingerprint := Fingerprint(plugin)
+	managerID := l.managerIDFor(plugin.ID)
+
+	running, present := l.manager.GetPlugin(managerID)
+	if present && !opts.force && running.IsEnabled() && l.loadedFingerprint(plugin.ID) == fingerprint {
+		if opts.persist {
+			l.markActive(ctx, plugin)
+		}
+
+		return running, false, nil
+	}
+
+	// A forced reload always asks the manager to unload: it is the source of
+	// truth about what runs, and a module it does not know is no failure.
+	// Replacing the module cancels any pending automatic recovery, except
+	// when the recovery itself is what reloads (its attempt series goes on).
+	if present || opts.force {
+		if opts.trigger != TriggerRecovery {
+			l.Forget(plugin.ID)
+		}
+
+		err := l.manager.Unload(ctx, managerID)
+		if err != nil && !errors.Is(err, pkgplugin.ErrPluginNotFound) {
+			return nil, false, errors.WithMessage(err, "failed to unload plugin")
+		}
+
+		l.forgetRuntime(plugin.ID)
+	}
+
+	loaded, err := l.loadModule(ctx, plugin)
+
+	l.recordAttempt(plugin.ID, fingerprint)
+
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to load plugin",
-			slog.Uint64("plugin_id", uint64(plugin.ID)),
-			slog.String("name", plugin.Name),
-			slog.String("filename", filename),
-			slog.String("error", err.Error()))
+		l.logLoadFailure(ctx, plugin, err)
 
-		l.markError(ctx, plugin, err)
+		// A cancelled load (panel shutting down) is not the plugin's
+		// failure; the row keeps its previous state. A load that ran out
+		// of time is one, and is recorded on a fresh context: the expired
+		// one could not reach the database any more.
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return nil, false, err
+		}
 
-		return err
+		if opts.persist {
+			markCtx, markCancel := context.WithTimeout(context.WithoutCancel(ctx), markErrorTimeout)
+			l.markError(markCtx, plugin, err)
+			markCancel()
+		}
+
+		l.emitPluginEvent(ctx, proto.EventType_EVENT_TYPE_PLUGIN_ERROR, plugin, nil, opts.trigger, err)
+
+		return nil, false, err
 	}
 
 	l.RegisterPluginID(plugin.ID, loaded.Info.Id)
-	l.markActive(ctx, plugin)
+	l.recordFingerprint(plugin.ID, fingerprint)
+
+	pluginconfig.SchemaFromManifest(plugin, loaded.Info)
+
+	if opts.persist {
+		l.markActive(ctx, plugin)
+	}
+
 	warnMissingPermissions(ctx, plugin, loaded)
 
-	return nil
+	if opts.startup {
+		return loaded, true, nil
+	}
+
+	l.refreshSubscriptions(ctx)
+	l.emitPluginEvent(ctx, proto.EventType_EVENT_TYPE_PLUGIN_LOADED, plugin, loaded.Info, opts.trigger, nil)
+
+	return loaded, true, nil
+}
+
+// loadModule reads the wasm file and builds the module with the plugin's
+// effective configuration.
+func (l *Loader) loadModule(ctx context.Context, plugin *domain.Plugin) (*pkgplugin.LoadedPlugin, error) {
+	config, err := pluginconfig.Effective(l.cipher, plugin)
+	if err != nil {
+		return nil, err
+	}
+
+	wasmBytes, err := l.readPluginFile(ctx, ResolveFilename(plugin))
+	if err != nil {
+		return nil, err
+	}
+
+	loaded, err := l.manager.Load(ctx, wasmBytes, config, uint64(plugin.ID))
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to load plugin")
+	}
+
+	logLoaded(ctx, loaded, wasmBytes, len(config))
+
+	return loaded, nil
+}
+
+func (l *Loader) logLoadFailure(ctx context.Context, plugin *domain.Plugin, err error) {
+	slog.ErrorContext(ctx, "failed to load plugin",
+		slog.Uint64("plugin_id", uint64(plugin.ID)),
+		slog.String("name", plugin.Name),
+		slog.String("filename", ResolveFilename(plugin)),
+		slog.String("error", err.Error()))
 }
 
 // warnMissingPermissions points out, once per load, the host functions the
@@ -174,22 +449,25 @@ func warnMissingPermissions(ctx context.Context, plugin *domain.Plugin, loaded *
 		slog.Any("missing_permissions", PermissionNames(missing)))
 }
 
+// Load loads a wasm file that has no database record (no configuration, no
+// grants); kept for callers that inspect a module by file name.
 func (l *Loader) Load(ctx context.Context, filename string) (*pkgplugin.LoadedPlugin, error) {
-	return l.loadWithID(ctx, filename, 0)
-}
-
-// LoadWithID loads the wasm file for the given database plugin ID. Callers
-// that persist the outcome themselves (install flows) use it directly.
-func (l *Loader) LoadWithID(ctx context.Context, filename string, pluginID uint64) (*pkgplugin.LoadedPlugin, error) {
-	if pluginID != 0 {
-		unlock := l.lockPlugin(domain.Uint64ID(pluginID))
-		defer unlock()
+	wasmBytes, err := l.readPluginFile(ctx, filename)
+	if err != nil {
+		return nil, err
 	}
 
-	return l.loadWithID(ctx, filename, pluginID)
+	loaded, err := l.manager.Load(ctx, wasmBytes, nil, 0)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to load plugin")
+	}
+
+	logLoaded(ctx, loaded, wasmBytes, 0)
+
+	return loaded, nil
 }
 
-func (l *Loader) loadWithID(ctx context.Context, filename string, pluginID uint64) (*pkgplugin.LoadedPlugin, error) {
+func (l *Loader) readPluginFile(ctx context.Context, filename string) ([]byte, error) {
 	pluginPath := path.Join(l.pluginsDir, filename)
 
 	if !l.fileManager.Exists(ctx, pluginPath) {
@@ -201,60 +479,79 @@ func (l *Loader) loadWithID(ctx context.Context, filename string, pluginID uint6
 		return nil, errors.WithMessage(err, "failed to read plugin file")
 	}
 
-	loaded, err := l.manager.Load(ctx, wasmBytes, nil, pluginID)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to load plugin")
-	}
+	return wasmBytes, nil
+}
 
-	wasmHash := sha256.Sum256(wasmBytes)
-
+func logLoaded(ctx context.Context, loaded *pkgplugin.LoadedPlugin, wasmBytes []byte, configKeys int) {
 	attr := []slog.Attr{
 		{Key: "id", Value: slog.StringValue(loaded.Info.Id)},
 		{Key: "name", Value: slog.StringValue(loaded.Info.Name)},
 		{Key: "version", Value: slog.StringValue(loaded.Info.Version)},
-		{Key: "wasm_hash", Value: slog.StringValue(hex.EncodeToString(wasmHash[:]))},
+		{Key: "wasm_hash", Value: slog.StringValue(FileChecksum(wasmBytes))},
 		{Key: "description", Value: slog.StringValue(loaded.Info.Description)},
 		{Key: "author", Value: slog.StringValue(loaded.Info.Author)},
 		{Key: "api_version", Value: slog.StringValue(loaded.Info.ApiVersion)},
+		{Key: "config_keys", Value: slog.IntValue(configKeys)},
 	}
 	if len(loaded.FrontendBundle) > 0 {
 		attr = append(attr, slog.Attr{Key: "frontend_bundle_size", Value: slog.IntValue(len(loaded.FrontendBundle))})
 	}
 
 	slog.LogAttrs(ctx, slog.LevelInfo, "plugin loaded", attr...)
-
-	return loaded, nil
 }
 
 // Unload stops a plugin by its manager ID. Pending automatic recovery for
 // the plugin is cancelled: the caller (uninstall, update) owns its lifecycle
 // from here on.
 func (l *Loader) Unload(ctx context.Context, pluginID string) error {
-	if dbID, ok := l.GetDBPluginID(pluginID); ok {
+	dbID, known := l.GetDBPluginID(pluginID)
+	if known {
 		l.Forget(dbID)
 
 		unlock := l.lockPlugin(dbID)
 		defer unlock()
 	}
 
-	return l.manager.Unload(ctx, pluginID)
+	running, present := l.manager.GetPlugin(pluginID)
+
+	err := l.manager.Unload(ctx, pluginID)
+
+	if known {
+		l.forgetRuntime(dbID)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if known && present {
+		l.emitUnloaded(ctx, dbID, running.Info, TriggerUnload)
+	}
+
+	return nil
 }
 
 // Reload restarts an installed plugin on demand: the running instance is
 // unloaded, the wasm file is loaded again and the database row records the
-// outcome. Any pending automatic recovery is dropped first. Returns the
-// updated row together with the loaded instance. The work is detached from
-// the caller's cancellation: an operator closing the browser tab must not
-// leave the plugin half reloaded.
+// outcome. Any pending automatic recovery is dropped first, and the row's
+// generation is bumped so every other panel instance restarts the module
+// too. Returns the updated row together with the loaded instance. The work
+// is detached from the caller's cancellation: an operator closing the
+// browser tab must not leave the plugin half reloaded.
 func (l *Loader) Reload(ctx context.Context, dbID domain.Uint64ID) (*domain.Plugin, *pkgplugin.LoadedPlugin, error) {
 	l.Forget(dbID)
 
-	return l.reload(context.WithoutCancel(ctx), dbID)
+	return l.reload(context.WithoutCancel(ctx), dbID, TriggerReload, true)
 }
 
 // reload honours the caller's context (the recovery supervisor cancels it on
 // shutdown) and adds the outer deadline.
-func (l *Loader) reload(ctx context.Context, dbID domain.Uint64ID) (*domain.Plugin, *pkgplugin.LoadedPlugin, error) {
+func (l *Loader) reload(
+	ctx context.Context,
+	dbID domain.Uint64ID,
+	trigger string,
+	bumpGeneration bool,
+) (*domain.Plugin, *pkgplugin.LoadedPlugin, error) {
 	unlock := l.lockPlugin(dbID)
 	defer unlock()
 
@@ -274,29 +571,14 @@ func (l *Loader) reload(ctx context.Context, dbID domain.Uint64ID) (*domain.Plug
 	case domain.PluginStatusActive, domain.PluginStatusError:
 	}
 
-	err = l.manager.Unload(ctx, l.managerIDFor(dbID))
-	if err != nil && !errors.Is(err, pkgplugin.ErrPluginNotFound) {
-		return plugin, nil, errors.WithMessage(err, "failed to unload plugin")
+	if bumpGeneration {
+		plugin.Generation++
 	}
 
-	loaded, err := l.loadWithID(ctx, l.resolvePluginFilename(plugin), uint64(dbID))
+	loaded, _, err := l.apply(ctx, plugin, applyOptions{force: true, persist: true, trigger: trigger})
 	if err != nil {
-		// A cancelled reload (panel shutting down) is not the plugin's
-		// failure; the row keeps its previous state. A reload that ran out
-		// of time is one, and is recorded on a fresh context: the expired
-		// one could not reach the database any more.
-		if !errors.Is(ctx.Err(), context.Canceled) {
-			markCtx, markCancel := context.WithTimeout(context.WithoutCancel(ctx), markErrorTimeout)
-			l.markError(markCtx, plugin, err)
-			markCancel()
-		}
-
 		return plugin, nil, err
 	}
-
-	l.RegisterPluginID(dbID, loaded.Info.Id)
-	l.markActive(ctx, plugin)
-	l.refreshSubscriptions(ctx)
 
 	return plugin, loaded, nil
 }
@@ -348,20 +630,20 @@ func (l *Loader) managerIDFor(dbID domain.Uint64ID) string {
 
 func (l *Loader) markError(ctx context.Context, plugin *domain.Plugin, loadErr error) {
 	plugin.MarkError(LoadErrorText(loadErr), time.Now())
-
-	if err := l.pluginRepo.Save(ctx, plugin); err != nil {
-		slog.WarnContext(ctx, "failed to record plugin load error",
-			slog.Uint64("plugin_id", uint64(plugin.ID)),
-			slog.String("plugin", plugin.Name),
-			slog.String("error", err.Error()))
-	}
+	l.saveLoadState(ctx, plugin, "failed to record plugin load error")
 }
 
 func (l *Loader) markActive(ctx context.Context, plugin *domain.Plugin) {
 	plugin.MarkActive(time.Now())
+	l.saveLoadState(ctx, plugin, "failed to update plugin load state")
+}
 
-	if err := l.pluginRepo.Save(ctx, plugin); err != nil {
-		slog.WarnContext(ctx, "failed to update plugin last_loaded_at",
+// saveLoadState persists only the load outcome columns, so a load finishing
+// seconds after the row was read never overwrites a concurrent edit of the
+// configuration or the grants.
+func (l *Loader) saveLoadState(ctx context.Context, plugin *domain.Plugin, message string) {
+	if err := l.pluginRepo.UpdateLoadState(ctx, plugin.ID, plugin.LoadState()); err != nil {
+		slog.WarnContext(ctx, message,
 			slog.Uint64("plugin_id", uint64(plugin.ID)),
 			slog.String("plugin", plugin.Name),
 			slog.String("error", err.Error()))
@@ -431,12 +713,32 @@ func (l *Loader) RegisterPluginID(dbID domain.Uint64ID, managerID string) {
 	l.pluginIDs[dbID] = managerID
 }
 
-func (l *Loader) resolvePluginFilename(plugin *domain.Plugin) string {
-	if plugin.Filename != nil && *plugin.Filename != "" {
-		return *plugin.Filename
-	}
+func (l *Loader) recordFingerprint(dbID domain.Uint64ID, fingerprint string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.fingerprints[dbID] = fingerprint
+}
 
-	return strconv.FormatUint(uint64(plugin.ID), 10) + ".wasm"
+func (l *Loader) recordAttempt(dbID domain.Uint64ID, fingerprint string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.attempts[dbID] = fingerprint
+}
+
+func (l *Loader) loadedFingerprint(dbID domain.Uint64ID) string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	return l.fingerprints[dbID]
+}
+
+// forgetRuntime drops the ID mapping and the fingerprint of a module that is
+// gone; a stale entry would misroute scheduled tasks and archive callbacks.
+func (l *Loader) forgetRuntime(dbID domain.Uint64ID) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.pluginIDs, dbID)
+	delete(l.fingerprints, dbID)
 }
 
 // processAutoLoad registers the plugins named in PLUGINS_AUTOLOAD in the
@@ -501,7 +803,9 @@ func (l *Loader) registerAutoLoad(ctx context.Context, filename string) error {
 
 	// Autoload is the operator's own decision (a file they placed and named
 	// in PLUGINS_AUTOLOAD), so the declared permissions are granted exactly
-	// as an upload install would.
+	// as an upload install would. The checksum is recorded once, at row
+	// creation: autoload files are per instance, and rewriting it on every
+	// restart would make the reload fingerprint flap across instances.
 	permissions := domain.ParsePluginPermissions(loaded.Info.RequiredPermissions)
 
 	plugin := &domain.Plugin{
@@ -512,11 +816,15 @@ func (l *Loader) registerAutoLoad(ctx context.Context, filename string) error {
 		Author:              loaded.Info.Author,
 		APIVersion:          loaded.Info.ApiVersion,
 		Filename:            new(filename),
+		Source:              new("file://" + filename),
+		Checksum:            new(FileChecksum(wasmBytes)),
 		RequiredPermissions: permissions,
 		AllowedPermissions:  permissions,
 		Status:              domain.PluginStatusActive,
 		InstalledAt:         new(time.Now()),
 	}
+
+	pluginconfig.SchemaFromManifest(plugin, loaded.Info)
 
 	if err := l.pluginRepo.Save(ctx, plugin); err != nil {
 		return errors.WithMessage(err, "failed to save plugin to database")

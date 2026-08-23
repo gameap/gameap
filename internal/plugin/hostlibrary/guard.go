@@ -14,6 +14,7 @@ import (
 const (
 	DenyReasonPermission = "permission"
 	DenyReasonRateLimit  = "rate_limit"
+	DenyReasonPathPolicy = "path_policy"
 )
 
 // hostFunctionResource is the audit resource type of a refused host call;
@@ -197,6 +198,31 @@ func (p *PluginGuard) limit(ctx context.Context, module, export string, class Ra
 	}
 
 	return RateLimitedMessage(module, limit)
+}
+
+// DenyPath records a host call refused by the node path policy: counted for
+// metrics and, throttled, written to the audit log as an access denial
+// naming the path and the policy mode.
+func (p *PluginGuard) DenyPath(ctx context.Context, module, export string, nodeID uint64, denial *PathPolicyError) {
+	slog.WarnContext(ctx, "plugin denied access to a node path",
+		slog.Uint64("plugin_id", p.pluginID),
+		slog.String("module", module),
+		slog.String("function", export),
+		slog.Uint64("node_id", nodeID),
+		slog.String("mode", string(denial.Mode)),
+		slog.String("path", denial.Path),
+		slog.String("reason", denial.Reason))
+
+	p.guard.observer.HostCallDenied(p.pluginID, module, export, DenyReasonPathPolicy)
+
+	if p.guard.throttle.admit(throttleKey{p.pluginID, module, export, DenyReasonPathPolicy}) {
+		audit.PluginOp(ctx, p.guard.audit, audit.EventAccessDenied, audit.CategoryAuthorization,
+			audit.OutcomeDenied, p.actor, hostFunctionResource, module+"."+export, export,
+			"plugin_path_policy",
+			slog.String("path", denial.Path),
+			slog.String("mode", string(denial.Mode)),
+			slog.Uint64("node_id", nodeID))
+	}
 }
 
 // Audit records a privileged operation the plugin performed through a host

@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -370,6 +371,10 @@ type PluginSecretRepository interface {
 	CountByPlugin(ctx context.Context, pluginID domain.Uint64ID) (int, error)
 }
 
+// ErrPluginNotFound is answered by UpdateLoadState when the row is gone: an
+// uninstall raced with a reload and the outcome has nothing to describe.
+var ErrPluginNotFound = errors.New("plugin not found")
+
 type PluginRepository interface {
 	FindAll(
 		ctx context.Context,
@@ -385,6 +390,12 @@ type PluginRepository interface {
 	) ([]domain.Plugin, error)
 
 	Save(ctx context.Context, plugin *domain.Plugin) error
+
+	// UpdateLoadState writes only the load outcome columns (status, last error,
+	// last loaded time, generation, config schema), leaving the configuration
+	// and the grants untouched: a load outcome recorded seconds after the row
+	// was read must not overwrite a concurrent operator edit.
+	UpdateLoadState(ctx context.Context, id domain.Uint64ID, state domain.PluginLoadState) error
 
 	Delete(ctx context.Context, id domain.Uint64ID) error
 

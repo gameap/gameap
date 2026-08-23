@@ -508,7 +508,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				tt.setupFileManager(fileManager)
 			}
 
-			handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil)
+			handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil, nil)
 
 			body, err := json.Marshal(tt.input)
 			require.NoError(t, err)
@@ -576,7 +576,7 @@ func TestHandler_UpdatedAtTimestamp(t *testing.T) {
 		UpdatedAt:           &oldTime,
 	})
 
-	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil)
+	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil, nil)
 
 	input := updateNodeInput{
 		Name: new("Updated Name"),
@@ -635,7 +635,7 @@ func TestHandler_CertificateFileCleanup(t *testing.T) {
 		UpdatedAt:           &now,
 	})
 
-	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil)
+	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil, nil)
 
 	input := updateNodeInput{
 		GdaemonServerCert: new(validCertPEM),
@@ -692,7 +692,7 @@ func TestHandler_Audit_SuccessfulNodeUpdateIsRecorded(t *testing.T) {
 	}))
 
 	recorder := &auditCapture{}
-	handler := NewHandler(repo, &files.MockFileManager{}, secret.Disabled(), api.NewResponder(), recorder)
+	handler := NewHandler(repo, &files.MockFileManager{}, secret.Disabled(), api.NewResponder(), recorder, nil)
 
 	body, err := json.Marshal(updateNodeInput{
 		Name:     new("Partially Updated Node"),
@@ -733,7 +733,7 @@ func TestHandler_Audit_FailedNodeUpdateDoesNotEmitNodeUpdate(t *testing.T) {
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	recorder := &auditCapture{}
-	handler := NewHandler(repo, &files.MockFileManager{}, secret.Disabled(), api.NewResponder(), recorder)
+	handler := NewHandler(repo, &files.MockFileManager{}, secret.Disabled(), api.NewResponder(), recorder, nil)
 
 	body, err := json.Marshal(updateNodeInput{
 		Name:     new("Ghost Node"),
@@ -795,7 +795,7 @@ func TestHandler_SecretsAtRest(t *testing.T) {
 		UpdatedAt:           &now,
 	}))
 
-	handler := NewHandler(repo, fileManager, cipher, responder, nil)
+	handler := NewHandler(repo, fileManager, cipher, responder, nil, nil)
 
 	const newPlainPassword = "Sup3r-S3cret-SSH!"
 	const newPlainAPIKey = "rotated-api-key"
@@ -878,7 +878,7 @@ func TestHandler_ClearGdaemonPassword(t *testing.T) {
 		UpdatedAt:           &now,
 	}))
 
-	handler := NewHandler(repo, fileManager, cipher, responder, nil)
+	handler := NewHandler(repo, fileManager, cipher, responder, nil, nil)
 
 	body, err := json.Marshal(updateNodeInput{
 		GdaemonPassword: new(""),
@@ -944,7 +944,7 @@ func TestHandler_APIKeyHashedEvenWhen64HexInput(t *testing.T) {
 		UpdatedAt:           &now,
 	}))
 
-	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil)
+	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil, nil)
 
 	// A real 64-char lowercase-hex string the admin could paste as the key.
 	hexKey := pkgstrings.SHA256("some-plaintext-key-that-looks-hashed")

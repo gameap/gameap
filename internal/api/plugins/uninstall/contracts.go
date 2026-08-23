@@ -35,6 +35,16 @@ type RecoveryCanceller interface {
 	Forget(dbID domain.Uint64ID)
 }
 
+// RecordUnloader stops the module for a database row (cancelling pending
+// recovery, refreshing subscriptions and telling the other plugins) and
+// fences the uninstall from the multi-instance reconciler, which would
+// otherwise revive the plugin between the unload and the row deletion.
+// Satisfied by *plugin.Loader; the manual manager path is the fallback.
+type RecordUnloader interface {
+	UnloadRecord(ctx context.Context, dbID domain.Uint64ID, trigger string) (bool, error)
+	Hold(dbID domain.Uint64ID) func()
+}
+
 // PluginStorageCleaner drops the plugin's gameap-storage rows on uninstall.
 type PluginStorageCleaner interface {
 	DeleteByPlugin(ctx context.Context, pluginID uint64) error

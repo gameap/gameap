@@ -103,6 +103,36 @@ func (input *updateUserInput) Apply(user *domain.User) error {
 	return nil
 }
 
+// changedFields names what the request changes on the user, for the plugin
+// event: field names only, never values. Roles and servers are always
+// replaced by this endpoint, so they are listed whenever the request sends
+// them.
+func (input *updateUserInput) changedFields(user *domain.User) []string {
+	fields := make([]string, 0, 5)
+
+	if user.Email != input.Email {
+		fields = append(fields, "email")
+	}
+
+	if input.Name != nil && (user.Name == nil || *user.Name != *input.Name) {
+		fields = append(fields, "name")
+	}
+
+	if input.Password != nil && *input.Password != "" {
+		fields = append(fields, "password")
+	}
+
+	if input.Roles != nil {
+		fields = append(fields, "roles")
+	}
+
+	if input.Servers != nil {
+		fields = append(fields, "servers")
+	}
+
+	return fields
+}
+
 func (input *updateUserInput) ServerIDs() []uint {
 	result := make([]uint, 0, len(input.Servers))
 	for _, s := range input.Servers {

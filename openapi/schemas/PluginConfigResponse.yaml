@@ -1,0 +1,29 @@
+type: object
+description: A plugin's configuration as the admin UI sees it
+properties:
+  id:
+    type: string
+    description: Plugin compact ID
+    example: "myplugin_com_example"
+  schema:
+    oneOf:
+      - $ref: './PluginConfigSchema.yaml'
+      - type: 'null'
+  schema_error:
+    type: string
+    description: Why the manifest's schema could not be parsed (the plugin then uses free-form configuration)
+  values:
+    type: object
+    description: |
+      Stored values (typed: string, number or boolean). Secret values are
+      omitted; their keys are listed in `secrets_set`.
+    additionalProperties: true
+  secrets_set:
+    type: array
+    description: Secret keys that currently hold a value
+    items:
+      type: string
+required:
+  - id
+  - values
+  - secrets_set

@@ -206,7 +206,8 @@ func TestDryRun_reports_used_and_undeclared_permissions(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
 
 	assert.Equal(t, []any{"files"}, resp["required_permissions"])
-	assert.Equal(t, []any{"files", "listen_events", "node_commands"}, resp["used_permissions"])
+	assert.Equal(t, []any{"files_read", "listen_events", "node_commands"}, resp["used_permissions"],
+		"the fixture only reads through gameap-nodefs")
 	assert.Equal(t, []any{"listen_events", "node_commands"}, resp["undeclared_permissions"],
-		"used but not declared: the install would not grant them")
+		"used but not declared: the install would not grant them; the declared files covers files_read")
 }

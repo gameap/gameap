@@ -38,6 +38,7 @@ type Handler struct {
 	manager    PluginManager
 	resolver   DBIDResolver
 	refresher  plugininstall.SubscriptionRefresher
+	sync       plugininstall.SyncNotifier
 	responder  base.Responder
 	audit      audit.Logger
 }
@@ -47,6 +48,7 @@ func NewHandler(
 	manager PluginManager,
 	resolver DBIDResolver,
 	refresher plugininstall.SubscriptionRefresher,
+	sync plugininstall.SyncNotifier,
 	responder base.Responder,
 	auditLogger audit.Logger,
 ) *Handler {
@@ -59,6 +61,7 @@ func NewHandler(
 		manager:    manager,
 		resolver:   resolver,
 		refresher:  refresher,
+		sync:       sync,
 		responder:  responder,
 		audit:      auditLogger,
 	}
@@ -128,6 +131,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		slices.Contains(revoked, string(domain.PluginPermissionListenEvents)) {
 		plugininstall.RefreshSubscriptions(ctx, h.refresher)
 	}
+
+	// Grants are read per host call everywhere; the hint lets the other
+	// instances rebuild their subscriptions when listen_events changed.
+	plugininstall.Notify(ctx, h.sync, dbID, plugininstall.ActionPermissions)
 
 	h.responder.Write(ctx, rw, newPermissionsResponse(record, h.loadedPlugin(dbID)))
 }

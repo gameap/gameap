@@ -1470,7 +1470,12 @@ func TestNodeFSService_FilesPermissionGatesEveryOperation(t *testing.T) {
 			success, errMsg := tt.call()
 			assert.False(t, success, "operation must be denied without the files grant")
 			require.NotNil(t, errMsg)
-			assert.Contains(t, *errMsg, "plugin permission files required")
+			wantPermission := domain.PluginPermissionFiles
+			if readOnlyNodeFSExports[tt.name] {
+				wantPermission = domain.PluginPermissionFilesRead
+			}
+
+			assert.Contains(t, *errMsg, "plugin permission "+string(wantPermission)+" required")
 		})
 	}
 
@@ -1801,4 +1806,10 @@ func TestNodeFSService_StartCreateArchive_DaemonErrorSurfacesAsMessage(t *testin
 	require.NotNil(t, resp.Error)
 	assert.Contains(t, *resp.Error, "node does not support archive operations")
 	assert.Empty(t, registrar.Calls(), "failed starts must not register interest")
+}
+
+// readOnlyNodeFSExports lists the operations gated on files_read rather than
+// files.
+var readOnlyNodeFSExports = map[string]bool{
+	"read_dir": true, "download": true, "get_file_info": true, "hash": true, "get_archive_operation": true,
 }

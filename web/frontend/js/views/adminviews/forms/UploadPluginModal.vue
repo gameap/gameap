@@ -85,6 +85,20 @@
           </div>
         </div>
 
+        <div v-if="uploadResult.config_schema" class="mb-4" data-testid="dry-run-config-schema">
+          <span class="text-xs text-stone-500">{{ trans('plugins.configuration') }}</span>
+          <p v-if="uploadResult.config_schema.valid" class="text-sm">
+            {{ trans('plugins.config_summary', {
+              properties: uploadResult.config_schema.properties,
+              required: uploadResult.config_schema.required,
+              secrets: uploadResult.config_schema.secrets,
+            }) }}
+          </p>
+          <p v-else class="text-sm text-warning-soft-text break-words">
+            {{ trans('plugins.config_schema_invalid') }}: {{ uploadResult.config_schema.error }}
+          </p>
+        </div>
+
         <div
           v-if="uploadResult.undeclared_permissions?.length"
           class="mb-4 p-3 rounded-lg bg-warning-soft text-warning-soft-text text-sm break-words"
