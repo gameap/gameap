@@ -93,7 +93,7 @@ func TryLoadPlugin(
 			slog.String("filename", filename),
 			slog.String("error", err.Error()))
 
-		pluginRecord.Status = domain.PluginStatusError
+		pluginRecord.MarkError(plugin.LoadErrorText(err), time.Now())
 		_ = repo.Save(ctx, pluginRecord)
 
 		return nil, errors.WithMessage(err, "failed to load plugin")

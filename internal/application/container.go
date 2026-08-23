@@ -210,6 +210,7 @@ type Container struct {
 	pluginDispatcher *pkgplugin.Dispatcher
 	pluginRepository repositories.PluginRepository
 	pluginLoader     *internalplugin.Loader
+	pluginRecovery   *internalplugin.Supervisor
 	querconResolver  *quercon.Resolver
 	netConnRegistry  *pkgplugin.ConnRegistry
 	pluginScheduler  *pluginscheduler.Service
@@ -295,6 +296,12 @@ func (c *Container) Shutdown() error {
 	}
 
 	c.shutdownGRPCServer()
+
+	// Pending automatic plugin reloads must not race the runtime shutdown
+	// below: stop the supervisor and wait for reloads in flight.
+	if c.pluginRecovery != nil {
+		c.pluginRecovery.Stop()
+	}
 
 	// The scheduler must join its in-flight runs before the plugin manager's
 	// shutdown func (in shotdownFuncs below) closes the WASM runtimes; the
@@ -2169,6 +2176,7 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			c.DaemonArchive(),
 			&lazyArchiveEvents{container: c},
 			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			hostlibrary.WithNodeFSMaxInlineBytes(c.config.Plugin.NodeFS.MaxInlineBytes.Uint64()),
 		),
 	}
 
@@ -2209,7 +2217,46 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			hostlibrary.NewAuthzHostLibrary(c.RBAC()),
 		},
 		LibraryFactories: factories,
+
+		MaxMemoryBytes:          pluginMemoryLimitBytes(c.config.Plugin.Runtime.MaxMemoryMB),
+		MaxModuleBytes:          c.config.Plugin.Runtime.MaxModuleSizeMB << 20,
+		CompilationCacheDir:     c.config.Plugins.Cache.Dir,
+		DisableCompilationCache: !c.config.Plugins.Cache.Enabled,
+		GuestLogger:             slog.Default(),
+		// Resolved at call time: the supervisor is created by PluginLoader(),
+		// which depends on the manager built here.
+		OnPluginDisabled: (&lazyPluginRecovery{container: c}).OnPluginDisabled,
 	})
+}
+
+// pluginMemoryLimitBytes converts the configured megabytes to the manager's
+// byte cap; a non-positive value keeps the wazero default.
+func pluginMemoryLimitBytes(megabytes int) uint64 {
+	if megabytes <= 0 {
+		return 0
+	}
+
+	return uint64(megabytes) << 20
+}
+
+// lazyPluginRecovery forwards runtime disables to the recovery supervisor,
+// which PluginLoader() creates after the manager; hooks only fire after
+// LoadAll, so the supervisor exists by then.
+type lazyPluginRecovery struct {
+	container *Container
+}
+
+func (l *lazyPluginRecovery) OnPluginDisabled(pluginID string, dbID uint64, reason string) {
+	if l.container.pluginRecovery == nil {
+		slog.Warn("plugin disabled at runtime before the loader was built, not recorded",
+			slog.String("plugin", pluginID),
+			slog.Uint64("plugin_id", dbID),
+			slog.String("reason", reason))
+
+		return
+	}
+
+	l.container.pluginRecovery.OnPluginDisabled(pluginID, dbID, reason)
 }
 
 // lazyArchiveEvents defers PluginArchiveEvents resolution to call time: the
@@ -2340,10 +2387,35 @@ func (c *Container) PluginLoader() *internalplugin.Loader {
 			c.PluginRepository(),
 			c.config.Plugins.AutoLoad,
 			c.PluginsDir(),
+			internalplugin.WithStrictLoad(c.config.Plugins.StrictLoad),
+			internalplugin.WithSubscriptionRefresher(c.PluginDispatcher()),
+		)
+
+		// Always present: it records why a plugin was disabled even when
+		// automatic reloads are switched off.
+		c.pluginRecovery = internalplugin.NewSupervisor(
+			c.pluginLoader,
+			c.PluginRepository(),
+			c.AuditLogger(),
+			internalplugin.RecoveryOptions{
+				InitialDelay:  c.config.Plugin.Recovery.InitialDelay,
+				MaxDelay:      c.config.Plugin.Recovery.MaxDelay,
+				MaxAttempts:   c.config.Plugin.Recovery.MaxAttempts,
+				DisableReload: !c.config.Plugin.Recovery.Enabled,
+			},
+			slog.Default(),
 		)
 	}
 
 	return c.pluginLoader
+}
+
+// PluginRecovery returns the supervisor that records runtime disables and,
+// unless PLUGIN_RECOVERY_ENABLED is off, reloads the plugins.
+func (c *Container) PluginRecovery() *internalplugin.Supervisor {
+	c.PluginLoader()
+
+	return c.pluginRecovery
 }
 
 func (c *Container) PluginsDir() string {

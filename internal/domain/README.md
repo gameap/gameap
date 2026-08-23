@@ -59,7 +59,7 @@ Key-value configuration storage for individual game servers with type-flexible v
 ## Plugin System
 
 ### Plugin (`plugin.go`)
-Represents a WebAssembly plugin with metadata, event hooks, and HTTP route registrations for extending GameAP functionality.
+Represents a WebAssembly plugin with metadata, event hooks, and HTTP route registrations for extending GameAP functionality. `Status` is `active`, `error` (last load or guest call failed — retried on the next panel start, reason in `LastError`/`LastErrorAt`), `disabled` (operator state, never loaded) or `updating`.
 
 ### PluginStorageEntry (`plugin_storage.go`)
 Persistent key-value storage for plugins, allowing them to store and retrieve data associated with specific entities (servers, users, etc.).

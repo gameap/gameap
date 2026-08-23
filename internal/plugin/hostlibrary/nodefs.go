@@ -2,6 +2,7 @@ package hostlibrary
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -40,6 +41,20 @@ type NodeFSServiceImpl struct {
 	archive     NodeArchiveService
 	events      ArchiveEventRegistrar
 	checker     PluginPermissionChecker
+	// maxInlineBytes caps Download/Upload payloads, which are materialized
+	// in panel memory and then copied into the guest; 0 = unlimited.
+	maxInlineBytes uint64
+}
+
+// NodeFSOption tunes a NodeFSServiceImpl.
+type NodeFSOption func(*NodeFSServiceImpl)
+
+// WithNodeFSMaxInlineBytes caps the size of a file a plugin may download or
+// upload in one message; 0 removes the cap.
+func WithNodeFSMaxInlineBytes(maxBytes uint64) NodeFSOption {
+	return func(s *NodeFSServiceImpl) {
+		s.maxInlineBytes = maxBytes
+	}
 }
 
 func NewNodeFSService(
@@ -49,8 +64,9 @@ func NewNodeFSService(
 	archive NodeArchiveService,
 	events ArchiveEventRegistrar,
 	checker PluginPermissionChecker,
+	opts ...NodeFSOption,
 ) *NodeFSServiceImpl {
-	return &NodeFSServiceImpl{
+	service := &NodeFSServiceImpl{
 		pluginID:    pluginID,
 		fileService: fileService,
 		nodeRepo:    nodeRepo,
@@ -58,6 +74,12 @@ func NewNodeFSService(
 		events:      events,
 		checker:     checker,
 	}
+
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	return service
 }
 
 // authorize gates every method of this module on the "files" grant. Plugin
@@ -219,12 +241,60 @@ func (s *NodeFSServiceImpl) Download(
 		return &nodefs.DownloadResponse{Error: new("node not found")}, nil
 	}
 
-	content, err := s.fileService.Download(ctx, node, req.Path)
+	if msg := s.checkInlineDownloadSize(ctx, node, req.Path); msg != "" {
+		return &nodefs.DownloadResponse{Error: new(msg)}, nil
+	}
+
+	// The stat above is advisory (the file may have grown since), so the
+	// read itself stops one byte past the cap: the guest never receives
+	// more than the cap and the panel never buffers much more than it.
+	content, err := s.fileService.DownloadLimited(ctx, node, req.Path, s.inlineReadLimit())
 	if err != nil {
 		return &nodefs.DownloadResponse{Error: new(err.Error())}, nil
 	}
 
+	if s.maxInlineBytes > 0 && uint64(len(content)) > s.maxInlineBytes {
+		return &nodefs.DownloadResponse{Error: new(fmt.Sprintf(
+			"file too large: content exceeds the inline download limit of %d bytes", s.maxInlineBytes))}, nil
+	}
+
 	return &nodefs.DownloadResponse{Content: content}, nil
+}
+
+// inlineReadLimit is how much Download asks the node for: one byte past
+// the cap, enough to tell an oversized file from one exactly at the limit;
+// without a cap the whole file.
+func (s *NodeFSServiceImpl) inlineReadLimit() uint64 {
+	if s.maxInlineBytes == 0 {
+		return 0
+	}
+
+	return s.maxInlineBytes + 1
+}
+
+// checkInlineDownloadSize refuses a download that would exceed the inline
+// cap before a single byte is read: the whole file would otherwise be
+// buffered in panel memory. It answers a response-level message or "".
+func (s *NodeFSServiceImpl) checkInlineDownloadSize(ctx context.Context, node *domain.Node, filePath string) string {
+	if s.maxInlineBytes == 0 {
+		return ""
+	}
+
+	info, err := s.fileService.GetFileInfo(ctx, node, filePath)
+	if err != nil {
+		return "stat failed: " + err.Error()
+	}
+
+	if info == nil {
+		return "file not found"
+	}
+
+	if info.Size > s.maxInlineBytes {
+		return fmt.Sprintf("file too large: %d bytes exceeds the inline download limit of %d bytes",
+			info.Size, s.maxInlineBytes)
+	}
+
+	return ""
 }
 
 func (s *NodeFSServiceImpl) Upload(
@@ -242,6 +312,14 @@ func (s *NodeFSServiceImpl) Upload(
 
 	if node == nil {
 		return &nodefs.UploadResponse{Success: false, Error: new("node not found")}, nil
+	}
+
+	if s.maxInlineBytes > 0 && uint64(len(req.Content)) > s.maxInlineBytes {
+		return &nodefs.UploadResponse{
+			Success: false,
+			Error: new(fmt.Sprintf("content too large: %d bytes exceeds the inline upload limit of %d bytes",
+				len(req.Content), s.maxInlineBytes)),
+		}, nil
 	}
 
 	err = s.fileService.Upload(ctx, node, req.Path, req.Content, os.FileMode(req.Permissions), daemon.OwnerOptions{})
@@ -773,6 +851,7 @@ type NodeFSHostLibraryFactory struct {
 	archive     NodeArchiveService
 	events      ArchiveEventRegistrar
 	checker     PluginPermissionChecker
+	opts        []NodeFSOption
 }
 
 func NewNodeFSHostLibraryFactory(
@@ -781,6 +860,7 @@ func NewNodeFSHostLibraryFactory(
 	archive NodeArchiveService,
 	events ArchiveEventRegistrar,
 	checker PluginPermissionChecker,
+	opts ...NodeFSOption,
 ) *NodeFSHostLibraryFactory {
 	return &NodeFSHostLibraryFactory{
 		fileService: fileService,
@@ -788,11 +868,12 @@ func NewNodeFSHostLibraryFactory(
 		archive:     archive,
 		events:      events,
 		checker:     checker,
+		opts:        opts,
 	}
 }
 
 func (f *NodeFSHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
 	return &NodeFSHostLibrary{
-		impl: NewNodeFSService(pluginID, f.fileService, f.nodeRepo, f.archive, f.events, f.checker),
+		impl: NewNodeFSService(pluginID, f.fileService, f.nodeRepo, f.archive, f.events, f.checker, f.opts...),
 	}
 }

@@ -174,7 +174,7 @@ func (d *Dispatcher) handleEvent(
 	// ErrPluginBusy means the wait for the call gate was abandoned — the
 	// module is untouched, so the plugin must stay enabled.
 	if err != nil && callCtx.Err() != nil && ctx.Err() == nil && !errors.Is(err, ErrPluginBusy) {
-		plugin.Disable()
+		plugin.DisableWithReason(EventTimeoutReason(event.Type))
 
 		d.logger.Error("plugin event handler timed out, plugin disabled until reload",
 			slog.String("plugin_id", plugin.Info.Id),

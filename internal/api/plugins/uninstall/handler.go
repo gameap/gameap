@@ -19,28 +19,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type PluginManager interface {
-	GetPlugin(pluginID string) (*pkgplugin.LoadedPlugin, bool)
-	Unload(ctx context.Context, pluginID string) error
-}
-
-// ManagerIDResolver maps a plugin DB ID to the ID it is registered under in
-// the manager (they differ when the wasm's own info ID is not the store ID).
-type ManagerIDResolver interface {
-	GetPluginManagerID(dbID domain.Uint64ID) (string, bool)
-}
-
-// TaskScheduler drops the plugin's scheduled task registrations on uninstall.
-type TaskScheduler interface {
-	RemovePluginTasks(ctx context.Context, pluginID domain.Uint64ID) (int, error)
-}
-
-// ArchiveEvents drops the plugin's archive event registrations on uninstall
-// so stale deliveries cannot reach a freshly reinstalled instance.
-type ArchiveEvents interface {
-	RemovePlugin(pluginID uint64)
-}
-
 type Handler struct {
 	pluginRepo    repositories.PluginRepository
 	fileManager   files.FileManager
@@ -49,6 +27,8 @@ type Handler struct {
 	subscriptions plugininstall.SubscriptionRefresher
 	scheduler     TaskScheduler
 	archiveEvents ArchiveEvents
+	storage       PluginStorageCleaner
+	secrets       PluginSecretCleaner
 	pluginsDir    string
 	responder     base.Responder
 	audit         audit.Logger
@@ -62,6 +42,8 @@ func NewHandler(
 	subscriptions plugininstall.SubscriptionRefresher,
 	scheduler TaskScheduler,
 	archiveEvents ArchiveEvents,
+	storage PluginStorageCleaner,
+	secrets PluginSecretCleaner,
 	pluginsDir string,
 	responder base.Responder,
 	auditLogger audit.Logger,
@@ -78,6 +60,8 @@ func NewHandler(
 		subscriptions: subscriptions,
 		scheduler:     scheduler,
 		archiveEvents: archiveEvents,
+		storage:       storage,
+		secrets:       secrets,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 		audit:         auditLogger,
@@ -120,6 +104,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Plugin data goes first and a failure aborts the uninstall: the record
+	// is still there, so the operator can retry, and a plugin reinstalled
+	// under the same ID never inherits stale secrets.
+	secretsRemoved, err := h.cleanupPluginData(ctx, dbID)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	filename := storePluginID + ".wasm"
 	if pluginRecord.Filename != nil && *pluginRecord.Filename != "" {
 		filename = *pluginRecord.Filename
@@ -156,12 +150,43 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	audit.SensitiveOp(ctx, h.audit, audit.EventPluginUninstall, audit.CategoryPluginOp,
-		"plugin", strconv.FormatUint(uint64(dbID), 10), "uninstall")
+		"plugin", strconv.FormatUint(uint64(dbID), 10), "uninstall",
+		slog.Int("secrets_removed", secretsRemoved))
 
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// cleanupPluginData drops the plugin's storage entries and secrets and
+// reports how many secrets went. Unlike the task cleanup it is not best
+// effort: the caller runs it while the plugin record still exists, so a
+// failure leaves a retryable uninstall instead of orphaned credentials.
+func (h *Handler) cleanupPluginData(ctx context.Context, dbID domain.Uint64ID) (int, error) {
+	if h.storage != nil {
+		if err := h.storage.DeleteByPlugin(ctx, uint64(dbID)); err != nil {
+			return 0, errors.WithMessage(err, "failed to remove plugin storage entries")
+		}
+	}
+
+	if h.secrets == nil {
+		return 0, nil
+	}
+
+	removed, err := h.secrets.DeleteByPlugin(ctx, dbID)
+	if err != nil {
+		return 0, errors.WithMessage(err, "failed to remove plugin secrets")
+	}
+
+	return removed, nil
+}
+
 func (h *Handler) unloadPlugin(ctx context.Context, dbID domain.Uint64ID) error {
+	// A reload the recovery supervisor scheduled must not bring the plugin
+	// back after the uninstall; cancel it whether or not the plugin is
+	// currently loaded.
+	if canceller, ok := h.resolver.(RecoveryCanceller); ok {
+		canceller.Forget(dbID)
+	}
+
 	if h.manager == nil {
 		return nil
 	}

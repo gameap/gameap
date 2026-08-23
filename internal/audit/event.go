@@ -81,6 +81,14 @@ const (
 	EventPluginUninstall      EventType = "plugin.uninstall"
 )
 
+// Plugin runtime lifecycle: recorded by the panel itself (AuthMethodSystem)
+// when a guest misbehaves and when it is brought back, and by an operator
+// reloading a plugin on demand.
+const (
+	EventPluginDisabled EventType = "plugin.disabled"
+	EventPluginReloaded EventType = "plugin.reloaded"
+)
+
 // AuthMethod describes how the actor authenticated for the audited request.
 type AuthMethod string
 
@@ -89,6 +97,9 @@ const (
 	AuthMethodPAT        AuthMethod = "pat"
 	AuthMethodShortLived AuthMethod = "shortlived"
 	AuthMethodAnonymous  AuthMethod = "anonymous"
+	// AuthMethodSystem marks actions the panel takes on its own, outside
+	// any request (plugin recovery, background maintenance).
+	AuthMethodSystem AuthMethod = "system"
 )
 
 // Event is the stable audit-record schema. Zero-valued fields are omitted

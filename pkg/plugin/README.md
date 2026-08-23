@@ -73,9 +73,11 @@ Delivery semantics:
 - **Sync** (cancellable pre-events) block the initiating request; a plugin returning
   `should_cancel` aborts the operation. Each plugin call is bounded by a per-call
   timeout (10s); on expiry the module is closed and the plugin is disabled until it
-  is reloaded. Calls into one plugin are serialized; a caller queued behind an
-  in-flight call gives up at its own deadline with a "plugin is busy" error (the
-  plugin stays enabled — its module was never touched).
+  is reloaded (see [Runtime limits and recovery](#runtime-limits-and-recovery) —
+  the panel records the reason and reloads the plugin on its own). Calls into one
+  plugin are serialized; a caller queued behind an in-flight call gives up at its
+  own deadline with a "plugin is busy" error (the plugin stays enabled — its module
+  was never touched).
 - **Async** events are dispatched in a background goroutine (detached from the
   request, 60s total budget) — plugins cannot delay the caller, and delivery errors
   are only logged. Several async events emitted by one operation
@@ -241,7 +243,9 @@ Rules the panel enforces:
 - Quotas: `PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN` (64 by default) and
   `PLUGIN_SECRETS_MAX_VALUE_BYTES` (8 KiB by default).
 - Secrets are private to the plugin that wrote them and survive a plugin
-  reload; a `Get` from another plugin answers `found = false`.
+  reload or update; a `Get` from another plugin answers `found = false`.
+  Uninstalling the plugin deletes its secrets together with its
+  `gameap-storage` entries.
 
 ### gameap-scheduler
 
@@ -480,7 +484,10 @@ for _, file := range readDirResp.Files {
     fmt.Printf("%s (%d bytes)\n", file.Name, file.Size)
 }
 
-// Download a file
+// Download a file. Download and Upload carry the whole file in one message,
+// so the panel caps them (PLUGIN_NODEFS_MAX_INLINE_BYTES, 32 MiB by default);
+// a larger file answers with an error naming both sizes — use archives or an
+// HTTPResponse file reference for big payloads.
 downloadResp, _ := fs.Download(ctx, &nodefs.DownloadRequest{
     NodeId: 1,
     Path:   "/home/servers/server.cfg",
@@ -871,6 +878,46 @@ func (p MyPlugin) HandleHTTPRequest(ctx context.Context, req *proto.HTTPRequest)
 }
 ```
 
+#### Serving node files
+
+A route can hand the client a file that lives on a node without the bytes
+passing through the plugin: answer with `File` instead of `Body` and the
+panel streams it from the daemon itself (so the 1 MB response limit and the
+guest memory do not apply).
+
+```go
+case "/my-plugin/backups/latest":
+    return &proto.HTTPResponse{
+        StatusCode: 200,
+        Headers:    map[string]string{"Content-Type": "application/gzip"},
+        File: &proto.FileRef{
+            NodeId:   1,
+            Path:     "/home/servers/cs2/backups/latest.tar.gz",
+            Filename: "cs2-latest.tar.gz", // Content-Disposition name; empty → base name of Path
+        },
+    }, nil
+```
+
+Rules:
+
+- Requires the `files` grant (the same one that gates `gameap-nodefs`); without
+  it the panel answers `403` and records an `access.denied` audit event. The check
+  happens on every request, at the moment the file is served.
+- Only authenticated clients receive files: on a route with `RequiresAuth:
+  false` an anonymous request gets `401`, whatever the plugin answered.
+- `Body` is ignored when `File` is set. `StatusCode` (default `200`) is the
+  plugin's. Of the plugin's headers only `Content-Type`, `Content-Language`,
+  `Cache-Control`, `Expires`, `Pragma`, `Last-Modified`, `ETag`, `Vary` and
+  the plugin metadata headers `X-Plugin` / `X-Plugin-*` reach the client —
+  everything else (`Set-Cookie`, `Location`, `WWW-Authenticate`, CSP, other
+  `X-*` names such as `X-Accel-Redirect`, …) is dropped, as the response is
+  served from the panel origin. The panel owns `Content-Length` and
+  `Content-Disposition` (always an attachment).
+- Range requests are not supported (`Accept-Ranges: none`); `..` path segments
+  are rejected.
+- Panels that predate this field ignore it and send an empty body, so a plugin
+  that must run on older panels should keep a `Body` fallback for them.
+
 ### Cancelling Events
 
 For `PRE_*` events, plugins can prevent the operation by setting `ShouldCancel`:
@@ -1089,7 +1136,7 @@ Privileged host modules are gated on the plugin's own grants, kept in the
 | Permission | Gates |
 |---|---|
 | `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
-| `files` | `gameap-nodefs` — every operation, including hash and archive create/extract (installations that existed before the gate were grandfathered the grant by a migration) |
+| `files` | `gameap-nodefs` — every operation, including hash and archive create/extract (installations that existed before the gate were grandfathered the grant by a migration) — and `HTTPResponse.file`, a route answering with a node file |
 | `secrets` | `gameap-secrets` — reading, writing, listing and deleting the plugin's encrypted credentials |
 
 A plugin declares what it needs in `PluginInfo.RequiredPermissions`. The
@@ -1134,6 +1181,81 @@ func (p MyPlugin) Initialize(ctx context.Context, req *proto.InitializeRequest) 
 }
 ```
 
+## Runtime limits and recovery
+
+One plugin must not take the panel down, so the runtime bounds every module
+and keeps the panel running when a plugin misbehaves. Everything below is
+configurable through environment variables (`internal/config`).
+
+### Loading
+
+- A plugin that fails to load at startup (missing file, compile error,
+  `Initialize` failure) is recorded with status `error` and the reason in
+  `last_error`; the other plugins keep loading and the panel starts.
+  `PLUGINS_STRICT_LOAD=true` restores the old behaviour (startup fails).
+- Plugins with status `active` **and** `error` are attempted on every panel
+  start — the cause may be gone. `disabled` is the operator's state and is
+  never loaded; `updating` is skipped. The one exception is `PLUGINS_AUTOLOAD`:
+  a plugin named there is the operator's explicit instruction and is set back
+  to `active` at startup whatever its status (unchanged behaviour).
+- `PLUGINS_CACHE_DIR` persists compiled wasm on local disk (keyed by module
+  hash and wazero version) so restarts do not recompile every plugin;
+  `PLUGINS_CACHE_ENABLED=false` turns caching off entirely.
+
+### Limits
+
+- `PLUGIN_MAX_MEMORY_MB` (256) caps the linear memory of every module. A
+  module that declares a larger maximum is clamped, not rejected; only a
+  module whose *initial* memory already exceeds the cap fails to load, with
+  an error naming both sizes. Standard Go builds reserve tens of MiB up front
+  and grow their heap at runtime — raise the cap if such a plugin traps with
+  out-of-memory.
+- `PLUGIN_MAX_MODULE_SIZE_MB` (64) rejects larger wasm files before
+  compilation, for uploads, store installs and autoload alike.
+- `PLUGIN_NODEFS_MAX_INLINE_BYTES` (32 MiB) caps `gameap-nodefs`
+  `Download`/`Upload` payloads.
+- Guest `stdout` is forwarded to the panel log at debug level and `stderr` at
+  warn level (attributes `plugin_id`, `stream`, `line`), so a Go/Rust panic
+  message is visible. Lines are cut at 4 KiB and each stream is limited to
+  200 lines per 10 seconds; drops are counted and reported.
+
+### Disabled plugins and automatic recovery
+
+A plugin is disabled at runtime when a guest call overruns its deadline
+(event handler, HTTP route, scheduled task, archive callback — the runtime
+closes the module) or when the guest terminates its own module (a Go `panic`
+ends in `proc_exit`). The panel then:
+
+1. records the reason on the plugin (`status=error`, `last_error`,
+   `last_error_at`) and writes a `plugin.disabled` audit event;
+2. reloads the plugin after `PLUGIN_RECOVERY_INITIAL_DELAY` (30s), doubling
+   the wait on every further failure up to `PLUGIN_RECOVERY_MAX_DELAY` (10m).
+   Each outcome is an audit event `plugin.reloaded` (`trigger=auto`). After
+   `PLUGIN_RECOVERY_MAX_ATTEMPTS` (5) consecutive reloads the plugin stays in
+   status `error` — `last_error` says so — until an operator reloads it or the
+   panel restarts. A plugin that stayed healthy for longer than the maximum
+   delay starts a fresh series. `PLUGIN_RECOVERY_ENABLED=false` keeps the
+   disable permanent, as before — the status, reason and audit event are
+   still recorded.
+
+`GET /api/admin/plugins/loaded` lists every installed plugin with `status`,
+`error`, `error_at`, `loaded` and `memory_bytes`; `POST
+/api/admin/plugins/{id}/reload` reloads one on demand (it also cancels a
+pending automatic reload), and the admin UI shows the status badge, the last
+error and a Reload button.
+
+Write your plugin accordingly: keep operation state in `gameap-storage`, not
+in module globals, and make `Initialize` idempotent — a reload starts a fresh
+module instance.
+
+### Multi-instance
+
+Each panel instance runs its own module instances, so `loaded`, `enabled` and
+`memory_bytes` describe the instance that answered the request, while
+`status`/`error` are the shared database record — the last outcome observed
+on any instance. A reload through the API restarts the plugin on that instance
+only; the others recover on their own schedule or on their next start.
+
 ## Example Plugin
 
 See `pkg/plugin/examples/server-logger/` for a complete example plugin that logs server lifecycle events and registers a periodic `stats-report` scheduled task.
@@ -1175,6 +1297,10 @@ pkg/plugin/
 │   ├── server-logger/        # Example plugin (lifecycle events)
 │   └── protocol-extension/   # Example plugin (RCON/Query protocols)
 ├── manager.go                # Plugin manager
+├── health.go                 # Runtime disable reasons, disable hook, memory snapshot
+├── guestlog.go               # Guest stdout/stderr → slog
+├── runtimeconfig.go          # wazero runtime config (memory limit, cache)
+├── cache.go                  # Compilation cache (in-memory / on disk)
 ├── dispatcher.go             # Event dispatcher
 ├── wrapper.go                # WASM plugin wrapper
 ├── adapter.go                # ServerControl adapter

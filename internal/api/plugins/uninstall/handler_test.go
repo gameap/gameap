@@ -115,6 +115,8 @@ func TestUninstall_successful(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -143,6 +145,8 @@ func TestUninstall_not_installed(t *testing.T) {
 	h := uninstall.NewHandler(
 		pluginRepo,
 		fileManager,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -189,6 +193,8 @@ func TestUninstall_with_manager(t *testing.T) {
 		pluginRepo,
 		fileManager,
 		manager,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -244,6 +250,8 @@ func TestUninstall_manager_unload_error(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -288,6 +296,8 @@ func TestUninstall_plugin_not_loaded_in_manager(t *testing.T) {
 		pluginRepo,
 		fileManager,
 		manager,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -343,7 +353,7 @@ func TestUninstall_Audit_SuccessfulUninstallIsRecorded(t *testing.T) {
 
 	recorder := &auditCapture{}
 	h := uninstall.NewHandler(
-		pluginRepo, fileManager, nil, nil, nil, nil, nil, "plugins", api.NewResponder(), recorder,
+		pluginRepo, fileManager, nil, nil, nil, nil, nil, nil, nil, "plugins", api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
 
@@ -378,7 +388,7 @@ func TestUninstall_Audit_NotInstalledIsNotRecorded(t *testing.T) {
 	// ARRANGE
 	recorder := &auditCapture{}
 	h := uninstall.NewHandler(
-		inmemory.NewPluginRepository(), files.NewInMemoryFileManager(), nil, nil, nil, nil, nil, "plugins",
+		inmemory.NewPluginRepository(), files.NewInMemoryFileManager(), nil, nil, nil, nil, nil, nil, nil, "plugins",
 		api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
@@ -441,6 +451,8 @@ func TestUninstall_RemovesScheduledTasks(t *testing.T) {
 		nil,
 		scheduler,
 		nil,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -483,6 +495,8 @@ func TestUninstall_SchedulerErrorDoesNotBreakUninstall(t *testing.T) {
 		nil,
 		nil,
 		scheduler,
+		nil,
+		nil,
 		nil,
 		"plugins",
 		api.NewResponder(),
@@ -537,6 +551,8 @@ func TestUninstall_removes_archive_event_registrations(t *testing.T) {
 		nil,
 		nil,
 		archiveEvents,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,

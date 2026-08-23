@@ -530,4 +530,8 @@ func TestService_GuestDeadlineDisablesPlugin(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return !env.plugin.IsEnabled()
 	}, 2*time.Second, 10*time.Millisecond, "a timed-out guest call must disable the plugin")
+
+	reason, ok := env.plugin.DisabledReason()
+	require.True(t, ok)
+	assert.Contains(t, reason, "archive callback timed out (")
 }

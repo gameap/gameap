@@ -138,6 +138,61 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 		assert.InDelta(t, now.Unix(), retrieved.LastLoadedAt.Unix(), 1.0)
 		assert.NotNil(t, retrieved.CreatedAt)
 		assert.NotNil(t, retrieved.UpdatedAt)
+		assert.Nil(t, retrieved.LastError)
+		assert.Nil(t, retrieved.LastErrorAt)
+	})
+
+	s.T().Run("save_with_last_error", func(t *testing.T) {
+		errorAt := time.Now().Truncate(time.Second)
+		plugin := &domain.Plugin{
+			ID:         1008,
+			Name:       "errored-plugin",
+			Version:    "1.0.0",
+			APIVersion: "1",
+		}
+		plugin.MarkError("event handler timed out (SERVER_PRE_START)", errorAt)
+
+		err := s.repo.Save(ctx, plugin)
+		require.NoError(t, err)
+
+		result, err := s.repo.Find(ctx, &filters.FindPlugin{IDs: []domain.Uint64ID{plugin.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+
+		retrieved := result[0]
+		assert.Equal(t, domain.PluginStatusError, retrieved.Status)
+		require.NotNil(t, retrieved.LastError)
+		assert.Equal(t, "event handler timed out (SERVER_PRE_START)", *retrieved.LastError)
+		require.NotNil(t, retrieved.LastErrorAt)
+		assert.InDelta(t, errorAt.Unix(), retrieved.LastErrorAt.Unix(), 1.0)
+	})
+
+	s.T().Run("clear_last_error", func(t *testing.T) {
+		plugin := &domain.Plugin{
+			ID:         1009,
+			Name:       "recovered-plugin",
+			Version:    "1.0.0",
+			APIVersion: "1",
+		}
+		plugin.MarkError("http handler timed out", time.Now())
+
+		err := s.repo.Save(ctx, plugin)
+		require.NoError(t, err)
+
+		plugin.MarkActive(time.Now())
+
+		err = s.repo.Save(ctx, plugin)
+		require.NoError(t, err)
+
+		result, err := s.repo.Find(ctx, &filters.FindPlugin{IDs: []domain.Uint64ID{plugin.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+
+		retrieved := result[0]
+		assert.Equal(t, domain.PluginStatusActive, retrieved.Status)
+		assert.Nil(t, retrieved.LastError)
+		assert.Nil(t, retrieved.LastErrorAt)
+		assert.NotNil(t, retrieved.LastLoadedAt)
 	})
 
 	s.T().Run("update_existing_plugin", func(t *testing.T) {

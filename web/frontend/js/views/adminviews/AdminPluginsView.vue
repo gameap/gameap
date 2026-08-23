@@ -166,11 +166,17 @@ const createInstalledColumns = () => {
             : 'px-2 py-0.5 text-xs font-medium rounded-full bg-success-soft text-success-soft-text'
         }, row.isFilePlugin ? trans('plugins.source_file') : trans('plugins.source_store')))
 
+        const status = statusBadge(row.status)
         badges.push(h('span', {
-          class: row.enabled
-            ? 'px-2 py-0.5 text-xs font-medium rounded-full bg-success-soft text-success-soft-text'
-            : 'px-2 py-0.5 text-xs font-medium rounded-full bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300'
-        }, row.enabled ? trans('plugins.status_active') : trans('plugins.status_disabled')))
+          class: 'px-2 py-0.5 text-xs font-medium rounded-full ' + status.class,
+          title: row.status === 'error' && row.error ? row.error : undefined
+        }, status.label))
+
+        if (!row.loaded && row.status !== 'error') {
+          badges.push(h('span', {
+            class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300'
+          }, trans('plugins.not_loaded')))
+        }
 
         if (row.hasUpdate) {
           badges.push(h('span', {
@@ -195,6 +201,9 @@ const createInstalledColumns = () => {
           h('div', { class: 'flex flex-col min-w-0' }, [
             h('span', { class: 'font-medium text-info hover:underline break-words' }, row.name),
             row.summary ? h('div', { class: 'text-xs text-stone-500 dark:text-stone-400 line-clamp-2 whitespace-normal break-words' }, row.summary) : null,
+            row.status === 'error' && row.error
+              ? h('div', { class: 'text-xs text-danger line-clamp-2 whitespace-normal break-words' }, row.error)
+              : null,
             badges.length > 0 ? h('div', { class: 'flex gap-1 mt-1 flex-wrap' }, badges) : null
           ])
         ])
@@ -251,9 +260,16 @@ const createInstalledColumns = () => {
     {
       title: trans('main.actions'),
       key: 'actions',
-      width: isSmallScreen.value ? 80 : 180,
+      width: isSmallScreen.value ? 120 : 220,
       render(row) {
         return h('div', { class: 'flex gap-1' }, [
+          h(GButton, {
+            color: 'white',
+            size: 'small',
+            title: trans('plugins.reload'),
+            disabled: row.status === 'updating',
+            onClick: () => onReload(row)
+          }, () => [h(GIcon, { name: 'refresh' })]),
           row.hasUpdate
               ? h(GButton, {
                 color: 'blue',
@@ -407,6 +423,22 @@ const storeColumns = computed(() => {
   return cols
 })
 
+const statusBadgeClasses = {
+  active: 'bg-success-soft text-success-soft-text',
+  error: 'bg-danger-soft text-danger-soft-text',
+  updating: 'bg-warning-soft text-warning-soft-text',
+  disabled: 'bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300',
+}
+
+function statusBadge(status) {
+  const known = statusBadgeClasses[status] ? status : 'disabled'
+
+  return {
+    class: statusBadgeClasses[known],
+    label: trans('plugins.status_' + known),
+  }
+}
+
 function renderStars(rating) {
   const fullStars = Math.floor(rating || 0)
   const hasHalf = (rating || 0) - fullStars >= 0.5
@@ -558,6 +590,22 @@ function onClickUninstall(row) {
           .catch(errorNotification)
     }
   })
+}
+
+function onReload(row) {
+  pluginStore.reloadPlugin(row.id)
+      .then(() => {
+        notification({
+          content: trans('plugins.reload_success_msg'),
+          type: 'success'
+        })
+
+        return pluginStore.fetchLoadedPlugins()
+      })
+      .catch((error) => {
+        errorNotification(error)
+        pluginStore.fetchLoadedPlugins().catch(() => {})
+      })
 }
 
 function refreshData() {

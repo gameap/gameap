@@ -1285,6 +1285,16 @@ func TestHandlePluginRequest(t *testing.T) {
 			if tt.expectedBody != "" {
 				assert.Contains(t, rr.Body.String(), tt.expectedBody)
 			}
+
+			if tt.expectedStatus == http.StatusGatewayTimeout {
+				assert.False(t, plugin.IsEnabled())
+				reason, ok := plugin.DisabledReason()
+				require.True(t, ok)
+				assert.Equal(t, "http handler timed out (POST /data)", reason)
+			} else {
+				_, ok := plugin.DisabledReason()
+				assert.False(t, ok, "only a timeout disables the plugin")
+			}
 		})
 	}
 }

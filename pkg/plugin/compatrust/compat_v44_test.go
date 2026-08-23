@@ -28,6 +28,7 @@ type scheduledTaskHandler interface {
 }
 
 func TestRustPluginCompatV44_SchedulerProtocol(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	schedulerStub := &stubSchedulerService{}
 	netStub := &stubNetService{}
@@ -87,6 +88,7 @@ func TestRustPluginCompatV44_SchedulerProtocol(t *testing.T) {
 }
 
 func TestRustPluginCompatV44_AuthzRBAC(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	authzStub := &stubAuthzService{}
 	rbacStub := &stubRBACService{}

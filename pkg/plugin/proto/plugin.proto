@@ -219,6 +219,27 @@ message HTTPResponse {
   int32 status_code = 1;
   map<string, string> headers = 2;
   bytes body = 3;
+  // When set, body is ignored: the panel streams the referenced node file to
+  // the client itself, so the bytes never pass through the plugin. Requires
+  // the plugin's "files" grant (403 without it) and an authenticated client
+  // (401 otherwise, whatever the route's requires_auth says). Panels that
+  // predate this field ignore it and send an empty body.
+  optional FileRef file = 4;
+}
+
+// FileRef points at a file on a node for HTTPResponse.file. The panel owns
+// Content-Length and Content-Disposition (always an attachment); of the
+// HTTPResponse.headers only Content-Type, Content-Language, Cache-Control,
+// Expires, Pragma, Last-Modified, ETag, Vary and the plugin metadata
+// headers X-Plugin and X-Plugin-* reach the client. Other X-* names
+// (X-Accel-*, X-Sendfile, X-Frame-Options, …) are dropped like the rest.
+message FileRef {
+  uint64 node_id = 1;
+  // Absolute node path, the same form gameap-nodefs accepts; ".." segments
+  // are rejected.
+  string path = 2;
+  // Name offered to the client; empty means the base name of path.
+  string filename = 3;
 }
 
 // Frontend bundle request/response

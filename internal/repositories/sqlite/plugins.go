@@ -33,6 +33,8 @@ var pluginFields = []string{
 	"config",
 	"installed_at",
 	"last_loaded_at",
+	"last_error",
+	"last_error_at",
 	"created_at",
 	"updated_at",
 }
@@ -218,6 +220,8 @@ func (r *PluginRepository) insert(
 			jsonFields.config,
 			formatTimePtr(plugin.InstalledAt),
 			formatTimePtr(plugin.LastLoadedAt),
+			plugin.LastError,
+			formatTimePtr(plugin.LastErrorAt),
 			formatTimePtr(plugin.CreatedAt),
 			formatTimePtr(plugin.UpdatedAt),
 		).
@@ -257,6 +261,8 @@ func (r *PluginRepository) update(
 		Set("config", jsonFields.config).
 		Set("installed_at", formatTimePtr(plugin.InstalledAt)).
 		Set("last_loaded_at", formatTimePtr(plugin.LastLoadedAt)).
+		Set("last_error", plugin.LastError).
+		Set("last_error_at", formatTimePtr(plugin.LastErrorAt)).
 		Set("updated_at", formatTimePtr(plugin.UpdatedAt)).
 		Where(sq.Eq{"id": plugin.ID}).
 		ToSql()
@@ -314,7 +320,7 @@ func (r *PluginRepository) Exists(ctx context.Context, filter *filters.FindPlugi
 func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 	var plugin domain.Plugin
 	var requiredPermissionsJSON, allowedPermissionsJSON, dependenciesJSON, configJSON []byte
-	var installedAtStr, lastLoadedAtStr, createdAtStr, updatedAtStr *string
+	var installedAtStr, lastLoadedAtStr, lastErrorAtStr, createdAtStr, updatedAtStr *string
 
 	err := row.Scan(
 		&plugin.ID,
@@ -335,6 +341,8 @@ func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 		&configJSON,
 		&installedAtStr,
 		&lastLoadedAtStr,
+		&plugin.LastError,
+		&lastErrorAtStr,
 		&createdAtStr,
 		&updatedAtStr,
 	)
@@ -378,6 +386,11 @@ func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 	plugin.LastLoadedAt, err = parseTimePtr(lastLoadedAtStr)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to parse last_loaded_at")
+	}
+
+	plugin.LastErrorAt, err = parseTimePtr(lastErrorAtStr)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to parse last_error_at")
 	}
 
 	plugin.CreatedAt, err = parseTimePtr(createdAtStr)

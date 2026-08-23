@@ -635,6 +635,10 @@ func TestRunTask_TimeoutDisablesPlugin(t *testing.T) {
 	require.Len(t, env.instance.recordedRequests(), 1)
 	assert.False(t, env.plugin.IsEnabled(),
 		"a handler eating the whole call budget must disable the plugin, mirroring the event dispatcher")
+
+	reason, ok := env.plugin.DisabledReason()
+	require.True(t, ok)
+	assert.Equal(t, "scheduled task timed out ("+task.Name+")", reason)
 }
 
 func TestRunTask_BusyErrorDoesNotDisablePlugin(t *testing.T) {

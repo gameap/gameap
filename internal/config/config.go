@@ -226,7 +226,13 @@ type Config struct {
 	Plugins struct {
 		Disabled bool     `env:"PLUGINS_DISABLED" envDefault:"false"`
 		AutoLoad []string `env:"PLUGINS_AUTOLOAD" envDefault:"" envSeparator:","`
-		Cache    struct {
+		// StrictLoad makes the panel refuse to start when any plugin fails
+		// to load. By default a broken plugin is recorded with status
+		// "error" and skipped, so one plugin cannot take the panel down.
+		StrictLoad bool `env:"PLUGINS_STRICT_LOAD" envDefault:"false"`
+		// Cache keeps compiled wasm between loads; with Dir set the
+		// compiled code also survives panel restarts (local path).
+		Cache struct {
 			Enabled bool   `env:"PLUGINS_CACHE_ENABLED" envDefault:"true"`
 			Dir     string `env:"PLUGINS_CACHE_DIR" envDefault:""`
 		}
@@ -433,6 +439,41 @@ type Config struct {
 
 			// MaxConnections caps simultaneously open connections per plugin.
 			MaxConnections int `env:"PLUGIN_NET_MAX_CONNECTIONS" envDefault:"8"`
+		}
+
+		// Runtime bounds every plugin module.
+		Runtime struct {
+			// MaxMemoryMB caps the linear memory of one module (0 = the
+			// wazero default of 4 GiB). A module declaring a larger maximum
+			// is clamped; only a module whose initial memory already exceeds
+			// the cap fails to load.
+			MaxMemoryMB int `env:"PLUGIN_MAX_MEMORY_MB" envDefault:"256"`
+
+			// MaxModuleSizeMB rejects wasm files above this size before
+			// compilation, for uploads, store installs and autoload alike
+			// (0 = unlimited).
+			MaxModuleSizeMB int `env:"PLUGIN_MAX_MODULE_SIZE_MB" envDefault:"64"`
+		}
+
+		// Recovery reloads a plugin the runtime disabled (a guest call
+		// overran its deadline or the guest terminated its module) with
+		// exponential backoff; after MaxAttempts the plugin stays in status
+		// "error" until an operator reloads it or the panel restarts. With
+		// Enabled=false the disable is still recorded (status, reason,
+		// audit) but never reloaded automatically.
+		Recovery struct {
+			Enabled      bool          `env:"PLUGIN_RECOVERY_ENABLED" envDefault:"true"`
+			InitialDelay time.Duration `env:"PLUGIN_RECOVERY_INITIAL_DELAY" envDefault:"30s"`
+			MaxDelay     time.Duration `env:"PLUGIN_RECOVERY_MAX_DELAY" envDefault:"10m"`
+			MaxAttempts  int           `env:"PLUGIN_RECOVERY_MAX_ATTEMPTS" envDefault:"5"`
+		}
+
+		// NodeFS bounds the gameap-nodefs host library.
+		NodeFS struct {
+			// MaxInlineBytes caps files a plugin downloads or uploads as a
+			// single message; larger files must go through archives or the
+			// panel's own streaming endpoints (0 = unlimited).
+			MaxInlineBytes ByteSize `env:"PLUGIN_NODEFS_MAX_INLINE_BYTES" envDefault:"32M"`
 		}
 	}
 

@@ -34,6 +34,8 @@ var pluginFields = []string{
 	"config",
 	"installed_at",
 	"last_loaded_at",
+	"last_error",
+	"last_error_at",
 	"created_at",
 	"updated_at",
 }
@@ -185,6 +187,8 @@ func (r *PluginRepository) insert(ctx context.Context, plugin *domain.Plugin) er
 			configJSON,
 			plugin.InstalledAt,
 			plugin.LastLoadedAt,
+			plugin.LastError,
+			plugin.LastErrorAt,
 			plugin.CreatedAt,
 			plugin.UpdatedAt,
 		).
@@ -230,6 +234,8 @@ func (r *PluginRepository) update(ctx context.Context, plugin *domain.Plugin) er
 		Set("config", configJSON).
 		Set("installed_at", plugin.InstalledAt).
 		Set("last_loaded_at", plugin.LastLoadedAt).
+		Set("last_error", plugin.LastError).
+		Set("last_error_at", plugin.LastErrorAt).
 		Set("updated_at", plugin.UpdatedAt).
 		Where(sq.Eq{"id": plugin.ID}).
 		PlaceholderFormat(sq.Dollar).
@@ -311,6 +317,8 @@ func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 		&configJSON,
 		&plugin.InstalledAt,
 		&plugin.LastLoadedAt,
+		&plugin.LastError,
+		&plugin.LastErrorAt,
 		&plugin.CreatedAt,
 		&plugin.UpdatedAt,
 	)

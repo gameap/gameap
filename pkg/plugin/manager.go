@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"context"
-	"io"
 	"io/fs"
 	"log/slog"
 	"regexp"
@@ -68,6 +67,17 @@ type LoadedPlugin struct {
 	I18nFS     fs.FS
 	FrontendFS fs.FS
 
+	// DBID is the database record the plugin was loaded for (0 for transient
+	// loads); per-plugin host libraries and grants are keyed on it.
+	DBID uint64
+
+	// disableReason is set by DisableWithReason; nil when the plugin was
+	// disabled silently (unload, shutdown). onDisabled is the manager's
+	// DisableHook, wired by Load for registered plugins only.
+	disableReason atomic.Pointer[string]
+	onDisabled    DisableHook
+	guestLogs     *guestLogs
+
 	// disabled is atomic because it is flipped on Unload and on guest call
 	// timeouts while dispatchers concurrently read it without the manager lock.
 	disabled atomic.Bool
@@ -116,6 +126,28 @@ func (p *LoadedPlugin) Close(ctx context.Context) error {
 type ManagerConfig struct {
 	Libraries        []HostLibrary
 	LibraryFactories []HostLibraryFactory
+
+	// MaxMemoryBytes caps the linear memory of every plugin module; 0 keeps
+	// the wazero default (4 GiB). Modules declaring a larger maximum are
+	// clamped, modules whose initial memory exceeds the cap fail to load.
+	MaxMemoryBytes uint64
+	// MaxModuleBytes rejects wasm files above this size before compilation;
+	// 0 disables the check.
+	MaxModuleBytes int
+
+	// CompilationCacheDir persists compiled code across panel restarts;
+	// empty keeps the in-memory cache. DisableCompilationCache turns
+	// caching off entirely.
+	CompilationCacheDir     string
+	DisableCompilationCache bool
+
+	// GuestLogger receives the guests' stdout (debug) and stderr (warn);
+	// nil means slog.Default().
+	GuestLogger *slog.Logger
+
+	// OnPluginDisabled is notified when a registered plugin is disabled at
+	// runtime (call timeout, guest exit). See DisableHook.
+	OnPluginDisabled DisableHook
 }
 
 // Manager handles plugin lifecycle.
@@ -125,8 +157,11 @@ type Manager struct {
 	config  ManagerConfig
 	// cache shares compiled code between runtimes for the manager's
 	// lifetime, so validating and then installing the same wasm (or
-	// reloading it) compiles it only once. In-memory; reclaimed at process
-	// exit, deliberately never closed while transient modules may be alive.
+	// reloading it) compiles it only once. In-memory or directory-backed
+	// (see newCompilationCache; the directory is written at compile time).
+	// Deliberately never closed: Close tears down the shared engines while
+	// transient modules handed to callers may still be alive; nil when
+	// caching is disabled.
 	cache  wazero.CompilationCache
 	closed bool
 }
@@ -136,7 +171,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 	return &Manager{
 		plugins: make(map[string]*LoadedPlugin),
 		config:  cfg,
-		cache:   wazero.NewCompilationCache(),
+		cache:   newCompilationCache(cfg),
 	}
 }
 
@@ -179,6 +214,7 @@ func (m *Manager) Load(
 		return nil, errors.Wrapf(ErrPluginAlreadyLoaded, "plugin: %s", loadedPlugin.Info.Id)
 	}
 
+	loadedPlugin.onDisabled = m.config.OnPluginDisabled
 	m.plugins[id] = loadedPlugin
 
 	return loadedPlugin, nil
@@ -212,13 +248,20 @@ func (m *Manager) load(
 	config map[string]string,
 	pluginID uint64,
 ) (*LoadedPlugin, error) {
+	if m.config.MaxModuleBytes > 0 && len(wasmBytes) > m.config.MaxModuleBytes {
+		return nil, errors.Wrapf(ErrModuleTooLarge, "%d bytes exceeds the limit of %d bytes",
+			len(wasmBytes), m.config.MaxModuleBytes)
+	}
+
 	// Detached from the caller so a dropped HTTP request does not close the
 	// module mid-initialization. Guest execution stays bounded: module start
 	// inside initializeRuntime, and every initialization call below via the
 	// wrapper's default call timeout.
 	loadCtx := context.WithoutCancel(ctx)
 
-	r, module, err := m.initializeRuntime(loadCtx, wasmBytes, pluginID)
+	logs := newGuestLogs(m.config.GuestLogger)
+
+	r, module, err := m.initializeRuntime(loadCtx, wasmBytes, pluginID, logs)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize runtime")
 	}
@@ -236,7 +279,11 @@ func (m *Manager) load(
 		return nil, errors.WithMessage(err, "failed to create plugin wrapper")
 	}
 
-	loadedPlugin, err := m.initializePlugin(loadCtx, r, plugin, config)
+	if wrapper, ok := plugin.(*pluginServiceWrapper); ok {
+		wrapper.guestLogs = logs
+	}
+
+	loadedPlugin, err := m.initializePlugin(loadCtx, r, plugin, config, pluginID, logs)
 	if err != nil {
 		closeErr := r.Close(ctx)
 		if closeErr != nil {
@@ -249,19 +296,32 @@ func (m *Manager) load(
 		return nil, err
 	}
 
+	wireGuestHooks(loadedPlugin)
+
 	return loadedPlugin, nil
+}
+
+// wireGuestHooks links the wrapper's runtime signals to the loaded plugin:
+// a guest that terminates its module is disabled with a reason instead of
+// failing every later call.
+func wireGuestHooks(loadedPlugin *LoadedPlugin) {
+	wrapper, ok := loadedPlugin.Instance.(*pluginServiceWrapper)
+	if !ok {
+		return
+	}
+
+	wrapper.onClosed = func(err error) {
+		loadedPlugin.DisableWithReason(DisableReasonGuestExited + " (" + shortErrorText(err) + ")")
+	}
 }
 
 func (m *Manager) initializeRuntime(
 	ctx context.Context,
 	wasmBytes []byte,
 	pluginID uint64,
+	logs *guestLogs,
 ) (wazero.Runtime, api.Module, error) {
-	// CloseOnContextDone lets call deadlines interrupt guest execution;
-	// without it a runaway plugin blocks its caller forever.
-	r := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().
-		WithCloseOnContextDone(true).
-		WithCompilationCache(m.cache))
+	r := wazero.NewRuntimeWithConfig(ctx, m.runtimeConfig())
 
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
 		closeErr := r.Close(ctx)
@@ -314,13 +374,14 @@ func (m *Manager) initializeRuntime(
 		return nil, nil, errors.Wrap(err, "failed to compile WASM module")
 	}
 
-	// Try _initialize first (TinyGo), fall back to _start (standard Go)
-	// Configure WASI with stdout/stderr for runtime error messages
+	// Try _initialize first (TinyGo), fall back to _start (standard Go).
+	// Guest stdout/stderr go to the panel log (see guestlog.go) so panics
+	// and runtime faults are visible.
 	moduleConfig := wazero.NewModuleConfig().
 		WithStartFunctions("_initialize", "_start").
 		WithFSConfig(wazero.NewFSConfig()).
-		WithStdout(io.Discard).
-		WithStderr(io.Discard).
+		WithStdout(logs.stdoutWriter()).
+		WithStderr(logs.stderrWriter()).
 		WithSysWalltime()
 
 	// Module start runs guest code; only from this point does the guest
@@ -385,11 +446,15 @@ func (m *Manager) initializePlugin(
 	r wazero.Runtime,
 	plugin proto.PluginService,
 	config map[string]string,
+	pluginID uint64,
+	logs *guestLogs,
 ) (*LoadedPlugin, error) {
 	info, err := plugin.GetInfo(ctx, &proto.GetInfoRequest{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get plugin info")
 	}
+
+	logs.SetPluginID(info.Id)
 
 	initResp, err := plugin.Initialize(ctx, &proto.InitializeRequest{
 		Context: &proto.PluginContext{PluginId: info.Id},
@@ -459,6 +524,8 @@ func (m *Manager) initializePlugin(
 		QueryProtocols:  queryProtocols,
 		I18nFS:          i18nFS,
 		FrontendFS:      frontendFS,
+		DBID:            pluginID,
+		guestLogs:       logs,
 		runtime:         r,
 	}, nil
 }
@@ -734,6 +801,8 @@ func (m *Manager) Unload(ctx context.Context, pluginID string) error {
 		)
 	}
 
+	plugin.guestLogs.Flush()
+
 	if err := plugin.Close(ctx); err != nil {
 		return errors.WithMessage(err, "failed to close plugin")
 	}
@@ -792,6 +861,8 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		_, _ = plugin.Instance.Shutdown(ctx, &proto.ShutdownRequest{
 			Context: &proto.PluginContext{PluginId: plugin.Info.Id},
 		})
+
+		plugin.guestLogs.Flush()
 
 		if err := plugin.Close(ctx); err != nil {
 			errs = append(errs, errors.Wrapf(err, "failed to close plugin %s", pluginID))

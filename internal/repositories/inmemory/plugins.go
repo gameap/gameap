@@ -104,6 +104,8 @@ func (r *PluginRepository) Save(_ context.Context, plugin *domain.Plugin) error 
 		Config:              copyConfig(plugin.Config),
 		InstalledAt:         plugin.InstalledAt,
 		LastLoadedAt:        plugin.LastLoadedAt,
+		LastError:           copyStringPtr(plugin.LastError),
+		LastErrorAt:         copyTimePtr(plugin.LastErrorAt),
 		CreatedAt:           plugin.CreatedAt,
 		UpdatedAt:           plugin.UpdatedAt,
 	}
@@ -241,9 +243,27 @@ func (r *PluginRepository) copyPlugin(plugin *domain.Plugin) domain.Plugin {
 		Config:              copyConfig(plugin.Config),
 		InstalledAt:         plugin.InstalledAt,
 		LastLoadedAt:        plugin.LastLoadedAt,
+		LastError:           copyStringPtr(plugin.LastError),
+		LastErrorAt:         copyTimePtr(plugin.LastErrorAt),
 		CreatedAt:           plugin.CreatedAt,
 		UpdatedAt:           plugin.UpdatedAt,
 	}
+}
+
+func copyStringPtr(s *string) *string {
+	if s == nil {
+		return nil
+	}
+
+	return new(*s)
+}
+
+func copyTimePtr(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+
+	return new(*t)
 }
 
 func copyPermissions(permissions []domain.PluginPermission) []domain.PluginPermission {

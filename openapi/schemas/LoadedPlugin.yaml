@@ -1,5 +1,9 @@
 type: object
-description: Loaded plugin with runtime status
+description: |
+  Installed plugin merged with the runtime state of the panel instance that
+  answered the request. `status`, `error` and `error_at` come from the shared
+  database record (the last outcome observed on any instance); `loaded`,
+  `enabled` and `memory_bytes` describe this instance only.
 properties:
   id:
     type: string
@@ -30,8 +34,41 @@ properties:
     example: "file"
   enabled:
     type: boolean
-    description: Whether the plugin is enabled
+    description: Whether the plugin is loaded on this instance and receiving events and HTTP requests
     example: true
+  loaded:
+    type: boolean
+    description: Whether a module instance of the plugin exists on this panel instance
+    example: true
+  status:
+    type: string
+    description: |
+      Lifecycle status. `active` — running; `error` — the last load or guest
+      call failed (retried on the next panel start, reloadable on demand);
+      `disabled` — switched off by the operator; `updating` — an update is in
+      progress.
+    enum:
+      - active
+      - error
+      - disabled
+      - updating
+    example: "active"
+  error:
+    type: string
+    nullable: true
+    description: Why the plugin is in status `error` (load failure or runtime disable reason)
+    example: "http handler timed out (GET /status)"
+  error_at:
+    type: string
+    format: date-time
+    nullable: true
+    description: When `error` was recorded
+  memory_bytes:
+    type: integer
+    format: int64
+    nullable: true
+    description: Current linear memory of the module on this instance; null when not loaded or while a guest call is in flight
+    example: 4194304
   http_routes:
     type: array
     description: HTTP routes exposed by the plugin
@@ -68,3 +105,5 @@ required:
   - version
   - source_type
   - enabled
+  - loaded
+  - status

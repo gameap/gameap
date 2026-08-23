@@ -2,11 +2,11 @@ package getloaded
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/domain"
-	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/repositories"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
@@ -37,56 +37,71 @@ func NewHandler(
 	}
 }
 
+// ServeHTTP lists every installed plugin merged with this instance's runtime
+// state: loaded plugins first, in manager order, then the installed plugins
+// that are not loaded here (failed to load, disabled, updating) in
+// repository order, so an operator can see and reload a broken plugin.
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	loadedPlugins := h.manager.GetPlugins()
-
-	dbPlugins := h.fetchDBPlugins(ctx, loadedPlugins)
+	installed := h.fetchInstalled(ctx)
 
 	response := &listResponse{
-		Data: make([]*loadedPluginResponse, 0, len(loadedPlugins)),
+		Data: make([]*loadedPluginResponse, 0, len(loadedPlugins)+len(installed)),
 	}
 
-	for _, loaded := range loadedPlugins {
-		managerID := pkgplugin.CompactPluginID(pkgplugin.ParsePluginID(loaded.Info.Id))
-		var source string
+	byID := make(map[domain.Uint64ID]*domain.Plugin, len(installed))
+	for i := range installed {
+		byID[installed[i].ID] = &installed[i]
+	}
 
-		if dbPlugin, ok := dbPlugins[managerID]; ok {
-			if dbPlugin.Source != nil {
-				source = *dbPlugin.Source
-			}
+	seen := make(map[domain.Uint64ID]struct{}, len(loadedPlugins))
+
+	for _, loaded := range loadedPlugins {
+		dbID := h.databaseID(loaded)
+		seen[dbID] = struct{}{}
+
+		response.Data = append(response.Data, newLoadedPluginResponse(loaded, byID[dbID]))
+	}
+
+	for i := range installed {
+		if _, ok := seen[installed[i].ID]; ok {
+			continue
 		}
 
-		response.Data = append(response.Data, newLoadedPluginResponse(loaded, source))
+		response.Data = append(response.Data, newInstalledPluginResponse(&installed[i]))
 	}
 
 	h.responder.Write(ctx, rw, response)
 }
 
-func (h *Handler) fetchDBPlugins(
-	ctx context.Context,
-	loadedPlugins []*pkgplugin.LoadedPlugin,
-) map[string]*domain.Plugin {
-	if len(loadedPlugins) == 0 {
-		return nil
+// databaseID resolves the record a loaded plugin belongs to: the ID it was
+// loaded for, else the loader's mapping, else its own declared ID.
+func (h *Handler) databaseID(loaded *pkgplugin.LoadedPlugin) domain.Uint64ID {
+	if loaded.DBID != 0 {
+		return domain.Uint64ID(loaded.DBID)
 	}
 
-	ids := make([]domain.Uint64ID, 0, len(loadedPlugins))
-	for _, loaded := range loadedPlugins {
-		ids = append(ids, pkgplugin.ParsePluginID(loaded.Info.Id))
+	if h.loader != nil {
+		if dbID, ok := h.loader.GetDBPluginID(loaded.Info.Id); ok {
+			return dbID
+		}
 	}
 
-	plugins, err := h.pluginRepo.Find(ctx, &filters.FindPlugin{IDs: ids}, nil, nil)
+	return pkgplugin.ParsePluginID(loaded.Info.Id)
+}
+
+// fetchInstalled reads every plugin record; on a repository failure the
+// list degrades to the loaded plugins only.
+func (h *Handler) fetchInstalled(ctx context.Context) []domain.Plugin {
+	plugins, err := h.pluginRepo.FindAll(ctx, nil, nil)
 	if err != nil {
+		slog.WarnContext(ctx, "failed to list installed plugins, reporting loaded plugins only",
+			slog.String("error", err.Error()))
+
 		return nil
 	}
 
-	result := make(map[string]*domain.Plugin, len(plugins))
-	for i := range plugins {
-		managerID := pkgplugin.CompactPluginID(plugins[i].ID)
-		result[managerID] = &plugins[i]
-	}
-
-	return result
+	return plugins
 }

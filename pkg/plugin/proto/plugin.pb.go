@@ -827,6 +827,12 @@ type HTTPResponse struct {
 	StatusCode int32             `protobuf:"varint,1,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
 	Headers    map[string]string `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	Body       []byte            `protobuf:"bytes,3,opt,name=body,proto3" json:"body,omitempty"`
+	// When set, body is ignored: the panel streams the referenced node file to
+	// the client itself, so the bytes never pass through the plugin. Requires
+	// the plugin's "files" grant (403 without it) and an authenticated client
+	// (401 otherwise, whatever the route's requires_auth says). Panels that
+	// predate this field ignore it and send an empty body.
+	File *FileRef `protobuf:"bytes,4,opt,name=file,proto3,oneof" json:"file,omitempty"`
 }
 
 func (x *HTTPResponse) ProtoReflect() protoreflect.Message {
@@ -852,6 +858,57 @@ func (x *HTTPResponse) GetBody() []byte {
 		return x.Body
 	}
 	return nil
+}
+
+func (x *HTTPResponse) GetFile() *FileRef {
+	if x != nil {
+		return x.File
+	}
+	return nil
+}
+
+// FileRef points at a file on a node for HTTPResponse.file. The panel owns
+// Content-Length and Content-Disposition (always an attachment); of the
+// HTTPResponse.headers only Content-Type, Content-Language, Cache-Control,
+// Expires, Pragma, Last-Modified, ETag, Vary and the plugin metadata
+// headers X-Plugin and X-Plugin-* reach the client. Other X-* names
+// (X-Accel-*, X-Sendfile, X-Frame-Options, …) are dropped like the rest.
+type FileRef struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	NodeId uint64 `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	// Absolute node path, the same form gameap-nodefs accepts; ".." segments
+	// are rejected.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// Name offered to the client; empty means the base name of path.
+	Filename string `protobuf:"bytes,3,opt,name=filename,proto3" json:"filename,omitempty"`
+}
+
+func (x *FileRef) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *FileRef) GetNodeId() uint64 {
+	if x != nil {
+		return x.NodeId
+	}
+	return 0
+}
+
+func (x *FileRef) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *FileRef) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
 }
 
 // Frontend bundle request/response
