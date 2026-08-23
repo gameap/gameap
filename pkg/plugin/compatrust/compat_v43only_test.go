@@ -30,8 +30,10 @@ import (
 // so the fixtures that import them must fail to load.
 
 func TestRustPluginCompatV43_UnsupportedFixtures(t *testing.T) {
+	t.Parallel()
 	for _, name := range []string{"authz-rbac", "scheduler-protocol"} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			wasmBytes := readFixtureWASM(t, name)
 			manager := plugin.NewManager(plugin.ManagerConfig{Libraries: newV435HostLibraries()})

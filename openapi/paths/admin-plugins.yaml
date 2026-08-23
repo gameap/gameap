@@ -120,14 +120,16 @@
   get:
     tags:
       - PluginStore
-    summary: List loaded plugins
+    summary: List installed plugins
     description: |
-      Returns all currently loaded plugins with their runtime status.
-      Admin only.
+      Returns every installed plugin merged with the runtime state of this
+      panel instance: plugins that are loaded come first (in manager order),
+      followed by installed plugins that are not loaded here (failed to load,
+      disabled by the operator, updating). Admin only.
     operationId: listLoadedPlugins
     responses:
       '200':
-        description: List of loaded plugins
+        description: List of installed plugins with runtime status
         content:
           application/json:
             schema:
@@ -157,7 +159,9 @@
     summary: Uninstall plugin
     description: |
       Unloads a WASM plugin, deletes its file from the plugins directory,
-      and removes the plugin record from the database. Admin only.
+      and removes the plugin record from the database together with the
+      plugin's scheduled tasks, its gameap-storage entries and its encrypted
+      secrets. Admin only.
     operationId: uninstallPlugin
     parameters:
       - name: id
@@ -183,6 +187,62 @@
               $ref: '../schemas/ErrorResponse.yaml'
       '404':
         description: Plugin not installed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/admin/plugins/{id}/reload:
+  post:
+    tags:
+      - PluginStore
+    summary: Reload plugin
+    description: |
+      Restarts an installed plugin on this panel instance: the running module
+      is unloaded, the wasm file is loaded again and the outcome is recorded
+      on the plugin (status `active`, or `error` with the reason). Pending
+      automatic recovery of the plugin is cancelled. Admin only.
+    operationId: reloadPlugin
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Plugin ID (compact ID; database ID is decoded server-side)
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Plugin reloaded
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/PluginReloadResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Plugin not installed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '409':
+        description: Plugin is disabled by the operator or being updated
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: Plugin failed to load; the plugin stays installed with status `error`
         content:
           application/json:
             schema:

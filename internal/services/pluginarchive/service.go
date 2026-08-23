@@ -421,7 +421,7 @@ func (s *Service) handleGuestCallError(
 	timedOut bool, reg *registration, lp *pkgplugin.LoadedPlugin, err error, kind string,
 ) {
 	if timedOut && s.ctx().Err() == nil {
-		lp.Disable()
+		lp.DisableWithReason(pkgplugin.DisableReasonArchiveTimeout + " (" + kind + ")")
 		s.logger.Error(kind+" callback timed out, plugin disabled until reload",
 			slog.Uint64("plugin_id", reg.pluginID),
 			slog.String("error", err.Error()))

@@ -164,6 +164,53 @@ func AccessDenied(
 	})
 }
 
+// SensitiveOpFailed records a sensitive operation that did not complete;
+// reason must be a stable token. The actor is derived from the request
+// context.
+func SensitiveOpFailed(
+	ctx context.Context,
+	l Logger,
+	eventType EventType,
+	category Category,
+	resourceType, resourceID, action, reason string,
+	extra ...slog.Attr,
+) {
+	emit(ctx, l, Event{
+		Type:         eventType,
+		Category:     category,
+		Outcome:      OutcomeFailure,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Action:       action,
+		Reason:       reason,
+		Extra:        extra,
+	})
+}
+
+// SystemOp records an operation the panel performed on its own, outside any
+// request: the actor is the system. reason must be a stable token or empty.
+func SystemOp(
+	ctx context.Context,
+	l Logger,
+	eventType EventType,
+	category Category,
+	outcome Outcome,
+	resourceType, resourceID, action, reason string,
+	extra ...slog.Attr,
+) {
+	emit(ctx, l, Event{
+		Type:         eventType,
+		Category:     category,
+		Outcome:      outcome,
+		AuthMethod:   AuthMethodSystem,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Action:       action,
+		Reason:       reason,
+		Extra:        extra,
+	})
+}
+
 // SensitiveOp records the successful execution of a sensitive operation.
 // The actor is derived from the request context.
 func SensitiveOp(

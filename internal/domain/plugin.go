@@ -33,8 +33,12 @@ type Plugin struct {
 	Config              map[string]any     `db:"-"`
 	InstalledAt         *time.Time         `db:"installed_at"`
 	LastLoadedAt        *time.Time         `db:"last_loaded_at"`
-	CreatedAt           *time.Time         `db:"created_at"`
-	UpdatedAt           *time.Time         `db:"updated_at"`
+	// LastError explains the most recent load failure or runtime disable
+	// (status "error"); cleared when the plugin loads successfully again.
+	LastError   *string    `db:"last_error"`
+	LastErrorAt *time.Time `db:"last_error_at"`
+	CreatedAt   *time.Time `db:"created_at"`
+	UpdatedAt   *time.Time `db:"updated_at"`
 }
 
 type PluginPermission string
@@ -100,6 +104,24 @@ func ParsePluginPermissions(values []string) []PluginPermission {
 	}
 
 	return permissions
+}
+
+// MarkError records a failed load or a runtime disable: the plugin stays
+// installed, is retried on the next panel start and can be reloaded by an
+// operator. The reason is shown in the admin UI, so keep it short and free of
+// secrets.
+func (p *Plugin) MarkError(reason string, now time.Time) {
+	p.Status = PluginStatusError
+	p.LastError = new(reason)
+	p.LastErrorAt = new(now)
+}
+
+// MarkActive records a successful load and clears the previous failure.
+func (p *Plugin) MarkActive(now time.Time) {
+	p.Status = PluginStatusActive
+	p.LastError = nil
+	p.LastErrorAt = nil
+	p.LastLoadedAt = new(now)
 }
 
 // HasPermission reports whether the operator granted the plugin the given

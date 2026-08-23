@@ -63,6 +63,8 @@ PluginDryRunResponse:
   $ref: './PluginDryRunResponse.yaml'
 LoadedPlugin:
   $ref: './LoadedPlugin.yaml'
+PluginReloadResponse:
+  $ref: './PluginReloadResponse.yaml'
 
 # Request schemas
 LoginRequest:

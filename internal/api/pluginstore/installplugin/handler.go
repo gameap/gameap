@@ -227,7 +227,7 @@ func (h *Handler) disableUngrantedPlugin(
 		}
 	}
 
-	pluginRecord.Status = domain.PluginStatusError
+	pluginRecord.MarkError("plugin permissions were not recorded", time.Now())
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
 		slog.WarnContext(ctx, "failed to mark plugin as errored",

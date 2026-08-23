@@ -32,7 +32,7 @@ func TestHandler_ServeHTTP_NilProvider(t *testing.T) {
 	// ASSERT
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "application/javascript; charset=utf-8", recorder.Header().Get("Content-Type"))
-	assert.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
+	assert.Equal(t, "private, no-cache", recorder.Header().Get("Cache-Control"))
 	assert.Contains(t, recorder.Body.String(), "// GameAP Frontend Plugins Module")
 	assert.Contains(t, recorder.Body.String(), "window.Vue")
 }
@@ -47,7 +47,7 @@ func TestHandler_ServeHTTP_Headers(t *testing.T) {
 			name: "correct_content_type_and_cache_headers",
 			expectedHeaders: map[string]string{
 				"Content-Type":  "application/javascript; charset=utf-8",
-				"Cache-Control": "no-cache",
+				"Cache-Control": "private, no-cache",
 			},
 		},
 	}

@@ -24,11 +24,14 @@ and addresses OWASP ASVS 4.0.3 L2:
    or propagates a sanitized `X-Request-Id`, captures client IP / user
    agent / method / path into the context, and echoes the ID back in the
    response header.
-2. Call sites invoke a helper (`audit.SensitiveOp`, `audit.AccessDenied`,
-   `audit.TokenRejected`, …). Each helper builds an `Event`, auto-fills the
-   actor from the request context (`pkg/auth` session → `session`/`pat`,
-   daemon session → `daemon`, else `anonymous`) and the request metadata,
-   then emits one `slog` record (message `"audit"`).
+2. Call sites invoke a helper (`audit.SensitiveOp`, `audit.SensitiveOpFailed`,
+   `audit.AccessDenied`, `audit.TokenRejected`, …). Each helper builds an
+   `Event`, auto-fills the actor from the request context (`pkg/auth` session →
+   `session`/`pat`, daemon session → `daemon`, else `anonymous`) and the
+   request metadata, then emits one `slog` record (message `"audit"`).
+   `audit.SystemOp` is for work the panel does on its own, outside any request
+   (actor `system`): `plugin.disabled` / `plugin.reloaded` from the plugin
+   recovery supervisor.
 
 `audit.Logger` is the only interface (`contracts.go`). `NewLogger` wraps an
 `*slog.Logger`; `NopLogger` is used when `AUDIT_ENABLED=false` and in tests.
@@ -44,7 +47,7 @@ category         authentication | authorization | ratelimit | *_op
 outcome          success | failure | denied | blocked
 actor_id         uint user/node id (omitted when anonymous)
 actor_login      user login / node name
-auth_method      session | pat | daemon | anonymous
+auth_method      session | pat | daemon | anonymous | system (panel-initiated, e.g. plugin recovery)
 resource_type    server | node | user | token | plugin | file
 resource_id      target id / path
 action           delete | rename | role_assign | …

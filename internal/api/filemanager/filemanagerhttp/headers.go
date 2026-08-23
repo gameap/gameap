@@ -35,6 +35,23 @@ func SafeContentHeaders(h http.Header, filename, daemonMime string) {
 	h.Set("Content-Security-Policy", "sandbox")
 }
 
+// AttachmentContentHeaders forces a download with the caller's media type:
+// an attachment never renders in the panel origin, so the type only tells
+// the client what it saved. An unparsable type falls back to
+// application/octet-stream; parameters such as charset are kept.
+func AttachmentContentHeaders(h http.Header, filename, contentType string) {
+	mediaType := "application/octet-stream"
+
+	if parsed, params, err := mime.ParseMediaType(contentType); err == nil && parsed != "" {
+		mediaType = mime.FormatMediaType(parsed, params)
+	}
+
+	h.Set("Content-Type", mediaType)
+	h.Set("Content-Disposition", contentDisposition("attachment", filename))
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Content-Security-Policy", "sandbox")
+}
+
 // inlineSafeMimes is an explicit allowlist of inert media types browsers render
 // without executing script. image/svg+xml is intentionally absent (SVG can
 // embed script); a HasPrefix("image/") check is deliberately avoided so an

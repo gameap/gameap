@@ -78,9 +78,11 @@ import (
 	"github.com/gameap/gameap/internal/api/nodes/nodesetup"
 	"github.com/gameap/gameap/internal/api/nodes/putnode"
 	"github.com/gameap/gameap/internal/api/nodes/setupkey"
+	pluginfileref "github.com/gameap/gameap/internal/api/plugins/fileref"
 	"github.com/gameap/gameap/internal/api/plugins/getfrontendplugins"
 	"github.com/gameap/gameap/internal/api/plugins/getfrontendstyles"
 	pluginsloaded "github.com/gameap/gameap/internal/api/plugins/getloaded"
+	pluginreload "github.com/gameap/gameap/internal/api/plugins/reload"
 	pluginuninstall "github.com/gameap/gameap/internal/api/plugins/uninstall"
 	pluginuploaddryrun "github.com/gameap/gameap/internal/api/plugins/upload/dryrun"
 	pluginuploadinstall "github.com/gameap/gameap/internal/api/plugins/upload/install"
@@ -159,6 +161,7 @@ import (
 	"github.com/gameap/gameap/internal/grpc/session"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/plugin/hostlibrary"
 	"github.com/gameap/gameap/internal/pubsub"
 	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
@@ -234,6 +237,8 @@ type container interface {
 	QuerconResolver() *quercon.Resolver
 	PluginDispatcher() *plugin.Dispatcher
 	PluginRepository() repositories.PluginRepository
+	PluginStorageRepository() repositories.PluginStorageRepository
+	PluginSecretRepository() repositories.PluginSecretRepository
 	PluginLoader() *internalplugin.Loader
 	PluginScheduler() *pluginscheduler.Service
 	PluginArchiveEvents() *pluginarchive.Service
@@ -1924,6 +1929,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginDispatcher(),
 				c.PluginScheduler(),
 				c.PluginArchiveEvents(),
+				c.PluginStorageRepository(),
+				c.PluginSecretRepository(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -1964,6 +1971,16 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginLoader(),
 				c.PluginRepository(),
 				c.Responder(),
+			),
+			AdminOnly: true,
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/admin/plugins/{id}/reload",
+			Handler: pluginreload.NewHandler(
+				c.PluginLoader(),
+				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -2183,10 +2200,20 @@ func registerPluginRoutes(
 		return
 	}
 
+	// File responses reuse the "files" grant check of the nodefs host
+	// library, so a plugin can only stream what it could read itself.
+	fileRefServer := pluginfileref.NewServer(
+		c.DaemonFiles(),
+		c.NodeRepository(),
+		hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+		c.AuditLogger(),
+	)
+
 	pluginHandler := plugin.NewHTTPHandler(
 		pluginManager,
 		authMiddleware,
 		isAdminMiddleware,
+		plugin.WithFileRefServer(fileRefServer),
 	)
 
 	var handler http.Handler = pluginHandler

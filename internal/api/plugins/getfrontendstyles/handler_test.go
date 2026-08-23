@@ -86,7 +86,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			assert.Equal(t, "text/css; charset=utf-8", resp.Header.Get("Content-Type"))
-			assert.Equal(t, "no-cache", resp.Header.Get("Cache-Control"),
+			assert.Equal(t, "private, no-cache", resp.Header.Get("Cache-Control"),
 				"generated stylesheet must not be cached, plugins can be reloaded at runtime")
 
 			body := rec.Body.String()

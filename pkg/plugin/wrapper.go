@@ -44,6 +44,13 @@ type pluginServiceWrapper struct {
 
 	handlearchiveprogress  api.Function
 	handlearchivecompleted api.Function
+
+	// guestLogs is flushed after every call so a partial stdout/stderr
+	// line written by the guest reaches the log; nil in tests.
+	guestLogs *guestLogs
+	// onClosed fires when a call finds the module closed by the guest
+	// itself (proc_exit); deadline closes are reported by the callers.
+	onClosed func(err error)
 }
 
 func (p *pluginServiceWrapper) callFunction(
@@ -59,6 +66,7 @@ func (p *pluginServiceWrapper) callFunction(
 		return nil, errors.Wrapf(ErrPluginBusy, "%s", ctx.Err())
 	}
 	defer func() { <-p.gate }()
+	defer p.guestLogs.Flush()
 
 	// select picks randomly when both cases are ready.
 	if ctx.Err() != nil {
@@ -88,6 +96,8 @@ func (p *pluginServiceWrapper) callFunction(
 	if dataSize != 0 {
 		results, callErr := p.malloc.Call(ctx, dataSize)
 		if callErr != nil {
+			p.observeCallError(callErr)
+
 			return nil, callErr
 		}
 
@@ -102,6 +112,8 @@ func (p *pluginServiceWrapper) callFunction(
 
 	ptrSize, err := fn.Call(ctx, dataPtr, dataSize)
 	if err != nil {
+		p.observeCallError(err)
+
 		return nil, err
 	}
 
@@ -128,6 +140,44 @@ func (p *pluginServiceWrapper) callFunction(
 	}
 
 	return bytes, nil
+}
+
+// observeCallError reports a module the guest closed on its own. A close
+// caused by the call deadline is left to the caller, which knows what the
+// guest was doing and disables the plugin with that reason.
+func (p *pluginServiceWrapper) observeCallError(err error) {
+	if p.onClosed == nil || !p.module.IsClosed() {
+		return
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return
+	}
+
+	p.onClosed(err)
+}
+
+// MemorySize reports the module's linear memory size between guest calls;
+// false while a call is in flight (the memory may be growing) or once the
+// module is closed.
+func (p *pluginServiceWrapper) MemorySize() (uint64, bool) {
+	select {
+	case p.gate <- struct{}{}:
+	default:
+		return 0, false
+	}
+	defer func() { <-p.gate }()
+
+	if p.module.IsClosed() {
+		return 0, false
+	}
+
+	memory := p.module.Memory()
+	if memory == nil {
+		return 0, false
+	}
+
+	return uint64(memory.Size()), true
 }
 
 type vtMarshaler interface {

@@ -35,12 +35,20 @@
             <span
               v-if="loadedInfo"
               class="hidden md:inline px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
-              :class="loadedInfo.enabled
-                ? 'bg-success-soft text-success-soft-text'
-                : 'bg-danger-soft text-danger-soft-text'"
+              :class="loadedStatusClass"
+              :title="loadedStatus === 'error' ? loadedInfo.error : undefined"
             >
-              {{ loadedInfo.enabled ? trans('plugins.status_active') : trans('plugins.status_disabled') }}
+              {{ trans('plugins.status_' + loadedStatus) }}
             </span>
+          </div>
+
+          <div
+            v-if="loadedStatus === 'error' && loadedInfo?.error"
+            class="mb-4 p-2 rounded-lg bg-danger-soft text-danger-soft-text text-sm break-words"
+          >
+            <span class="font-medium">{{ trans('plugins.last_error') }}:</span>
+            {{ loadedInfo.error }}
+            <span v-if="loadedInfo.error_at" class="text-xs opacity-75">({{ formatDate(loadedInfo.error_at) }})</span>
           </div>
 
           <div v-if="plugin.summary" class="mb-4 text-stone-600 dark:text-stone-400">
@@ -233,6 +241,21 @@ const props = defineProps({
 })
 
 const isFilePlugin = computed(() => props.loadedInfo?.source_type === 'file' || props.plugin?.source_type === 'file')
+
+const loadedStatusClasses = {
+  active: 'bg-success-soft text-success-soft-text',
+  error: 'bg-danger-soft text-danger-soft-text',
+  updating: 'bg-warning-soft text-warning-soft-text',
+  disabled: 'bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300',
+}
+
+const loadedStatus = computed(() => {
+  const status = props.loadedInfo?.status || (props.loadedInfo?.enabled ? 'active' : 'disabled')
+
+  return loadedStatusClasses[status] ? status : 'disabled'
+})
+
+const loadedStatusClass = computed(() => loadedStatusClasses[loadedStatus.value])
 
 const emit = defineEmits(['install', 'update', 'uninstall'])
 

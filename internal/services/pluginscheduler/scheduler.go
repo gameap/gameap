@@ -610,7 +610,7 @@ func (s *Service) invoke(
 	// disabled until reload. ErrPluginBusy is different — the guest was never
 	// entered.
 	if callCtx.Err() != nil && ctx.Err() == nil && !errors.Is(err, pkgplugin.ErrPluginBusy) {
-		lp.Disable()
+		lp.DisableWithReason(pkgplugin.DisableReasonScheduledTimeout + " (" + task.Name + ")")
 		s.logger.Error("scheduled task handler timed out, plugin disabled until reload",
 			slog.Uint64("plugin_id", uint64(task.PluginID)),
 			slog.String("task", task.Name),

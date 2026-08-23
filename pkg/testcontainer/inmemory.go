@@ -180,6 +180,14 @@ func (c *InmemoryContainer) FrontendFS() fs.FS {
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
 	return inmemory.NewPluginRepository()
 }
+
+func (c *InmemoryContainer) PluginStorageRepository() repositories.PluginStorageRepository {
+	return inmemory.NewPluginStorageRepository()
+}
+
+func (c *InmemoryContainer) PluginSecretRepository() repositories.PluginSecretRepository {
+	return inmemory.NewPluginSecretRepository()
+}
 func (c *InmemoryContainer) PluginLoader() *internalplugin.Loader { return nil }
 
 // PluginScheduler is cached so every caller shares one task store: a handler

@@ -60,6 +60,11 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
                 source: loaded.source,
                 source_type: loaded.source_type,
                 enabled: loaded.enabled,
+                loaded: loaded.loaded ?? loaded.enabled,
+                status: loaded.status || (loaded.enabled ? 'active' : 'disabled'),
+                error: loaded.error ?? null,
+                error_at: loaded.error_at ?? null,
+                memory_bytes: loaded.memory_bytes ?? null,
 
                 summary: storePlugin?.summary || loaded.description || '',
                 description: loaded.description || '',
@@ -274,6 +279,17 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         }
     }
 
+    async function reloadPlugin(id) {
+        apiProcesses.value++
+        try {
+            const response = await axios.post(`/api/admin/plugins/${id}/reload`)
+
+            return response.data
+        } finally {
+            apiProcesses.value--
+        }
+    }
+
     async function dryRunUpload(file) {
         apiProcesses.value++
         try {
@@ -350,6 +366,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         clearCurrentPlugin,
         setCurrentPluginFromLoaded,
         fetchLoadedPlugins,
+        reloadPlugin,
         dryRunUpload,
         installFromFile,
         clearUpload,
