@@ -369,7 +369,7 @@ Used by the resumable file-manager upload endpoints
 - `PLUGINS_CACHE_ENABLED` - Cache compiled wasm between loads (default: `true`)
 - `PLUGINS_CACHE_DIR` - Local directory for the compilation cache so panel restarts do not recompile every plugin (default: in-memory only)
 - `PLUGIN_MAX_MEMORY_MB` - Linear memory cap per plugin module (default: `256`, `0` = wazero default of 4 GiB)
-- `PLUGIN_MAX_MODULE_SIZE_MB` - Maximum wasm file size accepted for install and load (default: `64`, `0` = unlimited)
+- `PLUGIN_MAX_MODULE_SIZE_MB` - Maximum wasm file size accepted for install and load (default: `128`, `0` = unlimited)
 - `PLUGIN_RECOVERY_ENABLED` - Reload plugins the runtime disabled (guest call timeout, guest exit) with exponential backoff (default: `true`)
 - `PLUGIN_RECOVERY_INITIAL_DELAY` - Wait before the first automatic reload (default: `30s`; doubles every attempt)
 - `PLUGIN_RECOVERY_MAX_DELAY` - Cap for the backoff (default: `10m`)

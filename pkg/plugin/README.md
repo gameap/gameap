@@ -1318,7 +1318,7 @@ configurable through environment variables (`internal/config`).
   an error naming both sizes. Standard Go builds reserve tens of MiB up front
   and grow their heap at runtime — raise the cap if such a plugin traps with
   out-of-memory.
-- `PLUGIN_MAX_MODULE_SIZE_MB` (64) rejects larger wasm files before
+- `PLUGIN_MAX_MODULE_SIZE_MB` (128) rejects larger wasm files before
   compilation, for uploads, store installs and autoload alike.
 - `PLUGIN_NODEFS_MAX_INLINE_BYTES` (32 MiB) caps `gameap-nodefs`
   `Download`/`Upload` payloads.

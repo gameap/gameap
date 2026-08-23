@@ -452,7 +452,7 @@ type Config struct {
 			// MaxModuleSizeMB rejects wasm files above this size before
 			// compilation, for uploads, store installs and autoload alike
 			// (0 = unlimited).
-			MaxModuleSizeMB int `env:"PLUGIN_MAX_MODULE_SIZE_MB" envDefault:"64"`
+			MaxModuleSizeMB int `env:"PLUGIN_MAX_MODULE_SIZE_MB" envDefault:"128"`
 		}
 
 		// Recovery reloads a plugin the runtime disabled (a guest call
