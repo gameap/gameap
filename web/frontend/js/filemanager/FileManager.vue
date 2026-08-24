@@ -34,6 +34,7 @@ import { useFileManagerStore } from './stores/useFileManagerStore.js'
 import { useSettingsStore } from './stores/useSettingsStore.js'
 import { useMessagesStore } from './stores/useMessagesStore.js'
 import { useModalStore } from './stores/useModalStore.js'
+import { useHistoryStore } from './stores/useHistoryStore.js'
 import { useArchiveOperationsStore } from './stores/useArchiveOperationsStore.js'
 import { useTranslate } from './composables/useTranslate.js'
 import { useWindowDropZone } from './composables/useDropZone.js'
@@ -59,6 +60,7 @@ const fm = useFileManagerStore()
 const settings = useSettingsStore()
 const messages = useMessagesStore()
 const modal = useModalStore()
+const history = useHistoryStore()
 const archiveOps = useArchiveOperationsStore()
 const archiveSocket = useArchiveOperationsSocket()
 provide('fm-archive-socket', archiveSocket)
@@ -93,12 +95,72 @@ function isEditableTarget(target) {
     return false
 }
 
+const TYPE_AHEAD_MIN_CHARS = 3
+const TYPE_AHEAD_TIMEOUT_MS = 1000
+let typeAheadBuffer = ''
+let typeAheadTimer = null
+
+function resetTypeAhead() {
+    typeAheadBuffer = ''
+    if (typeAheadTimer) {
+        clearTimeout(typeAheadTimer)
+        typeAheadTimer = null
+    }
+}
+
+function maybeBufferTypeAhead(event) {
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+    if (event.isComposing || event.key === 'Process') return
+
+    const char = event.key
+    // Space stays a selection toggle, so it never feeds the search buffer
+    if (char.length !== 1 || char === ' ') return
+
+    if (fm.searchOpen) {
+        event.preventDefault()
+        fm.appendSearchChar(char)
+        resetTypeAhead()
+
+        return
+    }
+
+    if (typeAheadTimer) {
+        clearTimeout(typeAheadTimer)
+        typeAheadTimer = null
+    }
+
+    typeAheadBuffer += char
+    if (typeAheadBuffer.length >= TYPE_AHEAD_MIN_CHARS) {
+        event.preventDefault()
+        fm.openSearchWithQuery(typeAheadBuffer)
+        resetTypeAhead()
+
+        return
+    }
+
+    typeAheadTimer = setTimeout(resetTypeAhead, TYPE_AHEAD_TIMEOUT_MS)
+}
+
 function handleGlobalKey(event) {
     if (modal.showModal) return
-    if (isEditableTarget(event.target)) return
 
     const meta = event.ctrlKey || event.metaKey
     const key = event.key
+
+    // Before the editable-target guard: Ctrl+F pressed inside the search input
+    // must reopen/refocus it instead of falling through to the browser find.
+    if (meta && !event.altKey && (key === 'f' || key === 'F')) {
+        const target = event.target
+        const inFileManager = !!(target && target.closest && target.closest('.fm'))
+        if (inFileManager || !isEditableTarget(target)) {
+            event.preventDefault()
+            fm.openSearch()
+        }
+
+        return
+    }
+
+    if (isEditableTarget(event.target)) return
 
     if (meta && (key === 'a' || key === 'A')) {
         event.preventDefault()
@@ -108,6 +170,13 @@ function handleGlobalKey(event) {
     }
 
     if (key === 'Escape') {
+        if (fm.searchOpen) {
+            event.preventDefault()
+            fm.closeSearch()
+
+            return
+        }
+
         if (fm.getSelectedCount(fm.activeManager) > 0) {
             event.preventDefault()
             fm.clearSelection(fm.activeManager)
@@ -126,7 +195,11 @@ function handleGlobalKey(event) {
     if (key === 'F5') {
         event.preventDefault()
         fm.refreshAll()
+
+        return
     }
+
+    maybeBufferTypeAhead(event)
 }
 
 // Methods
@@ -243,7 +316,10 @@ onMounted(() => {
 
 onUnmounted(() => {
     document.removeEventListener('keydown', handleGlobalKey)
+    resetTypeAhead()
     archiveOps.clear()
+    // Only the pending dwell timer — the recorded history must survive.
+    history.cancelPending()
     fm.resetState()
     EventBus.all.clear()
     HTTP.interceptors.request.eject(interceptorIndex.value.request)

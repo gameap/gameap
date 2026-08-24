@@ -37,6 +37,7 @@ import { isExtractable } from '../../archive.js'
 import { useFileManagerStore } from '../../stores/useFileManagerStore.js'
 import { useSettingsStore } from '../../stores/useSettingsStore.js'
 import { useModalStore } from '../../stores/useModalStore.js'
+import { useHistoryStore } from '../../stores/useHistoryStore.js'
 import { useTranslate } from '../../composables/useTranslate.js'
 import { useFileEditors, isFileTooLarge, loadsOwnContent } from '../../composables/useFileEditors.js'
 import { usePluginsStore } from '../../../store/plugins'
@@ -45,6 +46,7 @@ const fm = useFileManagerStore()
 const pluginsStore = usePluginsStore()
 const settings = useSettingsStore()
 const modal = useModalStore()
+const history = useHistoryStore()
 const { lang } = useTranslate()
 const { getMatchingEditors } = useFileEditors()
 
@@ -182,6 +184,17 @@ const rules = {
     properties: propertiesRule,
 }
 
+function noteFileOpened() {
+    const item = selectedItems.value[0]
+    if (!item) return
+
+    history.noteFileOpened({
+        disk: selectedDisk.value,
+        path: item.path,
+        dirname: item.dirname,
+    })
+}
+
 // Actions
 function openAction() {
     fm.selectDirectory(fm.activeManager, {
@@ -192,18 +205,22 @@ function openAction() {
 
 function audioPlayAction() {
     modal.setModalState({ modalName: 'AudioPlayerModal', show: true })
+    noteFileOpened()
 }
 
 function videoPlayAction() {
     modal.setModalState({ modalName: 'VideoPlayerModal', show: true })
+    noteFileOpened()
 }
 
 function viewAction() {
     modal.setModalState({ modalName: 'PreviewModal', show: true })
+    noteFileOpened()
 }
 
 function editAction() {
     modal.setModalState({ modalName: 'TextEditModal', show: true })
+    noteFileOpened()
 }
 
 function selectAction() {
@@ -409,6 +426,7 @@ function openPluginEditor(editorItem) {
         editor: editorItem.editor,
         file: selectedItems.value[0]
     })
+    noteFileOpened()
     closeMenu()
 }
 
