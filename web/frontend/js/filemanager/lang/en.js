@@ -302,7 +302,6 @@ const en = {
         files: 'Files',
         empty: 'Nothing here yet',
         emptyHint: 'Open folders and files — they will show up here.',
-        clear: 'Clear',
         staleRemoved: 'Item no longer exists — removed from history',
         time: {
             justNow: 'just now',

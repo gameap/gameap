@@ -23,7 +23,7 @@ export const HALF_LIFE_MS = 7 * 24 * 60 * 60 * 1000
 export const RECENT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 export const MAX_ENTRIES_PER_KIND = 200
 export const DWELL_MS = 5000
-export const TOP_LIMIT = 5
+export const TOP_LIMIT = 4
 
 const KINDS = ['dir', 'file']
 const VIEWS = ['recent', 'frequent']

@@ -74,11 +74,6 @@
                     </button>
                 </div>
 
-                <div v-if="showTime" class="fm-history-footer">
-                    <button type="button" class="fm-history-clear" v-on:click="clearAll">
-                        {{ lang.history.clear }}
-                    </button>
-                </div>
             </template>
 
             <div v-else class="fm-history-empty">
@@ -196,11 +191,6 @@ async function activateFile(item) {
         notification({ content: lang.value.history.staleRemoved, type: 'info' })
     }
 }
-
-function clearAll() {
-    show.value = false
-    history.clearAll()
-}
 </script>
 
 <style lang="scss">
@@ -272,14 +262,6 @@ function clearAll() {
 .fm-history-meta {
     @apply text-xs text-faint whitespace-nowrap;
     flex: none;
-}
-
-.fm-history-footer {
-    @apply flex justify-end px-1 pt-1;
-}
-
-.fm-history-clear {
-    @apply px-1 py-0.5 rounded text-xs text-muted hover:text-body;
 }
 
 .fm-history-empty {

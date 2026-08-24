@@ -159,11 +159,6 @@ export const useHistoryStore = defineStore('fm-history', () => {
         persist()
     }
 
-    function clearAll() {
-        state.value.entries = { dir: {}, file: {} }
-        persist()
-    }
-
     function setView(view) {
         if (state.value.view === view) return
         state.value.view = view
@@ -203,7 +198,6 @@ export const useHistoryStore = defineStore('fm-history', () => {
         onItemsDeleted,
         onItemRenamed,
         dropStale,
-        clearAll,
         setView,
     }
 })

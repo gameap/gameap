@@ -348,7 +348,14 @@ test('entries older than the recent window fall back to a frequent-only popover'
     page,
     request,
     seededState({
-      dir: { [CONFIGS]: historyEntry(T0MS - 40 * DAY) },
+      dir: {
+        [CONFIGS]: historyEntry(T0MS - 40 * DAY),
+        'cstrike/maps': historyEntry(T0MS - 41 * DAY),
+        'cstrike/addons/metamod': historyEntry(T0MS - 42 * DAY),
+        'cstrike/logs': historyEntry(T0MS - 43 * DAY),
+        'cstrike/dlls': historyEntry(T0MS - 44 * DAY),
+        'cstrike/sound': historyEntry(T0MS - 45 * DAY),
+      },
       file: { 'cstrike/readme.txt': historyEntry(T0MS - 35 * DAY) },
     }),
   );
@@ -358,35 +365,18 @@ test('entries older than the recent window fall back to a frequent-only popover'
   await historyButton(page).click();
   await expect(popover(page)).toBeVisible();
 
-  // …but with nothing recent there is no view switcher, no time meta and no
-  // clear footer — just the frequent lists.
+  // …but with nothing recent there is no view switcher and no time meta —
+  // just the frequent lists.
   await expect(popTabs(page)).toHaveCount(0);
   await expect(popItem(page, CONFIGS)).toBeVisible();
   await expect(popItem(page, 'cstrike/readme.txt')).toBeVisible();
   await expect(popover(page).locator('.fm-history-meta')).toHaveCount(0);
-  await expect(popover(page).locator('.fm-history-clear')).toHaveCount(0);
-});
 
-test('clear empties the history and hides the button', async ({
-  page,
-  request,
-}) => {
-  test.setTimeout(120_000);
-  await openFileManager(
-    page,
-    request,
-    seededState({
-      dir: { [CONFIGS]: historyEntry(T0MS - 10 * MINUTE) },
-      file: { 'cstrike/readme.txt': historyEntry(T0MS - 5 * MINUTE) },
-    }),
-  );
-
-  await historyButton(page).click();
-  await popover(page).locator('.fm-history-clear').click();
-
-  await expect(historyButton(page)).toHaveCount(0);
-  const stored = await readStorage(page);
-  expect(stored.entries).toEqual({ dir: {}, file: {} });
+  // Each section is capped at 4 entries: of the six directories only the
+  // four with the highest decayed score stay (4 dirs + 1 file in total).
+  await expect(popover(page).locator('.fm-history-item')).toHaveCount(5);
+  await expect(popItem(page, 'cstrike/dlls')).toHaveCount(0);
+  await expect(popItem(page, 'cstrike/sound')).toHaveCount(0);
 });
 
 test('deleting a file removes it from the history', async ({
