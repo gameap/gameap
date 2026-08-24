@@ -97,6 +97,7 @@ type InmemoryContainer struct {
 	pluginArchiveEvents     *pluginarchive.Service
 	pluginSubscriptionsPS   *pubsubintegration.PluginSubscriptionsNotifier
 	pluginGuard             *hostlibrary.Guard
+	pluginPermissions       *hostlibrary.CachedPermissionChecker
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -235,10 +236,23 @@ func (c *InmemoryContainer) PluginArchiveEvents() *pluginarchive.Service {
 // exercise the handlers, not the host-library policy.
 func (c *InmemoryContainer) PluginGuard() *hostlibrary.Guard {
 	if c.pluginGuard == nil {
-		c.pluginGuard = hostlibrary.NewGuard(nil)
+		c.pluginGuard = hostlibrary.NewGuard(c.PluginPermissionChecker())
 	}
 
 	return c.pluginGuard
+}
+
+// PluginPermissionChecker answers grants from the in-memory plugin repository.
+// The cache is disabled so a test that changes a grant sees it at once.
+func (c *InmemoryContainer) PluginPermissionChecker() *hostlibrary.CachedPermissionChecker {
+	if c.pluginPermissions == nil {
+		c.pluginPermissions = hostlibrary.NewCachedPermissionChecker(
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			0,
+		)
+	}
+
+	return c.pluginPermissions
 }
 
 // PluginSubscriptionsNotifier answers a notifier over an in-memory pubsub:

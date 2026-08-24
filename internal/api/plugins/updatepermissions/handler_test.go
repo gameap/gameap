@@ -59,12 +59,20 @@ func (f *fakeManager) GetPlugin(id string) (*pkgplugin.LoadedPlugin, bool) {
 type fakeRefresher struct {
 	mu    sync.Mutex
 	calls int
+	// announcer, when set, is read at refresh time so the test can tell
+	// whether the cache was already dropped when the map was rebuilt.
+	announcer          *fakeAnnouncer
+	announcesAtRefresh int
 }
 
 func (f *fakeRefresher) RefreshSubscriptions(context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
+
+	if f.announcer != nil {
+		f.announcesAtRefresh = f.announcer.count()
+	}
 
 	return nil
 }
@@ -95,6 +103,13 @@ func (f *fakeAnnouncer) count() int {
 	defer f.mu.Unlock()
 
 	return len(f.pluginIDs)
+}
+
+func (f *fakeRefresher) announcesBeforeRefresh() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.announcesAtRefresh
 }
 
 func permissionsRequest(id, body string) *http.Request {
@@ -156,6 +171,7 @@ func TestUpdatePermissions(t *testing.T) {
 		wantGranted  []string
 		wantRevoked  []string
 		wantRefresh  int
+		wantAnnounce int
 		wantAuditLen int
 	}{
 		{
@@ -171,10 +187,13 @@ func TestUpdatePermissions(t *testing.T) {
 			wantGranted:  []string{"node_commands"},
 			wantRevoked:  []string{"listen_events"},
 			wantRefresh:  1,
+			wantAnnounce: 1,
 			wantAuditLen: 1,
 		},
 		{
-			name:         "unchanged_listen_events_skips_the_refresh",
+			// The grant is cached per instance, so it is announced either
+			// way; only listen_events changes the subscription map.
+			name:         "unrelated_grant_is_announced_without_a_refresh",
 			id:           compactID,
 			body:         `{"allowed_permissions": ["files", "listen_events", "manage_servers"]}`,
 			plugins:      []*domain.Plugin{installed()},
@@ -183,10 +202,11 @@ func TestUpdatePermissions(t *testing.T) {
 			wantGranted:  []string{"manage_servers"},
 			wantRevoked:  []string{},
 			wantRefresh:  0,
+			wantAnnounce: 1,
 			wantAuditLen: 1,
 		},
 		{
-			name:         "duplicates_collapse",
+			name:         "an_unchanged_list_announces_nothing",
 			id:           compactID,
 			body:         `{"allowed_permissions": ["files", "files", "listen_events"]}`,
 			plugins:      []*domain.Plugin{installed()},
@@ -206,6 +226,7 @@ func TestUpdatePermissions(t *testing.T) {
 			wantGranted:  []string{},
 			wantRevoked:  []string{"files", "listen_events"},
 			wantRefresh:  1,
+			wantAnnounce: 1,
 			wantAuditLen: 1,
 		},
 		{
@@ -239,8 +260,8 @@ func TestUpdatePermissions(t *testing.T) {
 
 			repo := setupRepo(t, tt.plugins...)
 			recorder := &auditCapture{}
-			refresher := &fakeRefresher{}
 			announcer := &fakeAnnouncer{}
+			refresher := &fakeRefresher{announcer: announcer}
 			handler := updatepermissions.NewHandler(repo, &fakeManager{plugins: tt.loaded}, nil, refresher,
 				announcer, api.NewResponder(), recorder)
 
@@ -281,9 +302,15 @@ func TestUpdatePermissions(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantAllowed, storedNames, "the grants must be persisted")
 
-			assert.Equal(t, tt.wantRefresh, refresher.count())
-			assert.Equal(t, tt.wantRefresh, announcer.count(),
-				"the other instances are told whenever the local subscriptions are rebuilt")
+			assert.Equal(t, tt.wantRefresh, refresher.count(),
+				"the subscription map is only rebuilt when listen_events changes")
+			assert.Equal(t, tt.wantAnnounce, announcer.count(),
+				"every grant change is announced so the other instances drop their cached answer")
+
+			if tt.wantRefresh > 0 {
+				assert.Equal(t, 1, refresher.announcesBeforeRefresh(),
+					"the cache is dropped before the map is rebuilt, which reads the grants back")
+			}
 
 			events := recorder.snapshot()
 			require.Len(t, events, tt.wantAuditLen)

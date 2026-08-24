@@ -455,6 +455,17 @@ type Config struct {
 			MaxModuleSize ByteSize `env:"PLUGIN_RUNTIME_MAX_MODULE_SIZE" envDefault:"128M"`
 		}
 
+		// Permissions tunes the in-process cache of plugin grants, consulted
+		// on every privileged host call and every event delivery.
+		Permissions struct {
+			// CacheTTL bounds how long a grant set survives without being
+			// re-read. A change is pushed to every instance over pub/sub
+			// (gameap:plugin:subscriptions:refresh), so this is only the
+			// backstop for a broker that is down. 0 disables the cache: every
+			// check reads the plugin record.
+			CacheTTL time.Duration `env:"PLUGIN_PERMISSIONS_CACHE_TTL" envDefault:"30s"`
+		}
+
 		// Recovery reloads a plugin the runtime disabled (a guest call
 		// overran its deadline or the guest terminated its module) with
 		// exponential backoff; after MaxAttempts the plugin stays in status

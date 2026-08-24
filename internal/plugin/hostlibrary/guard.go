@@ -98,10 +98,14 @@ func (g *Guard) For(pluginID uint64) *PluginGuard {
 	}
 }
 
-// Forget drops the per-plugin limiter state (uninstall).
+// Forget drops the per-plugin limiter state and cached grants (uninstall).
 func (g *Guard) Forget(pluginID uint64) {
 	g.limiter.forget(pluginID)
 	g.throttle.forget(pluginID)
+
+	if cache, ok := g.checker.(PermissionCacheInvalidator); ok {
+		cache.Invalidate(pluginID)
+	}
 }
 
 // PluginGuard enforces the policy for one plugin.

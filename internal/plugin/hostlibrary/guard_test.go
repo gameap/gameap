@@ -410,6 +410,24 @@ func TestPluginGuard_Audit_records_outcome(t *testing.T) {
 // gains a host function the policy table does not know: the SDK glue in
 // sdk/<module>/<module>_host.pb.go is the ground truth of what a guest can
 // import.
+func TestGuard_Forget_drops_the_cached_grants(t *testing.T) {
+	t.Parallel()
+
+	source := &countingGrantsReader{permissions: []domain.PluginPermission{domain.PluginPermissionFiles}}
+	cache, _ := newTestCache(source, time.Hour)
+	guard := NewGuard(cache)
+
+	require.Empty(t, guard.For(7).Check(t.Context(), ModuleNodeFS, "read_dir"))
+
+	// The uninstall deleted the record; without the drop the plugin would keep
+	// its grant until the entry expired.
+	source.set()
+	guard.Forget(7)
+
+	assert.Equal(t, PermissionDeniedMessage(domain.PluginPermissionFiles),
+		guard.For(7).Check(t.Context(), ModuleNodeFS, "read_dir"))
+}
+
 func TestHostRPCPolicies_cover_generated_exports(t *testing.T) {
 	t.Parallel()
 

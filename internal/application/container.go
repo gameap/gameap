@@ -211,6 +211,7 @@ type Container struct {
 	pluginManager         *pkgplugin.Manager
 	pluginDispatcher      *pkgplugin.Dispatcher
 	pluginGuard           *hostlibrary.Guard
+	pluginPermissions     *hostlibrary.CachedPermissionChecker
 	pluginSubscriptionsPS *pubsubintegration.PluginSubscriptionsNotifier
 	telemetry             *telemetry.Registry
 	pluginMetrics         *telemetry.PluginMetrics
@@ -2265,7 +2266,7 @@ func (c *Container) PluginGuard() *hostlibrary.Guard {
 		limits := c.config.Plugin.RateLimit
 
 		c.pluginGuard = hostlibrary.NewGuard(
-			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			c.PluginPermissionChecker(),
 			hostlibrary.WithGuardRateLimits(map[hostlibrary.RateClass]hostlibrary.RateLimit{
 				hostlibrary.RateClassNodeCmd:       {RPS: limits.NodeCmd.RPS, Burst: limits.NodeCmd.Burst},
 				hostlibrary.RateClassServerControl: {RPS: limits.ServerControl.RPS, Burst: limits.ServerControl.Burst},
@@ -2279,6 +2280,20 @@ func (c *Container) PluginGuard() *hostlibrary.Guard {
 	}
 
 	return c.pluginGuard
+}
+
+// PluginPermissionChecker is the shared view of plugin grants behind the host
+// libraries, the event delivery gate and file refs. One cache per instance, so
+// an invalidation drops the answer for all three at once.
+func (c *Container) PluginPermissionChecker() *hostlibrary.CachedPermissionChecker {
+	if c.pluginPermissions == nil {
+		c.pluginPermissions = hostlibrary.NewCachedPermissionChecker(
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			c.config.Plugin.Permissions.CacheTTL,
+		)
+	}
+
+	return c.pluginPermissions
 }
 
 // Telemetry is the panel's Prometheus registry.
@@ -2444,7 +2459,7 @@ func (l *lazyServerController) Reinstall(ctx context.Context, server *domain.Ser
 
 func (c *Container) PluginDispatcher() *pkgplugin.Dispatcher {
 	if c.pluginDispatcher == nil {
-		checker := hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository())
+		checker := c.PluginPermissionChecker()
 
 		c.pluginDispatcher = pkgplugin.NewDispatcher(
 			c.PluginManager(),
@@ -2473,7 +2488,11 @@ func (c *Container) PluginDispatcher() *pkgplugin.Dispatcher {
 // instance in step after a permission change.
 func (c *Container) PluginSubscriptionsNotifier() *pubsubintegration.PluginSubscriptionsNotifier {
 	if c.pluginSubscriptionsPS == nil {
-		c.pluginSubscriptionsPS = pubsubintegration.NewPluginSubscriptionsNotifier(c.PubSub(), c.PluginDispatcher())
+		c.pluginSubscriptionsPS = pubsubintegration.NewPluginSubscriptionsNotifier(
+			c.PubSub(),
+			c.PluginDispatcher(),
+			pubsubintegration.WithPermissionCache(c.PluginPermissionChecker()),
+		)
 	}
 
 	return c.pluginSubscriptionsPS

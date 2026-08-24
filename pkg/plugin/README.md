@@ -1178,14 +1178,23 @@ a grant is missing.
 Grants are operator-managed: `PUT /api/admin/plugins/{id}/permissions` with
 `{"allowed_permissions": [...]}` replaces them (the admin UI offers checkboxes
 in the permissions dialog, opened from the plugin row's Permissions action).
-Grants are re-read from the database on every call, so a change takes effect
-at once on every panel instance. `listen_events` is checked twice: the
-subscription map each instance builds is filtered by the grant, and every
-delivery re-checks it, so a revocation stops events on the other instances
-immediately rather than at their next refresh. The endpoint also announces
-the change over pub/sub (`gameap:plugin:subscriptions:refresh`) so the other
-instances rebuild their maps instead of carrying a subscription that is
-refused on every event. Updating a plugin does not widen its grants: a
+Grants are cached in each instance's memory: they are consulted on every
+privileged host call and on every event delivery, and they only change when an
+operator edits them. The endpoint announces every change over pub/sub
+(`gameap:plugin:subscriptions:refresh`), and each instance drops its cached
+grants for that plugin before rebuilding its subscription map — so a change
+takes effect at once on the instance that made it, and on the others as soon
+as the message arrives. `PLUGIN_PERMISSIONS_CACHE_TTL` (default `30s`) is the
+backstop if the broker is unreachable; `0` disables the cache and reads the
+record on every check. A grant set that is empty is never cached, so a plugin
+that has just been installed is never denied by a stale answer.
+
+`listen_events` is checked twice: the subscription map each instance builds is
+filtered by the grant, and every delivery re-checks it, so a revocation stops
+events on the other instances as soon as the announcement lands rather than at
+their next refresh. Uninstalling drops the cache on the instance that handled
+it; the other instances keep the module loaded until they restart in any case.
+Updating a plugin does not widen its grants: a
 version that starts using `gameap-nodecmd` is refused those calls (with a
 warning in the log naming the missing permission) until an operator grants
 `node_commands`.

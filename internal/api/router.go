@@ -240,6 +240,7 @@ type container interface {
 	QuerconResolver() *quercon.Resolver
 	PluginDispatcher() *plugin.Dispatcher
 	PluginRepository() repositories.PluginRepository
+	PluginPermissionChecker() *hostlibrary.CachedPermissionChecker
 	PluginStorageRepository() repositories.PluginStorageRepository
 	PluginSecretRepository() repositories.PluginSecretRepository
 	PluginLoader() *internalplugin.Loader
@@ -2238,7 +2239,7 @@ func registerPluginRoutes(
 	fileRefServer := pluginfileref.NewServer(
 		c.DaemonFiles(),
 		c.NodeRepository(),
-		hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+		c.PluginPermissionChecker(),
 		c.AuditLogger(),
 	)
 
