@@ -575,7 +575,7 @@
     "permissions_declared": "deklariert",
     "permissions_used": "verwendet",
     "permissions_missing_warning": "Das Plugin verwendet Fähigkeiten, die ihm nicht gewährt sind; diese Aufrufe werden abgelehnt, bis Sie sie gewähren:",
-    "permissions_undeclared_warning": "Das Plugin verwendet Fähigkeiten, die es nicht deklariert. Die Installation gewährt nur die deklarierten, daher werden diese Aufrufe abgelehnt, bis Sie sie in den Plugin-Details gewähren:",
+    "permissions_undeclared_warning": "Das Plugin verwendet Fähigkeiten, die es nicht deklariert. Die Installation gewährt nur die deklarierten, daher werden diese Aufrufe abgelehnt, bis Sie sie im Berechtigungsdialog des Plugins gewähren:",
     "required_permissions": "Benötigte Berechtigungen",
     "permission_manage_servers": "Server verwalten (Start, Stopp, Installation, Einstellungen, Daemon-Aufgaben)",
     "permission_manage_nodes": "Nodes verwalten",

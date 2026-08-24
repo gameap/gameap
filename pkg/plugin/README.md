@@ -1171,21 +1171,23 @@ reports `used_permissions` next to `required_permissions`, and
 `undeclared_permissions` — what the plugin uses but does not declare, i.e.
 what the install will refuse. `GET /api/admin/plugins/loaded` reports
 `required_permissions`, `allowed_permissions`, `used_permissions` and
-`missing_permissions` per plugin, and the admin UI shows the same with a
-warning badge.
+`missing_permissions` per plugin, and the admin UI shows the same in the
+plugin's permissions dialog, highlighting the row's Permissions action when
+a grant is missing.
 
 Grants are operator-managed: `PUT /api/admin/plugins/{id}/permissions` with
 `{"allowed_permissions": [...]}` replaces them (the admin UI offers checkboxes
-in the plugin details). Grants are re-read from the database on every call,
-so a change takes effect at once on every panel instance. `listen_events` is
-checked twice: the subscription map each instance builds is filtered by the
-grant, and every delivery re-checks it, so a revocation stops events on the
-other instances immediately rather than at their next refresh. The endpoint
-also announces the change over pub/sub (`gameap:plugin:subscriptions:refresh`)
-so the other instances rebuild their maps instead of carrying a subscription
-that is refused on every event. Updating a plugin does not widen its grants: a version
-that starts using `gameap-nodecmd` is refused those calls (with a warning in
-the log naming the missing permission) until an operator grants
+in the permissions dialog, opened from the plugin row's Permissions action).
+Grants are re-read from the database on every call, so a change takes effect
+at once on every panel instance. `listen_events` is checked twice: the
+subscription map each instance builds is filtered by the grant, and every
+delivery re-checks it, so a revocation stops events on the other instances
+immediately rather than at their next refresh. The endpoint also announces
+the change over pub/sub (`gameap:plugin:subscriptions:refresh`) so the other
+instances rebuild their maps instead of carrying a subscription that is
+refused on every event. Updating a plugin does not widen its grants: a
+version that starts using `gameap-nodecmd` is refused those calls (with a
+warning in the log naming the missing permission) until an operator grants
 `node_commands`.
 
 A refused call answers `plugin permission <name> required` in the
