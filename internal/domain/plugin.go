@@ -53,9 +53,7 @@ const (
 	PluginPermissionFiles          PluginPermission = "files"
 	PluginPermissionListenEvents   PluginPermission = "listen_events"
 	PluginPermissionSecrets        PluginPermission = "secrets"
-	// PluginPermissionNodeCommands gates arbitrary command execution on nodes
-	// (gameap-nodecmd and cmdexec daemon tasks), separately from file access.
-	PluginPermissionNodeCommands PluginPermission = "node_commands"
+	PluginPermissionNodeCommands   PluginPermission = "node_commands"
 )
 
 // PluginPermissions lists every permission the panel understands. A plugin

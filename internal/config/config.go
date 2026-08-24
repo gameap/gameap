@@ -345,7 +345,7 @@ type Config struct {
 			// may request via HTTPFetchRequest.TimeoutSeconds. A plugin
 			// asking for a longer timeout has its value clamped to this
 			// ceiling. The default 30s matches the global default.
-			MaxTimeoutSeconds int `env:"PLUGIN_HTTP_MAX_TIMEOUT_SECONDS" envDefault:"30"`
+			MaxTimeout time.Duration `env:"PLUGIN_HTTP_MAX_TIMEOUT" envDefault:"30s"`
 
 			// MaxRedirects caps the number of HTTP redirects a single
 			// request may follow. Every redirect target is re-validated
@@ -401,7 +401,7 @@ type Config struct {
 			MaxKeysPerPlugin int `env:"PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN" envDefault:"64"`
 
 			// MaxValueBytes caps the plaintext size of a single secret.
-			MaxValueBytes int `env:"PLUGIN_SECRETS_MAX_VALUE_BYTES" envDefault:"8192"`
+			MaxValue ByteSize `env:"PLUGIN_SECRETS_MAX_VALUE" envDefault:"8K"`
 
 			// RequireEncryption refuses writes while ENCRYPTION_KEY is unset
 			// instead of storing the credential in plaintext. Turning it off
@@ -432,10 +432,10 @@ type Config struct {
 
 			// MaxTimeoutSeconds caps the overall duration of a single plugin
 			// protocol operation (dial plus all reads and writes).
-			MaxTimeoutSeconds int `env:"PLUGIN_NET_MAX_TIMEOUT_SECONDS" envDefault:"10"`
+			MaxTimeout time.Duration `env:"PLUGIN_NET_MAX_TIMEOUT" envDefault:"10s"`
 
 			// ReadBufferBytes caps a single Recv a plugin may request.
-			ReadBufferBytes int `env:"PLUGIN_NET_READ_BUFFER_BYTES" envDefault:"65536"`
+			ReadBuffer ByteSize `env:"PLUGIN_NET_READ_BUFFER" envDefault:"64K"`
 
 			// MaxConnections caps simultaneously open connections per plugin.
 			MaxConnections int `env:"PLUGIN_NET_MAX_CONNECTIONS" envDefault:"8"`
@@ -443,16 +443,16 @@ type Config struct {
 
 		// Runtime bounds every plugin module.
 		Runtime struct {
-			// MaxMemoryMB caps the linear memory of one module (0 = the
+			// MaxMemory caps the linear memory of one module (0 = the
 			// wazero default of 4 GiB). A module declaring a larger maximum
 			// is clamped; only a module whose initial memory already exceeds
 			// the cap fails to load.
-			MaxMemoryMB int `env:"PLUGIN_MAX_MEMORY_MB" envDefault:"256"`
+			MaxMemory ByteSize `env:"PLUGIN_RUNTIME_MAX_MEMORY" envDefault:"256M"`
 
-			// MaxModuleSizeMB rejects wasm files above this size before
+			// MaxModuleSize rejects wasm files above this size before
 			// compilation, for uploads, store installs and autoload alike
 			// (0 = unlimited).
-			MaxModuleSizeMB int `env:"PLUGIN_MAX_MODULE_SIZE_MB" envDefault:"128"`
+			MaxModuleSize ByteSize `env:"PLUGIN_RUNTIME_MAX_MODULE_SIZE" envDefault:"128M"`
 		}
 
 		// Recovery reloads a plugin the runtime disabled (a guest call
@@ -470,10 +470,10 @@ type Config struct {
 
 		// NodeFS bounds the gameap-nodefs host library.
 		NodeFS struct {
-			// MaxInlineBytes caps files a plugin downloads or uploads as a
+			// MaxInline caps files a plugin downloads or uploads as a
 			// single message; larger files must go through archives or the
 			// panel's own streaming endpoints (0 = unlimited).
-			MaxInlineBytes ByteSize `env:"PLUGIN_NODEFS_MAX_INLINE_BYTES" envDefault:"32M"`
+			MaxInline ByteSize `env:"PLUGIN_NODEFS_MAX_INLINE" envDefault:"32M"`
 		}
 
 		// Storage bounds what one plugin may keep in gameap-storage (the
@@ -484,18 +484,18 @@ type Config struct {
 			MaxKeysPerPlugin int `env:"PLUGIN_STORAGE_MAX_KEYS_PER_PLUGIN" envDefault:"10000"`
 
 			// MaxValueBytes caps a single payload.
-			MaxValueBytes ByteSize `env:"PLUGIN_STORAGE_MAX_VALUE_BYTES" envDefault:"1M"`
+			MaxValue ByteSize `env:"PLUGIN_STORAGE_MAX_VALUE" envDefault:"1M"`
 
 			// MaxTotalBytes caps the sum of all payloads one plugin owns.
-			MaxTotalBytes ByteSize `env:"PLUGIN_STORAGE_MAX_TOTAL_BYTES" envDefault:"64M"`
+			MaxTotal ByteSize `env:"PLUGIN_STORAGE_MAX_TOTAL" envDefault:"64M"`
 		}
 
 		// Cache bounds the gameap-cache host library. Every plugin gets its
 		// own key namespace; the backend (memory, Redis, database) is the
 		// panel's cache and is not cleaned when a plugin is uninstalled.
 		Cache struct {
-			// MaxValueBytes caps a single cached value (0 = unlimited).
-			MaxValueBytes ByteSize `env:"PLUGIN_CACHE_MAX_VALUE_BYTES" envDefault:"1M"`
+			// MaxValue caps a single cached value (0 = unlimited).
+			MaxValue ByteSize `env:"PLUGIN_CACHE_MAX_VALUE" envDefault:"1M"`
 		}
 
 		// RateLimit bounds how often one plugin may invoke the expensive host
@@ -593,6 +593,8 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	var cfg Config
 	var err error
+
+	applyRenamedVars()
 
 	if cfg, err = env.ParseAs[Config](); err != nil {
 		return nil, errors.WithMessage(err, "failed to parse config")

@@ -42,7 +42,7 @@ type HTTPConfig struct {
 	BlockPrivateIPs         bool
 	AllowedSchemes          []string
 	AllowedHosts            []string
-	MaxTimeoutSeconds       int
+	MaxTimeout              time.Duration
 	MaxRedirects            int
 	ResponseHeaderAllowlist []string
 }
@@ -103,7 +103,7 @@ func newHTTPService(cfg HTTPConfig, resolver netResolver, dialer *net.Dialer) *H
 		dialer = &net.Dialer{Timeout: defaultTimeout}
 	}
 
-	timeoutCap := time.Duration(cfg.MaxTimeoutSeconds) * time.Second
+	timeoutCap := cfg.MaxTimeout
 	if timeoutCap <= 0 {
 		timeoutCap = defaultTimeout
 	}

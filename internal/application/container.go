@@ -2158,8 +2158,8 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			c.PluginStorageRepository(),
 			hostlibrary.WithStorageQuotas(hostlibrary.StorageConfig{
 				MaxKeysPerPlugin: c.config.Plugin.Storage.MaxKeysPerPlugin,
-				MaxValueBytes:    int(c.config.Plugin.Storage.MaxValueBytes.Uint64()), //nolint:gosec
-				MaxTotalBytes:    c.config.Plugin.Storage.MaxTotalBytes.Uint64(),
+				MaxValueBytes:    int(c.config.Plugin.Storage.MaxValue.Uint64()), //nolint:gosec
+				MaxTotalBytes:    c.config.Plugin.Storage.MaxTotal.Uint64(),
 			}),
 		),
 		hostlibrary.NewLogHostLibraryFactory(slog.Default()),
@@ -2175,7 +2175,7 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			guard,
 			hostlibrary.SecretsConfig{
 				MaxKeysPerPlugin:  c.config.Plugin.Secrets.MaxKeysPerPlugin,
-				MaxValueBytes:     c.config.Plugin.Secrets.MaxValueBytes,
+				MaxValueBytes:     int(c.config.Plugin.Secrets.MaxValue.Uint64()), //nolint:gosec // a byte cap fits an int
 				RequireEncryption: c.config.Plugin.Secrets.RequireEncryption,
 			},
 		),
@@ -2187,7 +2187,7 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			c.DaemonArchive(),
 			&lazyArchiveEvents{container: c},
 			guard,
-			hostlibrary.WithNodeFSMaxInlineBytes(c.config.Plugin.NodeFS.MaxInlineBytes.Uint64()),
+			hostlibrary.WithNodeFSMaxInlineBytes(c.config.Plugin.NodeFS.MaxInline.Uint64()),
 		),
 		// Per-plugin: writes are gated on manage_servers / node_commands,
 		// rate limited and audited with the plugin as the actor.
@@ -2204,14 +2204,14 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		hostlibrary.NewCacheHostLibraryFactory(
 			c.Cache(),
 			"plugin:",
-			hostlibrary.WithCacheMaxValueBytes(int(c.config.Plugin.Cache.MaxValueBytes.Uint64())), //nolint:gosec
+			hostlibrary.WithCacheMaxValueBytes(int(c.config.Plugin.Cache.MaxValue.Uint64())), //nolint:gosec
 		),
 		// Per-plugin: outbound requests are rate limited per plugin.
 		hostlibrary.NewHTTPHostLibraryFactory(hostlibrary.HTTPConfig{
 			BlockPrivateIPs:         c.config.Plugin.HTTP.BlockPrivateIPs,
 			AllowedSchemes:          c.config.Plugin.HTTP.AllowedSchemes,
 			AllowedHosts:            c.config.Plugin.HTTP.AllowedHosts,
-			MaxTimeoutSeconds:       c.config.Plugin.HTTP.MaxTimeoutSeconds,
+			MaxTimeout:              c.config.Plugin.HTTP.MaxTimeout,
 			MaxRedirects:            c.config.Plugin.HTTP.MaxRedirects,
 			ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
 		}, guard),
@@ -2221,8 +2221,8 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		factories = append(factories, hostlibrary.NewNetHostLibraryFactory(
 			c.connRegistry(),
 			hostlibrary.NetConfig{
-				MaxReadBytes: c.config.Plugin.Net.ReadBufferBytes,
-				MaxTimeout:   time.Duration(c.config.Plugin.Net.MaxTimeoutSeconds) * time.Second,
+				MaxReadBytes: int(c.config.Plugin.Net.ReadBuffer.Uint64()), //nolint:gosec // a buffer size fits an int
+				MaxTimeout:   c.config.Plugin.Net.MaxTimeout,
 			},
 		))
 	}
@@ -2242,8 +2242,9 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		},
 		LibraryFactories: factories,
 
-		MaxMemoryBytes:          pluginMemoryLimitBytes(c.config.Plugin.Runtime.MaxMemoryMB),
-		MaxModuleBytes:          c.config.Plugin.Runtime.MaxModuleSizeMB << 20,
+		MaxMemoryBytes: c.config.Plugin.Runtime.MaxMemory.Uint64(),
+		//nolint:gosec // a module size cap fits an int
+		MaxModuleBytes:          int(c.config.Plugin.Runtime.MaxModuleSize.Uint64()),
 		CompilationCacheDir:     c.config.Plugins.Cache.Dir,
 		DisableCompilationCache: !c.config.Plugins.Cache.Enabled,
 		GuestLogger:             slog.Default(),
@@ -2332,14 +2333,6 @@ func (l *lazyPluginBacklog) AsyncBacklog() int {
 
 // pluginMemoryLimitBytes converts the configured megabytes to the manager's
 // byte cap; a non-positive value keeps the wazero default.
-func pluginMemoryLimitBytes(megabytes int) uint64 {
-	if megabytes <= 0 {
-		return 0
-	}
-
-	return uint64(megabytes) << 20
-}
-
 // lazyPluginRecovery forwards runtime disables to the recovery supervisor,
 // which PluginLoader() creates after the manager; hooks only fire after
 // LoadAll, so the supervisor exists by then.
