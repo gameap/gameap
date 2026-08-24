@@ -15,7 +15,15 @@
         </div>
 
         <div
-          v-if="missingPermissions.length > 0"
+          v-if="permissionsUnknown"
+          class="mb-3 p-2 rounded-lg bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300 text-sm break-words"
+          data-testid="plugin-permissions-unknown"
+        >
+          {{ trans('plugins.permissions_unknown') }}
+        </div>
+
+        <div
+          v-else-if="missingPermissions?.length > 0"
           class="mb-3 p-2 rounded-lg bg-warning-soft text-warning-soft-text text-sm break-words"
           data-testid="plugin-permissions-missing"
         >
@@ -38,9 +46,9 @@
                   {{ trans('plugins.permissions_declared') }}
                 </span>
                 <span
-                  v-if="usedPermissions.includes(permission)"
+                  v-if="usedPermissions?.includes(permission)"
                   class="px-1.5 py-0.5 text-[10px] font-medium rounded-full whitespace-nowrap"
-                  :class="missingPermissions.includes(permission)
+                  :class="missingPermissions?.includes(permission)
                     ? 'bg-warning-soft text-warning-soft-text'
                     : 'bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300'"
                 >
@@ -109,8 +117,14 @@ const loadedInfo = computed(() => loadedPlugins.value.find(p => p.id === props.p
 
 const requiredPermissions = computed(() => loadedInfo.value?.required_permissions ?? [])
 const allowedPermissions = computed(() => loadedInfo.value?.allowed_permissions ?? [])
-const usedPermissions = computed(() => loadedInfo.value?.used_permissions ?? [])
-const missingPermissions = computed(() => loadedInfo.value?.missing_permissions ?? [])
+
+// Null (not []) when the instance that answered has not loaded the plugin: it
+// cannot tell what the module exercises. Kept null so "unknown" does not
+// render as "uses nothing gated" — the badges below are simply absent in both
+// cases, so the difference has to be stated explicitly.
+const usedPermissions = computed(() => loadedInfo.value?.used_permissions ?? null)
+const missingPermissions = computed(() => loadedInfo.value?.missing_permissions ?? null)
+const permissionsUnknown = computed(() => usedPermissions.value === null)
 
 const selectedPermissions = ref([])
 const saving = ref(false)
