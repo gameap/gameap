@@ -1263,17 +1263,23 @@ reports `used_permissions` next to `required_permissions`, and
 `undeclared_permissions` — what the plugin uses but does not declare, i.e.
 what the install will refuse. `GET /api/admin/plugins/loaded` reports
 `required_permissions`, `allowed_permissions`, `used_permissions` and
-`missing_permissions` per plugin, and the admin UI shows the same with a
-warning badge.
+`missing_permissions` per plugin, and the admin UI shows the same in the
+plugin's permissions dialog, highlighting the row's Permissions action when
+a grant is missing.
 
 Grants are operator-managed: `PUT /api/admin/plugins/{id}/permissions` with
 `{"allowed_permissions": [...]}` replaces them (the admin UI offers checkboxes
-in the plugin details). Grants are re-read from the database on every call,
-so a change takes effect at once on every panel instance; `listen_events`
-is applied when event subscriptions are refreshed, which the endpoint does
-on its own instance. Updating a plugin does not widen its grants: a version
-that starts using `gameap-nodecmd` is refused those calls (with a warning in
-the log naming the missing permission) until an operator grants
+in the permissions dialog, opened from the plugin row's Permissions action).
+Grants are re-read from the database on every call, so a change takes effect
+at once on every panel instance. `listen_events` is checked twice: the
+subscription map each instance builds is filtered by the grant, and every
+delivery re-checks it, so a revocation stops events on the other instances
+immediately rather than at their next refresh. The endpoint also announces
+the change over pub/sub (`gameap:plugin:subscriptions:refresh`) so the other
+instances rebuild their maps instead of carrying a subscription that is
+refused on every event. Updating a plugin does not widen its grants: a
+version that starts using `gameap-nodecmd` is refused those calls (with a
+warning in the log naming the missing permission) until an operator grants
 `node_commands`.
 
 A refused call answers `plugin permission <name> required` in the
@@ -1356,6 +1362,12 @@ key releases its old payload first. `List` accepts an optional `limit` /
 `offset` window and answers `has_more`; without a limit it keeps returning
 every entry, as it always did.
 
+A storage call the panel could not complete never surfaces the database
+error: `Get`, `Set`, `Delete` and `List` answer with `error` set to a fixed
+message (`failed to read storage entry` / `failed to store entry`) while the
+cause goes to the panel log. Check `error` before trusting `found`,
+`success` or `entries`.
+
 `gameap-cache` keys live in a namespace of their own per plugin
 (`plugin:<id>:`), so plugins never see each other's entries, and a value is
 capped by `PLUGIN_CACHE_MAX_VALUE_BYTES` (1 MiB). The cache is the panel's
@@ -1378,7 +1390,9 @@ With `METRICS_TOKEN` set, `GET /metrics` (bearer token) exposes, per plugin
   `gameap_plugin_guest_call_duration_seconds{plugin,export}` — calls into the
   plugin (`ok` | `error` | `timeout` | `busy`);
 - `gameap_plugin_events_dispatched_total{type,result}` (`handled` | `ignored`
-  | `cancelled` | `error` | `dropped`) and `gameap_plugin_async_backlog`;
+  | `cancelled` | `error` | `dropped` | `denied` — the plugin lost
+  `listen_events`) and `gameap_plugin_async_backlog` (fire-and-forget
+  *batches* in flight or queued, not individual events);
 - `gameap_plugin_disabled_total{plugin,reason}`,
   `gameap_plugin_memory_bytes{plugin}`, `gameap_plugin_enabled{plugin}`;
 - `gameap_plugin_health{plugin,status}` — the last `gameap-host.ReportStatus`
@@ -1532,7 +1546,7 @@ configurable through environment variables (`internal/config`).
   an error naming both sizes. Standard Go builds reserve tens of MiB up front
   and grow their heap at runtime — raise the cap if such a plugin traps with
   out-of-memory.
-- `PLUGIN_MAX_MODULE_SIZE_MB` (64) rejects larger wasm files before
+- `PLUGIN_MAX_MODULE_SIZE_MB` (128) rejects larger wasm files before
   compilation, for uploads, store installs and autoload alike.
 - `PLUGIN_NODEFS_MAX_INLINE_BYTES` (32 MiB) caps `gameap-nodefs`
   `Download`/`Upload` payloads.

@@ -46,6 +46,7 @@ import (
 	"github.com/gameap/gameap/internal/plugin/hostlibrary"
 	"github.com/gameap/gameap/internal/pubsub"
 	"github.com/gameap/gameap/internal/pubsub/dlq"
+	pubsubintegration "github.com/gameap/gameap/internal/pubsub/integration"
 	pubsubmemory "github.com/gameap/gameap/internal/pubsub/memory"
 	"github.com/gameap/gameap/internal/pubsub/messages"
 	pubsubpg "github.com/gameap/gameap/internal/pubsub/postgres"
@@ -209,19 +210,20 @@ type Container struct {
 	fileManagerArchiveGuard *archiver.InMemoryConcurrencyGuard
 
 	// Plugins
-	pluginManager    *pkgplugin.Manager
-	pluginDispatcher *pkgplugin.Dispatcher
-	pluginGuard      *hostlibrary.Guard
-	pluginPathPolicy *hostlibrary.PathPolicy
-	telemetry        *telemetry.Registry
-	pluginMetrics    *telemetry.PluginMetrics
-	pluginRepository repositories.PluginRepository
-	pluginLoader     *internalplugin.Loader
-	pluginRecovery   *internalplugin.Supervisor
-	querconResolver  *quercon.Resolver
-	netConnRegistry  *pkgplugin.ConnRegistry
-	pluginScheduler  *pluginscheduler.Service
-	schedulerLocker  locker.Locker
+	pluginManager         *pkgplugin.Manager
+	pluginDispatcher      *pkgplugin.Dispatcher
+	pluginGuard           *hostlibrary.Guard
+	pluginPathPolicy      *hostlibrary.PathPolicy
+	pluginSubscriptionsPS *pubsubintegration.PluginSubscriptionsNotifier
+	telemetry             *telemetry.Registry
+	pluginMetrics         *telemetry.PluginMetrics
+	pluginRepository      repositories.PluginRepository
+	pluginLoader          *internalplugin.Loader
+	pluginRecovery        *internalplugin.Supervisor
+	querconResolver       *quercon.Resolver
+	netConnRegistry       *pkgplugin.ConnRegistry
+	pluginScheduler       *pluginscheduler.Service
+	schedulerLocker       locker.Locker
 
 	pluginArchiveEvents *pluginarchive.Service
 	pluginSync          *pluginsync.Service
@@ -2605,6 +2607,16 @@ func (c *Container) PluginDispatcher() *pkgplugin.Dispatcher {
 	}
 
 	return c.pluginDispatcher
+}
+
+// PluginSubscriptionsNotifier keeps the event subscriptions of every panel
+// instance in step after a permission change.
+func (c *Container) PluginSubscriptionsNotifier() *pubsubintegration.PluginSubscriptionsNotifier {
+	if c.pluginSubscriptionsPS == nil {
+		c.pluginSubscriptionsPS = pubsubintegration.NewPluginSubscriptionsNotifier(c.PubSub(), c.PluginDispatcher())
+	}
+
+	return c.pluginSubscriptionsPS
 }
 
 func (c *Container) PluginRepository() repositories.PluginRepository {

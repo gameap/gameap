@@ -24,6 +24,9 @@ message StorageGetRequest {
 message StorageGetResponse {
   optional bytes payload = 1;
   bool found = 2;
+  // Set when the read did not happen; the panel reports a fixed message
+  // rather than the database error behind it.
+  optional string error = 3;
 }
 
 message StorageSetRequest {
@@ -46,6 +49,7 @@ message StorageDeleteRequest {
 
 message StorageDeleteResponse {
   bool success = 1;
+  optional string error = 2;
 }
 
 message StorageListRequest {
@@ -63,6 +67,7 @@ message StorageListResponse {
   // has_more is set when a limit was given and entries remain beyond the
   // window.
   bool has_more = 2;
+  optional string error = 3;
 }
 
 message StorageEntry {

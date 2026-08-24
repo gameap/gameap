@@ -17,15 +17,24 @@ properties:
       $ref: './PluginPermission.yaml'
   used_permissions:
     type: array
-    description: Permissions the module can exercise (known when loaded on this instance)
+    nullable: true
+    description: |
+      Permissions the module can exercise; `null` when the plugin is not
+      loaded on the instance that answered (unknown), an empty list when it
+      is loaded and exercises nothing gated.
     items:
       $ref: './PluginPermission.yaml'
   missing_permissions:
     type: array
-    description: Used permissions the plugin does not hold
+    nullable: true
+    description: |
+      Used permissions the plugin does not hold; `null` when the plugin is
+      not loaded on the instance that answered.
     items:
       $ref: './PluginPermission.yaml'
 required:
   - id
   - required_permissions
   - allowed_permissions
+  - used_permissions
+  - missing_permissions

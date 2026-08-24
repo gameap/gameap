@@ -21,6 +21,9 @@ const (
 	EventResultCancelled = "cancelled"
 	EventResultError     = "error"
 	EventResultDropped   = "dropped"
+	// EventResultDenied is a delivery refused because the plugin no longer
+	// holds listen_events (a revocation on another panel instance).
+	EventResultDenied = "denied"
 )
 
 // Observer receives runtime signals from the plugin system so the panel can

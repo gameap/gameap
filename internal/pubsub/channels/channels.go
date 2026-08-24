@@ -23,6 +23,11 @@ const (
 	// the database rather than trusting the message.
 	PluginSync = PluginPrefix + "sync"
 
+	// PluginSubscriptionsRefresh tells every instance to rebuild its event
+	// subscription map: the map is built per instance, so a permission
+	// change made on one of them must reach the others.
+	PluginSubscriptionsRefresh = PluginPrefix + "subscriptions:refresh"
+
 	RealtimePrefix        = Prefix + "realtime:"
 	RealtimeServerStatus  = RealtimePrefix + "server:status"
 	RealtimeTaskProgress  = RealtimePrefix + "task:progress"

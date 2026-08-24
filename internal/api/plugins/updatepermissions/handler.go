@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/audit"
@@ -22,6 +23,11 @@ import (
 
 // maxBody bounds the JSON body: a permission list is a few hundred bytes.
 const maxBody = 64 << 10
+
+// announceTimeout bounds the advisory publish to the other panel instances:
+// the announcement outlives the request, but a stalled broker must not hold
+// the handler goroutine.
+const announceTimeout = 5 * time.Second
 
 var errPluginNotInstalled = errors.New("plugin is not installed")
 
@@ -39,6 +45,7 @@ type Handler struct {
 	resolver   DBIDResolver
 	refresher  plugininstall.SubscriptionRefresher
 	sync       plugininstall.SyncNotifier
+	announcer  SubscriptionsAnnouncer
 	responder  base.Responder
 	audit      audit.Logger
 }
@@ -49,6 +56,7 @@ func NewHandler(
 	resolver DBIDResolver,
 	refresher plugininstall.SubscriptionRefresher,
 	sync plugininstall.SyncNotifier,
+	announcer SubscriptionsAnnouncer,
 	responder base.Responder,
 	auditLogger audit.Logger,
 ) *Handler {
@@ -62,6 +70,7 @@ func NewHandler(
 		resolver:   resolver,
 		refresher:  refresher,
 		sync:       sync,
+		announcer:  announcer,
 		responder:  responder,
 		audit:      auditLogger,
 	}
@@ -130,6 +139,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if slices.Contains(granted, string(domain.PluginPermissionListenEvents)) ||
 		slices.Contains(revoked, string(domain.PluginPermissionListenEvents)) {
 		plugininstall.RefreshSubscriptions(ctx, h.refresher)
+		h.announceSubscriptionChange(ctx, uint64(dbID))
 	}
 
 	// Grants are read per host call everywhere; the hint lets the other
@@ -137,6 +147,25 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	plugininstall.Notify(ctx, h.sync, dbID, plugininstall.ActionPermissions)
 
 	h.responder.Write(ctx, rw, newPermissionsResponse(record, h.loadedPlugin(dbID)))
+}
+
+// announceSubscriptionChange lets the other instances rebuild their
+// subscription maps. Delivery is advisory: they also re-check the grant
+// before every event they deliver, so a failure delays the map cleanup
+// rather than leaking events.
+func (h *Handler) announceSubscriptionChange(ctx context.Context, pluginID uint64) {
+	if h.announcer == nil {
+		return
+	}
+
+	publishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), announceTimeout)
+	defer cancel()
+
+	if err := h.announcer.PublishRefresh(publishCtx, pluginID); err != nil {
+		slog.ErrorContext(ctx, "failed to announce plugin subscription change",
+			slog.Uint64("plugin_id", pluginID),
+			slog.String("error", err.Error()))
+	}
 }
 
 // parsePermissions validates the names; duplicates collapse, unknown names

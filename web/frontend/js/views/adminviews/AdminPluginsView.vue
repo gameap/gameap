@@ -15,7 +15,7 @@
           :data="enrichedInstalledPlugins"
           :loading="loading"
           :pagination="installedPagination"
-          :scroll-x="isSmallScreen ? 460 : 920"
+          :scroll-x="isSmallScreen ? 460 : 1140"
       >
         <template #loading>
           <Loading />
@@ -67,7 +67,6 @@
           @install="onInstall"
           @update="onUpdate"
           @uninstall="onUninstall"
-          @save-permissions="onSavePermissions"
           @config-saved="onConfigSaved"
           @close="closeDetailsModal"
       />
@@ -79,6 +78,11 @@
       :plugin="subscriptionPlugin"
   />
 
+  <PluginPermissionsModal
+      v-model:show="permissionsModalVisible"
+      :plugin="permissionsPlugin"
+  />
+
   <UploadPluginModal
       v-model:show="uploadModalVisible"
       @installed="onPluginInstalled"
@@ -87,10 +91,11 @@
 
 <script setup>
 import { GBreadcrumbs, Loading, GIcon, GDataTable, GModal, GEmpty } from "@gameap/ui"
-import { computed, ref, onMounted, onUnmounted, h } from "vue"
+import { computed, ref, onMounted, h } from "vue"
 import { trans } from "@/i18n/i18n"
 import GButton from "@/components/GButton.vue"
 import PluginIcon from "@/components/plugins/PluginIcon.vue"
+import { useIsSmallScreen } from "@/composables/useIsSmallScreen"
 import { usePluginStoreStore } from "@/store/pluginStore"
 import { errorNotification, notification } from "@/parts/dialogs"
 import { pluginHealthBadge } from "@/parts/pluginHealth"
@@ -103,6 +108,7 @@ import {
 import { storeToRefs } from "pinia"
 import PluginDetailsModal from "./forms/PluginDetailsModal.vue"
 import SubscriptionModal from "./forms/SubscriptionModal.vue"
+import PluginPermissionsModal from "./forms/PluginPermissionsModal.vue"
 import UploadPluginModal from "./forms/UploadPluginModal.vue"
 
 const pluginStore = usePluginStoreStore()
@@ -128,23 +134,15 @@ const activeTab = ref('installed')
 const detailsModalVisible = ref(false)
 const actionLoading = ref(false)
 const storePage = ref(1)
-const isSmallScreen = ref(window.innerWidth < 768)
 const subscriptionModalVisible = ref(false)
 const subscriptionPlugin = ref(null)
 const uploadModalVisible = ref(false)
+const permissionsModalVisible = ref(false)
+const permissionsPlugin = ref(null)
 
-
-const handleResize = () => {
-  isSmallScreen.value = window.innerWidth < 768
-}
-
-onMounted(() => {
-  window.addEventListener('resize', handleResize)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-})
+// Columns are dropped below md, action labels below lg.
+const isSmallScreen = useIsSmallScreen()
+const isCompactActions = useIsSmallScreen(1024)
 
 const currentLoadedInfo = computed(() => {
   if (!currentPlugin.value) return null
@@ -153,6 +151,15 @@ const currentLoadedInfo = computed(() => {
 
 const installedPagination = {
   pageSize: 15,
+}
+
+function renderActionButton(color, iconName, label, onClick, extra = {}) {
+  return h(GButton, { color, size: 'small', class: 'mr-0.5', onClick, ...extra }, {
+    default: () => [
+      h(GIcon, { name: iconName }),
+      h('span', { class: 'hidden lg:inline ml-1' }, label),
+    ],
+  })
 }
 
 const createInstalledColumns = () => {
@@ -187,14 +194,6 @@ const createInstalledColumns = () => {
           }, trans('plugins.update_available')))
         }
 
-        if (row.missing_permissions?.length > 0) {
-          badges.push(h('span', {
-            class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-warning-soft text-warning-soft-text',
-            title: row.missing_permissions.map(permission => trans('plugins.permission_' + permission)).join(', '),
-            'data-testid': 'plugin-missing-permissions-badge',
-          }, trans('plugins.permissions') + ': ' + row.missing_permissions.length))
-        }
-
         const health = pluginHealthBadge(row.health)
         if (health) {
           badges.push(h('span', {
@@ -221,6 +220,7 @@ const createInstalledColumns = () => {
             'data-testid': 'plugin-sync-badge',
           }, trans('plugins.sync_' + row.sync.state)))
         }
+
 
         if (!isSmallScreen.value && row.labels?.length > 0) {
           row.labels.forEach(label => {
@@ -298,31 +298,43 @@ const createInstalledColumns = () => {
     {
       title: trans('main.actions'),
       key: 'actions',
-      width: isSmallScreen.value ? 120 : 220,
+      align: 'right',
+      // Wide enough for the longest locale (de) with the update button shown.
+      width: isCompactActions.value ? 160 : 460,
       render(row) {
-        return h('div', { class: 'flex gap-1' }, [
-          h(GButton, {
-            color: 'white',
-            size: 'small',
-            title: trans('plugins.reload'),
+        // null when the instance that answered has not loaded the plugin: it
+        // cannot tell which permissions the module exercises, so the button
+        // stays neutral instead of claiming everything is granted.
+        const missingPermissions = row.missing_permissions
+        const permissionsUnknown = missingPermissions === null
+
+        return [
+          renderActionButton('black', 'refresh', trans('plugins.reload'), () => onReload(row), {
             disabled: row.status === 'updating',
-            onClick: () => onReload(row)
-          }, () => [h(GIcon, { name: 'refresh' })]),
+          }),
           row.hasUpdate
-              ? h(GButton, {
-                color: 'blue',
-                size: 'small',
-                onClick: () => onShowDetailsForUpdate(row)
-              }, () => [h(GIcon, { name: 'sync' })])
+              ? renderActionButton('blue', 'sync', trans('plugins.update'), () => onShowDetailsForUpdate(row))
               : null,
-          h(GButton, {
-            color: 'red',
-            size: 'small',
-            onClick: () => onClickUninstall(row)
-          }, () => isSmallScreen.value
-              ? [h(GIcon, { name: 'close' })]
-              : [h(GIcon, { name: 'close', class: 'mr-1' }), trans('plugins.uninstall')]),
-        ])
+          renderActionButton(
+              permissionsUnknown
+                  ? 'white'
+                  : (missingPermissions.length > 0 ? 'orange' : 'green'),
+              'key',
+              trans('plugins.permissions'),
+              () => onShowPermissions(row),
+              {
+                title: permissionsUnknown
+                    ? trans('plugins.permissions_unknown')
+                    : (missingPermissions.length > 0
+                        ? missingPermissions.map(permission => trans('plugins.permission_' + permission)).join(', ')
+                        : undefined),
+                'data-testid': `plugin-row-permissions-${row.id}`,
+              },
+          ),
+          renderActionButton('red', 'delete', trans('plugins.uninstall'), () => onClickUninstall(row), {
+            class: '',
+          }),
+        ]
       },
     }
   ]
@@ -399,47 +411,25 @@ const createStoreColumns = () => {
     {
       title: trans('main.actions'),
       key: 'actions',
-      width: isSmallScreen.value ? 80 : 150,
+      align: 'right',
+      width: isCompactActions.value ? 80 : 170,
       render(row) {
         if (row.installed) {
-          return isSmallScreen.value
-              ? h(GButton, {
-                color: 'gray',
-                size: 'small',
-                disabled: true,
-              }, () => [h(GIcon, { name: 'check' })])
-              : h(GButton, {
-                color: 'gray',
-                size: 'small',
-                disabled: true,
-              }, () => trans('plugins.already_installed'))
+          return renderActionButton('white', 'check', trans('plugins.already_installed'), null, {
+            disabled: true,
+            class: '',
+          })
         }
 
         if (requiresSubscriptionPurchase(row)) {
-          return isSmallScreen.value
-              ? h(GButton, {
-                color: 'orange',
-                size: 'small',
-                onClick: () => showSubscriptionModal(row)
-              }, () => [h(GIcon, { name: 'star' })])
-              : h(GButton, {
-                color: 'orange',
-                size: 'small',
-                onClick: () => showSubscriptionModal(row)
-              }, () => [h(GIcon, { name: 'star', class: 'mr-1' }), trans('plugins.purchase')])
+          return renderActionButton('orange', 'star', trans('plugins.purchase'), () => showSubscriptionModal(row), {
+            class: '',
+          })
         }
 
-        return isSmallScreen.value
-            ? h(GButton, {
-              color: 'blue',
-              size: 'small',
-              onClick: () => onShowDetailsForInstall(row.id)
-            }, () => [h(GIcon, { name: 'download' })])
-            : h(GButton, {
-              color: 'blue',
-              size: 'small',
-              onClick: () => onShowDetailsForInstall(row.id)
-            }, () => [h(GIcon, { name: 'download', class: 'mr-1' }), trans('plugins.install')])
+        return renderActionButton('blue', 'download', trans('plugins.install'), () => onShowDetailsForInstall(row.id), {
+          class: '',
+        })
       },
     }
   ]
@@ -490,6 +480,11 @@ function formatNumber(num) {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
   return num.toString()
+}
+
+function onShowPermissions(row) {
+  permissionsPlugin.value = row
+  permissionsModalVisible.value = true
 }
 
 function showSubscriptionModal(plugin) {
@@ -585,27 +580,10 @@ function onUpdate(version) {
       })
 }
 
-function onSavePermissions(permissions) {
-  if (!currentPlugin.value) return
-  if (actionLoading.value) return
-
-  actionLoading.value = true
-  pluginStore.updatePluginPermissions(currentPlugin.value.id, permissions)
-      .then(() => {
-        notification({
-          content: trans('plugins.permissions_saved'),
-          type: 'success'
-        })
-      })
-      .catch(errorNotification)
-      .finally(() => {
-        actionLoading.value = false
-      })
-}
-
 function onConfigSaved() {
   pluginStore.fetchLoadedPlugins().catch(errorNotification)
 }
+
 
 function onUninstall() {
   if (!currentPlugin.value) return

@@ -22,7 +22,8 @@ const (
 
 // Storage failures are reported to the guest as fixed messages, as in
 // gameap-secrets: a raw driver error would hand the plugin details about the
-// panel's database. The cause is logged instead.
+// panel's database (and the generated host glue panics on a returned error,
+// putting that text in the guest's trace). The cause is logged instead.
 const (
 	storageReadFailureMessage  = "failed to read storage entry"
 	storageWriteFailureMessage = "failed to store entry"
@@ -140,7 +141,12 @@ func (s *StorageServiceImpl) Get(
 ) (*storage.StorageGetResponse, error) {
 	entry, err := s.findScoped(ctx, s.scopeFilter(req.Key, req.EntityType, req.EntityId))
 	if err != nil {
-		return nil, err
+		s.logFailure(ctx, "failed to read plugin storage entry", err)
+
+		return &storage.StorageGetResponse{
+			Found: false,
+			Error: new(storageReadFailureMessage),
+		}, nil
 	}
 
 	if entry == nil {
@@ -217,6 +223,13 @@ func (s *StorageServiceImpl) checkQuotas(
 		released = uint64(len(existing.Payload))
 	}
 
+	// The entry may be deleted between reading it and reading the usage, so
+	// its size is no longer part of usage.Bytes; releasing more than that
+	// would wrap the unsigned subtraction into a spurious quota refusal.
+	if released > usage.Bytes {
+		released = usage.Bytes
+	}
+
 	if usage.Bytes-released+uint64(payloadSize) > s.cfg.MaxTotalBytes { //nolint:gosec // payloadSize is a length
 		return "storage quota of " + strconv.FormatUint(s.cfg.MaxTotalBytes, 10) + " bytes exceeded"
 	}
@@ -234,7 +247,12 @@ func (s *StorageServiceImpl) Delete(
 ) (*storage.StorageDeleteResponse, error) {
 	err := s.repo.DeleteByFilter(ctx, s.scopeFilter(req.Key, req.EntityType, req.EntityId))
 	if err != nil {
-		return nil, err
+		s.logFailure(ctx, "failed to delete plugin storage entry", err)
+
+		return &storage.StorageDeleteResponse{
+			Success: false,
+			Error:   new(storageWriteFailureMessage),
+		}, nil
 	}
 
 	return &storage.StorageDeleteResponse{
@@ -271,7 +289,11 @@ func (s *StorageServiceImpl) List(
 
 	entries, err := s.repo.Find(ctx, filter, nil, pagination)
 	if err != nil {
-		return nil, err
+		s.logFailure(ctx, "failed to list plugin storage entries", err)
+
+		return &storage.StorageListResponse{
+			Error: new(storageReadFailureMessage),
+		}, nil
 	}
 
 	hasMore := false

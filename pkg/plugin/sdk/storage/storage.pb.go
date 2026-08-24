@@ -62,6 +62,9 @@ type StorageGetResponse struct {
 
 	Payload []byte `protobuf:"bytes,1,opt,name=payload,proto3,oneof" json:"payload,omitempty"`
 	Found   bool   `protobuf:"varint,2,opt,name=found,proto3" json:"found,omitempty"`
+	// Set when the read did not happen; the panel reports a fixed message
+	// rather than the database error behind it.
+	Error *string `protobuf:"bytes,3,opt,name=error,proto3,oneof" json:"error,omitempty"`
 }
 
 func (x *StorageGetResponse) ProtoReflect() protoreflect.Message {
@@ -80,6 +83,13 @@ func (x *StorageGetResponse) GetFound() bool {
 		return x.Found
 	}
 	return false
+}
+
+func (x *StorageGetResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
 }
 
 type StorageSetRequest struct {
@@ -192,7 +202,8 @@ type StorageDeleteResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Success bool    `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
 }
 
 func (x *StorageDeleteResponse) ProtoReflect() protoreflect.Message {
@@ -204,6 +215,13 @@ func (x *StorageDeleteResponse) GetSuccess() bool {
 		return x.Success
 	}
 	return false
+}
+
+func (x *StorageDeleteResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
 }
 
 type StorageListRequest struct {
@@ -267,7 +285,8 @@ type StorageListResponse struct {
 	Entries []*StorageEntry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 	// has_more is set when a limit was given and entries remain beyond the
 	// window.
-	HasMore bool `protobuf:"varint,2,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	HasMore bool    `protobuf:"varint,2,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	Error   *string `protobuf:"bytes,3,opt,name=error,proto3,oneof" json:"error,omitempty"`
 }
 
 func (x *StorageListResponse) ProtoReflect() protoreflect.Message {
@@ -286,6 +305,13 @@ func (x *StorageListResponse) GetHasMore() bool {
 		return x.HasMore
 	}
 	return false
+}
+
+func (x *StorageListResponse) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
 }
 
 type StorageEntry struct {

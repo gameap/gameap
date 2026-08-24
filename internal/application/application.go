@@ -417,6 +417,11 @@ func startPubSub(ctx context.Context, container *Container) {
 		slog.ErrorContext(ctx, "Failed to start cache invalidator", slog.String("error", err.Error()))
 	}
 
+	if err := container.PluginSubscriptionsNotifier().Start(ctx); err != nil {
+		slog.ErrorContext(ctx, "Failed to start plugin subscriptions notifier",
+			slog.String("error", err.Error()))
+	}
+
 	if err := container.WSBridge().Start(ctx); err != nil {
 		slog.ErrorContext(ctx, "Failed to start WebSocket bridge", slog.String("error", err.Error()))
 	}

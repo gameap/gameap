@@ -44,11 +44,13 @@ type loadedPluginResponse struct {
 	// RequiredPermissions is what the manifest declares, AllowedPermissions
 	// what the operator granted. UsedPermissions is derived from the module's
 	// host imports and subscriptions (known when loaded on this instance);
-	// MissingPermissions are the used ones the plugin does not hold.
+	// MissingPermissions are the used ones the plugin does not hold. Both are
+	// serialized without omitempty: null means "not loaded here, unknown",
+	// an empty list means "loaded and uses nothing gated".
 	RequiredPermissions []string `json:"required_permissions"`
 	AllowedPermissions  []string `json:"allowed_permissions"`
-	UsedPermissions     []string `json:"used_permissions,omitempty"`
-	MissingPermissions  []string `json:"missing_permissions,omitempty"`
+	UsedPermissions     []string `json:"used_permissions"`
+	MissingPermissions  []string `json:"missing_permissions"`
 	// HasConfigSchema reports whether the manifest declares a configuration
 	// schema; ConfigKeys names the stored configuration keys (never values);
 	// ConfigSchemaError explains a schema the panel could not parse.

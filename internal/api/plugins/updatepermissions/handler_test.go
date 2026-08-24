@@ -76,6 +76,27 @@ func (f *fakeRefresher) count() int {
 	return f.calls
 }
 
+// fakeAnnouncer records the announcements to the other panel instances.
+type fakeAnnouncer struct {
+	mu        sync.Mutex
+	pluginIDs []uint64
+}
+
+func (f *fakeAnnouncer) PublishRefresh(_ context.Context, pluginID uint64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pluginIDs = append(f.pluginIDs, pluginID)
+
+	return nil
+}
+
+func (f *fakeAnnouncer) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return len(f.pluginIDs)
+}
+
 func permissionsRequest(id, body string) *http.Request {
 	req := httptest.NewRequest(http.MethodPut, "/api/admin/plugins/"+id+"/permissions", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -221,8 +242,9 @@ func TestUpdatePermissions(t *testing.T) {
 			repo := setupRepo(t, tt.plugins...)
 			recorder := &auditCapture{}
 			refresher := &fakeRefresher{}
-			handler := updatepermissions.NewHandler(repo, &fakeManager{plugins: tt.loaded}, nil, refresher, nil,
-				api.NewResponder(), recorder)
+			announcer := &fakeAnnouncer{}
+			handler := updatepermissions.NewHandler(repo, &fakeManager{plugins: tt.loaded}, nil, refresher,
+				nil, announcer, api.NewResponder(), recorder)
 
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, permissionsRequest(tt.id, tt.body))
@@ -262,6 +284,8 @@ func TestUpdatePermissions(t *testing.T) {
 			assert.Equal(t, tt.wantAllowed, storedNames, "the grants must be persisted")
 
 			assert.Equal(t, tt.wantRefresh, refresher.count())
+			assert.Equal(t, tt.wantRefresh, announcer.count(),
+				"the other instances are told whenever the local subscriptions are rebuilt")
 
 			events := recorder.snapshot()
 			require.Len(t, events, tt.wantAuditLen)

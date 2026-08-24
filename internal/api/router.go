@@ -166,6 +166,7 @@ import (
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/plugin/hostlibrary"
 	"github.com/gameap/gameap/internal/pubsub"
+	pubsubintegration "github.com/gameap/gameap/internal/pubsub/integration"
 	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories"
@@ -250,6 +251,8 @@ type container interface {
 	Telemetry() *telemetry.Registry
 	PluginScheduler() *pluginscheduler.Service
 	PluginArchiveEvents() *pluginarchive.Service
+	PluginSubscriptionsNotifier() *pubsubintegration.PluginSubscriptionsNotifier
+	PluginGuard() *hostlibrary.Guard
 	PluginStoreService() *pluginstore.Service
 	PluginsDir() string
 	TaskDispatcher() *taskdispatcher.Dispatcher
@@ -1963,6 +1966,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginStorageRepository(),
 				c.PluginSecretRepository(),
 				c.PluginSync(),
+				c.PluginGuard(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -2028,6 +2032,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginLoader(),
 				c.PluginDispatcher(),
 				c.PluginSync(),
+				c.PluginSubscriptionsNotifier(),
 				c.Responder(),
 				c.AuditLogger(),
 			),

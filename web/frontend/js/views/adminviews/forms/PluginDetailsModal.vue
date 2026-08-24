@@ -213,61 +213,6 @@
         <div class="text-sm whitespace-pre-wrap break-words">{{ plugin.description }}</div>
       </div>
 
-      <div v-if="plugin.installed && loadedInfo" class="mb-4" data-testid="plugin-permissions">
-        <h3 class="font-semibold mb-1">{{ trans('plugins.permissions') }}</h3>
-        <p class="text-xs text-stone-500 mb-3">{{ trans('plugins.permissions_hint') }}</p>
-
-        <div
-          v-if="missingPermissions.length > 0"
-          class="mb-3 p-2 rounded-lg bg-warning-soft text-warning-soft-text text-sm break-words"
-          data-testid="plugin-permissions-missing"
-        >
-          {{ trans('plugins.permissions_missing_warning') }}
-          <span class="font-medium">{{ missingPermissions.map(permissionLabel).join(', ') }}</span>
-        </div>
-
-        <n-checkbox-group v-model:value="selectedPermissions">
-          <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
-            <li v-for="permission in PLUGIN_PERMISSIONS" :key="permission" class="flex items-start gap-2">
-              <n-checkbox :value="permission" :data-testid="`plugin-permission-${permission}`">
-                <span class="text-sm">{{ permissionLabel(permission) }}</span>
-              </n-checkbox>
-              <span class="flex gap-1 pt-0.5">
-                <span
-                  v-if="requiredPermissions.includes(permission)"
-                  class="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-info-soft text-info-soft-text whitespace-nowrap"
-                  :title="trans('plugins.required_permissions')"
-                >
-                  {{ trans('plugins.permissions_declared') }}
-                </span>
-                <span
-                  v-if="usedPermissions.includes(permission)"
-                  class="px-1.5 py-0.5 text-[10px] font-medium rounded-full whitespace-nowrap"
-                  :class="missingPermissions.includes(permission)
-                    ? 'bg-warning-soft text-warning-soft-text'
-                    : 'bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300'"
-                >
-                  {{ trans('plugins.permissions_used') }}
-                </span>
-              </span>
-            </li>
-          </ul>
-        </n-checkbox-group>
-
-        <div class="flex justify-end mt-3">
-          <GButton
-            color="blue"
-            :size="isSmallScreen ? 'small' : 'medium'"
-            :disabled="!permissionsChanged"
-            data-testid="plugin-permissions-save"
-            @click="$emit('save-permissions', [...selectedPermissions])"
-          >
-            <GIcon name="check" class="mr-1" />
-            {{ trans('plugins.permissions_save') }}
-          </GButton>
-        </div>
-      </div>
-
       <div v-if="plugin.installed && loadedInfo" class="mb-4" data-testid="plugin-configuration">
         <h3 class="font-semibold mb-1">{{ trans('plugins.configuration') }}</h3>
         <p class="text-xs text-stone-500 mb-3">{{ trans('plugins.config_hint') }}</p>
@@ -286,6 +231,7 @@
           @saved="$emit('config-saved', $event)"
         />
       </div>
+
 
       <div v-if="plugin.installed" class="flex justify-center gap-6 mb-4 p-3 bg-stone-100 dark:bg-stone-800 rounded-lg">
         <div class="flex flex-col items-center text-center">
@@ -309,14 +255,14 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { trans } from '@/i18n/i18n'
 import { GIcon, Loading } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
 import PluginIcon from '@/components/plugins/PluginIcon.vue'
 import PluginConfigForm from '@/components/plugins/PluginConfigForm.vue'
-import { NSelect, NCheckbox, NCheckboxGroup } from 'naive-ui'
-import { PLUGIN_PERMISSIONS } from '@/parts/pluginPermissions'
+import { useIsSmallScreen } from '@/composables/useIsSmallScreen'
+import { NSelect } from 'naive-ui'
 import { pluginHealthBadge } from '@/parts/pluginHealth'
 
 const props = defineProps({
@@ -355,48 +301,12 @@ const loadedStatus = computed(() => {
 
 const loadedStatusClass = computed(() => loadedStatusClasses[loadedStatus.value])
 
-const emit = defineEmits(['install', 'update', 'uninstall', 'save-permissions', 'config-saved'])
+defineEmits(['install', 'update', 'uninstall', 'config-saved'])
 
 const health = computed(() => pluginHealthBadge(props.loadedInfo?.health))
 
-const requiredPermissions = computed(() => props.loadedInfo?.required_permissions ?? [])
-const allowedPermissions = computed(() => props.loadedInfo?.allowed_permissions ?? [])
-const usedPermissions = computed(() => props.loadedInfo?.used_permissions ?? [])
-const missingPermissions = computed(() => props.loadedInfo?.missing_permissions ?? [])
-
-const selectedPermissions = ref([])
-
-// The checkboxes follow the record; a saved update flows back through
-// loadedInfo, an unsaved edit is reset when another plugin is opened.
-watch(allowedPermissions, (allowed) => {
-  selectedPermissions.value = [...allowed]
-}, { immediate: true })
-
-const permissionsChanged = computed(() => {
-  const current = [...selectedPermissions.value].sort()
-  const saved = [...allowedPermissions.value].sort()
-
-  return current.length !== saved.length || current.some((permission, i) => permission !== saved[i])
-})
-
-function permissionLabel(permission) {
-  return trans('plugins.permission_' + permission)
-}
-
 const selectedVersion = ref(null)
-const isSmallScreen = ref(window.innerWidth < 768)
-
-const handleResize = () => {
-  isSmallScreen.value = window.innerWidth < 768
-}
-
-onMounted(() => {
-  window.addEventListener('resize', handleResize)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-})
+const isSmallScreen = useIsSmallScreen()
 
 const hasUpdate = computed(() => {
   if (!props.plugin?.installed) return false

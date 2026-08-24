@@ -195,7 +195,7 @@ func (s *Server) stream(
 		slog.WarnContext(ctx, "failed to disable write deadline", slog.String("error", err.Error()))
 	}
 
-	applyHeaders(w.Header(), req, info)
+	applyHeaders(w.Header(), req)
 
 	status := req.StatusCode
 	if status == 0 {
@@ -222,9 +222,10 @@ func (s *Server) stream(
 }
 
 // applyHeaders copies the plugin headers the allowlist admits and then
-// sets the ones the panel owns: the file is always an attachment with the
-// panel's length.
-func applyHeaders(header http.Header, req pkgplugin.FileRefRequest, info *daemon.FileDetails) {
+// sets the ones the panel owns: the file is always an attachment. No
+// Content-Length is declared: the stat and the stream are separate daemon
+// calls, so the size may not match the bytes actually streamed.
+func applyHeaders(header http.Header, req pkgplugin.FileRefRequest) {
 	for name, value := range req.Headers {
 		if pluginHeaderAllowed(name) {
 			header.Set(name, value)
@@ -236,10 +237,6 @@ func applyHeaders(header http.Header, req pkgplugin.FileRefRequest, info *daemon
 
 	if header.Get("Cache-Control") == "" {
 		header.Set("Cache-Control", "no-store")
-	}
-
-	if info.Size > 0 {
-		header.Set("Content-Length", strconv.FormatUint(info.Size, 10))
 	}
 }
 
@@ -260,10 +257,13 @@ func attachmentName(ref *proto.FileRef) string {
 	return path.Base(strings.ReplaceAll(ref.Path, "\\", "/"))
 }
 
-// validateStatusCode accepts 0 (meaning 200) and the range
-// http.ResponseWriter.WriteHeader can emit.
+// validateStatusCode accepts 0 (meaning 200) and final statuses 200-999.
+// Informational 1xx codes are rejected even though WriteHeader can emit
+// them: the response always carries a file body, so net/http would send the
+// 1xx as an interim response and replace the plugin's status with an
+// implicit 200.
 func validateStatusCode(code int) error {
-	if code == 0 || (code >= 100 && code <= 999) {
+	if code == 0 || (code >= 200 && code <= 999) {
 		return nil
 	}
 

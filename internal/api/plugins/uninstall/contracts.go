@@ -45,6 +45,14 @@ type RecordUnloader interface {
 	Hold(dbID domain.Uint64ID) func()
 }
 
+// PluginPolicyCleaner drops the per-plugin policy state the host libraries
+// keep in memory (rate limiter buckets, audit throttle) so an uninstalled
+// plugin does not hold it until the panel restarts. Satisfied by
+// *hostlibrary.Guard.
+type PluginPolicyCleaner interface {
+	Forget(pluginID uint64)
+}
+
 // PluginStorageCleaner drops the plugin's gameap-storage rows on uninstall.
 type PluginStorageCleaner interface {
 	DeleteByPlugin(ctx context.Context, pluginID uint64) error
