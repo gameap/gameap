@@ -98,6 +98,8 @@ type InmemoryContainer struct {
 	pluginArchiveEvents     *pluginarchive.Service
 	pluginSubscriptionsPS   *pubsubintegration.PluginSubscriptionsNotifier
 	pluginGuard             *hostlibrary.Guard
+	pluginPermissions       *hostlibrary.CachedPermissionChecker
+	pluginRepo              repositories.PluginRepository
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -184,8 +186,15 @@ func (c *InmemoryContainer) FrontendFS() fs.FS {
 	return fsys
 }
 
+// PluginRepository answers the same repository every time: the router hands it
+// to every plugin handler separately, and the permission checker reads the
+// grants they write.
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
-	return inmemory.NewPluginRepository()
+	if c.pluginRepo == nil {
+		c.pluginRepo = inmemory.NewPluginRepository()
+	}
+
+	return c.pluginRepo
 }
 
 func (c *InmemoryContainer) PluginStorageRepository() repositories.PluginStorageRepository {
@@ -242,10 +251,33 @@ func (c *InmemoryContainer) PluginArchiveEvents() *pluginarchive.Service {
 // exercise the handlers, not the host-library policy.
 func (c *InmemoryContainer) PluginGuard() *hostlibrary.Guard {
 	if c.pluginGuard == nil {
-		c.pluginGuard = hostlibrary.NewGuard(nil)
+		c.pluginGuard = hostlibrary.NewGuard(c.PluginPermissionEnforcer())
 	}
 
 	return c.pluginGuard
+}
+
+// PluginPermissionEnforcer mirrors the application container: the real
+// checker while the config enforces permissions, allow-everything otherwise.
+func (c *InmemoryContainer) PluginPermissionEnforcer() hostlibrary.PluginPermissionChecker {
+	if c.cfg.Plugin.Permissions.Enforce {
+		return c.PluginPermissionChecker()
+	}
+
+	return hostlibrary.AllowAllPermissionChecker{}
+}
+
+// PluginPermissionChecker answers grants from the in-memory plugin repository.
+// The cache is disabled so a test that changes a grant sees it at once.
+func (c *InmemoryContainer) PluginPermissionChecker() *hostlibrary.CachedPermissionChecker {
+	if c.pluginPermissions == nil {
+		c.pluginPermissions = hostlibrary.NewCachedPermissionChecker(
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			0,
+		)
+	}
+
+	return c.pluginPermissions
 }
 
 // PluginSubscriptionsNotifier answers a notifier over an in-memory pubsub:
@@ -348,11 +380,16 @@ func buildInmemoryTestContainer() *InmemoryContainer {
 		panic(tfErr)
 	}
 
+	cfg := &config.Config{
+		AuthSecret:    "test-secret-key-for-testing",
+		EncryptionKey: "test-encryption-key-testing",
+	}
+	// Tests exercise today's enforced behavior; the release default is off
+	// only to give plugin developers a migration period.
+	cfg.Plugin.Permissions.Enforce = true
+
 	c := &InmemoryContainer{
-		cfg: &config.Config{
-			AuthSecret:    "test-secret-key-for-testing",
-			EncryptionKey: "test-encryption-key-testing",
-		},
+		cfg:                     cfg,
 		responder:               pkgapi.NewResponder(),
 		gameRepo:                inmemory.NewGameRepository(),
 		gameModRepo:             inmemory.NewGameModRepository(),

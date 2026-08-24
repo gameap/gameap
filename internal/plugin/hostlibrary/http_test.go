@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	sdkhttp "github.com/gameap/gameap/pkg/plugin/sdk/http"
 	"github.com/stretchr/testify/assert"
@@ -18,10 +19,10 @@ import (
 // internal/config Plugin.HTTP which keeps BlockPrivateIPs=true.
 func permissiveTestConfig() HTTPConfig {
 	return HTTPConfig{
-		BlockPrivateIPs:   false,
-		AllowedSchemes:    []string{"http", "https"},
-		MaxTimeoutSeconds: 60,
-		MaxRedirects:      5,
+		BlockPrivateIPs: false,
+		AllowedSchemes:  []string{"http", "https"},
+		MaxTimeout:      60 * time.Second,
+		MaxRedirects:    5,
 	}
 }
 

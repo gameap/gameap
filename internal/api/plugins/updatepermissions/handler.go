@@ -24,9 +24,9 @@ import (
 // maxBody bounds the JSON body: a permission list is a few hundred bytes.
 const maxBody = 64 << 10
 
-// announceTimeout bounds the advisory publish to the other panel instances:
-// the announcement outlives the request, but a stalled broker must not hold
-// the handler goroutine.
+// announceTimeout bounds the publish to the other panel instances: the
+// announcement outlives the request, but a stalled broker must not hold the
+// handler goroutine.
 const announceTimeout = 5 * time.Second
 
 var errPluginNotInstalled = errors.New("plugin is not installed")
@@ -35,10 +35,10 @@ type input struct {
 	AllowedPermissions []string `json:"allowed_permissions"`
 }
 
-// Handler replaces the permissions an installed plugin holds. The host
-// libraries read grants on every call, so the change is effective at once
-// on every instance; event subscriptions are refreshed locally because
-// listen_events is applied when they are rebuilt.
+// Handler replaces the permissions an installed plugin holds. Grants are
+// cached per instance, so every change is announced over pub/sub to drop the
+// cached answer everywhere; event subscriptions are additionally refreshed
+// when listen_events changes, because it is applied when they are rebuilt.
 type Handler struct {
 	pluginRepo repositories.PluginRepository
 	manager    PluginManager
@@ -136,10 +136,17 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		"plugin", strconv.FormatUint(uint64(dbID), 10), "update",
 		slog.Any("granted", granted), slog.Any("revoked", revoked))
 
-	if slices.Contains(granted, string(domain.PluginPermissionListenEvents)) ||
-		slices.Contains(revoked, string(domain.PluginPermissionListenEvents)) {
-		plugininstall.RefreshSubscriptions(ctx, h.refresher)
-		h.announceSubscriptionChange(ctx, uint64(dbID))
+	if len(granted) > 0 || len(revoked) > 0 {
+		// Any grant change invalidates the cached permissions on every
+		// instance; only listen_events changes the subscription map. The
+		// announcement goes first: it drops this instance's cache, so the
+		// rebuild below reads the grants that were just saved.
+		h.announcePermissionChange(ctx, uint64(dbID))
+
+		if slices.Contains(granted, string(domain.PluginPermissionListenEvents)) ||
+			slices.Contains(revoked, string(domain.PluginPermissionListenEvents)) {
+			plugininstall.RefreshSubscriptions(ctx, h.refresher)
+		}
 	}
 
 	// Grants are read per host call everywhere; the hint lets the other
@@ -149,11 +156,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.responder.Write(ctx, rw, newPermissionsResponse(record, h.loadedPlugin(dbID)))
 }
 
-// announceSubscriptionChange lets the other instances rebuild their
-// subscription maps. Delivery is advisory: they also re-check the grant
-// before every event they deliver, so a failure delays the map cleanup
-// rather than leaking events.
-func (h *Handler) announceSubscriptionChange(ctx context.Context, pluginID uint64) {
+// announcePermissionChange drops the cached grants on this instance and lets
+// the others do the same and rebuild their subscription maps. A failed
+// delivery leaves the other instances answering from their cache until it
+// expires (Plugin.Permissions.CacheTTL).
+func (h *Handler) announcePermissionChange(ctx context.Context, pluginID uint64) {
 	if h.announcer == nil {
 		return
 	}
@@ -162,7 +169,7 @@ func (h *Handler) announceSubscriptionChange(ctx context.Context, pluginID uint6
 	defer cancel()
 
 	if err := h.announcer.PublishRefresh(publishCtx, pluginID); err != nil {
-		slog.ErrorContext(ctx, "failed to announce plugin subscription change",
+		slog.ErrorContext(ctx, "failed to announce plugin permission change",
 			slog.Uint64("plugin_id", pluginID),
 			slog.String("error", err.Error()))
 	}

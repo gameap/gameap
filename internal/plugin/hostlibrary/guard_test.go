@@ -224,6 +224,18 @@ func TestPluginGuard_Check_enforces_policy_table(t *testing.T) {
 	}
 }
 
+func TestPluginGuard_Check_admits_everything_without_enforcement(t *testing.T) {
+	t.Parallel()
+
+	// The container wires this checker while PLUGIN_PERMISSIONS_ENFORCE is
+	// off: a plugin holding no grants at all keeps every host function.
+	guard := NewGuard(AllowAllPermissionChecker{}).For(guardTestPluginID)
+
+	msg := guard.Check(context.Background(), ModuleNodeCmd, "execute_command")
+
+	assert.Empty(t, msg)
+}
+
 func TestPluginGuard_Check_transient_load_is_never_granted(t *testing.T) {
 	t.Parallel()
 
@@ -432,6 +444,24 @@ func TestPluginGuard_Audit_records_outcome(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGuard_Forget_drops_the_cached_grants(t *testing.T) {
+	t.Parallel()
+
+	source := &countingGrantsReader{permissions: []domain.PluginPermission{domain.PluginPermissionFiles}}
+	cache, _ := newTestCache(source, time.Hour)
+	guard := NewGuard(cache)
+
+	require.Empty(t, guard.For(7).Check(t.Context(), ModuleNodeFS, "read_dir"))
+
+	// The uninstall deleted the record; without the drop the plugin would keep
+	// its grant until the entry expired.
+	source.set()
+	guard.Forget(7)
+
+	assert.Equal(t, PermissionDeniedMessage(domain.PluginPermissionFilesRead),
+		guard.For(7).Check(t.Context(), ModuleNodeFS, "read_dir"))
 }
 
 // TestHostRPCPolicies_cover_generated_exports fails when a gated module

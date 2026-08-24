@@ -63,6 +63,8 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "local", cfg.Files.Driver)
 		assert.Equal(t, "info", cfg.Logger.Level)
 		assert.False(t, cfg.Logger.LogDBQueries)
+		assert.False(t, cfg.Plugin.Permissions.Enforce,
+			"the migration period ships with grants recorded but not applied")
 		assert.Equal(t, "https://api.gameap.com", cfg.GlobalAPI.URL)
 	})
 

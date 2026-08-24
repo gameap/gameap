@@ -37,12 +37,11 @@
             <h3 class="text-lg font-bold">{{ uploadResult.name }}</h3>
             <span class="text-sm text-stone-500">v{{ uploadResult.version }}</span>
           </div>
-          <span v-if="uploadResult.is_valid" class="ml-auto px-2 py-1 text-xs rounded-full bg-success-soft text-success-soft-text">
-            {{ trans('plugins.valid') }}
-          </span>
-          <span v-else class="ml-auto px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
-            {{ trans('plugins.invalid') }}
-          </span>
+          <GStatusBadge
+            :color="uploadResult.is_valid ? 'green' : 'red'"
+            :text="uploadResult.is_valid ? trans('plugins.valid') : trans('plugins.invalid')"
+            class="ml-auto"
+          />
         </div>
 
         <div v-if="uploadResult.description" class="mb-4 text-sm text-stone-600 dark:text-stone-400">
@@ -75,13 +74,12 @@
         <div v-if="uploadResult.required_permissions?.length" class="mb-4" data-testid="dry-run-permissions">
           <span class="text-xs text-stone-500">{{ trans('plugins.required_permissions') }}</span>
           <div class="flex flex-wrap gap-1 mt-1">
-            <span
+            <GStatusBadge
               v-for="permission in uploadResult.required_permissions"
               :key="permission"
-              class="px-2 py-0.5 text-xs font-medium rounded-full bg-info-soft text-info-soft-text"
-            >
-              {{ permissionLabel(permission) }}
-            </span>
+              color="blue"
+              :text="permissionLabel(permission)"
+            />
           </div>
         </div>
 
@@ -99,21 +97,28 @@
           </p>
         </div>
 
-        <div
+        <n-alert
           v-if="uploadResult.undeclared_permissions?.length"
-          class="mb-4 p-3 rounded-lg bg-warning-soft text-warning-soft-text text-sm break-words"
+          type="warning"
+          :show-icon="true"
+          class="mb-4"
           data-testid="dry-run-undeclared-permissions"
         >
           {{ trans('plugins.permissions_undeclared_warning') }}
           <span class="font-medium">{{ uploadResult.undeclared_permissions.map(permissionLabel).join(', ') }}</span>
-        </div>
+        </n-alert>
 
-        <div v-if="uploadResult.errors?.length" class="mb-4 p-3 bg-red-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-red-900)_20%,transparent)] rounded-lg">
-          <p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">{{ trans('plugins.validation_errors') }}</p>
-          <ul class="list-disc list-inside text-sm text-red-700 dark:text-red-400">
+        <n-alert
+          v-if="uploadResult.errors?.length"
+          type="error"
+          :show-icon="true"
+          class="mb-4"
+          :title="trans('plugins.validation_errors')"
+        >
+          <ul class="list-disc list-inside text-sm">
             <li v-for="error in uploadResult.errors" :key="error">{{ error }}</li>
           </ul>
-        </div>
+        </n-alert>
 
         <div class="flex justify-end gap-2 mt-4">
           <GButton color="gray" @click="resetUpload">{{ trans('main.back') }}</GButton>
@@ -134,9 +139,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { trans } from '@/i18n/i18n'
-import { GIcon, GModal } from '@gameap/ui'
+import { GIcon, GModal, GStatusBadge } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
-import { NUpload, NUploadDragger, NSpin } from 'naive-ui'
+import { NAlert, NUpload, NUploadDragger, NSpin } from 'naive-ui'
 import { usePluginStoreStore } from '@/store/pluginStore'
 import { storeToRefs } from 'pinia'
 import { errorNotification, notification } from '@/parts/dialogs'

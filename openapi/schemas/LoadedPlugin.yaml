@@ -126,7 +126,8 @@ properties:
     type: array
     nullable: true
     description: |
-      Used permissions the plugin does not hold: every call behind them is
+      Used permissions the plugin does not hold: while the panel enforces
+      permissions (`PLUGIN_PERMISSIONS_ENFORCE`), every call behind them is
       refused until an operator grants them. `null` when the plugin is not
       loaded on the instance that answered (unknown).
     items:

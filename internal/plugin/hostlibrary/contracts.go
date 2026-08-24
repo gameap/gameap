@@ -79,3 +79,18 @@ type NodeCommandService interface {
 		opts ...daemon.CommandServiceOption,
 	) (*daemon.CommandResult, error)
 }
+
+// PluginGrantsReader reads the whole grant set of a plugin at once, so one
+// database read answers every permission question about it. Satisfied by
+// *RepositoryPermissionChecker.
+type PluginGrantsReader interface {
+	Grants(ctx context.Context, pluginID uint64) ([]domain.PluginPermission, error)
+}
+
+// PermissionCacheInvalidator drops cached grants. Satisfied by
+// *CachedPermissionChecker; the plain repository checker holds no state and
+// does not implement it.
+type PermissionCacheInvalidator interface {
+	Invalidate(pluginID uint64)
+	InvalidateAll()
+}

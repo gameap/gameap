@@ -74,7 +74,7 @@ func TestLoaded_reports_runtime_state_of_loaded_plugins(t *testing.T) {
 			Enabled: true,
 			DBID:    uint64(dbID),
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -117,7 +117,7 @@ func TestLoaded_includes_installed_but_not_loaded_plugins(t *testing.T) {
 			Enabled: true,
 			DBID:    uint64(loadedID),
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 3)
@@ -173,7 +173,7 @@ func TestLoaded_disabled_in_memory_reports_reason(t *testing.T) {
 
 	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
 		return []*pkgplugin.LoadedPlugin{hanging}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -202,7 +202,7 @@ func TestLoaded_silently_disabled_plugin_falls_back_to_record(t *testing.T) {
 
 	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
 		return []*pkgplugin.LoadedPlugin{unloading}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -217,7 +217,7 @@ func TestLoaded_repository_failure_falls_back_to_loaded_plugins(t *testing.T) {
 			Info:    &proto.PluginInfo{Id: "survivor", Name: "Survivor", Version: "1.0.0"},
 			Enabled: true,
 		}}
-	}}, nil, failingPluginRepository{}, api.NewResponder())
+	}}, nil, failingPluginRepository{}, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -242,7 +242,7 @@ func TestLoaded_maps_loaded_plugin_to_record_by_declared_id(t *testing.T) {
 			Info:    &proto.PluginInfo{Id: "legacyplugin", Name: "Legacy", Version: "1.0.0"},
 			Enabled: true,
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1, "the record must not be listed a second time as not loaded")
@@ -276,7 +276,7 @@ func TestLoaded_reports_permissions(t *testing.T) {
 			},
 			SubscribedEvents: []proto.EventType{proto.EventType_EVENT_TYPE_SERVER_POST_START},
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 2)
@@ -319,7 +319,7 @@ func TestLoaded_reports_configuration_and_health(t *testing.T) {
 
 	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
 		return []*pkgplugin.LoadedPlugin{loaded}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 2)
@@ -390,7 +390,7 @@ func TestLoaded_reports_sync_state_and_local_failures(t *testing.T) {
 			Info: &proto.PluginInfo{Id: "running-plugin", Name: "Running", Version: "1.0.0"}, Enabled: true,
 			DBID: uint64(runningID),
 		}}
-	}}, nil, pluginRepo, api.NewResponder(), getloaded.WithSyncStatus(fakeSyncStatus{snapshot: map[domain.Uint64ID]pluginsync.Status{
+	}}, nil, pluginRepo, true, api.NewResponder(), getloaded.WithSyncStatus(fakeSyncStatus{snapshot: map[domain.Uint64ID]pluginsync.Status{
 		runningID: {PluginID: runningID, State: pluginsync.StateInSync},
 		brokenID: {
 			PluginID: brokenID, State: pluginsync.StateRetrying, Failures: 2,
@@ -431,7 +431,7 @@ func TestLoaded_without_sync_provider_omits_sync(t *testing.T) {
 		ID: pkgplugin.ParsePluginID("lonely-plugin"), Name: "Lonely", Version: "1.0.0", Status: domain.PluginStatusActive,
 	}))
 
-	h := getloaded.NewHandler(&mockLoaderManager{}, nil, pluginRepo, api.NewResponder())
+	h := getloaded.NewHandler(&mockLoaderManager{}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)

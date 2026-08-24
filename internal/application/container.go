@@ -214,6 +214,8 @@ type Container struct {
 	pluginDispatcher      *pkgplugin.Dispatcher
 	pluginGuard           *hostlibrary.Guard
 	pluginPathPolicy      *hostlibrary.PathPolicy
+	pluginPermissions     *hostlibrary.CachedPermissionChecker
+	pluginEnforcer        hostlibrary.PluginPermissionChecker
 	pluginSubscriptionsPS *pubsubintegration.PluginSubscriptionsNotifier
 	telemetry             *telemetry.Registry
 	pluginMetrics         *telemetry.PluginMetrics
@@ -2212,8 +2214,8 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			c.PluginStorageRepository(),
 			hostlibrary.WithStorageQuotas(hostlibrary.StorageConfig{
 				MaxKeysPerPlugin: c.config.Plugin.Storage.MaxKeysPerPlugin,
-				MaxValueBytes:    int(c.config.Plugin.Storage.MaxValueBytes.Uint64()), //nolint:gosec
-				MaxTotalBytes:    c.config.Plugin.Storage.MaxTotalBytes.Uint64(),
+				MaxValueBytes:    int(c.config.Plugin.Storage.MaxValue.Uint64()), //nolint:gosec
+				MaxTotalBytes:    c.config.Plugin.Storage.MaxTotal.Uint64(),
 			}),
 		),
 		hostlibrary.NewLogHostLibraryFactory(slog.Default()),
@@ -2229,7 +2231,7 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			guard,
 			hostlibrary.SecretsConfig{
 				MaxKeysPerPlugin:  c.config.Plugin.Secrets.MaxKeysPerPlugin,
-				MaxValueBytes:     c.config.Plugin.Secrets.MaxValueBytes,
+				MaxValueBytes:     int(c.config.Plugin.Secrets.MaxValue.Uint64()), //nolint:gosec // a byte cap fits an int
 				RequireEncryption: c.config.Plugin.Secrets.RequireEncryption,
 			},
 		),
@@ -2241,7 +2243,7 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			c.DaemonArchive(),
 			&lazyArchiveEvents{container: c},
 			guard,
-			hostlibrary.WithNodeFSMaxInlineBytes(c.config.Plugin.NodeFS.MaxInlineBytes.Uint64()),
+			hostlibrary.WithNodeFSMaxInlineBytes(c.config.Plugin.NodeFS.MaxInline.Uint64()),
 		),
 		// Per-plugin: writes are gated on manage_servers / node_commands,
 		// rate limited and audited with the plugin as the actor.
@@ -2259,14 +2261,14 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		hostlibrary.NewCacheHostLibraryFactory(
 			c.Cache(),
 			"plugin:",
-			hostlibrary.WithCacheMaxValueBytes(int(c.config.Plugin.Cache.MaxValueBytes.Uint64())), //nolint:gosec
+			hostlibrary.WithCacheMaxValueBytes(int(c.config.Plugin.Cache.MaxValue.Uint64())), //nolint:gosec
 		),
 		// Per-plugin: outbound requests are rate limited per plugin.
 		hostlibrary.NewHTTPHostLibraryFactory(hostlibrary.HTTPConfig{
 			BlockPrivateIPs:         c.config.Plugin.HTTP.BlockPrivateIPs,
 			AllowedSchemes:          c.config.Plugin.HTTP.AllowedSchemes,
 			AllowedHosts:            c.config.Plugin.HTTP.AllowedHosts,
-			MaxTimeoutSeconds:       c.config.Plugin.HTTP.MaxTimeoutSeconds,
+			MaxTimeout:              c.config.Plugin.HTTP.MaxTimeout,
 			MaxRedirects:            c.config.Plugin.HTTP.MaxRedirects,
 			ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
 		}, guard),
@@ -2278,8 +2280,8 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		factories = append(factories, hostlibrary.NewNetHostLibraryFactory(
 			c.connRegistry(),
 			hostlibrary.NetConfig{
-				MaxReadBytes: c.config.Plugin.Net.ReadBufferBytes,
-				MaxTimeout:   time.Duration(c.config.Plugin.Net.MaxTimeoutSeconds) * time.Second,
+				MaxReadBytes: int(c.config.Plugin.Net.ReadBuffer.Uint64()), //nolint:gosec // a buffer size fits an int
+				MaxTimeout:   c.config.Plugin.Net.MaxTimeout,
 			},
 		))
 	}
@@ -2299,8 +2301,9 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		},
 		LibraryFactories: factories,
 
-		MaxMemoryBytes:          pluginMemoryLimitBytes(c.config.Plugin.Runtime.MaxMemoryMB),
-		MaxModuleBytes:          c.config.Plugin.Runtime.MaxModuleSizeMB << 20,
+		MaxMemoryBytes: c.config.Plugin.Runtime.MaxMemory.Uint64(),
+		//nolint:gosec // a module size cap fits an int
+		MaxModuleBytes:          int(c.config.Plugin.Runtime.MaxModuleSize.Uint64()),
 		CompilationCacheDir:     c.config.Plugins.Cache.Dir,
 		DisableCompilationCache: !c.config.Plugins.Cache.Enabled,
 		GuestLogger:             slog.Default(),
@@ -2357,7 +2360,7 @@ func (c *Container) PluginGuard() *hostlibrary.Guard {
 		limits := c.config.Plugin.RateLimit
 
 		c.pluginGuard = hostlibrary.NewGuard(
-			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			c.PluginPermissionEnforcer(),
 			hostlibrary.WithGuardRateLimits(map[hostlibrary.RateClass]hostlibrary.RateLimit{
 				hostlibrary.RateClassNodeCmd:       {RPS: limits.NodeCmd.RPS, Burst: limits.NodeCmd.Burst},
 				hostlibrary.RateClassServerControl: {RPS: limits.ServerControl.RPS, Burst: limits.ServerControl.Burst},
@@ -2371,6 +2374,39 @@ func (c *Container) PluginGuard() *hostlibrary.Guard {
 	}
 
 	return c.pluginGuard
+}
+
+// PluginPermissionChecker is the shared view of plugin grants behind the host
+// libraries, the event delivery gate and file refs. One cache per instance, so
+// an invalidation drops the answer for all three at once.
+func (c *Container) PluginPermissionChecker() *hostlibrary.CachedPermissionChecker {
+	if c.pluginPermissions == nil {
+		c.pluginPermissions = hostlibrary.NewCachedPermissionChecker(
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			c.config.Plugin.Permissions.CacheTTL,
+		)
+	}
+
+	return c.pluginPermissions
+}
+
+// PluginPermissionEnforcer is what the enforcement points consult: the cached
+// grants when PLUGIN_PERMISSIONS_ENFORCE is on, an allow-everything checker
+// while it is off. The cache and its pub/sub invalidation keep running either
+// way, so flipping the switch changes nothing else.
+func (c *Container) PluginPermissionEnforcer() hostlibrary.PluginPermissionChecker {
+	if c.pluginEnforcer == nil {
+		if c.config.Plugin.Permissions.Enforce {
+			c.pluginEnforcer = c.PluginPermissionChecker()
+		} else {
+			slog.Warn("plugin permission enforcement is disabled: grants are recorded but not applied; " +
+				"set PLUGIN_PERMISSIONS_ENFORCE=true to apply them")
+
+			c.pluginEnforcer = hostlibrary.AllowAllPermissionChecker{}
+		}
+	}
+
+	return c.pluginEnforcer
 }
 
 // Telemetry is the panel's Prometheus registry.
@@ -2431,16 +2467,6 @@ func (l *lazyPluginBacklog) AsyncBacklog() int {
 	}
 
 	return l.container.pluginDispatcher.AsyncBacklog()
-}
-
-// pluginMemoryLimitBytes converts the configured megabytes to the manager's
-// byte cap; a non-positive value keeps the wazero default.
-func pluginMemoryLimitBytes(megabytes int) uint64 {
-	if megabytes <= 0 {
-		return 0
-	}
-
-	return uint64(megabytes) << 20
 }
 
 // lazyPluginStateSink resolves the plugin manager at call time: the host
@@ -2584,25 +2610,35 @@ func (l *lazyServerController) Reinstall(ctx context.Context, server *domain.Ser
 
 func (c *Container) PluginDispatcher() *pkgplugin.Dispatcher {
 	if c.pluginDispatcher == nil {
-		checker := hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository())
+		opts := []pkgplugin.DispatcherOption{
+			pkgplugin.WithDispatcherObserver(c.PluginMetrics()),
+		}
+
+		// Event subscriptions are gated on the plugin's listen_events grant.
+		// While enforcement is off no gate is installed, so every plugin's
+		// subscriptions are honored.
+		if c.config.Plugin.Permissions.Enforce {
+			checker := c.PluginPermissionChecker()
+
+			opts = append(opts, pkgplugin.WithSubscriptionGate(
+				func(ctx context.Context, plugin *pkgplugin.LoadedPlugin) bool {
+					allowed, err := checker.Has(ctx, plugin.DBID, domain.PluginPermissionListenEvents)
+					if err != nil {
+						slog.ErrorContext(ctx, "failed to check plugin listen_events permission",
+							slog.Uint64("plugin_id", plugin.DBID),
+							slog.String("error", err.Error()))
+
+						return false
+					}
+
+					return allowed
+				}))
+		}
 
 		c.pluginDispatcher = pkgplugin.NewDispatcher(
 			c.PluginManager(),
 			slog.Default(),
-			pkgplugin.WithDispatcherObserver(c.PluginMetrics()),
-			// Event subscriptions are gated on the plugin's listen_events grant.
-			pkgplugin.WithSubscriptionGate(func(ctx context.Context, plugin *pkgplugin.LoadedPlugin) bool {
-				allowed, err := checker.Has(ctx, plugin.DBID, domain.PluginPermissionListenEvents)
-				if err != nil {
-					slog.ErrorContext(ctx, "failed to check plugin listen_events permission",
-						slog.Uint64("plugin_id", plugin.DBID),
-						slog.String("error", err.Error()))
-
-					return false
-				}
-
-				return allowed
-			}),
+			opts...,
 		)
 	}
 
@@ -2613,7 +2649,11 @@ func (c *Container) PluginDispatcher() *pkgplugin.Dispatcher {
 // instance in step after a permission change.
 func (c *Container) PluginSubscriptionsNotifier() *pubsubintegration.PluginSubscriptionsNotifier {
 	if c.pluginSubscriptionsPS == nil {
-		c.pluginSubscriptionsPS = pubsubintegration.NewPluginSubscriptionsNotifier(c.PubSub(), c.PluginDispatcher())
+		c.pluginSubscriptionsPS = pubsubintegration.NewPluginSubscriptionsNotifier(
+			c.PubSub(),
+			c.PluginDispatcher(),
+			pubsubintegration.WithPermissionCache(c.PluginPermissionChecker()),
+		)
 	}
 
 	return c.pluginSubscriptionsPS
@@ -2654,6 +2694,7 @@ func (c *Container) PluginLoader() *internalplugin.Loader {
 			internalplugin.WithSubscriptionRefresher(c.PluginDispatcher()),
 			internalplugin.WithSecretCipher(c.SecretCipher()),
 			internalplugin.WithLifecycleEvents(c.PluginDispatcher()),
+			internalplugin.WithPermissionEnforcement(c.config.Plugin.Permissions.Enforce),
 		)
 
 		// Always present: it records why a plugin was disabled even when

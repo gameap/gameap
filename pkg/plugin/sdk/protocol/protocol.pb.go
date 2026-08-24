@@ -532,7 +532,7 @@ type RconOpenRequest struct {
 	// served by a built-in transport.
 	//
 	// The handle belongs to this plugin, expires after
-	// PLUGIN_NET_MAX_TIMEOUT_SECONDS, and counts against the per-plugin open
+	// PLUGIN_NET_MAX_TIMEOUT, and counts against the per-plugin open
 	// connection cap (PLUGIN_NET_MAX_CONNECTIONS). The same handle is reused by
 	// RconExecute and RconClose until the panel closes the client.
 	ConnHandle uint64 `protobuf:"varint,2,opt,name=conn_handle,json=connHandle,proto3" json:"conn_handle,omitempty"`
