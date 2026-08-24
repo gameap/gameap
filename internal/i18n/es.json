@@ -569,7 +569,7 @@
     "validation_failed_title": "Error de validación del plugin",
     "installation_failed_title": "Error de instalación del plugin",
     "permissions": "Permisos",
-    "permissions_hint": "Qué puede hacer el plugin a través del panel. Las bibliotecas host releen los permisos en cada llamada, por lo que un cambio se aplica de inmediato.",
+    "permissions_hint": "Qué puede hacer el plugin a través del panel. Los cambios se aplican inmediatamente después de guardar.",
     "permissions_unknown": "Esta instancia del panel no ha cargado el plugin, por lo que aquí se desconoce qué permisos usa.",
     "permissions_save": "Guardar permisos",
     "permissions_saved": "Permisos del plugin actualizados",
