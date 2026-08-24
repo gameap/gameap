@@ -25,7 +25,9 @@ import (
 	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/plugin/hostlibrary"
 	"github.com/gameap/gameap/internal/pubsub"
+	pubsubintegration "github.com/gameap/gameap/internal/pubsub/integration"
 	pubsubmemory "github.com/gameap/gameap/internal/pubsub/memory"
 	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
@@ -93,6 +95,8 @@ type InmemoryContainer struct {
 	auditLogger             audit.Logger
 	pluginScheduler         *pluginscheduler.Service
 	pluginArchiveEvents     *pluginarchive.Service
+	pluginSubscriptionsPS   *pubsubintegration.PluginSubscriptionsNotifier
+	pluginGuard             *hostlibrary.Guard
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -225,6 +229,26 @@ func (c *InmemoryContainer) PluginArchiveEvents() *pluginarchive.Service {
 	}
 
 	return c.pluginArchiveEvents
+}
+
+// PluginGuard answers a guard with no permission checker: the API tests
+// exercise the handlers, not the host-library policy.
+func (c *InmemoryContainer) PluginGuard() *hostlibrary.Guard {
+	if c.pluginGuard == nil {
+		c.pluginGuard = hostlibrary.NewGuard(nil)
+	}
+
+	return c.pluginGuard
+}
+
+// PluginSubscriptionsNotifier answers a notifier over an in-memory pubsub:
+// handlers only publish through it, and nothing subscribes in tests.
+func (c *InmemoryContainer) PluginSubscriptionsNotifier() *pubsubintegration.PluginSubscriptionsNotifier {
+	if c.pluginSubscriptionsPS == nil {
+		c.pluginSubscriptionsPS = pubsubintegration.NewPluginSubscriptionsNotifier(pubsubmemory.New(), nil)
+	}
+
+	return c.pluginSubscriptionsPS
 }
 
 func (c *InmemoryContainer) PluginStoreService() *pluginstore.Service         { return nil }

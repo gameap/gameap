@@ -3,6 +3,7 @@ package testing
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"testing"
 
 	"github.com/gameap/gameap/internal/config"
@@ -76,24 +77,16 @@ func RunGrantRuntimePermissionsMigrationTest(
 	_, err = provider.UpTo(ctx, grantRuntimePermissionsVersion)
 	require.NoError(t, err)
 
-	granted := []domain.PluginPermission{
-		domain.PluginPermissionManageServers,
-		domain.PluginPermissionNodeCommands,
-		domain.PluginPermissionListenEvents,
-	}
-
 	for _, seed := range seeds {
 		plugins, err := repo.Find(ctx, filters.FindPluginByIDs(seed.id), nil, nil)
 		require.NoError(t, err)
 		require.Len(t, plugins, 1, seed.name)
 
-		for _, permission := range granted {
-			assert.Truef(t, plugins[0].HasPermission(permission), "%s must hold %s", seed.name, permission)
-		}
-
-		for _, permission := range seed.allowed {
-			assert.Truef(t, plugins[0].HasPermission(permission), "%s must keep %s", seed.name, permission)
-		}
+		// The complete set, not a containment check: an accidentally wider
+		// grant (a permission the migration was never meant to hand out)
+		// must fail here rather than reach an installation.
+		assert.ElementsMatchf(t, expectedPermissions(driver, seed.allowed), plugins[0].AllowedPermissions,
+			"%s must hold exactly the grandfathered permissions", seed.name)
 
 		seen := make(map[domain.PluginPermission]int)
 		for _, permission := range plugins[0].AllowedPermissions {
@@ -101,6 +94,33 @@ func RunGrantRuntimePermissionsMigrationTest(
 			assert.Equalf(t, 1, seen[permission], "%s holds %s twice", seed.name, permission)
 		}
 	}
+}
+
+// runtimeGrants are what 020 grandfathers onto every installation.
+var runtimeGrants = []domain.PluginPermission{
+	domain.PluginPermissionManageServers,
+	domain.PluginPermissionNodeCommands,
+	domain.PluginPermissionListenEvents,
+}
+
+// expectedPermissions answers the exact set a plugin must hold after 020.
+// A row that held nothing also gains "files" on SQLite: migration 015
+// compared the BLOB column against 'null' as text and missed those rows, so
+// 020 repairs what the other drivers already granted back then.
+func expectedPermissions(driver string, before []domain.PluginPermission) []domain.PluginPermission {
+	expected := append([]domain.PluginPermission(nil), before...)
+
+	for _, permission := range runtimeGrants {
+		if !slices.Contains(expected, permission) {
+			expected = append(expected, permission)
+		}
+	}
+
+	if driver == "sqlite" && len(before) == 0 && !slices.Contains(expected, domain.PluginPermissionFiles) {
+		expected = append(expected, domain.PluginPermissionFiles)
+	}
+
+	return expected
 }
 
 // migrationContainer is the slice of the application container the

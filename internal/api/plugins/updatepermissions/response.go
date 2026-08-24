@@ -10,8 +10,10 @@ type permissionsResponse struct {
 	ID                  string   `json:"id"`
 	RequiredPermissions []string `json:"required_permissions"`
 	AllowedPermissions  []string `json:"allowed_permissions"`
-	UsedPermissions     []string `json:"used_permissions,omitempty"`
-	MissingPermissions  []string `json:"missing_permissions,omitempty"`
+	// Null when the plugin is not loaded on this instance (unknown), an
+	// empty list when it is loaded and exercises nothing gated.
+	UsedPermissions    []string `json:"used_permissions"`
+	MissingPermissions []string `json:"missing_permissions"`
 }
 
 // newPermissionsResponse describes the plugin's grants after the update;

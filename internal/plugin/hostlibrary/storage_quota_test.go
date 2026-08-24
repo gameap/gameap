@@ -238,3 +238,73 @@ func (r *capturingStorageRepo) Find(
 
 	return r.PluginStorageRepository.Find(ctx, filter, order, pagination)
 }
+
+// failingReadWriteRepo makes every read and the delete fail.
+type failingReadWriteRepo struct {
+	repositories.PluginStorageRepository
+}
+
+func (failingReadWriteRepo) Find(
+	context.Context, *filters.FindPluginStorage, []filters.Sorting, *filters.Pagination,
+) ([]domain.PluginStorageEntry, error) {
+	return nil, errQuotaTestConnection
+}
+
+func (failingReadWriteRepo) DeleteByFilter(context.Context, *filters.FindPluginStorage) error {
+	return errQuotaTestConnection
+}
+
+func TestStorageService_hides_driver_errors_from_the_guest(t *testing.T) {
+	t.Parallel()
+
+	svc := NewStorageService(testPluginID, failingReadWriteRepo{inmemory.NewPluginStorageRepository()})
+	ctx := context.Background()
+
+	t.Run("get", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := svc.Get(ctx, &storage.StorageGetRequest{Key: "a"})
+		// A returned error would reach the guest through the host glue,
+		// which panics on it.
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.False(t, resp.Found)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, storageReadFailureMessage, *resp.Error)
+		assert.NotContains(t, *resp.Error, "connection reset")
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := svc.Delete(ctx, &storage.StorageDeleteRequest{Key: "a"})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.False(t, resp.Success)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, storageWriteFailureMessage, *resp.Error)
+		assert.NotContains(t, *resp.Error, "connection reset")
+	})
+
+	t.Run("list", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := svc.List(ctx, &storage.StorageListRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.Empty(t, resp.Entries)
+		assert.False(t, resp.HasMore)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, storageReadFailureMessage, *resp.Error)
+		assert.NotContains(t, *resp.Error, "connection reset")
+	})
+
+	t.Run("set_read_failure", func(t *testing.T) {
+		t.Parallel()
+
+		resp := setEntry(t, svc, "a", 1)
+		assert.False(t, resp.Success)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, storageReadFailureMessage, *resp.Error)
+	})
+}

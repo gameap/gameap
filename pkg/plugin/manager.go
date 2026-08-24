@@ -1,12 +1,12 @@
 package plugin
 
 import (
+	"cmp"
 	"context"
 	"io/fs"
 	"log/slog"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -411,6 +411,8 @@ func (m *Manager) initializeRuntime(
 	}
 
 	if err = m.verifyAPIVersion(startCtx, r, module); err != nil {
+		closeRuntimeAfterFailure(ctx, r, "API version verification", err)
+
 		return nil, nil, nil, err
 	}
 
@@ -450,12 +452,11 @@ func hostImports(code wazero.CompiledModule) []HostImport {
 		imports = append(imports, imp)
 	}
 
-	sort.Slice(imports, func(i, j int) bool {
-		if imports[i].Module != imports[j].Module {
-			return imports[i].Module < imports[j].Module
-		}
-
-		return imports[i].Function < imports[j].Function
+	slices.SortFunc(imports, func(a, b HostImport) int {
+		return cmp.Or(
+			cmp.Compare(a.Module, b.Module),
+			cmp.Compare(a.Function, b.Function),
+		)
 	})
 
 	return imports

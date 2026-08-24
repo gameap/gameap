@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -182,4 +183,68 @@ func TestHTTPHandler_buildProtoRequest_carries_the_user(t *testing.T) {
 	assert.Equal(t, uint64(9), *req.Context.UserId)
 	require.NotNil(t, req.Session)
 	assert.Equal(t, uint64(9), req.Session.User.Id)
+}
+
+func TestDispatcher_Dispatch_revalidates_the_gate_per_delivery(t *testing.T) {
+	t.Parallel()
+
+	delivered := make([]string, 0)
+	var mu sync.Mutex
+
+	newPlugin := func(id string, dbID uint64) *LoadedPlugin {
+		return &LoadedPlugin{
+			Info:    &proto.PluginInfo{Id: id},
+			Enabled: true,
+			DBID:    dbID,
+			Instance: &mockPluginService{
+				getSubscribedEventsFunc: func(_ context.Context, _ *proto.GetSubscribedEventsRequest) (*proto.GetSubscribedEventsResponse, error) {
+					return &proto.GetSubscribedEventsResponse{
+						Events: []proto.EventType{proto.EventType_EVENT_TYPE_SERVER_POST_START},
+					}, nil
+				},
+				handleEventFunc: func(_ context.Context, _ *proto.Event) (*proto.EventResult, error) {
+					mu.Lock()
+					defer mu.Unlock()
+					delivered = append(delivered, id)
+
+					return &proto.EventResult{Handled: true}, nil
+				},
+			},
+		}
+	}
+
+	manager := newDispatcherTestManager()
+	manager.plugins["keeps"] = newPlugin("keeps", 1)
+	manager.plugins["revoked"] = newPlugin("revoked", 2)
+
+	// The grant of plugin 2 is withdrawn after the subscription map was
+	// built, as a revocation on another panel instance does.
+	revoked := false
+	observer := &observerRecorder{}
+	dispatcher := NewDispatcher(manager, discardLogger(),
+		WithDispatcherObserver(observer),
+		WithSubscriptionGate(func(_ context.Context, plugin *LoadedPlugin) bool {
+			return !revoked || plugin.DBID != 2
+		}))
+
+	require.NoError(t, dispatcher.RefreshSubscriptions(context.Background()))
+
+	server := &domain.Server{ID: 1, Name: "cs"}
+	dispatcher.DispatchServerEvent(context.Background(), proto.EventType_EVENT_TYPE_SERVER_POST_START, server, nil)
+
+	mu.Lock()
+	assert.ElementsMatch(t, []string{"keeps", "revoked"}, delivered, "both hold the grant before the revocation")
+	delivered = delivered[:0]
+	mu.Unlock()
+
+	revoked = true
+	dispatcher.DispatchServerEvent(context.Background(), proto.EventType_EVENT_TYPE_SERVER_POST_START, server, nil)
+
+	mu.Lock()
+	assert.Equal(t, []string{"keeps"}, delivered,
+		"the revoked plugin is skipped without waiting for a subscription refresh")
+	mu.Unlock()
+
+	_, _, events := observer.snapshot()
+	assert.Contains(t, events, "EVENT_TYPE_SERVER_POST_START:denied")
 }

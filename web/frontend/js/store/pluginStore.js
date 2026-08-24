@@ -304,8 +304,10 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
                     ...plugin,
                     required_permissions: updated.required_permissions,
                     allowed_permissions: updated.allowed_permissions,
-                    used_permissions: updated.used_permissions,
-                    missing_permissions: updated.missing_permissions,
+                    // null means "not loaded on the instance that answered";
+                    // the rows keep an array, as the list mapping does.
+                    used_permissions: updated.used_permissions ?? [],
+                    missing_permissions: updated.missing_permissions ?? [],
                 }
                 : plugin)
 

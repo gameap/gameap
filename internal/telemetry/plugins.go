@@ -104,7 +104,8 @@ func NewPluginMetrics(registry *Registry, plugins PluginLister, backlog BacklogR
 
 	m.backlog = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Namespace: Namespace, Subsystem: pluginSubsystem, Name: "async_backlog",
-		Help: "Fire-and-forget event deliveries in flight or queued on this instance.",
+		Help: "Fire-and-forget event batches in flight or queued on this instance; " +
+			"one batch may carry several events.",
 	}, func() float64 {
 		if m.backlogSrc == nil {
 			return 0

@@ -47,9 +47,11 @@ const (
 )
 
 // SubscriptionGate decides whether a plugin that subscribes to events may
-// receive them; it is consulted on every RefreshSubscriptions for plugins
-// with a non-empty subscription list. The panel gates on the plugin's
-// "listen_events" grant.
+// receive them. It is consulted on every RefreshSubscriptions for plugins
+// with a non-empty subscription list, and again before each delivery: the
+// subscription map is per instance, so a revocation on another instance
+// would otherwise keep reaching this one until it refreshes. The panel
+// gates on the plugin's "listen_events" grant.
 type SubscriptionGate func(ctx context.Context, plugin *LoadedPlugin) bool
 
 // DispatcherOption tunes a Dispatcher.
@@ -176,6 +178,12 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *proto.Event) *EventDis
 			continue
 		}
 
+		if !d.admits(ctx, plugin) {
+			d.observer.EventDispatched(event.Type, EventResultDenied)
+
+			continue
+		}
+
 		eventResult, err := d.handleEvent(ctx, plugin, event)
 		if err != nil {
 			result.Errors = append(result.Errors, errors.Wrapf(
@@ -219,6 +227,26 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *proto.Event) *EventDis
 	}
 
 	return result
+}
+
+// admits reports whether the plugin still holds the grant behind its
+// subscriptions. The cached map is only refreshed on this instance, so the
+// gate is evaluated again per delivery; a plugin that lost the grant is
+// skipped until the next refresh drops it from the map.
+func (d *Dispatcher) admits(ctx context.Context, plugin *LoadedPlugin) bool {
+	if d.gate == nil {
+		return true
+	}
+
+	if d.gate(ctx, plugin) {
+		return true
+	}
+
+	d.logger.Warn("event delivery skipped, plugin no longer holds the listen_events grant",
+		slog.String("plugin_id", plugin.Info.Id),
+	)
+
+	return false
 }
 
 // handleEvent calls a single plugin with a per-call deadline. On expiry the

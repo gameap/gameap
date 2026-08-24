@@ -347,7 +347,8 @@ func (r *PluginStorageRepository) getFilteredEntryIDs(filter *filters.FindPlugin
 
 func (r *PluginStorageRepository) intersectWithKeyPrefix(resultIDs map[uint64]struct{}, prefix string) {
 	for entryID := range resultIDs {
-		if !strings.HasPrefix(r.entries[entryID].Key, prefix) {
+		entry, ok := r.entries[entryID]
+		if !ok || !strings.HasPrefix(entry.Key, prefix) {
 			delete(resultIDs, entryID)
 		}
 	}
