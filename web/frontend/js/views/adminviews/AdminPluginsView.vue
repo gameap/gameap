@@ -188,6 +188,16 @@ const createInstalledColumns = () => {
           badges.push(h(GStatusBadge, { color: 'orange', text: trans('plugins.update_available') }))
         }
 
+        if (row.sync && row.sync.state !== 'in_sync') {
+          badges.push(h('span', {
+            class: 'px-2 py-0.5 text-xs font-medium rounded-full ' + (row.sync.state === 'failed'
+              ? 'bg-danger-soft text-danger-soft-text'
+              : 'bg-warning-soft text-warning-soft-text'),
+            title: row.sync.error || undefined,
+            'data-testid': 'plugin-sync-badge',
+          }, trans('plugins.sync_' + row.sync.state)))
+        }
+
         if (!isSmallScreen.value && row.labels?.length > 0) {
           row.labels.forEach(label => {
             badges.push(h(GStatusBadge, {

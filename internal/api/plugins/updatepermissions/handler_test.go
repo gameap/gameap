@@ -175,14 +175,16 @@ func TestUpdatePermissions(t *testing.T) {
 		wantAuditLen int
 	}{
 		{
-			name:         "grants_and_revokes",
-			id:           compactID,
-			body:         `{"allowed_permissions": ["files", "node_commands"]}`,
-			plugins:      []*domain.Plugin{installed()},
-			loaded:       map[string]*pkgplugin.LoadedPlugin{compactID: loaded},
-			wantStatus:   http.StatusOK,
-			wantAllowed:  []string{"files", "node_commands"},
-			wantUsed:     []string{"files", "listen_events", "node_commands"},
+			name:        "grants_and_revokes",
+			id:          compactID,
+			body:        `{"allowed_permissions": ["files", "node_commands"]}`,
+			plugins:     []*domain.Plugin{installed()},
+			loaded:      map[string]*pkgplugin.LoadedPlugin{compactID: loaded},
+			wantStatus:  http.StatusOK,
+			wantAllowed: []string{"files", "node_commands"},
+			// The fixture only reads through gameap-nodefs, so it uses
+			// files_read; the granted "files" includes it.
+			wantUsed:     []string{"files_read", "listen_events", "node_commands"},
 			wantMissing:  []string{"listen_events"},
 			wantGranted:  []string{"node_commands"},
 			wantRevoked:  []string{"listen_events"},
@@ -263,7 +265,7 @@ func TestUpdatePermissions(t *testing.T) {
 			announcer := &fakeAnnouncer{}
 			refresher := &fakeRefresher{announcer: announcer}
 			handler := updatepermissions.NewHandler(repo, &fakeManager{plugins: tt.loaded}, nil, refresher,
-				announcer, api.NewResponder(), recorder)
+				nil, announcer, api.NewResponder(), recorder)
 
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, permissionsRequest(tt.id, tt.body))

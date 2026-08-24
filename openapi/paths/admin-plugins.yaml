@@ -75,9 +75,6 @@
                 type: string
                 format: binary
                 description: WASM plugin file (max 100MB)
-              config:
-                type: string
-                description: Optional JSON configuration for the plugin
     responses:
       '200':
         description: Plugin installed successfully

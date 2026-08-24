@@ -188,6 +188,7 @@ func executeUpdate(
 		fileManager,
 		loader,
 		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 	)
@@ -394,6 +395,7 @@ func TestUpdatePlugin_not_installed(t *testing.T) {
 		storeService,
 		pluginRepo,
 		fileManager,
+		nil,
 		nil,
 		nil,
 		"plugins",
@@ -776,6 +778,7 @@ func TestUpdatePlugin_pipeline_failures(t *testing.T) {
 				repo,
 				fileManager,
 				loader,
+				nil,
 				nil,
 				"plugins",
 				api.NewResponder(),

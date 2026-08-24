@@ -33,6 +33,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/enrollment"
 	"github.com/gameap/gameap/internal/files"
+	"github.com/gameap/gameap/internal/filters"
 	internalgrpc "github.com/gameap/gameap/internal/grpc"
 	"github.com/gameap/gameap/internal/grpc/filetransfer"
 	"github.com/gameap/gameap/internal/grpc/gateway"
@@ -70,6 +71,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
@@ -211,6 +213,7 @@ type Container struct {
 	pluginManager         *pkgplugin.Manager
 	pluginDispatcher      *pkgplugin.Dispatcher
 	pluginGuard           *hostlibrary.Guard
+	pluginPathPolicy      *hostlibrary.PathPolicy
 	pluginPermissions     *hostlibrary.CachedPermissionChecker
 	pluginEnforcer        hostlibrary.PluginPermissionChecker
 	pluginSubscriptionsPS *pubsubintegration.PluginSubscriptionsNotifier
@@ -225,6 +228,7 @@ type Container struct {
 	schedulerLocker       locker.Locker
 
 	pluginArchiveEvents *pluginarchive.Service
+	pluginSync          *pluginsync.Service
 
 	// HTTP
 	router                    *http.ServeMux
@@ -305,8 +309,12 @@ func (c *Container) Shutdown() error {
 
 	c.shutdownGRPCServer()
 
-	// Pending automatic plugin reloads must not race the runtime shutdown
-	// below: stop the supervisor and wait for reloads in flight.
+	// The reconciler and the recovery supervisor both rebuild modules; stop
+	// them before the runtime shutdown below and wait for passes in flight.
+	if c.pluginSync != nil {
+		c.pluginSync.Stop()
+	}
+
 	if c.pluginRecovery != nil {
 		c.pluginRecovery.Stop()
 	}
@@ -1674,11 +1682,17 @@ func (c *Container) CertificatesService() *certificates.Service {
 func (c *Container) EnrollmentService() *enrollment.Service {
 	if c.enrollmentService == nil {
 		keyManager := enrollment.NewSetupKeyManager(c.Cache(), c.config.DaemonSetupKey)
+		opts := []enrollment.ServiceOption{}
+		if !c.config.Plugins.Disabled {
+			opts = append(opts, enrollment.WithNodeEvents(&lazyPluginNodeEvents{container: c}))
+		}
+
 		c.enrollmentService = enrollment.NewService(
 			keyManager,
 			c.NodeRepository(),
 			c.ClientCertificateRepository(),
 			c.CertificatesService(),
+			opts...,
 		)
 	}
 
@@ -2112,6 +2126,45 @@ func (c *Container) PluginScheduler() *pluginscheduler.Service {
 	return c.pluginScheduler
 }
 
+// PluginSync returns the multi-instance plugin reconciler, nil when plugins
+// or the sync are disabled (every caller tolerates the nil).
+func (c *Container) PluginSync() *pluginsync.Service {
+	if c.config.Plugins.Disabled || c.config.Plugin.Sync.Disabled {
+		return nil
+	}
+
+	if c.pluginSync == nil {
+		var store pluginsync.StoreDownloader
+		if storeService := c.PluginStoreService(); storeService != nil {
+			store = storeService
+		}
+
+		c.pluginSync = pluginsync.New(
+			pluginsync.Deps{
+				Repo:       c.PluginRepository(),
+				Loader:     c.PluginLoader(),
+				Plugins:    c.PluginManager(),
+				Subs:       c.PluginDispatcher(),
+				Archive:    c.PluginArchiveEvents(),
+				Files:      c.FileManager(),
+				Store:      store,
+				Locks:      c.SchedulerLocker(),
+				Bus:        c.PubSub(),
+				Audit:      c.AuditLogger(),
+				PluginsDir: c.PluginsDir(),
+			},
+			pluginsync.Options{
+				RefreshInterval: c.config.Plugin.Sync.RefreshInterval,
+				MinBackoff:      c.config.Plugin.Sync.MinBackoff,
+				MaxBackoff:      c.config.Plugin.Sync.MaxBackoff,
+			},
+			slog.Default(),
+		)
+	}
+
+	return c.pluginSync
+}
+
 // SchedulerLocker picks the strongest available coordination backend: Redis
 // when the cache runs on it, otherwise the shared database (kv_store table);
 // the in-memory database has no shared medium, so the lock stays local.
@@ -2201,7 +2254,8 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			&lazyServerController{container: c},
 			guard,
 		),
-		hostlibrary.NewNodeCmdHostLibraryFactory(c.DaemonCommands(), c.NodeRepository(), guard),
+		hostlibrary.NewNodeCmdHostLibraryFactory(c.DaemonCommands(), c.NodeRepository(), guard,
+			hostlibrary.WithNodeCmdPathPolicy(c.PluginPathPolicy())),
 		// Per-plugin: every plugin gets its own cache namespace.
 		hostlibrary.NewCacheHostLibraryFactory(
 			c.Cache(),
@@ -2218,6 +2272,8 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
 		}, guard),
 	}
+
+	factories = append(factories, c.hostIntrospectionFactory())
 
 	if c.config.Plugin.Net.Enabled {
 		factories = append(factories, hostlibrary.NewNetHostLibraryFactory(
@@ -2258,6 +2314,41 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			recovery.OnPluginDisabled(pluginID, dbID, reason)
 		},
 	})
+}
+
+// PluginPathPolicy confines the node paths plugins may name through
+// gameap-nodefs, gameap-nodecmd and file responses (PLUGIN_NODEFS_PATH_POLICY).
+// The configuration is validated at boot (see application.go); a value that
+// slipped past it is a programming error.
+func (c *Container) PluginPathPolicy() *hostlibrary.PathPolicy {
+	if c.pluginPathPolicy == nil {
+		policy, err := hostlibrary.NewPathPolicy(hostlibrary.PathPolicyConfig{
+			Mode:         hostlibrary.PathPolicyMode(c.config.Plugin.NodeFS.PathPolicy),
+			AllowedPaths: c.config.Plugin.NodeFS.AllowedPaths,
+		}, c.ServerRepository())
+		if err != nil {
+			panic("invalid plugin path policy: " + err.Error())
+		}
+
+		c.pluginPathPolicy = policy
+	}
+
+	return c.pluginPathPolicy
+}
+
+// hostIntrospectionFactory builds the per-plugin gameap-host module:
+// introspection of the plugin's own grants and of the host it runs on, keyed
+// on the plugin id.
+func (c *Container) hostIntrospectionFactory() pkgplugin.HostLibraryFactory {
+	return hostlibrary.NewHostHostLibraryFactory(
+		c.PluginRepository(),
+		&lazyPluginStateSink{container: c},
+		hostlibrary.HostInfo{
+			PanelVersion:     defaults.Version,
+			PluginAPIVersion: uint32(pluginproto.PluginServicePluginAPIVersion),
+			InstanceID:       c.instanceID(),
+		},
+	)
 }
 
 // PluginGuard is the shared grant / rate-limit / audit enforcement in front
@@ -2366,8 +2457,20 @@ func (l *lazyPluginBacklog) AsyncBacklog() int {
 	return l.container.pluginDispatcher.AsyncBacklog()
 }
 
-// pluginMemoryLimitBytes converts the configured megabytes to the manager's
-// byte cap; a non-positive value keeps the wazero default.
+// lazyPluginStateSink resolves the plugin manager at call time: the host
+// libraries are built while the manager itself is being constructed.
+type lazyPluginStateSink struct {
+	container *Container
+}
+
+func (l *lazyPluginStateSink) HostModules(dbID uint64) ([]string, bool) {
+	if l.container.pluginManager == nil {
+		return nil, false
+	}
+
+	return l.container.pluginManager.HostModules(dbID)
+}
+
 // lazyPluginRecovery forwards runtime disables to the recovery supervisor,
 // which PluginLoader() creates after the manager; hooks only fire after
 // LoadAll, so the supervisor exists by then.
@@ -2561,6 +2664,7 @@ func (c *Container) PluginLoader() *internalplugin.Loader {
 			c.PluginsDir(),
 			internalplugin.WithStrictLoad(c.config.Plugins.StrictLoad),
 			internalplugin.WithSubscriptionRefresher(c.PluginDispatcher()),
+			internalplugin.WithLifecycleEvents(c.PluginDispatcher()),
 			internalplugin.WithPermissionEnforcement(c.config.Plugin.Permissions.Enforce),
 		)
 
@@ -2618,15 +2722,96 @@ func (c *Container) WSBridge() *ws.Bridge {
 
 func (c *Container) SessionRegistry() *session.Registry {
 	if c.sessionRegistry == nil {
-		instanceID := c.config.PubSub.InstanceID
-		if instanceID == "" {
-			instanceID = defaultInstanceID
-		}
-		c.sessionRegistry = session.NewRegistry(c.PubSub(), instanceID, slog.Default())
+		c.sessionRegistry = session.NewRegistry(c.PubSub(), c.instanceID(), slog.Default())
 		c.sessionRegistry.SetMetricsWaiterRegistrar(c.MetricsHandler())
+
+		if !c.config.Plugins.Disabled {
+			c.sessionRegistry.SetSessionObserver(&lazyPluginNodeSessions{container: c})
+		}
 	}
 
 	return c.sessionRegistry
+}
+
+// instanceID identifies this panel instance (PUBSUB_INSTANCE_ID, "default"
+// when unset).
+func (c *Container) instanceID() string {
+	if c.config.PubSub.InstanceID != "" {
+		return c.config.PubSub.InstanceID
+	}
+
+	return defaultInstanceID
+}
+
+// lazyPluginNodeSessions turns the daemon sessions this instance owns into
+// NODE_ONLINE / NODE_OFFLINE plugin events. The dispatcher is resolved at
+// call time: the session registry is built long before the plugin runtime.
+type lazyPluginNodeSessions struct {
+	container *Container
+}
+
+func (l *lazyPluginNodeSessions) SessionRegistered(
+	ctx context.Context,
+	nodeID uint64,
+	version string,
+	reconnect bool,
+) {
+	l.dispatch(ctx, pluginproto.EventType_EVENT_TYPE_NODE_ONLINE, nodeID, map[string]string{
+		"daemon_version": version,
+		"instance_id":    l.container.instanceID(),
+		"reconnect":      strconv.FormatBool(reconnect),
+	})
+}
+
+func (l *lazyPluginNodeSessions) SessionUnregistered(
+	ctx context.Context,
+	nodeID uint64,
+	version string,
+	connectedAt time.Time,
+) {
+	l.dispatch(ctx, pluginproto.EventType_EVENT_TYPE_NODE_OFFLINE, nodeID, map[string]string{
+		"daemon_version": version,
+		"instance_id":    l.container.instanceID(),
+		"connected_at":   strconv.FormatInt(connectedAt.Unix(), 10),
+	})
+}
+
+func (l *lazyPluginNodeSessions) dispatch(
+	ctx context.Context,
+	eventType pluginproto.EventType,
+	nodeID uint64,
+	extra map[string]string,
+) {
+	if l.container.pluginDispatcher == nil || !l.container.pluginDispatcher.HasSubscribers(eventType) {
+		return
+	}
+
+	nodes, err := l.container.NodeRepository().Find(ctx, filters.FindNodeByIDs(uint(nodeID)), nil,
+		&filters.Pagination{Limit: 1})
+	if err != nil || len(nodes) == 0 {
+		slog.WarnContext(ctx, "daemon session transition without a node row, plugin event skipped",
+			slog.Uint64("node_id", nodeID),
+			slog.String("event", pluginproto.EventType_name[int32(eventType)]))
+
+		return
+	}
+
+	l.container.pluginDispatcher.DispatchNodeEventAsync(ctx, eventType, &nodes[0], extra)
+}
+
+// lazyPluginNodeEvents forwards NODE_CREATED from the enrollment service,
+// which the gateway builds before the plugin runtime exists.
+type lazyPluginNodeEvents struct {
+	container *Container
+}
+
+func (l *lazyPluginNodeEvents) DispatchNodeEventAsync(
+	ctx context.Context,
+	eventType pluginproto.EventType,
+	node *domain.Node,
+	extraData map[string]string,
+) {
+	l.container.PluginDispatcher().DispatchNodeEventAsync(ctx, eventType, node, extraData)
 }
 
 func (c *Container) TaskHandler() *handlers.TaskHandler {

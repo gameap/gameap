@@ -133,6 +133,30 @@ properties:
     items:
       $ref: './PluginPermission.yaml'
     example: ["node_commands"]
+  sync:
+    type: object
+    description: |
+      What the multi-instance reconciler did for the plugin on the answering
+      instance. Absent when `PLUGIN_SYNC_DISABLED` is set or the reconciler
+      never touched the plugin. Per instance — not aggregated across the
+      fleet. For a plugin this instance could not load, `status` and `error`
+      report this instance's failure even though a peer may run it.
+    properties:
+      state:
+        type: string
+        enum: [in_sync, retrying, failed]
+      error:
+        type: string
+      failures:
+        type: integer
+      last_attempt_at:
+        type: string
+        format: date-time
+      next_retry_at:
+        type: string
+        format: date-time
+    required:
+      - state
 required:
   - id
   - name

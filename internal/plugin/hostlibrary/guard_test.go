@@ -78,7 +78,14 @@ func (r *denialRecorder) all() []string {
 type grantSet map[domain.PluginPermission]bool
 
 func (g grantSet) Has(_ context.Context, _ uint64, permission domain.PluginPermission) (bool, error) {
-	return g[permission], nil
+	granted := make([]domain.PluginPermission, 0, len(g))
+	for name, ok := range g {
+		if ok {
+			granted = append(granted, name)
+		}
+	}
+
+	return domain.PermissionSatisfied(permission, granted), nil
 }
 
 func TestPluginGuard_Check_enforces_policy_table(t *testing.T) {
@@ -127,10 +134,31 @@ func TestPluginGuard_Check_enforces_policy_table(t *testing.T) {
 			wantError: "",
 		},
 		{
-			name:      "nodefs_read_needs_files",
+			name:      "nodefs_read_needs_files_read",
 			module:    ModuleNodeFS,
 			export:    "read_dir",
 			grants:    grantSet{domain.PluginPermissionNodeCommands: true},
+			wantError: "plugin permission files_read required",
+		},
+		{
+			name:      "nodefs_read_satisfied_by_files",
+			module:    ModuleNodeFS,
+			export:    "read_dir",
+			grants:    grantSet{domain.PluginPermissionFiles: true},
+			wantError: "",
+		},
+		{
+			name:      "nodefs_read_satisfied_by_files_read",
+			module:    ModuleNodeFS,
+			export:    "download",
+			grants:    grantSet{domain.PluginPermissionFilesRead: true},
+			wantError: "",
+		},
+		{
+			name:      "nodefs_write_needs_files",
+			module:    ModuleNodeFS,
+			export:    "upload",
+			grants:    grantSet{domain.PluginPermissionFilesRead: true},
 			wantError: "plugin permission files required",
 		},
 		{
@@ -418,10 +446,6 @@ func TestPluginGuard_Audit_records_outcome(t *testing.T) {
 	}
 }
 
-// TestHostRPCPolicies_cover_generated_exports fails when a gated module
-// gains a host function the policy table does not know: the SDK glue in
-// sdk/<module>/<module>_host.pb.go is the ground truth of what a guest can
-// import.
 func TestGuard_Forget_drops_the_cached_grants(t *testing.T) {
 	t.Parallel()
 
@@ -436,10 +460,14 @@ func TestGuard_Forget_drops_the_cached_grants(t *testing.T) {
 	source.set()
 	guard.Forget(7)
 
-	assert.Equal(t, PermissionDeniedMessage(domain.PluginPermissionFiles),
+	assert.Equal(t, PermissionDeniedMessage(domain.PluginPermissionFilesRead),
 		guard.For(7).Check(t.Context(), ModuleNodeFS, "read_dir"))
 }
 
+// TestHostRPCPolicies_cover_generated_exports fails when a gated module
+// gains a host function the policy table does not know: the SDK glue in
+// sdk/<module>/<module>_host.pb.go is the ground truth of what a guest can
+// import.
 func TestHostRPCPolicies_cover_generated_exports(t *testing.T) {
 	t.Parallel()
 
@@ -455,14 +483,20 @@ func TestHostRPCPolicies_cover_generated_exports(t *testing.T) {
 		ModuleDaemonTasks:    "daemontasks",
 		ModuleServers:        "servers",
 		ModuleServerSettings: "serversettings",
+		ModuleHost:           "host",
 	}
 
-	// Read-only functions of mixed modules that deliberately need no grant.
+	// Read-only functions of mixed modules that deliberately need no grant,
+	// and the introspection module, open as a whole.
 	open := map[HostRPC]struct{}{
 		{ModuleDaemonTasks, "find_daemon_tasks"}:       {},
 		{ModuleServers, "find_servers"}:                {},
 		{ModuleServers, "get_server"}:                  {},
 		{ModuleServerSettings, "find_server_settings"}: {},
+		{ModuleHost, "get_grants"}:                     {},
+		{ModuleHost, "get_config"}:                     {},
+		{ModuleHost, "get_host_info"}:                  {},
+		{ModuleHost, "report_status"}:                  {},
 	}
 
 	for module, dir := range modules {

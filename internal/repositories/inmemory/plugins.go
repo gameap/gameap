@@ -12,6 +12,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/repositories"
 	"github.com/pkg/errors"
 )
 
@@ -95,10 +96,12 @@ func (r *PluginRepository) Save(_ context.Context, plugin *domain.Plugin) error 
 		Filename:            plugin.Filename,
 		Source:              plugin.Source,
 		Homepage:            plugin.Homepage,
+		Checksum:            copyStringPtr(plugin.Checksum),
 		RequiredPermissions: copyPermissions(plugin.RequiredPermissions),
 		AllowedPermissions:  copyPermissions(plugin.AllowedPermissions),
 		Status:              plugin.Status,
 		Priority:            plugin.Priority,
+		Generation:          plugin.Generation,
 		Category:            plugin.Category,
 		Dependencies:        copyStrings(plugin.Dependencies),
 		Config:              copyConfig(plugin.Config),
@@ -109,6 +112,29 @@ func (r *PluginRepository) Save(_ context.Context, plugin *domain.Plugin) error 
 		CreatedAt:           plugin.CreatedAt,
 		UpdatedAt:           plugin.UpdatedAt,
 	}
+
+	return nil
+}
+
+func (r *PluginRepository) UpdateLoadState(
+	_ context.Context,
+	id domain.Uint64ID,
+	state domain.PluginLoadState,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	plugin, exists := r.plugins[id]
+	if !exists {
+		return repositories.ErrPluginNotFound
+	}
+
+	plugin.Status = state.Status
+	plugin.LastError = copyStringPtr(state.LastError)
+	plugin.LastErrorAt = copyTimePtr(state.LastErrorAt)
+	plugin.LastLoadedAt = copyTimePtr(state.LastLoadedAt)
+	plugin.Generation = state.Generation
+	plugin.UpdatedAt = new(time.Now())
 
 	return nil
 }
@@ -234,10 +260,12 @@ func (r *PluginRepository) copyPlugin(plugin *domain.Plugin) domain.Plugin {
 		Filename:            plugin.Filename,
 		Source:              plugin.Source,
 		Homepage:            plugin.Homepage,
+		Checksum:            copyStringPtr(plugin.Checksum),
 		RequiredPermissions: copyPermissions(plugin.RequiredPermissions),
 		AllowedPermissions:  copyPermissions(plugin.AllowedPermissions),
 		Status:              plugin.Status,
 		Priority:            plugin.Priority,
+		Generation:          plugin.Generation,
 		Category:            plugin.Category,
 		Dependencies:        copyStrings(plugin.Dependencies),
 		Config:              copyConfig(plugin.Config),

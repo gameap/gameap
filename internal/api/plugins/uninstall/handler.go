@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/filters"
+	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/services/plugininstall"
 	"github.com/gameap/gameap/pkg/api"
@@ -29,6 +30,7 @@ type Handler struct {
 	archiveEvents ArchiveEvents
 	storage       PluginStorageCleaner
 	secrets       PluginSecretCleaner
+	sync          plugininstall.SyncNotifier
 	guard         PluginPolicyCleaner
 	pluginsDir    string
 	responder     base.Responder
@@ -45,6 +47,7 @@ func NewHandler(
 	archiveEvents ArchiveEvents,
 	storage PluginStorageCleaner,
 	secrets PluginSecretCleaner,
+	sync plugininstall.SyncNotifier,
 	guard PluginPolicyCleaner,
 	pluginsDir string,
 	responder base.Responder,
@@ -64,6 +67,7 @@ func NewHandler(
 		archiveEvents: archiveEvents,
 		storage:       storage,
 		secrets:       secrets,
+		sync:          sync,
 		guard:         guard,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
@@ -100,6 +104,13 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	pluginRecord := &installedPlugins[0]
+
+	// Held until the row is gone: the reconciler must not revive the module
+	// from the file this handler is about to delete.
+	if unloader, ok := h.resolver.(RecordUnloader); ok {
+		release := unloader.Hold(dbID)
+		defer release()
+	}
 
 	if err := h.unloadPlugin(ctx, dbID); err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to unload plugin"))
@@ -162,6 +173,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		"plugin", strconv.FormatUint(uint64(dbID), 10), "uninstall",
 		slog.Int("secrets_removed", secretsRemoved))
 
+	plugininstall.Notify(ctx, h.sync, dbID, plugininstall.ActionUninstall)
+
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -189,6 +202,14 @@ func (h *Handler) cleanupPluginData(ctx context.Context, dbID domain.Uint64ID) (
 }
 
 func (h *Handler) unloadPlugin(ctx context.Context, dbID domain.Uint64ID) error {
+	// The loader owns the whole unload: pending recovery, subscriptions and
+	// the PLUGIN_UNLOADED event.
+	if unloader, ok := h.resolver.(RecordUnloader); ok {
+		_, err := unloader.UnloadRecord(ctx, dbID, internalplugin.TriggerUninstall)
+
+		return err
+	}
+
 	// A reload the recovery supervisor scheduled must not bring the plugin
 	// back after the uninstall; cancel it whether or not the plugin is
 	// currently loaded.

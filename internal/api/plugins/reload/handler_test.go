@@ -163,7 +163,7 @@ func TestReload(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			recorder := &auditCapture{}
-			handler := reload.NewHandler(tt.reloader, api.NewResponder(), recorder)
+			handler := reload.NewHandler(tt.reloader, nil, api.NewResponder(), recorder)
 			w := httptest.NewRecorder()
 
 			handler.ServeHTTP(w, reloadRequest("testplugin123"))
@@ -210,7 +210,7 @@ func TestReload(t *testing.T) {
 func TestReload_MissingID(t *testing.T) {
 	t.Parallel()
 	reloader := &fakeReloader{}
-	handler := reload.NewHandler(reloader, api.NewResponder(), nil)
+	handler := reload.NewHandler(reloader, nil, api.NewResponder(), nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/admin/plugins//reload", nil))
@@ -240,7 +240,7 @@ func TestReload_ResolvesDatabaseIDThroughLoader(t *testing.T) {
 		fakeReloader: fakeReloader{plugin: &domain.Plugin{ID: 777, Name: "Mapped", Version: "1.0.0", Status: domain.PluginStatusActive}},
 		mapping:      map[string]domain.Uint64ID{"declaredid": 777},
 	}
-	handler := reload.NewHandler(reloader, api.NewResponder(), nil)
+	handler := reload.NewHandler(reloader, nil, api.NewResponder(), nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, reloadRequest("declaredid"))

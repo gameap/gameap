@@ -66,7 +66,7 @@ func (c *CachedPermissionChecker) Has(
 		return false, err
 	}
 
-	return slices.Contains(permissions, permission), nil
+	return domain.PermissionSatisfied(permission, permissions), nil
 }
 
 // Grants answers from the cache when it can, otherwise reads the record once

@@ -487,7 +487,7 @@ func TestLoader_reload_honours_cancellation_without_marking_error(t *testing.T) 
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()
 
-	_, _, err := loader.reload(cancelled, plugin.ID)
+	_, _, err := loader.reload(cancelled, plugin.ID, TriggerRecovery, false)
 	require.ErrorIs(t, err, context.Canceled)
 
 	row := findPlugin(ctx, t, repo, plugin.ID)
@@ -530,7 +530,7 @@ func TestLoader_reload_records_expired_deadline_as_error(t *testing.T) {
 	expired, cancel := context.WithDeadline(ctx, time.Now().Add(-time.Second))
 	defer cancel()
 
-	_, _, err := loader.reload(expired, plugin.ID)
+	_, _, err := loader.reload(expired, plugin.ID, TriggerRecovery, false)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 
 	row := findPlugin(ctx, t, repo, plugin.ID)

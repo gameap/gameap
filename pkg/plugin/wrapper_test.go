@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk/gamemods"
 	"github.com/gameap/gameap/pkg/plugin/sdk/games"
+	"github.com/gameap/gameap/pkg/plugin/sdk/host"
 	"github.com/gameap/gameap/pkg/plugin/sdk/log"
 	"github.com/gameap/gameap/pkg/plugin/sdk/scheduler"
 	"github.com/gameap/gameap/pkg/plugin/sdk/servers"
@@ -152,6 +153,21 @@ func (s *stubSchedulerService) ListTasks(
 	return &scheduler.ListTasksResponse{}, nil
 }
 
+// stubHostService satisfies host.HostService; the example plugin reads its
+// grants and host info during Initialize.
+type stubHostService struct{}
+
+func (s *stubHostService) GetGrants(context.Context, *host.GetGrantsRequest) (*host.GetGrantsResponse, error) {
+	return &host.GetGrantsResponse{Permissions: []string{"listen_events"}}, nil
+}
+
+func (s *stubHostService) GetHostInfo(
+	context.Context,
+	*host.GetHostInfoRequest,
+) (*host.GetHostInfoResponse, error) {
+	return &host.GetHostInfoResponse{PanelVersion: "test", PluginApiVersion: 1, InstanceId: "test"}, nil
+}
+
 // Shared plugin instance — Manager.Load is expensive because of WASM compilation,
 // and the wrapper API is read-only/idempotent for these tests. Each test queries
 // the same loaded plugin without observable cross-test interference. The WASM
@@ -161,6 +177,7 @@ var (
 	sharedPluginOnce sync.Once
 	sharedManager    *Manager
 	sharedPlugin     *LoadedPlugin
+	sharedHostStub   = &stubHostService{}
 	errSharedLoad    error
 )
 
@@ -191,6 +208,9 @@ func loadSharedServerLoggerWASM(t *testing.T) *LoadedPlugin {
 				}),
 				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
 					return scheduler.Instantiate(ctx, r, &stubSchedulerService{})
+				}),
+				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+					return host.Instantiate(ctx, r, sharedHostStub)
 				}),
 			},
 		}

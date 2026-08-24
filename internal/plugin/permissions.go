@@ -34,6 +34,18 @@ func UsedPermissions(
 		used = append(used, domain.PluginPermissionListenEvents)
 	}
 
+	// A plugin that reads and writes files "uses" files, not files_read: a
+	// grant included in another one it already needs adds nothing.
+	used = slices.DeleteFunc(used, func(permission domain.PluginPermission) bool {
+		for _, superset := range domain.PluginPermissionSupersets(permission) {
+			if slices.Contains(used, superset) {
+				return true
+			}
+		}
+
+		return false
+	})
+
 	// Stable order: the panel's own permission list.
 	slices.SortFunc(used, func(a, b domain.PluginPermission) int {
 		return slices.Index(domain.PluginPermissions, a) - slices.Index(domain.PluginPermissions, b)
@@ -47,7 +59,7 @@ func MissingPermissions(used, granted []domain.PluginPermission) []domain.Plugin
 	missing := make([]domain.PluginPermission, 0)
 
 	for _, permission := range used {
-		if !slices.Contains(granted, permission) {
+		if !domain.PermissionSatisfied(permission, granted) {
 			missing = append(missing, permission)
 		}
 	}

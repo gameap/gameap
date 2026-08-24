@@ -19,6 +19,10 @@ const (
 	PluginEvents       = PluginPrefix + "events"
 	PluginServerEvents = PluginPrefix + "events:server"
 	PluginTaskEvents   = PluginPrefix + "events:task"
+	// PluginSync carries hints that a plugin row changed; receivers re-read
+	// the database rather than trusting the message.
+	PluginSync = PluginPrefix + "sync"
+
 	// PluginSubscriptionsRefresh tells every instance to rebuild its event
 	// subscription map: the map is built per instance, so a permission
 	// change made on one of them must reach the others.

@@ -125,9 +125,11 @@ func TestBuildPluginRecord(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			record := plugininstall.BuildPluginRecord(tt.dbID, tt.loaded, tt.filename, tt.source)
+			record := plugininstall.BuildPluginRecord(tt.dbID, tt.loaded, tt.filename, tt.source, []byte("wasm"))
 
 			assert.Equal(t, tt.dbID, record.ID)
+			require.NotNil(t, record.Checksum)
+			assert.Equal(t, plugin.FileChecksum([]byte("wasm")), *record.Checksum)
 			assert.Equal(t, tt.loaded.Info.Name, record.Name)
 			assert.Equal(t, tt.loaded.Info.Version, record.Version)
 			assert.Equal(t, tt.loaded.Info.Description, record.Description)
@@ -185,7 +187,7 @@ func TestBuildPluginRecord_permissions(t *testing.T) {
 					Name:                "Test Plugin",
 					RequiredPermissions: tt.declared,
 				},
-			}, "1.wasm", "file://1.wasm")
+			}, "1.wasm", "file://1.wasm", nil)
 
 			assert.Equal(t, tt.want, record.RequiredPermissions)
 			assert.Equal(t, tt.want, record.AllowedPermissions,
@@ -270,9 +272,10 @@ func TestTryLoadPlugin(t *testing.T) {
 			nilLoader:      false,
 			loaderLoadedID: "wasm-internal-id",
 			pluginRecord: &domain.Plugin{
-				ID:     12345,
-				Name:   "Test Plugin",
-				Status: domain.PluginStatusActive,
+				ID:       12345,
+				Name:     "Test Plugin",
+				Filename: new(wasmFilename),
+				Status:   domain.PluginStatusActive,
 			},
 			writeWASMFile: true,
 			wantError:     "",
@@ -293,6 +296,7 @@ func TestTryLoadPlugin(t *testing.T) {
 				assert.Equal(t, "wasm-internal-id", registered, "registered manager ID must come from the loaded plugin info")
 
 				assert.Equal(t, domain.PluginStatusActive, rec.Status, "status must remain unchanged on successful load")
+				assert.NotNil(t, rec.LastLoadedAt, "a successful load is recorded on the row")
 			},
 		},
 		{
@@ -300,9 +304,10 @@ func TestTryLoadPlugin(t *testing.T) {
 			nilLoader:     false,
 			loaderLoadErr: errors.New("wasm parse failed"),
 			pluginRecord: &domain.Plugin{
-				ID:     54321,
-				Name:   "Bad Plugin",
-				Status: domain.PluginStatusActive,
+				ID:       54321,
+				Name:     "Bad Plugin",
+				Filename: new(wasmFilename),
+				Status:   domain.PluginStatusActive,
 			},
 			writeWASMFile: true,
 			wantError:     "failed to load plugin",
@@ -323,9 +328,11 @@ func TestTryLoadPlugin(t *testing.T) {
 
 				saved, err := repo.Find(ctx, nil, nil, nil)
 				require.NoError(t, err)
-				require.Len(t, saved, 1, "repo.Save must be called with the error-status record after a failed load")
+				require.Len(t, saved, 1)
 				assert.Equal(t, domain.PluginStatusError, saved[0].Status, "persisted record must reflect the error status")
 				assert.Equal(t, rec.ID, saved[0].ID)
+				require.NotNil(t, saved[0].LastError)
+				assert.Contains(t, *saved[0].LastError, "wasm parse failed")
 			},
 		},
 		{
@@ -361,9 +368,10 @@ func TestTryLoadPlugin(t *testing.T) {
 			nilLoader:     false,
 			loaderLoadErr: errors.New("wasm boom"),
 			pluginRecord: &domain.Plugin{
-				ID:     0,
-				Name:   "Unsavable Plugin",
-				Status: domain.PluginStatusActive,
+				ID:       0,
+				Name:     "Unsavable Plugin",
+				Filename: new(wasmFilename),
+				Status:   domain.PluginStatusActive,
 			},
 			writeWASMFile: true,
 			wantError:     "failed to load plugin",
@@ -377,14 +385,14 @@ func TestTryLoadPlugin(t *testing.T) {
 				t.Helper()
 
 				assert.Equal(t, 1, mgr.loadedCount)
-				assert.Equal(t, domain.PluginStatusError, rec.Status, "status must still be set to error even if repo.Save then fails")
+				assert.Equal(t, domain.PluginStatusError, rec.Status, "status must still be set to error even if the row is gone")
 
 				_, ok := loader.GetPluginManagerID(rec.ID)
 				assert.False(t, ok, "RegisterPluginID must NOT be called when load fails")
 
 				saved, err := repo.Find(ctx, nil, nil, nil)
 				require.NoError(t, err)
-				assert.Empty(t, saved, "repo must remain empty when Save itself fails (ID == 0)")
+				assert.Empty(t, saved, "a row that does not exist is not created by recording the outcome")
 			},
 		},
 	}
@@ -409,7 +417,13 @@ func TestTryLoadPlugin(t *testing.T) {
 				loader = plugin.NewLoader(mgr, fileManager, repo, nil, pluginsDir)
 			}
 
-			loaded, err := plugininstall.TryLoadPlugin(ctx, loader, repo, tt.pluginRecord, wasmFilename)
+			// The handlers save the row before loading it; the loader only
+			// records the outcome on an existing row.
+			if tt.pluginRecord.ID != 0 && !tt.nilLoader {
+				require.NoError(t, repo.Save(ctx, tt.pluginRecord))
+			}
+
+			loaded, err := plugininstall.TryLoadPlugin(ctx, loader, tt.pluginRecord)
 
 			if tt.wantError == "" {
 				require.NoError(t, err)

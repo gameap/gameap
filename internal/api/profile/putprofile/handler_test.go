@@ -386,7 +386,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			userService := services.NewUserService(repo)
 			responder := api.NewResponder()
 			authService := auth.NewJWTService([]byte("test-secret-key-for-testing"))
-			handler := NewHandler(userService, authService, responder)
+			handler := NewHandler(userService, authService, nil, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(repo)

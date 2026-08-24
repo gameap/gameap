@@ -44,10 +44,35 @@ const (
 	EventType_EVENT_TYPE_SERVER_CREATED EventType = 120
 	EventType_EVENT_TYPE_SERVER_UPDATED EventType = 121
 	EventType_EVENT_TYPE_SERVER_DELETED EventType = 122
+	// Server settings (the key/value table) were saved; payload lists the
+	// settings that changed.
+	EventType_EVENT_TYPE_SERVER_SETTINGS_CHANGED EventType = 130
+	// User events. USER_PRE_DELETE is delivered synchronously and may be
+	// cancelled; the others are asynchronous.
+	EventType_EVENT_TYPE_USER_CREATED    EventType = 200
+	EventType_EVENT_TYPE_USER_UPDATED    EventType = 201
+	EventType_EVENT_TYPE_USER_PRE_DELETE EventType = 202
+	EventType_EVENT_TYPE_USER_DELETED    EventType = 203
 	// Task events
 	EventType_EVENT_TYPE_DAEMON_TASK_CREATED   EventType = 300
 	EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED EventType = 301
 	EventType_EVENT_TYPE_DAEMON_TASK_FAILED    EventType = 302
+	// The daemon picked the task up (status "working"); the daemon reports no
+	// progress percentage, so this is the only intermediate transition.
+	EventType_EVENT_TYPE_DAEMON_TASK_STARTED EventType = 303
+	// Node events. NODE_PRE_DELETE is delivered synchronously and may be
+	// cancelled. NODE_ONLINE / NODE_OFFLINE follow the daemon session and are
+	// delivered on the panel instance that owns the session.
+	EventType_EVENT_TYPE_NODE_CREATED    EventType = 400
+	EventType_EVENT_TYPE_NODE_UPDATED    EventType = 401
+	EventType_EVENT_TYPE_NODE_PRE_DELETE EventType = 402
+	EventType_EVENT_TYPE_NODE_DELETED    EventType = 403
+	EventType_EVENT_TYPE_NODE_ONLINE     EventType = 410
+	EventType_EVENT_TYPE_NODE_OFFLINE    EventType = 411
+	// Plugin lifecycle events, never delivered to the plugin they describe.
+	EventType_EVENT_TYPE_PLUGIN_LOADED   EventType = 500
+	EventType_EVENT_TYPE_PLUGIN_UNLOADED EventType = 501
+	EventType_EVENT_TYPE_PLUGIN_ERROR    EventType = 502
 )
 
 // Enum value maps for EventType.
@@ -71,32 +96,62 @@ var (
 		120: "EVENT_TYPE_SERVER_CREATED",
 		121: "EVENT_TYPE_SERVER_UPDATED",
 		122: "EVENT_TYPE_SERVER_DELETED",
+		130: "EVENT_TYPE_SERVER_SETTINGS_CHANGED",
+		200: "EVENT_TYPE_USER_CREATED",
+		201: "EVENT_TYPE_USER_UPDATED",
+		202: "EVENT_TYPE_USER_PRE_DELETE",
+		203: "EVENT_TYPE_USER_DELETED",
 		300: "EVENT_TYPE_DAEMON_TASK_CREATED",
 		301: "EVENT_TYPE_DAEMON_TASK_COMPLETED",
 		302: "EVENT_TYPE_DAEMON_TASK_FAILED",
+		303: "EVENT_TYPE_DAEMON_TASK_STARTED",
+		400: "EVENT_TYPE_NODE_CREATED",
+		401: "EVENT_TYPE_NODE_UPDATED",
+		402: "EVENT_TYPE_NODE_PRE_DELETE",
+		403: "EVENT_TYPE_NODE_DELETED",
+		410: "EVENT_TYPE_NODE_ONLINE",
+		411: "EVENT_TYPE_NODE_OFFLINE",
+		500: "EVENT_TYPE_PLUGIN_LOADED",
+		501: "EVENT_TYPE_PLUGIN_UNLOADED",
+		502: "EVENT_TYPE_PLUGIN_ERROR",
 	}
 	EventType_value = map[string]int32{
-		"EVENT_TYPE_UNSPECIFIED":           0,
-		"EVENT_TYPE_SERVER_PRE_START":      100,
-		"EVENT_TYPE_SERVER_POST_START":     101,
-		"EVENT_TYPE_SERVER_PRE_STOP":       102,
-		"EVENT_TYPE_SERVER_POST_STOP":      103,
-		"EVENT_TYPE_SERVER_PRE_RESTART":    104,
-		"EVENT_TYPE_SERVER_POST_RESTART":   105,
-		"EVENT_TYPE_SERVER_PRE_INSTALL":    106,
-		"EVENT_TYPE_SERVER_POST_INSTALL":   107,
-		"EVENT_TYPE_SERVER_PRE_UPDATE":     108,
-		"EVENT_TYPE_SERVER_POST_UPDATE":    109,
-		"EVENT_TYPE_SERVER_PRE_REINSTALL":  110,
-		"EVENT_TYPE_SERVER_POST_REINSTALL": 111,
-		"EVENT_TYPE_SERVER_PRE_DELETE":     112,
-		"EVENT_TYPE_SERVER_POST_DELETE":    113,
-		"EVENT_TYPE_SERVER_CREATED":        120,
-		"EVENT_TYPE_SERVER_UPDATED":        121,
-		"EVENT_TYPE_SERVER_DELETED":        122,
-		"EVENT_TYPE_DAEMON_TASK_CREATED":   300,
-		"EVENT_TYPE_DAEMON_TASK_COMPLETED": 301,
-		"EVENT_TYPE_DAEMON_TASK_FAILED":    302,
+		"EVENT_TYPE_UNSPECIFIED":             0,
+		"EVENT_TYPE_SERVER_PRE_START":        100,
+		"EVENT_TYPE_SERVER_POST_START":       101,
+		"EVENT_TYPE_SERVER_PRE_STOP":         102,
+		"EVENT_TYPE_SERVER_POST_STOP":        103,
+		"EVENT_TYPE_SERVER_PRE_RESTART":      104,
+		"EVENT_TYPE_SERVER_POST_RESTART":     105,
+		"EVENT_TYPE_SERVER_PRE_INSTALL":      106,
+		"EVENT_TYPE_SERVER_POST_INSTALL":     107,
+		"EVENT_TYPE_SERVER_PRE_UPDATE":       108,
+		"EVENT_TYPE_SERVER_POST_UPDATE":      109,
+		"EVENT_TYPE_SERVER_PRE_REINSTALL":    110,
+		"EVENT_TYPE_SERVER_POST_REINSTALL":   111,
+		"EVENT_TYPE_SERVER_PRE_DELETE":       112,
+		"EVENT_TYPE_SERVER_POST_DELETE":      113,
+		"EVENT_TYPE_SERVER_CREATED":          120,
+		"EVENT_TYPE_SERVER_UPDATED":          121,
+		"EVENT_TYPE_SERVER_DELETED":          122,
+		"EVENT_TYPE_SERVER_SETTINGS_CHANGED": 130,
+		"EVENT_TYPE_USER_CREATED":            200,
+		"EVENT_TYPE_USER_UPDATED":            201,
+		"EVENT_TYPE_USER_PRE_DELETE":         202,
+		"EVENT_TYPE_USER_DELETED":            203,
+		"EVENT_TYPE_DAEMON_TASK_CREATED":     300,
+		"EVENT_TYPE_DAEMON_TASK_COMPLETED":   301,
+		"EVENT_TYPE_DAEMON_TASK_FAILED":      302,
+		"EVENT_TYPE_DAEMON_TASK_STARTED":     303,
+		"EVENT_TYPE_NODE_CREATED":            400,
+		"EVENT_TYPE_NODE_UPDATED":            401,
+		"EVENT_TYPE_NODE_PRE_DELETE":         402,
+		"EVENT_TYPE_NODE_DELETED":            403,
+		"EVENT_TYPE_NODE_ONLINE":             410,
+		"EVENT_TYPE_NODE_OFFLINE":            411,
+		"EVENT_TYPE_PLUGIN_LOADED":           500,
+		"EVENT_TYPE_PLUGIN_UNLOADED":         501,
+		"EVENT_TYPE_PLUGIN_ERROR":            502,
 	}
 )
 
@@ -119,6 +174,10 @@ type Event struct {
 	//
 	//	*Event_ServerEvent
 	//	*Event_TaskEvent
+	//	*Event_UserEvent
+	//	*Event_NodeEvent
+	//	*Event_ServerSettingsEvent
+	//	*Event_PluginEvent
 	Payload isEvent_Payload `protobuf_oneof:"payload"`
 }
 
@@ -168,6 +227,34 @@ func (x *Event) GetTaskEvent() *TaskEventPayload {
 	return nil
 }
 
+func (x *Event) GetUserEvent() *UserEventPayload {
+	if x, ok := x.GetPayload().(*Event_UserEvent); ok {
+		return x.UserEvent
+	}
+	return nil
+}
+
+func (x *Event) GetNodeEvent() *NodeEventPayload {
+	if x, ok := x.GetPayload().(*Event_NodeEvent); ok {
+		return x.NodeEvent
+	}
+	return nil
+}
+
+func (x *Event) GetServerSettingsEvent() *ServerSettingsEventPayload {
+	if x, ok := x.GetPayload().(*Event_ServerSettingsEvent); ok {
+		return x.ServerSettingsEvent
+	}
+	return nil
+}
+
+func (x *Event) GetPluginEvent() *PluginEventPayload {
+	if x, ok := x.GetPayload().(*Event_PluginEvent); ok {
+		return x.PluginEvent
+	}
+	return nil
+}
+
 type isEvent_Payload interface {
 	isEvent_Payload()
 }
@@ -180,11 +267,37 @@ type Event_TaskEvent struct {
 	TaskEvent *TaskEventPayload `protobuf:"bytes,11,opt,name=task_event,json=taskEvent,proto3,oneof"`
 }
 
+type Event_UserEvent struct {
+	UserEvent *UserEventPayload `protobuf:"bytes,12,opt,name=user_event,json=userEvent,proto3,oneof"`
+}
+
+type Event_NodeEvent struct {
+	NodeEvent *NodeEventPayload `protobuf:"bytes,13,opt,name=node_event,json=nodeEvent,proto3,oneof"`
+}
+
+type Event_ServerSettingsEvent struct {
+	ServerSettingsEvent *ServerSettingsEventPayload `protobuf:"bytes,14,opt,name=server_settings_event,json=serverSettingsEvent,proto3,oneof"`
+}
+
+type Event_PluginEvent struct {
+	PluginEvent *PluginEventPayload `protobuf:"bytes,15,opt,name=plugin_event,json=pluginEvent,proto3,oneof"`
+}
+
 func (*Event_ServerEvent) isEvent_Payload() {}
 
 func (*Event_TaskEvent) isEvent_Payload() {}
 
-// PluginContext provides context for plugin calls
+func (*Event_UserEvent) isEvent_Payload() {}
+
+func (*Event_NodeEvent) isEvent_Payload() {}
+
+func (*Event_ServerSettingsEvent) isEvent_Payload() {}
+
+func (*Event_PluginEvent) isEvent_Payload() {}
+
+// PluginContext provides context for plugin calls. plugin_id names the
+// receiving plugin; permissions is reserved (empty) — a plugin reads its own
+// grants through gameap-host.
 type PluginContext struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -310,6 +423,160 @@ func (x *TaskEventPayload) GetStatus() string {
 }
 
 func (x *TaskEventPayload) GetExtraData() map[string]string {
+	if x != nil {
+		return x.ExtraData
+	}
+	return nil
+}
+
+// UserEventPayload contains user-related event data
+type UserEventPayload struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	User      *proto.User       `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	ExtraData map[string]string `protobuf:"bytes,2,rep,name=extra_data,json=extraData,proto3" json:"extra_data,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *UserEventPayload) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *UserEventPayload) GetUser() *proto.User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *UserEventPayload) GetExtraData() map[string]string {
+	if x != nil {
+		return x.ExtraData
+	}
+	return nil
+}
+
+// NodeEventPayload contains node-related event data
+type NodeEventPayload struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Node      *proto.Node       `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	ExtraData map[string]string `protobuf:"bytes,2,rep,name=extra_data,json=extraData,proto3" json:"extra_data,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *NodeEventPayload) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *NodeEventPayload) GetNode() *proto.Node {
+	if x != nil {
+		return x.Node
+	}
+	return nil
+}
+
+func (x *NodeEventPayload) GetExtraData() map[string]string {
+	if x != nil {
+		return x.ExtraData
+	}
+	return nil
+}
+
+// ServerSettingsEventPayload lists the server settings a save changed
+type ServerSettingsEventPayload struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ServerId  uint64                 `protobuf:"varint,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	Settings  []*proto.ServerSetting `protobuf:"bytes,2,rep,name=settings,proto3" json:"settings,omitempty"`
+	ExtraData map[string]string      `protobuf:"bytes,3,rep,name=extra_data,json=extraData,proto3" json:"extra_data,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *ServerSettingsEventPayload) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *ServerSettingsEventPayload) GetServerId() uint64 {
+	if x != nil {
+		return x.ServerId
+	}
+	return 0
+}
+
+func (x *ServerSettingsEventPayload) GetSettings() []*proto.ServerSetting {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
+func (x *ServerSettingsEventPayload) GetExtraData() map[string]string {
+	if x != nil {
+		return x.ExtraData
+	}
+	return nil
+}
+
+// PluginEventPayload describes another plugin's lifecycle transition
+type PluginEventPayload struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Compact database id, as the admin API reports it
+	PluginId string `protobuf:"bytes,1,opt,name=plugin_id,json=pluginId,proto3" json:"plugin_id,omitempty"`
+	Name     string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Version  string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	// active | error | unloaded | uninstalled
+	Status    string            `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	Error     *string           `protobuf:"bytes,5,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	ExtraData map[string]string `protobuf:"bytes,6,rep,name=extra_data,json=extraData,proto3" json:"extra_data,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *PluginEventPayload) ProtoReflect() protoreflect.Message {
+	panic(`not implemented`)
+}
+
+func (x *PluginEventPayload) GetPluginId() string {
+	if x != nil {
+		return x.PluginId
+	}
+	return ""
+}
+
+func (x *PluginEventPayload) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PluginEventPayload) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *PluginEventPayload) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *PluginEventPayload) GetError() string {
+	if x != nil && x.Error != nil {
+		return *x.Error
+	}
+	return ""
+}
+
+func (x *PluginEventPayload) GetExtraData() map[string]string {
 	if x != nil {
 		return x.ExtraData
 	}

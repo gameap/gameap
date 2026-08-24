@@ -459,6 +459,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				serversRepo,
 				rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0),
 				services.NewNilTransactionManager(),
+				nil,
 				responder,
 			)
 
@@ -517,6 +518,7 @@ func TestHandler_CreateUserWithRoles(t *testing.T) {
 		serversRepo,
 		rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0),
 		services.NewNilTransactionManager(),
+		nil,
 		responder,
 	)
 
@@ -578,6 +580,7 @@ func TestHandler_InvalidJSON(t *testing.T) {
 		serversRepo,
 		rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0),
 		services.NewNilTransactionManager(),
+		nil,
 		responder,
 	)
 

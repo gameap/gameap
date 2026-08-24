@@ -377,12 +377,18 @@ Used by the resumable file-manager upload endpoints
 - `PLUGIN_RECOVERY_MAX_DELAY` - Cap for the backoff (default: `10m`)
 - `PLUGIN_RECOVERY_MAX_ATTEMPTS` - Consecutive reloads before the plugin stays in status `error` until an operator reloads it (default: `5`)
 - `PLUGIN_NODEFS_MAX_INLINE` - Largest file a plugin may download or upload in one `gameap-nodefs` call (default: `32M`, `0` = unlimited)
+- `PLUGIN_NODEFS_PATH_POLICY` - Where plugins may point `gameap-nodefs`, `gameap-nodecmd` working directories and file references: `unrestricted` (default, anything the daemon permits), `node_workpath` (inside the node's work path) or `server_dirs` (inside a game server directory on that node). Paths with `..` segments are refused in every mode
+- `PLUGIN_NODEFS_ALLOWED_PATHS` - Comma-separated absolute roots allowed on top of a restricted path policy (e.g. `/opt/steamcmd`)
+- `PLUGIN_SYNC_DISABLED` - Stop reconciling plugins against the database on this instance; each instance then only applies its own changes (default: `false`)
+- `PLUGIN_SYNC_REFRESH_INTERVAL` - How often an instance re-reads the plugin table to pick up changes made elsewhere; pubsub hints apply them sooner (default: `60s`)
+- `PLUGIN_SYNC_MIN_BACKOFF` / `PLUGIN_SYNC_MAX_BACKOFF` - Retry window for a plugin this instance could not load (default: `15s` / `15m`)
 - `PLUGIN_STORAGE_MAX_KEYS_PER_PLUGIN` - Entries one plugin may keep in `gameap-storage` (default: `10000`)
 - `PLUGIN_STORAGE_MAX_VALUE` - Largest single `gameap-storage` payload (default: `1M`)
 - `PLUGIN_STORAGE_MAX_TOTAL` - Sum of all `gameap-storage` payloads of one plugin (default: `64M`)
 - `PLUGIN_CACHE_MAX_VALUE` - Largest single `gameap-cache` value (default: `1M`, `0` = unlimited); every plugin has its own cache namespace
 - `PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN` - Secrets one plugin may keep in `gameap-secrets` (default: `64`)
 - `PLUGIN_SECRETS_MAX_VALUE` - Largest plaintext of a single secret (default: `8K`)
+- `PLUGIN_SECRETS_REQUIRE_ENCRYPTION` - Refuse `gameap-secrets` writes while `ENCRYPTION_KEY` is unset instead of keeping them in plaintext (default: `true`)
 - `PLUGIN_HTTP_MAX_TIMEOUT` - Ceiling for the per-request timeout a plugin asks for in `gameap-http`; a longer one is clamped (default: `30s`)
 - `PLUGIN_NET_MAX_TIMEOUT` - Ceiling for one `gameap-net` operation - the dial plus every read and write (default: `10s`)
 - `PLUGIN_NET_READ_BUFFER` - Largest single `gameap-net` receive a plugin may request (default: `64K`)
@@ -394,8 +400,21 @@ Used by the resumable file-manager upload endpoints
 
 Rate limits are per panel instance; a refused call answers with a `rate limited: ...` error in the host
 response and the plugin keeps running. Plugin grants (`manage_servers`, `node_commands`, `files`,
-`listen_events`, `manage_rbac`, `secrets`) are managed per plugin in the admin UI or through
+`files_read`, `listen_events`, `manage_rbac`, `secrets`) are managed per plugin in the admin UI or through
 `PUT /api/admin/plugins/{id}/permissions`; see `pkg/plugin/README.md`.
+
+#### Plugins across instances
+
+Several panel instances sharing one database keep their plugins in step on their own: the plugin
+table is the desired state, and every instance applies an install, update, uninstall, reload or
+permission change made on any other instance — immediately when the instances share
+a pubsub (`PUBSUB_DRIVER=redis`), otherwise on the next `PLUGIN_SYNC_REFRESH_INTERVAL` pass. Set
+`PUBSUB_INSTANCE_ID` to a stable, distinct value per instance so log lines, audit records and
+`NODE_ONLINE` / `NODE_OFFLINE` plugin events name the instance. Plugins installed from the store are
+re-downloaded by an instance that lacks the file (and verified against the recorded checksum); plugins
+uploaded from a file are only recoverable when `FILES_DRIVER` points at shared storage such as S3.
+`GET /api/admin/plugins/loaded` always describes the answering instance (`loaded`, `sync`), while
+`status` / `error` are the shared record.
 
 ### Metrics
 

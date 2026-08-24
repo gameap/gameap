@@ -6,6 +6,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 )
@@ -48,6 +49,53 @@ type loadedPluginResponse struct {
 	AllowedPermissions  []string `json:"allowed_permissions"`
 	UsedPermissions     []string `json:"used_permissions"`
 	MissingPermissions  []string `json:"missing_permissions"`
+	// Sync is what the multi-instance reconciler did for the plugin on this
+	// instance; absent when the reconciler is off or never touched it.
+	Sync *syncResponse `json:"sync,omitempty"`
+}
+
+type syncResponse struct {
+	State         string     `json:"state"`
+	Error         string     `json:"error,omitempty"`
+	Failures      int        `json:"failures,omitempty"`
+	LastAttemptAt *time.Time `json:"last_attempt_at,omitempty"`
+	NextRetryAt   *time.Time `json:"next_retry_at,omitempty"`
+}
+
+func newSyncResponse(snapshot map[domain.Uint64ID]pluginsync.Status, dbID domain.Uint64ID) *syncResponse {
+	status, ok := snapshot[dbID]
+	if !ok {
+		return nil
+	}
+
+	resp := &syncResponse{
+		State:    string(status.State),
+		Error:    status.LastError,
+		Failures: status.Failures,
+	}
+
+	if !status.LastAttempt.IsZero() {
+		resp.LastAttemptAt = new(status.LastAttempt)
+	}
+
+	if !status.NextAttempt.IsZero() {
+		resp.NextRetryAt = new(status.NextAttempt)
+	}
+
+	return resp
+}
+
+// applyLocalSyncFailure makes the answering instance's own failure visible
+// on a plugin that is not loaded here: the shared row may say "active"
+// because a peer runs it, but here the operator sees why it does not.
+func (r *loadedPluginResponse) applyLocalSyncFailure() {
+	if r.Sync == nil || r.Sync.Error == "" || r.Loaded {
+		return
+	}
+
+	r.Status = string(domain.PluginStatusError)
+	r.Error = new(r.Sync.Error)
+	r.ErrorAt = r.Sync.LastAttemptAt
 }
 
 type listResponse struct {

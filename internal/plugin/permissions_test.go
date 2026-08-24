@@ -44,6 +44,15 @@ func TestUsedPermissions(t *testing.T) {
 			},
 		},
 		{
+			name: "read_only_nodefs_uses_files_read",
+			imports: []pkgplugin.HostImport{
+				{Module: "gameap-nodefs", Function: "read_dir"},
+				{Module: "gameap-nodefs", Function: "download"},
+				{Module: "gameap-nodefs", Function: "get_archive_operation"},
+			},
+			want: []domain.PluginPermission{domain.PluginPermissionFilesRead},
+		},
+		{
 			name:   "subscriptions_imply_listen_events",
 			events: []proto.EventType{proto.EventType_EVENT_TYPE_SERVER_POST_START},
 			want:   []domain.PluginPermission{domain.PluginPermissionListenEvents},
@@ -79,6 +88,15 @@ func TestMissingPermissions(t *testing.T) {
 		}))
 	assert.Equal(t, used, MissingPermissions(used, nil))
 	assert.Empty(t, MissingPermissions(nil, nil))
+
+	assert.Empty(t, MissingPermissions(
+		[]domain.PluginPermission{domain.PluginPermissionFilesRead},
+		[]domain.PluginPermission{domain.PluginPermissionFiles},
+	), "files includes files_read")
+	assert.Equal(t, []domain.PluginPermission{domain.PluginPermissionFiles}, MissingPermissions(
+		[]domain.PluginPermission{domain.PluginPermissionFiles},
+		[]domain.PluginPermission{domain.PluginPermissionFilesRead},
+	), "files_read does not include files")
 }
 
 func TestPermissionNames(t *testing.T) {

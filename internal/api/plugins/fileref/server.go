@@ -21,6 +21,7 @@ import (
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/plugin/hostlibrary"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
@@ -35,7 +36,7 @@ var (
 	errPathRequired            = errors.New("file path is required")
 	errNodeNotFound            = errors.New("node not found")
 	errPathIsDirectory         = errors.New("path is a directory")
-	errFilesPermissionRequired = errors.New("plugin permission " + string(domain.PluginPermissionFiles) + " required")
+	errFilesPermissionRequired = errors.New("plugin permission " + string(domain.PluginPermissionFilesRead) + " required")
 	errAuthenticationRequired  = errors.New("authentication required for file responses")
 	errInvalidStatusCode       = errors.New("invalid plugin status code")
 )
@@ -72,6 +73,20 @@ type Server struct {
 	nodes   repositories.NodeRepository
 	checker PermissionChecker
 	audit   audit.Logger
+	policy  *hostlibrary.PathPolicy
+}
+
+// ServerOption tunes a Server.
+type ServerOption func(*Server)
+
+// WithPathPolicy applies the node path policy of gameap-nodefs to the files
+// a plugin may serve; nil keeps the unrestricted policy.
+func WithPathPolicy(policy *hostlibrary.PathPolicy) ServerOption {
+	return func(s *Server) {
+		if policy != nil {
+			s.policy = policy
+		}
+	}
 }
 
 func NewServer(
@@ -79,17 +94,25 @@ func NewServer(
 	nodes repositories.NodeRepository,
 	checker PermissionChecker,
 	auditLogger audit.Logger,
+	opts ...ServerOption,
 ) *Server {
 	if auditLogger == nil {
 		auditLogger = audit.NopLogger{}
 	}
 
-	return &Server{
+	server := &Server{
 		files:   files,
 		nodes:   nodes,
 		checker: checker,
 		audit:   auditLogger,
+		policy:  hostlibrary.DefaultPathPolicy(),
 	}
+
+	for _, opt := range opts {
+		opt(server)
+	}
+
+	return server
 }
 
 // ServeFileRef implements pkgplugin.FileRefServer. Errors are returned only
@@ -121,6 +144,10 @@ func (s *Server) ServeFileRef(w http.ResponseWriter, r *http.Request, req pkgplu
 
 	node, err := s.findNode(ctx, req.Ref.NodeId)
 	if err != nil {
+		return err
+	}
+
+	if err := s.checkPathPolicy(ctx, node, req); err != nil {
 		return err
 	}
 
@@ -256,11 +283,11 @@ func validateRef(ref *proto.FileRef) error {
 	return filemanagerpath.ValidatePath(ref.Path)
 }
 
-// authorize checks the plugin's "files" grant before any daemon round trip:
-// a plugin without it must not learn whether a path exists. Denials are
-// audited like every other authorization failure.
+// authorize checks the plugin's "files_read" grant (which "files" includes)
+// before any daemon round trip: a plugin without it must not learn whether a
+// path exists. Denials are audited like every other authorization failure.
 func (s *Server) authorize(ctx context.Context, req pkgplugin.FileRefRequest) error {
-	allowed, err := s.checker.Has(ctx, req.PluginID, domain.PluginPermissionFiles)
+	allowed, err := s.checker.Has(ctx, req.PluginID, domain.PluginPermissionFilesRead)
 	if err != nil {
 		return errors.WithMessage(err, "failed to check plugin permission")
 	}
@@ -274,14 +301,43 @@ func (s *Server) authorize(ctx context.Context, req pkgplugin.FileRefRequest) er
 	slog.WarnContext(ctx, "plugin file response denied: missing permission",
 		slog.String("plugin_id", pluginID),
 		slog.String("plugin", req.PluginName),
-		slog.String("permission", string(domain.PluginPermissionFiles)),
+		slog.String("permission", string(domain.PluginPermissionFilesRead)),
 		slog.String("path", req.Ref.Path))
 
 	audit.AccessDenied(ctx, s.audit, "plugin", pluginID, "plugin_permission_missing",
-		slog.String("permission", string(domain.PluginPermissionFiles)),
+		slog.String("permission", string(domain.PluginPermissionFilesRead)),
 		slog.String("action", "serve_file"))
 
 	return api.WrapHTTPError(errFilesPermissionRequired, http.StatusForbidden)
+}
+
+// checkPathPolicy applies the node path policy to the file the plugin wants
+// served; a refusal is audited like a refused host call.
+func (s *Server) checkPathPolicy(ctx context.Context, node *domain.Node, req pkgplugin.FileRefRequest) error {
+	scope, err := s.policy.ScopeFor(ctx, node)
+	if err != nil {
+		return errors.WithMessage(err, "failed to resolve the node path policy")
+	}
+
+	denial := scope.Check(req.Ref.Path)
+	if denial == nil {
+		return nil
+	}
+
+	pluginID := strconv.FormatUint(req.PluginID, 10)
+
+	slog.WarnContext(ctx, "plugin file response denied by the node path policy",
+		slog.String("plugin_id", pluginID),
+		slog.String("plugin", req.PluginName),
+		slog.String("mode", string(denial.Mode)),
+		slog.String("path", req.Ref.Path))
+
+	audit.AccessDenied(ctx, s.audit, "plugin", pluginID, "plugin_path_policy",
+		slog.String("path", req.Ref.Path),
+		slog.String("mode", string(denial.Mode)),
+		slog.String("action", "serve_file"))
+
+	return api.WrapHTTPError(denial, http.StatusForbidden)
 }
 
 func (s *Server) findNode(ctx context.Context, nodeID uint64) (*domain.Node, error) {

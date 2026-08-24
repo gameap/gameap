@@ -9,6 +9,7 @@ export const PLUGIN_PERMISSIONS = [
   'manage_users',
   'manage_rbac',
   'files',
+  'files_read',
   'listen_events',
   'secrets',
   'node_commands',

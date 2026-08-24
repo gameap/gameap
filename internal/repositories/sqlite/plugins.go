@@ -10,6 +10,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/base"
 	"github.com/pkg/errors"
 )
@@ -24,10 +25,12 @@ var pluginFields = []string{
 	"filename",
 	"source",
 	"homepage",
+	"checksum",
 	"required_permissions",
 	"allowed_permissions",
 	"status",
 	"priority",
+	"generation",
 	"category",
 	"dependencies",
 	"config",
@@ -211,10 +214,12 @@ func (r *PluginRepository) insert(
 			plugin.Filename,
 			plugin.Source,
 			plugin.Homepage,
+			plugin.Checksum,
 			jsonFields.requiredPermissions,
 			jsonFields.allowedPermissions,
 			plugin.Status,
 			plugin.Priority,
+			plugin.Generation,
 			plugin.Category,
 			jsonFields.dependencies,
 			jsonFields.config,
@@ -252,10 +257,12 @@ func (r *PluginRepository) update(
 		Set("filename", plugin.Filename).
 		Set("source", plugin.Source).
 		Set("homepage", plugin.Homepage).
+		Set("checksum", plugin.Checksum).
 		Set("required_permissions", jsonFields.requiredPermissions).
 		Set("allowed_permissions", jsonFields.allowedPermissions).
 		Set("status", plugin.Status).
 		Set("priority", plugin.Priority).
+		Set("generation", plugin.Generation).
 		Set("category", plugin.Category).
 		Set("dependencies", jsonFields.dependencies).
 		Set("config", jsonFields.config).
@@ -273,6 +280,41 @@ func (r *PluginRepository) update(
 	_, err = r.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return errors.WithMessage(err, "failed to execute query")
+	}
+
+	return nil
+}
+
+func (r *PluginRepository) UpdateLoadState(
+	ctx context.Context,
+	id domain.Uint64ID,
+	state domain.PluginLoadState,
+) error {
+	query, args, err := sq.Update(base.PluginsTable).
+		Set("status", state.Status).
+		Set("last_error", state.LastError).
+		Set("last_error_at", formatTimePtr(state.LastErrorAt)).
+		Set("last_loaded_at", formatTimePtr(state.LastLoadedAt)).
+		Set("generation", state.Generation).
+		Set("updated_at", formatTimePtr(new(time.Now()))).
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build query")
+	}
+
+	res, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to execute query")
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return errors.WithMessage(err, "failed to read update result")
+	}
+
+	if affected == 0 {
+		return repositories.ErrPluginNotFound
 	}
 
 	return nil
@@ -332,10 +374,12 @@ func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 		&plugin.Filename,
 		&plugin.Source,
 		&plugin.Homepage,
+		&plugin.Checksum,
 		&requiredPermissionsJSON,
 		&allowedPermissionsJSON,
 		&plugin.Status,
 		&plugin.Priority,
+		&plugin.Generation,
 		&plugin.Category,
 		&dependenciesJSON,
 		&configJSON,

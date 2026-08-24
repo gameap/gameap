@@ -2,7 +2,6 @@ package hostlibrary
 
 import (
 	"context"
-	"slices"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -13,6 +12,9 @@ import (
 // PluginPermissionChecker answers whether a plugin was granted a capability.
 // Host libraries that expose privileged operations consult it on every call
 // so an operator revoking a grant takes effect without a panel restart.
+//
+// A broader grant answers for a narrower one (domain.PermissionSatisfied):
+// a plugin holding "files" passes a "files_read" check.
 type PluginPermissionChecker interface {
 	Has(ctx context.Context, pluginID uint64, permission domain.PluginPermission) (bool, error)
 }
@@ -78,5 +80,5 @@ func (c *RepositoryPermissionChecker) Has(
 		return false, err
 	}
 
-	return slices.Contains(permissions, permission), nil
+	return domain.PermissionSatisfied(permission, permissions), nil
 }

@@ -1,28 +1,53 @@
 package deleteuser
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/services"
+	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	pkgplugin "github.com/gameap/gameap/pkg/plugin"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
 )
 
 type Handler struct {
-	userService *services.UserService
-	responder   base.Responder
+	userService      *services.UserService
+	pluginDispatcher PluginDispatcher
+	responder        base.Responder
+}
+
+// PluginDispatcher lets plugins veto a deletion (USER_PRE_DELETE) and learn
+// about it afterwards (USER_DELETED); satisfied by *plugin.Dispatcher.
+type PluginDispatcher interface {
+	DispatchUserEvent(
+		ctx context.Context,
+		eventType pluginproto.EventType,
+		user *domain.User,
+		extraData map[string]string,
+	) *pkgplugin.EventDispatchResult
+	DispatchUserEventAsync(
+		ctx context.Context,
+		eventType pluginproto.EventType,
+		user *domain.User,
+		extraData map[string]string,
+	)
 }
 
 func NewHandler(
 	userService *services.UserService,
+	pluginDispatcher PluginDispatcher,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		userService: userService,
-		responder:   responder,
+		userService:      userService,
+		pluginDispatcher: pluginDispatcher,
+		responder:        responder,
 	}
 }
 
@@ -77,6 +102,14 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	user := &users[0]
+
+	if err := h.dispatchPreDelete(ctx, user); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	err = h.userService.Delete(ctx, userID)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to delete user"))
@@ -84,5 +117,31 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.pluginDispatcher != nil {
+		h.pluginDispatcher.DispatchUserEventAsync(ctx, pluginproto.EventType_EVENT_TYPE_USER_DELETED, user, nil)
+	}
+
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// dispatchPreDelete gives plugins a chance to cancel the deletion.
+func (h *Handler) dispatchPreDelete(ctx context.Context, user *domain.User) error {
+	if h.pluginDispatcher == nil {
+		return nil
+	}
+
+	result := h.pluginDispatcher.DispatchUserEvent(ctx, pluginproto.EventType_EVENT_TYPE_USER_PRE_DELETE, user, nil)
+	if result == nil || !result.Cancelled {
+		return nil
+	}
+
+	reason := "cancelled by " + result.CancelledBy
+	if result.CancelMessage != "" {
+		reason += ": " + result.CancelMessage
+	}
+
+	return api.WrapHTTPError(
+		errors.Wrap(servercontrol.ErrCancelledByPlugin, reason),
+		http.StatusConflict,
+	)
 }

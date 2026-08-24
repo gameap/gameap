@@ -10,6 +10,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/strings"
 	"github.com/pkg/errors"
 	"github.com/rs/xid"
@@ -38,11 +39,33 @@ type EnrollInput struct {
 	Capabilities []string
 }
 
+// NodeEventDispatcher tells plugins a node was enrolled; satisfied by
+// *plugin.Dispatcher.
+type NodeEventDispatcher interface {
+	DispatchNodeEventAsync(
+		ctx context.Context,
+		eventType pluginproto.EventType,
+		node *domain.Node,
+		extraData map[string]string,
+	)
+}
+
 type Service struct {
 	setupKeyManager *SetupKeyManager
 	nodesRepo       repositories.NodeRepository
 	clientCertRepo  repositories.ClientCertificateRepository
 	certificatesSvc *certificates.Service
+	nodeEvents      NodeEventDispatcher
+}
+
+// ServiceOption tunes a Service.
+type ServiceOption func(*Service)
+
+// WithNodeEvents publishes NODE_CREATED to plugins after an enrollment.
+func WithNodeEvents(dispatcher NodeEventDispatcher) ServiceOption {
+	return func(s *Service) {
+		s.nodeEvents = dispatcher
+	}
 }
 
 func NewService(
@@ -50,13 +73,20 @@ func NewService(
 	nodesRepo repositories.NodeRepository,
 	clientCertRepo repositories.ClientCertificateRepository,
 	certificatesSvc *certificates.Service,
+	opts ...ServiceOption,
 ) *Service {
-	return &Service{
+	service := &Service{
 		setupKeyManager: setupKeyManager,
 		nodesRepo:       nodesRepo,
 		clientCertRepo:  clientCertRepo,
 		certificatesSvc: certificatesSvc,
 	}
+
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	return service
 }
 
 func (s *Service) SetupKeyManager() *SetupKeyManager {
@@ -116,6 +146,11 @@ func (s *Service) Enroll(ctx context.Context, setupKey string, input *EnrollInpu
 
 	if err := s.nodesRepo.Save(ctx, node); err != nil {
 		return nil, errors.WithMessage(err, "failed to save node")
+	}
+
+	if s.nodeEvents != nil {
+		s.nodeEvents.DispatchNodeEventAsync(ctx, pluginproto.EventType_EVENT_TYPE_NODE_CREATED, node,
+			map[string]string{"source": "enrollment", "daemon_version": input.Version})
 	}
 
 	if err := s.setupKeyManager.Invalidate(ctx); err != nil {

@@ -1,8 +1,10 @@
 package putprofile
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
@@ -11,6 +13,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
 )
 
@@ -18,21 +21,35 @@ import (
 // the token re-issued after a password change is an ordinary session token.
 const sessionTokenDuration = 24 * time.Hour
 
+// PluginDispatcher publishes user events to plugins; satisfied by
+// *plugin.Dispatcher.
+type PluginDispatcher interface {
+	DispatchUserEventAsync(
+		ctx context.Context,
+		eventType pluginproto.EventType,
+		user *domain.User,
+		extraData map[string]string,
+	)
+}
+
 type Handler struct {
-	userRepo    repositories.UserRepository
-	tokenIssuer tokenIssuer
-	responder   base.Responder
+	userRepo         repositories.UserRepository
+	tokenIssuer      tokenIssuer
+	pluginDispatcher PluginDispatcher
+	responder        base.Responder
 }
 
 func NewHandler(
 	userRepo repositories.UserRepository,
 	tokenIssuer tokenIssuer,
+	pluginDispatcher PluginDispatcher,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		userRepo:    userRepo,
-		tokenIssuer: tokenIssuer,
-		responder:   responder,
+		userRepo:         userRepo,
+		tokenIssuer:      tokenIssuer,
+		pluginDispatcher: pluginDispatcher,
+		responder:        responder,
 	}
 }
 
@@ -109,6 +126,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.dispatchUpdated(ctx, user, input)
+
 	response := newUpdateProfileResponse()
 
 	// A password change invalidates every previously-issued session token,
@@ -161,4 +180,24 @@ func applyPasswordChange(input *updateProfileInput, user *domain.User) error {
 	user.SetPasswordChangedAt(new(time.Now()))
 
 	return nil
+}
+
+// dispatchUpdated tells plugins the user edited their own profile; field
+// names only, never values.
+func (h *Handler) dispatchUpdated(ctx context.Context, user *domain.User, input *updateProfileInput) {
+	if h.pluginDispatcher == nil {
+		return
+	}
+
+	fields := make([]string, 0, 2)
+	if input.Name != nil {
+		fields = append(fields, "name")
+	}
+
+	if input.Password != nil {
+		fields = append(fields, "password")
+	}
+
+	h.pluginDispatcher.DispatchUserEventAsync(ctx, pluginproto.EventType_EVENT_TYPE_USER_UPDATED, user,
+		map[string]string{"source": "profile", "changed_fields": strings.Join(fields, ",")})
 }

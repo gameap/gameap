@@ -10,6 +10,7 @@ import (
 	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/services/plugininstall"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/pkg/errors"
@@ -26,17 +27,24 @@ var (
 
 type Handler struct {
 	reloader  Reloader
+	sync      plugininstall.SyncNotifier
 	responder base.Responder
 	audit     audit.Logger
 }
 
-func NewHandler(reloader Reloader, responder base.Responder, auditLogger audit.Logger) *Handler {
+func NewHandler(
+	reloader Reloader,
+	sync plugininstall.SyncNotifier,
+	responder base.Responder,
+	auditLogger audit.Logger,
+) *Handler {
 	if auditLogger == nil {
 		auditLogger = audit.NopLogger{}
 	}
 
 	return &Handler{
 		reloader:  reloader,
+		sync:      sync,
 		responder: responder,
 		audit:     auditLogger,
 	}
@@ -62,6 +70,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	resourceID := strconv.FormatUint(uint64(dbID), 10)
 
 	plugin, loaded, err := h.reloader.Reload(ctx, dbID)
+	if plugin != nil {
+		// The row was reached and its generation bumped: the other instances
+		// restart the plugin too, whatever the outcome here.
+		plugininstall.Notify(ctx, h.sync, dbID, plugininstall.ActionReload)
+	}
+
 	if err != nil {
 		h.responder.WriteError(ctx, rw, h.reloadError(ctx, resourceID, err))
 

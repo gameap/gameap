@@ -32,11 +32,13 @@ The GameAP plugin system allows extending functionality through WebAssembly-base
 ## Plugin Capabilities
 
 Plugins can:
-- **Hook into server lifecycle events** (pre/post start, stop, restart, install, update, reinstall, delete)
+- **Hook into panel events** (server lifecycle and CRUD, daemon tasks, server
+  settings, users, nodes and node presence, other plugins' lifecycle)
 - **Access repositories** (servers, users, nodes, games, tasks, settings)
 - **Control servers** (start, stop, restart, update, install)
 - **Use caching** (get, set, delete)
 - **Store credentials encrypted at rest** (gameap-secrets, under the `secrets` grant)
+- **Introspect the panel** (gameap-host: own grants, host modules)
 - **Make HTTP requests** (external API calls)
 - **Log messages** (debug, info, warn, error)
 - **Register custom HTTP endpoints** (extend the API)
@@ -64,9 +66,33 @@ Plugins can:
 | `SERVER_CREATED` | After server created in database | No | Async |
 | `SERVER_UPDATED` | After server updated in database | No | Async |
 | `SERVER_DELETED` | After server deleted/soft-deleted in database | No | Async |
+| `SERVER_SETTINGS_CHANGED` | After a server's settings were saved through the API (`extra_data.changed_fields` names them) | No | Async |
 | `DAEMON_TASK_CREATED` | After daemon task persisted for dispatch | No | Async |
+| `DAEMON_TASK_STARTED` | When the daemon first reports the task as working | No | Async |
 | `DAEMON_TASK_COMPLETED` | After daemon reported task success | No | Async |
 | `DAEMON_TASK_FAILED` | After daemon reported task error/cancel or the task was abandoned | No | Async |
+| `USER_CREATED` | After a user was created through the API | No | Async |
+| `USER_UPDATED` | After a user was updated (admin API or own profile, `extra_data.source=profile`; `changed_fields` names the fields, never values) | No | Async |
+| `USER_PRE_DELETE` | Before a user is deleted | Yes | Sync |
+| `USER_DELETED` | After a user was deleted | No | Async |
+| `NODE_CREATED` | After a node was enrolled (`extra_data.source=enrollment`, `daemon_version`) | No | Async |
+| `NODE_UPDATED` | After a node was updated (`changed_fields` names the fields; keys and certificates by name only) | No | Async |
+| `NODE_PRE_DELETE` | Before a node is deleted | Yes | Sync |
+| `NODE_DELETED` | After a node was deleted | No | Async |
+| `NODE_ONLINE` | A daemon session opened on this panel instance (`extra_data.daemon_version`, `instance_id`, `reconnect`) | No | Async |
+| `NODE_OFFLINE` | A daemon session closed on this panel instance | No | Async |
+| `PLUGIN_LOADED` | Another plugin was (re)loaded on this instance (`extra_data.trigger` = `install`, `reload`, `recovery`, `sync`) | No | Async |
+| `PLUGIN_UNLOADED` | Another plugin was unloaded or uninstalled (`status` = `unloaded` / `uninstalled`) | No | Async |
+| `PLUGIN_ERROR` | Another plugin failed to load or was disabled at runtime (`error` carries the reason, `extra_data.trigger` the load trigger or `runtime_disable`) | No | Async |
+
+Payloads: `server_event` for `SERVER_*`, `task_event` for `DAEMON_TASK_*`,
+`server_settings_event` (server id + the saved settings) for
+`SERVER_SETTINGS_CHANGED`, `user_event` (`gameap.User`: id, login, email,
+name, timestamps — never credentials) for `USER_*`, `node_event`
+(`gameap.Node`, without keys or certificates) for `NODE_*` and `plugin_event`
+(compact plugin id, name, version, status, error) for `PLUGIN_*`. Every
+event carries `context.plugin_id` = the compact id of the receiving plugin;
+`PLUGIN_*` events are never delivered to the plugin they are about.
 
 Delivery semantics:
 
@@ -89,6 +115,11 @@ Delivery semantics:
   refreshed automatically after runtime plugin install/update/uninstall.
 - `DAEMON_TASK_CREATED` fires only for tasks that go through the gRPC task
   dispatcher (the default); legacy repository-only saves do not emit it.
+- `NODE_ONLINE` / `NODE_OFFLINE` are raised by the panel instance the daemon
+  is connected to (once per session, never from the cross-instance session
+  broadcast), so a cluster sees each transition exactly once — on the
+  instance that owns the session. `PLUGIN_*` events likewise describe the
+  answering instance: a reload on instance A is a `PLUGIN_LOADED` on A only.
 
 ## Host Function Libraries
 
@@ -249,6 +280,30 @@ Rules the panel enforces:
   reload or update; a `Get` from another plugin answers `found = false`.
   Uninstalling the plugin deletes its secrets together with its
   `gameap-storage` entries.
+
+### gameap-host
+
+Lets a plugin introspect itself and the panel it runs on. Open to every
+plugin — no grant, no rate limit, no audit record. Every call is read-only.
+
+```go
+import "github.com/gameap/gameap/pkg/plugin/sdk/host"
+
+hs := host.NewHostService()
+
+// What the operator granted (read live from the database).
+grants, _ := hs.GetGrants(ctx, &host.GetGrantsRequest{})
+canRunCommands := slices.Contains(grants.Permissions, "node_commands")
+
+// Panel version, plugin API version, host modules instantiated for this
+// plugin and the id of the answering instance.
+info, _ := hs.GetHostInfo(ctx, &host.GetHostInfoRequest{})
+hasNodeFS := slices.Contains(info.Modules, "gameap-nodefs")
+```
+
+A transient load (the upload dry-run) has no database record and no index
+entry, so `GetGrants` answers an empty list and `GetHostInfo.modules` is
+empty; the panel and API versions are still filled in.
 
 ### gameap-scheduler
 
@@ -472,8 +527,12 @@ if resp.Success {
 
 ### gameap-nodefs
 
-Provides file system operations on daemon nodes. Every operation of this
-module requires the `files` permission (see [Plugin permissions](#plugin-permissions)).
+Provides file system operations on daemon nodes. Reading (`ReadDir`,
+`Download`, `GetFileInfo`, `Hash`, `GetArchiveOperation`) requires the
+`files_read` permission; everything that writes (`MkDir`, `Copy`, `Move`,
+`Upload`, `Remove`, `Chmod`, archive create/extract) requires `files`, which
+includes `files_read` (see [Plugin permissions](#plugin-permissions)). Paths
+are also subject to the operator's [path policy](#path-policy).
 
 ```go
 fs := nodefs.NewNodeFSService()
@@ -626,7 +685,9 @@ in a host call, no callback can be delivered into it.
 
 ### gameap-nodecmd
 
-Provides command execution on daemon nodes.
+Provides command execution on daemon nodes (`node_commands` permission).
+`work_dir` is checked against the [path policy](#path-policy); an omitted
+`work_dir` keeps the daemon's default.
 
 ```go
 cmd := nodecmd.NewNodeCmdService()
@@ -923,7 +984,9 @@ Rules:
 
 ### Cancelling Events
 
-For `PRE_*` events, plugins can prevent the operation by setting `ShouldCancel`:
+For `PRE_*` events (`SERVER_PRE_*`, `USER_PRE_DELETE`, `NODE_PRE_DELETE`),
+plugins can prevent the operation by setting `ShouldCancel`; the initiating
+request is answered with `409 Conflict` and the plugin's message:
 
 ```go
 func (p MyPlugin) HandleEvent(ctx context.Context, event *proto.Event) (*proto.EventResult, error) {
@@ -1140,7 +1203,8 @@ Privileged host modules are gated on the plugin's own grants, kept in the
 |---|---|
 | `manage_servers` | `gameap-servercontrol` (every operation), `gameap-daemontasks.CreateDaemonTask`, `gameap-servers.SaveServer` / `DeleteServer`, `gameap-serversettings.SaveServerSetting` |
 | `node_commands` | `gameap-nodecmd.ExecuteCommand` and `cmdexec` daemon tasks (on top of `manage_servers`) — an arbitrary shell command on a node |
-| `files` | `gameap-nodefs` — every operation, including hash and archive create/extract — and `HTTPResponse.file`, a route answering with a node file |
+| `files_read` | `gameap-nodefs` reads — `ReadDir`, `Download`, `GetFileInfo`, `Hash`, `GetArchiveOperation` — and `HTTPResponse.file`, a route answering with a node file |
+| `files` | every `gameap-nodefs` operation, including writes, `Chmod` and archive create/extract; includes `files_read` |
 | `listen_events` | Event subscriptions: a plugin without it is never called for events (its `GetSubscribedEvents` answer is ignored, with a warning in the log) |
 | `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
 | `secrets` | `gameap-secrets` — reading, writing, listing and deleting the plugin's encrypted credentials |
@@ -1151,7 +1215,13 @@ Reads — `gameap-servers.Find/Get`, `gameap-users`, `gameap-nodes`,
 `gameap-games`, `gameap-gamemods`, `gameap-daemontasks.Find`,
 `gameap-serversettings.Find`, `gameap-authz` — and `gameap-http`,
 `gameap-cache`, `gameap-storage`, `gameap-crypto`, `gameap-log`,
-`gameap-scheduler`, `gameap-net` are available to every plugin.
+`gameap-scheduler`, `gameap-net`, `gameap-host` are available to every
+plugin.
+
+A grant may be implied by a wider one (`files` ⊇ `files_read`): the guard,
+the dry-run report and the admin UI all honour the relation, so a plugin that
+declares `files_read` is satisfied by an existing `files` grant, and
+`missing_permissions` never lists a permission whose superset is granted.
 
 The policy table lives in `internal/plugin/hostlibrary/policy.go`; a test
 checks it against the exported functions of the generated SDK glue, so a new
@@ -1211,6 +1281,28 @@ A refused call answers `plugin permission <name> required` in the
 response's `error` field and is recorded in the audit log as `access.denied`
 with the plugin as the actor; the module stays loaded.
 
+### Path policy
+
+Every path a plugin hands to `gameap-nodefs`, to `gameap-nodecmd` (`work_dir`)
+or to a `HTTPResponse.file` reference is checked on the panel before it
+reaches the daemon. In every mode a path containing a `..` segment or a NUL
+byte is refused. `PLUGIN_NODEFS_PATH_POLICY` selects what else is allowed:
+
+| Mode | Allowed paths |
+|---|---|
+| `unrestricted` (default) | anything the daemon itself permits — today's behaviour |
+| `node_workpath` | inside the node's `work_path`; relative paths are resolved under it |
+| `server_dirs` | inside the directory of a game server on that node (`work_path/<server dir>`, soft-deleted servers excluded); `work_dir` of a command must be absolute |
+
+`PLUGIN_NODEFS_ALLOWED_PATHS` (comma-separated absolute roots) widens the
+restricted modes, e.g. a shared `/opt/steamcmd`. Windows nodes are compared
+case-insensitively with `\` normalised to `/`; symbolic links are not
+resolved on the panel (the daemon still confines plugins to what it serves).
+A refused call answers `path policy: <reason>: <path>` in the response's
+`error` field (a `403` for file references) and is audited as `access.denied`
+with reason `plugin_path_policy`, throttled to one record per minute per
+function; the plugin is never disabled for it.
+
 ### Rate limits
 
 The expensive host libraries are rate limited per plugin with a token bucket
@@ -1241,7 +1333,12 @@ install/reinstall), `plugin.server.save` / `plugin.server.delete`,
 `plugin.server.setting`, `plugin.task.create`, `plugin.node.command`
 (node, working directory and exit code — never the command text),
 `plugin.node.file` (mkdir/copy/move/upload/remove/chmod/archive_*), and
-`plugin.rbac.role` / `plugin.rbac.grant` / `plugin.rbac.revoke`. When the
+`plugin.rbac.role` / `plugin.rbac.grant` / `plugin.rbac.revoke`. Refusals
+are `access.denied` with the plugin as the actor (reason
+`plugin_permission_missing` or `plugin_path_policy`). Operator actions on a plugin are recorded with the
+operator as the actor: `plugin.install`, `plugin.uninstall`,
+`plugin.permissions.update` and `plugin.reloaded` with `trigger` = `manual`,
+`auto` (recovery) or `sync` (another instance's change applied here). When the
 plugin acted inside a user's request — an event raised by that request or a
 plugin HTTP route — the user travels as `on_behalf_of_user_id` /
 `on_behalf_of_login`; the same user reaches the plugin as
@@ -1393,11 +1490,27 @@ module instance.
 
 ### Multi-instance
 
-Each panel instance runs its own module instances, so `loaded`, `enabled` and
-`memory_bytes` describe the instance that answered the request, while
-`status`/`error` are the shared database record — the last outcome observed
-on any instance. A reload through the API restarts the plugin on that instance
-only; the others recover on their own schedule or on their next start.
+Several panel instances sharing one database each run their own module
+instances. `loaded`, `enabled`, `memory_bytes` and `sync` in
+`GET /api/admin/plugins/loaded` describe the instance that answered the
+request, while `status` / `error` are the shared database record — the last
+outcome written by any instance.
+
+The database is the desired state, and every instance reconciles against it:
+an install, update, uninstall, permission change or operator reload
+performed on one instance is picked up by the others — at
+once through the pubsub hint (`gameap:plugin:sync`, carrying only the plugin
+id) and in any case on the periodic pass (`PLUGIN_SYNC_REFRESH_INTERVAL`,
+60s). A reload is propagated through a `generation` counter on the record,
+so "reload on A" restarts the plugin everywhere; a plugin whose file is
+missing on an instance is re-downloaded from the store and verified against
+the recorded checksum (plugins uploaded from a file need a shared
+`FILES_DRIVER`, e.g. S3). A plugin that fails to load on one instance is
+retried there with backoff (`PLUGIN_SYNC_MIN_BACKOFF` .. `PLUGIN_SYNC_MAX_BACKOFF`)
+and reported as `sync.state = retrying` / `failed` with the local reason,
+without touching the shared record. `PLUGIN_SYNC_DISABLED=true` restores the
+previous behaviour (each instance only applies its own changes). Details:
+`internal/services/pluginsync/README.md`.
 
 ## Example Plugin
 
@@ -1435,18 +1548,21 @@ pkg/plugin/
 │   ├── protocol/             # ProtocolService (optional RCON/Query extension)
 │   ├── scheduler/            # gameap-scheduler module (periodic tasks)
 │   ├── secrets/              # gameap-secrets module (encrypted credentials)
+│   ├── host/                 # gameap-host module (own grants, host info)
 │   └── log/                  # gameap-log module
 ├── examples/
 │   ├── server-logger/        # Example plugin (lifecycle events)
 │   └── protocol-extension/   # Example plugin (RCON/Query protocols)
 ├── manager.go                # Plugin manager
-├── health.go                 # Runtime disable reasons, disable hook, memory snapshot
+├── health.go                 # Runtime disable reasons and memory snapshot
+├── hostmodules.go            # Records the host modules instantiated per plugin
 ├── observer.go               # Observer interface (guest/host call and event metrics)
 ├── hostcall_interceptor.go   # wazero decorator timing every host function a guest calls
 ├── guestlog.go               # Guest stdout/stderr → slog
 ├── runtimeconfig.go          # wazero runtime config (memory limit, cache)
 ├── cache.go                  # Compilation cache (in-memory / on disk)
 ├── dispatcher.go             # Event dispatcher
+├── converters.go             # Domain → proto payload converters for events
 ├── wrapper.go                # WASM plugin wrapper
 ├── adapter.go                # ServerControl adapter
 ├── errors.go                 # Error definitions

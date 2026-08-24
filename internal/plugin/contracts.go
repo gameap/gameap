@@ -4,6 +4,7 @@ import (
 	"context"
 
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/plugin/proto"
 )
 
 type LoaderManager interface {
@@ -21,4 +22,15 @@ type LoaderManager interface {
 // reloaded; satisfied by *pkgplugin.Dispatcher.
 type SubscriptionRefresher interface {
 	RefreshSubscriptions(ctx context.Context) error
+}
+
+// LifecycleEvents publishes PLUGIN_LOADED / PLUGIN_UNLOADED /
+// PLUGIN_ERROR to the other plugins; satisfied by *pkgplugin.Dispatcher.
+type LifecycleEvents interface {
+	DispatchPluginEventAsync(
+		ctx context.Context,
+		eventType proto.EventType,
+		info pkgplugin.EventInfo,
+		extraData map[string]string,
+	)
 }

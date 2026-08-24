@@ -485,12 +485,38 @@ type Config struct {
 			MaxAttempts  int           `env:"PLUGIN_RECOVERY_MAX_ATTEMPTS" envDefault:"5"`
 		}
 
+		// Sync keeps the plugin runtime of every panel instance in step with
+		// the plugins table: install, update, uninstall, reload and
+		// permission changes made on one instance reach the others through a
+		// pub/sub hint and a periodic reconcile pass.
+		Sync struct {
+			// Disabled turns the reconciler off; plugin changes then only
+			// reach an instance when it restarts.
+			Disabled bool `env:"PLUGIN_SYNC_DISABLED" envDefault:"false"`
+			// RefreshInterval bounds how long a lost hint can leave an
+			// instance stale.
+			RefreshInterval time.Duration `env:"PLUGIN_SYNC_REFRESH_INTERVAL" envDefault:"60s"`
+			// MinBackoff / MaxBackoff bound the retry delay after a plugin
+			// failed to load on this instance.
+			MinBackoff time.Duration `env:"PLUGIN_SYNC_MIN_BACKOFF" envDefault:"15s"`
+			MaxBackoff time.Duration `env:"PLUGIN_SYNC_MAX_BACKOFF" envDefault:"15m"`
+		}
+
 		// NodeFS bounds the gameap-nodefs host library.
 		NodeFS struct {
 			// MaxInline caps files a plugin downloads or uploads as a
 			// single message; larger files must go through archives or the
 			// panel's own streaming endpoints (0 = unlimited).
 			MaxInline ByteSize `env:"PLUGIN_NODEFS_MAX_INLINE" envDefault:"32M"`
+			// PathPolicy confines the node paths gameap-nodefs may name (and
+			// the work_dir of gameap-nodecmd): "unrestricted" (default, any
+			// path), "node_workpath" (inside the node's work path) or
+			// "server_dirs" (inside the directories of the game servers on
+			// that node). ".." segments are refused in every mode.
+			PathPolicy string `env:"PLUGIN_NODEFS_PATH_POLICY" envDefault:"unrestricted"`
+			// AllowedPaths are additional absolute roots accepted in the
+			// restricted modes, on every node.
+			AllowedPaths []string `env:"PLUGIN_NODEFS_ALLOWED_PATHS" envSeparator:"," envDefault:""`
 		}
 
 		// Storage bounds what one plugin may keep in gameap-storage (the
@@ -649,6 +675,8 @@ func normalizeConfigValues(cfg *Config) {
 	}
 
 	cfg.UI.DefaultLanguage = strings.ToLower(cfg.UI.DefaultLanguage)
+
+	cfg.Plugin.NodeFS.PathPolicy = strings.ToLower(strings.TrimSpace(cfg.Plugin.NodeFS.PathPolicy))
 
 	cfg.PubSub.Driver = strings.ToLower(cfg.PubSub.Driver)
 	switch cfg.PubSub.Driver {

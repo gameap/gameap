@@ -73,6 +73,21 @@ func TestCachedPermissionChecker_answers_a_repeated_question_from_the_cache(t *t
 	assert.Equal(t, int64(1), source.reads.Load(), "one record read serves every permission of the plugin")
 }
 
+func TestCachedPermissionChecker_answers_a_narrower_permission_from_a_broader_grant(t *testing.T) {
+	t.Parallel()
+
+	source := &countingGrantsReader{permissions: []domain.PluginPermission{domain.PluginPermissionFiles}}
+	cache, _ := newTestCache(source, time.Minute)
+
+	allowed, err := cache.Has(t.Context(), 7, domain.PluginPermissionFilesRead)
+	require.NoError(t, err)
+	assert.True(t, allowed, "a plugin granted files may do everything files_read allows")
+
+	denied, err := cache.Has(t.Context(), 7, domain.PluginPermissionNodeCommands)
+	require.NoError(t, err)
+	assert.False(t, denied, "an unrelated permission is not implied")
+}
+
 func TestCachedPermissionChecker_reads_again_after_the_ttl(t *testing.T) {
 	t.Parallel()
 

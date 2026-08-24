@@ -9,6 +9,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 )
 
@@ -16,11 +17,28 @@ type LoaderManager interface {
 	GetPlugins() []*pkgplugin.LoadedPlugin
 }
 
+// SyncStatusProvider reports what the multi-instance reconciler did for
+// each plugin on this instance; satisfied by *pluginsync.Service.
+type SyncStatusProvider interface {
+	Snapshot() map[domain.Uint64ID]pluginsync.Status
+}
+
+// Option tunes a Handler.
+type Option func(*Handler)
+
+// WithSyncStatus attaches the reconciler's per-plugin state to the listing.
+func WithSyncStatus(provider SyncStatusProvider) Option {
+	return func(h *Handler) {
+		h.sync = provider
+	}
+}
+
 type Handler struct {
 	manager             LoaderManager
 	loader              *plugin.Loader
 	pluginRepo          repositories.PluginRepository
 	permissionsEnforced bool
+	sync                SyncStatusProvider
 	responder           base.Responder
 }
 
@@ -30,14 +48,21 @@ func NewHandler(
 	pluginRepo repositories.PluginRepository,
 	permissionsEnforced bool,
 	responder base.Responder,
+	opts ...Option,
 ) *Handler {
-	return &Handler{
+	h := &Handler{
 		manager:             manager,
 		loader:              loader,
 		pluginRepo:          pluginRepo,
 		permissionsEnforced: permissionsEnforced,
 		responder:           responder,
 	}
+
+	for _, opt := range opts {
+		opt(h)
+	}
+
+	return h
 }
 
 // ServeHTTP lists every installed plugin merged with this instance's runtime
@@ -61,12 +86,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	seen := make(map[domain.Uint64ID]struct{}, len(loadedPlugins))
+	syncStatus := h.syncSnapshot()
 
 	for _, loaded := range loadedPlugins {
 		dbID := h.databaseID(loaded)
 		seen[dbID] = struct{}{}
 
-		response.Data = append(response.Data, newLoadedPluginResponse(loaded, byID[dbID]))
+		item := newLoadedPluginResponse(loaded, byID[dbID])
+		item.Sync = newSyncResponse(syncStatus, dbID)
+
+		response.Data = append(response.Data, item)
 	}
 
 	for i := range installed {
@@ -74,10 +103,22 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		response.Data = append(response.Data, newInstalledPluginResponse(&installed[i]))
+		item := newInstalledPluginResponse(&installed[i])
+		item.Sync = newSyncResponse(syncStatus, installed[i].ID)
+		item.applyLocalSyncFailure()
+
+		response.Data = append(response.Data, item)
 	}
 
 	h.responder.Write(ctx, rw, response)
+}
+
+func (h *Handler) syncSnapshot() map[domain.Uint64ID]pluginsync.Status {
+	if h.sync == nil {
+		return nil
+	}
+
+	return h.sync.Snapshot()
 }
 
 // databaseID resolves the record a loaded plugin belongs to: the ID it was

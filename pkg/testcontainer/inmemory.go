@@ -44,6 +44,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
@@ -204,6 +205,12 @@ func (c *InmemoryContainer) PluginSecretRepository() repositories.PluginSecretRe
 	return inmemory.NewPluginSecretRepository()
 }
 func (c *InmemoryContainer) PluginLoader() *internalplugin.Loader { return nil }
+
+func (c *InmemoryContainer) PluginPathPolicy() *hostlibrary.PathPolicy {
+	return hostlibrary.DefaultPathPolicy()
+}
+
+func (c *InmemoryContainer) PluginSync() *pluginsync.Service { return nil }
 
 // Telemetry is a fresh registry per container so tests never share metric
 // state.

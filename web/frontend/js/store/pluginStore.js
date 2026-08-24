@@ -71,6 +71,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
                 // null (not []) when the answering instance has not loaded the
                 // plugin: its used/missing permissions are unknown, not empty.
                 missing_permissions: loaded.missing_permissions ?? null,
+                sync: loaded.sync ?? null,
 
                 summary: storePlugin?.summary || loaded.description || '',
                 description: loaded.description || '',
