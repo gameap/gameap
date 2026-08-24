@@ -202,7 +202,7 @@ import { useModalStore } from '../../stores/useModalStore.js'
 import { useManager } from '../../composables/useManager.js'
 import { useTranslate } from '../../composables/useTranslate.js'
 import { useHelper } from '../../composables/useHelper.js'
-import { useFileEditors } from '../../composables/useFileEditors.js'
+import { useFileOpener } from '../../composables/useFileOpener.js'
 
 const props = defineProps({
     manager: { type: String, required: true },
@@ -213,7 +213,7 @@ const settings = useSettingsStore()
 const modal = useModalStore()
 const { lang } = useTranslate()
 const { bytesToHuman, timestampToDate, extensionToIcon } = useHelper()
-const { getDefaultEditor, isFileTooLarge, loadsOwnContent } = useFileEditors()
+const { openFile } = useFileOpener(props.manager)
 
 const {
     selectedDisk,
@@ -372,42 +372,7 @@ function formatMode(mode) {
 }
 
 function selectAction(file) {
-    const { path, extension } = file
-
-    if (fm.fileCallback) {
-        fm.url({ disk: selectedDisk.value, path }).then((response) => {
-            if (response.data.result.status === 'success') {
-                fm.fileCallback(response.data.url)
-            }
-        })
-
-        return
-    }
-
-    const customEditor = getDefaultEditor(file)
-    if (customEditor && (!isFileTooLarge(file) || loadsOwnContent(customEditor.editor))) {
-        modal.openPluginEditor({
-            pluginId: customEditor.pluginId,
-            editor: customEditor.editor,
-            file,
-        })
-
-        return
-    }
-
-    if (!extension) return
-
-    if (settings.imageExtensions.includes(extension.toLowerCase())) {
-        modal.setModalState({ modalName: 'PreviewModal', show: true })
-    } else if (Object.keys(settings.textExtensions).includes(extension.toLowerCase())) {
-        modal.setModalState({ modalName: 'TextEditModal', show: true })
-    } else if (settings.audioExtensions.includes(extension.toLowerCase())) {
-        modal.setModalState({ modalName: 'AudioPlayerModal', show: true })
-    } else if (settings.videoExtensions.includes(extension.toLowerCase())) {
-        modal.setModalState({ modalName: 'VideoPlayerModal', show: true })
-    } else if (extension.toLowerCase() === 'pdf') {
-        fm.openPDF({ disk: selectedDisk.value, path })
-    }
+    openFile(file)
 }
 
 function moveFocus(delta, withShift) {

@@ -294,6 +294,23 @@ const ru = {
             noSelected: 'Ничего не выбрано!',
         },
     },
+    history: {
+        title: 'История',
+        tabRecent: 'История',
+        tabFrequent: 'Частота',
+        directories: 'Каталоги',
+        files: 'Файлы',
+        empty: 'Пока пусто',
+        emptyHint: 'Открывайте каталоги и файлы — они появятся здесь',
+        staleRemoved: 'Элемент больше не существует — удалён из истории',
+        time: {
+            justNow: 'только что',
+            min: '{n} мин назад',
+            hour: '{n} ч назад',
+            yesterday: 'вчера',
+            day: '{n} дн назад',
+        },
+    },
     notifications: {
         cutToClipboard: 'Вырезано!',
         archiveCreated: 'Архив создан!',

@@ -34,6 +34,7 @@ import { useFileManagerStore } from './stores/useFileManagerStore.js'
 import { useSettingsStore } from './stores/useSettingsStore.js'
 import { useMessagesStore } from './stores/useMessagesStore.js'
 import { useModalStore } from './stores/useModalStore.js'
+import { useHistoryStore } from './stores/useHistoryStore.js'
 import { useArchiveOperationsStore } from './stores/useArchiveOperationsStore.js'
 import { useTranslate } from './composables/useTranslate.js'
 import { useWindowDropZone } from './composables/useDropZone.js'
@@ -59,6 +60,7 @@ const fm = useFileManagerStore()
 const settings = useSettingsStore()
 const messages = useMessagesStore()
 const modal = useModalStore()
+const history = useHistoryStore()
 const archiveOps = useArchiveOperationsStore()
 const archiveSocket = useArchiveOperationsSocket()
 provide('fm-archive-socket', archiveSocket)
@@ -316,6 +318,8 @@ onUnmounted(() => {
     document.removeEventListener('keydown', handleGlobalKey)
     resetTypeAhead()
     archiveOps.clear()
+    // Only the pending dwell timer — the recorded history must survive.
+    history.cancelPending()
     fm.resetState()
     EventBus.all.clear()
     HTTP.interceptors.request.eject(interceptorIndex.value.request)
