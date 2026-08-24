@@ -17,6 +17,15 @@ type PluginPermissionChecker interface {
 	Has(ctx context.Context, pluginID uint64, permission domain.PluginPermission) (bool, error)
 }
 
+// AllowAllPermissionChecker admits every check. It is wired in place of the
+// real checker while PLUGIN_PERMISSIONS_ENFORCE is off, so plugins written
+// before grants existed keep working while operators record theirs.
+type AllowAllPermissionChecker struct{}
+
+func (AllowAllPermissionChecker) Has(context.Context, uint64, domain.PluginPermission) (bool, error) {
+	return true, nil
+}
+
 // RepositoryPermissionChecker reads grants from the plugin's database record.
 // It is the source behind CachedPermissionChecker, which is what the host
 // libraries and the event gate actually hold; used directly it reads the

@@ -575,6 +575,7 @@
     "permissions_saved": "Permisos del plugin actualizados",
     "permissions_declared": "declarado",
     "permissions_used": "usado",
+    "permissions_enforcement_disabled_warning": "La comprobación de permisos está desactivada en este panel (PLUGIN_PERMISSIONS_ENFORCE=false). Los permisos de abajo se guardan pero no se aplican; active la variable para que se apliquen.",
     "permissions_missing_warning": "El plugin usa capacidades que no tiene concedidas; esas llamadas se rechazan hasta que las conceda:",
     "permissions_undeclared_warning": "El plugin usa capacidades que no declara. La instalación concede solo las declaradas, así que estas llamadas se rechazarán hasta que las conceda en el diálogo de permisos del plugin:",
     "required_permissions": "Permisos requeridos",

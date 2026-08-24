@@ -20,6 +20,9 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
     const versionsLastPage = ref(1)
 
     const loadedPlugins = ref([])
+    // Whether the panel applies the recorded grants (PLUGIN_PERMISSIONS_ENFORCE);
+    // assumed on until the list says otherwise, so no warning flashes by mistake.
+    const permissionsEnforced = ref(true)
     const uploadResult = ref(null)
     const uploadFile = ref(null)
 
@@ -277,6 +280,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         try {
             const response = await axios.get('/api/admin/plugins/loaded')
             loadedPlugins.value = response.data.data
+            permissionsEnforced.value = response.data.permissions_enforced ?? true
         } finally {
             apiProcesses.value--
         }
@@ -371,6 +375,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         versionsCurrentPage,
         versionsLastPage,
         loadedPlugins,
+        permissionsEnforced,
         uploadResult,
         uploadFile,
         apiProcesses,

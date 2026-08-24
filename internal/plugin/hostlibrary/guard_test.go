@@ -196,6 +196,18 @@ func TestPluginGuard_Check_enforces_policy_table(t *testing.T) {
 	}
 }
 
+func TestPluginGuard_Check_admits_everything_without_enforcement(t *testing.T) {
+	t.Parallel()
+
+	// The container wires this checker while PLUGIN_PERMISSIONS_ENFORCE is
+	// off: a plugin holding no grants at all keeps every host function.
+	guard := NewGuard(AllowAllPermissionChecker{}).For(guardTestPluginID)
+
+	msg := guard.Check(context.Background(), ModuleNodeCmd, "execute_command")
+
+	assert.Empty(t, msg)
+}
+
 func TestPluginGuard_Check_transient_load_is_never_granted(t *testing.T) {
 	t.Parallel()
 

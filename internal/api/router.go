@@ -240,7 +240,7 @@ type container interface {
 	QuerconResolver() *quercon.Resolver
 	PluginDispatcher() *plugin.Dispatcher
 	PluginRepository() repositories.PluginRepository
-	PluginPermissionChecker() *hostlibrary.CachedPermissionChecker
+	PluginPermissionEnforcer() hostlibrary.PluginPermissionChecker
 	PluginStorageRepository() repositories.PluginStorageRepository
 	PluginSecretRepository() repositories.PluginSecretRepository
 	PluginLoader() *internalplugin.Loader
@@ -1990,6 +1990,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 				c.PluginLoader(),
 				c.PluginRepository(),
+				c.Config().Plugin.Permissions.Enforce,
 				c.Responder(),
 			),
 			AdminOnly: true,
@@ -2239,7 +2240,7 @@ func registerPluginRoutes(
 	fileRefServer := pluginfileref.NewServer(
 		c.DaemonFiles(),
 		c.NodeRepository(),
-		c.PluginPermissionChecker(),
+		c.PluginPermissionEnforcer(),
 		c.AuditLogger(),
 	)
 

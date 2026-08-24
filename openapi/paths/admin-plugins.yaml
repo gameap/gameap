@@ -139,6 +139,13 @@
                   type: array
                   items:
                     $ref: '../schemas/LoadedPlugin.yaml'
+                permissions_enforced:
+                  type: boolean
+                  description: |
+                    Whether the answering panel instance applies the recorded
+                    grants (`PLUGIN_PERMISSIONS_ENFORCE`). When false,
+                    permissions are saved and shown but every check passes.
+                  example: false
       '401':
         description: Unauthorized
         content:

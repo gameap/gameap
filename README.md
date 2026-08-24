@@ -370,6 +370,7 @@ Used by the resumable file-manager upload endpoints
 - `PLUGINS_CACHE_DIR` - Local directory for the compilation cache so panel restarts do not recompile every plugin (default: in-memory only)
 - `PLUGIN_RUNTIME_MAX_MEMORY` - Linear memory cap per plugin module (default: `256M`, `0` = wazero default of 4 GiB)
 - `PLUGIN_RUNTIME_MAX_MODULE_SIZE` - Maximum wasm file size accepted for install and load (default: `128M`, `0` = unlimited)
+- `PLUGIN_PERMISSIONS_ENFORCE` - Apply the recorded plugin permission grants (default: `false`; a future release will default it to `true`). While off, grants are recorded, shown and editable but every check passes, giving plugin developers time to declare theirs. Set it identically on every panel instance; `GET /api/admin/plugins/loaded` reports the answering instance's value as `permissions_enforced`
 - `PLUGIN_PERMISSIONS_CACHE_TTL` - How long granted permissions stay cached in the instance's memory (default: `30s`, `0` = read the plugin record on every check). A grant change is announced over pub/sub and drops the cache on every instance, so this only bounds the drift while the broker is unreachable
 - `PLUGIN_RECOVERY_ENABLED` - Reload plugins the runtime disabled (guest call timeout, guest exit) with exponential backoff (default: `true`)
 - `PLUGIN_RECOVERY_INITIAL_DELAY` - Wait before the first automatic reload (default: `30s`; doubles every attempt)

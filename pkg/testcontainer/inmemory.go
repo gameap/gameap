@@ -244,10 +244,20 @@ func (c *InmemoryContainer) PluginArchiveEvents() *pluginarchive.Service {
 // exercise the handlers, not the host-library policy.
 func (c *InmemoryContainer) PluginGuard() *hostlibrary.Guard {
 	if c.pluginGuard == nil {
-		c.pluginGuard = hostlibrary.NewGuard(c.PluginPermissionChecker())
+		c.pluginGuard = hostlibrary.NewGuard(c.PluginPermissionEnforcer())
 	}
 
 	return c.pluginGuard
+}
+
+// PluginPermissionEnforcer mirrors the application container: the real
+// checker while the config enforces permissions, allow-everything otherwise.
+func (c *InmemoryContainer) PluginPermissionEnforcer() hostlibrary.PluginPermissionChecker {
+	if c.cfg.Plugin.Permissions.Enforce {
+		return c.PluginPermissionChecker()
+	}
+
+	return hostlibrary.AllowAllPermissionChecker{}
 }
 
 // PluginPermissionChecker answers grants from the in-memory plugin repository.
@@ -363,11 +373,16 @@ func buildInmemoryTestContainer() *InmemoryContainer {
 		panic(tfErr)
 	}
 
+	cfg := &config.Config{
+		AuthSecret:    "test-secret-key-for-testing",
+		EncryptionKey: "test-encryption-key-testing",
+	}
+	// Tests exercise today's enforced behavior; the release default is off
+	// only to give plugin developers a migration period.
+	cfg.Plugin.Permissions.Enforce = true
+
 	c := &InmemoryContainer{
-		cfg: &config.Config{
-			AuthSecret:    "test-secret-key-for-testing",
-			EncryptionKey: "test-encryption-key-testing",
-		},
+		cfg:                     cfg,
 		responder:               pkgapi.NewResponder(),
 		gameRepo:                inmemory.NewGameRepository(),
 		gameModRepo:             inmemory.NewGameModRepository(),

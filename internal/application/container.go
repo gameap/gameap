@@ -212,6 +212,7 @@ type Container struct {
 	pluginDispatcher      *pkgplugin.Dispatcher
 	pluginGuard           *hostlibrary.Guard
 	pluginPermissions     *hostlibrary.CachedPermissionChecker
+	pluginEnforcer        hostlibrary.PluginPermissionChecker
 	pluginSubscriptionsPS *pubsubintegration.PluginSubscriptionsNotifier
 	telemetry             *telemetry.Registry
 	pluginMetrics         *telemetry.PluginMetrics
@@ -2266,7 +2267,7 @@ func (c *Container) PluginGuard() *hostlibrary.Guard {
 		limits := c.config.Plugin.RateLimit
 
 		c.pluginGuard = hostlibrary.NewGuard(
-			c.PluginPermissionChecker(),
+			c.PluginPermissionEnforcer(),
 			hostlibrary.WithGuardRateLimits(map[hostlibrary.RateClass]hostlibrary.RateLimit{
 				hostlibrary.RateClassNodeCmd:       {RPS: limits.NodeCmd.RPS, Burst: limits.NodeCmd.Burst},
 				hostlibrary.RateClassServerControl: {RPS: limits.ServerControl.RPS, Burst: limits.ServerControl.Burst},
@@ -2294,6 +2295,25 @@ func (c *Container) PluginPermissionChecker() *hostlibrary.CachedPermissionCheck
 	}
 
 	return c.pluginPermissions
+}
+
+// PluginPermissionEnforcer is what the enforcement points consult: the cached
+// grants when PLUGIN_PERMISSIONS_ENFORCE is on, an allow-everything checker
+// while it is off. The cache and its pub/sub invalidation keep running either
+// way, so flipping the switch changes nothing else.
+func (c *Container) PluginPermissionEnforcer() hostlibrary.PluginPermissionChecker {
+	if c.pluginEnforcer == nil {
+		if c.config.Plugin.Permissions.Enforce {
+			c.pluginEnforcer = c.PluginPermissionChecker()
+		} else {
+			slog.Warn("plugin permission enforcement is disabled: grants are recorded but not applied; " +
+				"set PLUGIN_PERMISSIONS_ENFORCE=true to apply them")
+
+			c.pluginEnforcer = hostlibrary.AllowAllPermissionChecker{}
+		}
+	}
+
+	return c.pluginEnforcer
 }
 
 // Telemetry is the panel's Prometheus registry.
@@ -2459,25 +2479,35 @@ func (l *lazyServerController) Reinstall(ctx context.Context, server *domain.Ser
 
 func (c *Container) PluginDispatcher() *pkgplugin.Dispatcher {
 	if c.pluginDispatcher == nil {
-		checker := c.PluginPermissionChecker()
+		opts := []pkgplugin.DispatcherOption{
+			pkgplugin.WithDispatcherObserver(c.PluginMetrics()),
+		}
+
+		// Event subscriptions are gated on the plugin's listen_events grant.
+		// While enforcement is off no gate is installed, so every plugin's
+		// subscriptions are honored.
+		if c.config.Plugin.Permissions.Enforce {
+			checker := c.PluginPermissionChecker()
+
+			opts = append(opts, pkgplugin.WithSubscriptionGate(
+				func(ctx context.Context, plugin *pkgplugin.LoadedPlugin) bool {
+					allowed, err := checker.Has(ctx, plugin.DBID, domain.PluginPermissionListenEvents)
+					if err != nil {
+						slog.ErrorContext(ctx, "failed to check plugin listen_events permission",
+							slog.Uint64("plugin_id", plugin.DBID),
+							slog.String("error", err.Error()))
+
+						return false
+					}
+
+					return allowed
+				}))
+		}
 
 		c.pluginDispatcher = pkgplugin.NewDispatcher(
 			c.PluginManager(),
 			slog.Default(),
-			pkgplugin.WithDispatcherObserver(c.PluginMetrics()),
-			// Event subscriptions are gated on the plugin's listen_events grant.
-			pkgplugin.WithSubscriptionGate(func(ctx context.Context, plugin *pkgplugin.LoadedPlugin) bool {
-				allowed, err := checker.Has(ctx, plugin.DBID, domain.PluginPermissionListenEvents)
-				if err != nil {
-					slog.ErrorContext(ctx, "failed to check plugin listen_events permission",
-						slog.Uint64("plugin_id", plugin.DBID),
-						slog.String("error", err.Error()))
-
-					return false
-				}
-
-				return allowed
-			}),
+			opts...,
 		)
 	}
 
@@ -2531,6 +2561,7 @@ func (c *Container) PluginLoader() *internalplugin.Loader {
 			c.PluginsDir(),
 			internalplugin.WithStrictLoad(c.config.Plugins.StrictLoad),
 			internalplugin.WithSubscriptionRefresher(c.PluginDispatcher()),
+			internalplugin.WithPermissionEnforcement(c.config.Plugin.Permissions.Enforce),
 		)
 
 		// Always present: it records why a plugin was disabled even when

@@ -14,6 +14,16 @@
           </div>
         </div>
 
+        <n-alert
+          v-if="!permissionsEnforced"
+          type="warning"
+          :show-icon="true"
+          class="mb-3"
+          data-testid="plugin-permissions-enforcement-disabled"
+        >
+          {{ trans('plugins.permissions_enforcement_disabled_warning') }}
+        </n-alert>
+
         <div
           v-if="permissionsUnknown"
           class="mb-3 p-2 rounded-lg bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300 text-sm break-words"
@@ -84,7 +94,7 @@ import { trans } from '@/i18n/i18n'
 import { GIcon, GModal } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
 import PluginIcon from '@/components/plugins/PluginIcon.vue'
-import { NCheckbox, NCheckboxGroup, NSpin } from 'naive-ui'
+import { NAlert, NCheckbox, NCheckboxGroup, NSpin } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { usePluginStoreStore } from '@/store/pluginStore'
 import { errorNotification, notification } from '@/parts/dialogs'
@@ -104,7 +114,7 @@ const props = defineProps({
 const emit = defineEmits(['update:show'])
 
 const pluginStore = usePluginStoreStore()
-const { loadedPlugins } = storeToRefs(pluginStore)
+const { loadedPlugins, permissionsEnforced } = storeToRefs(pluginStore)
 
 const visible = computed({
   get: () => props.show,

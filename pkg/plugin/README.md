@@ -1189,6 +1189,14 @@ backstop if the broker is unreachable; `0` disables the cache and reads the
 record on every check. A grant set that is empty is never cached, so a plugin
 that has just been installed is never denied by a stale answer.
 
+Enforcement is transitional: `PLUGIN_PERMISSIONS_ENFORCE` (default `false` in
+this release, `true` in a future one) decides whether the grants are applied.
+While it is off every check passes — host calls, event deliveries and file
+refs work without grants — but the grants are still recorded, computed and
+editable, the load log names what is missing, and the admin permissions
+dialog warns that they are not applied. Record the grants your plugin needs
+now, so nothing breaks when enforcement becomes the default.
+
 `listen_events` is checked twice: the subscription map each instance builds is
 filtered by the grant, and every delivery re-checks it, so a revocation stops
 events on the other instances as soon as the announcement lands rather than at

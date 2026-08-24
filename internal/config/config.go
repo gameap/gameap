@@ -458,6 +458,12 @@ type Config struct {
 		// Permissions tunes the in-process cache of plugin grants, consulted
 		// on every privileged host call and every event delivery.
 		Permissions struct {
+			// Enforce applies the recorded grants: without it every check
+			// passes. Grants are still recorded, computed and editable, so
+			// operators can prepare plugins before enforcement becomes the
+			// default in a future release.
+			Enforce bool `env:"PLUGIN_PERMISSIONS_ENFORCE" envDefault:"false"`
+
 			// CacheTTL bounds how long a grant set survives without being
 			// re-read. A change is pushed to every instance over pub/sub
 			// (gameap:plugin:subscriptions:refresh), so this is only the

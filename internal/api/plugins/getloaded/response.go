@@ -52,6 +52,10 @@ type loadedPluginResponse struct {
 
 type listResponse struct {
 	Data []*loadedPluginResponse `json:"data"`
+
+	// PermissionsEnforced reports whether this instance applies the recorded
+	// grants (PLUGIN_PERMISSIONS_ENFORCE); the UI warns when it does not.
+	PermissionsEnforced bool `json:"permissions_enforced"`
 }
 
 // newLoadedPluginResponse describes a plugin loaded on this instance; record

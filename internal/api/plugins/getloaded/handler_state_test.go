@@ -69,7 +69,7 @@ func TestLoaded_reports_runtime_state_of_loaded_plugins(t *testing.T) {
 			Enabled: true,
 			DBID:    uint64(dbID),
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -112,7 +112,7 @@ func TestLoaded_includes_installed_but_not_loaded_plugins(t *testing.T) {
 			Enabled: true,
 			DBID:    uint64(loadedID),
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 3)
@@ -168,7 +168,7 @@ func TestLoaded_disabled_in_memory_reports_reason(t *testing.T) {
 
 	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
 		return []*pkgplugin.LoadedPlugin{hanging}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -197,7 +197,7 @@ func TestLoaded_silently_disabled_plugin_falls_back_to_record(t *testing.T) {
 
 	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
 		return []*pkgplugin.LoadedPlugin{unloading}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -212,7 +212,7 @@ func TestLoaded_repository_failure_falls_back_to_loaded_plugins(t *testing.T) {
 			Info:    &proto.PluginInfo{Id: "survivor", Name: "Survivor", Version: "1.0.0"},
 			Enabled: true,
 		}}
-	}}, nil, failingPluginRepository{}, api.NewResponder())
+	}}, nil, failingPluginRepository{}, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -237,7 +237,7 @@ func TestLoaded_maps_loaded_plugin_to_record_by_declared_id(t *testing.T) {
 			Info:    &proto.PluginInfo{Id: "legacyplugin", Name: "Legacy", Version: "1.0.0"},
 			Enabled: true,
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1, "the record must not be listed a second time as not loaded")
@@ -271,7 +271,7 @@ func TestLoaded_reports_permissions(t *testing.T) {
 			},
 			SubscribedEvents: []proto.EventType{proto.EventType_EVENT_TYPE_SERVER_POST_START},
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 2)
