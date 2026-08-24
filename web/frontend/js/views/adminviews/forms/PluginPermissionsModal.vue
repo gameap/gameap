@@ -117,7 +117,12 @@ const saving = ref(false)
 
 // The checkboxes follow the record; a saved update flows back through
 // loadedInfo, an unsaved edit is dropped when the modal is opened again.
+// While the form is open it is left alone: a fetchLoadedPlugins() landing
+// mid-edit (a row reload started before the modal opened) replaces the
+// record and would otherwise reset the checkboxes under the operator.
 watch(allowedPermissions, (allowed) => {
+  if (props.show) return
+
   selectedPermissions.value = [...allowed]
 }, { immediate: true })
 

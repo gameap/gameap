@@ -65,7 +65,9 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
                 error: loaded.error ?? null,
                 error_at: loaded.error_at ?? null,
                 memory_bytes: loaded.memory_bytes ?? null,
-                missing_permissions: loaded.missing_permissions ?? [],
+                // null (not []) when the answering instance has not loaded the
+                // plugin: its used/missing permissions are unknown, not empty.
+                missing_permissions: loaded.missing_permissions ?? null,
 
                 summary: storePlugin?.summary || loaded.description || '',
                 description: loaded.description || '',
@@ -304,10 +306,11 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
                     ...plugin,
                     required_permissions: updated.required_permissions,
                     allowed_permissions: updated.allowed_permissions,
-                    // null means "not loaded on the instance that answered";
-                    // the rows keep an array, as the list mapping does.
-                    used_permissions: updated.used_permissions ?? [],
-                    missing_permissions: updated.missing_permissions ?? [],
+                    // Kept as null when the answering instance has not loaded
+                    // the plugin, so "unknown" stays distinguishable from
+                    // "loaded and nothing missing".
+                    used_permissions: updated.used_permissions ?? null,
+                    missing_permissions: updated.missing_permissions ?? null,
                 }
                 : plugin)
 

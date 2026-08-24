@@ -570,6 +570,7 @@
     "installation_failed_title": "Plugin-Installation fehlgeschlagen",
     "permissions": "Berechtigungen",
     "permissions_hint": "Was das Plugin über das Panel tun darf. Die Host-Bibliotheken lesen die Berechtigungen bei jedem Aufruf neu, eine Änderung wirkt sofort.",
+    "permissions_unknown": "Diese Panel-Instanz hat das Plugin nicht geladen, daher ist hier unbekannt, welche Berechtigungen es nutzt.",
     "permissions_save": "Berechtigungen speichern",
     "permissions_saved": "Plugin-Berechtigungen aktualisiert",
     "permissions_declared": "deklariert",

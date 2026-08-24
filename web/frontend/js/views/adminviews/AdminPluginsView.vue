@@ -272,7 +272,11 @@ const createInstalledColumns = () => {
       // Wide enough for the longest locale (de) with the update button shown.
       width: isCompactActions.value ? 160 : 460,
       render(row) {
-        const missingPermissions = row.missing_permissions ?? []
+        // null when the instance that answered has not loaded the plugin: it
+        // cannot tell which permissions the module exercises, so the button
+        // stays neutral instead of claiming everything is granted.
+        const missingPermissions = row.missing_permissions
+        const permissionsUnknown = missingPermissions === null
 
         return [
           renderActionButton('black', 'refresh', trans('plugins.reload'), () => onReload(row), {
@@ -282,14 +286,18 @@ const createInstalledColumns = () => {
               ? renderActionButton('blue', 'sync', trans('plugins.update'), () => onShowDetailsForUpdate(row))
               : null,
           renderActionButton(
-              missingPermissions.length > 0 ? 'orange' : 'green',
+              permissionsUnknown
+                  ? 'white'
+                  : (missingPermissions.length > 0 ? 'orange' : 'green'),
               'key',
               trans('plugins.permissions'),
               () => onShowPermissions(row),
               {
-                title: missingPermissions.length > 0
-                    ? missingPermissions.map(permission => trans('plugins.permission_' + permission)).join(', ')
-                    : undefined,
+                title: permissionsUnknown
+                    ? trans('plugins.permissions_unknown')
+                    : (missingPermissions.length > 0
+                        ? missingPermissions.map(permission => trans('plugins.permission_' + permission)).join(', ')
+                        : undefined),
                 'data-testid': `plugin-row-permissions-${row.id}`,
               },
           ),

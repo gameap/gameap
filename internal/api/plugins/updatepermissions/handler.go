@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/audit"
@@ -22,6 +23,11 @@ import (
 
 // maxBody bounds the JSON body: a permission list is a few hundred bytes.
 const maxBody = 64 << 10
+
+// announceTimeout bounds the advisory publish to the other panel instances:
+// the announcement outlives the request, but a stalled broker must not hold
+// the handler goroutine.
+const announceTimeout = 5 * time.Second
 
 var errPluginNotInstalled = errors.New("plugin is not installed")
 
@@ -145,7 +151,10 @@ func (h *Handler) announceSubscriptionChange(ctx context.Context, pluginID uint6
 		return
 	}
 
-	if err := h.announcer.PublishRefresh(context.WithoutCancel(ctx), pluginID); err != nil {
+	publishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), announceTimeout)
+	defer cancel()
+
+	if err := h.announcer.PublishRefresh(publishCtx, pluginID); err != nil {
 		slog.ErrorContext(ctx, "failed to announce plugin subscription change",
 			slog.Uint64("plugin_id", pluginID),
 			slog.String("error", err.Error()))

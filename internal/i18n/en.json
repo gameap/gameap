@@ -570,6 +570,7 @@
     "installation_failed_title": "Plugin Installation Failed",
     "permissions": "Permissions",
     "permissions_hint": "What the plugin may do through the panel. The host libraries re-read the grants on every call, so a change takes effect at once.",
+    "permissions_unknown": "This panel instance has not loaded the plugin, so which permissions it uses is unknown here.",
     "permissions_save": "Save permissions",
     "permissions_saved": "Plugin permissions updated",
     "permissions_declared": "declared",
