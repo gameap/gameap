@@ -12,6 +12,7 @@ import { foldText } from '../textFold.js'
 import { useSettingsStore } from './useSettingsStore.js'
 import { useMessagesStore } from './useMessagesStore.js'
 import { useModalStore } from './useModalStore.js'
+import { useHistoryStore } from './useHistoryStore.js'
 import { useTranslate } from '../composables/useTranslate.js'
 import { notification } from '@/parts/dialogs.js'
 
@@ -555,6 +556,12 @@ export const useFileManagerStore = defineStore('fm', () => {
                 setManagerContent(managerName, response.data)
                 setManagerDirectory(managerName, path)
 
+                // Visit history follows the left manager only — the single
+                // rendered pane today.
+                if (managerName === 'left') {
+                    useHistoryStore().onDirectoryChanged({ disk: manager.selectedDisk, path })
+                }
+
                 if (managerName === activeManager.value) {
                     resetSearchCursor()
                 }
@@ -598,6 +605,9 @@ export const useFileManagerStore = defineStore('fm', () => {
                 }
             } else if (response.data.result.status === 'danger' && !retried) {
                 setManagerDirectory(managerName, null)
+                if (managerName === 'left') {
+                    useHistoryStore().onDirectoryChanged({ disk: manager.selectedDisk, path: null })
+                }
                 await refreshDirectory(managerName, true)
             } else {
                 setManagerError(managerName, {
@@ -696,6 +706,11 @@ export const useFileManagerStore = defineStore('fm', () => {
             const response = await GET.content(disk, path)
             if (response.data.result.status === 'success') {
                 setManagerContent(manager, response.data)
+                // Initial load bypasses selectDirectory, so the visit
+                // tracker is fed here.
+                if (manager === 'left') {
+                    useHistoryStore().onDirectoryChanged({ disk, path })
+                }
             } else {
                 setManagerError(manager, {
                     status: 0,
@@ -1121,6 +1136,7 @@ export const useFileManagerStore = defineStore('fm', () => {
         })
 
         if (response.data.result.status === 'success') {
+            useHistoryStore().onItemsDeleted({ disk: selectedDisk.value, items })
             refreshManagers()
         }
         return response
@@ -1213,6 +1229,15 @@ export const useFileManagerStore = defineStore('fm', () => {
             oldName,
             type,
         })
+
+        if (response.data.result.status === 'success') {
+            useHistoryStore().onItemRenamed({
+                disk: selectedDisk.value,
+                type,
+                oldPath: oldName,
+                newPath: newName,
+            })
+        }
 
         if (type === 'dir') {
             refreshAll()
