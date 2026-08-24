@@ -105,9 +105,6 @@ const (
 	EventPluginRBACGrant         EventType = "plugin.rbac.grant"
 	EventPluginRBACRevoke        EventType = "plugin.rbac.revoke"
 	EventPluginPermissionsUpdate EventType = "plugin.permissions.update"
-	// EventPluginConfigUpdate: an operator changed a plugin's configuration;
-	// the record names the keys that changed, never their values.
-	EventPluginConfigUpdate EventType = "plugin.config.update"
 	// EventPluginHostCallRateLimited: a host call refused by the per-plugin
 	// rate limiter. Throttled per plugin and limiter class so a plugin
 	// looping on a refused call cannot flood the audit stream.

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/pkg/mergefs"
-	"github.com/gameap/gameap/pkg/plugin/configschema"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk/protocol"
 	"github.com/pkg/errors"
@@ -87,22 +86,12 @@ type LoadedPlugin struct {
 	// ("gameap-nodefs", ...), sorted; what gameap-host GetHostInfo reports.
 	HostModules []string
 
-	// ConfigSchemaError explains why the manifest's config_schema could not
-	// be parsed; the plugin still loads, with free-form configuration.
-	ConfigSchemaError string
-
-	// manifestSchema is the config_schema text of the manifest, published
-	// before Initialize runs so gameap-host can overlay the defaults on the
-	// very first load, when the database row does not carry the schema yet.
-	manifestSchema atomic.Pointer[string]
-
 	// disableReason is set by DisableWithReason; nil when the plugin was
 	// disabled silently (unload, shutdown). onDisabled is the manager's
 	// DisableHook, wired by Load for registered plugins only.
 	disableReason atomic.Pointer[string]
 	onDisabled    DisableHook
 	guestLogs     *guestLogs
-	health        atomic.Pointer[HealthReport]
 
 	// disabled is atomic because it is flipped on Unload and on guest call
 	// timeouts while dispatchers concurrently read it without the manager lock.
@@ -287,9 +276,9 @@ func (m *Manager) LoadTransient(
 // load builds a runtime for the module and initializes the plugin. With
 // register set (Load, not LoadTransient) the plugin is reachable by database
 // id from the moment its runtime starts, so host libraries called during
-// Initialize (gameap-host ReportStatus) already find it; the index entry is
-// rolled back when the load fails, and the returned rollback lets the
-// caller undo it when it rejects the plugin afterwards (duplicate id).
+// Initialize (gameap-host) already find it; the index entry is rolled back
+// when the load fails, and the returned rollback lets the caller undo it
+// when it rejects the plugin afterwards (duplicate id).
 func (m *Manager) load(
 	ctx context.Context,
 	wasmBytes []byte,
@@ -421,36 +410,6 @@ func (m *Manager) PluginByDBID(dbID uint64) (*LoadedPlugin, bool) {
 	plugin, ok := m.byDBID[dbID]
 
 	return plugin, ok
-}
-
-// SetHealth records a plugin's self-reported status; false when no plugin
-// is registered for the id (transient loads are never registered).
-func (m *Manager) SetHealth(dbID uint64, report HealthReport) bool {
-	plugin, ok := m.PluginByDBID(dbID)
-	if !ok {
-		return false
-	}
-
-	plugin.SetHealth(report)
-
-	return true
-}
-
-// ManifestConfigSchema answers the config_schema the running module
-// declared (empty when it declares none); false when no module runs for
-// the id. Available from the moment GetInfo answered, i.e. inside Initialize.
-func (m *Manager) ManifestConfigSchema(dbID uint64) (string, bool) {
-	plugin, ok := m.PluginByDBID(dbID)
-	if !ok {
-		return "", false
-	}
-
-	schema := plugin.manifestSchema.Load()
-	if schema == nil {
-		return "", true
-	}
-
-	return *schema, true
 }
 
 // HostModules lists the host modules instantiated for the plugin.
@@ -653,9 +612,7 @@ func (m *Manager) instantiateLibraries(ctx context.Context, r wazero.Runtime, pl
 }
 
 // initializePlugin runs the guest's initialization sequence and fills the
-// loaded plugin. The configuration handed to Initialize is the caller's map
-// with the manifest's schema defaults underneath it, so a plugin sees its
-// defaults from the very first load.
+// loaded plugin.
 func (m *Manager) initializePlugin(
 	ctx context.Context,
 	r wazero.Runtime,
@@ -670,23 +627,9 @@ func (m *Manager) initializePlugin(
 
 	logs.SetPluginID(info.Id)
 
-	loaded.manifestSchema.Store(&info.ConfigSchema)
-
-	schema, err := configschema.Parse(info.ConfigSchema)
-	if err != nil {
-		loaded.ConfigSchemaError = err.Error()
-
-		slog.Warn("plugin declares an invalid config_schema, configuration stays free-form",
-			slog.String("plugin_id", info.Id),
-			slog.String("error", err.Error()),
-		)
-	}
-
-	config := schema.Apply(loaded.Config)
-
 	initResp, err := plugin.Initialize(ctx, &proto.InitializeRequest{
 		Context: &proto.PluginContext{PluginId: info.Id},
-		Config:  config,
+		Config:  loaded.Config,
 	})
 	if err != nil {
 		return errors.Wrap(err, "plugin initialization failed")
@@ -708,7 +651,6 @@ func (m *Manager) initializePlugin(
 
 	loaded.Info = info
 	loaded.Instance = plugin
-	loaded.Config = config
 	loaded.HTTPRoutes = httpRoutes
 	loaded.runtime = r
 

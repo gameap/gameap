@@ -38,10 +38,7 @@ Plugins can:
 - **Control servers** (start, stop, restart, update, install)
 - **Use caching** (get, set, delete)
 - **Store credentials encrypted at rest** (gameap-secrets, under the `secrets` grant)
-- **Declare a configuration schema** the admin UI renders as a form (typed
-  values, defaults, secrets — see [Configuration](#configuration))
-- **Introspect and report** (gameap-host: own grants, effective configuration,
-  host modules, self-reported health)
+- **Introspect the panel** (gameap-host: own grants, host modules)
 - **Make HTTP requests** (external API calls)
 - **Log messages** (debug, info, warn, error)
 - **Register custom HTTP endpoints** (extend the API)
@@ -287,7 +284,7 @@ Rules the panel enforces:
 ### gameap-host
 
 Lets a plugin introspect itself and the panel it runs on. Open to every
-plugin — no grant, no rate limit, no audit record.
+plugin — no grant, no rate limit, no audit record. Every call is read-only.
 
 ```go
 import "github.com/gameap/gameap/pkg/plugin/sdk/host"
@@ -298,34 +295,15 @@ hs := host.NewHostService()
 grants, _ := hs.GetGrants(ctx, &host.GetGrantsRequest{})
 canRunCommands := slices.Contains(grants.Permissions, "node_commands")
 
-// The same map Initialize received, re-read from the database: schema
-// defaults overlaid by the operator's values, secrets decrypted.
-cfg, _ := hs.GetConfig(ctx, &host.GetConfigRequest{})
-if cfg.Error != nil {
-    // A secret no longer decrypts, for example; Values is empty.
-}
-webhook := cfg.Values["webhook_url"]
-
 // Panel version, plugin API version, host modules instantiated for this
 // plugin and the id of the answering instance.
 info, _ := hs.GetHostInfo(ctx, &host.GetHostInfoRequest{})
 hasNodeFS := slices.Contains(info.Modules, "gameap-nodefs")
-
-// Self-diagnosis shown in the admin UI and exported as a metric.
-hs.ReportStatus(ctx, &host.ReportStatusRequest{
-    Status:  host.HealthStatus_HEALTH_STATUS_DEGRADED,
-    Message: "upstream API unreachable, retrying",
-    Details: map[string]string{"endpoint": "api.example.com"},
-})
 ```
 
-`GetConfig.found` is false and `ReportStatus.accepted` is false for
-transient loads (the upload dry-run) — such a module has no database record.
-Health is kept in memory per panel instance: the message is capped at 512
-bytes and the details at 16 entries (keys 64 bytes, values 256 bytes — longer
-ones are dropped); the last report is what `GET /api/admin/plugins/loaded`
-shows as `health` and what `gameap_plugin_health{plugin,status}` exports. A
-reload clears it.
+A transient load (the upload dry-run) has no database record and no index
+entry, so `GetGrants` answers an empty list and `GetHostInfo.modules` is
+empty; the panel and API versions are still filled in.
 
 ### gameap-scheduler
 
@@ -1359,10 +1337,8 @@ install/reinstall), `plugin.server.save` / `plugin.server.delete`,
 are `access.denied` with the plugin as the actor (reason
 `plugin_permission_missing` or `plugin_path_policy`). Operator actions on a plugin are recorded with the
 operator as the actor: `plugin.install`, `plugin.uninstall`,
-`plugin.permissions.update`, `plugin.config.update` (changed, removed and
-secret key names — never values) and `plugin.reloaded` with `trigger` =
-`manual`, `auto` (recovery), `config` (after a configuration change) or
-`sync` (another instance's change applied here). When the
+`plugin.permissions.update` and `plugin.reloaded` with `trigger` = `manual`,
+`auto` (recovery) or `sync` (another instance's change applied here). When the
 plugin acted inside a user's request — an event raised by that request or a
 plugin HTTP route — the user travels as `on_behalf_of_user_id` /
 `on_behalf_of_login`; the same user reaches the plugin as
@@ -1411,21 +1387,11 @@ With `METRICS_TOKEN` set, `GET /metrics` (bearer token) exposes, per plugin
   `listen_events`) and `gameap_plugin_async_backlog` (fire-and-forget
   *batches* in flight or queued, not individual events);
 - `gameap_plugin_disabled_total{plugin,reason}`,
-  `gameap_plugin_memory_bytes{plugin}`, `gameap_plugin_enabled{plugin}`;
-- `gameap_plugin_health{plugin,status}` — the last `gameap-host.ReportStatus`
-  of the plugin on this instance (`1` for the reported status, `0` for the
-  others; absent until the plugin reports);
-- `gameap_plugin_sync_passes_total{result}` (`ok` | `failed`) and
-  `gameap_plugin_sync_pending` — the multi-instance reconciler (see
-  [Multi-instance](#multi-instance)).
+  `gameap_plugin_memory_bytes{plugin}`, `gameap_plugin_enabled{plugin}`.
 
 ## Configuration
 
-Plugins receive configuration during initialization as
-`InitializeRequest.config` (`map<string, string>`). The values come from the
-plugin's database record (`plugins.config`), which operators edit in the
-admin UI (plugin details → Configuration) or through the admin API; nothing
-in the plugin file is changed.
+Plugins receive configuration during initialization:
 
 ```go
 func (p MyPlugin) Initialize(ctx context.Context, req *proto.InitializeRequest) (*proto.InitializeResponse, error) {
@@ -1441,6 +1407,7 @@ func (p MyPlugin) Initialize(ctx context.Context, req *proto.InitializeRequest) 
         }, nil
     }
 
+    // Store configuration for later use
     p.apiKey = apiKey
     p.webhookURL = webhookURL
 
@@ -1449,90 +1416,6 @@ func (p MyPlugin) Initialize(ctx context.Context, req *proto.InitializeRequest) 
     }, nil
 }
 ```
-
-### Declaring a schema
-
-`PluginInfo.config_schema` (a JSON Schema subset, as text) tells the panel
-which keys the plugin understands, so the admin UI renders a form instead of
-free-form key/value rows and the API validates what operators save:
-
-```go
-func (p MyPlugin) GetInfo(context.Context, *proto.GetInfoRequest) (*proto.GetInfoResponse, error) {
-    return &proto.GetInfoResponse{
-        Info: &proto.PluginInfo{
-            Id:      "my-plugin",
-            Name:    "My Plugin",
-            Version: "1.2.0",
-            ConfigSchema: `{
-              "type": "object",
-              "properties": {
-                "api_key":     {"type": "string",  "format": "secret", "title": "API key"},
-                "webhook_url": {"type": "string",  "pattern": "^https://", "description": "Called on every event"},
-                "port":        {"type": "integer", "default": 27015, "minimum": 1, "maximum": 65535},
-                "region":      {"type": "string",  "enum": ["eu", "us"], "default": "eu"},
-                "verbose":     {"type": "boolean", "default": false}
-              },
-              "required": ["api_key"],
-              "additionalProperties": false
-            }`,
-        },
-    }, nil
-}
-```
-
-Supported keywords:
-
-| Keyword | Notes |
-|---|---|
-| root `type: object`, `properties`, `required`, `additionalProperties` | at most 100 properties; keys match `^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`; a `required` key with a `default` may be left unset; `additionalProperties` defaults to `true` |
-| property `type` | `string`, `integer`, `number`, `boolean` — no nested objects, arrays, `$ref`, `oneOf` |
-| `title`, `description` | shown in the form |
-| `default` | typed like the property; overlaid at load, never persisted; not allowed on secrets |
-| `enum` | renders a select |
-| `minimum`, `maximum`, `minLength`, `maxLength`, `pattern` (RE2) | validated on save |
-| `format: "secret"` | string only; stored encrypted, masked everywhere |
-
-The schema is capped at 64 KiB and a single value at 8 KiB. The plugin
-always receives strings: booleans as `true`/`false`, numbers in decimal
-(`27015`, `0.5`). The effective map is `defaults ⊕ stored values`, computed
-at every load — so a new default shipped by a plugin update applies to every
-installation that never set the key, and `gameap-host.GetConfig` answers the
-same map on demand. An invalid schema does not stop the plugin from loading:
-the dry-run lists the problem under `errors`, the admin UI shows it and falls
-back to free-form editing, and `GET /api/admin/plugins/loaded` reports it as
-`config_schema_error`.
-
-Plugins without a schema keep working as before: whatever keys an operator
-stores reach `Initialize` as strings. Panels older than this feature ignore
-`config_schema` and pass the stored keys unchanged.
-
-### Secrets
-
-A property with `format: "secret"` is stored as an encrypted envelope
-(AES-GCM under `ENCRYPTION_KEY`, bound to the plugin record and the key
-name), decrypted only when the effective map is built for `Initialize` /
-`GetConfig`. The API never returns it — `GET …/config` lists the key under
-`secrets_set` — and the audit log records key names only. Without
-`ENCRYPTION_KEY` the panel refuses to store secrets while
-`PLUGIN_SECRETS_REQUIRE_ENCRYPTION` (default `true`) is on; turning it off
-stores them in plaintext, the same trade-off as `gameap-secrets`.
-
-### Admin API
-
-- `GET /api/admin/plugins/{id}/config` → `schema` (parsed, in declaration
-  order), `schema_error`, `values` (non-secret) and `secrets_set`.
-- `PUT /api/admin/plugins/{id}/config` with `{"values": {...}}` replaces the
-  configuration: every non-secret key must be sent (absent keys are removed —
-  the schema default then applies); a secret that is omitted or `null` keeps
-  its stored value, `""` clears it, any other string replaces it. Values are
-  validated against the schema (`422` with `errors: {key: message}`), unknown
-  keys are accepted as strings unless `additionalProperties` is `false`.
-  Unless the plugin is disabled or updating, the panel then reloads it on
-  every instance (see [Multi-instance](#multi-instance)); a reload failure
-  is reported in `reload_error` — the values are saved either way.
-- `GET /api/admin/plugins/loaded` reports `has_config_schema`, `config_keys`
-  and `config_schema_error`; the upload dry-run summarises the schema as
-  `config_schema: {valid, error, properties, required, secrets}`.
 
 ## Runtime limits and recovery
 
@@ -1608,14 +1491,14 @@ module instance.
 ### Multi-instance
 
 Several panel instances sharing one database each run their own module
-instances. `loaded`, `enabled`, `memory_bytes`, `health` and `sync` in
+instances. `loaded`, `enabled`, `memory_bytes` and `sync` in
 `GET /api/admin/plugins/loaded` describe the instance that answered the
 request, while `status` / `error` are the shared database record — the last
 outcome written by any instance.
 
 The database is the desired state, and every instance reconciles against it:
-an install, update, uninstall, configuration change, permission change or
-operator reload performed on one instance is picked up by the others — at
+an install, update, uninstall, permission change or operator reload
+performed on one instance is picked up by the others — at
 once through the pubsub hint (`gameap:plugin:sync`, carrying only the plugin
 id) and in any case on the periodic pass (`PLUGIN_SYNC_REFRESH_INTERVAL`,
 60s). A reload is propagated through a `generation` counter on the record,
@@ -1665,14 +1548,13 @@ pkg/plugin/
 │   ├── protocol/             # ProtocolService (optional RCON/Query extension)
 │   ├── scheduler/            # gameap-scheduler module (periodic tasks)
 │   ├── secrets/              # gameap-secrets module (encrypted credentials)
-│   ├── host/                 # gameap-host module (grants, config, host info, health)
+│   ├── host/                 # gameap-host module (own grants, host info)
 │   └── log/                  # gameap-log module
-├── configschema/             # config_schema subset: parsing, defaults, validation
 ├── examples/
 │   ├── server-logger/        # Example plugin (lifecycle events)
 │   └── protocol-extension/   # Example plugin (RCON/Query protocols)
 ├── manager.go                # Plugin manager
-├── health.go                 # Runtime disable reasons, self-reported health, memory snapshot
+├── health.go                 # Runtime disable reasons and memory snapshot
 ├── hostmodules.go            # Records the host modules instantiated per plugin
 ├── observer.go               # Observer interface (guest/host call and event metrics)
 ├── hostcall_interceptor.go   # wazero decorator timing every host function a guest calls

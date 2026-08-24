@@ -2151,7 +2151,6 @@ func (c *Container) PluginSync() *pluginsync.Service {
 				Locks:      c.SchedulerLocker(),
 				Bus:        c.PubSub(),
 				Audit:      c.AuditLogger(),
-				Metrics:    c.PluginMetrics(),
 				PluginsDir: c.PluginsDir(),
 			},
 			pluginsync.Options{
@@ -2338,12 +2337,11 @@ func (c *Container) PluginPathPolicy() *hostlibrary.PathPolicy {
 }
 
 // hostIntrospectionFactory builds the per-plugin gameap-host module:
-// introspection of the plugin's own grants, configuration and host, plus its
-// health report, all keyed on the plugin id.
+// introspection of the plugin's own grants and of the host it runs on, keyed
+// on the plugin id.
 func (c *Container) hostIntrospectionFactory() pkgplugin.HostLibraryFactory {
 	return hostlibrary.NewHostHostLibraryFactory(
 		c.PluginRepository(),
-		c.SecretCipher(),
 		&lazyPluginStateSink{container: c},
 		hostlibrary.HostInfo{
 			PanelVersion:     defaults.Version,
@@ -2427,7 +2425,6 @@ func (c *Container) PluginMetrics() *telemetry.PluginMetrics {
 			c.Telemetry(),
 			&lazyPluginLister{container: c},
 			&lazyPluginBacklog{container: c},
-			&lazyPluginSyncPending{container: c},
 		)
 	}
 
@@ -2447,15 +2444,6 @@ func (l *lazyPluginLister) GetPlugins() []*pkgplugin.LoadedPlugin {
 	return l.container.pluginManager.GetPlugins()
 }
 
-// lazyPluginSyncPending resolves the reconciler at scrape time.
-type lazyPluginSyncPending struct {
-	container *Container
-}
-
-func (l *lazyPluginSyncPending) Pending() int {
-	return l.container.pluginSync.Pending()
-}
-
 // lazyPluginBacklog resolves the plugin dispatcher at scrape time.
 type lazyPluginBacklog struct {
 	container *Container
@@ -2473,22 +2461,6 @@ func (l *lazyPluginBacklog) AsyncBacklog() int {
 // libraries are built while the manager itself is being constructed.
 type lazyPluginStateSink struct {
 	container *Container
-}
-
-func (l *lazyPluginStateSink) SetHealth(dbID uint64, report pkgplugin.HealthReport) bool {
-	if l.container.pluginManager == nil {
-		return false
-	}
-
-	return l.container.pluginManager.SetHealth(dbID, report)
-}
-
-func (l *lazyPluginStateSink) ManifestConfigSchema(dbID uint64) (string, bool) {
-	if l.container.pluginManager == nil {
-		return "", false
-	}
-
-	return l.container.pluginManager.ManifestConfigSchema(dbID)
 }
 
 func (l *lazyPluginStateSink) HostModules(dbID uint64) ([]string, bool) {
@@ -2692,7 +2664,6 @@ func (c *Container) PluginLoader() *internalplugin.Loader {
 			c.PluginsDir(),
 			internalplugin.WithStrictLoad(c.config.Plugins.StrictLoad),
 			internalplugin.WithSubscriptionRefresher(c.PluginDispatcher()),
-			internalplugin.WithSecretCipher(c.SecretCipher()),
 			internalplugin.WithLifecycleEvents(c.PluginDispatcher()),
 			internalplugin.WithPermissionEnforcement(c.config.Plugin.Permissions.Enforce),
 		)

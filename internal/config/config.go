@@ -486,9 +486,9 @@ type Config struct {
 		}
 
 		// Sync keeps the plugin runtime of every panel instance in step with
-		// the plugins table: install, update, uninstall, reload, permission
-		// and configuration changes made on one instance reach the others
-		// through a pub/sub hint and a periodic reconcile pass.
+		// the plugins table: install, update, uninstall, reload and
+		// permission changes made on one instance reach the others through a
+		// pub/sub hint and a periodic reconcile pass.
 		Sync struct {
 			// Disabled turns the reconciler off; plugin changes then only
 			// reach an instance when it restarts.

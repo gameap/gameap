@@ -48,33 +48,6 @@ func (h hostService) GetGrants(ctx context.Context, request *GetGrantsRequest) (
 	return response, nil
 }
 
-//go:wasmimport gameap-host get_config
-func _get_config(ptr uint32, size uint32) uint64
-
-func (h hostService) GetConfig(ctx context.Context, request *GetConfigRequest) (*GetConfigResponse, error) {
-	buf, err := request.MarshalVT()
-	if err != nil {
-		return nil, err
-	}
-	ptr, size := wasm.ByteToPtr(buf)
-	ptrSize := _get_config(ptr, size)
-	wasm.Free(ptr)
-
-	ptr = uint32(ptrSize >> 32)
-	size = uint32(ptrSize)
-	buf = wasm.PtrToByte(ptr, size)
-
-	response := new(GetConfigResponse)
-	err = response.UnmarshalVT(buf)
-	if ptr != 0 {
-		wasm.Free(ptr)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return response, nil
-}
-
 //go:wasmimport gameap-host get_host_info
 func _get_host_info(ptr uint32, size uint32) uint64
 
@@ -92,33 +65,6 @@ func (h hostService) GetHostInfo(ctx context.Context, request *GetHostInfoReques
 	buf = wasm.PtrToByte(ptr, size)
 
 	response := new(GetHostInfoResponse)
-	err = response.UnmarshalVT(buf)
-	if ptr != 0 {
-		wasm.Free(ptr)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return response, nil
-}
-
-//go:wasmimport gameap-host report_status
-func _report_status(ptr uint32, size uint32) uint64
-
-func (h hostService) ReportStatus(ctx context.Context, request *ReportStatusRequest) (*ReportStatusResponse, error) {
-	buf, err := request.MarshalVT()
-	if err != nil {
-		return nil, err
-	}
-	ptr, size := wasm.ByteToPtr(buf)
-	ptrSize := _report_status(ptr, size)
-	wasm.Free(ptr)
-
-	ptr = uint32(ptrSize >> 32)
-	size = uint32(ptrSize)
-	buf = wasm.PtrToByte(ptr, size)
-
-	response := new(ReportStatusResponse)
 	err = response.UnmarshalVT(buf)
 	if ptr != 0 {
 		wasm.Free(ptr)

@@ -17,16 +17,6 @@ properties:
     type: integer
     description: HTTP status code (backward compatibility)
     example: 422
-  title:
-    type: string
-    description: i18n key of the error title, when the client should translate it
-  errors:
-    type: object
-    description: Per-field validation messages (422 responses of endpoints that validate fields)
-    additionalProperties:
-      type: string
-    example:
-      port: must be between 1 and 65535
 required:
   - status
   - error

@@ -44,7 +44,6 @@ type env struct {
 	locks   *fakeLocker
 	clock   *fakeClock
 	audit   *auditCapture
-	passes  *passRecorder
 	service *pluginsync.Service
 }
 
@@ -62,7 +61,6 @@ func newEnv(t *testing.T, rows ...domain.Plugin) *env {
 		locks:   &fakeLocker{locked: make(map[string]bool)},
 		clock:   &fakeClock{now: time.Unix(1_700_000_000, 0)},
 		audit:   &auditCapture{},
-		passes:  &passRecorder{},
 	}
 
 	for _, row := range rows {
@@ -71,7 +69,7 @@ func newEnv(t *testing.T, rows ...domain.Plugin) *env {
 
 	e.service = pluginsync.New(pluginsync.Deps{
 		Repo: e.repo, Loader: e.loader, Plugins: e.loader, Subs: e.subs, Archive: e.archive,
-		Files: e.files, Store: e.store, Locks: e.locks, Audit: e.audit, Metrics: e.passes, PluginsDir: "plugins",
+		Files: e.files, Store: e.store, Locks: e.locks, Audit: e.audit, PluginsDir: "plugins",
 	}, pluginsync.Options{
 		RefreshInterval: time.Minute, MinBackoff: 15 * time.Second, MaxBackoff: 2 * time.Minute,
 		ContentionBackoff: 10 * time.Second, Clock: e.clock,
@@ -105,7 +103,6 @@ func TestReconcile_loads_active_rows_and_then_holds_still(t *testing.T) {
 
 	assert.Equal(t, 2, e.loader.applyCount(), "a steady state costs no loader calls beyond the state lookup")
 	assert.Equal(t, 1, e.subs.count(), "nothing moved, nothing refreshed")
-	assert.Equal(t, []string{"ok", "ok", "ok"}, e.passes.results)
 }
 
 func TestReconcile_adopts_modules_the_startup_load_built(t *testing.T) {
@@ -240,7 +237,6 @@ func TestReconcile_read_failure_touches_nothing(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, e.loader.isRunning(1))
 	assert.Empty(t, e.loader.unloads)
-	assert.Equal(t, []string{"ok", "failed"}, e.passes.results)
 }
 
 func TestReconcile_active_row_failures_back_off_and_a_changed_row_resets(t *testing.T) {

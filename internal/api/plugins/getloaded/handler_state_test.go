@@ -293,62 +293,34 @@ func TestLoaded_reports_permissions(t *testing.T) {
 	assert.Nil(t, data[1]["missing_permissions"])
 }
 
-func TestLoaded_reports_configuration_and_health(t *testing.T) {
+// The listing describes installed plugins, never what an operator stored in
+// plugins.config: the column holds secret envelopes as well as plain values.
+func TestLoaded_never_exposes_stored_configuration_values(t *testing.T) {
 	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 
 	configuredID := pkgplugin.ParsePluginID("configured")
 	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
 		ID: configuredID, Name: "Configured", Version: "1.0.0", Status: domain.PluginStatusActive,
-		Config:       map[string]any{"port": float64(9000), "api_key": map[string]any{"$secret": "enc:abc"}},
-		ConfigSchema: new(`{"properties": {"port": {"type": "integer"}}}`),
-	}))
-
-	brokenID := pkgplugin.ParsePluginID("broken-schema-plugin")
-	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
-		ID: brokenID, Name: "Broken", Version: "1.0.0", Status: domain.PluginStatusError,
-		ConfigSchema: new(`{`),
+		Config: map[string]any{"port": float64(9000), "api_key": map[string]any{"$secret": "enc:abc"}},
 	}))
 
 	loaded := &pkgplugin.LoadedPlugin{
 		Info: &proto.PluginInfo{Id: "configured", Name: "Configured", Version: "1.0.0"}, Enabled: true,
 		DBID: uint64(configuredID),
 	}
-	loaded.SetHealth(pkgplugin.HealthReport{Status: pkgplugin.HealthDegraded, Message: "warming up",
-		Details: map[string]string{"stage": "cache"}})
 
 	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
 		return []*pkgplugin.LoadedPlugin{loaded}
 	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
-	require.Len(t, data, 2)
-
-	byName := make(map[string]map[string]any)
-	for _, row := range data {
-		byName[row["name"].(string)] = row //nolint:forcetypeassert
-	}
-
-	configured := byName["Configured"]
-	assert.Equal(t, true, configured["has_config_schema"])
-	assert.Equal(t, []any{"api_key", "port"}, configured["config_keys"], "names only, never values")
-	assert.NotContains(t, configured, "config_schema_error")
-
-	health, ok := configured["health"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "degraded", health["status"])
-	assert.Equal(t, "warming up", health["message"])
-	assert.Equal(t, map[string]any{"stage": "cache"}, health["details"])
-	assert.NotEmpty(t, health["reported_at"])
-
-	broken := byName["Broken"]
-	assert.Equal(t, true, broken["has_config_schema"])
-	assert.NotEmpty(t, broken["config_schema_error"])
-	assert.NotContains(t, broken, "health")
-	assert.NotContains(t, broken, "config_keys")
+	require.Len(t, data, 1)
+	assert.Equal(t, "Configured", data[0]["name"])
 
 	body := listBody(t, h)
 	assert.NotContains(t, body, "enc:abc")
+	assert.NotContains(t, body, "api_key")
 	assert.NotContains(t, body, "9000")
 }
 

@@ -53,7 +53,7 @@ runtime state:
 | `error` | absent | `ApplyRecord` once per fingerprint, or again after the file was repaired — no timed retry (that is the supervisor's `PLUGIN_RECOVERY_*` contract) |
 
 `ApplyRecord` answers `ErrPluginHeld` while an admin handler holds the plugin
-(update, uninstall, configuration change); that is contention, not a failure:
+(update, uninstall); that is contention, not a failure:
 the plugin is retried after a short flat delay (10s) and never counted as
 failed.
 
@@ -61,9 +61,7 @@ Event subscriptions are rebuilt once per pass when membership changed **or**
 a running plugin's `listen_events` grant changed since the last pass —
 `PUT /api/admin/plugins/{id}/permissions` only refreshes its own instance.
 Reloads performed by the reconciler are audited as `plugin.reloaded` with
-`trigger=sync`; every pass is counted in
-`gameap_plugin_sync_passes_total{result}` and the number of plugins still
-out of step in `gameap_plugin_sync_pending`.
+`trigger=sync`.
 
 ## Reload fingerprint
 
@@ -81,8 +79,7 @@ out of step in `gameap_plugin_sync_pending`.
   timeout on one instance is not a reason to restart the others.
 - **`allowed_permissions`** is out: grants are re-read on every host call,
   and `listen_events` is handled by the subscription refresh above.
-- **`priority`**, `status`, timestamps and `config_schema` (derived from the
-  wasm, covered by `checksum`) are out.
+- **`priority`**, `status` and timestamps are out.
 
 ## Failure handling
 

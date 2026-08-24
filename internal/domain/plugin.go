@@ -36,15 +36,11 @@ type Plugin struct {
 	Generation   int      `db:"generation"`
 	Category     *string  `db:"category"`
 	Dependencies []string `db:"-"`
-	// Config holds the operator-provided configuration values (secret values
-	// as encrypted envelopes); schema defaults are overlaid at load time and
-	// never stored.
-	Config map[string]any `db:"-"`
-	// ConfigSchema is the JSON Schema subset the manifest declares for Config,
-	// copied from PluginInfo on every successful load; nil for free-form.
-	ConfigSchema *string    `db:"config_schema"`
-	InstalledAt  *time.Time `db:"installed_at"`
-	LastLoadedAt *time.Time `db:"last_loaded_at"`
+	// Config holds the operator-provided configuration values, handed to the
+	// plugin's Initialize.
+	Config       map[string]any `db:"-"`
+	InstalledAt  *time.Time     `db:"installed_at"`
+	LastLoadedAt *time.Time     `db:"last_loaded_at"`
 	// LastError explains the most recent load failure or runtime disable
 	// (status "error"); cleared when the plugin loads successfully again.
 	LastError   *string    `db:"last_error"`
@@ -163,7 +159,6 @@ type PluginLoadState struct {
 	LastErrorAt  *time.Time
 	LastLoadedAt *time.Time
 	Generation   int
-	ConfigSchema *string
 }
 
 // LoadState extracts the load-related columns of the plugin.
@@ -174,13 +169,7 @@ func (p *Plugin) LoadState() PluginLoadState {
 		LastErrorAt:  p.LastErrorAt,
 		LastLoadedAt: p.LastLoadedAt,
 		Generation:   p.Generation,
-		ConfigSchema: p.ConfigSchema,
 	}
-}
-
-// HasConfigSchema reports whether the manifest declares a configuration schema.
-func (p *Plugin) HasConfigSchema() bool {
-	return p.ConfigSchema != nil && *p.ConfigSchema != ""
 }
 
 // MarkError records a failed load or a runtime disable: the plugin stays

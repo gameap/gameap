@@ -91,29 +91,6 @@ properties:
     type: boolean
     description: Whether the plugin has frontend styles
     example: false
-  config_schema:
-    type: object
-    description: |
-      Summary of the manifest's configuration schema; absent for a plugin
-      with free-form configuration. An invalid schema is also reported in
-      `errors` (the plugin still installs and loads with free-form
-      configuration).
-    properties:
-      valid:
-        type: boolean
-      error:
-        type: string
-      properties:
-        type: integer
-      required:
-        type: integer
-      secrets:
-        type: integer
-    required:
-      - valid
-      - properties
-      - required
-      - secrets
   is_valid:
     type: boolean
     description: Whether the plugin is valid and can be installed

@@ -388,7 +388,7 @@ Used by the resumable file-manager upload endpoints
 - `PLUGIN_CACHE_MAX_VALUE` - Largest single `gameap-cache` value (default: `1M`, `0` = unlimited); every plugin has its own cache namespace
 - `PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN` - Secrets one plugin may keep in `gameap-secrets` (default: `64`)
 - `PLUGIN_SECRETS_MAX_VALUE` - Largest plaintext of a single secret (default: `8K`)
-- `PLUGIN_SECRETS_REQUIRE_ENCRYPTION` - Refuse to store plugin secrets — `gameap-secrets` writes and `format: secret` configuration values — while `ENCRYPTION_KEY` is unset instead of keeping them in plaintext (default: `true`)
+- `PLUGIN_SECRETS_REQUIRE_ENCRYPTION` - Refuse `gameap-secrets` writes while `ENCRYPTION_KEY` is unset instead of keeping them in plaintext (default: `true`)
 - `PLUGIN_HTTP_MAX_TIMEOUT` - Ceiling for the per-request timeout a plugin asks for in `gameap-http`; a longer one is clamped (default: `30s`)
 - `PLUGIN_NET_MAX_TIMEOUT` - Ceiling for one `gameap-net` operation - the dial plus every read and write (default: `10s`)
 - `PLUGIN_NET_READ_BUFFER` - Largest single `gameap-net` receive a plugin may request (default: `64K`)
@@ -401,26 +401,24 @@ Used by the resumable file-manager upload endpoints
 Rate limits are per panel instance; a refused call answers with a `rate limited: ...` error in the host
 response and the plugin keeps running. Plugin grants (`manage_servers`, `node_commands`, `files`,
 `files_read`, `listen_events`, `manage_rbac`, `secrets`) are managed per plugin in the admin UI or through
-`PUT /api/admin/plugins/{id}/permissions`; plugin configuration (typed values declared by the plugin's
-`config_schema`, secrets encrypted with `ENCRYPTION_KEY`) through the plugin details or
-`PUT /api/admin/plugins/{id}/config`; see `pkg/plugin/README.md`.
+`PUT /api/admin/plugins/{id}/permissions`; see `pkg/plugin/README.md`.
 
 #### Plugins across instances
 
 Several panel instances sharing one database keep their plugins in step on their own: the plugin
-table is the desired state, and every instance applies an install, update, uninstall, reload,
-permission or configuration change made on any other instance — immediately when the instances share
+table is the desired state, and every instance applies an install, update, uninstall, reload or
+permission change made on any other instance — immediately when the instances share
 a pubsub (`PUBSUB_DRIVER=redis`), otherwise on the next `PLUGIN_SYNC_REFRESH_INTERVAL` pass. Set
 `PUBSUB_INSTANCE_ID` to a stable, distinct value per instance so log lines, audit records and
 `NODE_ONLINE` / `NODE_OFFLINE` plugin events name the instance. Plugins installed from the store are
 re-downloaded by an instance that lacks the file (and verified against the recorded checksum); plugins
 uploaded from a file are only recoverable when `FILES_DRIVER` points at shared storage such as S3.
-`GET /api/admin/plugins/loaded` always describes the answering instance (`loaded`, `health`, `sync`),
-while `status` / `error` are the shared record.
+`GET /api/admin/plugins/loaded` always describes the answering instance (`loaded`, `sync`), while
+`status` / `error` are the shared record.
 
 ### Metrics
 
-- `METRICS_TOKEN` - Bearer token for the Prometheus scrape endpoint `GET /metrics`; empty (default) leaves the endpoint unregistered. The endpoint exposes `gameap_plugin_*` metrics (host/guest calls, refusals, events, disables, memory, self-reported health, multi-instance sync) plus the Go runtime and process collectors.
+- `METRICS_TOKEN` - Bearer token for the Prometheus scrape endpoint `GET /metrics`; empty (default) leaves the endpoint unregistered. The endpoint exposes `gameap_plugin_*` metrics (host/guest calls, refusals, events, disables, memory) plus the Go runtime and process collectors.
 
 ### Plugin Store Configuration
 

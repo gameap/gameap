@@ -95,7 +95,6 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 				"timeout": 30,
 				"tags":    []any{"tag1", "tag2"},
 			},
-			ConfigSchema: new(`{"type":"object","properties":{"enabled":{"type":"boolean"}}}`),
 			InstalledAt:  &now,
 			LastLoadedAt: &now,
 		}
@@ -123,8 +122,6 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 		require.NotNil(t, retrieved.Checksum)
 		assert.Equal(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", *retrieved.Checksum)
 		assert.Equal(t, 3, retrieved.Generation)
-		require.NotNil(t, retrieved.ConfigSchema)
-		assert.JSONEq(t, `{"type":"object","properties":{"enabled":{"type":"boolean"}}}`, *retrieved.ConfigSchema)
 		require.Len(t, retrieved.RequiredPermissions, 2)
 		assert.Contains(t, retrieved.RequiredPermissions, domain.PluginPermissionManageServers)
 		assert.Contains(t, retrieved.RequiredPermissions, domain.PluginPermissionManageNodes)
@@ -227,7 +224,6 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 			LastErrorAt:  &loadedAt,
 			LastLoadedAt: &loadedAt,
 			Generation:   7,
-			ConfigSchema: new(`{"type":"object"}`),
 		})
 		require.NoError(t, err)
 
@@ -243,8 +239,6 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 		assert.InDelta(t, loadedAt.Unix(), retrieved.LastErrorAt.Unix(), 1.0)
 		require.NotNil(t, retrieved.LastLoadedAt)
 		assert.Equal(t, 7, retrieved.Generation)
-		require.NotNil(t, retrieved.ConfigSchema)
-		assert.Equal(t, `{"type":"object"}`, *retrieved.ConfigSchema)
 		assert.Equal(t, []domain.PluginPermission{domain.PluginPermissionSecrets}, retrieved.AllowedPermissions)
 		assert.Equal(t, "after", retrieved.Config["api_key"])
 		assert.NotNil(t, retrieved.UpdatedAt)
@@ -364,7 +358,6 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 		assert.Nil(t, retrieved.Source)
 		assert.Nil(t, retrieved.Homepage)
 		assert.Nil(t, retrieved.Checksum)
-		assert.Nil(t, retrieved.ConfigSchema)
 		assert.Equal(t, 0, retrieved.Generation)
 		assert.Empty(t, retrieved.RequiredPermissions)
 		assert.Empty(t, retrieved.AllowedPermissions)

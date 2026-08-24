@@ -896,13 +896,6 @@ func (m *PluginInfo) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.ConfigSchema) > 0 {
-		i -= len(m.ConfigSchema)
-		copy(dAtA[i:], m.ConfigSchema)
-		i = encodeVarint(dAtA, i, uint64(len(m.ConfigSchema)))
-		i--
-		dAtA[i] = 0x52
-	}
 	if len(m.ApiVersion) > 0 {
 		i -= len(m.ApiVersion)
 		copy(dAtA[i:], m.ApiVersion)
@@ -2597,10 +2590,6 @@ func (m *PluginInfo) SizeVT() (n int) {
 		}
 	}
 	l = len(m.ApiVersion)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.ConfigSchema)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -5844,38 +5833,6 @@ func (m *PluginInfo) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.ApiVersion = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 10:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ConfigSchema", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ConfigSchema = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

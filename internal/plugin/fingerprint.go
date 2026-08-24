@@ -21,12 +21,11 @@ import (
 //     takes effect without touching the runtime;
 //   - priority: nothing in the runtime reads it;
 //   - status: a load or unload decision, handled separately;
-//   - config_schema: derived from the wasm, which the checksum already covers;
 //   - last_loaded_at, updated_at, created_at: bookkeeping.
 //
-// config is included because Initialize is its only delivery point; generation
-// is included so an operator reload on one instance restarts the module
-// everywhere.
+// config is included because a module can only pick a changed configuration
+// up by being rebuilt; generation is included so an operator reload on one
+// instance restarts the module everywhere.
 func Fingerprint(plugin *domain.Plugin) string {
 	h := sha256.New()
 

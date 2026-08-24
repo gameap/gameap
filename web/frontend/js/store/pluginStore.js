@@ -71,10 +71,6 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
                 // null (not []) when the answering instance has not loaded the
                 // plugin: its used/missing permissions are unknown, not empty.
                 missing_permissions: loaded.missing_permissions ?? null,
-                has_config_schema: loaded.has_config_schema === true,
-                config_keys: loaded.config_keys ?? [],
-                config_schema_error: loaded.config_schema_error ?? null,
-                health: loaded.health ?? null,
                 sync: loaded.sync ?? null,
 
                 summary: storePlugin?.summary || loaded.description || '',
@@ -329,44 +325,6 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         }
     }
 
-    async function fetchPluginConfig(id) {
-        apiProcesses.value++
-        try {
-            const response = await axios.get(`/api/admin/plugins/${id}/config`)
-
-            return response.data
-        } finally {
-            apiProcesses.value--
-        }
-    }
-
-    // The reload that follows a save changes the load state of the plugin, so
-    // the returned status fields are folded into the loaded row the same way
-    // updatePluginPermissions does.
-    async function updatePluginConfig(id, values) {
-        apiProcesses.value++
-        try {
-            const response = await axios.put(`/api/admin/plugins/${id}/config`, { values })
-
-            const updated = response.data
-            loadedPlugins.value = loadedPlugins.value.map(plugin => plugin.id === updated.id
-                ? {
-                    ...plugin,
-                    status: updated.status,
-                    enabled: updated.status === 'active',
-                    loaded: updated.reloaded || (updated.reload_error ? false : plugin.loaded),
-                    error: updated.error ?? null,
-                    error_at: updated.error_at ?? null,
-                    config_keys: Object.keys(updated.values ?? {}).concat(updated.secrets_set ?? []).sort(),
-                }
-                : plugin)
-
-            return updated
-        } finally {
-            apiProcesses.value--
-        }
-    }
-
     async function dryRunUpload(file) {
         apiProcesses.value++
         try {
@@ -446,8 +404,6 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         fetchLoadedPlugins,
         reloadPlugin,
         updatePluginPermissions,
-        fetchPluginConfig,
-        updatePluginConfig,
         dryRunUpload,
         installFromFile,
         clearUpload,

@@ -105,7 +105,6 @@ func (r *PluginRepository) Save(_ context.Context, plugin *domain.Plugin) error 
 		Category:            plugin.Category,
 		Dependencies:        copyStrings(plugin.Dependencies),
 		Config:              copyConfig(plugin.Config),
-		ConfigSchema:        copyStringPtr(plugin.ConfigSchema),
 		InstalledAt:         plugin.InstalledAt,
 		LastLoadedAt:        plugin.LastLoadedAt,
 		LastError:           copyStringPtr(plugin.LastError),
@@ -135,7 +134,6 @@ func (r *PluginRepository) UpdateLoadState(
 	plugin.LastErrorAt = copyTimePtr(state.LastErrorAt)
 	plugin.LastLoadedAt = copyTimePtr(state.LastLoadedAt)
 	plugin.Generation = state.Generation
-	plugin.ConfigSchema = copyStringPtr(state.ConfigSchema)
 	plugin.UpdatedAt = new(time.Now())
 
 	return nil
@@ -271,7 +269,6 @@ func (r *PluginRepository) copyPlugin(plugin *domain.Plugin) domain.Plugin {
 		Category:            plugin.Category,
 		Dependencies:        copyStrings(plugin.Dependencies),
 		Config:              copyConfig(plugin.Config),
-		ConfigSchema:        copyStringPtr(plugin.ConfigSchema),
 		InstalledAt:         plugin.InstalledAt,
 		LastLoadedAt:        plugin.LastLoadedAt,
 		LastError:           copyStringPtr(plugin.LastError),

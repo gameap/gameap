@@ -35,8 +35,6 @@ func (s *Service) ReconcileNow(ctx context.Context) error {
 
 	rows, err := s.repo.FindAll(ctx, nil, nil)
 	if err != nil {
-		s.observePass(PassResultFailed)
-
 		// Nothing is unloaded on a read failure. An unreachable database must
 		// not drain the plugins of every instance that notices.
 		return errors.WithMessage(err, "failed to read plugins")
@@ -57,8 +55,6 @@ func (s *Service) ReconcileNow(ctx context.Context) error {
 	if changed || grantsChanged {
 		s.refreshSubscriptions(ctx)
 	}
-
-	s.observePass(PassResultOK)
 
 	return nil
 }
@@ -466,10 +462,4 @@ func (s *Service) wasSeen(dbID domain.Uint64ID) bool {
 	_, ok := s.seen[dbID]
 
 	return ok
-}
-
-func (s *Service) observePass(result string) {
-	if s.metrics != nil {
-		s.metrics.SyncPass(result)
-	}
 }

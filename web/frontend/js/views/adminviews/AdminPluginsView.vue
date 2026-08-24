@@ -67,7 +67,6 @@
           @install="onInstall"
           @update="onUpdate"
           @uninstall="onUninstall"
-          @config-saved="onConfigSaved"
           @close="closeDetailsModal"
       />
     </n-spin>
@@ -98,7 +97,6 @@ import PluginIcon from "@/components/plugins/PluginIcon.vue"
 import { useIsSmallScreen } from "@/composables/useIsSmallScreen"
 import { usePluginStoreStore } from "@/store/pluginStore"
 import { errorNotification, notification } from "@/parts/dialogs"
-import { pluginHealthBadge } from "@/parts/pluginHealth"
 import {
   NTabs,
   NTabPane,
@@ -190,24 +188,6 @@ const createInstalledColumns = () => {
           badges.push(h(GStatusBadge, { color: 'orange', text: trans('plugins.update_available') }))
         }
 
-        const health = pluginHealthBadge(row.health)
-        if (health) {
-          badges.push(h(GStatusBadge, {
-            color: health.badgeColor,
-            text: health.label,
-            title: health.title,
-            'data-testid': 'plugin-health-badge',
-          }))
-        }
-
-        if (row.has_config_schema) {
-          badges.push(h('span', {
-            class: 'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300',
-            title: trans('plugins.config_hint'),
-            'data-testid': 'plugin-configurable-badge',
-          }, [h(GIcon, { name: 'gear' }), trans('plugins.configurable')]))
-        }
-
         if (row.sync && row.sync.state !== 'in_sync') {
           badges.push(h('span', {
             class: 'px-2 py-0.5 text-xs font-medium rounded-full ' + (row.sync.state === 'failed'
@@ -217,7 +197,6 @@ const createInstalledColumns = () => {
             'data-testid': 'plugin-sync-badge',
           }, trans('plugins.sync_' + row.sync.state)))
         }
-
 
         if (!isSmallScreen.value && row.labels?.length > 0) {
           row.labels.forEach(label => {
@@ -578,11 +557,6 @@ function onUpdate(version) {
         actionLoading.value = false
       })
 }
-
-function onConfigSaved() {
-  pluginStore.fetchLoadedPlugins().catch(errorNotification)
-}
-
 
 function onUninstall() {
   if (!currentPlugin.value) return

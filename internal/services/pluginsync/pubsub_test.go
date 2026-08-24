@@ -24,7 +24,7 @@ func newBusEnv(t *testing.T) (*env, *memory.Memory) {
 	e := newEnv(t, activeRow(1))
 	e.service = pluginsync.New(pluginsync.Deps{
 		Repo: e.repo, Loader: e.loader, Plugins: e.loader, Subs: e.subs, Archive: e.archive,
-		Files: e.files, Store: e.store, Locks: e.locks, Bus: bus, Audit: e.audit, Metrics: e.passes,
+		Files: e.files, Store: e.store, Locks: e.locks, Bus: bus, Audit: e.audit,
 		PluginsDir: "plugins",
 	}, pluginsync.Options{Clock: e.clock}, slog.New(slog.DiscardHandler))
 

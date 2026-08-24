@@ -25,20 +25,14 @@ type withDescriptionError interface {
 	Description() string
 }
 
-type withFieldsError interface {
-	error
-	Fields() map[string]string
-}
-
 type response struct {
-	Status      string            `json:"status"`
-	Title       string            `json:"title,omitempty"`
-	Error       string            `json:"error,omitempty"`
-	Message     string            `json:"message,omitempty"`
-	Description string            `json:"description,omitempty"`
-	HTTPCode    int               `json:"http_code,omitempty"`
-	Errors      map[string]string `json:"errors,omitempty"`
-	Result      any               `json:"result,omitempty"`
+	Status      string `json:"status"`
+	Title       string `json:"title,omitempty"`
+	Error       string `json:"error,omitempty"`
+	Message     string `json:"message,omitempty"`
+	Description string `json:"description,omitempty"`
+	HTTPCode    int    `json:"http_code,omitempty"`
+	Result      any    `json:"result,omitempty"`
 }
 
 type Responder struct{}
@@ -79,13 +73,6 @@ func (r *Responder) WriteError(ctx context.Context, rw http.ResponseWriter, err 
 	}
 
 	logErrorResponse(ctx, code, err, description)
-
-	var errWithFields withFieldsError
-	if errors.As(err, &errWithFields) {
-		writeErrResponse(rw, code, title, err, errWithFields.Fields())
-
-		return
-	}
 
 	WriteErrWithTitle(rw, code, title, err)
 }
@@ -129,10 +116,6 @@ func WriteErr(rw http.ResponseWriter, code int, err error) {
 }
 
 func WriteErrWithTitle(rw http.ResponseWriter, code int, title string, err error) {
-	writeErrResponse(rw, code, title, err, nil)
-}
-
-func writeErrResponse(rw http.ResponseWriter, code int, title string, err error, fields map[string]string) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(code)
 
@@ -148,7 +131,6 @@ func writeErrResponse(rw http.ResponseWriter, code int, title string, err error,
 		Error:    errMsg,
 		Message:  errMsg, // for backward compatibility
 		HTTPCode: code,   // for backward compatibility
-		Errors:   fields,
 	}
 
 	if errEncode := json.NewEncoder(rw).Encode(resp); errEncode != nil {

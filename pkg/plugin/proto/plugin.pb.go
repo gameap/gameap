@@ -678,10 +678,6 @@ type PluginInfo struct {
 	Homepage            string   `protobuf:"bytes,7,opt,name=homepage,proto3" json:"homepage,omitempty"`
 	RequiredPermissions []string `protobuf:"bytes,8,rep,name=required_permissions,json=requiredPermissions,proto3" json:"required_permissions,omitempty"`
 	ApiVersion          string   `protobuf:"bytes,9,opt,name=api_version,json=apiVersion,proto3" json:"api_version,omitempty"`
-	// Optional JSON Schema subset describing InitializeRequest.config (see
-	// pkg/plugin/configschema). Empty: free-form key/value configuration.
-	// Panels that predate this field ignore it.
-	ConfigSchema string `protobuf:"bytes,10,opt,name=config_schema,json=configSchema,proto3" json:"config_schema,omitempty"`
 }
 
 func (x *PluginInfo) ProtoReflect() protoreflect.Message {
@@ -747,13 +743,6 @@ func (x *PluginInfo) GetRequiredPermissions() []string {
 func (x *PluginInfo) GetApiVersion() string {
 	if x != nil {
 		return x.ApiVersion
-	}
-	return ""
-}
-
-func (x *PluginInfo) GetConfigSchema() string {
-	if x != nil {
-		return x.ConfigSchema
 	}
 	return ""
 }

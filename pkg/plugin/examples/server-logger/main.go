@@ -30,33 +30,6 @@ var (
 	eventCounter atomic.Uint64
 )
 
-// configSchema is rendered as a form in the plugin details; the panel
-// validates what operators save and overlays the defaults at every load.
-const configSchema = `{
-  "type": "object",
-  "properties": {
-    "log_level": {
-      "type": "string",
-      "title": "Log level",
-      "description": "Verbosity of the event log lines",
-      "enum": ["debug", "info", "warn"],
-      "default": "info"
-    },
-    "webhook_url": {
-      "type": "string",
-      "title": "Webhook URL",
-      "description": "Optional HTTPS endpoint that receives a summary of every event",
-      "pattern": "^https://"
-    },
-    "webhook_token": {
-      "type": "string",
-      "title": "Webhook token",
-      "format": "secret"
-    }
-  },
-  "additionalProperties": false
-}`
-
 func init() {
 	logger = log.NewLogger()
 	gamesRepo = games.NewGamesService()
@@ -89,26 +62,15 @@ func (p *ServerLoggerPlugin) GetInfo(
 		// Event subscriptions are gated on listen_events; the install grants
 		// exactly what is declared here.
 		RequiredPermissions: []string{"listen_events"},
-		ConfigSchema:        configSchema,
 	}, nil
 }
 
 func (p *ServerLoggerPlugin) Initialize(
 	ctx context.Context,
-	req *pluginproto.InitializeRequest,
+	_ *pluginproto.InitializeRequest,
 ) (*pluginproto.InitializeResponse, error) {
-	// req.Config is the effective configuration: schema defaults overlaid
-	// by the operator's values, secrets decrypted. Older panels pass only
-	// what they stored, so the default is repeated here.
-	logLevel := req.GetConfig()["log_level"]
-	if logLevel == "" {
-		logLevel = "info"
-	}
-
-	webhookConfigured := req.GetConfig()["webhook_url"] != ""
-
 	registerStatsReportTask(ctx)
-	reportStartup(ctx, logLevel, webhookConfigured)
+	reportStartup(ctx)
 
 	return &pluginproto.InitializeResponse{
 		Result: &pluginproto.Result{Success: true},
@@ -116,9 +78,8 @@ func (p *ServerLoggerPlugin) Initialize(
 }
 
 // reportStartup shows what gameap-host offers: the grants the operator gave
-// this plugin, the host modules it may call, and a health report that the
-// admin UI displays next to the plugin status.
-func reportStartup(ctx context.Context, logLevel string, webhookConfigured bool) {
+// this plugin and the host modules it may call.
+func reportStartup(ctx context.Context) {
 	grants, err := hostSvc.GetGrants(ctx, &host.GetGrantsRequest{})
 	if err != nil {
 		logger.Warn("Cannot read grants", slog.String("error", err.Error()))
@@ -138,21 +99,6 @@ func reportStartup(ctx context.Context, logLevel string, webhookConfigured bool)
 		)
 	}
 
-	status := host.HealthStatus_HEALTH_STATUS_HEALTHY
-	message := "initialized"
-	if !webhookConfigured {
-		status = host.HealthStatus_HEALTH_STATUS_DEGRADED
-		message = "webhook_url is not configured, events are only logged"
-	}
-
-	_, err = hostSvc.ReportStatus(ctx, &host.ReportStatusRequest{
-		Status:  status,
-		Message: message,
-		Details: map[string]string{"log_level": logLevel},
-	})
-	if err != nil {
-		logger.Warn("Cannot report status", slog.String("error", err.Error()))
-	}
 }
 
 func (p *ServerLoggerPlugin) Shutdown(

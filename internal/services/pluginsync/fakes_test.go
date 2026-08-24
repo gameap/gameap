@@ -378,22 +378,11 @@ func (a *auditCapture) all() []audit.Event {
 	return append([]audit.Event(nil), a.events...)
 }
 
-type passRecorder struct {
-	mu      sync.Mutex
-	results []string
-}
-
-func (p *passRecorder) SyncPass(result string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.results = append(p.results, result)
-}
-
 func newServiceWithoutStore(t *testing.T, e *env) *pluginsync.Service {
 	t.Helper()
 
 	return pluginsync.New(pluginsync.Deps{
 		Repo: e.repo, Loader: e.loader, Plugins: e.loader, Subs: e.subs, Archive: e.archive,
-		Files: e.files, Locks: e.locks, Audit: e.audit, Metrics: e.passes, PluginsDir: "plugins",
+		Files: e.files, Locks: e.locks, Audit: e.audit, PluginsDir: "plugins",
 	}, pluginsync.Options{Clock: e.clock}, slog.New(slog.DiscardHandler))
 }

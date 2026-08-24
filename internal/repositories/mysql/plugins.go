@@ -34,7 +34,6 @@ var pluginFields = []string{
 	"category",
 	"dependencies",
 	"config",
-	"config_schema",
 	"installed_at",
 	"last_loaded_at",
 	"last_error",
@@ -224,7 +223,6 @@ func (r *PluginRepository) insert(
 			plugin.Category,
 			jsonFields.dependencies,
 			jsonFields.config,
-			plugin.ConfigSchema,
 			plugin.InstalledAt,
 			plugin.LastLoadedAt,
 			plugin.LastError,
@@ -269,7 +267,6 @@ func (r *PluginRepository) update(
 		Set("category", plugin.Category).
 		Set("dependencies", jsonFields.dependencies).
 		Set("config", jsonFields.config).
-		Set("config_schema", plugin.ConfigSchema).
 		Set("installed_at", plugin.InstalledAt).
 		Set("last_loaded_at", plugin.LastLoadedAt).
 		Set("last_error", plugin.LastError).
@@ -301,7 +298,6 @@ func (r *PluginRepository) UpdateLoadState(
 		Set("last_error_at", state.LastErrorAt).
 		Set("last_loaded_at", state.LastLoadedAt).
 		Set("generation", state.Generation).
-		Set("config_schema", state.ConfigSchema).
 		Set("updated_at", time.Now()).
 		Where(sq.Eq{"id": id}).
 		PlaceholderFormat(sq.Question).
@@ -391,7 +387,6 @@ func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 		&plugin.Category,
 		&dependenciesJSON,
 		&configJSON,
-		&plugin.ConfigSchema,
 		&plugin.InstalledAt,
 		&plugin.LastLoadedAt,
 		&plugin.LastError,

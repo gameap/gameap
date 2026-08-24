@@ -47,7 +47,6 @@ func TestFingerprint(t *testing.T) {
 		},
 		{name: "priority_change_hashes_the_same", mutate: func(p *domain.Plugin) { p.Priority = 99 }},
 		{name: "status_change_hashes_the_same", mutate: func(p *domain.Plugin) { p.Status = domain.PluginStatusDisabled }},
-		{name: "config_schema_change_hashes_the_same", mutate: func(p *domain.Plugin) { p.ConfigSchema = new(`{}`) }},
 		{name: "last_loaded_at_change_hashes_the_same", mutate: func(p *domain.Plugin) { p.LastLoadedAt = new(time.Now()) }},
 		{name: "updated_at_change_hashes_the_same", mutate: func(p *domain.Plugin) { p.UpdatedAt = new(time.Now()) }},
 		{name: "name_change_hashes_the_same", mutate: func(p *domain.Plugin) { p.Name = "renamed" }},

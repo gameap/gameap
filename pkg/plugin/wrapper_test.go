@@ -154,18 +154,11 @@ func (s *stubSchedulerService) ListTasks(
 }
 
 // stubHostService satisfies host.HostService; the example plugin reads its
-// grants and host info and reports its health during Initialize.
-type stubHostService struct {
-	mu      sync.Mutex
-	reports []*host.ReportStatusRequest
-}
+// grants and host info during Initialize.
+type stubHostService struct{}
 
 func (s *stubHostService) GetGrants(context.Context, *host.GetGrantsRequest) (*host.GetGrantsResponse, error) {
 	return &host.GetGrantsResponse{Permissions: []string{"listen_events"}}, nil
-}
-
-func (s *stubHostService) GetConfig(context.Context, *host.GetConfigRequest) (*host.GetConfigResponse, error) {
-	return &host.GetConfigResponse{Found: true, HasSchema: true}, nil
 }
 
 func (s *stubHostService) GetHostInfo(
@@ -173,24 +166,6 @@ func (s *stubHostService) GetHostInfo(
 	*host.GetHostInfoRequest,
 ) (*host.GetHostInfoResponse, error) {
 	return &host.GetHostInfoResponse{PanelVersion: "test", PluginApiVersion: 1, InstanceId: "test"}, nil
-}
-
-func (s *stubHostService) ReportStatus(
-	_ context.Context,
-	req *host.ReportStatusRequest,
-) (*host.ReportStatusResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.reports = append(s.reports, req)
-
-	return &host.ReportStatusResponse{Accepted: true}, nil
-}
-
-func (s *stubHostService) snapshot() []*host.ReportStatusRequest {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return append([]*host.ReportStatusRequest(nil), s.reports...)
 }
 
 // Shared plugin instance — Manager.Load is expensive because of WASM compilation,

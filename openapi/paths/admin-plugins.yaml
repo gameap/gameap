@@ -74,9 +74,7 @@
               file:
                 type: string
                 format: binary
-                description: |
-                  WASM plugin file (max 100MB). Configuration is set after the
-                  install through `PUT /api/admin/plugins/{id}/config`.
+                description: WASM plugin file (max 100MB)
     responses:
       '200':
         description: Plugin installed successfully
@@ -324,115 +322,6 @@
               $ref: '../schemas/ErrorResponse.yaml'
       '422':
         description: Unknown permission name
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
-
-/api/admin/plugins/{id}/config:
-  get:
-    tags:
-      - PluginStore
-    summary: Get plugin configuration
-    description: |
-      The configuration schema the plugin declares (`PluginInfo.config_schema`),
-      the stored values and the names of the secrets that hold a value. Secret
-      values are never returned. Admin only.
-    operationId: getPluginConfig
-    parameters:
-      - name: id
-        in: path
-        required: true
-        description: Plugin ID (compact ID; database ID is decoded server-side)
-        schema:
-          type: string
-    responses:
-      '200':
-        description: Plugin configuration
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/PluginConfigResponse.yaml'
-      '401':
-        description: Unauthorized
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
-      '403':
-        description: Forbidden
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
-      '404':
-        description: Plugin not installed
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
-  put:
-    tags:
-      - PluginStore
-    summary: Update plugin configuration
-    description: |
-      Replaces the plugin's configuration and restarts the plugin on this
-      instance so `Initialize` receives the new values (other instances
-      follow through the multi-instance reconciler). Values are validated
-      against the declared schema; secret-format values are encrypted with
-      `ENCRYPTION_KEY` before they are stored and never returned. Recorded in
-      the audit log as `plugin.config.update` with key names only. Admin only.
-    operationId: updatePluginConfig
-    parameters:
-      - name: id
-        in: path
-        required: true
-        description: Plugin ID (compact ID; database ID is decoded server-side)
-        schema:
-          type: string
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '../schemas/PluginConfigUpdateRequest.yaml'
-    responses:
-      '200':
-        description: Configuration saved; `reloaded` / `reload_error` report the restart
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/PluginConfigUpdateResponse.yaml'
-      '400':
-        description: Malformed request body
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
-      '401':
-        description: Unauthorized
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
-      '403':
-        description: Forbidden
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
-      '404':
-        description: Plugin not installed
-        content:
-          application/json:
-            schema:
-              $ref: '../schemas/ErrorResponse.yaml'
-      '422':
-        description: |
-          Validation failed (`errors` names the fields), or a secret value was
-          sent while `ENCRYPTION_KEY` is not configured and
-          `PLUGIN_SECRETS_REQUIRE_ENCRYPTION` is on (title
-          `plugins.config_encryption_required`)
         content:
           application/json:
             schema:

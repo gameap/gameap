@@ -79,13 +79,11 @@ import (
 	"github.com/gameap/gameap/internal/api/nodes/putnode"
 	"github.com/gameap/gameap/internal/api/nodes/setupkey"
 	pluginfileref "github.com/gameap/gameap/internal/api/plugins/fileref"
-	plugingetconfig "github.com/gameap/gameap/internal/api/plugins/getconfig"
 	"github.com/gameap/gameap/internal/api/plugins/getfrontendplugins"
 	"github.com/gameap/gameap/internal/api/plugins/getfrontendstyles"
 	pluginsloaded "github.com/gameap/gameap/internal/api/plugins/getloaded"
 	pluginreload "github.com/gameap/gameap/internal/api/plugins/reload"
 	pluginuninstall "github.com/gameap/gameap/internal/api/plugins/uninstall"
-	pluginupdateconfig "github.com/gameap/gameap/internal/api/plugins/updateconfig"
 	pluginupdatepermissions "github.com/gameap/gameap/internal/api/plugins/updatepermissions"
 	pluginuploaddryrun "github.com/gameap/gameap/internal/api/plugins/upload/dryrun"
 	pluginuploadinstall "github.com/gameap/gameap/internal/api/plugins/upload/install"
@@ -2035,30 +2033,6 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginDispatcher(),
 				c.PluginSync(),
 				c.PluginSubscriptionsNotifier(),
-				c.Responder(),
-				c.AuditLogger(),
-			),
-			AdminOnly: true,
-		},
-		{
-			Method: http.MethodGet,
-			Path:   "/api/admin/plugins/{id}/config",
-			Handler: plugingetconfig.NewHandler(
-				c.PluginRepository(),
-				c.PluginLoader(),
-				c.Responder(),
-			),
-			AdminOnly: true,
-		},
-		{
-			Method: http.MethodPut,
-			Path:   "/api/admin/plugins/{id}/config",
-			Handler: pluginupdateconfig.NewHandler(
-				c.PluginRepository(),
-				c.PluginLoader(),
-				c.SecretCipher(),
-				c.Config().Plugin.Secrets.RequireEncryption,
-				c.PluginSync(),
 				c.Responder(),
 				c.AuditLogger(),
 			),

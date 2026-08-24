@@ -133,20 +133,6 @@ properties:
     items:
       $ref: './PluginPermission.yaml'
     example: ["node_commands"]
-  has_config_schema:
-    type: boolean
-    description: Whether the manifest declares a configuration schema (the admin UI offers a form)
-  config_keys:
-    type: array
-    description: Names of the stored configuration keys; values are never listed here
-    items:
-      type: string
-    example: ["api_key", "port"]
-  config_schema_error:
-    type: string
-    description: Why the manifest's configuration schema could not be parsed
-  health:
-    $ref: './PluginHealth.yaml'
   sync:
     type: object
     description: |

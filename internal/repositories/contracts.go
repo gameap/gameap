@@ -392,9 +392,9 @@ type PluginRepository interface {
 	Save(ctx context.Context, plugin *domain.Plugin) error
 
 	// UpdateLoadState writes only the load outcome columns (status, last error,
-	// last loaded time, generation, config schema), leaving the configuration
-	// and the grants untouched: a load outcome recorded seconds after the row
-	// was read must not overwrite a concurrent operator edit.
+	// last loaded time, generation), leaving the configuration and the grants
+	// untouched: a load outcome recorded seconds after the row was read must
+	// not overwrite a concurrent operator edit.
 	UpdateLoadState(ctx context.Context, id domain.Uint64ID, state domain.PluginLoadState) error
 
 	Delete(ctx context.Context, id domain.Uint64ID) error

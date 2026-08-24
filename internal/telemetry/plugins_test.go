@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +21,7 @@ func TestPluginMetrics_counts_signals(t *testing.T) {
 	t.Parallel()
 
 	registry := New()
-	metrics := NewPluginMetrics(registry, nil, stubBacklog{depth: 3}, nil)
+	metrics := NewPluginMetrics(registry, nil, stubBacklog{depth: 3})
 
 	metrics.HostCall(42, "gameap-nodecmd", "execute_command", 20*time.Millisecond, false)
 	metrics.HostCall(42, "gameap-nodecmd", "execute_command", 5*time.Millisecond, true)
@@ -72,7 +71,7 @@ func TestPluginMetrics_without_sources_collects_nothing_per_plugin(t *testing.T)
 	t.Parallel()
 
 	registry := New()
-	NewPluginMetrics(registry, nil, nil, nil)
+	NewPluginMetrics(registry, nil, nil)
 
 	families, err := registry.Gather().Gather()
 	require.NoError(t, err)
@@ -81,29 +80,4 @@ func TestPluginMetrics_without_sources_collects_nothing_per_plugin(t *testing.T)
 		assert.NotEqual(t, "gameap_plugin_memory_bytes", family.GetName())
 		assert.NotEqual(t, "gameap_plugin_enabled", family.GetName())
 	}
-}
-
-type stubPluginLister struct{ plugins []*pkgplugin.LoadedPlugin }
-
-func (s stubPluginLister) GetPlugins() []*pkgplugin.LoadedPlugin { return s.plugins }
-
-func TestPluginMetrics_exposes_self_reported_health(t *testing.T) {
-	t.Parallel()
-
-	reporting := &pkgplugin.LoadedPlugin{Info: &proto.PluginInfo{Id: "reporting"}, Enabled: true, DBID: 42}
-	reporting.SetHealth(pkgplugin.HealthReport{Status: pkgplugin.HealthDegraded, Message: "steam api unreachable"})
-	silent := &pkgplugin.LoadedPlugin{Info: &proto.PluginInfo{Id: "silent"}, Enabled: true, DBID: 43}
-
-	registry := New()
-	NewPluginMetrics(registry, stubPluginLister{plugins: []*pkgplugin.LoadedPlugin{reporting, silent}}, stubBacklog{}, nil)
-
-	rec := httptest.NewRecorder()
-	registry.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	body := rec.Body.String()
-	assert.Contains(t, body, `gameap_plugin_health{plugin="`+PluginLabel(42)+`",status="degraded"} 1`)
-	assert.Contains(t, body, `gameap_plugin_health{plugin="`+PluginLabel(42)+`",status="healthy"} 0`)
-	assert.Contains(t, body, `gameap_plugin_health{plugin="`+PluginLabel(42)+`",status="unhealthy"} 0`)
-	assert.NotContains(t, body, `gameap_plugin_health{plugin="`+PluginLabel(43)+`"`, "no report, no series")
 }

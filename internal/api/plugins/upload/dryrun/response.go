@@ -4,7 +4,6 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
-	"github.com/gameap/gameap/pkg/plugin/configschema"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 )
 
@@ -38,11 +37,8 @@ type dryRunResponse struct {
 	HasFrontendBundle     bool                    `json:"has_frontend_bundle"`
 	FrontendBundleSize    int                     `json:"frontend_bundle_size,omitempty"`
 	HasFrontendStyles     bool                    `json:"has_frontend_styles"`
-	// ConfigSchema summarises the manifest's configuration schema; absent
-	// for a plugin with free-form configuration.
-	ConfigSchema *configschema.SummaryInfo `json:"config_schema,omitempty"`
-	IsValid      bool                      `json:"is_valid"`
-	Errors       []string                  `json:"errors"`
+	IsValid               bool                    `json:"is_valid"`
+	Errors                []string                `json:"errors"`
 }
 
 func newDryRunResponse(loaded *pkgplugin.LoadedPlugin, subscribedEvents []proto.EventType) *dryRunResponse {
@@ -62,17 +58,6 @@ func newDryRunResponse(loaded *pkgplugin.LoadedPlugin, subscribedEvents []proto.
 
 	if loaded.Info.RequiredPermissions != nil {
 		resp.RequiredPermissions = loaded.Info.RequiredPermissions
-	}
-
-	if loaded.Info.ConfigSchema != "" {
-		summary := configschema.Summary(loaded.Info.ConfigSchema)
-		resp.ConfigSchema = &summary
-
-		if !summary.Valid {
-			// The plugin still loads with free-form configuration; the
-			// author is told before installing.
-			resp.Errors = append(resp.Errors, "config_schema is invalid and will be ignored: "+summary.Error)
-		}
 	}
 
 	used := internalplugin.UsedPermissions(loaded.HostImports, subscribedEvents)

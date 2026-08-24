@@ -52,12 +52,6 @@ const (
 	tickJitterFraction = 10
 )
 
-// Pass results reported to the PassObserver.
-const (
-	PassResultOK     = "ok"
-	PassResultFailed = "failed"
-)
-
 type Options struct {
 	// RefreshInterval bounds how long a missed hint can leave this instance
 	// stale.
@@ -132,7 +126,6 @@ type Service struct {
 	locks   locker.Locker
 	bus     pubsub.PubSub
 	audit   audit.Logger
-	metrics PassObserver
 
 	pluginsDir string
 	opts       Options
@@ -170,8 +163,6 @@ type Deps struct {
 	Bus   pubsub.PubSub
 	// Audit may be nil; reloads are then only logged.
 	Audit audit.Logger
-	// Metrics may be nil.
-	Metrics PassObserver
 
 	PluginsDir string
 }
@@ -198,7 +189,6 @@ func New(deps Deps, opts Options, logger *slog.Logger) *Service {
 		locks:      deps.Locks,
 		bus:        deps.Bus,
 		audit:      deps.Audit,
-		metrics:    deps.Metrics,
 		pluginsDir: deps.PluginsDir,
 		opts:       opts,
 		logger:     logger,

@@ -11,11 +11,9 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/filters"
-	"github.com/gameap/gameap/internal/plugin/pluginconfig"
 	"github.com/gameap/gameap/internal/repositories"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
-	"github.com/gameap/gameap/pkg/secret"
 	"github.com/pkg/errors"
 )
 
@@ -67,16 +65,6 @@ func WithSubscriptionRefresher(refresher SubscriptionRefresher) LoaderOption {
 	}
 }
 
-// WithSecretCipher decrypts secret configuration values before they reach
-// Initialize; nil keeps the disabled (passthrough) cipher.
-func WithSecretCipher(cipher *secret.Cipher) LoaderOption {
-	return func(l *Loader) {
-		if cipher != nil {
-			l.cipher = cipher
-		}
-	}
-}
-
 // WithLifecycleEvents publishes PLUGIN_LOADED / PLUGIN_UNLOADED /
 // PLUGIN_ERROR events to the other plugins.
 func WithLifecycleEvents(events LifecycleEvents) LoaderOption {
@@ -116,7 +104,6 @@ type Loader struct {
 	pluginsDir    string
 	strict        bool
 	refresher     SubscriptionRefresher
-	cipher        *secret.Cipher
 	events        LifecycleEvents
 
 	enforcePermissions bool
@@ -149,7 +136,6 @@ func NewLoader(
 		pluginRepo:    pluginRepo,
 		autoLoadNames: autoLoadNames,
 		pluginsDir:    pluginsDir,
-		cipher:        secret.Disabled(),
 		pluginIDs:     make(map[domain.Uint64ID]string),
 		fingerprints:  make(map[domain.Uint64ID]string),
 		attempts:      make(map[domain.Uint64ID]string),
@@ -395,8 +381,6 @@ func (l *Loader) apply(
 	l.RegisterPluginID(plugin.ID, loaded.Info.Id)
 	l.recordFingerprint(plugin.ID, fingerprint)
 
-	pluginconfig.SchemaFromManifest(plugin, loaded.Info)
-
 	if opts.persist {
 		l.markActive(ctx, plugin)
 	}
@@ -413,25 +397,19 @@ func (l *Loader) apply(
 	return loaded, true, nil
 }
 
-// loadModule reads the wasm file and builds the module with the plugin's
-// effective configuration.
+// loadModule reads the wasm file and builds the module for the row.
 func (l *Loader) loadModule(ctx context.Context, plugin *domain.Plugin) (*pkgplugin.LoadedPlugin, error) {
-	config, err := pluginconfig.Effective(l.cipher, plugin)
-	if err != nil {
-		return nil, err
-	}
-
 	wasmBytes, err := l.readPluginFile(ctx, ResolveFilename(plugin))
 	if err != nil {
 		return nil, err
 	}
 
-	loaded, err := l.manager.Load(ctx, wasmBytes, config, uint64(plugin.ID))
+	loaded, err := l.manager.Load(ctx, wasmBytes, nil, uint64(plugin.ID))
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to load plugin")
 	}
 
-	logLoaded(ctx, loaded, wasmBytes, len(config))
+	logLoaded(ctx, loaded, wasmBytes)
 
 	return loaded, nil
 }
@@ -468,8 +446,8 @@ func (l *Loader) warnMissingPermissions(ctx context.Context, plugin *domain.Plug
 		slog.Any("missing_permissions", PermissionNames(missing)))
 }
 
-// Load loads a wasm file that has no database record (no configuration, no
-// grants); kept for callers that inspect a module by file name.
+// Load loads a wasm file that has no database record (no grants); kept for
+// callers that inspect a module by file name.
 func (l *Loader) Load(ctx context.Context, filename string) (*pkgplugin.LoadedPlugin, error) {
 	wasmBytes, err := l.readPluginFile(ctx, filename)
 	if err != nil {
@@ -481,7 +459,7 @@ func (l *Loader) Load(ctx context.Context, filename string) (*pkgplugin.LoadedPl
 		return nil, errors.WithMessage(err, "failed to load plugin")
 	}
 
-	logLoaded(ctx, loaded, wasmBytes, 0)
+	logLoaded(ctx, loaded, wasmBytes)
 
 	return loaded, nil
 }
@@ -501,7 +479,7 @@ func (l *Loader) readPluginFile(ctx context.Context, filename string) ([]byte, e
 	return wasmBytes, nil
 }
 
-func logLoaded(ctx context.Context, loaded *pkgplugin.LoadedPlugin, wasmBytes []byte, configKeys int) {
+func logLoaded(ctx context.Context, loaded *pkgplugin.LoadedPlugin, wasmBytes []byte) {
 	attr := []slog.Attr{
 		{Key: "id", Value: slog.StringValue(loaded.Info.Id)},
 		{Key: "name", Value: slog.StringValue(loaded.Info.Name)},
@@ -510,7 +488,6 @@ func logLoaded(ctx context.Context, loaded *pkgplugin.LoadedPlugin, wasmBytes []
 		{Key: "description", Value: slog.StringValue(loaded.Info.Description)},
 		{Key: "author", Value: slog.StringValue(loaded.Info.Author)},
 		{Key: "api_version", Value: slog.StringValue(loaded.Info.ApiVersion)},
-		{Key: "config_keys", Value: slog.IntValue(configKeys)},
 	}
 	if len(loaded.FrontendBundle) > 0 {
 		attr = append(attr, slog.Attr{Key: "frontend_bundle_size", Value: slog.IntValue(len(loaded.FrontendBundle))})
@@ -842,8 +819,6 @@ func (l *Loader) registerAutoLoad(ctx context.Context, filename string) error {
 		Status:              domain.PluginStatusActive,
 		InstalledAt:         new(time.Now()),
 	}
-
-	pluginconfig.SchemaFromManifest(plugin, loaded.Info)
 
 	if err := l.pluginRepo.Save(ctx, plugin); err != nil {
 		return errors.WithMessage(err, "failed to save plugin to database")

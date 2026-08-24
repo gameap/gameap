@@ -35,19 +35,9 @@ func Instantiate(ctx context.Context, r wazero.Runtime, hostFunctions HostServic
 		Export("get_grants")
 
 	envBuilder.NewFunctionBuilder().
-		WithGoModuleFunction(api.GoModuleFunc(h._GetConfig), []api.ValueType{i32, i32}, []api.ValueType{i64}).
-		WithParameterNames("offset", "size").
-		Export("get_config")
-
-	envBuilder.NewFunctionBuilder().
 		WithGoModuleFunction(api.GoModuleFunc(h._GetHostInfo), []api.ValueType{i32, i32}, []api.ValueType{i64}).
 		WithParameterNames("offset", "size").
 		Export("get_host_info")
-
-	envBuilder.NewFunctionBuilder().
-		WithGoModuleFunction(api.GoModuleFunc(h._ReportStatus), []api.ValueType{i32, i32}, []api.ValueType{i64}).
-		WithParameterNames("offset", "size").
-		Export("report_status")
 
 	_, err := envBuilder.Instantiate(ctx)
 	return err
@@ -83,37 +73,6 @@ func (h _hostService) _GetGrants(ctx context.Context, m api.Module, stack []uint
 	stack[0] = ptrLen
 }
 
-// GetConfig answers the same map Initialize received (schema defaults
-// overlaid by the operator's values, secrets decrypted), read fresh from
-// the panel database so a plugin can re-read it without a reload.
-
-func (h _hostService) _GetConfig(ctx context.Context, m api.Module, stack []uint64) {
-	offset, size := uint32(stack[0]), uint32(stack[1])
-	buf, err := wasm.ReadMemory(m.Memory(), offset, size)
-	if err != nil {
-		panic(err)
-	}
-	request := new(GetConfigRequest)
-	err = request.UnmarshalVT(buf)
-	if err != nil {
-		panic(err)
-	}
-	resp, err := h.GetConfig(ctx, request)
-	if err != nil {
-		panic(err)
-	}
-	buf, err = resp.MarshalVT()
-	if err != nil {
-		panic(err)
-	}
-	ptr, err := wasm.WriteMemory(ctx, m, buf)
-	if err != nil {
-		panic(err)
-	}
-	ptrLen := (ptr << uint64(32)) | uint64(len(buf))
-	stack[0] = ptrLen
-}
-
 // GetHostInfo describes the panel and the host modules instantiated for
 // this plugin, so a plugin can degrade gracefully instead of failing calls.
 
@@ -129,36 +88,6 @@ func (h _hostService) _GetHostInfo(ctx context.Context, m api.Module, stack []ui
 		panic(err)
 	}
 	resp, err := h.GetHostInfo(ctx, request)
-	if err != nil {
-		panic(err)
-	}
-	buf, err = resp.MarshalVT()
-	if err != nil {
-		panic(err)
-	}
-	ptr, err := wasm.WriteMemory(ctx, m, buf)
-	if err != nil {
-		panic(err)
-	}
-	ptrLen := (ptr << uint64(32)) | uint64(len(buf))
-	stack[0] = ptrLen
-}
-
-// ReportStatus publishes the plugin's self-diagnosis; the panel shows it in
-// the admin UI and exposes it as a metric. Per panel instance.
-
-func (h _hostService) _ReportStatus(ctx context.Context, m api.Module, stack []uint64) {
-	offset, size := uint32(stack[0]), uint32(stack[1])
-	buf, err := wasm.ReadMemory(m.Memory(), offset, size)
-	if err != nil {
-		panic(err)
-	}
-	request := new(ReportStatusRequest)
-	err = request.UnmarshalVT(buf)
-	if err != nil {
-		panic(err)
-	}
-	resp, err := h.ReportStatus(ctx, request)
 	if err != nil {
 		panic(err)
 	}

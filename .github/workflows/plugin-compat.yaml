@@ -68,13 +68,11 @@ jobs:
       #     are REJECTED — an expectation that holds only on v4.3.5.
       #   stubs_head_test.go implements host-module methods that exist only
       #     on the development panel (post-4.4.2), so it is dropped on every
-      #     tagged leg; compat_head_test.go loads the introspection fixture,
-      #     which imports the gameap-host module of the same panel generation.
+      #     tagged leg.
       - name: Trim version-specific test files
         run: |
           if [ "${{ matrix.panel-ref }}" != "HEAD" ]; then
-            rm -f pkg/plugin/compatrust/stubs_head_test.go \
-                  pkg/plugin/compatrust/compat_head_test.go
+            rm -f pkg/plugin/compatrust/stubs_head_test.go
           fi
           if [ "${{ matrix.panel-ref }}" = "v4.3.5" ]; then
             rm -f pkg/plugin/compatrust/stubs_v44_test.go \

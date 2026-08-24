@@ -39,27 +39,7 @@
               :title="loadedStatus === 'error' ? loadedInfo.error : undefined"
               class="hidden md:inline-flex"
             />
-            <GStatusBadge
-              v-if="health"
-              :color="health.badgeColor"
-              :text="health.label"
-              :title="health.title"
-              class="hidden md:inline-flex"
-              data-testid="plugin-health-badge"
-            />
           </div>
-
-          <n-alert
-            v-if="health?.message"
-            :type="health.alertType"
-            :show-icon="true"
-            class="mb-4"
-            :title="trans('plugins.health')"
-            data-testid="plugin-health-message"
-          >
-            <span class="break-words">{{ health.message }}</span>
-            <span v-if="loadedInfo.health.reported_at" class="text-xs opacity-75">({{ formatDateTime(loadedInfo.health.reported_at) }})</span>
-          </n-alert>
 
           <n-alert
             v-if="loadedStatus === 'error' && loadedInfo?.error"
@@ -211,26 +191,6 @@
         <div class="text-sm whitespace-pre-wrap break-words">{{ plugin.description }}</div>
       </div>
 
-      <div v-if="plugin.installed && loadedInfo" class="mb-4" data-testid="plugin-configuration">
-        <h3 class="font-semibold mb-1">{{ trans('plugins.configuration') }}</h3>
-        <p class="text-xs text-stone-500 mb-3">{{ trans('plugins.config_hint') }}</p>
-
-        <div
-          v-if="loadedInfo.config_schema_error"
-          class="mb-3 p-2 rounded-lg bg-warning-soft text-warning-soft-text text-sm break-words"
-        >
-          <span class="font-medium">{{ trans('plugins.config_schema_invalid') }}:</span>
-          {{ loadedInfo.config_schema_error }}
-        </div>
-
-        <PluginConfigForm
-          :plugin-id="plugin.id"
-          :loaded-info="loadedInfo"
-          @saved="$emit('config-saved', $event)"
-        />
-      </div>
-
-
       <div v-if="plugin.installed" class="flex justify-center gap-6 mb-4 p-3 bg-stone-100 dark:bg-stone-800 rounded-lg">
         <div class="flex flex-col items-center text-center">
           <GIcon name="box" class="text-xl text-lime-500 mb-1" />
@@ -256,10 +216,8 @@ import { trans } from '@/i18n/i18n'
 import { GIcon, GStatusBadge, Loading } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
 import PluginIcon from '@/components/plugins/PluginIcon.vue'
-import PluginConfigForm from '@/components/plugins/PluginConfigForm.vue'
 import { useIsSmallScreen } from '@/composables/useIsSmallScreen'
 import { NAlert, NSelect } from 'naive-ui'
-import { pluginHealthBadge } from '@/parts/pluginHealth'
 
 const props = defineProps({
   plugin: {
@@ -297,9 +255,7 @@ const loadedStatus = computed(() => {
 
 const loadedStatusColor = computed(() => loadedStatusColors[loadedStatus.value])
 
-defineEmits(['install', 'update', 'uninstall', 'config-saved'])
-
-const health = computed(() => pluginHealthBadge(props.loadedInfo?.health))
+defineEmits(['install', 'update', 'uninstall'])
 
 const selectedVersion = ref(null)
 const isSmallScreen = useIsSmallScreen()

@@ -64,11 +64,6 @@ type StoreDownloader interface {
 	DownloadPlugin(ctx context.Context, pluginID string, version string) ([]byte, error)
 }
 
-// PassObserver counts reconcile passes for the metrics.
-type PassObserver interface {
-	SyncPass(result string)
-}
-
 // Clock abstracts time for deterministic tests.
 type Clock interface {
 	Now() time.Time

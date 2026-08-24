@@ -66,13 +66,12 @@ func TestParsePluginPermissions_accepts_files_read(t *testing.T) {
 func TestPlugin_LoadState(t *testing.T) {
 	t.Parallel()
 
-	plugin := &domain.Plugin{Generation: 4, ConfigSchema: new(`{"type":"object"}`)}
+	plugin := &domain.Plugin{Generation: 4}
 	plugin.MarkError("boom", time.Now())
 
 	state := plugin.LoadState()
 	assert.Equal(t, domain.PluginStatusError, state.Status)
 	assert.Equal(t, "boom", *state.LastError)
 	assert.Equal(t, 4, state.Generation)
-	assert.Equal(t, `{"type":"object"}`, *state.ConfigSchema)
-	assert.True(t, plugin.HasConfigSchema())
+	assert.Equal(t, plugin.LastErrorAt, state.LastErrorAt)
 }

@@ -213,10 +213,6 @@ message PluginInfo {
   string homepage = 7;
   repeated string required_permissions = 8;
   string api_version = 9;
-  // Optional JSON Schema subset describing InitializeRequest.config (see
-  // pkg/plugin/configschema). Empty: free-form key/value configuration.
-  // Panels that predate this field ignore it.
-  string config_schema = 10;
 }
 
 // GetInfo request/response

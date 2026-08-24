@@ -9,7 +9,6 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/plugin"
-	"github.com/gameap/gameap/internal/plugin/pluginconfig"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/pkg/errors"
 
@@ -60,8 +59,6 @@ func BuildPluginRecord(
 		InstalledAt:         new(time.Now()),
 	}
 
-	pluginconfig.SchemaFromManifest(record, loaded.Info)
-
 	return record
 }
 
@@ -109,7 +106,6 @@ const (
 	ActionUninstall   = "uninstall"
 	ActionReload      = "reload"
 	ActionPermissions = "permissions"
-	ActionConfig      = "config"
 )
 
 // SyncNotifier wakes the other panel instances so they reconcile their

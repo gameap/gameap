@@ -19,37 +19,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type HealthStatus int32
-
-const (
-	HealthStatus_HEALTH_STATUS_UNSPECIFIED HealthStatus = 0
-	HealthStatus_HEALTH_STATUS_HEALTHY     HealthStatus = 1
-	HealthStatus_HEALTH_STATUS_DEGRADED    HealthStatus = 2
-	HealthStatus_HEALTH_STATUS_UNHEALTHY   HealthStatus = 3
-)
-
-// Enum value maps for HealthStatus.
-var (
-	HealthStatus_name = map[int32]string{
-		0: "HEALTH_STATUS_UNSPECIFIED",
-		1: "HEALTH_STATUS_HEALTHY",
-		2: "HEALTH_STATUS_DEGRADED",
-		3: "HEALTH_STATUS_UNHEALTHY",
-	}
-	HealthStatus_value = map[string]int32{
-		"HEALTH_STATUS_UNSPECIFIED": 0,
-		"HEALTH_STATUS_HEALTHY":     1,
-		"HEALTH_STATUS_DEGRADED":    2,
-		"HEALTH_STATUS_UNHEALTHY":   3,
-	}
-)
-
-func (x HealthStatus) Enum() *HealthStatus {
-	p := new(HealthStatus)
-	*p = x
-	return p
-}
-
 type GetGrantsRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -77,63 +46,6 @@ func (x *GetGrantsResponse) GetPermissions() []string {
 		return x.Permissions
 	}
 	return nil
-}
-
-type GetConfigRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-}
-
-func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
-	panic(`not implemented`)
-}
-
-type GetConfigResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Values map[string]string `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// found is false for transient loads and when the plugin row is gone.
-	Found bool `protobuf:"varint,2,opt,name=found,proto3" json:"found,omitempty"`
-	// has_schema reports whether the manifest declares a config_schema.
-	HasSchema bool `protobuf:"varint,3,opt,name=has_schema,json=hasSchema,proto3" json:"has_schema,omitempty"`
-	// error is set when the configuration could not be read (for example a
-	// secret that no longer decrypts); values is then empty.
-	Error *string `protobuf:"bytes,4,opt,name=error,proto3,oneof" json:"error,omitempty"`
-}
-
-func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
-	panic(`not implemented`)
-}
-
-func (x *GetConfigResponse) GetValues() map[string]string {
-	if x != nil {
-		return x.Values
-	}
-	return nil
-}
-
-func (x *GetConfigResponse) GetFound() bool {
-	if x != nil {
-		return x.Found
-	}
-	return false
-}
-
-func (x *GetConfigResponse) GetHasSchema() bool {
-	if x != nil {
-		return x.HasSchema
-	}
-	return false
-}
-
-func (x *GetConfigResponse) GetError() string {
-	if x != nil && x.Error != nil {
-		return *x.Error
-	}
-	return ""
 }
 
 type GetHostInfoRequest struct {
@@ -191,82 +103,15 @@ func (x *GetHostInfoResponse) GetInstanceId() string {
 	return ""
 }
 
-type ReportStatusRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Status HealthStatus `protobuf:"varint,1,opt,name=status,proto3,enum=gameap.plugin.sdk.host.HealthStatus" json:"status,omitempty"`
-	// Short human-readable reason; truncated to 512 bytes.
-	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	// Optional key/value details; at most 16 entries, keys up to 64 bytes,
-	// values up to 256 bytes.
-	Details map[string]string `protobuf:"bytes,3,rep,name=details,proto3" json:"details,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-}
-
-func (x *ReportStatusRequest) ProtoReflect() protoreflect.Message {
-	panic(`not implemented`)
-}
-
-func (x *ReportStatusRequest) GetStatus() HealthStatus {
-	if x != nil {
-		return x.Status
-	}
-	return HealthStatus_HEALTH_STATUS_UNSPECIFIED
-}
-
-func (x *ReportStatusRequest) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-func (x *ReportStatusRequest) GetDetails() map[string]string {
-	if x != nil {
-		return x.Details
-	}
-	return nil
-}
-
-type ReportStatusResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	// accepted is false when the report was ignored (transient load).
-	Accepted bool `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
-}
-
-func (x *ReportStatusResponse) ProtoReflect() protoreflect.Message {
-	panic(`not implemented`)
-}
-
-func (x *ReportStatusResponse) GetAccepted() bool {
-	if x != nil {
-		return x.Accepted
-	}
-	return false
-}
-
 // HostService lets a plugin introspect itself and the panel it runs on: the
-// grants it holds, its effective configuration, what the host provides, and a
-// channel to report its own health to operators. Open to every plugin (no
-// grant, no rate limit). Transient loads (dry-run) answer empty grants and
-// configuration, and their status reports are ignored.
+// grants it holds and what the host provides. Open to every plugin (no grant,
+// no rate limit). Transient loads (dry-run) answer empty grants.
 // go:plugin type=host module=gameap-host
 type HostService interface {
 	// GetGrants answers the permissions the operator granted this plugin,
 	// read live from the panel database.
 	GetGrants(context.Context, *GetGrantsRequest) (*GetGrantsResponse, error)
-	// GetConfig answers the same map Initialize received (schema defaults
-	// overlaid by the operator's values, secrets decrypted), read fresh from
-	// the panel database so a plugin can re-read it without a reload.
-	GetConfig(context.Context, *GetConfigRequest) (*GetConfigResponse, error)
 	// GetHostInfo describes the panel and the host modules instantiated for
 	// this plugin, so a plugin can degrade gracefully instead of failing calls.
 	GetHostInfo(context.Context, *GetHostInfoRequest) (*GetHostInfoResponse, error)
-	// ReportStatus publishes the plugin's self-diagnosis; the panel shows it in
-	// the admin UI and exposes it as a metric. Per panel instance.
-	ReportStatus(context.Context, *ReportStatusRequest) (*ReportStatusResponse, error)
 }
