@@ -89,7 +89,7 @@
 </template>
 
 <script setup>
-import { GBreadcrumbs, Loading, GIcon, GDataTable, GModal, GEmpty } from "@gameap/ui"
+import { GBreadcrumbs, Loading, GIcon, GDataTable, GModal, GEmpty, GStatusBadge } from "@gameap/ui"
 import { computed, ref, onMounted, h } from "vue"
 import { trans } from "@/i18n/i18n"
 import GButton from "@/components/GButton.vue"
@@ -168,36 +168,33 @@ const createInstalledColumns = () => {
       render(row) {
         const badges = []
 
-        badges.push(h('span', {
-          class: row.isFilePlugin
-            ? 'px-2 py-0.5 text-xs font-medium rounded-full bg-info-soft text-info-soft-text'
-            : 'px-2 py-0.5 text-xs font-medium rounded-full bg-success-soft text-success-soft-text'
-        }, row.isFilePlugin ? trans('plugins.source_file') : trans('plugins.source_store')))
+        badges.push(h(GStatusBadge, {
+          color: row.isFilePlugin ? 'blue' : 'green',
+          text: row.isFilePlugin ? trans('plugins.source_file') : trans('plugins.source_store'),
+        }))
 
         const status = statusBadge(row.status)
-        badges.push(h('span', {
-          class: 'px-2 py-0.5 text-xs font-medium rounded-full ' + status.class,
-          title: row.status === 'error' && row.error ? row.error : undefined
-        }, status.label))
+        badges.push(h(GStatusBadge, {
+          color: status.color,
+          text: status.label,
+          title: row.status === 'error' && row.error ? row.error : undefined,
+        }))
 
         if (!row.loaded && row.status !== 'error') {
-          badges.push(h('span', {
-            class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300'
-          }, trans('plugins.not_loaded')))
+          badges.push(h(GStatusBadge, { color: 'light', text: trans('plugins.not_loaded') }))
         }
 
         if (row.hasUpdate) {
-          badges.push(h('span', {
-            class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-warning-soft text-warning-soft-text'
-          }, trans('plugins.update_available')))
+          badges.push(h(GStatusBadge, { color: 'orange', text: trans('plugins.update_available') }))
         }
 
         if (!isSmallScreen.value && row.labels?.length > 0) {
           row.labels.forEach(label => {
-            badges.push(h('span', {
-              class: 'px-2 py-0.5 text-xs font-medium rounded-full' + (!label.color ? ' bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300' : ''),
-              style: label.color ? { backgroundColor: label.color, color: '#fff' } : {}
-            }, label.name))
+            badges.push(h(GStatusBadge, {
+              color: label.color ? 'stone' : 'light',
+              text: label.name,
+              style: label.color ? { backgroundColor: label.color, color: '#fff' } : {},
+            }))
           })
         }
 
@@ -328,17 +325,18 @@ const createStoreColumns = () => {
                   ? h(GIcon, { name: 'star', class: 'text-yellow-500' })
                   : null,
               !isSmallScreen.value && row.installed
-                  ? h('span', { class: 'px-2 py-0.5 text-xs font-medium rounded-full bg-success-soft text-success-soft-text whitespace-nowrap' }, trans('plugins.already_installed'))
+                  ? h(GStatusBadge, { color: 'green', text: trans('plugins.already_installed') })
                   : null
             ]),
             row.summary ? h('div', { class: 'text-xs text-stone-500 dark:text-stone-400 line-clamp-2 whitespace-normal break-words' }, row.summary) : null,
             !isSmallScreen.value && row.labels?.length > 0
                 ? h('div', { class: 'flex gap-1 mt-1 flex-wrap' },
                     row.labels.map(label =>
-                        h('span', {
-                          class: 'px-2 py-0.5 text-xs font-medium rounded-full' + (!label.color ? ' bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300' : ''),
-                          style: label.color ? { backgroundColor: label.color, color: '#fff' } : {}
-                        }, label.name)
+                        h(GStatusBadge, {
+                          color: label.color ? 'stone' : 'light',
+                          text: label.name,
+                          style: label.color ? { backgroundColor: label.color, color: '#fff' } : {},
+                        })
                     )
                 )
                 : null
@@ -421,18 +419,18 @@ const storeColumns = computed(() => {
   return cols
 })
 
-const statusBadgeClasses = {
-  active: 'bg-success-soft text-success-soft-text',
-  error: 'bg-danger-soft text-danger-soft-text',
-  updating: 'bg-warning-soft text-warning-soft-text',
-  disabled: 'bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300',
+const statusBadgeColors = {
+  active: 'green',
+  error: 'red',
+  updating: 'orange',
+  disabled: 'stone',
 }
 
 function statusBadge(status) {
-  const known = statusBadgeClasses[status] ? status : 'disabled'
+  const known = statusBadgeColors[status] ? status : 'disabled'
 
   return {
-    class: statusBadgeClasses[known],
+    color: statusBadgeColors[known],
     label: trans('plugins.status_' + known),
   }
 }
