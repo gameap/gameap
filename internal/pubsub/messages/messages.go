@@ -11,9 +11,12 @@ import (
 const (
 	TypeCacheInvalidate = "cache.invalidate"
 	TypePluginEvent     = "plugin.event"
-	TypeServerStatus    = "server.status"
-	TypeTaskProgress    = "task.progress"
-	TypeNotification    = "notification"
+	// TypePluginSubscriptionsRefresh asks every instance to rebuild its
+	// plugin event subscriptions.
+	TypePluginSubscriptionsRefresh = "plugin.subscriptions.refresh"
+	TypeServerStatus               = "server.status"
+	TypeTaskProgress               = "task.progress"
+	TypeNotification               = "notification"
 
 	TypeDaemonConnected    = "daemon.connected"
 	TypeDaemonClosed       = "daemon.closed"
@@ -77,6 +80,13 @@ type PluginEventPayload struct {
 	TaskID    *uint             `json:"task_id,omitempty"`
 	NodeID    *uint             `json:"node_id,omitempty"`
 	ExtraData map[string]string `json:"extra_data,omitempty"`
+}
+
+// PluginSubscriptionsRefreshPayload names the plugin whose grants changed;
+// the subscription map is rebuilt as a whole, so the ID is informational
+// (logging, and future targeted refreshes).
+type PluginSubscriptionsRefreshPayload struct {
+	PluginID uint64 `json:"plugin_id"`
 }
 
 type ServerStatusPayload struct {

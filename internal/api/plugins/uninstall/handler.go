@@ -29,6 +29,7 @@ type Handler struct {
 	archiveEvents ArchiveEvents
 	storage       PluginStorageCleaner
 	secrets       PluginSecretCleaner
+	guard         PluginPolicyCleaner
 	pluginsDir    string
 	responder     base.Responder
 	audit         audit.Logger
@@ -44,6 +45,7 @@ func NewHandler(
 	archiveEvents ArchiveEvents,
 	storage PluginStorageCleaner,
 	secrets PluginSecretCleaner,
+	guard PluginPolicyCleaner,
 	pluginsDir string,
 	responder base.Responder,
 	auditLogger audit.Logger,
@@ -62,6 +64,7 @@ func NewHandler(
 		archiveEvents: archiveEvents,
 		storage:       storage,
 		secrets:       secrets,
+		guard:         guard,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 		audit:         auditLogger,
@@ -147,6 +150,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if h.archiveEvents != nil {
 		h.archiveEvents.RemovePlugin(uint64(dbID))
+	}
+
+	// The record is gone, so nothing can grant the plugin anything again:
+	// its rate limiter buckets and audit throttle state are dead weight.
+	if h.guard != nil {
+		h.guard.Forget(uint64(dbID))
 	}
 
 	audit.SensitiveOp(ctx, h.audit, audit.EventPluginUninstall, audit.CategoryPluginOp,

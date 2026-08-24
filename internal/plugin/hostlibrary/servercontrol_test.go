@@ -133,7 +133,7 @@ func TestServerControlService_StartServer(t *testing.T) {
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
 
-			svc := NewServerControlService(repo, ctrl)
+			svc := NewServerControlService(repo, ctrl, allowAllGuard(testPluginID))
 			resp, err := svc.StartServer(context.Background(), &servercontrol.ServerControlRequest{ServerId: tt.serverID})
 
 			require.NoError(t, err)
@@ -197,7 +197,7 @@ func TestServerControlService_StopServer(t *testing.T) {
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
 
-			svc := NewServerControlService(repo, ctrl)
+			svc := NewServerControlService(repo, ctrl, allowAllGuard(testPluginID))
 			resp, err := svc.StopServer(context.Background(), &servercontrol.ServerControlRequest{ServerId: tt.serverID})
 
 			require.NoError(t, err)
@@ -261,7 +261,7 @@ func TestServerControlService_RestartServer(t *testing.T) {
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
 
-			svc := NewServerControlService(repo, ctrl)
+			svc := NewServerControlService(repo, ctrl, allowAllGuard(testPluginID))
 			resp, err := svc.RestartServer(context.Background(), &servercontrol.ServerControlRequest{ServerId: tt.serverID})
 
 			require.NoError(t, err)
@@ -325,7 +325,7 @@ func TestServerControlService_UpdateServer(t *testing.T) {
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
 
-			svc := NewServerControlService(repo, ctrl)
+			svc := NewServerControlService(repo, ctrl, allowAllGuard(testPluginID))
 			resp, err := svc.UpdateServer(context.Background(), &servercontrol.ServerControlRequest{ServerId: tt.serverID})
 
 			require.NoError(t, err)
@@ -389,7 +389,7 @@ func TestServerControlService_InstallServer(t *testing.T) {
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
 
-			svc := NewServerControlService(repo, ctrl)
+			svc := NewServerControlService(repo, ctrl, allowAllGuard(testPluginID))
 			resp, err := svc.InstallServer(context.Background(), &servercontrol.ServerControlRequest{ServerId: tt.serverID})
 
 			require.NoError(t, err)
@@ -453,7 +453,7 @@ func TestServerControlService_ReinstallServer(t *testing.T) {
 			tt.setupRepo(repo)
 			ctrl := tt.setupCtrl()
 
-			svc := NewServerControlService(repo, ctrl)
+			svc := NewServerControlService(repo, ctrl, allowAllGuard(testPluginID))
 			resp, err := svc.ReinstallServer(context.Background(), &servercontrol.ServerControlRequest{ServerId: tt.serverID})
 
 			require.NoError(t, err)
@@ -471,12 +471,14 @@ func TestServerControlService_ReinstallServer(t *testing.T) {
 	}
 }
 
-func TestNewServerControlHostLibrary(t *testing.T) {
+func TestNewServerControlHostLibraryFactory(t *testing.T) {
 	t.Parallel()
 	repo := inmemory.NewServerRepository()
 	ctrl := &mockServerController{}
-	lib := NewServerControlHostLibrary(repo, ctrl)
+	factory := NewServerControlHostLibraryFactory(repo, ctrl, NewGuard(stubPermissionChecker{allowed: true}))
 
-	assert.NotNil(t, lib)
-	assert.NotNil(t, lib.impl)
+	lib, ok := factory.Create(42).(*ServerControlHostLibrary)
+	require.True(t, ok)
+	require.NotNil(t, lib.impl)
+	assert.Equal(t, uint64(42), lib.impl.guard.PluginID(), "factory must bind the plugin id")
 }

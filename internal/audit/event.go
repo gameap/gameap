@@ -89,6 +89,28 @@ const (
 	EventPluginReloaded EventType = "plugin.reloaded"
 )
 
+// Privileged actions a plugin performs through the host libraries, recorded
+// with the plugin as the actor (AuthMethodPlugin). The user whose request
+// triggered the plugin, when there is one, travels in the on_behalf_of_*
+// attributes. Grant denials reuse EventAccessDenied with the plugin actor.
+const (
+	EventPluginServerControl     EventType = "plugin.server.control"
+	EventPluginServerSave        EventType = "plugin.server.save"
+	EventPluginServerDelete      EventType = "plugin.server.delete"
+	EventPluginServerSetting     EventType = "plugin.server.setting"
+	EventPluginTaskCreate        EventType = "plugin.task.create"
+	EventPluginNodeCommand       EventType = "plugin.node.command"
+	EventPluginNodeFile          EventType = "plugin.node.file"
+	EventPluginRBACRole          EventType = "plugin.rbac.role"
+	EventPluginRBACGrant         EventType = "plugin.rbac.grant"
+	EventPluginRBACRevoke        EventType = "plugin.rbac.revoke"
+	EventPluginPermissionsUpdate EventType = "plugin.permissions.update"
+	// EventPluginHostCallRateLimited: a host call refused by the per-plugin
+	// rate limiter. Throttled per plugin and limiter class so a plugin
+	// looping on a refused call cannot flood the audit stream.
+	EventPluginHostCallRateLimited EventType = "plugin.hostcall.ratelimited"
+)
+
 // AuthMethod describes how the actor authenticated for the audited request.
 type AuthMethod string
 
@@ -100,6 +122,10 @@ const (
 	// AuthMethodSystem marks actions the panel takes on its own, outside
 	// any request (plugin recovery, background maintenance).
 	AuthMethodSystem AuthMethod = "system"
+	// AuthMethodPlugin marks actions a plugin performs through the host
+	// libraries; ActorID is the plugin's database ID and ActorLogin its
+	// declared ID.
+	AuthMethodPlugin AuthMethod = "plugin"
 )
 
 // Event is the stable audit-record schema. Zero-valued fields are omitted

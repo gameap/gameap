@@ -1,6 +1,8 @@
 package base
 
 import (
+	"strings"
+
 	"github.com/gameap/gameap/internal/domain"
 )
 
@@ -45,3 +47,20 @@ var (
 	PluginScheduledTaskFields = allFields(domain.PluginScheduledTask{})
 	PluginSecretFields        = allFields(domain.PluginSecret{})
 )
+
+// LikeEscapeChar is the escape character every dialect accepts in a LIKE
+// ... ESCAPE clause; a backslash would need dialect-specific quoting.
+const LikeEscapeChar = "!"
+
+// LikePrefixPattern builds a LIKE pattern matching values that start with
+// prefix, with the LIKE metacharacters of the prefix itself escaped. Use it
+// with "... LIKE ? ESCAPE '!'".
+func LikePrefixPattern(prefix string) string {
+	escaped := strings.NewReplacer(
+		LikeEscapeChar, LikeEscapeChar+LikeEscapeChar,
+		"%", LikeEscapeChar+"%",
+		"_", LikeEscapeChar+"_",
+	).Replace(prefix)
+
+	return escaped + "%"
+}

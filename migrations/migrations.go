@@ -127,6 +127,24 @@ func Run(ctx context.Context, c container) error {
 		return nil
 	}
 
+	migrator, err := NewProvider(ctx, c)
+	if err != nil {
+		return err
+	}
+
+	result, err := migrator.Up(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to run migrations")
+	}
+
+	logResults(ctx, result)
+
+	return nil
+}
+
+// NewProvider builds the goose provider for the configured driver; Run uses
+// it to migrate to the latest version, tests to stop at a specific one.
+func NewProvider(ctx context.Context, c container) (*goose.Provider, error) {
 	migratorOptions := []goose.ProviderOption{
 		goose.WithSlog(slog.Default()),
 		goose.WithAllowOutofOrder(true),
@@ -136,21 +154,21 @@ func Run(ctx context.Context, c container) error {
 	case databaseDriverMySQL:
 		mg, err := MySQLMigrations(ctx, c)
 		if err != nil {
-			return errors.Wrap(err, "failed to get mysql migrations")
+			return nil, errors.Wrap(err, "failed to get mysql migrations")
 		}
 
 		migratorOptions = append(migratorOptions, goose.WithGoMigrations(mg...))
 	case databaseDriverPostgres, databaseDriverPGX:
 		mg, err := PostgresMigrations(ctx, c)
 		if err != nil {
-			return errors.Wrap(err, "failed to get postgres migrations")
+			return nil, errors.Wrap(err, "failed to get postgres migrations")
 		}
 
 		migratorOptions = append(migratorOptions, goose.WithGoMigrations(mg...))
 	case databaseDriverSQLite:
 		mg, err := SqliteMigrations(ctx, c)
 		if err != nil {
-			return errors.Wrap(err, "failed to get sqlite migrations")
+			return nil, errors.Wrap(err, "failed to get sqlite migrations")
 		}
 
 		migratorOptions = append(migratorOptions, goose.WithGoMigrations(mg...))
@@ -158,17 +176,17 @@ func Run(ctx context.Context, c container) error {
 
 	dialect, ok := driverToDialectMap[c.Config().DatabaseDriver]
 	if !ok {
-		return errors.Errorf("unsupported database driver: %s", c.Config().DatabaseDriver)
+		return nil, errors.Errorf("unsupported database driver: %s", c.Config().DatabaseDriver)
 	}
 
 	dir, ok := driverToFSDirMap[c.Config().DatabaseDriver]
 	if !ok {
-		return errors.Errorf("unsupported database driver for migrations: %s", c.Config().DatabaseDriver)
+		return nil, errors.Errorf("unsupported database driver for migrations: %s", c.Config().DatabaseDriver)
 	}
 
 	migrationsSubFS, err := fs.Sub(GetFS(), dir)
 	if err != nil {
-		return errors.Wrap(err, "failed to create sub filesystem")
+		return nil, errors.Wrap(err, "failed to create sub filesystem")
 	}
 
 	migrator, err := goose.NewProvider(
@@ -178,14 +196,13 @@ func Run(ctx context.Context, c container) error {
 		migratorOptions...,
 	)
 	if err != nil {
-		return errors.Wrap(err, "failed to create migrator")
+		return nil, errors.Wrap(err, "failed to create migrator")
 	}
 
-	result, err := migrator.Up(ctx)
-	if err != nil {
-		return errors.Wrap(err, "failed to run migrations")
-	}
+	return migrator, nil
+}
 
+func logResults(ctx context.Context, result []*goose.MigrationResult) {
 	for i := range result {
 		fields := make([]any, 0, 3)
 
@@ -202,6 +219,4 @@ func Run(ctx context.Context, c container) error {
 			fields...,
 		)
 	}
-
-	return nil
 }

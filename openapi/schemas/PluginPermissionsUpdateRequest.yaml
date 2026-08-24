@@ -1,0 +1,11 @@
+type: object
+description: The complete set of permissions the plugin should hold
+properties:
+  allowed_permissions:
+    type: array
+    description: Replaces the plugin's grants; unknown names are rejected
+    items:
+      $ref: './PluginPermission.yaml'
+    example: ["files", "listen_events"]
+required:
+  - allowed_permissions

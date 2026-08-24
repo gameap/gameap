@@ -345,11 +345,16 @@ func (h *HTTPHandler) buildProtoRequest(
 
 	session := h.buildProtoSession(r.Context())
 
+	pluginContext := &proto.PluginContext{
+		PluginId:  pluginID,
+		RequestId: r.Header.Get("X-Request-ID"),
+	}
+	if session != nil {
+		pluginContext.UserId = new(session.User.Id)
+	}
+
 	return &proto.HTTPRequest{
-		Context: &proto.PluginContext{
-			PluginId:  pluginID,
-			RequestId: r.Header.Get("X-Request-ID"),
-		},
+		Context:     pluginContext,
 		Method:      r.Method,
 		Path:        pluginPath,
 		Headers:     headers,

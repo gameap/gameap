@@ -56,6 +56,9 @@ func (p *ServerLoggerPlugin) GetInfo(
 		Description: "Logs server lifecycle events",
 		Author:      "GameAP",
 		ApiVersion:  "1",
+		// Event subscriptions are gated on listen_events; the install grants
+		// exactly what is declared here.
+		RequiredPermissions: []string{"listen_events"},
 	}, nil
 }
 

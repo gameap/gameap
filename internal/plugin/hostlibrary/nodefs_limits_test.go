@@ -19,7 +19,7 @@ func newCappedNodeFSService(fs NodeFileService, maxInline uint64) *NodeFSService
 
 	return NewNodeFSService(
 		testPluginID, fs, repo, newMockArchiveService(), &mockRegistrar{},
-		stubPermissionChecker{allowed: true},
+		allowAllGuard(testPluginID),
 		WithNodeFSMaxInlineBytes(maxInline),
 	)
 }
@@ -203,7 +203,7 @@ func TestNodeFSHostLibraryFactory_passes_options(t *testing.T) {
 	t.Parallel()
 	factory := NewNodeFSHostLibraryFactory(
 		&mockFileService{}, setupNodeFSRepo(nil), newMockArchiveService(), &mockRegistrar{},
-		stubPermissionChecker{allowed: true},
+		NewGuard(stubPermissionChecker{allowed: true}),
 		WithNodeFSMaxInlineBytes(123),
 	)
 

@@ -3,8 +3,10 @@ package hostlibrary
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
@@ -12,11 +14,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/tetratelabs/wazero"
 )
-
-// permissionDeniedMessage is what a plugin without the grant sees. It names
-// the missing permission so the plugin author can fix their manifest without
-// reading panel logs.
-const permissionDeniedMessage = "plugin permission " + string(domain.PluginPermissionManageRBAC) + " required"
 
 // RBACManager is the write-capable slice of the panel's RBAC service. Going
 // through the service (rather than straight to the repository) keeps its
@@ -47,45 +44,46 @@ type RBACServiceImpl struct {
 	pluginID uint64
 	rbac     RBACManager
 	repo     repositories.RBACRepository
-	checker  PluginPermissionChecker
+	guard    *PluginGuard
 }
 
 func NewRBACService(
 	pluginID uint64,
 	manager RBACManager,
 	repo repositories.RBACRepository,
-	checker PluginPermissionChecker,
+	guard *PluginGuard,
 ) *RBACServiceImpl {
 	return &RBACServiceImpl{
 		pluginID: pluginID,
 		rbac:     manager,
 		repo:     repo,
-		checker:  checker,
+		guard:    guard,
 	}
 }
 
-// authorize gates every method of this module. A denial and a failed check
-// are both reported as "not allowed" with a message; the caller must not
-// proceed in either case.
-func (s *RBACServiceImpl) authorize(ctx context.Context) (bool, string) {
-	allowed, err := s.checker.Has(ctx, s.pluginID, domain.PluginPermissionManageRBAC)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to check plugin RBAC permission",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("error", err.Error()))
-
-		return false, "failed to check plugin permission: " + err.Error()
-	}
-
-	if !allowed {
-		slog.WarnContext(ctx, "plugin denied access to the RBAC host library",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("permission", string(domain.PluginPermissionManageRBAC)))
-
-		return false, permissionDeniedMessage
+// authorize gates every method of this module on the manage_rbac grant and
+// the rbac rate limit. A denial and a failed check are both reported as "not
+// allowed" with a message; the caller must not proceed in either case.
+func (s *RBACServiceImpl) authorize(ctx context.Context, export string) (bool, string) {
+	if msg := s.guard.Check(ctx, ModuleRBAC, export); msg != "" {
+		return false, msg
 	}
 
 	return true, ""
+}
+
+// auditEntityWrite records a grant or revocation on an entity (user, server,
+// ...) with the plugin as the actor.
+func (s *RBACServiceImpl) auditEntityWrite(
+	ctx context.Context,
+	eventType audit.EventType,
+	action string,
+	entityType domain.EntityType,
+	entityID uint64,
+	err error,
+	attrs ...slog.Attr,
+) {
+	s.guard.Audit(ctx, eventType, action, string(entityType), strconv.FormatUint(entityID, 10), err, attrs...)
 }
 
 // ===============================
@@ -96,11 +94,13 @@ func (s *RBACServiceImpl) SetUserRoles(
 	ctx context.Context,
 	req *rbac.SetUserRolesRequest,
 ) (*rbac.Result, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "set_user_roles"); !allowed {
 		return failure(msg), nil
 	}
 
 	err := s.rbac.SetRolesToUser(ctx, uint(req.UserId), req.RoleNames)
+	s.auditEntityWrite(ctx, audit.EventPluginRBACGrant, "set_user_roles", domain.EntityTypeUser, req.UserId, err,
+		slog.Any("roles", req.RoleNames))
 
 	return resultFromError(err), nil
 }
@@ -109,7 +109,7 @@ func (s *RBACServiceImpl) AllowUserAbilitiesForEntity(
 	ctx context.Context,
 	req *rbac.UserAbilitiesRequest,
 ) (*rbac.Result, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "allow_user_abilities_for_entity"); !allowed {
 		return failure(msg), nil
 	}
 
@@ -125,6 +125,8 @@ func (s *RBACServiceImpl) AllowUserAbilitiesForEntity(
 		entityType,
 		abilityNamesFromStrings(req.Abilities),
 	)
+	s.auditEntityWrite(ctx, audit.EventPluginRBACGrant, "allow_user_abilities", entityType, req.EntityId, err,
+		slog.Uint64("user_id", req.UserId), slog.Any("abilities", req.Abilities))
 
 	return resultFromError(err), nil
 }
@@ -133,7 +135,7 @@ func (s *RBACServiceImpl) RevokeOrForbidUserAbilitiesForEntity(
 	ctx context.Context,
 	req *rbac.UserAbilitiesRequest,
 ) (*rbac.Result, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "revoke_or_forbid_user_abilities_for_entity"); !allowed {
 		return failure(msg), nil
 	}
 
@@ -149,6 +151,8 @@ func (s *RBACServiceImpl) RevokeOrForbidUserAbilitiesForEntity(
 		entityType,
 		abilityNamesFromStrings(req.Abilities),
 	)
+	s.auditEntityWrite(ctx, audit.EventPluginRBACRevoke, "revoke_user_abilities", entityType, req.EntityId, err,
+		slog.Uint64("user_id", req.UserId), slog.Any("abilities", req.Abilities))
 
 	return resultFromError(err), nil
 }
@@ -161,7 +165,7 @@ func (s *RBACServiceImpl) GetRoles(
 	ctx context.Context,
 	_ *rbac.GetRolesRequest,
 ) (*rbac.GetRolesResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "get_roles"); !allowed {
 		return &rbac.GetRolesResponse{Error: new(msg)}, nil
 	}
 
@@ -181,7 +185,7 @@ func (s *RBACServiceImpl) SaveRole(
 	ctx context.Context,
 	req *rbac.SaveRoleRequest,
 ) (*rbac.SaveRoleResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "save_role"); !allowed {
 		return &rbac.SaveRoleResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -197,7 +201,11 @@ func (s *RBACServiceImpl) SaveRole(
 	}
 	role.UpdatedAt = &now
 
-	if err := s.repo.SaveRole(ctx, &role); err != nil {
+	err := s.repo.SaveRole(ctx, &role)
+	s.guard.Audit(ctx, audit.EventPluginRBACRole, "save", "role", strconv.FormatUint(uint64(role.ID), 10), err,
+		slog.String("role", role.Name))
+
+	if err != nil {
 		return &rbac.SaveRoleResponse{Success: false, Error: new(err.Error())}, nil
 	}
 
@@ -211,7 +219,7 @@ func (s *RBACServiceImpl) DeleteRole(
 	ctx context.Context,
 	req *rbac.DeleteRoleRequest,
 ) (*rbac.Result, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "delete_role"); !allowed {
 		return failure(msg), nil
 	}
 
@@ -220,6 +228,8 @@ func (s *RBACServiceImpl) DeleteRole(
 		s.rbac.InvalidateCache()
 	}
 
+	s.guard.Audit(ctx, audit.EventPluginRBACRole, "delete", "role", strconv.FormatUint(req.Id, 10), err)
+
 	return resultFromError(err), nil
 }
 
@@ -227,7 +237,7 @@ func (s *RBACServiceImpl) GetPermissions(
 	ctx context.Context,
 	req *rbac.EntityRequest,
 ) (*rbac.GetPermissionsResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "get_permissions"); !allowed {
 		return &rbac.GetPermissionsResponse{Error: new(msg)}, nil
 	}
 
@@ -252,7 +262,7 @@ func (s *RBACServiceImpl) GetRolesForEntity(
 	ctx context.Context,
 	req *rbac.EntityRequest,
 ) (*rbac.GetRolesForEntityResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "get_roles_for_entity"); !allowed {
 		return &rbac.GetRolesForEntityResponse{Error: new(msg)}, nil
 	}
 
@@ -277,7 +287,7 @@ func (s *RBACServiceImpl) AssignRolesForEntity(
 	ctx context.Context,
 	req *rbac.AssignRolesRequest,
 ) (*rbac.Result, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "assign_roles_for_entity"); !allowed {
 		return failure(msg), nil
 	}
 
@@ -292,6 +302,8 @@ func (s *RBACServiceImpl) AssignRolesForEntity(
 
 	err = s.repo.AssignRolesForEntity(ctx, uint(req.EntityId), entityType, roles)
 	s.invalidateAfterWrite(err, entityType, uint(req.EntityId))
+	s.auditEntityWrite(ctx, audit.EventPluginRBACGrant, "assign_roles", entityType, req.EntityId, err,
+		slog.Int("roles", len(roles)))
 
 	return resultFromError(err), nil
 }
@@ -300,7 +312,7 @@ func (s *RBACServiceImpl) ClearRolesForEntity(
 	ctx context.Context,
 	req *rbac.EntityRequest,
 ) (*rbac.Result, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "clear_roles_for_entity"); !allowed {
 		return failure(msg), nil
 	}
 
@@ -311,30 +323,33 @@ func (s *RBACServiceImpl) ClearRolesForEntity(
 
 	err = s.repo.ClearRolesForEntity(ctx, uint(req.EntityId), entityType)
 	s.invalidateAfterWrite(err, entityType, uint(req.EntityId))
+	s.auditEntityWrite(ctx, audit.EventPluginRBACRevoke, "clear_roles", entityType, req.EntityId, err)
 
 	return resultFromError(err), nil
 }
 
 func (s *RBACServiceImpl) Allow(ctx context.Context, req *rbac.AbilitiesRequest) (*rbac.Result, error) {
-	return s.applyAbilities(ctx, req, s.repo.Allow)
+	return s.applyAbilities(ctx, "allow", audit.EventPluginRBACGrant, req, s.repo.Allow)
 }
 
 func (s *RBACServiceImpl) Forbid(ctx context.Context, req *rbac.AbilitiesRequest) (*rbac.Result, error) {
-	return s.applyAbilities(ctx, req, s.repo.Forbid)
+	return s.applyAbilities(ctx, "forbid", audit.EventPluginRBACRevoke, req, s.repo.Forbid)
 }
 
 func (s *RBACServiceImpl) Revoke(ctx context.Context, req *rbac.AbilitiesRequest) (*rbac.Result, error) {
-	return s.applyAbilities(ctx, req, s.repo.Revoke)
+	return s.applyAbilities(ctx, "revoke", audit.EventPluginRBACRevoke, req, s.repo.Revoke)
 }
 
 type abilitiesFunc func(context.Context, uint, domain.EntityType, []domain.Ability) error
 
 func (s *RBACServiceImpl) applyAbilities(
 	ctx context.Context,
+	export string,
+	eventType audit.EventType,
 	req *rbac.AbilitiesRequest,
 	apply abilitiesFunc,
 ) (*rbac.Result, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, export); !allowed {
 		return failure(msg), nil
 	}
 
@@ -349,6 +364,8 @@ func (s *RBACServiceImpl) applyAbilities(
 
 	err = apply(ctx, uint(req.EntityId), entityType, abilities)
 	s.invalidateAfterWrite(err, entityType, uint(req.EntityId))
+	s.auditEntityWrite(ctx, eventType, export, entityType, req.EntityId, err,
+		slog.Int("abilities", len(abilities)))
 
 	return resultFromError(err), nil
 }
@@ -487,10 +504,10 @@ func NewRBACHostLibrary(
 	pluginID uint64,
 	manager RBACManager,
 	repo repositories.RBACRepository,
-	checker PluginPermissionChecker,
+	guard *PluginGuard,
 ) *RBACHostLibrary {
 	return &RBACHostLibrary{
-		impl: NewRBACService(pluginID, manager, repo, checker),
+		impl: NewRBACService(pluginID, manager, repo, guard),
 	}
 }
 
@@ -501,21 +518,21 @@ func (l *RBACHostLibrary) Instantiate(ctx context.Context, r wazero.Runtime) err
 type RBACHostLibraryFactory struct {
 	manager RBACManager
 	repo    repositories.RBACRepository
-	checker PluginPermissionChecker
+	guard   *Guard
 }
 
 func NewRBACHostLibraryFactory(
 	manager RBACManager,
 	repo repositories.RBACRepository,
-	checker PluginPermissionChecker,
+	guard *Guard,
 ) *RBACHostLibraryFactory {
 	return &RBACHostLibraryFactory{
 		manager: manager,
 		repo:    repo,
-		checker: checker,
+		guard:   guard,
 	}
 }
 
 func (f *RBACHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
-	return NewRBACHostLibrary(pluginID, f.manager, f.repo, f.checker)
+	return NewRBACHostLibrary(pluginID, f.manager, f.repo, f.guard.For(pluginID))
 }

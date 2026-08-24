@@ -27,10 +27,26 @@ properties:
     example: "v1"
   required_permissions:
     type: array
-    description: Required permissions for the plugin
+    description: Permissions the plugin declares; installing grants exactly these
     items:
       type: string
     example: ["manage_servers"]
+  used_permissions:
+    type: array
+    description: |
+      Permissions the module can exercise, derived from the host functions
+      it imports and its event subscriptions
+    items:
+      $ref: './PluginPermission.yaml'
+    example: ["manage_servers", "node_commands"]
+  undeclared_permissions:
+    type: array
+    description: |
+      Used permissions the plugin does not declare: after the install the
+      calls behind them are refused until an operator grants them
+    items:
+      $ref: './PluginPermission.yaml'
+    example: ["node_commands"]
   http_routes:
     type: array
     description: HTTP routes exposed by the plugin

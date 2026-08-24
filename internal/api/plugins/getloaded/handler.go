@@ -17,23 +17,26 @@ type LoaderManager interface {
 }
 
 type Handler struct {
-	manager    LoaderManager
-	loader     *plugin.Loader
-	pluginRepo repositories.PluginRepository
-	responder  base.Responder
+	manager             LoaderManager
+	loader              *plugin.Loader
+	pluginRepo          repositories.PluginRepository
+	permissionsEnforced bool
+	responder           base.Responder
 }
 
 func NewHandler(
 	manager LoaderManager,
 	loader *plugin.Loader,
 	pluginRepo repositories.PluginRepository,
+	permissionsEnforced bool,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		manager:    manager,
-		loader:     loader,
-		pluginRepo: pluginRepo,
-		responder:  responder,
+		manager:             manager,
+		loader:              loader,
+		pluginRepo:          pluginRepo,
+		permissionsEnforced: permissionsEnforced,
+		responder:           responder,
 	}
 }
 
@@ -48,7 +51,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	installed := h.fetchInstalled(ctx)
 
 	response := &listResponse{
-		Data: make([]*loadedPluginResponse, 0, len(loadedPlugins)+len(installed)),
+		Data:                make([]*loadedPluginResponse, 0, len(loadedPlugins)+len(installed)),
+		PermissionsEnforced: h.permissionsEnforced,
 	}
 
 	byID := make(map[domain.Uint64ID]*domain.Plugin, len(installed))

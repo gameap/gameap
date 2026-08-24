@@ -25,6 +25,7 @@ import (
 	"net/netip"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	sdkhttp "github.com/gameap/gameap/pkg/plugin/sdk/http"
 	"github.com/pkg/errors"
@@ -37,10 +38,10 @@ import (
 // real deployment.
 func strictTestConfig() HTTPConfig {
 	return HTTPConfig{
-		BlockPrivateIPs:   true,
-		AllowedSchemes:    []string{"http", "https"}, // http only for httptest reachability
-		MaxTimeoutSeconds: 5,
-		MaxRedirects:      3,
+		BlockPrivateIPs: true,
+		AllowedSchemes:  []string{"http", "https"}, // http only for httptest reachability
+		MaxTimeout:      5 * time.Second,
+		MaxRedirects:    3,
 	}
 }
 
@@ -257,7 +258,7 @@ func indexOf(s, sub string) int {
 func TestHTTPService_SSRF_TimeoutCap(t *testing.T) {
 	t.Parallel()
 	cfg := strictTestConfig()
-	cfg.MaxTimeoutSeconds = 1 // 1s ceiling
+	cfg.MaxTimeout = time.Second // 1s ceiling
 	cfg.AllowedHosts = []string{"127.0.0.1"}
 
 	// Server that never responds.

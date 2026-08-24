@@ -39,6 +39,15 @@ func WithStrictLoad(strict bool) LoaderOption {
 	}
 }
 
+// WithPermissionEnforcement tells the loader whether the panel applies the
+// recorded grants (PLUGIN_PERMISSIONS_ENFORCE), which only changes what the
+// missing-permissions warning promises. Off by default, like the variable.
+func WithPermissionEnforcement(enforced bool) LoaderOption {
+	return func(l *Loader) {
+		l.enforcePermissions = enforced
+	}
+}
+
 // WithSubscriptionRefresher lets Reload rebuild event subscriptions so the
 // new module instance receives events.
 func WithSubscriptionRefresher(refresher SubscriptionRefresher) LoaderOption {
@@ -55,6 +64,8 @@ type Loader struct {
 	pluginsDir    string
 	strict        bool
 	refresher     SubscriptionRefresher
+
+	enforcePermissions bool
 
 	mu        sync.RWMutex
 	pluginIDs map[domain.Uint64ID]string
@@ -153,8 +164,33 @@ func (l *Loader) loadRecord(ctx context.Context, plugin *domain.Plugin) error {
 
 	l.RegisterPluginID(plugin.ID, loaded.Info.Id)
 	l.markActive(ctx, plugin)
+	l.warnMissingPermissions(ctx, plugin, loaded)
 
 	return nil
+}
+
+// warnMissingPermissions points out, once per load, the host functions the
+// module imports without holding the grant that gates them. While the panel
+// enforces permissions every such call is refused at runtime; without
+// enforcement the calls pass, and the warning tells the operator what to
+// grant before that changes. Event subscriptions are checked by the
+// dispatcher when it refreshes them.
+func (l *Loader) warnMissingPermissions(ctx context.Context, plugin *domain.Plugin, loaded *pkgplugin.LoadedPlugin) {
+	missing := MissingPermissions(UsedPermissions(loaded.HostImports, nil), plugin.AllowedPermissions)
+	if len(missing) == 0 {
+		return
+	}
+
+	message := "plugin imports host functions it is not granted; those calls will be refused"
+	if !l.enforcePermissions {
+		message = "plugin imports host functions it is not granted; the calls are allowed for now, " +
+			"but will be refused once PLUGIN_PERMISSIONS_ENFORCE is enabled"
+	}
+
+	slog.WarnContext(ctx, message,
+		slog.Uint64("plugin_id", uint64(plugin.ID)),
+		slog.String("name", plugin.Name),
+		slog.Any("missing_permissions", PermissionNames(missing)))
 }
 
 func (l *Loader) Load(ctx context.Context, filename string) (*pkgplugin.LoadedPlugin, error) {
@@ -482,16 +518,23 @@ func (l *Loader) registerAutoLoad(ctx context.Context, filename string) error {
 		return nil
 	}
 
+	// Autoload is the operator's own decision (a file they placed and named
+	// in PLUGINS_AUTOLOAD), so the declared permissions are granted exactly
+	// as an upload install would.
+	permissions := domain.ParsePluginPermissions(loaded.Info.RequiredPermissions)
+
 	plugin := &domain.Plugin{
-		ID:          pluginID,
-		Name:        loaded.Info.Name,
-		Version:     loaded.Info.Version,
-		Description: loaded.Info.Description,
-		Author:      loaded.Info.Author,
-		APIVersion:  loaded.Info.ApiVersion,
-		Filename:    new(filename),
-		Status:      domain.PluginStatusActive,
-		InstalledAt: new(time.Now()),
+		ID:                  pluginID,
+		Name:                loaded.Info.Name,
+		Version:             loaded.Info.Version,
+		Description:         loaded.Info.Description,
+		Author:              loaded.Info.Author,
+		APIVersion:          loaded.Info.ApiVersion,
+		Filename:            new(filename),
+		RequiredPermissions: permissions,
+		AllowedPermissions:  permissions,
+		Status:              domain.PluginStatusActive,
+		InstalledAt:         new(time.Now()),
 	}
 
 	if err := l.pluginRepo.Save(ctx, plugin); err != nil {

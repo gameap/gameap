@@ -107,7 +107,10 @@ logger.Log(ctx, &log.LogRequest{
 
 ### gameap-cache
 
-Provides caching capabilities.
+Provides caching capabilities. Keys are namespaced per plugin and values are
+capped by `PLUGIN_CACHE_MAX_VALUE`; see [Storage and cache
+quotas](#storage-and-cache-quotas) for what the cache does and does not
+guarantee.
 
 ```go
 cache := cache.NewCacheService()
@@ -241,7 +244,7 @@ Rules the panel enforces:
   in plaintext (`PLUGIN_SECRETS_REQUIRE_ENCRYPTION=false` opts out).
 - Keys must match `^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`.
 - Quotas: `PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN` (64 by default) and
-  `PLUGIN_SECRETS_MAX_VALUE_BYTES` (8 KiB by default).
+  `PLUGIN_SECRETS_MAX_VALUE` (8 KiB by default).
 - Secrets are private to the plugin that wrote them and survive a plugin
   reload or update; a `Get` from another plugin answers `found = false`.
   Uninstalling the plugin deletes its secrets together with its
@@ -485,7 +488,7 @@ for _, file := range readDirResp.Files {
 }
 
 // Download a file. Download and Upload carry the whole file in one message,
-// so the panel caps them (PLUGIN_NODEFS_MAX_INLINE_BYTES, 32 MiB by default);
+// so the panel caps them (PLUGIN_NODEFS_MAX_INLINE, 32 MiB by default);
 // a larger file answers with an error naming both sizes — use archives or an
 // HTTPResponse file reference for big payloads.
 downloadResp, _ := fs.Download(ctx, &nodefs.DownloadRequest{
@@ -1135,23 +1138,159 @@ Privileged host modules are gated on the plugin's own grants, kept in the
 
 | Permission | Gates |
 |---|---|
+| `manage_servers` | `gameap-servercontrol` (every operation), `gameap-daemontasks.CreateDaemonTask`, `gameap-servers.SaveServer` / `DeleteServer`, `gameap-serversettings.SaveServerSetting` |
+| `node_commands` | `gameap-nodecmd.ExecuteCommand` and `cmdexec` daemon tasks (on top of `manage_servers`) — an arbitrary shell command on a node |
+| `files` | `gameap-nodefs` — every operation, including hash and archive create/extract — and `HTTPResponse.file`, a route answering with a node file |
+| `listen_events` | Event subscriptions: a plugin without it is never called for events (its `GetSubscribedEvents` answer is ignored, with a warning in the log) |
 | `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
-| `files` | `gameap-nodefs` — every operation, including hash and archive create/extract (installations that existed before the gate were grandfathered the grant by a migration) — and `HTTPResponse.file`, a route answering with a node file |
 | `secrets` | `gameap-secrets` — reading, writing, listing and deleting the plugin's encrypted credentials |
 
-A plugin declares what it needs in `PluginInfo.RequiredPermissions`. The
-admin-only dry-run endpoint (`POST /api/admin/plugins/upload/dry-run`) reports
-that list before anything is installed, and confirming the install records the
-grant. Unknown permission names are dropped rather than stored.
+`manage_nodes`, `manage_games`, `manage_game_mods` and `manage_users` are
+reserved for write operations the repository modules do not expose yet.
+Reads — `gameap-servers.Find/Get`, `gameap-users`, `gameap-nodes`,
+`gameap-games`, `gameap-gamemods`, `gameap-daemontasks.Find`,
+`gameap-serversettings.Find`, `gameap-authz` — and `gameap-http`,
+`gameap-cache`, `gameap-storage`, `gameap-crypto`, `gameap-log`,
+`gameap-scheduler`, `gameap-net` are available to every plugin.
 
-Grants are re-read from the database on every call, so revoking one takes
-effect without restarting the panel. Updating a plugin does not widen its
-grants: a plugin that starts requiring `manage_rbac` after an update is denied
-(with a warning in the log naming the missing permission) until it is
-reinstalled.
+The policy table lives in `internal/plugin/hostlibrary/policy.go`; a test
+checks it against the exported functions of the generated SDK glue, so a new
+host function cannot slip in ungated.
 
-Modules not listed above — including `gameap-authz`, which only reads — are
-available to every plugin.
+A plugin declares what it needs in `PluginInfo.RequiredPermissions`, and
+**installing grants exactly the declared permissions** (upload, store and
+`PLUGINS_AUTOLOAD` alike). Unknown permission names are dropped rather than
+stored. Installations that predate a gate were grandfathered the grant by a
+migration (`files` in 015; `manage_servers`, `node_commands` and
+`listen_events` in 020), so an upgrade never takes a working plugin's access
+away.
+
+The panel also reads the module's import section: a guest can only call what
+it imports, so the dry-run endpoint (`POST /api/admin/plugins/upload/dry-run`)
+reports `used_permissions` next to `required_permissions`, and
+`undeclared_permissions` — what the plugin uses but does not declare, i.e.
+what the install will refuse. `GET /api/admin/plugins/loaded` reports
+`required_permissions`, `allowed_permissions`, `used_permissions` and
+`missing_permissions` per plugin, and the admin UI shows the same in the
+plugin's permissions dialog, highlighting the row's Permissions action when
+a grant is missing.
+
+Grants are operator-managed: `PUT /api/admin/plugins/{id}/permissions` with
+`{"allowed_permissions": [...]}` replaces them (the admin UI offers checkboxes
+in the permissions dialog, opened from the plugin row's Permissions action).
+Grants are cached in each instance's memory: they are consulted on every
+privileged host call and on every event delivery, and they only change when an
+operator edits them. The endpoint announces every change over pub/sub
+(`gameap:plugin:subscriptions:refresh`), and each instance drops its cached
+grants for that plugin before rebuilding its subscription map — so a change
+takes effect at once on the instance that made it, and on the others as soon
+as the message arrives. `PLUGIN_PERMISSIONS_CACHE_TTL` (default `30s`) is the
+backstop if the broker is unreachable; `0` disables the cache and reads the
+record on every check. A grant set that is empty is never cached, so a plugin
+that has just been installed is never denied by a stale answer.
+
+Enforcement is transitional: `PLUGIN_PERMISSIONS_ENFORCE` (default `false` in
+this release, `true` in a future one) decides whether the grants are applied.
+While it is off every check passes — host calls, event deliveries and file
+refs work without grants — but the grants are still recorded, computed and
+editable, the load log names what is missing, and the admin permissions
+dialog warns that they are not applied. Record the grants your plugin needs
+now, so nothing breaks when enforcement becomes the default.
+
+`listen_events` is checked twice: the subscription map each instance builds is
+filtered by the grant, and every delivery re-checks it, so a revocation stops
+events on the other instances as soon as the announcement lands rather than at
+their next refresh. Uninstalling drops the cache on the instance that handled
+it; the other instances keep the module loaded until they restart in any case.
+Updating a plugin does not widen its grants: a
+version that starts using `gameap-nodecmd` is refused those calls (with a
+warning in the log naming the missing permission) until an operator grants
+`node_commands`.
+
+A refused call answers `plugin permission <name> required` in the
+response's `error` field and is recorded in the audit log as `access.denied`
+with the plugin as the actor; the module stays loaded.
+
+### Rate limits
+
+The expensive host libraries are rate limited per plugin with a token bucket
+(sustained calls per second plus a burst), configured by class:
+
+| Class | Functions | Default |
+|---|---|---|
+| `nodecmd` | `gameap-nodecmd.ExecuteCommand` | 5/s, burst 20 |
+| `servercontrol` | `gameap-servercontrol.*`, `gameap-daemontasks.CreateDaemonTask`, `gameap-servers.SaveServer` / `DeleteServer`, `gameap-serversettings.SaveServerSetting` | 5/s, burst 20 |
+| `nodefs` | every `gameap-nodefs` operation | 50/s, burst 200 |
+| `http` | `gameap-http.Fetch` | 20/s, burst 50 |
+| `rbac` | every `gameap-rbac` operation | 10/s, burst 50 |
+
+`PLUGIN_RATELIMIT_<CLASS>_RPS` / `_BURST` tune them; RPS `0` disables a
+class. A refused call answers `rate limited: gameap-<module> allows N calls/s
+(burst M)` in the response's `error` field — the plugin is never disabled for
+it — and is counted in the metrics; the audit record
+(`plugin.hostcall.ratelimited`) is throttled to one per minute per function.
+Buckets are per panel instance: with N instances the cluster-wide rate is N
+times the limit.
+
+### Audit trail
+
+Privileged operations are written to the audit log with the plugin as the
+actor (`auth_method=plugin`, `actor_id` = database id, `actor_login` =
+compact id): `plugin.server.control` (action start/stop/restart/update/
+install/reinstall), `plugin.server.save` / `plugin.server.delete`,
+`plugin.server.setting`, `plugin.task.create`, `plugin.node.command`
+(node, working directory and exit code — never the command text),
+`plugin.node.file` (mkdir/copy/move/upload/remove/chmod/archive_*), and
+`plugin.rbac.role` / `plugin.rbac.grant` / `plugin.rbac.revoke`. When the
+plugin acted inside a user's request — an event raised by that request or a
+plugin HTTP route — the user travels as `on_behalf_of_user_id` /
+`on_behalf_of_login`; the same user reaches the plugin as
+`PluginContext.user_id` on events and HTTP requests.
+
+### Storage and cache quotas
+
+`gameap-storage` is bounded per plugin: `PLUGIN_STORAGE_MAX_KEYS_PER_PLUGIN`
+(10000), `PLUGIN_STORAGE_MAX_VALUE` (1 MiB) and
+`PLUGIN_STORAGE_MAX_TOTAL` (64 MiB). A `Set` over a quota answers
+`success=false` with the reason (`at most N storage entries per plugin`,
+`payload exceeds N bytes`, `storage quota of N bytes exceeded`); replacing a
+key releases its old payload first. `List` accepts an optional `limit` /
+`offset` window and answers `has_more`; without a limit it keeps returning
+every entry, as it always did.
+
+A storage call the panel could not complete never surfaces the database
+error: `Get`, `Set`, `Delete` and `List` answer with `error` set to a fixed
+message (`failed to read storage entry` / `failed to store entry`) while the
+cause goes to the panel log. Check `error` before trusting `found`,
+`success` or `entries`.
+
+`gameap-cache` keys live in a namespace of their own per plugin
+(`plugin:<id>:`), so plugins never see each other's entries, and a value is
+capped by `PLUGIN_CACHE_MAX_VALUE` (1 MiB). The cache is the panel's
+cache backend: entries expire by TTL, are not deleted when the plugin is
+uninstalled, and are only shared between panel instances when the backend
+is (Redis or the database, not memory) — keep state that must survive a
+reload or be visible to every instance in `gameap-storage`.
+
+### Metrics
+
+With `METRICS_TOKEN` set, `GET /metrics` (bearer token) exposes, per plugin
+(label `plugin` = the compact id shown in the admin API):
+
+- `gameap_plugin_host_calls_total{plugin,module,rpc,result}` and
+  `gameap_plugin_host_call_duration_seconds{plugin,module}` — every host
+  library function a guest invokes (`result` = `ok` | `panic`);
+- `gameap_plugin_host_calls_denied_total{plugin,module,rpc,reason}` —
+  refusals (`permission` | `rate_limit`);
+- `gameap_plugin_guest_calls_total{plugin,export,result}` and
+  `gameap_plugin_guest_call_duration_seconds{plugin,export}` — calls into the
+  plugin (`ok` | `error` | `timeout` | `busy`);
+- `gameap_plugin_events_dispatched_total{type,result}` (`handled` | `ignored`
+  | `cancelled` | `error` | `dropped` | `denied` — the plugin lost
+  `listen_events`) and `gameap_plugin_async_backlog` (fire-and-forget
+  *batches* in flight or queued, not individual events);
+- `gameap_plugin_disabled_total{plugin,reason}`,
+  `gameap_plugin_memory_bytes{plugin}`, `gameap_plugin_enabled{plugin}`.
 
 ## Configuration
 
@@ -1204,15 +1343,19 @@ configurable through environment variables (`internal/config`).
 
 ### Limits
 
-- `PLUGIN_MAX_MEMORY_MB` (256) caps the linear memory of every module. A
+Sizes accept a unit suffix — `512K`, `64M`, `1G`; a plain number is bytes.
+Durations use Go syntax (`30s`, `5m`). The unit lives in the value, not in the
+variable name.
+
+- `PLUGIN_RUNTIME_MAX_MEMORY` (256M) caps the linear memory of every module. A
   module that declares a larger maximum is clamped, not rejected; only a
   module whose *initial* memory already exceeds the cap fails to load, with
   an error naming both sizes. Standard Go builds reserve tens of MiB up front
   and grow their heap at runtime — raise the cap if such a plugin traps with
   out-of-memory.
-- `PLUGIN_MAX_MODULE_SIZE_MB` (64) rejects larger wasm files before
+- `PLUGIN_RUNTIME_MAX_MODULE_SIZE` (128M) rejects larger wasm files before
   compilation, for uploads, store installs and autoload alike.
-- `PLUGIN_NODEFS_MAX_INLINE_BYTES` (32 MiB) caps `gameap-nodefs`
+- `PLUGIN_NODEFS_MAX_INLINE` (32 MiB) caps `gameap-nodefs`
   `Download`/`Upload` payloads.
 - Guest `stdout` is forwarded to the panel log at debug level and `stderr` at
   warn level (attributes `plugin_id`, `stream`, `line`), so a Go/Rust panic
@@ -1298,6 +1441,8 @@ pkg/plugin/
 │   └── protocol-extension/   # Example plugin (RCON/Query protocols)
 ├── manager.go                # Plugin manager
 ├── health.go                 # Runtime disable reasons, disable hook, memory snapshot
+├── observer.go               # Observer interface (guest/host call and event metrics)
+├── hostcall_interceptor.go   # wazero decorator timing every host function a guest calls
 ├── guestlog.go               # Guest stdout/stderr → slog
 ├── runtimeconfig.go          # wazero runtime config (memory limit, cache)
 ├── cache.go                  # Compilation cache (in-memory / on disk)

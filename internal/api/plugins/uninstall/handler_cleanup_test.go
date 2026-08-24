@@ -142,6 +142,7 @@ func TestUninstall_RemovesStorageAndSecrets(t *testing.T) {
 		nil,
 		storageRepo,
 		secretRepo,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		recorder,
@@ -216,6 +217,7 @@ func TestUninstall_CleanupErrorKeepsPluginInstalled(t *testing.T) {
 				nil,
 				tt.storage,
 				tt.secrets,
+				nil,
 				"plugins",
 				api.NewResponder(),
 				recorder,
@@ -256,6 +258,7 @@ func TestUninstall_NotInstalledSkipsCleanup(t *testing.T) {
 		nil,
 		storage,
 		secrets,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -288,6 +291,7 @@ func TestUninstall_CancelsPendingRecovery(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -298,4 +302,80 @@ func TestUninstall_CancelsPendingRecovery(t *testing.T) {
 
 	require.Equal(t, http.StatusNoContent, w.Code, w.Body.String())
 	assert.Equal(t, []domain.Uint64ID{existing.ID}, resolver.snapshot())
+}
+
+// fakePolicyCleaner records the plugins whose policy state was dropped.
+type fakePolicyCleaner struct {
+	mu        sync.Mutex
+	forgotten []uint64
+}
+
+func (f *fakePolicyCleaner) Forget(pluginID uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.forgotten = append(f.forgotten, pluginID)
+}
+
+func (f *fakePolicyCleaner) snapshot() []uint64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]uint64(nil), f.forgotten...)
+}
+
+func TestUninstall_DropsGuardPolicyState(t *testing.T) {
+	t.Parallel()
+	pluginRepo := inmemory.NewPluginRepository()
+	existing := installedPlugin(t, pluginRepo)
+	guard := &fakePolicyCleaner{}
+
+	h := uninstall.NewHandler(
+		pluginRepo,
+		files.NewInMemoryFileManager(),
+		newMockPluginManager(),
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		guard,
+		"plugins",
+		api.NewResponder(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, uninstallRequest())
+
+	require.Equal(t, http.StatusNoContent, w.Code, w.Body.String())
+	assert.Equal(t, []uint64{uint64(existing.ID)}, guard.snapshot(),
+		"the rate limiter and audit throttle state of an uninstalled plugin is released")
+}
+
+func TestUninstall_NotInstalledKeepsGuardPolicyState(t *testing.T) {
+	t.Parallel()
+	guard := &fakePolicyCleaner{}
+
+	h := uninstall.NewHandler(
+		inmemory.NewPluginRepository(),
+		files.NewInMemoryFileManager(),
+		newMockPluginManager(),
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		guard,
+		"plugins",
+		api.NewResponder(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, uninstallRequest())
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	assert.Empty(t, guard.snapshot(), "a refused uninstall drops nothing")
 }

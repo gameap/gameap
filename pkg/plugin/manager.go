@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"cmp"
 	"context"
 	"io/fs"
 	"log/slog"
@@ -70,6 +71,16 @@ type LoadedPlugin struct {
 	// DBID is the database record the plugin was loaded for (0 for transient
 	// loads); per-plugin host libraries and grants are keyed on it.
 	DBID uint64
+
+	// HostImports lists the host functions the module imports (gameap-*
+	// modules only), sorted. A guest can only call what it imports, so this
+	// is a static description of which host libraries the plugin uses.
+	HostImports []HostImport
+
+	// SubscribedEvents is what the plugin answered at load time; the
+	// dispatcher asks again on every refresh, this copy only describes the
+	// plugin (dry-run, admin UI) without another guest call.
+	SubscribedEvents []proto.EventType
 
 	// disableReason is set by DisableWithReason; nil when the plugin was
 	// disabled silently (unload, shutdown). onDisabled is the manager's
@@ -148,6 +159,10 @@ type ManagerConfig struct {
 	// OnPluginDisabled is notified when a registered plugin is disabled at
 	// runtime (call timeout, guest exit). See DisableHook.
 	OnPluginDisabled DisableHook
+
+	// Observer receives guest-call and host-call signals for metrics; nil
+	// means nothing is reported.
+	Observer Observer
 }
 
 // Manager handles plugin lifecycle.
@@ -261,7 +276,7 @@ func (m *Manager) load(
 
 	logs := newGuestLogs(m.config.GuestLogger)
 
-	r, module, err := m.initializeRuntime(loadCtx, wasmBytes, pluginID, logs)
+	r, module, imports, err := m.initializeRuntime(loadCtx, wasmBytes, pluginID, logs)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to initialize runtime")
 	}
@@ -281,6 +296,8 @@ func (m *Manager) load(
 
 	if wrapper, ok := plugin.(*pluginServiceWrapper); ok {
 		wrapper.guestLogs = logs
+		wrapper.observer = observerOrNop(m.config.Observer)
+		wrapper.pluginID = pluginID
 	}
 
 	loadedPlugin, err := m.initializePlugin(loadCtx, r, plugin, config, pluginID, logs)
@@ -296,6 +313,7 @@ func (m *Manager) load(
 		return nil, err
 	}
 
+	loadedPlugin.HostImports = imports
 	wireGuestHooks(loadedPlugin)
 
 	return loadedPlugin, nil
@@ -315,64 +333,52 @@ func wireGuestHooks(loadedPlugin *LoadedPlugin) {
 	}
 }
 
+// initializeRuntime builds the runtime, registers WASI and every host library,
+// compiles and starts the module. Besides the module it returns the host
+// functions the module imports (see LoadedPlugin.HostImports).
 func (m *Manager) initializeRuntime(
 	ctx context.Context,
 	wasmBytes []byte,
 	pluginID uint64,
 	logs *guestLogs,
-) (wazero.Runtime, api.Module, error) {
+) (wazero.Runtime, api.Module, []HostImport, error) {
 	r := wazero.NewRuntimeWithConfig(ctx, m.runtimeConfig())
 
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
-		closeErr := r.Close(ctx)
-		if closeErr != nil {
-			slog.Warn("failed to close runtime after WASI instantiation failure",
-				slog.String("error", closeErr.Error()),
-				slog.String("wasi_error", err.Error()),
-			)
-		}
+		closeRuntimeAfterFailure(ctx, r, "WASI instantiation", err)
 
-		return nil, nil, errors.Wrap(err, "failed to instantiate WASI")
+		return nil, nil, nil, errors.Wrap(err, "failed to instantiate WASI")
 	}
 
 	// Instantiate the env module for AssemblyScript support
 	envLib := &EnvHostLibrary{}
 	if err := envLib.Instantiate(ctx, r); err != nil {
-		closeErr := r.Close(ctx)
-		if closeErr != nil {
-			slog.Warn("failed to close runtime after env module instantiation failure",
-				slog.String("error", closeErr.Error()),
-				slog.String("env_error", err.Error()),
-			)
-		}
+		closeRuntimeAfterFailure(ctx, r, "env module instantiation", err)
 
-		return nil, nil, errors.Wrap(err, "failed to instantiate env module")
+		return nil, nil, nil, errors.Wrap(err, "failed to instantiate env module")
 	}
 
-	if err := m.instantiateLibraries(ctx, r, pluginID); err != nil {
-		closeErr := r.Close(ctx)
-		if closeErr != nil {
-			slog.Warn("failed to close runtime after host library instantiation failure",
-				slog.String("error", closeErr.Error()),
-				slog.String("library_error", err.Error()),
-			)
-		}
+	// Host libraries register through the observed runtime so every host
+	// function they export is counted; transient loads are not observed.
+	libraryRuntime := r
+	if pluginID != 0 {
+		libraryRuntime = observeHostCalls(r, m.config.Observer, pluginID)
+	}
 
-		return nil, nil, err
+	if err := m.instantiateLibraries(ctx, libraryRuntime, pluginID); err != nil {
+		closeRuntimeAfterFailure(ctx, r, "host library instantiation", err)
+
+		return nil, nil, nil, err
 	}
 
 	code, err := r.CompileModule(ctx, wasmBytes)
 	if err != nil {
-		closeErr := r.Close(ctx)
-		if closeErr != nil {
-			slog.Warn("failed to close runtime after WASM module compilation failure",
-				slog.String("error", closeErr.Error()),
-				slog.String("compilation_error", err.Error()),
-			)
-		}
+		closeRuntimeAfterFailure(ctx, r, "WASM module compilation", err)
 
-		return nil, nil, errors.Wrap(err, "failed to compile WASM module")
+		return nil, nil, nil, errors.Wrap(err, "failed to compile WASM module")
 	}
+
+	imports := hostImports(code)
 
 	// Try _initialize first (TinyGo), fall back to _start (standard Go).
 	// Guest stdout/stderr go to the panel log (see guestlog.go) so panics
@@ -391,37 +397,80 @@ func (m *Manager) initializeRuntime(
 
 	module, err := r.InstantiateModule(startCtx, code, moduleConfig)
 
-	//nolint:nestif
 	if err != nil {
 		var exitErr *sys.ExitError
 		if errors.As(err, &exitErr) && exitErr.ExitCode() != 0 {
-			closeErr := r.Close(ctx)
-			if closeErr != nil {
-				slog.Warn("failed to close runtime after module instantiation failure",
-					slog.String("error", closeErr.Error()),
-					slog.String("instantiation_error", err.Error()),
-				)
-			}
+			closeRuntimeAfterFailure(ctx, r, "module instantiation", err)
 
-			return nil, nil, errors.Wrapf(ErrUnexpectedExitCode, "exit code: %d", exitErr.ExitCode())
+			return nil, nil, nil, errors.Wrapf(ErrUnexpectedExitCode, "exit code: %d", exitErr.ExitCode())
 		} else if !errors.As(err, &exitErr) {
-			closeErr := r.Close(ctx)
-			if closeErr != nil {
-				slog.Warn("failed to close runtime after module instantiation failure",
-					slog.String("error", closeErr.Error()),
-					slog.String("instantiation_error", err.Error()),
-				)
-			}
+			closeRuntimeAfterFailure(ctx, r, "module instantiation", err)
 
-			return nil, nil, errors.Wrap(err, "failed to instantiate module")
+			return nil, nil, nil, errors.Wrap(err, "failed to instantiate module")
 		}
 	}
 
 	if err = m.verifyAPIVersion(startCtx, r, module); err != nil {
-		return nil, nil, err
+		closeRuntimeAfterFailure(ctx, r, "API version verification", err)
+
+		return nil, nil, nil, err
 	}
 
-	return r, module, nil
+	return r, module, imports, nil
+}
+
+// HostImport is one host function a module imports.
+type HostImport struct {
+	// Module is the host module name, e.g. "gameap-nodecmd".
+	Module string
+	// Function is the exported host function name, e.g. "execute_command".
+	Function string
+}
+
+// hostImportPrefix selects the panel's host libraries among a module's
+// imports; WASI and the AssemblyScript env module are left out.
+const hostImportPrefix = "gameap-"
+
+// hostImports lists the panel host functions a compiled module imports,
+// sorted by module and function, without duplicates.
+func hostImports(code wazero.CompiledModule) []HostImport {
+	seen := make(map[HostImport]struct{})
+	imports := make([]HostImport, 0)
+
+	for _, def := range code.ImportedFunctions() {
+		module, function, ok := def.Import()
+		if !ok || !strings.HasPrefix(module, hostImportPrefix) {
+			continue
+		}
+
+		imp := HostImport{Module: module, Function: function}
+		if _, dup := seen[imp]; dup {
+			continue
+		}
+
+		seen[imp] = struct{}{}
+		imports = append(imports, imp)
+	}
+
+	slices.SortFunc(imports, func(a, b HostImport) int {
+		return cmp.Or(
+			cmp.Compare(a.Module, b.Module),
+			cmp.Compare(a.Function, b.Function),
+		)
+	})
+
+	return imports
+}
+
+// closeRuntimeAfterFailure releases a runtime whose setup failed at stage;
+// a close failure is only logged, the setup error is what the caller reports.
+func closeRuntimeAfterFailure(ctx context.Context, r wazero.Runtime, stage string, cause error) {
+	if closeErr := r.Close(ctx); closeErr != nil {
+		slog.Warn("failed to close runtime after "+stage+" failure",
+			slog.String("error", closeErr.Error()),
+			slog.String("cause", cause.Error()),
+		)
+	}
 }
 
 func (m *Manager) instantiateLibraries(ctx context.Context, r wazero.Runtime, pluginID uint64) error {
@@ -510,23 +559,34 @@ func (m *Manager) initializePlugin(
 
 	i18nFS, frontendFS := m.buildPluginAssets(ctx, plugin, info.Id)
 
+	var subscribedEvents []proto.EventType
+	if resp, err := plugin.GetSubscribedEvents(ctx, &proto.GetSubscribedEventsRequest{}); err != nil {
+		slog.Debug("failed to read plugin event subscriptions",
+			slog.String("plugin_id", info.Id),
+			slog.String("error", err.Error()),
+		)
+	} else if resp != nil {
+		subscribedEvents = resp.Events
+	}
+
 	return &LoadedPlugin{
-		Info:            info,
-		Instance:        plugin,
-		Config:          config,
-		Enabled:         true,
-		HTTPRoutes:      httpRoutes,
-		FrontendBundle:  frontendBundle,
-		FrontendStyles:  frontendStyles,
-		ServerAbilities: serverAbilities,
-		Protocol:        protocolSvc,
-		RconProtocols:   rconProtocols,
-		QueryProtocols:  queryProtocols,
-		I18nFS:          i18nFS,
-		FrontendFS:      frontendFS,
-		DBID:            pluginID,
-		guestLogs:       logs,
-		runtime:         r,
+		Info:             info,
+		Instance:         plugin,
+		Config:           config,
+		Enabled:          true,
+		SubscribedEvents: subscribedEvents,
+		HTTPRoutes:       httpRoutes,
+		FrontendBundle:   frontendBundle,
+		FrontendStyles:   frontendStyles,
+		ServerAbilities:  serverAbilities,
+		Protocol:         protocolSvc,
+		RconProtocols:    rconProtocols,
+		QueryProtocols:   queryProtocols,
+		I18nFS:           i18nFS,
+		FrontendFS:       frontendFS,
+		DBID:             pluginID,
+		guestLogs:        logs,
+		runtime:          r,
 	}, nil
 }
 
@@ -812,8 +872,13 @@ func (m *Manager) Unload(ctx context.Context, pluginID string) error {
 	return nil
 }
 
-// GetPlugin returns a loaded plugin by ID in any accepted form.
+// GetPlugin returns a loaded plugin by ID in any accepted form. A nil
+// manager (plugins disabled) has no plugins.
 func (m *Manager) GetPlugin(pluginID string) (*LoadedPlugin, bool) {
+	if m == nil {
+		return nil, false
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -828,6 +893,10 @@ func (m *Manager) GetPlugin(pluginID string) (*LoadedPlugin, bool) {
 // other deterministically) and the frontend handlers concatenate styles and
 // bundles.
 func (m *Manager) GetPlugins() []*LoadedPlugin {
+	if m == nil {
+		return nil
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

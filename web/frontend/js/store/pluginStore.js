@@ -20,6 +20,9 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
     const versionsLastPage = ref(1)
 
     const loadedPlugins = ref([])
+    // Whether the panel applies the recorded grants (PLUGIN_PERMISSIONS_ENFORCE);
+    // assumed on until the list says otherwise, so no warning flashes by mistake.
+    const permissionsEnforced = ref(true)
     const uploadResult = ref(null)
     const uploadFile = ref(null)
 
@@ -65,6 +68,9 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
                 error: loaded.error ?? null,
                 error_at: loaded.error_at ?? null,
                 memory_bytes: loaded.memory_bytes ?? null,
+                // null (not []) when the answering instance has not loaded the
+                // plugin: its used/missing permissions are unknown, not empty.
+                missing_permissions: loaded.missing_permissions ?? null,
 
                 summary: storePlugin?.summary || loaded.description || '',
                 description: loaded.description || '',
@@ -274,6 +280,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         try {
             const response = await axios.get('/api/admin/plugins/loaded')
             loadedPlugins.value = response.data.data
+            permissionsEnforced.value = response.data.permissions_enforced ?? true
         } finally {
             apiProcesses.value--
         }
@@ -285,6 +292,33 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
             const response = await axios.post(`/api/admin/plugins/${id}/reload`)
 
             return response.data
+        } finally {
+            apiProcesses.value--
+        }
+    }
+
+    async function updatePluginPermissions(id, permissions) {
+        apiProcesses.value++
+        try {
+            const response = await axios.put(`/api/admin/plugins/${id}/permissions`, {
+                allowed_permissions: permissions,
+            })
+
+            const updated = response.data
+            loadedPlugins.value = loadedPlugins.value.map(plugin => plugin.id === updated.id
+                ? {
+                    ...plugin,
+                    required_permissions: updated.required_permissions,
+                    allowed_permissions: updated.allowed_permissions,
+                    // Kept as null when the answering instance has not loaded
+                    // the plugin, so "unknown" stays distinguishable from
+                    // "loaded and nothing missing".
+                    used_permissions: updated.used_permissions ?? null,
+                    missing_permissions: updated.missing_permissions ?? null,
+                }
+                : plugin)
+
+            return updated
         } finally {
             apiProcesses.value--
         }
@@ -341,6 +375,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         versionsCurrentPage,
         versionsLastPage,
         loadedPlugins,
+        permissionsEnforced,
         uploadResult,
         uploadFile,
         apiProcesses,
@@ -367,6 +402,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         setCurrentPluginFromLoaded,
         fetchLoadedPlugins,
         reloadPlugin,
+        updatePluginPermissions,
         dryRunUpload,
         installFromFile,
         clearUpload,

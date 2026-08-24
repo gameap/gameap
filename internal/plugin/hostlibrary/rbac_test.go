@@ -46,7 +46,7 @@ func newRBACTestEnv(t *testing.T, checker PluginPermissionChecker, pluginID uint
 	t.Cleanup(manager.Close)
 
 	return rbacTestEnv{
-		service: NewRBACService(pluginID, manager, repo, checker),
+		service: NewRBACService(pluginID, manager, repo, NewGuard(checker).For(pluginID)),
 		authz:   NewAuthzService(manager),
 		repo:    repo,
 	}

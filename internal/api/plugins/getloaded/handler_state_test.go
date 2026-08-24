@@ -69,7 +69,7 @@ func TestLoaded_reports_runtime_state_of_loaded_plugins(t *testing.T) {
 			Enabled: true,
 			DBID:    uint64(dbID),
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -112,7 +112,7 @@ func TestLoaded_includes_installed_but_not_loaded_plugins(t *testing.T) {
 			Enabled: true,
 			DBID:    uint64(loadedID),
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 3)
@@ -168,7 +168,7 @@ func TestLoaded_disabled_in_memory_reports_reason(t *testing.T) {
 
 	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
 		return []*pkgplugin.LoadedPlugin{hanging}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -197,7 +197,7 @@ func TestLoaded_silently_disabled_plugin_falls_back_to_record(t *testing.T) {
 
 	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
 		return []*pkgplugin.LoadedPlugin{unloading}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -212,7 +212,7 @@ func TestLoaded_repository_failure_falls_back_to_loaded_plugins(t *testing.T) {
 			Info:    &proto.PluginInfo{Id: "survivor", Name: "Survivor", Version: "1.0.0"},
 			Enabled: true,
 		}}
-	}}, nil, failingPluginRepository{}, api.NewResponder())
+	}}, nil, failingPluginRepository{}, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1)
@@ -237,9 +237,53 @@ func TestLoaded_maps_loaded_plugin_to_record_by_declared_id(t *testing.T) {
 			Info:    &proto.PluginInfo{Id: "legacyplugin", Name: "Legacy", Version: "1.0.0"},
 			Enabled: true,
 		}}
-	}}, nil, pluginRepo, api.NewResponder())
+	}}, nil, pluginRepo, true, api.NewResponder())
 
 	data := listPlugins(t, h)
 	require.Len(t, data, 1, "the record must not be listed a second time as not loaded")
 	assert.Equal(t, "file", data[0]["source_type"])
+}
+
+func TestLoaded_reports_permissions(t *testing.T) {
+	t.Parallel()
+	pluginRepo := inmemory.NewPluginRepository()
+	dbID := pkgplugin.ParsePluginID("gated")
+	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
+		ID: dbID, Name: "Gated", Version: "1.0.0", Status: domain.PluginStatusActive,
+		RequiredPermissions: []domain.PluginPermission{domain.PluginPermissionFiles},
+		AllowedPermissions:  []domain.PluginPermission{domain.PluginPermissionFiles, domain.PluginPermissionListenEvents},
+	}))
+	notLoadedID := pkgplugin.ParsePluginID("dormant")
+	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
+		ID: notLoadedID, Name: "Dormant", Version: "1.0.0", Status: domain.PluginStatusDisabled,
+		AllowedPermissions: []domain.PluginPermission{domain.PluginPermissionSecrets},
+	}))
+
+	h := getloaded.NewHandler(&mockLoaderManager{getPluginsFunc: func() []*pkgplugin.LoadedPlugin {
+		return []*pkgplugin.LoadedPlugin{{
+			Info:    &proto.PluginInfo{Id: "gated", Name: "Gated", Version: "1.0.0"},
+			Enabled: true,
+			DBID:    uint64(dbID),
+			HostImports: []pkgplugin.HostImport{
+				{Module: "gameap-nodecmd", Function: "execute_command"},
+				{Module: "gameap-nodefs", Function: "upload"},
+				{Module: "gameap-servers", Function: "find_servers"},
+			},
+			SubscribedEvents: []proto.EventType{proto.EventType_EVENT_TYPE_SERVER_POST_START},
+		}}
+	}}, nil, pluginRepo, true, api.NewResponder())
+
+	data := listPlugins(t, h)
+	require.Len(t, data, 2)
+
+	assert.Equal(t, []any{"files"}, data[0]["required_permissions"])
+	assert.Equal(t, []any{"files", "listen_events"}, data[0]["allowed_permissions"])
+	assert.Equal(t, []any{"files", "listen_events", "node_commands"}, data[0]["used_permissions"],
+		"derived from the gated imports and the subscriptions; open modules do not count")
+	assert.Equal(t, []any{"node_commands"}, data[0]["missing_permissions"])
+
+	assert.Equal(t, []any{}, data[1]["required_permissions"], "empty list, not null")
+	assert.Equal(t, []any{"secrets"}, data[1]["allowed_permissions"])
+	assert.Nil(t, data[1]["used_permissions"], "unknown for a plugin that is not loaded here")
+	assert.Nil(t, data[1]["missing_permissions"])
 }
