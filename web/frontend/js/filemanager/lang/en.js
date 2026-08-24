@@ -22,6 +22,10 @@ const en = {
         paste: 'Paste',
         refresh: 'Refresh',
         retryFailed: 'Retry failed',
+        search: 'Search',
+        searchClose: 'Close search',
+        searchNext: 'Next match',
+        searchPrev: 'Previous match',
         submit: 'Submit',
         table: 'Table',
         upload: 'Upload',
@@ -35,9 +39,12 @@ const en = {
     },
     hint: {
         ctrlA: 'Ctrl+A',
+        ctrlF: 'Ctrl+F',
         esc: 'Esc',
         del: 'Del',
         f5: 'F5',
+        enter: 'Enter',
+        shiftEnter: 'Shift+Enter',
         shiftClick: 'Shift+Click for range',
     },
     clipboard: {
@@ -117,6 +124,7 @@ const en = {
         errorRetry: 'Retry',
         sortAsc: 'Sort ascending',
         sortDesc: 'Sort descending',
+        searchPlaceholder: 'Search in folder…',
     },
     modal: {
         about: {

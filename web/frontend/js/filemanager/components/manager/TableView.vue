@@ -78,6 +78,7 @@
                         'fm-row--zebra': directoryRowIndex(index) % 2 === 1,
                         'fm-row--selected': checkSelect('directories', directory.path),
                         'fm-row--focused': focusedIndex === directoryRowIndex(index),
+                        'fm-row--search-current': currentMatchIndex === directoryRowIndex(index),
                         'fm-row--locked': acl && directory.acl === 0,
                     }"
                     tabindex="-1"
@@ -94,7 +95,7 @@
                             />
                             <GIcon v-else name="folder-solid" class="fm-row-glyph fm-row-glyph--dir" />
                         </span>
-                        <span class="fm-row-name">{{ directory.basename }}</span>
+                        <span class="fm-row-name"><HighlightedName v-bind:text="directory.basename" v-bind:query="highlightQuery" /></span>
                     </td>
                     <td class="fm-cell-muted">—</td>
                     <td>{{ lang.manager.table.folder }}</td>
@@ -110,6 +111,7 @@
                         'fm-row--zebra': fileRowIndex(index) % 2 === 1,
                         'fm-row--selected': checkSelect('files', file.path),
                         'fm-row--focused': focusedIndex === fileRowIndex(index),
+                        'fm-row--search-current': currentMatchIndex === fileRowIndex(index),
                         'fm-row--locked': acl && file.acl === 0,
                     }"
                     tabindex="-1"
@@ -130,7 +132,7 @@
                                 class="fm-row-glyph fm-row-glyph--file"
                             />
                         </span>
-                        <span class="fm-row-name">{{ file.basename }}</span>
+                        <span class="fm-row-name"><HighlightedName v-bind:text="file.basename" v-bind:query="highlightQuery" /></span>
                     </td>
                     <td>{{ bytesToHuman(file.size) }}</td>
                     <td class="fm-cell-extension">{{ file.extension || '—' }}</td>
@@ -192,8 +194,9 @@
 
 <script setup>
 /* eslint-disable no-bitwise */
-import { computed, ref, nextTick } from 'vue'
+import { computed, ref, nextTick, watch } from 'vue'
 import { GIcon } from '@gameap/ui'
+import HighlightedName from './HighlightedName.vue'
 import EventBus from '../../emitter.js'
 import { useFileManagerStore } from '../../stores/useFileManagerStore.js'
 import { useSettingsStore } from '../../stores/useSettingsStore.js'
@@ -264,6 +267,39 @@ function registerRow(el, index) {
         rowEls.delete(index)
     }
 }
+
+const isActiveManager = computed(() => fm.activeManager === props.manager)
+const highlightQuery = computed(() => (isActiveManager.value && fm.searchOpen ? fm.searchQuery : ''))
+const currentMatchIndex = computed(() => (isActiveManager.value ? fm.currentSearchMatch : -1))
+
+let lastMatchIndex = -1
+
+// flush: 'post' so the rows of a fresh listing/query are already rendered and registered in rowEls
+watch(
+    () => [currentMatchIndex.value, fm.searchScrollTick],
+    () => {
+        const index = currentMatchIndex.value
+        if (index < 0) return
+
+        lastMatchIndex = index
+        rowEls.get(index)?.scrollIntoView({ block: 'nearest' })
+    },
+    { flush: 'post' }
+)
+
+// On close, hand keyboard navigation back to the table, continuing from the last match.
+watch(
+    () => fm.searchOpen,
+    (open, wasOpen) => {
+        if (open || !wasOpen || !isActiveManager.value) return
+
+        if (lastMatchIndex >= 0 && lastMatchIndex < flatVisible.value.length) {
+            focusedIndex.value = lastMatchIndex
+        }
+        lastMatchIndex = -1
+        nextTick(() => tableArea.value?.focus())
+    }
+)
 
 function levelUp() {
     if (selectedDirectory.value) {
@@ -474,6 +510,10 @@ function onKeyDown(event) {
     border-collapse: separate;
     border-spacing: 0;
     --fm-accent: var(--gameap-stone-800);
+    --fm-match-bg: var(--gameap-orange-200);
+    --fm-match-text: var(--gameap-orange-900);
+    --fm-match-current-bg: var(--gameap-orange-400);
+    --fm-match-current-text: var(--gameap-orange-950);
 
     thead th {
         @apply text-left bg-surface text-secondary font-medium;
@@ -542,6 +582,9 @@ function onKeyDown(event) {
         cursor: pointer;
         transition: background-color 120ms ease;
         @apply bg-white dark:bg-stone-900;
+        // keep scrolled-to rows clear of the sticky thead
+        scroll-margin-top: 2.75rem;
+        scroll-margin-bottom: 0.25rem;
 
         &.fm-row--zebra {
             @apply bg-stone-50 dark:bg-stone-800;
@@ -569,6 +612,12 @@ function onKeyDown(event) {
         &.fm-row--focused {
             outline: 2px solid var(--gameap-selection-outline);
             outline-offset: -2px;
+        }
+
+        &.fm-row--search-current,
+        &.fm-row--search-current.fm-row--zebra {
+            background-color: var(--gameap-warning-soft);
+            box-shadow: inset 3px 0 0 0 var(--gameap-warning);
         }
     }
 
@@ -613,6 +662,18 @@ function onKeyDown(event) {
 
     .fm-row-name {
         vertical-align: middle;
+    }
+
+    .fm-name-match {
+        background-color: var(--fm-match-bg);
+        color: var(--fm-match-text);
+        border-radius: 2px;
+        padding: 0 1px;
+    }
+
+    tr.fm-row--search-current .fm-name-match {
+        background-color: var(--fm-match-current-bg);
+        color: var(--fm-match-current-text);
     }
 
     .fm-cell-muted {
@@ -710,6 +771,10 @@ function onKeyDown(event) {
 
 .dark .fm-table {
     --fm-accent: var(--gameap-stone-200);
+    --fm-match-bg: color-mix(in srgb, var(--gameap-orange-500) 40%, transparent);
+    --fm-match-text: var(--gameap-orange-50);
+    --fm-match-current-bg: var(--gameap-orange-500);
+    --fm-match-current-text: var(--gameap-orange-950);
 }
 
 @keyframes fm-skel-pulse {

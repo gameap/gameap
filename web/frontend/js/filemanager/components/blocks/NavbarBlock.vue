@@ -88,6 +88,8 @@
                 </button>
             </div>
 
+            <FileSearch />
+
             <div class="fm-toolbar-spacer" />
 
             <div class="fm-toolbar-group" role="group">
@@ -108,6 +110,7 @@
 <script setup>
 import { computed } from 'vue'
 import { GIcon } from '@gameap/ui'
+import FileSearch from './FileSearch.vue'
 import { notification } from '@/parts/dialogs.js'
 import { useFileManagerStore } from '../../stores/useFileManagerStore.js'
 import { useMessagesStore } from '../../stores/useMessagesStore.js'

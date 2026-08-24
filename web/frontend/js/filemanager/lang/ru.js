@@ -22,6 +22,10 @@ const ru = {
         paste: 'Вставить',
         refresh: 'Обновить',
         retryFailed: 'Повторить ошибочные',
+        search: 'Поиск',
+        searchClose: 'Закрыть поиск',
+        searchNext: 'Следующее совпадение',
+        searchPrev: 'Предыдущее совпадение',
         submit: 'Отправить',
         table: 'Таблица',
         upload: 'Загрузить',
@@ -35,9 +39,12 @@ const ru = {
     },
     hint: {
         ctrlA: 'Ctrl+A',
+        ctrlF: 'Ctrl+F',
         esc: 'Esc',
         del: 'Del',
         f5: 'F5',
+        enter: 'Enter',
+        shiftEnter: 'Shift+Enter',
         shiftClick: 'Shift+клик для диапазона',
     },
     clipboard: {
@@ -117,6 +124,7 @@ const ru = {
         errorRetry: 'Повторить',
         sortAsc: 'По возрастанию',
         sortDesc: 'По убыванию',
+        searchPlaceholder: 'Поиск в папке…',
     },
     modal: {
         about: {
