@@ -78,7 +78,6 @@
                         'fm-row--zebra': directoryRowIndex(index) % 2 === 1,
                         'fm-row--selected': checkSelect('directories', directory.path),
                         'fm-row--focused': focusedIndex === directoryRowIndex(index),
-                        'fm-row--search-current': currentMatchIndex === directoryRowIndex(index),
                         'fm-row--locked': acl && directory.acl === 0,
                     }"
                     tabindex="-1"
@@ -111,7 +110,6 @@
                         'fm-row--zebra': fileRowIndex(index) % 2 === 1,
                         'fm-row--selected': checkSelect('files', file.path),
                         'fm-row--focused': focusedIndex === fileRowIndex(index),
-                        'fm-row--search-current': currentMatchIndex === fileRowIndex(index),
                         'fm-row--locked': acl && file.acl === 0,
                     }"
                     tabindex="-1"
@@ -269,34 +267,34 @@ function registerRow(el, index) {
 }
 
 const isActiveManager = computed(() => fm.activeManager === props.manager)
-const highlightQuery = computed(() => (isActiveManager.value && fm.searchOpen ? fm.searchQuery : ''))
+const highlightQuery = computed(() => (isActiveManager.value ? fm.effectiveSearchQuery : ''))
 const currentMatchIndex = computed(() => (isActiveManager.value ? fm.currentSearchMatch : -1))
 
-let lastMatchIndex = -1
-
-// flush: 'post' so the rows of a fresh listing/query are already rendered and registered in rowEls
+// The current match is marked with the regular row selection, as if it had been
+// clicked. flush: 'post' so the rows of a fresh listing/query are already
+// rendered and registered in rowEls.
 watch(
     () => [currentMatchIndex.value, fm.searchScrollTick],
     () => {
         const index = currentMatchIndex.value
         if (index < 0) return
 
-        lastMatchIndex = index
+        const item = flatVisible.value[index]
+        if (!item) return
+
+        focusedIndex.value = index
+        fm.changeSelected(props.manager, { type: item.type, path: item.path })
         rowEls.get(index)?.scrollIntoView({ block: 'nearest' })
     },
     { flush: 'post' }
 )
 
-// On close, hand keyboard navigation back to the table, continuing from the last match.
+// On close, hand keyboard navigation back to the table, continuing from the match.
 watch(
     () => fm.searchOpen,
     (open, wasOpen) => {
         if (open || !wasOpen || !isActiveManager.value) return
 
-        if (lastMatchIndex >= 0 && lastMatchIndex < flatVisible.value.length) {
-            focusedIndex.value = lastMatchIndex
-        }
-        lastMatchIndex = -1
         nextTick(() => tableArea.value?.focus())
     }
 )
@@ -512,8 +510,6 @@ function onKeyDown(event) {
     --fm-accent: var(--gameap-stone-800);
     --fm-match-bg: var(--gameap-orange-200);
     --fm-match-text: var(--gameap-orange-900);
-    --fm-match-current-bg: var(--gameap-orange-400);
-    --fm-match-current-text: var(--gameap-orange-950);
 
     thead th {
         @apply text-left bg-surface text-secondary font-medium;
@@ -614,11 +610,6 @@ function onKeyDown(event) {
             outline-offset: -2px;
         }
 
-        &.fm-row--search-current,
-        &.fm-row--search-current.fm-row--zebra {
-            background-color: var(--gameap-warning-soft);
-            box-shadow: inset 3px 0 0 0 var(--gameap-warning);
-        }
     }
 
     tr.fm-row--up {
@@ -669,11 +660,6 @@ function onKeyDown(event) {
         color: var(--fm-match-text);
         border-radius: 2px;
         padding: 0 1px;
-    }
-
-    tr.fm-row--search-current .fm-name-match {
-        background-color: var(--fm-match-current-bg);
-        color: var(--fm-match-current-text);
     }
 
     .fm-cell-muted {
@@ -773,8 +759,6 @@ function onKeyDown(event) {
     --fm-accent: var(--gameap-stone-200);
     --fm-match-bg: color-mix(in srgb, var(--gameap-orange-500) 40%, transparent);
     --fm-match-text: var(--gameap-orange-50);
-    --fm-match-current-bg: var(--gameap-orange-500);
-    --fm-match-current-text: var(--gameap-orange-950);
 }
 
 @keyframes fm-skel-pulse {

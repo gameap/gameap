@@ -7,6 +7,8 @@ import { downloadDirectoryArchive } from '../http/download-archive.js'
 import { downloadSingleFile } from '../http/download-file.js'
 import { StreamDownloadError } from '../http/download-stream.js'
 import { detectConflicts, joinPath, dirOf } from '../http/upload-conflicts.js'
+import { queryVariants } from '../keyboardLayout.js'
+import { foldText } from '../textFold.js'
 import { useSettingsStore } from './useSettingsStore.js'
 import { useMessagesStore } from './useMessagesStore.js'
 import { useModalStore } from './useModalStore.js'
@@ -433,29 +435,46 @@ export const useFileManagerStore = defineStore('fm', () => {
         fullScreen.value = !fullScreen.value
     }
 
-    // Search: match indices follow the visible order (directories first, then files),
+    // Search: names follow the visible order (directories first, then files),
     // the same index space as TableView row refs and useManager flatVisible.
-    const searchMatches = computed(() => {
-        const query = searchQuery.value.toLowerCase()
-        if (!searchOpen.value || query === '') return []
+    const foldedNames = computed(() => [
+        ...getDirectories(activeManager.value).map((directory) => foldText(directory.basename)),
+        ...getFiles(activeManager.value).map((file) => foldText(file.basename)),
+    ])
 
-        const directories = getDirectories(activeManager.value)
-        const files = getFiles(activeManager.value)
+    function collectMatches(query) {
+        const needle = foldText(query)
         const matches = []
 
-        directories.forEach((directory, index) => {
-            if (directory.basename.toLowerCase().includes(query)) {
+        foldedNames.value.forEach((name, index) => {
+            if (name.includes(needle)) {
                 matches.push(index)
-            }
-        })
-        files.forEach((file, index) => {
-            if (file.basename.toLowerCase().includes(query)) {
-                matches.push(directories.length + index)
             }
         })
 
         return matches
+    }
+
+    // Other keyboard layouts are only a fallback: as long as the typed text
+    // finds something, a wrong-layout reading never steals the results.
+    const searchResult = computed(() => {
+        if (!searchOpen.value || searchQuery.value === '') {
+            return { query: '', matches: [] }
+        }
+
+        const variants = queryVariants(searchQuery.value)
+        for (const variant of variants) {
+            const matches = collectMatches(variant)
+            if (matches.length) {
+                return { query: variant, matches }
+            }
+        }
+
+        return { query: variants[0], matches: [] }
     })
+
+    const searchMatches = computed(() => searchResult.value.matches)
+    const effectiveSearchQuery = computed(() => searchResult.value.query)
 
     const currentSearchMatch = computed(() => {
         const matches = searchMatches.value
@@ -1362,6 +1381,7 @@ export const useFileManagerStore = defineStore('fm', () => {
         searchFocusRequestId,
         searchScrollTick,
         searchMatches,
+        effectiveSearchQuery,
         currentSearchMatch,
         openSearch,
         openSearchWithQuery,

@@ -175,6 +175,9 @@ function showModal(modalName) {
 
 .fm-toolbar {
     @apply flex flex-wrap items-center gap-2;
+    /* One height for every control, so a group keeps the same size whatever
+       it holds — a font icon, a taller inline SVG or the search input. */
+    --fm-control-height: 1.625rem;
 }
 
 /* Segmented button group: shared border + dividers, same shell as GBreadcrumbs
@@ -188,11 +191,12 @@ function showModal(modalName) {
 }
 
 .fm-tool-btn {
-    @apply inline-flex items-center justify-center px-2.5 py-1.5 text-sm
+    @apply inline-flex items-center justify-center px-2.5 text-sm
         text-secondary
         transition-colors duration-100
         border-r;
     min-width: 2.25rem;
+    height: var(--fm-control-height);
 
     &:last-child {
         border-right: none;

@@ -110,11 +110,12 @@ function onKeydown(event) {
 
 <style lang="scss">
 .fm-search-input {
-    @apply w-44 sm:w-56 bg-transparent px-2.5 py-1.5 text-sm text-body placeholder:text-faint border-r;
+    @apply w-44 sm:w-56 bg-transparent px-2.5 text-sm text-body placeholder:text-faint border-r;
     border-top: none;
     border-bottom: none;
     border-left: none;
     outline: none;
     min-width: 0;
+    height: var(--fm-control-height);
 }
 </style>

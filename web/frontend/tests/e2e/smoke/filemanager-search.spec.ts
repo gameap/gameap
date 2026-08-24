@@ -47,6 +47,16 @@ const LISTINGS: Record<string, { directories: object[]; files: object[] }> = {
       ...Array.from({ length: 50 }, (_, i) =>
         fileEntry(`filler_${String(i).padStart(2, '0')}.log`),
       ),
+      // Wrong-layout targets: Latin, Cyrillic, German and Spanish names.
+      fileEntry('server.cfg'),
+      fileEntry('мой-файл.txt'),
+      fileEntry('zeit.log'),
+      fileEntry('año.txt'),
+      // Case and diacritics folding targets.
+      fileEntry('Ёлка.cfg'),
+      fileEntry('Žluťoučký.log'),
+      fileEntry('Ćwiczenie.ini'),
+      fileEntry('Straße.txt'),
       fileEntry('zz_config_last.txt'),
     ],
   },
@@ -66,7 +76,8 @@ const closeButton = (page: Page) =>
   page.locator('button.fm-tool-btn[title="Close search (Esc)"]');
 const searchInput = (page: Page) => page.locator('input.fm-search-input');
 const marks = (page: Page) => page.locator('mark.fm-name-match');
-const currentRow = (page: Page) => page.locator('.fm-row--search-current');
+// The current match is marked with the regular row selection.
+const currentRow = (page: Page) => page.locator('.fm-row--selected');
 
 async function openFileManager(page: Page, request: APIRequestContext) {
   const token = await loginViaAPI(request);
@@ -162,7 +173,6 @@ test('toolbar search: highlight, wrap-around navigation, close clears', async ({
   await expect(currentRow(page)).toHaveCount(1);
   await expect(currentRow(page)).toContainText('config_backup');
   await expect(currentRow(page)).toBeInViewport();
-  await expect(page.locator('.fm-row--selected')).toHaveCount(0);
 
   // ▼ walks dir → top file → bottom file, scrolling each match into view,
   // without stealing focus from the input.
@@ -191,13 +201,14 @@ test('toolbar search: highlight, wrap-around navigation, close clears', async ({
   await page.keyboard.press('Shift+Enter');
   await expect(currentRow(page)).toContainText('zz_config_last.txt');
 
-  // Selection stayed untouched through all the navigation.
-  await expect(page.locator('.fm-row--selected')).toHaveCount(0);
+  // Exactly one row is selected at a time — navigation moves the selection.
+  await expect(currentRow(page)).toHaveCount(1);
 
+  // Closing drops the highlighting but leaves the found file selected.
   await closeButton(page).click();
   await expect(searchInput(page)).toHaveCount(0);
   await expect(marks(page)).toHaveCount(0);
-  await expect(currentRow(page)).toHaveCount(0);
+  await expect(currentRow(page)).toContainText('zz_config_last.txt');
   await expect(searchButton(page)).not.toHaveClass(/fm-tool-btn--toggled/);
 
   // Reopening starts from a clean query.
@@ -278,6 +289,79 @@ test('keyboard activation: Ctrl+F, Escape, 3-char type-ahead, zero matches', asy
   await nextButton(page).click();
   await expect(currentRow(page)).toHaveCount(0);
   await expect(searchInput(page)).toHaveValue('zzzz');
+});
+
+test('a query typed with the wrong keyboard layout still finds the file', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  await openFileManager(page, request);
+
+  await searchButton(page).click();
+
+  // Russian layout active, Latin name intended: "ыукмук" → "server".
+  await searchInput(page).fill('ыукмук');
+  await expect(marks(page)).toHaveCount(1);
+  await expect(marks(page).first()).toHaveText('server');
+  await expect(currentRow(page)).toContainText('server.cfg');
+  await expect(currentRow(page)).toBeInViewport();
+
+  // Latin layout active, Cyrillic name intended: "vjq-afqk" → "мой-файл".
+  await searchInput(page).fill('vjq-afqk');
+  await expect(currentRow(page)).toContainText('мой-файл.txt');
+  await expect(marks(page).first()).toHaveText('мой-файл');
+
+  // QWERTZ: the German z sits where the Latin y is — "yeit" → "zeit".
+  await searchInput(page).fill('yeit');
+  await expect(currentRow(page)).toContainText('zeit.log');
+
+  // Spanish ñ sits on the ; key — "a;o" → "año".
+  await searchInput(page).fill('a;o');
+  await expect(currentRow(page)).toContainText('año.txt');
+
+  // The typed text wins whenever it finds something on its own.
+  await searchInput(page).fill('config');
+  await expect(currentRow(page)).toContainText('config_backup');
+  await expect(marks(page)).toHaveCount(3);
+
+  // Still nothing when no layout reading matches.
+  await searchInput(page).fill('qqqq');
+  await expect(marks(page)).toHaveCount(0);
+});
+
+test('search ignores case and diacritics', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await openFileManager(page, request);
+
+  await searchButton(page).click();
+
+  await searchInput(page).fill('SERVER');
+  await expect(currentRow(page)).toContainText('server.cfg');
+  await expect(marks(page).first()).toHaveText('server');
+
+  // е and ё are one letter for the search, in both directions.
+  await searchInput(page).fill('елка');
+  await expect(currentRow(page)).toContainText('Ёлка.cfg');
+  await expect(marks(page).first()).toHaveText('Ёлка');
+  await searchInput(page).fill('ЁЛКА');
+  await expect(currentRow(page)).toContainText('Ёлка.cfg');
+
+  // ž/z, ť/t, č/c, ý/y
+  await searchInput(page).fill('zlutoucky');
+  await expect(currentRow(page)).toContainText('Žluťoučký.log');
+  await expect(marks(page).first()).toHaveText('Žluťoučký');
+
+  // ć/c
+  await searchInput(page).fill('cwiczenie');
+  await expect(currentRow(page)).toContainText('Ćwiczenie.ini');
+  await expect(marks(page).first()).toHaveText('Ćwiczenie');
+
+  // ß counts as ss, so the highlighted name is a character shorter than
+  // the query that found it.
+  await searchInput(page).fill('strasse');
+  await expect(currentRow(page)).toContainText('Straße.txt');
+  await expect(marks(page).first()).toHaveText('Straße');
 });
 
 test('directory change keeps the query and recomputes matches', async ({

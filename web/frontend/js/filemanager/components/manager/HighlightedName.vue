@@ -7,6 +7,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { findMatchRanges } from '../../textFold.js'
 
 const props = defineProps({
     text: { type: String, required: true },
@@ -15,29 +16,30 @@ const props = defineProps({
 
 const segments = computed(() => {
     const { text, query } = props
-    const needle = query.toLowerCase()
-    if (!needle) {
+    if (query === '') {
         return [{ text, hit: false }]
     }
 
-    const haystack = text.toLowerCase()
+    const ranges = findMatchRanges(text, query)
+    if (ranges.length === 0) {
+        return [{ text, hit: false }]
+    }
+
     const result = []
     let pos = 0
-    let idx = haystack.indexOf(needle, pos)
 
-    while (idx !== -1) {
-        if (idx > pos) {
-            result.push({ text: text.slice(pos, idx), hit: false })
+    ranges.forEach(({ start, end }) => {
+        if (start > pos) {
+            result.push({ text: text.slice(pos, start), hit: false })
         }
-        result.push({ text: text.slice(idx, idx + needle.length), hit: true })
-        pos = idx + needle.length
-        idx = haystack.indexOf(needle, pos)
-    }
+        result.push({ text: text.slice(start, end), hit: true })
+        pos = end
+    })
 
     if (pos < text.length) {
         result.push({ text: text.slice(pos), hit: false })
     }
 
-    return result.length ? result : [{ text: '', hit: false }]
+    return result
 })
 </script>
