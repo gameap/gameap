@@ -85,14 +85,16 @@
           </div>
         </div>
 
-        <div
+        <n-alert
           v-if="uploadResult.undeclared_permissions?.length"
-          class="mb-4 p-3 rounded-lg bg-warning-soft text-warning-soft-text text-sm break-words"
+          type="warning"
+          :show-icon="true"
+          class="mb-4"
           data-testid="dry-run-undeclared-permissions"
         >
           {{ trans('plugins.permissions_undeclared_warning') }}
           <span class="font-medium">{{ uploadResult.undeclared_permissions.map(permissionLabel).join(', ') }}</span>
-        </div>
+        </n-alert>
 
         <div v-if="uploadResult.errors?.length" class="mb-4 p-3 bg-red-50 dark:bg-[color:color-mix(in_srgb,var(--gameap-red-900)_20%,transparent)] rounded-lg">
           <p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">{{ trans('plugins.validation_errors') }}</p>
@@ -122,7 +124,7 @@ import { ref, computed, watch } from 'vue'
 import { trans } from '@/i18n/i18n'
 import { GIcon, GModal } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
-import { NUpload, NUploadDragger, NSpin } from 'naive-ui'
+import { NAlert, NUpload, NUploadDragger, NSpin } from 'naive-ui'
 import { usePluginStoreStore } from '@/store/pluginStore'
 import { storeToRefs } from 'pinia'
 import { errorNotification, notification } from '@/parts/dialogs'

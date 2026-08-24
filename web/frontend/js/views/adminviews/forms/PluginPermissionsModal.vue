@@ -32,14 +32,16 @@
           {{ trans('plugins.permissions_unknown') }}
         </div>
 
-        <div
+        <n-alert
           v-else-if="missingPermissions?.length > 0"
-          class="mb-3 p-2 rounded-lg bg-warning-soft text-warning-soft-text text-sm break-words"
+          type="warning"
+          :show-icon="true"
+          class="mb-3"
           data-testid="plugin-permissions-missing"
         >
           {{ trans('plugins.permissions_missing_warning') }}
           <span class="font-medium">{{ missingPermissions.map(permissionLabel).join(', ') }}</span>
-        </div>
+        </n-alert>
 
         <n-checkbox-group v-model:value="selectedPermissions">
           <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
