@@ -380,6 +380,11 @@ Used by the resumable file-manager upload endpoints
 - `PLUGIN_STORAGE_MAX_VALUE` - Largest single `gameap-storage` payload (default: `1M`)
 - `PLUGIN_STORAGE_MAX_TOTAL` - Sum of all `gameap-storage` payloads of one plugin (default: `64M`)
 - `PLUGIN_CACHE_MAX_VALUE` - Largest single `gameap-cache` value (default: `1M`, `0` = unlimited); every plugin has its own cache namespace
+- `PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN` - Secrets one plugin may keep in `gameap-secrets` (default: `64`)
+- `PLUGIN_SECRETS_MAX_VALUE` - Largest plaintext of a single secret (default: `8K`)
+- `PLUGIN_HTTP_MAX_TIMEOUT` - Ceiling for the per-request timeout a plugin asks for in `gameap-http`; a longer one is clamped (default: `30s`)
+- `PLUGIN_NET_MAX_TIMEOUT` - Ceiling for one `gameap-net` operation - the dial plus every read and write (default: `10s`)
+- `PLUGIN_NET_READ_BUFFER` - Largest single `gameap-net` receive a plugin may request (default: `64K`)
 - `PLUGIN_RATELIMIT_NODECMD_RPS` / `PLUGIN_RATELIMIT_NODECMD_BURST` - Per-plugin token bucket for `gameap-nodecmd` (default: `5` / `20`; RPS `0` = no limit)
 - `PLUGIN_RATELIMIT_SERVERCONTROL_RPS` / `PLUGIN_RATELIMIT_SERVERCONTROL_BURST` - Server control, daemon task creation, server and server-setting writes (default: `5` / `20`)
 - `PLUGIN_RATELIMIT_NODEFS_RPS` / `PLUGIN_RATELIMIT_NODEFS_BURST` - Every `gameap-nodefs` operation (default: `50` / `200`)

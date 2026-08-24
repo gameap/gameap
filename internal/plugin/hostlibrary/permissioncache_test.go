@@ -26,14 +26,17 @@ type countingGrantsReader struct {
 func (r *countingGrantsReader) Grants(_ context.Context, _ uint64) ([]domain.PluginPermission, error) {
 	r.reads.Add(1)
 
+	// The record is read first and handed back later, so a test can revoke a
+	// grant while a read that already observed it is still on its way back.
+	r.mu.Lock()
+	permissions, err := r.permissions, r.err
+	r.mu.Unlock()
+
 	if r.block != nil {
 		<-r.block
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.permissions, r.err
+	return permissions, err
 }
 
 func (r *countingGrantsReader) set(permissions ...domain.PluginPermission) {
@@ -238,6 +241,75 @@ func TestCachedPermissionChecker_collapses_concurrent_misses(t *testing.T) {
 	assert.Equal(t, int64(callers), granted.Load())
 	assert.Less(t, source.reads.Load(), int64(callers),
 		"a burst of deliveries after an invalidation must not fan out one read per subscriber")
+}
+
+func TestCachedPermissionChecker_does_not_store_grants_read_before_an_invalidation(t *testing.T) {
+	t.Parallel()
+
+	source := &countingGrantsReader{
+		permissions: []domain.PluginPermission{domain.PluginPermissionFiles},
+		block:       make(chan struct{}),
+	}
+
+	cache, _ := newTestCache(source, time.Hour)
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		allowed, err := cache.Has(t.Context(), 7, domain.PluginPermissionFiles)
+		assert.NoError(t, err)
+		assert.True(t, allowed, "the read observed the grant before it was revoked")
+	})
+
+	require.Eventually(t, func() bool { return source.reads.Load() == 1 }, time.Second, time.Millisecond)
+
+	// The revocation commits and its announcement lands while the read above
+	// is still on its way back with the grants it saw beforehand.
+	source.set(domain.PluginPermissionSecrets)
+	cache.Invalidate(7)
+
+	close(source.block)
+	wg.Wait()
+
+	allowed, err := cache.Has(t.Context(), 7, domain.PluginPermissionFiles)
+	require.NoError(t, err)
+	assert.False(t, allowed, "the revoked grant is not left behind by the read the invalidation raced")
+	assert.Equal(t, int64(2), source.reads.Load())
+}
+
+func TestCachedPermissionChecker_does_not_join_a_read_that_predates_an_invalidation(t *testing.T) {
+	t.Parallel()
+
+	source := &countingGrantsReader{
+		permissions: []domain.PluginPermission{domain.PluginPermissionFiles},
+		block:       make(chan struct{}),
+	}
+
+	cache, _ := newTestCache(source, time.Hour)
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		allowed, err := cache.Has(t.Context(), 7, domain.PluginPermissionFiles)
+		assert.NoError(t, err)
+		assert.True(t, allowed, "the read started before the revocation and reports what it saw")
+	})
+
+	require.Eventually(t, func() bool { return source.reads.Load() == 1 }, time.Second, time.Millisecond)
+
+	source.set(domain.PluginPermissionSecrets)
+	cache.Invalidate(7)
+
+	wg.Go(func() {
+		allowed, err := cache.Has(t.Context(), 7, domain.PluginPermissionFiles)
+		assert.NoError(t, err)
+		assert.False(t, allowed, "a question asked after the revocation reads the record itself")
+	})
+
+	require.Eventually(t, func() bool { return source.reads.Load() == 2 }, time.Second, time.Millisecond)
+
+	close(source.block)
+	wg.Wait()
 }
 
 func TestCachedPermissionChecker_serves_reads_while_it_is_invalidated(t *testing.T) {

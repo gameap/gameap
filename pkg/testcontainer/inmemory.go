@@ -98,6 +98,7 @@ type InmemoryContainer struct {
 	pluginSubscriptionsPS   *pubsubintegration.PluginSubscriptionsNotifier
 	pluginGuard             *hostlibrary.Guard
 	pluginPermissions       *hostlibrary.CachedPermissionChecker
+	pluginRepo              repositories.PluginRepository
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -184,8 +185,15 @@ func (c *InmemoryContainer) FrontendFS() fs.FS {
 	return fsys
 }
 
+// PluginRepository answers the same repository every time: the router hands it
+// to every plugin handler separately, and the permission checker reads the
+// grants they write.
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
-	return inmemory.NewPluginRepository()
+	if c.pluginRepo == nil {
+		c.pluginRepo = inmemory.NewPluginRepository()
+	}
+
+	return c.pluginRepo
 }
 
 func (c *InmemoryContainer) PluginStorageRepository() repositories.PluginStorageRepository {

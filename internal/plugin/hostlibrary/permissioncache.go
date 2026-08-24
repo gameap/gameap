@@ -31,6 +31,12 @@ type CachedPermissionChecker struct {
 
 	mu      sync.RWMutex
 	entries map[uint64]grantsEntry
+
+	// generation is bumped by every invalidation. A load carries the
+	// generation it started under, so grants read just before a revocation
+	// cannot be stored just after it and outlive the announcement that was
+	// meant to drop them.
+	generation uint64
 }
 
 type grantsEntry struct {
@@ -94,10 +100,14 @@ func (c *CachedPermissionChecker) grants(
 		return permissions, nil
 	}
 
-	// The key is the plugin, so a burst of deliveries after an invalidation
-	// costs one read instead of one per subscriber.
-	permissions, err, _ := c.group.Do(strconv.FormatUint(pluginID, 10), func() (any, error) {
-		return c.load(ctx, pluginID)
+	// Keyed by the plugin and the generation the read starts under: a burst
+	// of deliveries costs one read instead of one per subscriber, while a
+	// question asked after an invalidation starts a read of its own instead
+	// of joining the one that predates it.
+	generation := c.currentGeneration()
+
+	permissions, err, _ := c.group.Do(cacheKey(pluginID, generation), func() (any, error) {
+		return c.load(ctx, pluginID, generation)
 	})
 	if err != nil {
 		return nil, err
@@ -115,6 +125,7 @@ func (c *CachedPermissionChecker) Invalidate(pluginID uint64) {
 	defer c.mu.Unlock()
 
 	delete(c.entries, pluginID)
+	c.generation++
 }
 
 // InvalidateAll drops every cached entry.
@@ -123,6 +134,7 @@ func (c *CachedPermissionChecker) InvalidateAll() {
 	defer c.mu.Unlock()
 
 	clear(c.entries)
+	c.generation++
 }
 
 func (c *CachedPermissionChecker) lookup(pluginID uint64) ([]domain.PluginPermission, bool) {
@@ -137,7 +149,18 @@ func (c *CachedPermissionChecker) lookup(pluginID uint64) ([]domain.PluginPermis
 	return entry.permissions, true
 }
 
-func (c *CachedPermissionChecker) load(ctx context.Context, pluginID uint64) ([]domain.PluginPermission, error) {
+func (c *CachedPermissionChecker) currentGeneration() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.generation
+}
+
+func (c *CachedPermissionChecker) load(
+	ctx context.Context,
+	pluginID uint64,
+	generation uint64,
+) ([]domain.PluginPermission, error) {
 	permissions, err := c.source.Grants(ctx, pluginID)
 	if err != nil {
 		return nil, err
@@ -155,11 +178,25 @@ func (c *CachedPermissionChecker) load(ctx context.Context, pluginID uint64) ([]
 	}
 
 	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// An invalidation that landed while the record was being read wins: the
+	// grants below were read before it and may already be revoked. The caller
+	// still gets them — its question predates the change — but they are not
+	// stored, so the next question reads the record again instead of holding
+	// a revoked grant for a whole TTL.
+	if c.generation != generation {
+		return permissions, nil
+	}
+
 	c.entries[pluginID] = grantsEntry{
 		permissions: permissions,
 		expiresAt:   c.now().Add(c.ttl),
 	}
-	c.mu.Unlock()
 
 	return permissions, nil
+}
+
+func cacheKey(pluginID, generation uint64) string {
+	return strconv.FormatUint(pluginID, 10) + ":" + strconv.FormatUint(generation, 10)
 }
