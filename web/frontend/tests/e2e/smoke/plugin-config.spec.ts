@@ -10,6 +10,9 @@ import { expectStatus, loginViaUI } from '../fixtures/ui';
 // its details, save typed values and a secret, verify the stored state
 // through the API, then clear the secret again. A plugin installed by the
 // test is uninstalled at the end; one that was already there is left alone.
+//
+// The stand must run with ENCRYPTION_KEY set: PLUGIN_SECRETS_REQUIRE_ENCRYPTION
+// is on by default and the `token` secret below is refused with 422 without it.
 
 const BASE_URL = process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:8025';
 const PLUGIN_NAME = 'introspection';
