@@ -681,7 +681,16 @@ func (s *NodeFSServiceImpl) startCreate(
 		return "", "node not found"
 	}
 
-	paths := append([]string{req.ArchivePath, req.BasePath}, req.Sources...)
+	// An empty base_path asks for no rebasing at all; it names no location,
+	// so checking it would resolve to the node work path and be refused by
+	// every restricted mode.
+	paths := []string{req.ArchivePath}
+	if req.BasePath != "" {
+		paths = append(paths, req.BasePath)
+	}
+
+	paths = append(paths, req.Sources...)
+
 	if msg := s.checkPaths(ctx, export, node, paths...); msg != "" {
 		return "", msg
 	}

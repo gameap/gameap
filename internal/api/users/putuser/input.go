@@ -104,9 +104,9 @@ func (input *updateUserInput) Apply(user *domain.User) error {
 }
 
 // changedFields names what the request changes on the user, for the plugin
-// event: field names only, never values. Roles and servers are always
-// replaced by this endpoint, so they are listed whenever the request sends
-// them.
+// event: field names only, never values. Roles and servers are replaced on
+// every request — omitting a list clears the assignments rather than keeping
+// them — so both are always listed.
 func (input *updateUserInput) changedFields(user *domain.User) []string {
 	fields := make([]string, 0, 5)
 
@@ -122,13 +122,7 @@ func (input *updateUserInput) changedFields(user *domain.User) []string {
 		fields = append(fields, "password")
 	}
 
-	if input.Roles != nil {
-		fields = append(fields, "roles")
-	}
-
-	if input.Servers != nil {
-		fields = append(fields, "servers")
-	}
+	fields = append(fields, "roles", "servers")
 
 	return fields
 }

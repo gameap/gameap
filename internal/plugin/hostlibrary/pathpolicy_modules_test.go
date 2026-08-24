@@ -202,3 +202,37 @@ func TestNodeCmdService_work_dir_policy(t *testing.T) {
 	assert.Nil(t, resp.Error, "no working directory: the daemon's default is not subject to the policy")
 	assert.Equal(t, 2, executed)
 }
+
+// An empty base_path asks for the entries to keep their full paths; it names
+// no location, so checking it as one resolves to the node work path and every
+// restricted mode refuses a call over a path the plugin never sent.
+func TestNodeFSService_archive_without_a_base_path_is_not_refused(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	nodes := setupNodeFSRepo(seedWorkPathNode)
+
+	servers := inmemory.NewServerRepository()
+	require.NoError(t, servers.Save(ctx, &domain.Server{Name: "cs", DSID: 1, Dir: "servers/cs"}))
+
+	policy, err := NewPathPolicy(PathPolicyConfig{Mode: PathPolicyServerDirs}, servers)
+	require.NoError(t, err)
+
+	archive := newMockArchiveService()
+	svc := NewNodeFSService(testPluginID, refusingFileService(t), nodes, archive, &mockRegistrar{},
+		allowAllGuard(testPluginID), WithNodeFSPathPolicy(policy))
+
+	resp, err := svc.StartCreateArchive(ctx, &nodefs.CreateArchiveRequest{
+		NodeId:      1,
+		ArchivePath: "/home/servers/servers/cs/backup.zip",
+		Sources:     []string{"/home/servers/servers/cs/cfg"},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, resp.Error)
+	assert.True(t, resp.Success)
+
+	calls := archive.StartCalls()
+	require.Len(t, calls, 1)
+	require.NotNil(t, calls[0].create)
+	assert.Empty(t, calls[0].create.BasePath, "the empty base path reaches the daemon unchanged")
+}

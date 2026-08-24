@@ -160,7 +160,6 @@ func TestReconcile_reloads_when_the_row_changed(t *testing.T) {
 
 	mutations := map[string]func(*domain.Plugin){
 		"version":    func(p *domain.Plugin) { p.Version = "2.0.0" },
-		"checksum":   func(p *domain.Plugin) { p.Checksum = new("deadbeef") },
 		"config":     func(p *domain.Plugin) { p.Config = map[string]any{"api_key": "k"} },
 		"generation": func(p *domain.Plugin) { p.Generation++ },
 	}
@@ -173,17 +172,6 @@ func TestReconcile_reloads_when_the_row_changed(t *testing.T) {
 			e.loader.preload(row)
 
 			e.repo.update(1, mutate)
-			if name == "checksum" {
-				e.loader.applyErr[1] = nil
-				require.NoError(t, e.files.Write(e.ctx, "plugins/"+pluginFile(1), []byte(wasmContent)))
-				// The file on disk no longer matches the recorded checksum and the
-				// store serves the same bytes; that is a repair failure, not a
-				// reload — covered by the file tests. Use a matching checksum here.
-				e.repo.update(1, func(p *domain.Plugin) {
-					p.Checksum = new(internalplugin.FileChecksum([]byte(wasmContent)))
-					p.Version = "1.0.1"
-				})
-			}
 
 			e.pass(t)
 

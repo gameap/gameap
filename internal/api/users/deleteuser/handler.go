@@ -135,13 +135,13 @@ func (h *Handler) dispatchPreDelete(ctx context.Context, user *domain.User) erro
 		return nil
 	}
 
-	msg := result.CancelMessage
-	if msg == "" {
-		msg = result.CancelledBy
+	reason := "cancelled by " + result.CancelledBy
+	if result.CancelMessage != "" {
+		reason += ": " + result.CancelMessage
 	}
 
 	return api.WrapHTTPError(
-		errors.Wrapf(servercontrol.ErrCancelledByPlugin, "cancelled by %s: %s", result.CancelledBy, msg),
+		errors.Wrap(servercontrol.ErrCancelledByPlugin, reason),
 		http.StatusConflict,
 	)
 }

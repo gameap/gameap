@@ -252,11 +252,11 @@ func (l *Loader) UnloadRecord(ctx context.Context, dbID domain.Uint64ID, trigger
 	}
 
 	err := l.manager.Unload(ctx, managerID)
-	l.forgetRuntime(dbID)
-
 	if err != nil && !errors.Is(err, pkgplugin.ErrPluginNotFound) {
 		return false, errors.WithMessage(err, "failed to unload plugin")
 	}
+
+	l.forgetRuntime(dbID)
 
 	l.refreshSubscriptions(ctx)
 	l.emitUnloaded(ctx, dbID, running.Info, trigger)
@@ -511,6 +511,13 @@ func (l *Loader) Unload(ctx context.Context, pluginID string) error {
 	running, present := l.manager.GetPlugin(pluginID)
 
 	err := l.manager.Unload(ctx, pluginID)
+	// A module the manager does not know is gone either way. Any other
+	// failure leaves it registered there, so this instance keeps its mapping
+	// and the next pass retries the unload instead of losing track of a
+	// module that is still loaded.
+	if err != nil && !errors.Is(err, pkgplugin.ErrPluginNotFound) {
+		return err
+	}
 
 	if known {
 		l.forgetRuntime(dbID)
