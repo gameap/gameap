@@ -9,7 +9,7 @@
     <template #label>
       <span class="inline-flex items-center gap-2">
         {{ label }}
-        <GStatusBadge v-if="definition.adminVar" color="orange" :text="trans('servers.settings_admin_var')" />
+        <GStatusBadge v-if="definition.adminVar" color="light" :text="trans('servers.settings_admin_var')" />
       </span>
     </template>
 
