@@ -147,19 +147,11 @@ func ValidateNodeMetadata(metadata Metadata, removeKeys []string) error {
 	return nil
 }
 
-// validateMetadataValueSize caps every value, not only strings: a number, a
-// bool or a nested document would otherwise carry unbounded JSON into the
-// column. Strings are measured directly so the limit stays the byte length the
-// caller sent, without the quoting and escaping json.Marshal would add.
+// validateMetadataValueSize caps every value by its serialized size, strings
+// included. Metadata.Value marshals the bag into the column, so the escaped
+// form is what the limit has to bound: a raw byte count lets a string of quotes
+// through at twice the cap, and one of "<" or a control character at six times.
 func validateMetadataValueSize(key string, value any) error {
-	if str, ok := value.(string); ok {
-		if len(str) > NodeMetadataValueMaxLength {
-			return errors.WithMessage(ErrNodeMetadataTooLarge, "value of "+key)
-		}
-
-		return nil
-	}
-
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		return errors.Wrap(err, "failed to encode metadata value of "+key)

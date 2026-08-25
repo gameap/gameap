@@ -22,12 +22,27 @@ func TestNodePatch_ValidateMetadata(t *testing.T) {
 			patch: NodePatch{},
 		},
 		{
+			// The limit is on the serialized value, so the two quotes json.Marshal
+			// adds count against it.
 			name:  "string_value_at_limit",
-			patch: NodePatch{Metadata: Metadata{"key": strings.Repeat("a", NodeMetadataValueMaxLength)}},
+			patch: NodePatch{Metadata: Metadata{"key": strings.Repeat("a", NodeMetadataValueMaxLength-2)}},
 		},
 		{
 			name:      "string_value_over_limit",
 			patch:     NodePatch{Metadata: Metadata{"key": strings.Repeat("a", NodeMetadataValueMaxLength+1)}},
+			wantError: "value of key: metadata is too large",
+		},
+		{
+			// Half the cap in quotes doubles once escaped, so a raw byte count
+			// would wave this through at twice what the column stores.
+			name:      "escaped_string_over_limit",
+			patch:     NodePatch{Metadata: Metadata{"key": strings.Repeat(`"`, NodeMetadataValueMaxLength/2)}},
+			wantError: "value of key: metadata is too large",
+		},
+		{
+			// json.Marshal escapes "<" as \u003c: six stored bytes per character.
+			name:      "html_escaped_string_over_limit",
+			patch:     NodePatch{Metadata: Metadata{"key": strings.Repeat("<", NodeMetadataValueMaxLength/2)}},
 			wantError: "value of key: metadata is too large",
 		},
 		{
