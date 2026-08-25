@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 
@@ -18,8 +19,11 @@ type ConnectInfo struct {
 	SetupKey string
 }
 
+// FormatConnectURL builds the URL a daemon is handed. net.JoinHostPort brackets
+// a bare IPv6 literal, which url.Parse needs to tell the address from the port.
 func FormatConnectURL(host string, port uint16, setupKey string) string {
-	return fmt.Sprintf("%s://%s:%d/%s", ConnectScheme, host, port, setupKey)
+	return fmt.Sprintf("%s://%s/%s",
+		ConnectScheme, net.JoinHostPort(host, strconv.Itoa(int(port))), setupKey)
 }
 
 func ParseConnectURL(rawURL string) (*ConnectInfo, error) {

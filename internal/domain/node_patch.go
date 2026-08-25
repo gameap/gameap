@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"maps"
 	"strings"
 
@@ -117,24 +118,27 @@ func (p *NodePatch) validateStrings() error {
 	return nil
 }
 
-func (p *NodePatch) validateMetadata() error {
-	if len(p.Metadata) > NodeMetadataMaxKeys {
+// ValidateNodeMetadata reports the first problem with a node metadata bag and
+// the keys a patch wants removed. The admin PUT handler shares it with
+// NodePatch so both write paths enforce the same limits.
+func ValidateNodeMetadata(metadata Metadata, removeKeys []string) error {
+	if len(metadata) > NodeMetadataMaxKeys {
 		return ErrNodeMetadataTooLarge
 	}
 
-	for key, value := range p.Metadata {
+	for key, value := range metadata {
 		if strings.TrimSpace(key) == "" {
 			return ErrNodeMetadataKeyEmpty
 		}
 		if len(key) > NodeMetadataKeyMaxLength {
 			return errors.WithMessage(ErrNodeMetadataTooLarge, "key "+key)
 		}
-		if str, ok := value.(string); ok && len(str) > NodeMetadataValueMaxLength {
-			return errors.WithMessage(ErrNodeMetadataTooLarge, "value of "+key)
+		if err := validateMetadataValueSize(key, value); err != nil {
+			return err
 		}
 	}
 
-	for _, key := range p.RemoveMetadataKeys {
+	for _, key := range removeKeys {
 		if strings.TrimSpace(key) == "" {
 			return ErrNodeMetadataKeyEmpty
 		}
@@ -143,10 +147,39 @@ func (p *NodePatch) validateMetadata() error {
 	return nil
 }
 
+// validateMetadataValueSize caps every value, not only strings: a number, a
+// bool or a nested document would otherwise carry unbounded JSON into the
+// column. Strings are measured directly so the limit stays the byte length the
+// caller sent, without the quoting and escaping json.Marshal would add.
+func validateMetadataValueSize(key string, value any) error {
+	if str, ok := value.(string); ok {
+		if len(str) > NodeMetadataValueMaxLength {
+			return errors.WithMessage(ErrNodeMetadataTooLarge, "value of "+key)
+		}
+
+		return nil
+	}
+
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return errors.Wrap(err, "failed to encode metadata value of "+key)
+	}
+
+	if len(encoded) > NodeMetadataValueMaxLength {
+		return errors.WithMessage(ErrNodeMetadataTooLarge, "value of "+key)
+	}
+
+	return nil
+}
+
+func (p *NodePatch) validateMetadata() error {
+	return ValidateNodeMetadata(p.Metadata, p.RemoveMetadataKeys)
+}
+
 // ApplyTo writes the present fields onto the node. Metadata is merged and then
 // the removal list is applied; an emptied bag becomes nil so the column stores
 // NULL instead of "{}".
-func (p *NodePatch) ApplyTo(node *Node) {
+func (p *NodePatch) ApplyTo(node *Node) error {
 	if p.Enabled != nil {
 		node.Enabled = *p.Enabled
 	}
@@ -169,12 +202,14 @@ func (p *NodePatch) ApplyTo(node *Node) {
 		node.IPs = p.IPs
 	}
 
-	p.applyMetadataTo(node)
+	return p.applyMetadataTo(node)
 }
 
-func (p *NodePatch) applyMetadataTo(node *Node) {
+// applyMetadataTo bounds the merged bag, not only the incoming patch: repeated
+// patches with fresh keys would otherwise grow the stored map without limit.
+func (p *NodePatch) applyMetadataTo(node *Node) error {
 	if len(p.Metadata) == 0 && len(p.RemoveMetadataKeys) == 0 {
-		return
+		return nil
 	}
 
 	merged := make(Metadata, len(node.Metadata)+len(p.Metadata))
@@ -184,11 +219,17 @@ func (p *NodePatch) applyMetadataTo(node *Node) {
 		delete(merged, key)
 	}
 
+	if len(merged) > NodeMetadataMaxKeys {
+		return ErrNodeMetadataTooLarge
+	}
+
 	if len(merged) == 0 {
 		node.Metadata = nil
 
-		return
+		return nil
 	}
 
 	node.Metadata = merged
+
+	return nil
 }

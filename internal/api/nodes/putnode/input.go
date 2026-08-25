@@ -93,7 +93,9 @@ type updateNodeInput struct {
 	ScriptGetConsole    *string        `json:"script_get_console,omitempty"`
 	ScriptSendCommand   *string        `json:"script_send_command,omitempty"`
 	ScriptDelete        *string        `json:"script_delete,omitempty"`
-	// Metadata replaces the stored bag when present; omitting the field keeps it.
+	// Metadata replaces the stored bag when present, and an empty object clears
+	// it; omitting the field keeps it. The request schema does not accept null,
+	// which decodes to the same nil map as an omitted field.
 	Metadata domain.Metadata `json:"metadata,omitempty"`
 }
 
@@ -109,6 +111,7 @@ func (in *updateNodeInput) Validate() error {
 		in.validateGdaemonHost,
 		in.validateGdaemonPort,
 		in.validateGdaemonServerCert,
+		in.validateMetadata,
 	}
 
 	for _, validator := range validators {
@@ -238,6 +241,16 @@ func (in *updateNodeInput) validateGdaemonPort() error {
 func (in *updateNodeInput) validateGdaemonServerCert() error {
 	if in.GdaemonServerCert != nil && len(*in.GdaemonServerCert) > maxGdaemonServerCertSize {
 		return api.NewValidationError("gdaemon_server_cert is too large")
+	}
+
+	return nil
+}
+
+// validateMetadata reuses the domain limits so an admin request cannot store a
+// bag the plugin path would reject, and so the numbers live in one place.
+func (in *updateNodeInput) validateMetadata() error {
+	if err := domain.ValidateNodeMetadata(in.Metadata, nil); err != nil {
+		return api.NewValidationError("metadata: " + err.Error())
 	}
 
 	return nil

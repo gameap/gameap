@@ -9,6 +9,7 @@ import (
 	"github.com/gameap/gameap/internal/certificates"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/repositories"
 	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/strings"
@@ -57,6 +58,7 @@ type Service struct {
 	clientCertRepo  repositories.ClientCertificateRepository
 	certificatesSvc *certificates.Service
 	nodeEvents      NodeEventDispatcher
+	locks           locker.Locker
 }
 
 // ServiceOption tunes a Service.
@@ -69,6 +71,14 @@ func WithNodeEvents(dispatcher NodeEventDispatcher) ServiceOption {
 	}
 }
 
+// WithLocker makes enrollment tickets single-use across panel instances. Left
+// unset, the ticket store coordinates within this process only.
+func WithLocker(locks locker.Locker) ServiceOption {
+	return func(s *Service) {
+		s.locks = locks
+	}
+}
+
 func NewService(
 	setupKeyManager *SetupKeyManager,
 	nodesRepo repositories.NodeRepository,
@@ -78,7 +88,6 @@ func NewService(
 ) *Service {
 	service := &Service{
 		setupKeyManager: setupKeyManager,
-		tickets:         NewTicketStore(setupKeyManager.cache),
 		nodesRepo:       nodesRepo,
 		clientCertRepo:  clientCertRepo,
 		certificatesSvc: certificatesSvc,
@@ -87,6 +96,9 @@ func NewService(
 	for _, opt := range opts {
 		opt(service)
 	}
+
+	// Built after the options so WithLocker reaches the ticket store.
+	service.tickets = NewTicketStore(setupKeyManager.cache, service.locks)
 
 	return service
 }
@@ -162,10 +174,27 @@ func (s *Service) Enroll(ctx context.Context, setupKey string, input *EnrollInpu
 	node.UpdatedAt = &now
 
 	if ticket != nil {
-		ticket.Presets.ApplyTo(node)
+		if err := ticket.Presets.ApplyTo(node); err != nil {
+			return nil, errors.WithMessage(err, "failed to apply node presets")
+		}
+	}
+
+	// Claim right before the node exists: the credential is spent by whoever
+	// wins the race, and a failure earlier in the flow does not burn a ticket
+	// the operator would have to reissue.
+	if ticket != nil {
+		if err := s.tickets.Claim(ctx, ticket); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.nodesRepo.Save(ctx, node); err != nil {
+		if ticket != nil {
+			slog.ErrorContext(ctx, "enrollment ticket spent without a node",
+				slog.String("ticket_id", ticket.ID),
+				slog.String("error", err.Error()))
+		}
+
 		return nil, errors.WithMessage(err, "failed to save node")
 	}
 
@@ -255,7 +284,10 @@ func (s *Service) resolveSetupKey(ctx context.Context, setupKey string) (*Ticket
 }
 
 // consumeSetupKey retires the credential that was just used: the global key is
-// invalidated as before, a ticket is marked consumed and records its node.
+// invalidated as before, a ticket records the node it produced. The ticket is
+// already marked consumed by Claim, so a write failure here costs the issuer
+// the node id, never the single-use guarantee; the record is dropped outright
+// rather than left in a shape the issuer could misread.
 func (s *Service) consumeSetupKey(ctx context.Context, ticket *Ticket, nodeID uint) {
 	if ticket == nil {
 		if err := s.setupKeyManager.Invalidate(ctx); err != nil {
@@ -265,9 +297,18 @@ func (s *Service) consumeSetupKey(ctx context.Context, ticket *Ticket, nodeID ui
 		return
 	}
 
-	if err := s.tickets.Consume(ctx, ticket, nodeID); err != nil {
-		slog.WarnContext(ctx, "failed to consume enrollment ticket",
+	err := s.tickets.Consume(ctx, ticket, nodeID)
+	if err == nil {
+		return
+	}
+
+	slog.ErrorContext(ctx, "failed to record the node on the enrollment ticket",
+		slog.String("ticket_id", ticket.ID),
+		slog.String("error", err.Error()))
+
+	if revokeErr := s.tickets.Revoke(ctx, ticket.ID); revokeErr != nil {
+		slog.ErrorContext(ctx, "failed to revoke the enrollment ticket",
 			slog.String("ticket_id", ticket.ID),
-			slog.String("error", err.Error()))
+			slog.String("error", revokeErr.Error()))
 	}
 }

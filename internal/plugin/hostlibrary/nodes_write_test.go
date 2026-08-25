@@ -2,6 +2,8 @@ package hostlibrary
 
 import (
 	"context"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,7 +15,9 @@ import (
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/internal/services"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk/nodes"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,19 +40,24 @@ func (c *auditCapture) Record(_ context.Context, event audit.Event) {
 	c.events = append(c.events, event)
 }
 
-func newNodesWriteEnv(t *testing.T, checker PluginPermissionChecker, resolver ConnectTargetResolver) nodesWriteEnv {
+func newNodesWriteEnv(
+	t *testing.T,
+	checker PluginPermissionChecker,
+	resolver ConnectTargetResolver,
+	nodeServiceOpts ...services.NodeServiceOption,
+) nodesWriteEnv {
 	t.Helper()
 
 	nodeRepo := inmemory.NewNodeRepository()
 	serverRepo := inmemory.NewServerRepository()
-	tickets := enrollment.NewTicketStore(cache.NewInMemory())
+	tickets := enrollment.NewTicketStore(cache.NewInMemory(), nil)
 	auditLogger := &auditCapture{}
 
 	return nodesWriteEnv{
 		service: NewNodesService(
 			nodesTestPluginID,
 			nodeRepo,
-			services.NewNodeService(nodeRepo, serverRepo),
+			services.NewNodeService(nodeRepo, serverRepo, nodeServiceOpts...),
 			tickets,
 			resolver,
 			checker,
@@ -59,6 +68,62 @@ func newNodesWriteEnv(t *testing.T, checker PluginPermissionChecker, resolver Co
 		tickets: tickets,
 		audit:   auditLogger,
 	}
+}
+
+// nodeEventRecorder stands in for the plugin dispatcher: it records the events
+// a node write emits and can veto the pre-delete.
+type nodeEventRecorder struct {
+	mu     sync.Mutex
+	veto   services.NodeEventVeto
+	sync   []pluginproto.EventType
+	async  []pluginproto.EventType
+	nodeID uint
+}
+
+func (r *nodeEventRecorder) DispatchNodeEvent(
+	_ context.Context,
+	eventType pluginproto.EventType,
+	node *domain.Node,
+	_ map[string]string,
+) services.NodeEventVeto {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.sync = append(r.sync, eventType)
+	r.nodeID = node.ID
+
+	return r.veto
+}
+
+func (r *nodeEventRecorder) DispatchNodeEventAsync(
+	_ context.Context,
+	eventType pluginproto.EventType,
+	_ *domain.Node,
+	_ map[string]string,
+) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.async = append(r.async, eventType)
+}
+
+func (r *nodeEventRecorder) snapshot() ([]pluginproto.EventType, []pluginproto.EventType) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return slices.Clone(r.sync), slices.Clone(r.async)
+}
+
+// savingNodeRepo fails every Save with a storage error whose text names a
+// table and a constraint, the kind a driver produces.
+type savingNodeRepo struct {
+	*inmemory.NodeRepository
+
+	err error
+}
+
+func (r savingNodeRepo) Save(context.Context, *domain.Node) error {
+	return r.err
 }
 
 func seedNode(t *testing.T, repo *inmemory.NodeRepository) *domain.Node {
@@ -353,6 +418,113 @@ func TestNodesService_DeleteNode(t *testing.T) {
 		assert.False(t, resp.Success)
 		require.NotNil(t, resp.Error)
 		assert.Contains(t, *resp.Error, "node not found")
+	})
+}
+
+// TestNodesService_DeleteNodePluginEvents: a plugin deleting a node must not
+// slip past the hooks the admin delete handler fires, otherwise every other
+// plugin misses the veto and the post-delete cleanup.
+func TestNodesService_DeleteNodePluginEvents(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("notifies_plugins_on_success", func(t *testing.T) {
+		t.Parallel()
+		events := &nodeEventRecorder{}
+		env := newNodesWriteEnv(t, stubPermissionChecker{allowed: true}, testResolver(),
+			services.WithNodePluginEvents(events))
+		node := seedNode(t, env.nodes)
+
+		resp, err := env.service.DeleteNode(ctx, &nodes.DeleteNodeRequest{Id: uint64(node.ID)})
+		require.NoError(t, err)
+		require.True(t, resp.Success, resp.Error)
+
+		syncEvents, asyncEvents := events.snapshot()
+		assert.Equal(t, []pluginproto.EventType{pluginproto.EventType_EVENT_TYPE_NODE_PRE_DELETE}, syncEvents)
+		assert.Equal(t, []pluginproto.EventType{pluginproto.EventType_EVENT_TYPE_NODE_DELETED}, asyncEvents)
+	})
+
+	t.Run("veto_keeps_the_node", func(t *testing.T) {
+		t.Parallel()
+		events := &nodeEventRecorder{veto: services.NodeEventVeto{
+			Cancelled:     true,
+			CancelledBy:   "billing",
+			CancelMessage: "node still has an open invoice",
+		}}
+		env := newNodesWriteEnv(t, stubPermissionChecker{allowed: true}, testResolver(),
+			services.WithNodePluginEvents(events))
+		node := seedNode(t, env.nodes)
+
+		resp, err := env.service.DeleteNode(ctx, &nodes.DeleteNodeRequest{Id: uint64(node.ID)})
+		require.NoError(t, err)
+		assert.False(t, resp.Success)
+		require.NotNil(t, resp.Error)
+		assert.Contains(t, *resp.Error, "cancelled by billing")
+		assert.Contains(t, *resp.Error, "node still has an open invoice")
+
+		visible, err := env.nodes.Find(ctx, filters.FindNodeByIDs(node.ID), nil, nil)
+		require.NoError(t, err)
+		require.Len(t, visible, 1, "a vetoed delete must leave the node alive")
+
+		_, asyncEvents := events.snapshot()
+		assert.Empty(t, asyncEvents, "a vetoed delete must not announce NODE_DELETED")
+
+		assert.Empty(t, env.audit.events, "a vetoed delete is not a completed operation")
+	})
+}
+
+// TestNodesService_StorageErrorsStayInsideThePanel: a repository failure names
+// tables and constraints, which a plugin has no business learning.
+func TestNodesService_StorageErrorsStayInsideThePanel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const driverError = `pq: duplicate key value violates unique constraint "dedicated_servers_pkey"`
+
+	newService := func(t *testing.T) (*NodesServiceImpl, *inmemory.NodeRepository) {
+		t.Helper()
+
+		nodeRepo := inmemory.NewNodeRepository()
+		failing := savingNodeRepo{NodeRepository: nodeRepo, err: errors.New(driverError)}
+
+		return NewNodesService(
+			nodesTestPluginID,
+			nodeRepo,
+			services.NewNodeService(failing, inmemory.NewServerRepository()),
+			enrollment.NewTicketStore(cache.NewInMemory(), nil),
+			testResolver(),
+			stubPermissionChecker{allowed: true},
+			&auditCapture{},
+		), nodeRepo
+	}
+
+	t.Run("update_node", func(t *testing.T) {
+		t.Parallel()
+		service, nodeRepo := newService(t)
+		node := seedNode(t, nodeRepo)
+
+		resp, err := service.UpdateNode(ctx, &nodes.UpdateNodeRequest{
+			Id:   uint64(node.ID),
+			Name: new("renamed"),
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.Success)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, "failed to update node", *resp.Error)
+		assert.NotContains(t, *resp.Error, "dedicated_servers")
+	})
+
+	t.Run("delete_node", func(t *testing.T) {
+		t.Parallel()
+		service, nodeRepo := newService(t)
+		node := seedNode(t, nodeRepo)
+
+		resp, err := service.DeleteNode(ctx, &nodes.DeleteNodeRequest{Id: uint64(node.ID)})
+		require.NoError(t, err)
+		assert.False(t, resp.Success)
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, "failed to delete node", *resp.Error)
+		assert.NotContains(t, *resp.Error, "dedicated_servers")
 	})
 }
 

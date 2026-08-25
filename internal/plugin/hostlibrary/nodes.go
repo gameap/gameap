@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/internal/enrollment"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/sdk/nodes"
 	"github.com/gameap/gameap/pkg/proto"
@@ -32,6 +33,25 @@ const enrollmentUnavailableMessage = "enrollment is not available"
 // errInvalidConnectHost is reported when a plugin supplies a connect host the
 // panel would refuse to put into a connect URL.
 var errInvalidConnectHost = errors.New("connect_host is not a valid address or hostname")
+
+// nodeWriteSentinels are the failures a plugin can act on. Everything else a
+// node write can return comes from the repository and carries table and
+// constraint names, which stay inside the panel.
+var nodeWriteSentinels = []error{
+	services.ErrNodeNotFound,
+	services.ErrNodeHasServers,
+	services.ErrNodeDeleteCancelledByPlugin,
+	domain.ErrNodeNameRequired,
+	domain.ErrNodeNameTooLong,
+	domain.ErrNodeLocationRequired,
+	domain.ErrNodeLocationTooLong,
+	domain.ErrNodeProviderTooLong,
+	domain.ErrNodeWorkPathRequired,
+	domain.ErrNodePathTooLong,
+	domain.ErrNodeIPInvalid,
+	domain.ErrNodeMetadataKeyEmpty,
+	domain.ErrNodeMetadataTooLarge,
+}
 
 type NodesServiceImpl struct {
 	pluginID   uint64
@@ -188,7 +208,9 @@ func (s *NodesServiceImpl) UpdateNode(
 
 	node, err := s.nodes.Patch(ctx, uint(req.Id), patch)
 	if err != nil {
-		return &nodes.UpdateNodeResponse{Error: new(err.Error())}, nil
+		return &nodes.UpdateNodeResponse{
+			Error: new(s.nodeWriteError(ctx, err, "failed to update node")),
+		}, nil
 	}
 
 	audit.PluginOp(ctx, s.auditLoger, audit.EventNodeUpdate, audit.CategoryNodeOp,
@@ -212,7 +234,9 @@ func (s *NodesServiceImpl) DeleteNode(
 	}
 
 	if err := s.nodes.SoftDelete(ctx, uint(req.Id)); err != nil {
-		return &nodes.DeleteNodeResponse{Error: new(err.Error())}, nil
+		return &nodes.DeleteNodeResponse{
+			Error: new(s.nodeWriteError(ctx, err, "failed to delete node")),
+		}, nil
 	}
 
 	audit.PluginOp(ctx, s.auditLoger, audit.EventNodeDelete, audit.CategoryNodeOp,
@@ -220,6 +244,25 @@ func (s *NodesServiceImpl) DeleteNode(
 		"node", strconv.FormatUint(req.Id, 10), "delete", "")
 
 	return &nodes.DeleteNodeResponse{Success: true}, nil
+}
+
+// nodeWriteError turns a node write failure into a message for the guest. A
+// domain or service sentinel is what the plugin is expected to react to and
+// passes through with its context; anything else is a storage failure whose
+// text would hand the plugin the database schema, so it is logged here and
+// reported as fallback.
+func (s *NodesServiceImpl) nodeWriteError(ctx context.Context, err error, fallback string) string {
+	for _, sentinel := range nodeWriteSentinels {
+		if errors.Is(err, sentinel) {
+			return err.Error()
+		}
+	}
+
+	slog.ErrorContext(ctx, "node write failed",
+		slog.Uint64("plugin_id", s.pluginID),
+		slog.String("error", err.Error()))
+
+	return fallback
 }
 
 // CreateSetupKey mints a single-use enrollment key plus the installer to run

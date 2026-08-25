@@ -2,6 +2,8 @@ package enrollment
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,7 +16,7 @@ import (
 func newTicketStore(t *testing.T) *TicketStore {
 	t.Helper()
 
-	return NewTicketStore(cache.NewInMemory())
+	return NewTicketStore(cache.NewInMemory(), nil)
 }
 
 func TestTicketStore_CreateAndResolve(t *testing.T) {
@@ -172,6 +174,119 @@ func TestTicketStore_ConsumeAndRevoke(t *testing.T) {
 
 	_, err = store.Get(ctx, ticket.ID)
 	assert.ErrorIs(t, err, ErrTicketNotFound)
+}
+
+func TestTicketStore_ClaimIsSingleUse(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := newTicketStore(t)
+
+	ticket, key, err := store.Create(ctx, CreateTicketInput{Owner: "plugin:1", TTL: time.Hour})
+	require.NoError(t, err)
+
+	require.NoError(t, store.Claim(ctx, ticket))
+
+	stored, err := store.Get(ctx, ticket.ID)
+	require.NoError(t, err)
+	assert.Equal(t, TicketStatusConsumed, stored.Status)
+	require.NotNil(t, stored.ConsumedAt)
+	assert.Zero(t, stored.NodeID, "the node does not exist yet when the ticket is claimed")
+
+	assert.ErrorIs(t, store.Claim(ctx, ticket), ErrTicketConsumed)
+
+	_, err = store.Resolve(ctx, key)
+	assert.ErrorIs(t, err, ErrInvalidSetupKey, "a claimed ticket must not enroll a second daemon")
+}
+
+// TestTicketStore_ClaimRejectsAStaleTicket covers the reason Claim re-reads the
+// record: the caller holds a *Ticket that Resolve handed out before another
+// enrollment consumed it.
+func TestTicketStore_ClaimRejectsAStaleTicket(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := newTicketStore(t)
+
+	ticket, key, err := store.Create(ctx, CreateTicketInput{Owner: "plugin:1", TTL: time.Hour})
+	require.NoError(t, err)
+
+	first, err := store.Resolve(ctx, key)
+	require.NoError(t, err)
+	second, err := store.Resolve(ctx, key)
+	require.NoError(t, err)
+
+	require.NoError(t, store.Claim(ctx, first))
+	require.NoError(t, store.Consume(ctx, first, 17))
+
+	assert.ErrorIs(t, store.Claim(ctx, second), ErrTicketConsumed)
+
+	stored, err := store.Get(ctx, ticket.ID)
+	require.NoError(t, err)
+	assert.Equal(t, uint(17), stored.NodeID, "the losing claim must not overwrite the winner")
+}
+
+func TestTicketStore_ClaimRejectsAnExpiredTicket(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := newTicketStore(t)
+
+	ticket, _, err := store.Create(ctx, CreateTicketInput{Owner: "plugin:1", TTL: time.Hour})
+	require.NoError(t, err)
+
+	store.now = func() time.Time { return time.Now().Add(2 * time.Hour) }
+
+	err = store.Claim(ctx, ticket)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidSetupKey)
+	assert.Contains(t, err.Error(), "expired")
+}
+
+// TestTicketStore_ConcurrentClaims is the race the lock exists for: many
+// daemons presenting the same setup key at once must produce exactly one claim.
+func TestTicketStore_ConcurrentClaims(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	store := newTicketStore(t)
+
+	_, key, err := store.Create(ctx, CreateTicketInput{Owner: "plugin:1", TTL: time.Hour})
+	require.NoError(t, err)
+
+	const racers = 16
+
+	var (
+		start   sync.WaitGroup
+		done    sync.WaitGroup
+		claimed atomic.Int32
+	)
+
+	start.Add(1)
+	done.Add(racers)
+
+	for range racers {
+		go func() {
+			defer done.Done()
+
+			start.Wait()
+
+			ticket, resolveErr := store.Resolve(ctx, key)
+			if resolveErr != nil {
+				return
+			}
+
+			if store.Claim(ctx, ticket) == nil {
+				claimed.Add(1)
+			}
+		}()
+	}
+
+	start.Done()
+	done.Wait()
+
+	assert.Equal(t, int32(1), claimed.Load(), "exactly one daemon may enroll with a ticket")
 }
 
 func TestIsTicketKey(t *testing.T) {

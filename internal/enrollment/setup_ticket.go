@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/locker"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/pkg/errors"
 	"github.com/rs/xid"
@@ -31,6 +33,10 @@ const (
 	// consumedTicketRetention keeps a used ticket readable so the plugin that
 	// issued it can still learn which node it produced.
 	consumedTicketRetention = 24 * time.Hour
+
+	// claimLockTTL bounds how long a crashed instance can block a ticket. The
+	// claim itself is a cache read plus a write, so seconds are plenty.
+	claimLockTTL = 10 * time.Second
 )
 
 var (
@@ -63,7 +69,7 @@ type NodePresets struct {
 }
 
 // ApplyTo overwrites the enrollment defaults with the preset values.
-func (p NodePresets) ApplyTo(node *domain.Node) {
+func (p NodePresets) ApplyTo(node *domain.Node) error {
 	patch := domain.NodePatch{
 		Enabled:      p.Enabled,
 		Name:         p.Name,
@@ -74,7 +80,7 @@ func (p NodePresets) ApplyTo(node *domain.Node) {
 		Metadata:     p.Metadata,
 	}
 
-	patch.ApplyTo(node)
+	return patch.ApplyTo(node)
 }
 
 // Validate rejects presets the node model would not accept.
@@ -119,11 +125,19 @@ type CreateTicketInput struct {
 // enroll against any panel instance regardless of which one issued the key.
 type TicketStore struct {
 	cache cache.Cache
+	locks locker.Locker
 	now   func() time.Time
 }
 
-func NewTicketStore(c cache.Cache) *TicketStore {
-	return &TicketStore{cache: c, now: time.Now}
+// NewTicketStore builds the store. A nil locker falls back to a process-local
+// one: single-instance deployments still get mutual exclusion, and tests do not
+// need a backend.
+func NewTicketStore(c cache.Cache, locks locker.Locker) *TicketStore {
+	if locks == nil {
+		locks = locker.NewInMemoryLocker()
+	}
+
+	return &TicketStore{cache: c, locks: locks, now: time.Now}
 }
 
 // Create mints a ticket and returns it together with the setup key, which is
@@ -224,14 +238,67 @@ func (s *TicketStore) Resolve(ctx context.Context, setupKey string) (*Ticket, er
 	return ticket, nil
 }
 
-// Consume marks the ticket used and records the node the daemon became. The
+// Claim takes the ticket for the caller before any node exists. The cache has
+// no compare-and-set, so the read-check-write runs under a distributed lock and
+// re-reads the stored record: two daemons racing with the same key can no
+// longer both pass Resolve and both enroll. The caller records the node it
+// created afterwards with Consume.
+func (s *TicketStore) Claim(ctx context.Context, ticket *Ticket) error {
+	lock, err := s.locks.Acquire(ctx, setupTicketCachePrefix+ticket.ID, claimLockTTL)
+	if err != nil {
+		if errors.Is(err, locker.ErrLocked) {
+			// Another enrollment is inside this ticket's claim right now.
+			return ErrTicketConsumed
+		}
+
+		return errors.WithMessage(err, "failed to lock enrollment ticket")
+	}
+
+	defer func() {
+		if releaseErr := lock.Release(ctx); releaseErr != nil {
+			slog.WarnContext(ctx, "failed to release enrollment ticket lock",
+				slog.String("ticket_id", ticket.ID),
+				slog.String("error", releaseErr.Error()))
+		}
+	}()
+
+	stored, err := s.Get(ctx, ticket.ID)
+	if err != nil {
+		return err
+	}
+
+	if stored.Status == TicketStatusConsumed {
+		return ErrTicketConsumed
+	}
+
+	if s.now().After(stored.ExpiresAt) {
+		return ErrTicketExpired
+	}
+
+	now := s.now()
+	stored.Status = TicketStatusConsumed
+	stored.ConsumedAt = &now
+
+	if err := s.store(ctx, stored, consumedTicketRetention); err != nil {
+		return err
+	}
+
+	ticket.Status = stored.Status
+	ticket.ConsumedAt = stored.ConsumedAt
+
+	return nil
+}
+
+// Consume records the node the daemon became on an already claimed ticket. The
 // record survives for a while so the issuer can still read the result.
 func (s *TicketStore) Consume(ctx context.Context, ticket *Ticket, nodeID uint) error {
 	now := s.now()
 
 	ticket.Status = TicketStatusConsumed
 	ticket.NodeID = nodeID
-	ticket.ConsumedAt = &now
+	if ticket.ConsumedAt == nil {
+		ticket.ConsumedAt = &now
+	}
 
 	return s.store(ctx, ticket, consumedTicketRetention)
 }

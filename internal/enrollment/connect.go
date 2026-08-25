@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"net"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -72,16 +73,29 @@ func (r *ConnectResolver) Resolve(fallbackHost string) (ConnectTarget, error) {
 
 // NormalizeHost strips a scheme and a port from a host value, so a raw Host
 // header or a plugin-supplied "https://panel.example.com:8080" resolves to the
-// bare hostname.
+// bare hostname. IPv6 survives in every shape it arrives in: cutting at the
+// first colon would turn "[2001:db8::1]:31718" into "[2001".
 func NormalizeHost(raw string) string {
 	host := strings.TrimSpace(raw)
 	host = strings.TrimPrefix(host, "http://")
 	host = strings.TrimPrefix(host, "https://")
 
-	if idx := strings.IndexByte(host, ':'); idx != -1 {
-		host = host[:idx]
+	if host == "" {
+		return ""
 	}
 
+	// "panel.example.com:8080" and "[2001:db8::1]:31718".
+	if hostname, _, err := net.SplitHostPort(host); err == nil {
+		return hostname
+	}
+
+	// "[2001:db8::1]" — bracketed, but no port for SplitHostPort to find.
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		return host[1 : len(host)-1]
+	}
+
+	// A name without a port, or a bare IPv6 literal that SplitHostPort rejects
+	// as having too many colons.
 	return host
 }
 

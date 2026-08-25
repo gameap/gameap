@@ -740,20 +740,26 @@ if !conn.Success {
 // store conn.HostKeyFingerprintSha256, then reconnect with
 // &ssh.HostKeyPolicy{FingerprintsSha256: []string{stored}}
 
-// 3. A short command answers inline.
+// 3. A short command answers inline, and the connection is done with.
 out, _ := sshc.Exec(ctx, &ssh.ExecRequest{Handle: conn.Handle, Command: "uname -a"})
 if out.Completed && out.OpSuccess {
     log.Info(string(out.Stdout))
 }
 
-// 4. A daemon install takes minutes — start it and let the panel call back.
+sshc.Disconnect(ctx, &ssh.DisconnectRequest{Handle: conn.Handle})
+```
+
+A daemon install takes minutes, so it runs asynchronously. `Disconnect` cancels
+every operation still running on the connection, so the handle has to stay open
+until the completion callback arrives:
+
+```go
 op, _ := sshc.StartExec(ctx, &ssh.ExecRequest{
     Handle:  conn.Handle,
     Command: "bash -s",
     Stdin:   []byte(installScript), // from gameap-nodes.CreateSetupKey
 })
-
-sshc.Disconnect(ctx, &ssh.DisconnectRequest{Handle: conn.Handle})
+// Keep conn.Handle open here; persist it together with op.OperationId.
 ```
 
 Completion is pushed into the plugin when it exports the handler:
@@ -768,6 +774,10 @@ func (p *myPlugin) HandleExecCompleted(
 ) (*ssh.HandleExecCompletedResponse, error) {
     // Fetch the output with GetExecOperation; persist what you need, because
     // plugin memory does not survive a reload.
+
+    // The install has finished, so the connection can go now.
+    sshc.Disconnect(ctx, &ssh.DisconnectRequest{Handle: storedHandle})
+
     return &ssh.HandleExecCompletedResponse{}, nil
 }
 ```

@@ -14,11 +14,14 @@ import (
 // closingHostLib is a factory-created library that owns per-plugin resources;
 // the manager must release it on every path that ends a plugin's life.
 type closingHostLib struct {
-	closes   *atomic.Int32
-	closeErr error
+	closes         *atomic.Int32
+	closeErr       error
+	instantiateErr error
 }
 
-func (l *closingHostLib) Instantiate(context.Context, wazero.Runtime) error { return nil }
+func (l *closingHostLib) Instantiate(context.Context, wazero.Runtime) error {
+	return l.instantiateErr
+}
 
 func (l *closingHostLib) Close(context.Context) error {
 	l.closes.Add(1)
@@ -27,12 +30,13 @@ func (l *closingHostLib) Close(context.Context) error {
 }
 
 type closingHostLibFactory struct {
-	closes   *atomic.Int32
-	closeErr error
+	closes         *atomic.Int32
+	closeErr       error
+	instantiateErr error
 }
 
 func (f closingHostLibFactory) Create(uint64) HostLibrary {
-	return &closingHostLib{closes: f.closes, closeErr: f.closeErr}
+	return &closingHostLib{closes: f.closes, closeErr: f.closeErr, instantiateErr: f.instantiateErr}
 }
 
 func TestHostLibraryCloser_ReleasedOnEveryPluginExit(t *testing.T) {
@@ -130,6 +134,27 @@ func TestHostLibraryCloser_ClosedWhenALaterFactoryFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, int32(1), closes.Load())
+}
+
+// TestHostLibraryCloser_ClosedWhenItsOwnInstantiateFails: Create and a partial
+// Instantiate can already have allocated plugin-scoped state, so the library
+// that failed is released too, not only the ones built before it.
+func TestHostLibraryCloser_ClosedWhenItsOwnInstantiateFails(t *testing.T) {
+	t.Parallel()
+	earlier := &atomic.Int32{}
+	failing := &atomic.Int32{}
+	manager := NewManager(ManagerConfig{
+		LibraryFactories: []HostLibraryFactory{
+			closingHostLibFactory{closes: earlier},
+			closingHostLibFactory{closes: failing, instantiateErr: errTestHostLibFactory},
+		},
+	})
+
+	_, err := manager.LoadTransient(context.Background(), emptyWASMModule, nil, 0)
+
+	require.Error(t, err)
+	assert.Equal(t, int32(1), failing.Load(), "the library whose Instantiate failed must be closed")
+	assert.Equal(t, int32(1), earlier.Load(), "the libraries built before it must be closed too")
 }
 
 // TestHostLibraryCloser_CloseErrorDoesNotBreakUnload: cleanup failures are

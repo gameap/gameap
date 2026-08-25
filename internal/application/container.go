@@ -1694,7 +1694,11 @@ func (c *Container) CertificatesService() *certificates.Service {
 func (c *Container) EnrollmentService() *enrollment.Service {
 	if c.enrollmentService == nil {
 		keyManager := enrollment.NewSetupKeyManager(c.Cache(), c.config.DaemonSetupKey)
-		opts := []enrollment.ServiceOption{}
+		opts := []enrollment.ServiceOption{
+			// Enrollment tickets are single-use, so the claim must be exclusive
+			// across every panel instance, not only within this process.
+			enrollment.WithLocker(c.SchedulerLocker()),
+		}
 		if !c.config.Plugins.Disabled {
 			opts = append(opts, enrollment.WithNodeEvents(&lazyPluginNodeEvents{container: c}))
 		}
@@ -1744,7 +1748,12 @@ func (c *Container) EnrollmentConnectResolver() *enrollment.ConnectResolver {
 
 func (c *Container) NodeService() *services.NodeService {
 	if c.nodeService == nil {
-		c.nodeService = services.NewNodeService(c.NodeRepository(), c.ServerRepository())
+		opts := []services.NodeServiceOption{}
+		if !c.config.Plugins.Disabled {
+			opts = append(opts, services.WithNodePluginEvents(&lazyPluginNodeEvents{container: c}))
+		}
+
+		c.nodeService = services.NewNodeService(c.NodeRepository(), c.ServerRepository(), opts...)
 	}
 
 	return c.nodeService
@@ -2910,8 +2919,9 @@ func (l *lazyPluginNodeSessions) dispatch(
 	l.container.pluginDispatcher.DispatchNodeEventAsync(ctx, eventType, &nodes[0], extra)
 }
 
-// lazyPluginNodeEvents forwards NODE_CREATED from the enrollment service,
-// which the gateway builds before the plugin runtime exists.
+// lazyPluginNodeEvents forwards node events from services the gateway builds
+// before the plugin runtime exists: NODE_CREATED from enrollment, and the
+// NODE_PRE_DELETE / NODE_DELETED pair from the node service.
 type lazyPluginNodeEvents struct {
 	container *Container
 }
@@ -2923,6 +2933,24 @@ func (l *lazyPluginNodeEvents) DispatchNodeEventAsync(
 	extraData map[string]string,
 ) {
 	l.container.PluginDispatcher().DispatchNodeEventAsync(ctx, eventType, node, extraData)
+}
+
+func (l *lazyPluginNodeEvents) DispatchNodeEvent(
+	ctx context.Context,
+	eventType pluginproto.EventType,
+	node *domain.Node,
+	extraData map[string]string,
+) services.NodeEventVeto {
+	result := l.container.PluginDispatcher().DispatchNodeEvent(ctx, eventType, node, extraData)
+	if result == nil {
+		return services.NodeEventVeto{}
+	}
+
+	return services.NodeEventVeto{
+		Cancelled:     result.Cancelled,
+		CancelledBy:   result.CancelledBy,
+		CancelMessage: result.CancelMessage,
+	}
 }
 
 func (c *Container) TaskHandler() *handlers.TaskHandler {

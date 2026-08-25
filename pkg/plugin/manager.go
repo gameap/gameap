@@ -653,15 +653,23 @@ func (m *Manager) instantiateLibraries(
 
 	for _, factory := range m.config.LibraryFactories {
 		lib := factory.Create(pluginID)
+		closer, isCloser := lib.(HostLibraryCloser)
+
 		if err := lib.Instantiate(ctx, r); err != nil {
-			// The libraries built so far already hold resources for this
-			// plugin, and nothing else will ever close them.
+			// Create and a partial Instantiate may already have allocated
+			// plugin-scoped state, so this library is closed too, not only the
+			// ones built before it. The libraries built so far already hold
+			// resources for this plugin, and nothing else will ever close them.
+			if isCloser {
+				closeHostLibraries(ctx, []HostLibraryCloser{closer})
+			}
+
 			closeHostLibraries(ctx, closers)
 
 			return nil, errors.WithMessage(err, "failed to instantiate factory host library")
 		}
 
-		if closer, ok := lib.(HostLibraryCloser); ok {
+		if isCloser {
 			closers = append(closers, closer)
 		}
 	}

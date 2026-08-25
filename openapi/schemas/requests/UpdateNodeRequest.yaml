@@ -94,12 +94,13 @@ properties:
       - "null"
     description: Custom delete script
   metadata:
-    type:
-      - object
-      - "null"
+    type: object
     additionalProperties: true
+    maxProperties: 512
     description: >-
       Node metadata (arbitrary key-value pairs). Omit the field to keep the stored
-      metadata; sending an object replaces it entirely.
+      metadata; sending an object replaces it entirely, and an empty object clears
+      it. `null` is not accepted: send `{}` to drop every key. At most 512 keys,
+      each key up to 255 characters and each value up to 16 KiB once serialized.
     example:
       hetzner.server_id: "123456"

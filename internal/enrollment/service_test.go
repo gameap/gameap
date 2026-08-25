@@ -7,7 +7,9 @@ package enrollment
 
 import (
 	"context"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -298,6 +300,61 @@ func TestService_Enroll_WithTicket(t *testing.T) {
 	_, err = svc.Enroll(ctx, setupKey, &EnrollInput{Host: "203.0.113.11", Port: 31717, OS: "linux"})
 	require.Error(t, err, "a ticket must enroll exactly one daemon")
 	assert.ErrorIs(t, err, ErrInvalidSetupKey)
+}
+
+// TestService_Enroll_ConcurrentTicketEnrollmentsCreateOneNode: the ticket is
+// claimed before the node is written, so daemons racing with one setup key can
+// no longer all pass Resolve and each get their own node.
+func TestService_Enroll_ConcurrentTicketEnrollmentsCreateOneNode(t *testing.T) {
+	t.Parallel()
+
+	svc, _ := setupService(t)
+	ctx := context.Background()
+
+	ticket, setupKey, err := svc.Tickets().Create(ctx, CreateTicketInput{Owner: "plugin:7", TTL: time.Hour})
+	require.NoError(t, err)
+
+	const racers = 8
+
+	var (
+		start     sync.WaitGroup
+		done      sync.WaitGroup
+		succeeded atomic.Int32
+	)
+
+	start.Add(1)
+	done.Add(racers)
+
+	for i := range racers {
+		go func() {
+			defer done.Done()
+
+			start.Wait()
+
+			_, enrollErr := svc.Enroll(ctx, setupKey, &EnrollInput{
+				Host: "203.0.113." + strconv.Itoa(i+10),
+				Port: 31717,
+				OS:   "linux",
+			})
+			if enrollErr == nil {
+				succeeded.Add(1)
+			}
+		}()
+	}
+
+	start.Done()
+	done.Wait()
+
+	assert.Equal(t, int32(1), succeeded.Load(), "a ticket must enroll exactly one daemon")
+
+	nodes, err := svc.nodesRepo.FindAll(ctx, nil, nil)
+	require.NoError(t, err)
+	assert.Len(t, nodes, 1, "a lost race must not leave a node behind")
+
+	stored, err := svc.Tickets().Get(ctx, ticket.ID)
+	require.NoError(t, err)
+	assert.Equal(t, TicketStatusConsumed, stored.Status)
+	assert.Equal(t, nodes[0].ID, stored.NodeID)
 }
 
 // TestService_Enroll_TicketDoesNotDisturbTheGlobalKey: an admin key in flight
