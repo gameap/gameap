@@ -13,6 +13,11 @@ import (
 type FileService interface {
 	GetFileInfo(ctx context.Context, node *domain.Node, path string) (*daemon.FileDetails, error)
 	DownloadStream(ctx context.Context, node *domain.Node, filePath string) (io.ReadCloser, error)
+	// DownloadStreamRange serves a byte range, which is what makes an
+	// interrupted download resumable instead of starting over.
+	DownloadStreamRange(
+		ctx context.Context, node *domain.Node, filePath string, offset, length uint64,
+	) (io.ReadCloser, error)
 }
 
 // PermissionChecker answers whether the plugin holds a grant; satisfied by

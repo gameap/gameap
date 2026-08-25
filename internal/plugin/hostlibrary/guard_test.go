@@ -485,6 +485,7 @@ func TestHostRPCPolicies_cover_generated_exports(t *testing.T) {
 		ModuleServerSettings: "serversettings",
 		ModuleHost:           "host",
 		ModuleSSH:            "ssh",
+		ModuleNodes:          "nodes",
 	}
 
 	// Read-only functions of mixed modules that deliberately need no grant,
@@ -498,6 +499,8 @@ func TestHostRPCPolicies_cover_generated_exports(t *testing.T) {
 		{ModuleHost, "get_config"}:                     {},
 		{ModuleHost, "get_host_info"}:                  {},
 		{ModuleHost, "report_status"}:                  {},
+		{ModuleNodes, "find_nodes"}:                    {},
+		{ModuleNodes, "get_node"}:                      {},
 	}
 
 	for module, dir := range modules {
@@ -547,6 +550,10 @@ func TestPermissionForImport(t *testing.T) {
 		{name: "nodefs", module: ModuleNodeFS, export: "upload", wantPerm: domain.PluginPermissionFiles, wantOK: true},
 		{name: "http_has_no_grant", module: ModuleHTTP, export: "fetch", wantOK: false},
 		{name: "read_only_module", module: "gameap-users", export: "get_user", wantOK: false},
+		// gameap-nodes gained write operations; a plugin that retires a node
+		// must show up as needing manage_nodes in the dry-run and the admin UI.
+		{name: "nodes_write", module: ModuleNodes, export: "delete_node", wantPerm: domain.PluginPermissionManageNodes, wantOK: true},
+		{name: "nodes_read", module: ModuleNodes, export: "get_node", wantOK: false},
 		{name: "unknown_function", module: ModuleNodeCmd, export: "nope", wantOK: false},
 	}
 

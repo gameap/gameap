@@ -212,3 +212,117 @@ func TestNodeFSHostLibraryFactory_passes_options(t *testing.T) {
 	assert.Equal(t, uint64(123), lib.impl.maxInlineBytes)
 	assert.Equal(t, uint64(42), lib.impl.pluginID)
 }
+
+// A file past the inline limit used to be unreadable altogether. Naming a
+// window makes it readable a piece at a time: only the window has to fit.
+func TestNodeFSService_Download_windowed(t *testing.T) {
+	t.Parallel()
+
+	const (
+		inlineCap = 1024
+		fileSize  = 10_000
+	)
+
+	tests := []struct {
+		name       string
+		offset     uint64
+		length     uint64
+		wantOffset uint64
+		wantRead   uint64 // the limit handed to the node; 0 = no read expected
+		wantServed uint64 // the bytes that reach the guest
+		wantError  string
+	}{
+		{
+			name:   "a_whole_file_past_the_cap_is_still_refused",
+			offset: 0, length: 0,
+			wantError: "file too large",
+		},
+		{
+			name:   "a_window_inside_the_cap_is_served",
+			offset: 4096, length: 512,
+			wantOffset: 4096, wantRead: 513, wantServed: 512,
+		},
+		{
+			name:   "a_window_larger_than_the_cap_is_refused",
+			offset: 0, length: inlineCap + 1,
+			wantError: "window too large",
+		},
+		{
+			name:   "an_open_ended_window_is_cut_to_the_cap",
+			offset: 4096, length: 0,
+			wantOffset: 4096, wantRead: inlineCap + 1, wantServed: inlineCap,
+		},
+		{
+			name:   "the_last_window_is_served_short",
+			offset: fileSize - 256, length: 512,
+			wantOffset: fileSize - 256, wantRead: 513, wantServed: 256,
+		},
+		{
+			name:   "a_window_past_the_end_answers_empty",
+			offset: fileSize, length: 512,
+			wantOffset: fileSize,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var reads atomic.Int32
+			var gotOffset, gotLimit atomic.Uint64
+			fs := &mockFileService{
+				getFileInfoFunc: func(_ context.Context, _ *domain.Node, _ string) (*daemon.FileDetails, error) {
+					return &daemon.FileDetails{Name: "big.bin", Size: fileSize}, nil
+				},
+				downloadRangeFunc: func(
+					_ context.Context, _ *domain.Node, _ string, offset, limit uint64,
+				) ([]byte, error) {
+					reads.Add(1)
+					gotOffset.Store(offset)
+					gotLimit.Store(limit)
+
+					// What the node does, and what the trimming depends on: at
+					// most limit bytes from offset, limit 0 reading to the end.
+					available := fileSize - min(fileSize, offset)
+					if limit == 0 {
+						limit = available
+					}
+
+					return make([]byte, min(limit, available)), nil
+				},
+			}
+			svc := newCappedNodeFSService(fs, inlineCap)
+
+			resp, err := svc.Download(context.Background(), &nodefs.DownloadRequest{
+				NodeId: 1, Path: "/home/big.bin", Offset: tt.offset, Length: tt.length,
+			})
+			require.NoError(t, err)
+
+			if tt.wantError != "" {
+				require.NotNil(t, resp.Error)
+				assert.Contains(t, *resp.Error, tt.wantError)
+				assert.Zero(t, reads.Load(), "a refused window never reaches the node")
+
+				return
+			}
+
+			require.Nil(t, resp.Error)
+			assert.Equal(t, tt.wantOffset, resp.Offset, "the offset is echoed back")
+			assert.Equal(t, uint64(fileSize), resp.TotalSize, "so the caller knows when to stop paging")
+			assert.Equal(t, tt.wantServed, uint64(len(resp.Content)),
+				"the guest is served the window it asked for, never the extra byte the read took")
+
+			if tt.wantRead == 0 {
+				assert.Zero(t, reads.Load(), "reading past the end costs no round trip")
+				assert.Empty(t, resp.Content)
+
+				return
+			}
+
+			require.Equal(t, int32(1), reads.Load())
+			assert.Equal(t, tt.wantOffset, gotOffset.Load())
+			assert.Equal(t, tt.wantRead, gotLimit.Load(),
+				"the node is asked for one byte past the window, to tell full from cut")
+		})
+	}
+}

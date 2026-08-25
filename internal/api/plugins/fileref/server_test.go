@@ -75,6 +75,10 @@ type fakeFileService struct {
 	infoCalls  int
 	streamOpen *closeRecorder
 	reader     io.Reader
+	// What the last ranged read asked for, so a test can assert the window
+	// reached the daemon rather than being trimmed on the way out.
+	rangeOffset uint64
+	rangeLength uint64
 }
 
 func (f *fakeFileService) GetFileInfo(_ context.Context, _ *domain.Node, _ string) (*daemon.FileDetails, error) {
@@ -87,6 +91,34 @@ func (f *fakeFileService) GetFileInfo(_ context.Context, _ *domain.Node, _ strin
 	}
 
 	return f.info, nil
+}
+
+func (f *fakeFileService) DownloadStreamRange(
+	_ context.Context, _ *domain.Node, _ string, offset, length uint64,
+) (io.ReadCloser, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.streamErr != nil {
+		return nil, f.streamErr
+	}
+
+	f.rangeOffset, f.rangeLength = offset, length
+
+	window := f.content
+	if offset < uint64(len(window)) {
+		window = window[offset:]
+	} else {
+		window = ""
+	}
+
+	if length > 0 && uint64(len(window)) > length {
+		window = window[:length]
+	}
+
+	f.streamOpen = &closeRecorder{Reader: strings.NewReader(window)}
+
+	return f.streamOpen, nil
 }
 
 func (f *fakeFileService) DownloadStream(_ context.Context, _ *domain.Node, _ string) (io.ReadCloser, error) {
@@ -170,10 +202,10 @@ func TestServeFileRef_streams_attachment(t *testing.T) {
 	assert.Equal(t, "a,b\n1", w.Body.String())
 	assert.Equal(t, "text/csv; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Equal(t, `attachment; filename=report.csv; filename*=UTF-8''report.csv`, w.Header().Get("Content-Disposition"))
-	assert.Empty(t, w.Header().Get("Content-Length"), "length is not declared: the stream may not match the stat")
+	assert.Equal(t, "5", w.Header().Get("Content-Length"), "the length the stat reported, so the client sees size and progress")
 	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
 	assert.Equal(t, "sandbox", w.Header().Get("Content-Security-Policy"))
-	assert.Equal(t, "none", w.Header().Get("Accept-Ranges"))
+	assert.Equal(t, "bytes", w.Header().Get("Accept-Ranges"), "ranges are served, so an interrupted download can resume")
 	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
 	assert.Equal(t, "exporter", w.Header().Get("X-Plugin"), "custom plugin headers pass through")
 	require.NotNil(t, files.streamOpen)
@@ -238,7 +270,8 @@ func TestServeFileRef_header_contract(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			wantHeaders: map[string]string{
-				"Content-Length":      "",
+				// The panel's own length wins over whatever the plugin claimed.
+				"Content-Length":      "5",
 				"Content-Disposition": `attachment; filename=a.bin; filename*=UTF-8''a.bin`,
 				"Content-Encoding":    "",
 				"Transfer-Encoding":   "",
@@ -606,4 +639,136 @@ func TestServeFileRef_path_policy(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+}
+
+// The stat and the stream are separate daemon calls and can disagree. The
+// declared length is the stat's, so the copy is bounded by it: a file that grew
+// in between must not push a body past the length the client was promised.
+func TestServeFileRef_a_stream_longer_than_the_stat_is_cut_to_the_declared_length(t *testing.T) {
+	t.Parallel()
+
+	files := &fakeFileService{info: csvFile(), content: "a,b\n1 and then some more"}
+	server := newTestServer(t, files, fakeChecker{allowed: true}, nil)
+	w := httptest.NewRecorder()
+
+	err := server.ServeFileRef(w, authenticatedRequest(), fileRequest(
+		&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/servers/cs2/report.csv"},
+		nil,
+		0,
+	))
+	require.NoError(t, err)
+
+	assert.Equal(t, "5", w.Header().Get("Content-Length"))
+	assert.Equal(t, "a,b\n1", w.Body.String(), "the body is exactly as long as the header says")
+}
+
+// The other direction: a file that shrank ends the copy short. Nothing can be
+// reported to the client at that point, but the body no longer looks complete —
+// net/http fails a response that writes less than its Content-Length, which is
+// the whole reason the length is declared.
+func TestServeFileRef_a_stream_shorter_than_the_stat_does_not_look_complete(t *testing.T) {
+	t.Parallel()
+
+	files := &fakeFileService{info: csvFile(), content: "ab"}
+	server := newTestServer(t, files, fakeChecker{allowed: true}, nil)
+	w := httptest.NewRecorder()
+
+	err := server.ServeFileRef(w, authenticatedRequest(), fileRequest(
+		&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/servers/cs2/report.csv"},
+		nil,
+		0,
+	))
+	require.NoError(t, err)
+
+	assert.Equal(t, "5", w.Header().Get("Content-Length"))
+	assert.Equal(t, "ab", w.Body.String())
+	assert.Less(t, w.Body.Len(), 5, "short of the declared length, so the transfer cannot pass as finished")
+}
+
+// Resuming an interrupted download is the whole reason ranges are served: the
+// window must reach the daemon, so the bytes before it are never pulled off the
+// node at all.
+func TestServeFileRef_serves_a_byte_range(t *testing.T) {
+	t.Parallel()
+
+	files := &fakeFileService{info: csvFile(), content: "a,b\n1"}
+	server := newTestServer(t, files, fakeChecker{allowed: true}, nil)
+	w := httptest.NewRecorder()
+	req := authenticatedRequest()
+	req.Header.Set("Range", "bytes=2-4")
+
+	err := server.ServeFileRef(w, req, fileRequest(
+		&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/servers/cs2/report.csv"}, nil, 0,
+	))
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusPartialContent, w.Code)
+	assert.Equal(t, "bytes 2-4/5", w.Header().Get("Content-Range"))
+	assert.Equal(t, "3", w.Header().Get("Content-Length"))
+	assert.Equal(t, "b\n1", w.Body.String())
+	assert.Equal(t, uint64(2), files.rangeOffset, "the offset reached the daemon")
+	assert.Equal(t, uint64(3), files.rangeLength)
+}
+
+func TestServeFileRef_a_range_past_the_end_is_416(t *testing.T) {
+	t.Parallel()
+
+	files := &fakeFileService{info: csvFile(), content: "a,b\n1"}
+	server := newTestServer(t, files, fakeChecker{allowed: true}, nil)
+	w := httptest.NewRecorder()
+	req := authenticatedRequest()
+	req.Header.Set("Range", "bytes=500-")
+
+	err := server.ServeFileRef(w, req, fileRequest(
+		&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/servers/cs2/report.csv"}, nil, 0,
+	))
+
+	require.Error(t, err, "the caller turns this into a 416")
+	assert.Equal(t, "bytes */5", w.Header().Get("Content-Range"), "and says how long the file really is")
+	assert.Nil(t, files.streamOpen, "nothing is read off the node for a range that cannot be served")
+}
+
+// A header the parser cannot use is not an error: RFC 9110 lets a server ignore
+// it, and answering the whole file is better than refusing the download.
+func TestServeFileRef_an_unusable_range_falls_back_to_the_whole_file(t *testing.T) {
+	t.Parallel()
+
+	files := &fakeFileService{info: csvFile(), content: "a,b\n1"}
+	server := newTestServer(t, files, fakeChecker{allowed: true}, nil)
+	w := httptest.NewRecorder()
+	req := authenticatedRequest()
+	req.Header.Set("Range", "bytes=0-9,20-29")
+
+	err := server.ServeFileRef(w, req, fileRequest(
+		&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/servers/cs2/report.csv"}, nil, 0,
+	))
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "a,b\n1", w.Body.String())
+	assert.Empty(t, w.Header().Get("Content-Range"))
+	assert.Zero(t, files.rangeOffset, "the ranged read was never opened")
+}
+
+// A plugin that chose its own status said something about the response that the
+// transfer layer must not rewrite into a 206.
+func TestServeFileRef_a_range_is_ignored_when_the_plugin_set_its_own_status(t *testing.T) {
+	t.Parallel()
+
+	files := &fakeFileService{info: csvFile(), content: "a,b\n1"}
+	server := newTestServer(t, files, fakeChecker{allowed: true}, nil)
+	w := httptest.NewRecorder()
+	req := authenticatedRequest()
+	req.Header.Set("Range", "bytes=2-4")
+
+	err := server.ServeFileRef(w, req, fileRequest(
+		&proto.FileRef{NodeId: testNodeID, Path: "/srv/gameap/servers/cs2/report.csv"},
+		nil,
+		http.StatusCreated,
+	))
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, "a,b\n1", w.Body.String())
+	assert.Empty(t, w.Header().Get("Content-Range"))
 }

@@ -45,10 +45,10 @@ func newNodeCmdService(
 	cmd NodeCommandService, repo *inmemory.NodeRepository, repoFails bool,
 ) *NodeCmdServiceImpl {
 	if repoFails {
-		return NewNodeCmdService(cmd, &errNodeRepository{NodeRepository: repo}, allowAllGuard(testPluginID))
+		return NewNodeCmdService(testPluginID, cmd, &errNodeRepository{NodeRepository: repo}, allowAllGuard(testPluginID))
 	}
 
-	return NewNodeCmdService(cmd, repo, allowAllGuard(testPluginID))
+	return NewNodeCmdService(testPluginID, cmd, repo, allowAllGuard(testPluginID))
 }
 
 func TestNodeCmdService_ExecuteCommand(t *testing.T) {
@@ -223,7 +223,7 @@ func TestNodeCmdService_ExecuteCommand_ForwardsCommandAndWorkDir(t *testing.T) {
 			return &daemon.CommandResult{Output: "ok", ExitCode: 0}, nil
 		},
 	}
-	svc := NewNodeCmdService(cmdSvc, repo, allowAllGuard(testPluginID))
+	svc := NewNodeCmdService(testPluginID, cmdSvc, repo, allowAllGuard(testPluginID))
 
 	// ACT
 	resp, err := svc.ExecuteCommand(context.Background(), &nodecmd.ExecuteCommandRequest{
@@ -255,7 +255,7 @@ func TestNodeCmdService_ExecuteCommand_OmitsWorkDirOptionWhenUnset(t *testing.T)
 			return &daemon.CommandResult{Output: "ok", ExitCode: 0}, nil
 		},
 	}
-	svc := NewNodeCmdService(cmdSvc, repo, allowAllGuard(testPluginID))
+	svc := NewNodeCmdService(testPluginID, cmdSvc, repo, allowAllGuard(testPluginID))
 
 	// ACT
 	_, err := svc.ExecuteCommand(context.Background(), &nodecmd.ExecuteCommandRequest{

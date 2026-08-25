@@ -169,7 +169,7 @@ func TestNodeCmdService_work_dir_policy(t *testing.T) {
 		return &daemon.CommandResult{}, nil
 	}}
 	guard := NewGuard(grantSet{domain.PluginPermissionNodeCommands: true}, WithGuardAudit(recorder)).For(testPluginID)
-	svc := NewNodeCmdService(cmd, repo, guard, WithNodeCmdPathPolicy(workPathPolicy(t)))
+	svc := NewNodeCmdService(testPluginID, cmd, repo, guard, WithNodeCmdPathPolicy(workPathPolicy(t)))
 
 	resp, err := svc.ExecuteCommand(context.Background(), &nodecmd.ExecuteCommandRequest{
 		NodeId: 1, Command: "ls", WorkDir: new("/etc"),
@@ -235,4 +235,30 @@ func TestNodeFSService_archive_without_a_base_path_is_not_refused(t *testing.T) 
 	require.Len(t, calls, 1)
 	require.NotNil(t, calls[0].create)
 	assert.Empty(t, calls[0].create.BasePath, "the empty base path reaches the daemon unchanged")
+}
+
+// The production wiring reaches gameap-nodefs through the factory, not through
+// NewNodeFSService, and the factory silently defaults to the unrestricted
+// policy when the option is not passed. That is exactly how the policy came to
+// be enforced on gameap-nodecmd and on file references but not on gameap-nodefs
+// itself, so the propagation is pinned here rather than left to the direct
+// constructor the other tests use.
+func TestNodeFSHostLibraryFactory_propagates_the_path_policy(t *testing.T) {
+	t.Parallel()
+
+	repo := setupNodeFSRepo(seedWorkPathNode)
+	fs := refusingFileService(t)
+
+	factory := NewNodeFSHostLibraryFactory(fs, repo, newMockArchiveService(), &mockRegistrar{},
+		NewGuard(grantSet{domain.PluginPermissionFiles: true}),
+		WithNodeFSPathPolicy(workPathPolicy(t)))
+
+	library, ok := factory.Create(testPluginID).(*NodeFSHostLibrary)
+	require.True(t, ok, "the factory builds a NodeFSHostLibrary")
+
+	resp, err := library.impl.ReadDir(context.Background(),
+		&nodefs.ReadDirRequest{NodeId: 1, Path: "/etc/shadow"})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Error, "a path outside the work path must be refused")
+	assert.Contains(t, *resp.Error, "path policy")
 }

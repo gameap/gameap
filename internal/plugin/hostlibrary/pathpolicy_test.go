@@ -114,7 +114,7 @@ func linuxNode() *domain.Node {
 func TestPathScope_unrestricted_refuses_only_traversal(t *testing.T) {
 	t.Parallel()
 
-	scope, err := DefaultPathPolicy().ScopeFor(context.Background(), linuxNode())
+	scope, err := DefaultPathPolicy().ScopeFor(context.Background(), linuxNode(), testPluginID)
 	require.NoError(t, err)
 
 	assert.Nil(t, scope.Check("/etc/passwd"))
@@ -133,7 +133,7 @@ func TestPathScope_node_workpath(t *testing.T) {
 	policy, err := NewPathPolicy(PathPolicyConfig{Mode: PathPolicyNodeWorkPath, AllowedPaths: []string{"/opt/shared"}}, nil)
 	require.NoError(t, err)
 
-	scope, err := policy.ScopeFor(context.Background(), linuxNode())
+	scope, err := policy.ScopeFor(context.Background(), linuxNode(), testPluginID)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -175,7 +175,7 @@ func TestPathScope_windows_nodes_compare_case_insensitively(t *testing.T) {
 	policy, err := NewPathPolicy(PathPolicyConfig{Mode: PathPolicyNodeWorkPath}, nil)
 	require.NoError(t, err)
 
-	scope, err := policy.ScopeFor(context.Background(), &domain.Node{ID: 2, OS: domain.NodeOSWindows, WorkPath: `C:\GameAP`})
+	scope, err := policy.ScopeFor(context.Background(), &domain.Node{ID: 2, OS: domain.NodeOSWindows, WorkPath: `C:\GameAP`}, testPluginID)
 	require.NoError(t, err)
 
 	assert.Nil(t, scope.Check(`c:\gameap\servers\cs`))
@@ -191,7 +191,7 @@ func TestPathScope_empty_work_path_fails_closed(t *testing.T) {
 	policy, err := NewPathPolicy(PathPolicyConfig{Mode: PathPolicyNodeWorkPath}, nil)
 	require.NoError(t, err)
 
-	_, err = policy.ScopeFor(context.Background(), &domain.Node{ID: 3, OS: domain.NodeOSLinux})
+	_, err = policy.ScopeFor(context.Background(), &domain.Node{ID: 3, OS: domain.NodeOSLinux}, testPluginID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "work path is not configured")
 }
@@ -212,7 +212,7 @@ func TestPathScope_server_dirs(t *testing.T) {
 	policy, err := NewPathPolicy(PathPolicyConfig{Mode: PathPolicyServerDirs}, servers)
 	require.NoError(t, err)
 
-	scope, err := policy.ScopeFor(ctx, linuxNode())
+	scope, err := policy.ScopeFor(ctx, linuxNode(), testPluginID)
 	require.NoError(t, err)
 
 	assert.Nil(t, scope.Check("/home/servers/servers/cs/cfg/server.cfg"))
@@ -237,7 +237,7 @@ func TestPathScope_server_dirs_repository_failure_fails_closed(t *testing.T) {
 	policy, err := NewPathPolicy(PathPolicyConfig{Mode: PathPolicyServerDirs}, failingServerLister{})
 	require.NoError(t, err)
 
-	_, err = policy.ScopeFor(context.Background(), linuxNode())
+	_, err = policy.ScopeFor(context.Background(), linuxNode(), testPluginID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to list the node's servers")
 }
@@ -247,14 +247,73 @@ func TestPathScope_nil_node_or_policy_is_unrestricted(t *testing.T) {
 
 	var nilPolicy *PathPolicy
 
-	scope, err := nilPolicy.ScopeFor(context.Background(), linuxNode())
+	scope, err := nilPolicy.ScopeFor(context.Background(), linuxNode(), testPluginID)
 	require.NoError(t, err)
 	assert.Nil(t, scope.Check("/anything"))
 
 	policy, err := NewPathPolicy(PathPolicyConfig{Mode: PathPolicyNodeWorkPath}, nil)
 	require.NoError(t, err)
 
-	scope, err = policy.ScopeFor(context.Background(), nil)
+	scope, err = policy.ScopeFor(context.Background(), nil, testPluginID)
 	require.NoError(t, err)
 	assert.Nil(t, scope.Check("/anything"))
+}
+
+func TestPluginServiceDir(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "/home/servers/.plugins/a4", PluginServiceDir("/home/servers", testPluginID))
+	assert.Equal(t, "/home/servers/.plugins/fi", PluginServiceDir("/home/servers/", 42),
+		"a trailing separator on the work path changes nothing")
+
+	// A transient load (the upload dry-run) owns no directory, and neither
+	// does a node with no work path configured: both answer empty so the
+	// caller adds no root rather than one rooted at "/".
+	assert.Empty(t, PluginServiceDir("/home/servers", 0))
+	assert.Empty(t, PluginServiceDir("", testPluginID))
+	assert.Empty(t, PluginServiceDir("   ", testPluginID))
+}
+
+// server_dirs is the strictest mode and names only the game servers' own
+// directories. Without the service directory a plugin could not stage so much
+// as a request file there, so every restricted mode keeps its own open.
+func TestPathScope_server_dirs_keeps_the_plugins_own_service_dir_open(t *testing.T) {
+	t.Parallel()
+
+	repo := inmemory.NewServerRepository()
+	require.NoError(t, repo.Save(context.Background(),
+		&domain.Server{Name: "cs2", DSID: 1, Dir: "servers/cs2"}))
+
+	policy, err := NewPathPolicy(PathPolicyConfig{Mode: PathPolicyServerDirs}, repo)
+	require.NoError(t, err)
+
+	scope, err := policy.ScopeFor(context.Background(), linuxNode(), testPluginID)
+	require.NoError(t, err)
+
+	assert.Nil(t, scope.Check("/home/servers/.plugins/a4"))
+	assert.Nil(t, scope.Check("/home/servers/.plugins/a4/req/req-1.json"))
+	assert.Nil(t, scope.Check("/home/servers/servers/cs2/cfg/server.cfg"),
+		"the server directories are still the point of the mode")
+
+	// One plugin's scratch space is not another's.
+	require.NotNil(t, scope.Check("/home/servers/.plugins/fi/req/req-1.json"))
+	// And the root above them is nobody's.
+	require.NotNil(t, scope.Check("/home/servers/.plugins"))
+	require.NotNil(t, scope.Check("/home/servers/backups"))
+}
+
+// A transient load has no id, so it gets no service directory — it must not
+// fall back to something broader.
+func TestPathScope_a_transient_load_gets_no_service_dir(t *testing.T) {
+	t.Parallel()
+
+	repo := inmemory.NewServerRepository()
+	policy, err := NewPathPolicy(PathPolicyConfig{Mode: PathPolicyServerDirs}, repo)
+	require.NoError(t, err)
+
+	scope, err := policy.ScopeFor(context.Background(), linuxNode(), 0)
+	require.NoError(t, err)
+
+	assert.NotNil(t, scope.Check("/home/servers/.plugins/a4/req/req-1.json"))
+	assert.NotNil(t, scope.Check("/home/servers"))
 }

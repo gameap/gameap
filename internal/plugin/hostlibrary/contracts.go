@@ -32,6 +32,12 @@ type NodeFileService interface {
 	// DownloadLimited reads at most limit bytes from the start of the file;
 	// 0 reads the whole file.
 	DownloadLimited(ctx context.Context, node *domain.Node, filePath string, limit uint64) ([]byte, error)
+	// DownloadRange reads at most limit bytes starting at offset; limit 0 reads
+	// to the end of the file. It is what lets a plugin read a file larger than
+	// the inline cap, one window at a time.
+	DownloadRange(
+		ctx context.Context, node *domain.Node, filePath string, offset, limit uint64,
+	) ([]byte, error)
 	Upload(
 		ctx context.Context,
 		node *domain.Node,

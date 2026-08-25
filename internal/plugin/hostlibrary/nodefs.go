@@ -95,7 +95,7 @@ func (s *NodeFSServiceImpl) authorize(ctx context.Context, export string) (bool,
 // paths falls outside the node path policy; the answer is the message to
 // hand the guest, "" when every path is allowed.
 func (s *NodeFSServiceImpl) checkPaths(ctx context.Context, export string, node *domain.Node, paths ...string) string {
-	scope, err := s.policy.ScopeFor(ctx, node)
+	scope, err := s.policy.ScopeFor(ctx, node, s.pluginID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to resolve the node path policy, refusing the call",
 			slog.Uint64("plugin_id", s.pluginID),
@@ -289,60 +289,117 @@ func (s *NodeFSServiceImpl) Download(
 		return &nodefs.DownloadResponse{Error: new(msg)}, nil
 	}
 
-	if msg := s.checkInlineDownloadSize(ctx, node, req.Path); msg != "" {
+	// Stat only when the answer depends on it: an inline limit to check the
+	// file against, or a window to place inside the file. An uncapped
+	// whole-file read still costs one daemon round trip, as it always did.
+	var size uint64
+
+	if s.maxInlineBytes > 0 || req.Offset > 0 || req.Length > 0 {
+		info, statErr := s.fileService.GetFileInfo(ctx, node, req.Path)
+		if statErr != nil {
+			return &nodefs.DownloadResponse{Error: new("stat failed: " + statErr.Error())}, nil
+		}
+
+		if info == nil {
+			return &nodefs.DownloadResponse{Error: new("file not found")}, nil
+		}
+
+		size = info.Size
+
+		// Reading at or past the end is how a caller paging through a file
+		// finds out it is done, so it answers empty rather than failing.
+		if req.Offset >= size {
+			return &nodefs.DownloadResponse{Offset: req.Offset, TotalSize: size}, nil
+		}
+	}
+
+	length, msg := s.downloadWindow(req, size)
+	if msg != "" {
 		return &nodefs.DownloadResponse{Error: new(msg)}, nil
 	}
 
-	// The stat above is advisory (the file may have grown since), so the
-	// read itself stops one byte past the cap: the guest never receives
-	// more than the cap and the panel never buffers much more than it.
-	content, err := s.fileService.DownloadLimited(ctx, node, req.Path, s.inlineReadLimit())
+	// The stat above is advisory (the file may have grown since), so the read
+	// itself stops one byte past what was allowed: the guest never receives
+	// more than the limit and the panel never buffers much more than it.
+	content, err := s.fileService.DownloadRange(ctx, node, req.Path, req.Offset, readLimit(length))
 	if err != nil {
 		return &nodefs.DownloadResponse{Error: new(err.Error())}, nil
 	}
 
-	if s.maxInlineBytes > 0 && uint64(len(content)) > s.maxInlineBytes {
-		return &nodefs.DownloadResponse{Error: new(fmt.Sprintf(
-			"file too large: content exceeds the inline download limit of %d bytes", s.maxInlineBytes))}, nil
+	if length > 0 && uint64(len(content)) > length {
+		// A whole-file read asked for the file, not a prefix of it, and has no
+		// way to tell a truncation from the real thing — the file grew past the
+		// limit since the stat, so the answer is a refusal. A caller that named
+		// a window said how much it wants, and getting the whole window back is
+		// the ordinary case: the extra byte the read took is simply dropped.
+		if wholeFileRead(req) {
+			return &nodefs.DownloadResponse{Error: new(fmt.Sprintf(
+				"file too large: content exceeds the inline download limit of %d bytes", s.maxInlineBytes))}, nil
+		}
+
+		content = content[:length]
 	}
 
-	return &nodefs.DownloadResponse{Content: content}, nil
+	// len(Content) is the bound that was applied, Offset is echoed and
+	// TotalSize is set on every windowed read, so a caller paging through a
+	// file reads on while Offset+len(Content) < TotalSize.
+	return &nodefs.DownloadResponse{Content: content, Offset: req.Offset, TotalSize: size}, nil
 }
 
-// inlineReadLimit is how much Download asks the node for: one byte past
-// the cap, enough to tell an oversized file from one exactly at the limit;
-// without a cap the whole file.
-func (s *NodeFSServiceImpl) inlineReadLimit() uint64 {
-	if s.maxInlineBytes == 0 {
+// wholeFileRead is the request that names no window: it asked for the file, not
+// a piece of it.
+func wholeFileRead(req *nodefs.DownloadRequest) bool {
+	return req.Offset == 0 && req.Length == 0
+}
+
+// downloadWindow resolves how many bytes a download may return, or the message
+// that refuses it. It answers 0 for "no bound", which only an uncapped panel
+// can produce.
+//
+// A request that names neither an offset nor a length is the old whole-file
+// read and keeps its old answer: a file past the inline limit is refused
+// outright rather than silently truncated, because a caller that asked for the
+// file and got part of it has no way to tell. A request that names a window has
+// said what it wants, so only the window has to fit — and is served exactly
+// that window, cut to the bound this returns.
+func (s *NodeFSServiceImpl) downloadWindow(req *nodefs.DownloadRequest, size uint64) (uint64, string) {
+	if wholeFileRead(req) {
+		if s.maxInlineBytes > 0 && size > s.maxInlineBytes {
+			return 0, fmt.Sprintf(
+				"file too large: %d bytes exceeds the inline download limit of %d bytes"+
+					" (read it in windows with offset/length)",
+				size, s.maxInlineBytes)
+		}
+
+		return s.maxInlineBytes, ""
+	}
+
+	if req.Length == 0 {
+		if s.maxInlineBytes == 0 {
+			return 0, ""
+		}
+
+		return min(s.maxInlineBytes, size-min(size, req.Offset)), ""
+	}
+
+	if s.maxInlineBytes > 0 && req.Length > s.maxInlineBytes {
+		return 0, fmt.Sprintf(
+			"window too large: %d bytes exceeds the inline download limit of %d bytes",
+			req.Length, s.maxInlineBytes)
+	}
+
+	return req.Length, ""
+}
+
+// readLimit is what the node is asked for: one byte past what the answer may
+// contain, enough to tell a window that is exactly full from one that was cut.
+// Zero stays zero — no bound at all.
+func readLimit(length uint64) uint64 {
+	if length == 0 {
 		return 0
 	}
 
-	return s.maxInlineBytes + 1
-}
-
-// checkInlineDownloadSize refuses a download that would exceed the inline
-// cap before a single byte is read: the whole file would otherwise be
-// buffered in panel memory. It answers a response-level message or "".
-func (s *NodeFSServiceImpl) checkInlineDownloadSize(ctx context.Context, node *domain.Node, filePath string) string {
-	if s.maxInlineBytes == 0 {
-		return ""
-	}
-
-	info, err := s.fileService.GetFileInfo(ctx, node, filePath)
-	if err != nil {
-		return "stat failed: " + err.Error()
-	}
-
-	if info == nil {
-		return "file not found"
-	}
-
-	if info.Size > s.maxInlineBytes {
-		return fmt.Sprintf("file too large: %d bytes exceeds the inline download limit of %d bytes",
-			info.Size, s.maxInlineBytes)
-	}
-
-	return ""
+	return length + 1
 }
 
 func (s *NodeFSServiceImpl) Upload(
