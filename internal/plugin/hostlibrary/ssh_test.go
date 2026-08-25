@@ -565,12 +565,11 @@ func TestSSHService_WriteFile(t *testing.T) {
 		require.True(t, resp.Success, resp.Error)
 
 		require.Len(t, sessions.recordedExec(), 1)
-		assert.Equal(t,
-			"umask 077; { cat > '/tmp/install script.sh.gameap-tmp'"+
-				" && chmod 755 -- '/tmp/install script.sh.gameap-tmp'"+
-				" && mv -f -- '/tmp/install script.sh.gameap-tmp' '/tmp/install script.sh'; }"+
-				" || { rc=$?; rm -f -- '/tmp/install script.sh.gameap-tmp'; exit $rc; }",
-			sessions.recordedExec()[0].Command)
+		command := sessions.recordedExec()[0].Command
+		temp := tempPathFromCommand(t, command)
+		assert.True(t, strings.HasPrefix(temp, "/tmp/install script.sh"+writeFileTempSuffix),
+			"temp file must be a sibling of the target, got %q", temp)
+		assert.Equal(t, renderWriteFileCommand("/tmp/install script.sh", temp, 0o755), command)
 		assert.Equal(t, []byte("#!/bin/bash"), sessions.recordedExec()[0].Stdin)
 	})
 

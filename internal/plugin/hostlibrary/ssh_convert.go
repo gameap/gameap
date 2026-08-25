@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/services/pluginssh"
+	"github.com/gameap/gameap/pkg/idgen"
 	sshsdk "github.com/gameap/gameap/pkg/plugin/sdk/ssh"
 	"github.com/gameap/gameap/pkg/shellescape"
 	"github.com/pkg/errors"
@@ -131,7 +132,16 @@ func remoteFailureMessage(snapshot pluginssh.ExecSnapshot) string {
 	return "remote command " + string(snapshot.Status)
 }
 
-const writeFileTempSuffix = ".gameap-tmp"
+// writeFileTempSuffix marks the sibling file a transfer streams into before
+// the rename. A unique tail follows it so two writes to the same target never
+// share a temp file: they would interleave their bytes into it, and the first
+// rename would leave the other transfer cleaning up a file it no longer owns.
+const writeFileTempSuffix = ".gameap-tmp."
+
+// writeFileTempPath names the sibling this transfer alone writes into.
+func writeFileTempPath(target string) string {
+	return target + writeFileTempSuffix + idgen.New()
+}
 
 // writeFileCommand builds a shell pipeline that writes stdin to a temporary
 // file next to the target and renames it into place. The temp file is created
@@ -150,18 +160,24 @@ func writeFileCommand(path string, mode uint32) (string, error) {
 		return "", errPathRequired
 	}
 
-	quoted := shellescape.Quote(trimmed)
-	temp := shellescape.Quote(trimmed + writeFileTempSuffix)
+	return renderWriteFileCommand(trimmed, writeFileTempPath(trimmed), mode), nil
+}
 
-	command := "{ cat > " + temp
+// renderWriteFileCommand renders the pipeline for a validated target and the
+// temporary sibling this transfer owns.
+func renderWriteFileCommand(target, temp string, mode uint32) string {
+	quoted := shellescape.Quote(target)
+	quotedTemp := shellescape.Quote(temp)
+
+	command := "{ cat > " + quotedTemp
 	if mode > 0 {
 		command = "umask 077; " + command
-		command += " && chmod " + strconv.FormatUint(uint64(mode), 8) + " -- " + temp
+		command += " && chmod " + strconv.FormatUint(uint64(mode), 8) + " -- " + quotedTemp
 	}
-	command += " && mv -f -- " + temp + " " + quoted + "; }"
-	command += " || { rc=$?; rm -f -- " + temp + "; exit $rc; }"
+	command += " && mv -f -- " + quotedTemp + " " + quoted + "; }"
+	command += " || { rc=$?; rm -f -- " + quotedTemp + "; exit $rc; }"
 
-	return command, nil
+	return command
 }
 
 func readFileCommand(path string) (string, error) {
