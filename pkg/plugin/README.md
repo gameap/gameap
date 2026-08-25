@@ -558,7 +558,9 @@ content := downloadResp.Content
 // Naming a window reads a larger file a piece at a time: only the window has
 // to fit the cap. The answer echoes Offset and carries TotalSize, so paging
 // needs no separate GetFileInfo. Reading at or past the end is not an error —
-// it answers empty content, which is how the loop below ends.
+// it answers empty content, which is how the loop below ends. A Length above
+// the cap is refused ("window too large: ..."), not quietly clamped; a full
+// window is the ordinary answer and never an error.
 var whole []byte
 for offset := uint64(0); ; {
     page, _ := fs.Download(ctx, &nodefs.DownloadRequest{
@@ -576,6 +578,11 @@ for offset := uint64(0); ; {
         break
     }
 }
+
+// Length: 0 with an Offset asks for "as much as the cap allows", so it is
+// len(Content) — not the Length asked for — that says how much was served.
+// Advancing by len(Content), as above, is therefore what a paging loop wants
+// either way.
 
 // To hand a whole large file to a *client* rather than read it here, answer
 // the route with an HTTPResponse file reference instead: the panel streams it

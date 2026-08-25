@@ -327,11 +327,29 @@ func (s *NodeFSServiceImpl) Download(
 	}
 
 	if length > 0 && uint64(len(content)) > length {
-		return &nodefs.DownloadResponse{Error: new(fmt.Sprintf(
-			"file too large: content exceeds the inline download limit of %d bytes", s.maxInlineBytes))}, nil
+		// A whole-file read asked for the file, not a prefix of it, and has no
+		// way to tell a truncation from the real thing — the file grew past the
+		// limit since the stat, so the answer is a refusal. A caller that named
+		// a window said how much it wants, and getting the whole window back is
+		// the ordinary case: the extra byte the read took is simply dropped.
+		if wholeFileRead(req) {
+			return &nodefs.DownloadResponse{Error: new(fmt.Sprintf(
+				"file too large: content exceeds the inline download limit of %d bytes", s.maxInlineBytes))}, nil
+		}
+
+		content = content[:length]
 	}
 
+	// len(Content) is the bound that was applied, Offset is echoed and
+	// TotalSize is set on every windowed read, so a caller paging through a
+	// file reads on while Offset+len(Content) < TotalSize.
 	return &nodefs.DownloadResponse{Content: content, Offset: req.Offset, TotalSize: size}, nil
+}
+
+// wholeFileRead is the request that names no window: it asked for the file, not
+// a piece of it.
+func wholeFileRead(req *nodefs.DownloadRequest) bool {
+	return req.Offset == 0 && req.Length == 0
 }
 
 // downloadWindow resolves how many bytes a download may return, or the message
@@ -342,9 +360,10 @@ func (s *NodeFSServiceImpl) Download(
 // read and keeps its old answer: a file past the inline limit is refused
 // outright rather than silently truncated, because a caller that asked for the
 // file and got part of it has no way to tell. A request that names a window has
-// said what it wants, so only the window has to fit.
+// said what it wants, so only the window has to fit — and is served exactly
+// that window, cut to the bound this returns.
 func (s *NodeFSServiceImpl) downloadWindow(req *nodefs.DownloadRequest, size uint64) (uint64, string) {
-	if req.Offset == 0 && req.Length == 0 {
+	if wholeFileRead(req) {
 		if s.maxInlineBytes > 0 && size > s.maxInlineBytes {
 			return 0, fmt.Sprintf(
 				"file too large: %d bytes exceeds the inline download limit of %d bytes"+

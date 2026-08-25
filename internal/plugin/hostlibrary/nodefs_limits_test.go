@@ -229,6 +229,7 @@ func TestNodeFSService_Download_windowed(t *testing.T) {
 		length     uint64
 		wantOffset uint64
 		wantRead   uint64 // the limit handed to the node; 0 = no read expected
+		wantServed uint64 // the bytes that reach the guest
 		wantError  string
 	}{
 		{
@@ -239,7 +240,7 @@ func TestNodeFSService_Download_windowed(t *testing.T) {
 		{
 			name:   "a_window_inside_the_cap_is_served",
 			offset: 4096, length: 512,
-			wantOffset: 4096, wantRead: 513,
+			wantOffset: 4096, wantRead: 513, wantServed: 512,
 		},
 		{
 			name:   "a_window_larger_than_the_cap_is_refused",
@@ -249,7 +250,12 @@ func TestNodeFSService_Download_windowed(t *testing.T) {
 		{
 			name:   "an_open_ended_window_is_cut_to_the_cap",
 			offset: 4096, length: 0,
-			wantOffset: 4096, wantRead: inlineCap + 1,
+			wantOffset: 4096, wantRead: inlineCap + 1, wantServed: inlineCap,
+		},
+		{
+			name:   "the_last_window_is_served_short",
+			offset: fileSize - 256, length: 512,
+			wantOffset: fileSize - 256, wantRead: 513, wantServed: 256,
 		},
 		{
 			name:   "a_window_past_the_end_answers_empty",
@@ -275,7 +281,14 @@ func TestNodeFSService_Download_windowed(t *testing.T) {
 					gotOffset.Store(offset)
 					gotLimit.Store(limit)
 
-					return []byte("window"), nil
+					// What the node does, and what the trimming depends on: at
+					// most limit bytes from offset, limit 0 reading to the end.
+					available := fileSize - min(fileSize, offset)
+					if limit == 0 {
+						limit = available
+					}
+
+					return make([]byte, min(limit, available)), nil
 				},
 			}
 			svc := newCappedNodeFSService(fs, inlineCap)
@@ -296,6 +309,8 @@ func TestNodeFSService_Download_windowed(t *testing.T) {
 			require.Nil(t, resp.Error)
 			assert.Equal(t, tt.wantOffset, resp.Offset, "the offset is echoed back")
 			assert.Equal(t, uint64(fileSize), resp.TotalSize, "so the caller knows when to stop paging")
+			assert.Equal(t, tt.wantServed, uint64(len(resp.Content)),
+				"the guest is served the window it asked for, never the extra byte the read took")
 
 			if tt.wantRead == 0 {
 				assert.Zero(t, reads.Load(), "reading past the end costs no round trip")
