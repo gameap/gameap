@@ -24,8 +24,15 @@ import (
 )
 
 const (
-	smallFileThreshold     = 1 * 1024 * 1024 // 1MB
-	chunkSize              = 64 * 1024       // 64KB
+	smallFileThreshold = 1 * 1024 * 1024 // 1MB
+	chunkSize          = 64 * 1024       // 64KB
+	// rangeChunkSize is what a ranged read asks for per round trip. It is much
+	// larger than chunkSize because a range is how a multi-gigabyte download
+	// resumes: at 64 KiB, finishing the last 20 GiB would take some 300 000
+	// round trips and their latency would dwarf the transfer. The ceiling is
+	// the gRPC message limit (GRPC_MAX_RECV_MSG_SIZE, 10 MiB by default), and
+	// this leaves room for framing under a lowered one.
+	rangeChunkSize         = 4 << 20 // 4MiB
 	transferPrefix         = "transfers/"
 	capabilityFileTransfer = "file_transfer"
 	s3PollInterval         = 200 * time.Millisecond
@@ -154,9 +161,26 @@ func (s *FileService) DownloadLimited(
 	filePath string,
 	limit uint64,
 ) ([]byte, error) {
+	return s.DownloadRange(ctx, node, filePath, 0, limit)
+}
+
+// DownloadRange reads at most limit bytes starting at offset (limit 0 = to the
+// end of the file). It is how a caller reads a file the inline cap will not let
+// it take in one piece: the window, not the file, is what has to fit.
+//
+// The daemon has taken an offset on this path all along — both routes carried a
+// hard-coded 0 — so nothing on the node had to change for this.
+func (s *FileService) DownloadRange(
+	ctx context.Context,
+	node *domain.Node,
+	filePath string,
+	offset uint64,
+	limit uint64,
+) ([]byte, error) {
 	nodeID := uint64(node.ID)
 	relPath := stripWorkPath(node.WorkPath, filePath)
 	length := int64(min(limit, math.MaxInt64)) //nolint:gosec // G115: clamped to MaxInt64 just before
+	start := int64(min(offset, math.MaxInt64)) //nolint:gosec // G115: clamped to MaxInt64 just before
 
 	local, err := s.resolveRoute(nodeID)
 	if err != nil {
@@ -164,7 +188,7 @@ func (s *FileService) DownloadLimited(
 	}
 
 	if local {
-		resp, readErr := s.gateway.RequestFileRead(ctx, nodeID, relPath, 0, length)
+		resp, readErr := s.gateway.RequestFileRead(ctx, nodeID, relPath, start, length)
 		if readErr != nil {
 			return nil, errors.WithMessage(readErr, "file read request")
 		}
@@ -180,7 +204,7 @@ func (s *FileService) DownloadLimited(
 		return resp.Content, nil
 	}
 
-	result, err := s.dispatcher.DispatchFileRead(ctx, nodeID, relPath, 0, length)
+	result, err := s.dispatcher.DispatchFileRead(ctx, nodeID, relPath, start, length)
 	if err != nil {
 		return nil, errors.WithMessage(err, "dispatched file read")
 	}
@@ -216,6 +240,134 @@ func (s *FileService) DownloadStream(
 	}
 
 	return s.downloadStreamRemote(ctx, nodeID, relPath)
+}
+
+// DownloadStreamRange streams at most length bytes starting at offset
+// (length 0 = to the end of the file).
+//
+// Unlike DownloadStream it always reads in chunks, on both routes, and never
+// uses the transfer task the plain stream prefers: FileDownloadTask carries no
+// start offset, so serving a range through it would mean pulling everything
+// before the offset off the node and discarding it — the exact transfer a
+// resumed download exists to avoid.
+func (s *FileService) DownloadStreamRange(
+	ctx context.Context,
+	node *domain.Node,
+	filePath string,
+	offset uint64,
+	length uint64,
+) (io.ReadCloser, error) {
+	nodeID := uint64(node.ID)
+	relPath := stripWorkPath(node.WorkPath, filePath)
+
+	local, err := s.resolveRoute(nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	start := int64(min(offset, math.MaxInt64))     //nolint:gosec // G115: clamped to MaxInt64 just before
+	remaining := int64(min(length, math.MaxInt64)) //nolint:gosec // G115: clamped to MaxInt64 just before
+
+	return s.chunkedRange(ctx, nodeID, relPath, start, remaining, local), nil
+}
+
+// chunkedRange is the reader behind DownloadStreamRange: one chunk-sized read
+// per turn, from whichever route owns the daemon session, until the window is
+// full or the node answers short.
+func (s *FileService) chunkedRange(
+	ctx context.Context, nodeID uint64, path string, offset, remaining int64, local bool,
+) io.ReadCloser {
+	pr, pw := io.Pipe()
+	// remaining == 0 means "to the end"; anything else counts down to zero.
+	unbounded := remaining == 0
+
+	go func() {
+		defer pw.Close()
+
+		for unbounded || remaining > 0 {
+			select {
+			case <-ctx.Done():
+				pw.CloseWithError(ctx.Err())
+
+				return
+			default:
+			}
+
+			want := int64(rangeChunkSize)
+			if !unbounded && remaining < want {
+				want = remaining
+			}
+
+			content, err := s.readChunk(ctx, nodeID, path, offset, want, local)
+			if err != nil {
+				pw.CloseWithError(err)
+
+				return
+			}
+
+			if len(content) == 0 {
+				return
+			}
+
+			if _, err := pw.Write(content); err != nil {
+				return
+			}
+
+			offset += int64(len(content))
+			if !unbounded {
+				remaining -= int64(len(content))
+			}
+
+			// A short answer is the end of the file: the node had less than
+			// the window asked for.
+			if int64(len(content)) < want {
+				return
+			}
+		}
+	}()
+
+	return pr
+}
+
+// readChunk reads one window through whichever route owns the session. The
+// remote route may stage a large answer in storage instead of inlining it;
+// at chunk size that is unusual, but it costs nothing to honour.
+func (s *FileService) readChunk(
+	ctx context.Context, nodeID uint64, path string, offset, length int64, local bool,
+) ([]byte, error) {
+	if local {
+		resp, err := s.gateway.RequestFileRead(ctx, nodeID, path, offset, length)
+		if err != nil {
+			return nil, errors.WithMessage(err, "gateway ranged read")
+		}
+
+		if !resp.Success {
+			if readErr := daemonFileError("file read", resp.Error); readErr != nil {
+				return nil, readErr
+			}
+
+			return nil, errors.Errorf("gateway ranged read: %s", resp.Error)
+		}
+
+		return resp.Content, nil
+	}
+
+	result, err := s.dispatcher.DispatchFileRead(ctx, nodeID, path, offset, length)
+	if err != nil {
+		return nil, errors.WithMessage(err, "dispatched ranged read")
+	}
+
+	if result.Content != nil {
+		return result.Content, nil
+	}
+
+	content, err := s.storage.Read(ctx, result.StoragePath)
+	if err != nil {
+		return nil, errors.WithMessage(err, "reading transferred range from storage")
+	}
+	_ = s.storage.Delete(context.Background(), result.StoragePath)
+
+	return content, nil
 }
 
 func (s *FileService) downloadStreamLocal(ctx context.Context, nodeID uint64, path string) (io.ReadCloser, error) {

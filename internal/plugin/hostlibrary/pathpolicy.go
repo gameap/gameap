@@ -8,8 +8,30 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/pkg/errors"
 )
+
+// PluginServiceRoot is the directory under a node's work path that holds the
+// working files of plugins, one subdirectory per plugin.
+const PluginServiceRoot = ".plugins"
+
+// PluginServiceDir is where one plugin keeps its own working files on a node:
+// <work_path>/.plugins/<compact plugin id>. Request files, staged results and
+// anything else a plugin needs a node-side scratch space for belong here, and
+// nowhere else — this is the one place outside the game servers' own
+// directories that the restricted path policies keep open, and it is opened
+// only to the plugin whose id names it.
+//
+// A plugin id of 0 is a transient load (the upload dry-run), which owns no
+// directory: the answer is empty and the caller adds no root.
+func PluginServiceDir(workPath string, pluginID uint64) string {
+	if pluginID == 0 || strings.TrimSpace(workPath) == "" {
+		return ""
+	}
+
+	return joinNodePath(workPath, PluginServiceRoot+"/"+pkgplugin.CompactPluginID(domain.Uint64ID(pluginID)))
+}
 
 // PathPolicyMode selects which node paths gameap-nodefs (and the work_dir of
 // gameap-nodecmd) may name.
@@ -123,7 +145,7 @@ type PathScope struct {
 // the work path in node_workpath, the server directories (plus the extra
 // roots) in server_dirs. The server lookup happens once per host call, so a
 // call naming several paths (copy, hash, archive) pays for it once.
-func (p *PathPolicy) ScopeFor(ctx context.Context, node *domain.Node) (*PathScope, error) {
+func (p *PathPolicy) ScopeFor(ctx context.Context, node *domain.Node, pluginID uint64) (*PathScope, error) {
 	if p == nil || node == nil {
 		return &PathScope{mode: PathPolicyUnrestricted}, nil
 	}
@@ -141,6 +163,15 @@ func (p *PathPolicy) ScopeFor(ctx context.Context, node *domain.Node) (*PathScop
 
 	scope.workPath = workPath
 	scope.roots = append(scope.roots, p.extraRoots...)
+
+	// Every restricted mode keeps the plugin's own service directory open.
+	// Without it a plugin cannot stage so much as a request file, and the
+	// operator would have to name each plugin's directory by hand — as an
+	// absolute path, on every node, which is not something the work paths of a
+	// mixed fleet allow.
+	if serviceDir := PluginServiceDir(workPath, pluginID); serviceDir != "" {
+		scope.roots = append(scope.roots, serviceDir)
+	}
 
 	switch p.mode {
 	case PathPolicyNodeWorkPath:

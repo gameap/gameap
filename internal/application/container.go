@@ -2337,6 +2337,7 @@ func (c *Container) corePluginLibraryFactories(guard *hostlibrary.Guard) []pkgpl
 			&lazyArchiveEvents{container: c},
 			guard,
 			hostlibrary.WithNodeFSMaxInlineBytes(c.config.Plugin.NodeFS.MaxInline.Uint64()),
+			hostlibrary.WithNodeFSPathPolicy(c.PluginPathPolicy()),
 		),
 		// Per-plugin: writes are gated on manage_servers / node_commands,
 		// rate limited and audited with the plugin as the actor.

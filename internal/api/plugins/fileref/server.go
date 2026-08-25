@@ -9,6 +9,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"path"
 	"strconv"
@@ -39,6 +40,7 @@ var (
 	errFilesPermissionRequired = errors.New("plugin permission " + string(domain.PluginPermissionFilesRead) + " required")
 	errAuthenticationRequired  = errors.New("authentication required for file responses")
 	errInvalidStatusCode       = errors.New("invalid plugin status code")
+	errRangeNotSatisfiable     = errors.New("requested range is past the end of the file")
 )
 
 // allowedPluginHeaders is the only set of plugin-provided headers that
@@ -164,7 +166,20 @@ func (s *Server) ServeFileRef(w http.ResponseWriter, r *http.Request, req pkgplu
 		return api.WrapHTTPError(errPathIsDirectory, http.StatusBadRequest)
 	}
 
-	stream, err := s.files.DownloadStream(ctx, node, req.Ref.Path)
+	// A range only makes sense for an ordinary 200 answer; a plugin that chose
+	// its own status has said something the transfer layer should not rewrite.
+	served, ok, satisfiable := byteRange{}, false, false
+	if effectiveStatus(req) == http.StatusOK {
+		served, ok, satisfiable = parseByteRange(r.Header.Get("Range"), info.Size)
+	}
+
+	if ok && !satisfiable {
+		w.Header().Set("Content-Range", "bytes */"+strconv.FormatUint(info.Size, 10))
+
+		return api.WrapHTTPError(errRangeNotSatisfiable, http.StatusRequestedRangeNotSatisfiable)
+	}
+
+	stream, err := s.open(ctx, node, req, served, ok)
 	if err != nil {
 		return errors.WithMessage(err, "failed to open file stream")
 	}
@@ -174,9 +189,40 @@ func (s *Server) ServeFileRef(w http.ResponseWriter, r *http.Request, req pkgplu
 		}
 	}()
 
-	s.stream(w, r, req, info, stream)
+	if ok {
+		s.stream(w, r, req, info, stream, &served)
+	} else {
+		s.stream(w, r, req, info, stream, nil)
+	}
 
 	return nil
+}
+
+// open picks the whole-file stream or the ranged one. They are different daemon
+// calls: the plain stream may use the node's transfer task, which has no start
+// offset, so a range has to go the chunked way.
+func (s *Server) open(
+	ctx context.Context,
+	node *domain.Node,
+	req pkgplugin.FileRefRequest,
+	served byteRange,
+	ranged bool,
+) (io.ReadCloser, error) {
+	if ranged {
+		return s.files.DownloadStreamRange(ctx, node, req.Ref.Path, served.start, served.length)
+	}
+
+	return s.files.DownloadStream(ctx, node, req.Ref.Path)
+}
+
+// effectiveStatus is the status the response will carry: the plugin's, or 200
+// when it named none.
+func effectiveStatus(req pkgplugin.FileRefRequest) int {
+	if req.StatusCode == 0 {
+		return http.StatusOK
+	}
+
+	return req.StatusCode
 }
 
 // stream writes the headers and copies the file. Nothing can be reported to
@@ -188,6 +234,7 @@ func (s *Server) stream(
 	req pkgplugin.FileRefRequest,
 	info *daemon.FileDetails,
 	stream io.Reader,
+	served *byteRange,
 ) {
 	ctx := r.Context()
 
@@ -195,11 +242,15 @@ func (s *Server) stream(
 		slog.WarnContext(ctx, "failed to disable write deadline", slog.String("error", err.Error()))
 	}
 
-	applyHeaders(w.Header(), req)
+	applyHeaders(w.Header(), req, info)
 
-	status := req.StatusCode
-	if status == 0 {
-		status = http.StatusOK
+	status := effectiveStatus(req)
+
+	if served != nil {
+		w.Header().Set("Content-Length", strconv.FormatUint(served.length, 10))
+		w.Header().Set("Content-Range", served.contentRange(info.Size))
+
+		status = http.StatusPartialContent
 	}
 
 	w.WriteHeader(status)
@@ -213,19 +264,46 @@ func (s *Server) stream(
 		slog.Uint64("user_id", requestUserID(ctx)),
 	)
 
-	if _, err := io.Copy(w, stream); err != nil {
+	// Bounded by the length just declared: a stream that grew between the stat
+	// and the read must not run past it, or the client keeps a body longer than
+	// the header promised. A stream that shrank instead ends the copy short,
+	// which net/http reports as a failed response rather than a clean end —
+	// which is the point, since a silently truncated archive is worse than a
+	// download that visibly fails.
+	expected := info.Size
+	if served != nil {
+		expected = served.length
+	}
+
+	declared := int64(min(expected, math.MaxInt64)) //nolint:gosec // G115: clamped to MaxInt64 just before
+
+	written, err := io.Copy(w, io.LimitReader(stream, declared))
+	if err != nil {
 		slog.ErrorContext(ctx, "failed to write plugin file response",
 			slog.Uint64("plugin_id", req.PluginID),
 			slog.String("path", req.Ref.Path),
 			slog.String("error", err.Error()))
+
+		return
+	}
+
+	if written != declared {
+		slog.ErrorContext(ctx, "plugin file response is shorter than the file it stat'ed",
+			slog.Uint64("plugin_id", req.PluginID),
+			slog.String("path", req.Ref.Path),
+			slog.Int64("declared", declared),
+			slog.Int64("written", written))
 	}
 }
 
-// applyHeaders copies the plugin headers the allowlist admits and then
-// sets the ones the panel owns: the file is always an attachment. No
-// Content-Length is declared: the stat and the stream are separate daemon
-// calls, so the size may not match the bytes actually streamed.
-func applyHeaders(header http.Header, req pkgplugin.FileRefRequest) {
+// applyHeaders copies the plugin headers the allowlist admits and then sets
+// the ones the panel owns: the file is always an attachment, and its length is
+// the one the stat reported. The stat and the stream are separate daemon calls,
+// so the two can disagree — the copy is bounded by this same length and a
+// disagreement ends the response as an error, which is what tells the client
+// its file is incomplete. Without a declared length the body is chunked and a
+// truncated transfer ends looking exactly like a complete one.
+func applyHeaders(header http.Header, req pkgplugin.FileRefRequest, info *daemon.FileDetails) {
 	for name, value := range req.Headers {
 		if pluginHeaderAllowed(name) {
 			header.Set(name, value)
@@ -233,7 +311,8 @@ func applyHeaders(header http.Header, req pkgplugin.FileRefRequest) {
 	}
 
 	filemanagerhttp.AttachmentContentHeaders(header, attachmentName(req.Ref), header.Get("Content-Type"))
-	header.Set("Accept-Ranges", "none")
+	header.Set("Accept-Ranges", "bytes")
+	header.Set("Content-Length", strconv.FormatUint(info.Size, 10))
 
 	if header.Get("Cache-Control") == "" {
 		header.Set("Cache-Control", "no-store")
@@ -314,7 +393,7 @@ func (s *Server) authorize(ctx context.Context, req pkgplugin.FileRefRequest) er
 // checkPathPolicy applies the node path policy to the file the plugin wants
 // served; a refusal is audited like a refused host call.
 func (s *Server) checkPathPolicy(ctx context.Context, node *domain.Node, req pkgplugin.FileRefRequest) error {
-	scope, err := s.policy.ScopeFor(ctx, node)
+	scope, err := s.policy.ScopeFor(ctx, node, req.PluginID)
 	if err != nil {
 		return errors.WithMessage(err, "failed to resolve the node path policy")
 	}

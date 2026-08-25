@@ -19,6 +19,7 @@ import (
 // itself is not written to the audit stream (it may carry credentials); the
 // node, working directory and exit code are.
 type NodeCmdServiceImpl struct {
+	pluginID       uint64
 	commandService NodeCommandService
 	nodeRepo       repositories.NodeRepository
 	guard          *PluginGuard
@@ -40,12 +41,14 @@ func WithNodeCmdPathPolicy(policy *PathPolicy) NodeCmdOption {
 }
 
 func NewNodeCmdService(
+	pluginID uint64,
 	commandService NodeCommandService,
 	nodeRepo repositories.NodeRepository,
 	guard *PluginGuard,
 	opts ...NodeCmdOption,
 ) *NodeCmdServiceImpl {
 	service := &NodeCmdServiceImpl{
+		pluginID:       pluginID,
 		commandService: commandService,
 		nodeRepo:       nodeRepo,
 		guard:          guard,
@@ -67,7 +70,7 @@ func (s *NodeCmdServiceImpl) checkWorkDir(ctx context.Context, node *domain.Node
 		return ""
 	}
 
-	scope, err := s.policy.ScopeFor(ctx, node)
+	scope, err := s.policy.ScopeFor(ctx, node, s.pluginID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to resolve the node path policy, refusing the command",
 			slog.Uint64("node_id", uint64(node.ID)),
@@ -176,6 +179,6 @@ func NewNodeCmdHostLibraryFactory(
 
 func (f *NodeCmdHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
 	return &NodeCmdHostLibrary{
-		impl: NewNodeCmdService(f.commandService, f.nodeRepo, f.guard.For(pluginID), f.opts...),
+		impl: NewNodeCmdService(pluginID, f.commandService, f.nodeRepo, f.guard.For(pluginID), f.opts...),
 	}
 }

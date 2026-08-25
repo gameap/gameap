@@ -44,6 +44,9 @@ type mockFileService struct {
 	hashFunc        func(
 		ctx context.Context, node *domain.Node, paths []string, algorithm proto.HashAlgorithm,
 	) (*proto.HashResult, error)
+	downloadRangeFunc func(
+		ctx context.Context, node *domain.Node, path string, offset, limit uint64,
+	) ([]byte, error)
 }
 
 func (m *mockFileService) ReadDir(ctx context.Context, node *domain.Node, path string) ([]*daemon.FileInfo, error) {
@@ -88,6 +91,16 @@ func (m *mockFileService) DownloadLimited(
 	}
 
 	return nil, nil
+}
+
+func (m *mockFileService) DownloadRange(
+	ctx context.Context, node *domain.Node, path string, offset, limit uint64,
+) ([]byte, error) {
+	if m.downloadRangeFunc != nil {
+		return m.downloadRangeFunc(ctx, node, path, offset, limit)
+	}
+
+	return m.DownloadLimited(ctx, node, path, limit)
 }
 
 func (m *mockFileService) Upload(

@@ -583,6 +583,16 @@ func (m *DownloadRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.Length != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Length))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.Offset != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Offset))
+		i--
+		dAtA[i] = 0x18
+	}
 	if len(m.Path) > 0 {
 		i -= len(m.Path)
 		copy(dAtA[i:], m.Path)
@@ -627,6 +637,16 @@ func (m *DownloadResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.TotalSize != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.TotalSize))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.Offset != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Offset))
+		i--
+		dAtA[i] = 0x18
 	}
 	if m.Error != nil {
 		i -= len(*m.Error)
@@ -2338,6 +2358,12 @@ func (m *DownloadRequest) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
+	if m.Offset != 0 {
+		n += 1 + sov(uint64(m.Offset))
+	}
+	if m.Length != 0 {
+		n += 1 + sov(uint64(m.Length))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2355,6 +2381,12 @@ func (m *DownloadResponse) SizeVT() (n int) {
 	if m.Error != nil {
 		l = len(*m.Error)
 		n += 1 + l + sov(uint64(l))
+	}
+	if m.Offset != 0 {
+		n += 1 + sov(uint64(m.Offset))
+	}
+	if m.TotalSize != 0 {
+		n += 1 + sov(uint64(m.TotalSize))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -4318,6 +4350,44 @@ func (m *DownloadRequest) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Path = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Offset", wireType)
+			}
+			m.Offset = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Offset |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Length", wireType)
+			}
+			m.Length = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Length |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -4436,6 +4506,44 @@ func (m *DownloadResponse) UnmarshalVT(dAtA []byte) error {
 			s := string(dAtA[iNdEx:postIndex])
 			m.Error = &s
 			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Offset", wireType)
+			}
+			m.Offset = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Offset |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TotalSize", wireType)
+			}
+			m.TotalSize = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TotalSize |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])

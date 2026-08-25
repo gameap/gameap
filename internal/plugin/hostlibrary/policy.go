@@ -18,6 +18,7 @@ const (
 	ModuleCache          = "gameap-cache"
 	ModuleStorage        = "gameap-storage"
 	ModuleSSH            = "gameap-ssh"
+	ModuleNodes          = "gameap-nodes"
 	// ModuleHost is open to every plugin (introspection only).
 	ModuleHost = "gameap-host"
 )
@@ -57,8 +58,8 @@ type RPCPolicy struct {
 // rate limit each privileged host function is subject to. It drives the
 // guard (enforcement), the "used permissions" the panel derives from a
 // module's import section (dry-run and admin UI), and the documentation.
-// Read-only modules (users, nodes, games, gamemods, authz, servers.find/get,
-// ...) have no entry and need no grant.
+// Read-only modules (users, games, gamemods, authz, servers.find/get,
+// nodes.find_nodes/get_node, ...) have no entry and need no grant.
 var hostRPCPolicies = buildHostRPCPolicies()
 
 func buildHostRPCPolicies() map[HostRPC]RPCPolicy {
@@ -124,6 +125,15 @@ func buildHostRPCPolicies() map[HostRPC]RPCPolicy {
 		RPCPolicy{Permission: domain.PluginPermissionSSH, RateClass: RateClassSSH},
 		"generate_key_pair", "connect", "disconnect", "exec", "start_exec",
 		"get_exec_operation", "cancel_exec", "write_file", "read_file")
+
+	// gameap-nodes checks manage_nodes itself rather than through the guard,
+	// so these entries do not enforce anything — they are here because the
+	// table is also what the panel derives a module's used permissions from,
+	// and without them a plugin that renames or retires nodes reads as needing
+	// no grant at all in the upload dry-run and the admin UI.
+	add(ModuleNodes,
+		RPCPolicy{Permission: domain.PluginPermissionManageNodes},
+		"update_node", "delete_node", "create_setup_key", "get_setup_key", "revoke_setup_key")
 
 	return policies
 }

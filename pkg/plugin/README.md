@@ -546,15 +546,40 @@ for _, file := range readDirResp.Files {
     fmt.Printf("%s (%d bytes)\n", file.Name, file.Size)
 }
 
-// Download a file. Download and Upload carry the whole file in one message,
-// so the panel caps them (PLUGIN_NODEFS_MAX_INLINE, 32 MiB by default);
-// a larger file answers with an error naming both sizes — use archives or an
-// HTTPResponse file reference for big payloads.
+// Download a file. Without Offset/Length this is the whole file in one
+// message, so the panel caps it (PLUGIN_NODEFS_MAX_INLINE, 32 MiB by default)
+// and a larger file answers with an error naming both sizes.
 downloadResp, _ := fs.Download(ctx, &nodefs.DownloadRequest{
     NodeId: 1,
     Path:   "/home/servers/server.cfg",
 })
 content := downloadResp.Content
+
+// Naming a window reads a larger file a piece at a time: only the window has
+// to fit the cap. The answer echoes Offset and carries TotalSize, so paging
+// needs no separate GetFileInfo. Reading at or past the end is not an error —
+// it answers empty content, which is how the loop below ends.
+var whole []byte
+for offset := uint64(0); ; {
+    page, _ := fs.Download(ctx, &nodefs.DownloadRequest{
+        NodeId: 1,
+        Path:   "/home/servers/world.tar.gz",
+        Offset: offset,
+        Length: 8 << 20,
+    })
+    if page.Error != nil || len(page.Content) == 0 {
+        break
+    }
+    whole = append(whole, page.Content...)
+    offset += uint64(len(page.Content))
+    if offset >= page.TotalSize {
+        break
+    }
+}
+
+// To hand a whole large file to a *client* rather than read it here, answer
+// the route with an HTTPResponse file reference instead: the panel streams it
+// and the bytes never enter guest memory.
 
 // Upload a file
 fs.Upload(ctx, &nodefs.UploadRequest{
@@ -1109,8 +1134,11 @@ func (p MyPlugin) HandleHTTPRequest(ctx context.Context, req *proto.HTTPRequest)
 
 A route can hand the client a file that lives on a node without the bytes
 passing through the plugin: answer with `File` instead of `Body` and the
-panel streams it from the daemon itself (so the 1 MB response limit and the
-guest memory do not apply).
+panel streams it from the daemon itself, so neither the guest memory nor the
+guest call deadline bounds the size — the transfer runs after the call returns
+and does not hold the plugin's call gate. (The 1 MB cap is on the *request*
+body, `DefaultMaxBodySize`; a plugin's own response body is bounded only by
+guest memory.)
 
 ```go
 case "/my-plugin/backups/latest":
@@ -1127,9 +1155,12 @@ case "/my-plugin/backups/latest":
 
 Rules:
 
-- Requires the `files` grant (the same one that gates `gameap-nodefs`); without
-  it the panel answers `403` and records an `access.denied` audit event. The check
-  happens on every request, at the moment the file is served.
+- Requires the `files_read` grant, which `files` includes — the same grant that
+  gates reading through `gameap-nodefs`, so a plugin can only stream what it
+  could read itself. Without it the panel answers `403` and records an
+  `access.denied` audit event. The check happens on every request, at the moment
+  the file is served, and is subject to `PLUGIN_PERMISSIONS_ENFORCE` like every
+  other grant check.
 - Only authenticated clients receive files: on a route with `RequiresAuth:
   false` an anonymous request gets `401`, whatever the plugin answered.
 - `Body` is ignored when `File` is set. `StatusCode` (default `200`) is the
@@ -1139,9 +1170,18 @@ Rules:
   everything else (`Set-Cookie`, `Location`, `WWW-Authenticate`, CSP, other
   `X-*` names such as `X-Accel-Redirect`, …) is dropped, as the response is
   served from the panel origin. The panel owns `Content-Length` and
-  `Content-Disposition` (always an attachment).
-- Range requests are not supported (`Accept-Ranges: none`); `..` path segments
-  are rejected.
+  `Content-Disposition` (always an attachment). The declared length is the one
+  the stat reported and the copy is bounded by it, so a file that changed
+  between the stat and the read ends the response as an error rather than as a
+  body that quietly disagrees with its header.
+- Range requests are served (`Accept-Ranges: bytes`), so an interrupted download
+  resumes instead of starting over: a satisfiable `Range` answers `206` with
+  `Content-Range`, and one past the end answers `416`. A single range only —
+  a multi-range header is ignored and the whole file is sent, which is what a
+  resuming client wants anyway. A range is not applied when the plugin named its
+  own status code, since that answer is the plugin's to define.
+- `..` path segments are rejected, and the path is subject to the operator's
+  path policy.
 - Panels that predate this field ignore it and send an empty body, so a plugin
   that must run on older panels should keep a `Body` fallback for them.
 
@@ -1378,7 +1418,7 @@ Privileged host modules are gated on the plugin's own grants, kept in the
 | `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
 | `secrets` | `gameap-secrets` — reading, writing, listing and deleting the plugin's encrypted credentials |
 | `ssh` | every `gameap-ssh` operation — connecting to a host the plugin names itself, running commands on it and transferring files, all outside the daemon and the node inventory; key generation included, so a plugin cannot mint credentials without the grant. The grant alone is not enough: the operator must also set `PLUGIN_SSH_ENABLED=true` |
-| `manage_nodes` | `gameap-nodes` — the mutating calls: `UpdateNode`, `DeleteNode` and the enrollment setup keys. Reads stay open to every plugin |
+| `manage_nodes` | `gameap-nodes` — the mutating calls: `UpdateNode`, `DeleteNode` and the enrollment setup keys. Reads stay open to every plugin. The module checks this grant itself rather than through the guard, so it is enforced whatever `PLUGIN_PERMISSIONS_ENFORCE` says and carries no rate limit of its own |
 
 `manage_games`, `manage_game_mods` and `manage_users` are reserved for write
 operations the repository modules do not expose yet.
@@ -1465,8 +1505,24 @@ byte is refused. `PLUGIN_NODEFS_PATH_POLICY` selects what else is allowed:
 | `node_workpath` | inside the node's `work_path`; relative paths are resolved under it |
 | `server_dirs` | inside the directory of a game server on that node (`work_path/<server dir>`, soft-deleted servers excluded); `work_dir` of a command must be absolute |
 
+In both restricted modes the plugin's service directory (below) is allowed as well.
+
+Every restricted mode additionally keeps one directory open: the plugin's own
+**service directory**, `<work_path>/.plugins/<plugin id>` — the id being the
+compact form the plugin's routes use. That is where a plugin belongs when it
+needs scratch space on a node: staged request files, results a long node
+command writes back, an archive built for download. It is per plugin and per
+node, resolved from that node's own work path, so nothing has to be configured
+and one plugin cannot reach another's files. A plugin loaded transiently (the
+upload dry-run) has no id yet and gets no directory.
+
+Put node-side working files there and the strictest mode still works. Put them
+anywhere else under the work path and `server_dirs` refuses them.
+
 `PLUGIN_NODEFS_ALLOWED_PATHS` (comma-separated absolute roots) widens the
-restricted modes, e.g. a shared `/opt/steamcmd`. Windows nodes are compared
+restricted modes further, e.g. a shared `/opt/steamcmd`. It is a poor fit for
+plugin working directories: the roots are absolute and apply to every node, so
+a fleet with different work paths cannot be covered by one entry. Windows nodes are compared
 case-insensitively with `\` normalised to `/`; symbolic links are not
 resolved on the panel (the daemon still confines plugins to what it serves).
 A refused call answers `path policy: <reason>: <path>` in the response's
@@ -1627,8 +1683,10 @@ variable name.
   out-of-memory.
 - `PLUGIN_RUNTIME_MAX_MODULE_SIZE` (128M) rejects larger wasm files before
   compilation, for uploads, store installs and autoload alike.
-- `PLUGIN_NODEFS_MAX_INLINE` (32 MiB) caps `gameap-nodefs`
-  `Download`/`Upload` payloads.
+- `PLUGIN_NODEFS_MAX_INLINE` (32 MiB) caps `gameap-nodefs` `Upload` payloads and
+  what one `Download` may answer with. A `Download` that names an
+  `Offset`/`Length` window is measured by the window, so a larger file stays
+  readable one piece at a time.
 - Guest `stdout` is forwarded to the panel log at debug level and `stderr` at
   warn level (attributes `plugin_id`, `stream`, `line`), so a Go/Rust panic
   message is visible. Lines are cut at 4 KiB and each stream is limited to

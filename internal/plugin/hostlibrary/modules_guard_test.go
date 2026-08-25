@@ -113,7 +113,7 @@ func TestNodeCmdService_requires_node_commands(t *testing.T) {
 			t.Parallel()
 
 			guard := NewGuard(tt.grants, WithGuardAudit(recorder)).For(testPluginID)
-			svc := NewNodeCmdService(&mockCommandService{}, repo, guard)
+			svc := NewNodeCmdService(testPluginID, &mockCommandService{}, repo, guard)
 
 			resp, err := svc.ExecuteCommand(context.Background(), &nodecmd.ExecuteCommandRequest{
 				NodeId: 1, Command: "uptime",
@@ -138,7 +138,7 @@ func TestNodeCmdService_audit_never_carries_the_command(t *testing.T) {
 	repo := setupNodeFSRepo(seedTestNode)
 	recorder := &auditRecorder{}
 	guard := NewGuard(grantSet{domain.PluginPermissionNodeCommands: true}, WithGuardAudit(recorder)).For(testPluginID)
-	svc := NewNodeCmdService(&mockCommandService{}, repo, guard)
+	svc := NewNodeCmdService(testPluginID, &mockCommandService{}, repo, guard)
 
 	resp, err := svc.ExecuteCommand(context.Background(), &nodecmd.ExecuteCommandRequest{
 		NodeId: 1, Command: "mysql -psecret-password", WorkDir: new("/srv"),
