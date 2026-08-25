@@ -39,6 +39,14 @@ const breadcrumbs = computed(() => {
 const { node } = storeToRefs(nodeStore)
 const { certificates } = storeToRefs(clientCertificatesStore)
 
+// originalMetadata keeps the bag as the API returned it, so onUpdate can tell
+// an untouched row from an edited one and preserve non-string values.
+const originalMetadata = ref({})
+
+const metadataValueToText = (value) => {
+  return typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value)
+}
+
 const loading = useInitialLoad(async () => {
   nodeStore.setNodeId(route.params.id)
 
@@ -60,6 +68,12 @@ const loading = useInitialLoad(async () => {
   nodeUpdateModel.value = Object.fromEntries(
       Object.entries(node.value).map(([k, v]) => [camelCase(k), v])
   );
+
+  // The metadata bag is edited as a list of {key, value} rows; values are
+  // rendered as text, so non-string entries are stringified for display.
+  originalMetadata.value = {...(node.value.metadata || {})}
+  nodeUpdateModel.value.metadata = Object.entries(originalMetadata.value)
+      .map(([key, value]) => ({key, value: metadataValueToText(value)}))
 })
 
 const certificateOptions = computed(() => {
@@ -75,6 +89,7 @@ const nodeUpdateModel = ref({
   name: '',
   description: '',
   location: '',
+  metadata: [],
 })
 
 const onUpdate = async () => {
@@ -87,6 +102,23 @@ const onUpdate = async () => {
   const fields = Object.fromEntries(
       Object.entries(nodeUpdateModel.value).map(([k, v]) => [snakeCase(k), v])
   );
+
+  // A row the user did not edit keeps the stored value verbatim: the editor
+  // renders every value as text, so sending the text back would turn numbers,
+  // booleans and nested objects into strings nobody asked to change. Edited
+  // and new rows are sent as the strings they were typed as.
+  const metadataObj = {}
+  for (const {key, value} of nodeUpdateModel.value.metadata || []) {
+    if (!key) {
+      continue
+    }
+
+    const isUnchanged = Object.hasOwn(originalMetadata.value, key)
+        && metadataValueToText(originalMetadata.value[key]) === value
+
+    metadataObj[key] = isUnchanged ? originalMetadata.value[key] : value
+  }
+  fields.metadata = metadataObj
 
   nodeStore.saveNode(fields).then(() => {
     notification({

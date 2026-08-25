@@ -35,6 +35,7 @@ and addresses OWASP ASVS 4.0.3 L2:
    host libraries (actor `plugin`): `plugin.server.control`,
    `plugin.server.save` / `plugin.server.delete`, `plugin.server.setting`,
    `plugin.task.create`, `plugin.node.command`, `plugin.node.file`,
+   `plugin.ssh.connect` / `plugin.ssh.exec` / `plugin.ssh.file`,
    `plugin.rbac.role` / `plugin.rbac.grant` / `plugin.rbac.revoke`, plus
    `access.denied` (reason `plugin_permission_missing`) and
    `plugin.hostcall.ratelimited` for refused calls — the latter two throttled

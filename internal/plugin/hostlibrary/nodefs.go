@@ -20,17 +20,6 @@ import (
 	"github.com/tetratelabs/wazero"
 )
 
-// syncWaitGuestDeadlineGrace keeps the blocking archive wait strictly inside
-// the guest call deadline: hitting the call deadline itself would close the
-// wasm module (WithCloseOnContextDone), while an expired wait merely answers
-// completed=false.
-const syncWaitGuestDeadlineGrace = 2 * time.Second
-
-// defaultSyncWaitBudget applies when the request names no timeout and the
-// context carries no deadline (the wrapper always sets one in production);
-// without it such a call would answer completed=false immediately.
-const defaultSyncWaitBudget = 30 * time.Second
-
 type NodeFSServiceImpl struct {
 	pluginID    uint64
 	fileService NodeFileService
@@ -791,18 +780,7 @@ func (s *NodeFSServiceImpl) waitSync(
 		OperationId: operationID,
 	}
 
-	budget := time.Duration(0)
-	if timeoutSeconds > 0 {
-		budget = time.Duration(timeoutSeconds) * time.Second
-	}
-	if deadline, ok := ctx.Deadline(); ok {
-		remaining := time.Until(deadline) - syncWaitGuestDeadlineGrace
-		if budget <= 0 || remaining < budget {
-			budget = remaining
-		}
-	} else if budget <= 0 {
-		budget = defaultSyncWaitBudget
-	}
+	budget := syncWaitBudget(ctx, time.Duration(timeoutSeconds)*time.Second)
 
 	// A non-positive budget here means the guest call deadline is imminent:
 	// answering now (completed=false) beats being killed mid-wait.

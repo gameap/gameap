@@ -343,6 +343,30 @@
             </template>
           </n-card>
         </n-tab-pane>
+
+        <n-tab-pane name="metadata">
+          <template #tab>
+            {{ trans('dedicated_servers.metadata') }}
+          </template>
+
+          <div class="mt-2" data-testid="node-metadata">
+            <n-card
+                :title="trans('dedicated_servers.metadata')"
+                size="small"
+                class="mb-3"
+                header-class="g-card-header"
+                :segmented="{content: true, footer: 'soft'}"
+            >
+              <InputManyList
+                  v-model="form.metadata"
+                  class="mb-4"
+                  :labels="[trans('labels.key'), trans('labels.the_value')]"
+                  :keys="['key', 'value']"
+                  :input-types="['text', 'text']"
+              />
+            </n-card>
+          </div>
+        </n-tab-pane>
       </n-tabs>
     </n-form>
 
@@ -375,6 +399,7 @@ import {
 } from "naive-ui"
 import GButton from "../../../components/GButton.vue";
 import GFixedBottomBar from "../../../components/GFixedBottomBar.vue";
+import InputManyList from "../../../components/input/InputManyList.vue";
 
 const osOptions = [
   {label: 'Linux', value: 'linux'},

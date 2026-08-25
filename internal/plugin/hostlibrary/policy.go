@@ -17,6 +17,7 @@ const (
 	ModuleHTTP           = "gameap-http"
 	ModuleCache          = "gameap-cache"
 	ModuleStorage        = "gameap-storage"
+	ModuleSSH            = "gameap-ssh"
 	// ModuleHost is open to every plugin (introspection only).
 	ModuleHost = "gameap-host"
 )
@@ -30,6 +31,7 @@ const (
 	RateClassNodeFS        RateClass = "nodefs"
 	RateClassHTTP          RateClass = "http"
 	RateClassRBAC          RateClass = "rbac"
+	RateClassSSH           RateClass = "ssh"
 )
 
 // HostRPC identifies one host function by module and export name, exactly as
@@ -114,6 +116,14 @@ func buildHostRPCPolicies() map[HostRPC]RPCPolicy {
 	add(ModuleHTTP,
 		RPCPolicy{RateClass: RateClassHTTP},
 		"fetch")
+
+	// gameap-ssh reaches hosts the plugin names itself, bypassing the daemon
+	// entirely, so every function of the module needs the grant — key
+	// generation included, so a plugin cannot mint credentials without it.
+	add(ModuleSSH,
+		RPCPolicy{Permission: domain.PluginPermissionSSH, RateClass: RateClassSSH},
+		"generate_key_pair", "connect", "disconnect", "exec", "start_exec",
+		"get_exec_operation", "cancel_exec", "write_file", "read_file")
 
 	return policies
 }

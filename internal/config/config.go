@@ -409,6 +409,86 @@ type Config struct {
 			RequireEncryption bool `env:"PLUGIN_SECRETS_REQUIRE_ENCRYPTION" envDefault:"true"`
 		}
 
+		// SSH gates the gameap-ssh host library
+		// (internal/plugin/hostlibrary/ssh.go, internal/services/pluginssh):
+		// plugins holding the ssh grant open SSH connections to hosts they
+		// name and run commands there, which is how a machine gets its daemon
+		// before it has one. Connections and operations live in the memory of
+		// the panel instance that opened them.
+		SSH struct {
+			// Enabled turns on the gameap-ssh host library. It is off by
+			// default: installing a plugin currently grants everything the
+			// plugin asked for, so this switch is the operator's only
+			// deliberate consent to outbound SSH from the panel.
+			Enabled bool `env:"PLUGIN_SSH_ENABLED" envDefault:"false"`
+
+			// BlockPrivateIPs refuses to dial a target whose post-DNS address
+			// is loopback / RFC1918 / link-local / CGNAT. Cloud-metadata
+			// addresses are blocked even when this switch is off.
+			BlockPrivateIPs bool `env:"PLUGIN_SSH_BLOCK_PRIVATE_IPS" envDefault:"true"`
+
+			// AllowedHosts bypasses the private-IP block for these hostnames,
+			// for panels whose dedicated servers live on a private network.
+			AllowedHosts []string `env:"PLUGIN_SSH_ALLOWED_HOSTS" envSeparator:"," envDefault:""`
+
+			// AllowAcceptAnyHostKey permits the accept_any host key policy
+			// (trust-on-first-use), which first contact with a freshly created
+			// machine needs. Disable to force every plugin to pin the host key
+			// or its fingerprint.
+			AllowAcceptAnyHostKey bool `env:"PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY" envDefault:"true"`
+
+			// MaxConnections caps concurrent SSH connections per plugin.
+			MaxConnections int `env:"PLUGIN_SSH_MAX_CONNECTIONS" envDefault:"8"`
+
+			// MaxOperations caps concurrently running commands per plugin.
+			MaxOperations int `env:"PLUGIN_SSH_MAX_OPERATIONS" envDefault:"16"`
+
+			// ConnectTimeout bounds the dial, handshake and authentication
+			// together, and is also the ceiling for a plugin's own value.
+			ConnectTimeout time.Duration `env:"PLUGIN_SSH_CONNECT_TIMEOUT" envDefault:"30s"`
+
+			// MaxExecTimeout is the ceiling for a single remote command.
+			MaxExecTimeout time.Duration `env:"PLUGIN_SSH_MAX_EXEC_TIMEOUT" envDefault:"30m"`
+
+			// IdleTimeout closes a connection nothing has run on for this long.
+			IdleTimeout time.Duration `env:"PLUGIN_SSH_IDLE_TIMEOUT" envDefault:"10m"`
+
+			// MaxOutputBytes caps captured stdout and stderr per command; the
+			// head is kept and the stream is reported as truncated.
+			MaxOutputBytes int `env:"PLUGIN_SSH_MAX_OUTPUT_BYTES" envDefault:"1048576"`
+
+			// MaxStdinBytes caps what a plugin may pipe into a command, which
+			// is how install scripts are delivered.
+			MaxStdinBytes int `env:"PLUGIN_SSH_MAX_STDIN_BYTES" envDefault:"1048576"`
+
+			// OperationRetention keeps a finished operation (with its captured
+			// output) readable, so a plugin that polls late still sees the
+			// outcome. Together with MaxRetainedOperations and MaxOutputBytes
+			// it bounds the memory held per plugin.
+			OperationRetention time.Duration `env:"PLUGIN_SSH_OPERATION_RETENTION" envDefault:"10m"`
+
+			// MaxRetainedOperations caps how many finished operations are kept
+			// per plugin; the oldest are evicted first. 0 selects the default.
+			MaxRetainedOperations int `env:"PLUGIN_SSH_MAX_RETAINED_OPERATIONS" envDefault:"64"`
+
+			// KeepaliveInterval paces the liveness probes on open connections.
+			// The engine floors the effective sweep at one second.
+			KeepaliveInterval time.Duration `env:"PLUGIN_SSH_KEEPALIVE_INTERVAL" envDefault:"30s"`
+
+			// CompletionCallTimeout bounds one completion callback into the
+			// plugin; a guest that cannot answer in time is disabled.
+			CompletionCallTimeout time.Duration `env:"PLUGIN_SSH_COMPLETION_CALL_TIMEOUT" envDefault:"30s"`
+
+			// BusyRetryDelay is the pause between completion callback retries
+			// while the plugin instance is busy with another call.
+			BusyRetryDelay time.Duration `env:"PLUGIN_SSH_BUSY_RETRY_DELAY" envDefault:"2s"`
+
+			// BusyRetries is how many times a busy completion callback is
+			// retried before it is dropped. 0 selects the default; retries
+			// cannot be disabled.
+			BusyRetries int `env:"PLUGIN_SSH_BUSY_RETRIES" envDefault:"5"`
+		}
+
 		// Net gates the plugin socket host library
 		// (internal/plugin/hostlibrary/net.go), which lets plugins implement
 		// custom RCON/Query wire protocols over connections the host opens and
@@ -576,6 +656,13 @@ type Config struct {
 			RBAC struct {
 				RPS   float64 `env:"PLUGIN_RATELIMIT_RBAC_RPS" envDefault:"10"`
 				Burst int     `env:"PLUGIN_RATELIMIT_RBAC_BURST" envDefault:"50"`
+			}
+
+			// SSH: every gameap-ssh call. The budget has to cover polling a
+			// running command with GetExecOperation, not just the connects.
+			SSH struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_SSH_RPS" envDefault:"20"`
+				Burst int     `env:"PLUGIN_RATELIMIT_SSH_BURST" envDefault:"60"`
 			}
 		}
 	}

@@ -7,11 +7,36 @@ option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/nodes";
 import "pkg/plugin/sdk/common/common.proto";
 import "pkg/proto/node.proto";
 
-// NodesService provides node repository access to plugins
+// NodesService provides node repository access to plugins.
+//
+// Reads are open to every plugin. The mutating calls (UpdateNode, DeleteNode
+// and the setup-key family) require the manage_nodes permission; without it
+// they answer success = false and name the missing grant in "error".
+//
+// Daemon credentials, certificates, the daemon address and the management
+// scripts are deliberately not writable here: a plugin may relabel a node and
+// retire it, not take over how the panel talks to its daemon.
 // go:plugin type=host module=gameap-nodes
 service NodesService {
   rpc FindNodes(FindNodesRequest) returns (FindNodesResponse);
   rpc GetNode(GetNodeRequest) returns (GetNodeResponse);
+  rpc UpdateNode(UpdateNodeRequest) returns (UpdateNodeResponse);
+  // DeleteNode is a soft delete; it is refused while game servers are still
+  // assigned to the node.
+  rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
+
+  // CreateSetupKey mints a single-use daemon enrollment key together with the
+  // install script to run on the target machine. The presets are applied to
+  // the node the panel creates when a daemon enrolls with this key, which is
+  // how a plugin correlates the machine it provisioned with the node record
+  // that appears.
+  rpc CreateSetupKey(CreateSetupKeyRequest) returns (CreateSetupKeyResponse);
+  // GetSetupKey reports whether a key this plugin issued is still pending or
+  // has been used, and which node it produced. Keys issued by anyone else —
+  // including the panel's own admin setup key — answer found = false.
+  rpc GetSetupKey(GetSetupKeyRequest) returns (GetSetupKeyResponse);
+  // RevokeSetupKey invalidates a pending key of this plugin.
+  rpc RevokeSetupKey(RevokeSetupKeyRequest) returns (RevokeSetupKeyResponse);
 }
 
 message FindNodesRequest {
@@ -23,6 +48,8 @@ message FindNodesRequest {
 message NodeFilter {
   repeated uint64 ids = 1;
   optional bool enabled = 2;
+  // os is normalized the way the panel normalizes it elsewhere, so "ubuntu"
+  // and "debian" both select linux nodes.
   optional string os = 3;
 }
 
@@ -38,4 +65,118 @@ message GetNodeRequest {
 message GetNodeResponse {
   optional gameap.Node node = 1;
   bool found = 2;
+}
+
+message UpdateNodeRequest {
+  uint64 id = 1;
+  optional bool enabled = 2;
+  optional string name = 3;
+  optional string location = 4;
+  // An empty provider clears the field.
+  optional string provider = 5;
+  optional string work_path = 6;
+  optional string steamcmd_path = 7;
+  // ips replaces the stored address list when non-empty.
+  repeated string ips = 8;
+  // metadata is merged into the stored bag: listed keys are overwritten,
+  // unlisted ones survive. The bag is shared with the admin UI and other
+  // plugins, so there is no wholesale replace.
+  map<string, string> metadata = 9;
+  // remove_metadata_keys is applied after the merge.
+  repeated string remove_metadata_keys = 10;
+}
+
+message UpdateNodeResponse {
+  bool success = 1;
+  optional string error = 2;
+  optional gameap.Node node = 3;
+}
+
+message DeleteNodeRequest {
+  uint64 id = 1;
+}
+
+message DeleteNodeResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+// NodePresets are applied to the node created when a daemon enrolls with the
+// setup key; unset fields keep the enrollment defaults.
+message NodePresets {
+  optional bool enabled = 1;
+  optional string name = 2;
+  optional string location = 3;
+  optional string provider = 4;
+  optional string work_path = 5;
+  optional string steamcmd_path = 6;
+  map<string, string> metadata = 7;
+}
+
+// InstallScriptOptions tune the generated install script the same way the
+// admin-facing setup endpoint does.
+message InstallScriptOptions {
+  optional string config = 1;
+  bool github = 2;
+  optional string branch = 3;
+}
+
+message CreateSetupKeyRequest {
+  optional NodePresets presets = 1;
+  // 0 selects the panel default (1 hour); the panel caps the value.
+  uint32 ttl_seconds = 2;
+  // connect_host is used only when the panel has no GRPC_EXTERNAL_HOST
+  // configured; without either, the call fails rather than emitting a script
+  // the machine cannot use.
+  optional string connect_host = 3;
+  optional uint32 connect_port = 4;
+  optional InstallScriptOptions install_script = 5;
+}
+
+message CreateSetupKeyResponse {
+  bool success = 1;
+  optional string error = 2;
+  // setup_key is returned once; the panel keeps only its hash.
+  string setup_key = 3;
+  // ticket_id identifies the key in GetSetupKey/RevokeSetupKey and is not a
+  // secret.
+  string ticket_id = 4;
+  string connect_url = 5;
+  // install_script is the same script the admin setup link serves; pipe it
+  // into a root shell on the target, e.g. `bash -s`.
+  string install_script = 6;
+  string install_command = 7;
+  // Unix seconds.
+  int64 expires_at = 8;
+  repeated string warnings = 9;
+}
+
+enum SetupKeyStatus {
+  SETUP_KEY_STATUS_UNSPECIFIED = 0;
+  SETUP_KEY_STATUS_PENDING = 1;
+  SETUP_KEY_STATUS_ENROLLED = 2;
+}
+
+message GetSetupKeyRequest {
+  string ticket_id = 1;
+}
+
+message GetSetupKeyResponse {
+  bool success = 1;
+  optional string error = 2;
+  // found = false: unknown here — never issued by this plugin, or expired.
+  bool found = 3;
+  SetupKeyStatus status = 4;
+  optional uint64 node_id = 5;
+  int64 expires_at = 6;
+  int64 enrolled_at = 7;
+}
+
+message RevokeSetupKeyRequest {
+  string ticket_id = 1;
+}
+
+message RevokeSetupKeyResponse {
+  bool success = 1;
+  optional string error = 2;
 }

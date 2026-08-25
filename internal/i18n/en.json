@@ -107,6 +107,7 @@
     "name": "Name",
     "location": "Location",
     "provider": "Provider",
+    "metadata": "Metadata",
     "ip": "IP",
     "os": "OS",
     "servers_count": "Servers count",
@@ -636,7 +637,8 @@
     "permission_files_read": "Read files on nodes",
     "permission_listen_events": "Receive events",
     "permission_secrets": "Encrypted secrets",
-    "permission_node_commands": "Run commands on nodes"
+    "permission_node_commands": "Run commands on nodes",
+    "permission_ssh": "Connect to hosts over SSH"
   },
   "navbar": {
     "main": "Home",

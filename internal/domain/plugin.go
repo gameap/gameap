@@ -67,6 +67,9 @@ const (
 	// PluginPermissionNodeCommands gates arbitrary command execution on nodes
 	// (gameap-nodecmd and cmdexec daemon tasks), separately from file access.
 	PluginPermissionNodeCommands PluginPermission = "node_commands"
+	// PluginPermissionSSH gates gameap-ssh: connections, command execution and
+	// file transfers to hosts the plugin names itself, outside the daemon.
+	PluginPermissionSSH PluginPermission = "ssh"
 )
 
 // PluginPermissions lists every permission the panel understands. A plugin
@@ -84,6 +87,7 @@ var PluginPermissions = []PluginPermission{
 	PluginPermissionListenEvents,
 	PluginPermissionSecrets,
 	PluginPermissionNodeCommands,
+	PluginPermissionSSH,
 }
 
 // ParsePluginPermission converts a manifest string into a known permission.

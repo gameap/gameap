@@ -3,6 +3,7 @@ package inmemory
 import (
 	"cmp"
 	"context"
+	"maps"
 	"sort"
 	"strings"
 	"sync"
@@ -132,6 +133,7 @@ func (r *NodeRepository) Save(_ context.Context, node *domain.Node) error {
 		ScriptGetConsole:    node.ScriptGetConsole,
 		ScriptSendCommand:   node.ScriptSendCommand,
 		ScriptDelete:        node.ScriptDelete,
+		Metadata:            maps.Clone(node.Metadata),
 		CreatedAt:           node.CreatedAt,
 		UpdatedAt:           node.UpdatedAt,
 		DeletedAt:           node.DeletedAt,
@@ -256,7 +258,31 @@ func (r *NodeRepository) getFilteredNodeIDs(filter *filters.FindNode) map[uint]s
 		resultIDs = filtered
 	}
 
+	if filter.Enabled != nil {
+		resultIDs = r.keepMatching(resultIDs, func(node *domain.Node) bool {
+			return node.Enabled == *filter.Enabled
+		})
+	}
+
+	if filter.OS != nil {
+		resultIDs = r.keepMatching(resultIDs, func(node *domain.Node) bool {
+			return node.OS == *filter.OS
+		})
+	}
+
 	return resultIDs
+}
+
+// keepMatching narrows an ID set to the nodes the predicate accepts.
+func (r *NodeRepository) keepMatching(ids map[uint]struct{}, match func(*domain.Node) bool) map[uint]struct{} {
+	filtered := make(map[uint]struct{}, len(ids))
+	for nodeID := range ids {
+		if node, exists := r.nodes[nodeID]; exists && match(node) {
+			filtered[nodeID] = struct{}{}
+		}
+	}
+
+	return filtered
 }
 
 func (r *NodeRepository) sortNodes(nodes []domain.Node, order []filters.Sorting) {

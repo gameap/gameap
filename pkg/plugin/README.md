@@ -703,6 +703,118 @@ fmt.Printf("Exit code: %d\n", resp.ExitCode)
 fmt.Printf("Output: %s\n", resp.Output)
 ```
 
+### gameap-ssh
+
+Opens SSH connections to hosts the plugin names and runs commands there. This
+is the one thing `gameap-nodecmd` cannot do: it works through the daemon, and a
+machine being provisioned does not have one yet.
+
+Requires the `ssh` permission **and** `PLUGIN_SSH_ENABLED=true` on the panel.
+The module is not registered at all when the operator leaves the switch off, so
+a plugin that imports it fails to load — check the panel configuration first
+when a load fails with an unknown import.
+
+```go
+sshc := ssh.NewSSHService()
+
+// 1. A key for the machine that does not exist yet.
+key, _ := sshc.GenerateKeyPair(ctx, &ssh.GenerateKeyPairRequest{
+    Type:    ssh.KeyType_KEY_TYPE_ED25519,
+    Comment: "autoscale@panel",
+})
+// key.PublicKey goes to the cloud provider; keep key.PrivateKeyPem yourself —
+// in gameap-secrets, which encrypts at rest, not in gameap-storage, whose
+// payloads are stored in plaintext.
+
+// 2. First contact: no host key is known yet, so accept what answers and pin
+//    the fingerprint the response reports for every later connection.
+conn, _ := sshc.Connect(ctx, &ssh.ConnectRequest{
+    Host:    "203.0.113.10",
+    User:    "root",
+    Auth:    &ssh.SSHAuth{PrivateKeyPem: key.PrivateKeyPem},
+    HostKey: &ssh.HostKeyPolicy{AcceptAny: true},
+})
+if !conn.Success {
+    return
+}
+// store conn.HostKeyFingerprintSha256, then reconnect with
+// &ssh.HostKeyPolicy{FingerprintsSha256: []string{stored}}
+
+// 3. A short command answers inline, and the connection is done with.
+out, _ := sshc.Exec(ctx, &ssh.ExecRequest{Handle: conn.Handle, Command: "uname -a"})
+if out.Completed && out.OpSuccess {
+    log.Info(string(out.Stdout))
+}
+
+sshc.Disconnect(ctx, &ssh.DisconnectRequest{Handle: conn.Handle})
+```
+
+A daemon install takes minutes, so it runs asynchronously. `Disconnect` cancels
+every operation still running on the connection, so the handle has to stay open
+until the completion callback arrives:
+
+```go
+op, _ := sshc.StartExec(ctx, &ssh.ExecRequest{
+    Handle:  conn.Handle,
+    Command: "bash -s",
+    Stdin:   []byte(installScript), // from gameap-nodes.CreateSetupKey
+})
+// Keep conn.Handle open here; persist it together with op.OperationId.
+```
+
+Completion is pushed into the plugin when it exports the handler:
+
+```go
+func init() {
+    ssh.RegisterSSHExecEventsHandler(&myPlugin{})
+}
+
+func (p *myPlugin) HandleExecCompleted(
+    ctx context.Context, req *ssh.HandleExecCompletedRequest,
+) (*ssh.HandleExecCompletedResponse, error) {
+    // Fetch the output with GetExecOperation; persist what you need, because
+    // plugin memory does not survive a reload.
+
+    // The install has finished, so the connection can go now.
+    sshc.Disconnect(ctx, &ssh.DisconnectRequest{Handle: storedHandle})
+
+    return &ssh.HandleExecCompletedResponse{}, nil
+}
+```
+
+Semantics worth knowing:
+
+- **`Exec` blocks, `StartExec` does not.** `Exec` waits inside the guest call
+  deadline; when the budget runs out it answers `completed=false` with an
+  operation id and subscribes to the completion callback. A command that
+  finishes in time triggers no callback, so short commands stay quiet.
+- **Handles and operations are instance-local.** They live in the memory of the
+  panel instance that created them and do not survive a plugin reload. On a
+  multi-instance panel a later scheduler tick may run elsewhere, where
+  `GetExecOperation` answers `found=false` — prefer the completion callback
+  (delivered on the owning instance) and persist the result.
+- **A host key policy is mandatory.** Either `accept_any` or a pin list —
+  never both: the combination is rejected, because `accept_any` would silently
+  skip the pins. The observed key is always returned so first contact can pin
+  it, and an operator can forbid `accept_any` panel-wide with
+  `PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY=false`.
+- **Environment variables** go through SSH `env` requests, which most sshd
+  configurations accept only for the names in `AcceptEnv`. Use
+  `env K=V command` inside the command for anything else.
+- **Output is capped** per stream (`PLUGIN_SSH_MAX_OUTPUT_BYTES`); the head is
+  kept and the stream is flagged truncated, with the produced byte count
+  reported separately.
+- **File helpers** (`WriteFile`, `ReadFile`) stream through a remote `cat`, so
+  no SFTP subsystem is needed on a freshly installed machine. `WriteFile`
+  writes to a same-directory temporary file under `umask 077` and renames it
+  into place: the content is never readable wider than the requested mode, and
+  a failed transfer leaves no partial target. `mode` is octal permission bits
+  up to `0o777` — write `0o644`, not decimal `644`; larger values are rejected.
+
+Targets go through the same address policy as `gameap-http`: cloud-metadata
+addresses are never reachable, and private addresses are refused unless the
+operator allows them (`PLUGIN_SSH_BLOCK_PRIVATE_IPS`, `PLUGIN_SSH_ALLOWED_HOSTS`).
+
 ### Repository Services
 
 Repository access is split into separate services for better organization:
@@ -765,14 +877,65 @@ if userResp.Found {
 
 #### gameap-nodes
 
+Reading is open to every plugin:
+
 ```go
 nodesRepo := nodes.NewNodesService()
 
 nodeResp, _ := nodesRepo.GetNode(ctx, &nodes.GetNodeRequest{Id: 1})
 if nodeResp.Found {
     node := nodeResp.Node
+    // node.Metadata is a free-form string map — the panel never puts secrets
+    // there, and neither should a plugin.
 }
 ```
+
+Writing and the enrollment setup keys require the `manage_nodes` permission.
+
+```go
+// Relabel a node. Metadata is merged, so keys other actors own survive;
+// remove_metadata_keys deletes the ones you name.
+nodesRepo.UpdateNode(ctx, &nodes.UpdateNodeRequest{
+    Id:       1,
+    Location: proto.String("fsn1"),
+    Metadata: map[string]string{"hetzner.server_id": "42"},
+})
+
+// Retire it. This is a soft delete and is refused while game servers are
+// still assigned to the node.
+nodesRepo.DeleteNode(ctx, &nodes.DeleteNodeRequest{Id: 1})
+```
+
+Provisioning a new node — the panel never creates one directly, a daemon
+enrolls itself with a single-use key:
+
+```go
+key, _ := nodesRepo.CreateSetupKey(ctx, &nodes.CreateSetupKeyRequest{
+    // Applied to the node the panel creates when the daemon enrolls; this is
+    // how you recognise your machine among the nodes that appear.
+    Presets: &nodes.NodePresets{
+        Name:     proto.String("hz-fsn1-7"),
+        Location: proto.String("fsn1"),
+        Provider: proto.String("Hetzner"),
+        Metadata: map[string]string{"hetzner.server_id": "42"},
+    },
+    TtlSeconds: 3600,
+})
+
+// key.InstallScript is the same installer the admin setup link serves; pipe it
+// into a root shell on the machine (gameap-ssh does exactly this).
+// key.SetupKey is returned once — the panel stores only its digest.
+
+status, _ := nodesRepo.GetSetupKey(ctx, &nodes.GetSetupKeyRequest{TicketId: key.TicketId})
+if status.Found && status.Status == nodes.SetupKeyStatus_SETUP_KEY_STATUS_ENROLLED {
+    nodeID := status.NodeId // the node the daemon became
+}
+```
+
+The panel must know the address daemons dial: set `GRPC_EXTERNAL_HOST`, or pass
+`connect_host` in the request. Without either, `CreateSetupKey` fails instead of
+emitting a script the machine cannot use. Keys belong to the plugin that issued
+them; another plugin's key answers `found=false`.
 
 #### gameap-daemontasks
 
@@ -1190,8 +1353,14 @@ cloud-metadata IPs are always blocked). See
 
 - Plugins run in a WebAssembly sandbox
 - No direct filesystem access
-- No direct network access — use gameap-http for external calls, or gameap-net
-  for protocol I/O on host-opened connections (plugins never dial)
+- No direct network access by default — use gameap-http for external calls, or
+  gameap-net for protocol I/O on host-opened connections (plugins never dial).
+  The single exception is gameap-ssh, where a plugin does name its own target
+  because bootstrapping a machine cannot work otherwise; it is gated on the
+  `ssh` grant and on the operator's `PLUGIN_SSH_ENABLED` switch, and its
+  targets go through the same address policy as gameap-http
+- Node metadata is readable by every plugin through gameap-nodes, so it is not
+  a place for secrets
 - Plugin configuration can restrict capabilities
 
 ### Plugin permissions
@@ -1208,9 +1377,11 @@ Privileged host modules are gated on the plugin's own grants, kept in the
 | `listen_events` | Event subscriptions: a plugin without it is never called for events (its `GetSubscribedEvents` answer is ignored, with a warning in the log) |
 | `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
 | `secrets` | `gameap-secrets` — reading, writing, listing and deleting the plugin's encrypted credentials |
+| `ssh` | every `gameap-ssh` operation — connecting to a host the plugin names itself, running commands on it and transferring files, all outside the daemon and the node inventory; key generation included, so a plugin cannot mint credentials without the grant. The grant alone is not enough: the operator must also set `PLUGIN_SSH_ENABLED=true` |
+| `manage_nodes` | `gameap-nodes` — the mutating calls: `UpdateNode`, `DeleteNode` and the enrollment setup keys. Reads stay open to every plugin |
 
-`manage_nodes`, `manage_games`, `manage_game_mods` and `manage_users` are
-reserved for write operations the repository modules do not expose yet.
+`manage_games`, `manage_game_mods` and `manage_users` are reserved for write
+operations the repository modules do not expose yet.
 Reads — `gameap-servers.Find/Get`, `gameap-users`, `gameap-nodes`,
 `gameap-games`, `gameap-gamemods`, `gameap-daemontasks.Find`,
 `gameap-serversettings.Find`, `gameap-authz` — and `gameap-http`,
@@ -1315,6 +1486,7 @@ The expensive host libraries are rate limited per plugin with a token bucket
 | `nodefs` | every `gameap-nodefs` operation | 50/s, burst 200 |
 | `http` | `gameap-http.Fetch` | 20/s, burst 50 |
 | `rbac` | every `gameap-rbac` operation | 10/s, burst 50 |
+| `ssh` | every `gameap-ssh` operation, polling a running command included | 20/s, burst 60 |
 
 `PLUGIN_RATELIMIT_<CLASS>_RPS` / `_BURST` tune them; RPS `0` disables a
 class. A refused call answers `rate limited: gameap-<module> allows N calls/s
@@ -1332,7 +1504,10 @@ compact id): `plugin.server.control` (action start/stop/restart/update/
 install/reinstall), `plugin.server.save` / `plugin.server.delete`,
 `plugin.server.setting`, `plugin.task.create`, `plugin.node.command`
 (node, working directory and exit code — never the command text),
-`plugin.node.file` (mkdir/copy/move/upload/remove/chmod/archive_*), and
+`plugin.node.file` (mkdir/copy/move/upload/remove/chmod/archive_*),
+`plugin.ssh.connect` (host, port and user — never the credentials),
+`plugin.ssh.exec` (connection and operation id — never the command text or
+its stdin), `plugin.ssh.file` (path and connection — never the content), and
 `plugin.rbac.role` / `plugin.rbac.grant` / `plugin.rbac.revoke`. Refusals
 are `access.denied` with the plugin as the actor (reason
 `plugin_permission_missing` or `plugin_path_policy`). Operator actions on a plugin are recorded with the
@@ -1548,6 +1723,7 @@ pkg/plugin/
 │   ├── protocol/             # ProtocolService (optional RCON/Query extension)
 │   ├── scheduler/            # gameap-scheduler module (periodic tasks)
 │   ├── secrets/              # gameap-secrets module (encrypted credentials)
+│   ├── ssh/                  # gameap-ssh module (SSH to plugin-named hosts)
 │   ├── host/                 # gameap-host module (own grants, host info)
 │   └── log/                  # gameap-log module
 ├── examples/

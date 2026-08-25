@@ -13,4 +13,5 @@ export const PLUGIN_PERMISSIONS = [
   'listen_events',
   'secrets',
   'node_commands',
+  'ssh',
 ]

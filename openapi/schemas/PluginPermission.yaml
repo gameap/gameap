@@ -7,8 +7,9 @@ description: |
   file responses; `files_read` gates only the read operations of
   gameap-nodefs and file responses — `files` includes it; `listen_events`
   gates event subscriptions; `manage_rbac` gates gameap-rbac; `secrets`
-  gates gameap-secrets. The remaining values are reserved for host
-  libraries that do not exist yet.
+  gates gameap-secrets; `ssh` gates gameap-ssh, which reaches hosts the
+  plugin names itself rather than nodes the panel knows. The remaining
+  values are reserved for host libraries that do not exist yet.
 enum:
   - manage_servers
   - manage_nodes
@@ -21,4 +22,5 @@ enum:
   - listen_events
   - secrets
   - node_commands
+  - ssh
 example: "files"

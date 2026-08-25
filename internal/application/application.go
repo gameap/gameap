@@ -207,6 +207,12 @@ func startPluginServices(ctx context.Context, container *Container) {
 		return
 	}
 
+	if container.config.Plugin.SSH.Enabled {
+		// Records the lifetime context before any guest Initialize can open a
+		// connection, so completion callbacks outlive the calls that start them.
+		container.PluginSSH().Start(ctx)
+	}
+
 	// Subscribed before LoadAll so a peer's change during the load window
 	// is not missed; the first pass runs once the subscriptions are built.
 	if err := container.PluginSync().Subscribe(ctx); err != nil {

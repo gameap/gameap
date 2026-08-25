@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -70,6 +71,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pelicaneggimporter"
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
+	"github.com/gameap/gameap/internal/services/pluginssh"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
@@ -182,7 +184,9 @@ type Container struct {
 	certificatesService  *certificates.Service
 
 	// Enrollment
-	enrollmentService *enrollment.Service
+	enrollmentService         *enrollment.Service
+	enrollmentConnectResolver *enrollment.ConnectResolver
+	nodeService               *services.NodeService
 
 	secretCipher *secret.Cipher
 
@@ -229,6 +233,13 @@ type Container struct {
 
 	pluginArchiveEvents *pluginarchive.Service
 	pluginSync          *pluginsync.Service
+
+	pluginSSH *pluginssh.Service
+	// pluginSSHOnce guards the lazy construction: lazySSHSessions resolves the
+	// service during plugin load, which LoadTransient runs under a read lock —
+	// concurrent loads would otherwise build two engines and leak the loser's
+	// connections past Shutdown.
+	pluginSSHOnce sync.Once
 
 	// HTTP
 	router                    *http.ServeMux
@@ -331,6 +342,12 @@ func (c *Container) Shutdown() error {
 	// callback must finish before its runtime is closed.
 	if c.pluginArchiveEvents != nil {
 		c.pluginArchiveEvents.Stop()
+	}
+
+	// Same contract for ssh completion callbacks, and it also closes the
+	// plugins' open SSH connections.
+	if c.pluginSSH != nil {
+		c.pluginSSH.Stop()
 	}
 
 	for _, fn := range c.shotdownFuncs {
@@ -1682,7 +1699,11 @@ func (c *Container) CertificatesService() *certificates.Service {
 func (c *Container) EnrollmentService() *enrollment.Service {
 	if c.enrollmentService == nil {
 		keyManager := enrollment.NewSetupKeyManager(c.Cache(), c.config.DaemonSetupKey)
-		opts := []enrollment.ServiceOption{}
+		opts := []enrollment.ServiceOption{
+			// Enrollment tickets are single-use, so the claim must be exclusive
+			// across every panel instance, not only within this process.
+			enrollment.WithLocker(c.SchedulerLocker()),
+		}
 		if !c.config.Plugins.Disabled {
 			opts = append(opts, enrollment.WithNodeEvents(&lazyPluginNodeEvents{container: c}))
 		}
@@ -1714,6 +1735,35 @@ func (c *Container) GRPCExternalPort() uint16 {
 // GRPCCertHostCovered reports whether the gRPC TLS server certificate of this
 // instance covers host. Returns true when gRPC TLS is disabled or the
 // certificate has not been loaded: there is nothing to warn about then.
+// EnrollmentConnectResolver names the gRPC address daemons dial to reach this
+// panel. Shared by the admin setup endpoints and the plugin host library so a
+// generated connect URL is identical whichever path produced it.
+func (c *Container) EnrollmentConnectResolver() *enrollment.ConnectResolver {
+	if c.enrollmentConnectResolver == nil {
+		c.enrollmentConnectResolver = enrollment.NewConnectResolver(
+			c.GRPCExternalHost(),
+			c.GRPCPort(),
+			c.GRPCExternalPort(),
+			c.GRPCCertHostCovered,
+		)
+	}
+
+	return c.enrollmentConnectResolver
+}
+
+func (c *Container) NodeService() *services.NodeService {
+	if c.nodeService == nil {
+		opts := []services.NodeServiceOption{}
+		if !c.config.Plugins.Disabled {
+			opts = append(opts, services.WithNodePluginEvents(&lazyPluginNodeEvents{container: c}))
+		}
+
+		c.nodeService = services.NewNodeService(c.NodeRepository(), c.ServerRepository(), opts...)
+	}
+
+	return c.nodeService
+}
+
 func (c *Container) GRPCCertHostCovered(host string) bool {
 	if c.grpcServerCertLeaf == nil {
 		return true
@@ -2088,6 +2138,38 @@ func (c *Container) PluginManager() *pkgplugin.Manager {
 	return c.pluginManager
 }
 
+// PluginSSH is the SSH engine behind the gameap-ssh host library: it owns the
+// dial policy, the per-plugin limits and the delivery of completion callbacks.
+func (c *Container) PluginSSH() *pluginssh.Service {
+	c.pluginSSHOnce.Do(func() {
+		c.pluginSSH = pluginssh.New(
+			c.PluginManager(),
+			c.PluginLoader(),
+			pluginssh.Config{
+				BlockPrivateIPs:          c.config.Plugin.SSH.BlockPrivateIPs,
+				AllowedHosts:             c.config.Plugin.SSH.AllowedHosts,
+				DisallowAcceptAnyHostKey: !c.config.Plugin.SSH.AllowAcceptAnyHostKey,
+				MaxConnections:           c.config.Plugin.SSH.MaxConnections,
+				MaxOperations:            c.config.Plugin.SSH.MaxOperations,
+				ConnectTimeout:           c.config.Plugin.SSH.ConnectTimeout,
+				MaxExecTimeout:           c.config.Plugin.SSH.MaxExecTimeout,
+				IdleTimeout:              c.config.Plugin.SSH.IdleTimeout,
+				MaxOutputBytes:           c.config.Plugin.SSH.MaxOutputBytes,
+				MaxStdinBytes:            c.config.Plugin.SSH.MaxStdinBytes,
+				OperationRetention:       c.config.Plugin.SSH.OperationRetention,
+				MaxRetainedOperations:    c.config.Plugin.SSH.MaxRetainedOperations,
+				KeepaliveInterval:        c.config.Plugin.SSH.KeepaliveInterval,
+				CompletionCallTimeout:    c.config.Plugin.SSH.CompletionCallTimeout,
+				BusyRetryDelay:           c.config.Plugin.SSH.BusyRetryDelay,
+				BusyRetries:              c.config.Plugin.SSH.BusyRetries,
+			},
+			slog.Default(),
+		)
+	})
+
+	return c.pluginSSH
+}
+
 func (c *Container) PluginArchiveEvents() *pluginarchive.Service {
 	if c.pluginArchiveEvents == nil {
 		c.pluginArchiveEvents = pluginarchive.New(
@@ -2205,10 +2287,11 @@ func (c *Container) connRegistry() *pkgplugin.ConnRegistry {
 	return c.netConnRegistry
 }
 
-func (c *Container) createPluginManager() *pkgplugin.Manager {
-	guard := c.PluginGuard()
-
-	factories := []pkgplugin.HostLibraryFactory{
+// corePluginLibraryFactories are the per-plugin host libraries every plugin
+// gets: each is bound to the plugin's ID so its grants, quotas and namespaces
+// are its own.
+func (c *Container) corePluginLibraryFactories(guard *hostlibrary.Guard) []pkgplugin.HostLibraryFactory {
+	return []pkgplugin.HostLibraryFactory{
 		hostlibrary.NewStorageHostLibraryFactory(
 			c.PluginStorageRepository(),
 			hostlibrary.WithStorageQuotas(hostlibrary.StorageConfig{
@@ -2233,6 +2316,17 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 				MaxValueBytes:     int(c.config.Plugin.Secrets.MaxValue.Uint64()), //nolint:gosec // a byte cap fits an int
 				RequireEncryption: c.config.Plugin.Secrets.RequireEncryption,
 			},
+		),
+		// Per-plugin: node writes and enrollment tickets are gated on the
+		// plugin's own manage_nodes grant, and a ticket belongs to the plugin
+		// that issued it.
+		hostlibrary.NewNodesHostLibraryFactory(
+			c.NodeRepository(),
+			c.NodeService(),
+			c.EnrollmentService().Tickets(),
+			c.EnrollmentConnectResolver(),
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			c.AuditLogger(),
 		),
 		// Per-plugin: the module is gated on the plugin's own files grant
 		// and archive callbacks must reach the initiating plugin.
@@ -2272,18 +2366,15 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 			ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
 		}, guard),
 	}
+}
 
-	factories = append(factories, c.hostIntrospectionFactory())
+func (c *Container) createPluginManager() *pkgplugin.Manager {
+	guard := c.PluginGuard()
 
-	if c.config.Plugin.Net.Enabled {
-		factories = append(factories, hostlibrary.NewNetHostLibraryFactory(
-			c.connRegistry(),
-			hostlibrary.NetConfig{
-				MaxReadBytes: int(c.config.Plugin.Net.ReadBuffer.Uint64()), //nolint:gosec // a buffer size fits an int
-				MaxTimeout:   c.config.Plugin.Net.MaxTimeout,
-			},
-		))
-	}
+	factories := slices.Concat(
+		c.corePluginLibraryFactories(guard),
+		c.extraHostLibraryFactories(guard),
+	)
 
 	metrics := c.PluginMetrics()
 	recovery := &lazyPluginRecovery{container: c}
@@ -2292,7 +2383,6 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		// Read-only modules need no plugin binding.
 		Libraries: []pkgplugin.HostLibrary{
 			hostlibrary.NewUsersHostLibrary(c.UserRepository()),
-			hostlibrary.NewNodesHostLibrary(c.NodeRepository()),
 			hostlibrary.NewGamesHostLibrary(c.GameRepository()),
 			hostlibrary.NewGameModsHostLibrary(c.GameModRepository()),
 			hostlibrary.NewCryptoHostLibrary(),
@@ -2336,6 +2426,36 @@ func (c *Container) PluginPathPolicy() *hostlibrary.PathPolicy {
 	return c.pluginPathPolicy
 }
 
+// extraHostLibraryFactories are the introspection module every plugin gets
+// plus the modules an operator switches on: those reach outside the panel
+// (ssh to hosts a plugin names, raw sockets), so they stay off until the
+// deployment says otherwise.
+func (c *Container) extraHostLibraryFactories(guard *hostlibrary.Guard) []pkgplugin.HostLibraryFactory {
+	factories := []pkgplugin.HostLibraryFactory{c.hostIntrospectionFactory()}
+
+	if c.config.Plugin.SSH.Enabled {
+		// Per-plugin: the module is gated on the plugin's own ssh grant, its
+		// calls are rate limited and audited, and its connections are released
+		// when that plugin is unloaded.
+		factories = append(factories, hostlibrary.NewSSHHostLibraryFactory(
+			&lazySSHSessions{container: c},
+			guard,
+		))
+	}
+
+	if c.config.Plugin.Net.Enabled {
+		factories = append(factories, hostlibrary.NewNetHostLibraryFactory(
+			c.connRegistry(),
+			hostlibrary.NetConfig{
+				MaxReadBytes: int(c.config.Plugin.Net.ReadBuffer.Uint64()), //nolint:gosec // a buffer size fits an int
+				MaxTimeout:   c.config.Plugin.Net.MaxTimeout,
+			},
+		))
+	}
+
+	return factories
+}
+
 // hostIntrospectionFactory builds the per-plugin gameap-host module:
 // introspection of the plugin's own grants and of the host it runs on, keyed
 // on the plugin id.
@@ -2365,6 +2485,7 @@ func (c *Container) PluginGuard() *hostlibrary.Guard {
 				hostlibrary.RateClassNodeFS:        {RPS: limits.NodeFS.RPS, Burst: limits.NodeFS.Burst},
 				hostlibrary.RateClassHTTP:          {RPS: limits.HTTP.RPS, Burst: limits.HTTP.Burst},
 				hostlibrary.RateClassRBAC:          {RPS: limits.RBAC.RPS, Burst: limits.RBAC.Burst},
+				hostlibrary.RateClassSSH:           {RPS: limits.SSH.RPS, Burst: limits.SSH.Burst},
 			}),
 			hostlibrary.WithGuardAudit(c.AuditLogger()),
 			hostlibrary.WithGuardObserver(c.PluginMetrics()),
@@ -2505,6 +2626,17 @@ func (l *lazyArchiveEvents) Register(pluginID uint64, operationID string, nodeID
 
 func (l *lazyArchiveEvents) NotifyCompleted(operationID string, result messages.ArchiveCompleteEventPayload) {
 	l.container.PluginArchiveEvents().NotifyCompleted(operationID, result)
+}
+
+// lazySSHSessions defers PluginSSH resolution to call time: callback delivery
+// needs PluginManager, while the manager's host libraries need the SSH
+// service — resolving it during manager construction would recurse.
+type lazySSHSessions struct {
+	container *Container
+}
+
+func (l *lazySSHSessions) NewSessions(pluginID uint64) hostlibrary.SSHSessionManager {
+	return l.container.PluginSSH().NewSessions(pluginID)
 }
 
 // lazyTaskScheduler defers PluginScheduler resolution to call time: the
@@ -2799,8 +2931,9 @@ func (l *lazyPluginNodeSessions) dispatch(
 	l.container.pluginDispatcher.DispatchNodeEventAsync(ctx, eventType, &nodes[0], extra)
 }
 
-// lazyPluginNodeEvents forwards NODE_CREATED from the enrollment service,
-// which the gateway builds before the plugin runtime exists.
+// lazyPluginNodeEvents forwards node events from services the gateway builds
+// before the plugin runtime exists: NODE_CREATED from enrollment, and the
+// NODE_PRE_DELETE / NODE_DELETED pair from the node service.
 type lazyPluginNodeEvents struct {
 	container *Container
 }
@@ -2812,6 +2945,24 @@ func (l *lazyPluginNodeEvents) DispatchNodeEventAsync(
 	extraData map[string]string,
 ) {
 	l.container.PluginDispatcher().DispatchNodeEventAsync(ctx, eventType, node, extraData)
+}
+
+func (l *lazyPluginNodeEvents) DispatchNodeEvent(
+	ctx context.Context,
+	eventType pluginproto.EventType,
+	node *domain.Node,
+	extraData map[string]string,
+) services.NodeEventVeto {
+	result := l.container.PluginDispatcher().DispatchNodeEvent(ctx, eventType, node, extraData)
+	if result == nil {
+		return services.NodeEventVeto{}
+	}
+
+	return services.NodeEventVeto{
+		Cancelled:     result.Cancelled,
+		CancelledBy:   result.CancelledBy,
+		CancelMessage: result.CancelMessage,
+	}
 }
 
 func (c *Container) TaskHandler() *handlers.TaskHandler {

@@ -484,6 +484,7 @@ func TestHostRPCPolicies_cover_generated_exports(t *testing.T) {
 		ModuleServers:        "servers",
 		ModuleServerSettings: "serversettings",
 		ModuleHost:           "host",
+		ModuleSSH:            "ssh",
 	}
 
 	// Read-only functions of mixed modules that deliberately need no grant,

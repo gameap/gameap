@@ -37,6 +37,15 @@ type HostLibrary interface {
 	Instantiate(ctx context.Context, r wazero.Runtime) error
 }
 
+// HostLibraryCloser is implemented by factory-created host libraries that own
+// per-plugin resources outliving a single host call — open connections,
+// background operations. The manager closes them right after the plugin's
+// runtime, so an unloaded plugin leaves nothing behind. Close runs while the
+// manager lock is held, so it must not call back into the Manager.
+type HostLibraryCloser interface {
+	Close(ctx context.Context) error
+}
+
 // HostLibraryFactory creates host libraries that need per-plugin configuration.
 type HostLibraryFactory interface {
 	// Create returns a new HostLibrary instance configured for the given plugin.
@@ -97,6 +106,10 @@ type LoadedPlugin struct {
 	// timeouts while dispatchers concurrently read it without the manager lock.
 	disabled atomic.Bool
 	runtime  wazero.Runtime
+
+	// libraries are the per-plugin host libraries holding resources of this
+	// load (open SSH connections and the like); Close releases them.
+	libraries []HostLibraryCloser
 }
 
 // IsEnabled reports whether the plugin should receive events and HTTP requests.
@@ -121,6 +134,14 @@ func (p *LoadedPlugin) HasArchiveEventsHandler() bool {
 	return ok && w.HasArchiveEventsHandler()
 }
 
+// HasSSHExecEventsHandler reports whether the module exports the ssh exec
+// completion handler; plugins compiled without the sdk/ssh module do not.
+func (p *LoadedPlugin) HasSSHExecEventsHandler() bool {
+	w, ok := p.Instance.(interface{ HasSSHExecEventsHandler() bool })
+
+	return ok && w.HasSSHExecEventsHandler()
+}
+
 // Disable permanently stops event and HTTP delivery to the plugin. Used when
 // its runtime is closed (unload) or misbehaving (call timeout); dispatchers
 // may still hold a pointer to it until their subscriptions are refreshed.
@@ -128,13 +149,18 @@ func (p *LoadedPlugin) Disable() {
 	p.disabled.Store(true)
 }
 
-// Close releases the plugin resources.
+// Close releases the plugin: the runtime first, so the guest can no longer
+// issue host calls, then the per-plugin host libraries holding its resources.
 func (p *LoadedPlugin) Close(ctx context.Context) error {
+	var err error
 	if p.runtime != nil {
-		return p.runtime.Close(ctx)
+		err = p.runtime.Close(ctx)
 	}
 
-	return nil
+	closeHostLibraries(ctx, p.libraries)
+	p.libraries = nil
+
+	return err
 }
 
 // ManagerConfig holds configuration for the plugin manager.
@@ -329,6 +355,7 @@ func (m *Manager) load(
 	plugin, err := m.createPluginWrapper(setup.module)
 	if err != nil {
 		closeRuntimeAfterFailure(ctx, setup.runtime, "plugin wrapper creation", err)
+		closeHostLibraries(ctx, setup.closers)
 
 		return nil, rollback, errors.WithMessage(err, "failed to create plugin wrapper")
 	}
@@ -339,12 +366,18 @@ func (m *Manager) load(
 		wrapper.pluginID = pluginID
 	}
 
+	// The runtime is closed first so the guest can no longer issue host calls,
+	// then the libraries holding what it opened during Initialize.
 	if err := m.initializePlugin(loadCtx, setup.runtime, plugin, loadedPlugin, logs); err != nil {
 		closeRuntimeAfterFailure(ctx, setup.runtime, "plugin initialization", err)
+		closeHostLibraries(ctx, setup.closers)
 
 		return nil, rollback, err
 	}
 
+	// From here the plugin owns its per-plugin host libraries; Close releases
+	// them together with the runtime.
+	loadedPlugin.libraries = setup.closers
 	loadedPlugin.HostImports = setup.imports
 	wireGuestHooks(loadedPlugin)
 
@@ -444,6 +477,9 @@ type runtimeSetup struct {
 	module      api.Module
 	imports     []HostImport
 	hostModules []string
+	// closers are the per-plugin host libraries holding resources of this
+	// load; the caller owns them once initializeRuntime returns.
+	closers []HostLibraryCloser
 }
 
 // initializeRuntime builds the runtime, registers WASI and every host library,
@@ -481,7 +517,10 @@ func (m *Manager) initializeRuntime(
 		libraryRuntime = observeHostCalls(recorder, m.config.Observer, pluginID)
 	}
 
-	if err := m.instantiateLibraries(ctx, libraryRuntime, pluginID); err != nil {
+	// instantiateLibraries releases what it built itself when a later factory
+	// fails; every failure below this point is ours to unwind.
+	closers, err := m.instantiateLibraries(ctx, libraryRuntime, pluginID)
+	if err != nil {
 		closeRuntimeAfterFailure(ctx, r, "host library instantiation", err)
 
 		return nil, err
@@ -490,6 +529,7 @@ func (m *Manager) initializeRuntime(
 	code, err := r.CompileModule(ctx, wasmBytes)
 	if err != nil {
 		closeRuntimeAfterFailure(ctx, r, "WASM module compilation", err)
+		closeHostLibraries(ctx, closers)
 
 		return nil, errors.Wrap(err, "failed to compile WASM module")
 	}
@@ -517,10 +557,12 @@ func (m *Manager) initializeRuntime(
 		var exitErr *sys.ExitError
 		if errors.As(err, &exitErr) && exitErr.ExitCode() != 0 {
 			closeRuntimeAfterFailure(ctx, r, "module instantiation", err)
+			closeHostLibraries(ctx, closers)
 
 			return nil, errors.Wrapf(ErrUnexpectedExitCode, "exit code: %d", exitErr.ExitCode())
 		} else if !errors.As(err, &exitErr) {
 			closeRuntimeAfterFailure(ctx, r, "module instantiation", err)
+			closeHostLibraries(ctx, closers)
 
 			return nil, errors.Wrap(err, "failed to instantiate module")
 		}
@@ -528,6 +570,7 @@ func (m *Manager) initializeRuntime(
 
 	if err = m.verifyAPIVersion(startCtx, r, module); err != nil {
 		closeRuntimeAfterFailure(ctx, r, "API version verification", err)
+		closeHostLibraries(ctx, closers)
 
 		return nil, err
 	}
@@ -537,6 +580,7 @@ func (m *Manager) initializeRuntime(
 		module:      module,
 		imports:     imports,
 		hostModules: recorder.Modules(),
+		closers:     closers,
 	}, nil
 }
 
@@ -594,21 +638,54 @@ func closeRuntimeAfterFailure(ctx context.Context, r wazero.Runtime, stage strin
 	}
 }
 
-func (m *Manager) instantiateLibraries(ctx context.Context, r wazero.Runtime, pluginID uint64) error {
+func (m *Manager) instantiateLibraries(
+	ctx context.Context,
+	r wazero.Runtime,
+	pluginID uint64,
+) ([]HostLibraryCloser, error) {
 	for _, lib := range m.config.Libraries {
 		if err := lib.Instantiate(ctx, r); err != nil {
-			return errors.WithMessage(err, "failed to instantiate host library")
+			return nil, errors.WithMessage(err, "failed to instantiate host library")
 		}
 	}
+
+	var closers []HostLibraryCloser
 
 	for _, factory := range m.config.LibraryFactories {
 		lib := factory.Create(pluginID)
+		closer, isCloser := lib.(HostLibraryCloser)
+
 		if err := lib.Instantiate(ctx, r); err != nil {
-			return errors.WithMessage(err, "failed to instantiate factory host library")
+			// Create and a partial Instantiate may already have allocated
+			// plugin-scoped state, so this library is closed too, not only the
+			// ones built before it. The libraries built so far already hold
+			// resources for this plugin, and nothing else will ever close them.
+			if isCloser {
+				closeHostLibraries(ctx, []HostLibraryCloser{closer})
+			}
+
+			closeHostLibraries(ctx, closers)
+
+			return nil, errors.WithMessage(err, "failed to instantiate factory host library")
+		}
+
+		if isCloser {
+			closers = append(closers, closer)
 		}
 	}
 
-	return nil
+	return closers, nil
+}
+
+// closeHostLibraries releases per-plugin host library resources. Failures are
+// logged, never returned: they must not mask the reason the caller is
+// unwinding.
+func closeHostLibraries(ctx context.Context, closers []HostLibraryCloser) {
+	for _, closer := range closers {
+		if err := closer.Close(ctx); err != nil {
+			slog.Warn("failed to close host library", slog.String("error", err.Error()))
+		}
+	}
 }
 
 // initializePlugin runs the guest's initialization sequence and fills the
@@ -920,6 +997,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 	handleScheduledTask := module.ExportedFunction("scheduled_task_handler_handle_scheduled_task")
 	handleArchiveProgress := module.ExportedFunction("archive_events_handler_handle_archive_progress")
 	handleArchiveCompleted := module.ExportedFunction("archive_events_handler_handle_archive_completed")
+	handleExecCompleted := module.ExportedFunction("ssh_exec_events_handler_handle_exec_completed")
 
 	return &pluginServiceWrapper{
 		gate:                make(chan struct{}, 1),
@@ -947,6 +1025,7 @@ func (m *Manager) createPluginWrapper(module api.Module) (proto.PluginService, e
 
 		handlearchiveprogress:  handleArchiveProgress,
 		handlearchivecompleted: handleArchiveCompleted,
+		handleexeccompleted:    handleExecCompleted,
 	}, nil
 }
 

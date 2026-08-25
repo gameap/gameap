@@ -151,6 +151,7 @@ func (r *NodeRepository) Save(ctx context.Context, node *domain.Node) error {
 			node.ScriptGetConsole,
 			node.ScriptSendCommand,
 			node.ScriptDelete,
+			node.Metadata,
 			node.CreatedAt,
 			node.UpdatedAt,
 			node.DeletedAt,
@@ -189,6 +190,7 @@ func (r *NodeRepository) Save(ctx context.Context, node *domain.Node) error {
 			"script_get_console=VALUES(script_get_console)," +
 			"script_send_command=VALUES(script_send_command)," +
 			"script_delete=VALUES(script_delete)," +
+			"metadata=VALUES(metadata)," +
 			"updated_at=VALUES(updated_at)," +
 			"deleted_at=VALUES(deleted_at)").
 		PlaceholderFormat(sq.Question).
@@ -293,6 +295,7 @@ func (r *NodeRepository) scan(row base.Scanner) (*domain.Node, error) {
 		&node.ScriptGetConsole,
 		&node.ScriptSendCommand,
 		&node.ScriptDelete,
+		&node.Metadata,
 		&node.CreatedAt,
 		&node.UpdatedAt,
 		&node.DeletedAt,
@@ -309,10 +312,18 @@ func (r *NodeRepository) filterToSq(filter *filters.FindNode) sq.Sqlizer {
 		return nil
 	}
 
-	and := make(sq.And, 0, 4)
+	and := make(sq.And, 0, 6)
 
 	if len(filter.IDs) > 0 {
 		and = append(and, sq.Eq{"id": filter.IDs})
+	}
+
+	if filter.Enabled != nil {
+		and = append(and, sq.Eq{"enabled": *filter.Enabled})
+	}
+
+	if filter.OS != nil {
+		and = append(and, sq.Eq{"os": string(*filter.OS)})
 	}
 
 	if filter.GDaemonAPIKey != nil {

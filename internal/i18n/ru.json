@@ -107,6 +107,7 @@
     "name": "Имя",
     "location": "Локация",
     "provider": "Провайдер",
+    "metadata": "Метаданные",
     "ip": "IP",
     "os": "Операционная система",
     "servers_count": "Количество серверов",
@@ -637,7 +638,8 @@
     "permission_files_read": "Чтение файлов на нодах",
     "permission_listen_events": "Получение событий",
     "permission_secrets": "Зашифрованные секреты",
-    "permission_node_commands": "Выполнение команд на нодах"
+    "permission_node_commands": "Выполнение команд на нодах",
+    "permission_ssh": "Подключение к хостам по SSH"
   },
   "navbar": {
     "main": "Главная",

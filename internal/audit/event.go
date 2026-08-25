@@ -69,6 +69,8 @@ const (
 	EventNodeCreate           EventType = "node.create"
 	EventNodeUpdate           EventType = "node.update"
 	EventNodeDelete           EventType = "node.delete"
+	EventNodeSetupKeyCreate   EventType = "node.setup_key.create"
+	EventNodeSetupKeyRevoke   EventType = "node.setup_key.revoke"
 	EventFileDelete           EventType = "file.delete"
 	EventFileRename           EventType = "file.rename"
 	EventFileChmod            EventType = "file.chmod"
@@ -94,13 +96,25 @@ const (
 // triggered the plugin, when there is one, travels in the on_behalf_of_*
 // attributes. Grant denials reuse EventAccessDenied with the plugin actor.
 const (
-	EventPluginServerControl     EventType = "plugin.server.control"
-	EventPluginServerSave        EventType = "plugin.server.save"
-	EventPluginServerDelete      EventType = "plugin.server.delete"
-	EventPluginServerSetting     EventType = "plugin.server.setting"
-	EventPluginTaskCreate        EventType = "plugin.task.create"
-	EventPluginNodeCommand       EventType = "plugin.node.command"
-	EventPluginNodeFile          EventType = "plugin.node.file"
+	EventPluginServerControl EventType = "plugin.server.control"
+	EventPluginServerSave    EventType = "plugin.server.save"
+	EventPluginServerDelete  EventType = "plugin.server.delete"
+	EventPluginServerSetting EventType = "plugin.server.setting"
+	EventPluginTaskCreate    EventType = "plugin.task.create"
+	EventPluginNodeCommand   EventType = "plugin.node.command"
+	EventPluginNodeFile      EventType = "plugin.node.file"
+	// EventPluginSSH*: gameap-ssh reaches hosts the plugin names itself,
+	// outside the daemon and outside the node inventory, so the connection,
+	// the commands and the file transfers are recorded separately. The
+	// command text, stdin and any key material are never part of the record.
+	EventPluginSSHConnect EventType = "plugin.ssh.connect"
+	EventPluginSSHExec    EventType = "plugin.ssh.exec"
+	EventPluginSSHFile    EventType = "plugin.ssh.file"
+	// EventPluginSSHKey: a plugin minted an SSH credential. The record carries
+	// the key type and the public fingerprint only — never key material — and
+	// the fingerprint is what ties an authorized_keys line found on a machine
+	// back to the plugin that produced it.
+	EventPluginSSHKey            EventType = "plugin.ssh.key"
 	EventPluginRBACRole          EventType = "plugin.rbac.role"
 	EventPluginRBACGrant         EventType = "plugin.rbac.grant"
 	EventPluginRBACRevoke        EventType = "plugin.rbac.revoke"
