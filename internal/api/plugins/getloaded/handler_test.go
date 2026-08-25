@@ -41,6 +41,7 @@ func TestLoaded_empty_list(t *testing.T) {
 		},
 		nil,
 		pluginRepo,
+		true,
 		api.NewResponder(),
 	)
 
@@ -122,6 +123,7 @@ func TestLoaded_with_plugins(t *testing.T) {
 		},
 		nil,
 		pluginRepo,
+		true,
 		api.NewResponder(),
 	)
 
@@ -189,6 +191,7 @@ func TestLoaded_plugin_not_in_db(t *testing.T) {
 		},
 		nil,
 		pluginRepo,
+		true,
 		api.NewResponder(),
 	)
 
@@ -211,4 +214,42 @@ func TestLoaded_plugin_not_in_db(t *testing.T) {
 	assert.Equal(t, "Autoload Plugin", pluginData["name"])
 	assert.Equal(t, "1.0.0", pluginData["version"])
 	assert.Equal(t, "store", pluginData["source_type"])
+}
+
+func TestLoaded_reports_whether_permissions_are_enforced(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		enforced bool
+	}{
+		{name: "enforced", enforced: true},
+		{name: "not_enforced", enforced: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := getloaded.NewHandler(
+				&mockLoaderManager{},
+				nil,
+				inmemory.NewPluginRepository(),
+				tt.enforced,
+				api.NewResponder(),
+			)
+
+			recorder := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/api/admin/plugins/loaded", nil)
+
+			h.ServeHTTP(recorder, req)
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+
+			var resp map[string]any
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+			assert.Equal(t, tt.enforced, resp["permissions_enforced"],
+				"the UI decides from this flag whether to warn that grants are not applied")
+		})
+	}
 }

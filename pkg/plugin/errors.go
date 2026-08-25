@@ -19,6 +19,9 @@ var (
 	// ErrPluginBusy means the caller gave up waiting for the per-plugin call
 	// gate; the guest was never invoked and its module is untouched.
 	ErrPluginBusy = errors.New("plugin is busy")
+	// ErrModuleTooLarge rejects a wasm file above ManagerConfig.MaxModuleBytes
+	// before any compilation work.
+	ErrModuleTooLarge = errors.New("plugin module too large")
 )
 
 var knownErrors = []error{
@@ -29,7 +32,13 @@ var knownErrors = []error{
 	ErrUnexpectedExitCode,
 	ErrPluginAlreadyLoaded,
 	ErrPluginNotFound,
+	ErrModuleTooLarge,
 }
+
+// memoryLimitErrorMarker is the wazero decoder's wording for a module whose
+// declared memory exceeds the runtime limit; the message names both sizes
+// and carries no stack trace, so it is safe to show as is.
+const memoryLimitErrorMarker = "over limit of"
 
 // SanitizeLoadError processes a plugin loading error and returns a sanitized version.
 // For known plugin errors, it returns the original error.
@@ -47,6 +56,10 @@ func SanitizeLoadError(err error) error {
 	}
 
 	errMsg := err.Error()
+
+	if strings.Contains(errMsg, memoryLimitErrorMarker) {
+		return err
+	}
 
 	if strings.Contains(errMsg, "wasm stack trace:") {
 		before, _, found := strings.Cut(errMsg, "Go runtime stack trace:")

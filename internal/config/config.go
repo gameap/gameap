@@ -226,7 +226,13 @@ type Config struct {
 	Plugins struct {
 		Disabled bool     `env:"PLUGINS_DISABLED" envDefault:"false"`
 		AutoLoad []string `env:"PLUGINS_AUTOLOAD" envDefault:"" envSeparator:","`
-		Cache    struct {
+		// StrictLoad makes the panel refuse to start when any plugin fails
+		// to load. By default a broken plugin is recorded with status
+		// "error" and skipped, so one plugin cannot take the panel down.
+		StrictLoad bool `env:"PLUGINS_STRICT_LOAD" envDefault:"false"`
+		// Cache keeps compiled wasm between loads; with Dir set the
+		// compiled code also survives panel restarts (local path).
+		Cache struct {
 			Enabled bool   `env:"PLUGINS_CACHE_ENABLED" envDefault:"true"`
 			Dir     string `env:"PLUGINS_CACHE_DIR" envDefault:""`
 		}
@@ -339,7 +345,7 @@ type Config struct {
 			// may request via HTTPFetchRequest.TimeoutSeconds. A plugin
 			// asking for a longer timeout has its value clamped to this
 			// ceiling. The default 30s matches the global default.
-			MaxTimeoutSeconds int `env:"PLUGIN_HTTP_MAX_TIMEOUT_SECONDS" envDefault:"30"`
+			MaxTimeout time.Duration `env:"PLUGIN_HTTP_MAX_TIMEOUT" envDefault:"30s"`
 
 			// MaxRedirects caps the number of HTTP redirects a single
 			// request may follow. Every redirect target is re-validated
@@ -395,7 +401,7 @@ type Config struct {
 			MaxKeysPerPlugin int `env:"PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN" envDefault:"64"`
 
 			// MaxValueBytes caps the plaintext size of a single secret.
-			MaxValueBytes int `env:"PLUGIN_SECRETS_MAX_VALUE_BYTES" envDefault:"8192"`
+			MaxValue ByteSize `env:"PLUGIN_SECRETS_MAX_VALUE" envDefault:"8K"`
 
 			// RequireEncryption refuses writes while ENCRYPTION_KEY is unset
 			// instead of storing the credential in plaintext. Turning it off
@@ -426,14 +432,159 @@ type Config struct {
 
 			// MaxTimeoutSeconds caps the overall duration of a single plugin
 			// protocol operation (dial plus all reads and writes).
-			MaxTimeoutSeconds int `env:"PLUGIN_NET_MAX_TIMEOUT_SECONDS" envDefault:"10"`
+			MaxTimeout time.Duration `env:"PLUGIN_NET_MAX_TIMEOUT" envDefault:"10s"`
 
 			// ReadBufferBytes caps a single Recv a plugin may request.
-			ReadBufferBytes int `env:"PLUGIN_NET_READ_BUFFER_BYTES" envDefault:"65536"`
+			ReadBuffer ByteSize `env:"PLUGIN_NET_READ_BUFFER" envDefault:"64K"`
 
 			// MaxConnections caps simultaneously open connections per plugin.
 			MaxConnections int `env:"PLUGIN_NET_MAX_CONNECTIONS" envDefault:"8"`
 		}
+
+		// Runtime bounds every plugin module.
+		Runtime struct {
+			// MaxMemory caps the linear memory of one module (0 = the
+			// wazero default of 4 GiB). A module declaring a larger maximum
+			// is clamped; only a module whose initial memory already exceeds
+			// the cap fails to load.
+			MaxMemory ByteSize `env:"PLUGIN_RUNTIME_MAX_MEMORY" envDefault:"256M"`
+
+			// MaxModuleSize rejects wasm files above this size before
+			// compilation, for uploads, store installs and autoload alike
+			// (0 = unlimited).
+			MaxModuleSize ByteSize `env:"PLUGIN_RUNTIME_MAX_MODULE_SIZE" envDefault:"128M"`
+		}
+
+		// Permissions tunes the in-process cache of plugin grants, consulted
+		// on every privileged host call and every event delivery.
+		Permissions struct {
+			// Enforce applies the recorded grants: without it every check
+			// passes. Grants are still recorded, computed and editable, so
+			// operators can prepare plugins before enforcement becomes the
+			// default in a future release.
+			Enforce bool `env:"PLUGIN_PERMISSIONS_ENFORCE" envDefault:"false"`
+
+			// CacheTTL bounds how long a grant set survives without being
+			// re-read. A change is pushed to every instance over pub/sub
+			// (gameap:plugin:subscriptions:refresh), so this is only the
+			// backstop for a broker that is down. 0 disables the cache: every
+			// check reads the plugin record.
+			CacheTTL time.Duration `env:"PLUGIN_PERMISSIONS_CACHE_TTL" envDefault:"30s"`
+		}
+
+		// Recovery reloads a plugin the runtime disabled (a guest call
+		// overran its deadline or the guest terminated its module) with
+		// exponential backoff; after MaxAttempts the plugin stays in status
+		// "error" until an operator reloads it or the panel restarts. With
+		// Enabled=false the disable is still recorded (status, reason,
+		// audit) but never reloaded automatically.
+		Recovery struct {
+			Enabled      bool          `env:"PLUGIN_RECOVERY_ENABLED" envDefault:"true"`
+			InitialDelay time.Duration `env:"PLUGIN_RECOVERY_INITIAL_DELAY" envDefault:"30s"`
+			MaxDelay     time.Duration `env:"PLUGIN_RECOVERY_MAX_DELAY" envDefault:"10m"`
+			MaxAttempts  int           `env:"PLUGIN_RECOVERY_MAX_ATTEMPTS" envDefault:"5"`
+		}
+
+		// Sync keeps the plugin runtime of every panel instance in step with
+		// the plugins table: install, update, uninstall, reload and
+		// permission changes made on one instance reach the others through a
+		// pub/sub hint and a periodic reconcile pass.
+		Sync struct {
+			// Disabled turns the reconciler off; plugin changes then only
+			// reach an instance when it restarts.
+			Disabled bool `env:"PLUGIN_SYNC_DISABLED" envDefault:"false"`
+			// RefreshInterval bounds how long a lost hint can leave an
+			// instance stale.
+			RefreshInterval time.Duration `env:"PLUGIN_SYNC_REFRESH_INTERVAL" envDefault:"60s"`
+			// MinBackoff / MaxBackoff bound the retry delay after a plugin
+			// failed to load on this instance.
+			MinBackoff time.Duration `env:"PLUGIN_SYNC_MIN_BACKOFF" envDefault:"15s"`
+			MaxBackoff time.Duration `env:"PLUGIN_SYNC_MAX_BACKOFF" envDefault:"15m"`
+		}
+
+		// NodeFS bounds the gameap-nodefs host library.
+		NodeFS struct {
+			// MaxInline caps files a plugin downloads or uploads as a
+			// single message; larger files must go through archives or the
+			// panel's own streaming endpoints (0 = unlimited).
+			MaxInline ByteSize `env:"PLUGIN_NODEFS_MAX_INLINE" envDefault:"32M"`
+			// PathPolicy confines the node paths gameap-nodefs may name (and
+			// the work_dir of gameap-nodecmd): "unrestricted" (default, any
+			// path), "node_workpath" (inside the node's work path) or
+			// "server_dirs" (inside the directories of the game servers on
+			// that node). ".." segments are refused in every mode.
+			PathPolicy string `env:"PLUGIN_NODEFS_PATH_POLICY" envDefault:"unrestricted"`
+			// AllowedPaths are additional absolute roots accepted in the
+			// restricted modes, on every node.
+			AllowedPaths []string `env:"PLUGIN_NODEFS_ALLOWED_PATHS" envSeparator:"," envDefault:""`
+		}
+
+		// Storage bounds what one plugin may keep in gameap-storage (the
+		// panel database). Non-positive values fall back to the built-in
+		// defaults; quotas cannot be switched off.
+		Storage struct {
+			// MaxKeysPerPlugin caps the number of entries one plugin owns.
+			MaxKeysPerPlugin int `env:"PLUGIN_STORAGE_MAX_KEYS_PER_PLUGIN" envDefault:"10000"`
+
+			// MaxValueBytes caps a single payload.
+			MaxValue ByteSize `env:"PLUGIN_STORAGE_MAX_VALUE" envDefault:"1M"`
+
+			// MaxTotalBytes caps the sum of all payloads one plugin owns.
+			MaxTotal ByteSize `env:"PLUGIN_STORAGE_MAX_TOTAL" envDefault:"64M"`
+		}
+
+		// Cache bounds the gameap-cache host library. Every plugin gets its
+		// own key namespace; the backend (memory, Redis, database) is the
+		// panel's cache and is not cleaned when a plugin is uninstalled.
+		Cache struct {
+			// MaxValue caps a single cached value (0 = unlimited).
+			MaxValue ByteSize `env:"PLUGIN_CACHE_MAX_VALUE" envDefault:"1M"`
+		}
+
+		// RateLimit bounds how often one plugin may invoke the expensive host
+		// libraries, per panel instance, as a token bucket (sustained rate
+		// plus burst). A refused call answers with a "rate limited" error in
+		// the response; the plugin is never disabled for it. RPS 0 = no limit
+		// for that class.
+		RateLimit struct {
+			// NodeCmd: gameap-nodecmd (commands on nodes).
+			NodeCmd struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_NODECMD_RPS" envDefault:"5"`
+				Burst int     `env:"PLUGIN_RATELIMIT_NODECMD_BURST" envDefault:"20"`
+			}
+
+			// ServerControl: gameap-servercontrol, daemon task creation,
+			// server and server-setting writes.
+			ServerControl struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_SERVERCONTROL_RPS" envDefault:"5"`
+				Burst int     `env:"PLUGIN_RATELIMIT_SERVERCONTROL_BURST" envDefault:"20"`
+			}
+
+			// NodeFS: every gameap-nodefs operation.
+			NodeFS struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_NODEFS_RPS" envDefault:"50"`
+				Burst int     `env:"PLUGIN_RATELIMIT_NODEFS_BURST" envDefault:"200"`
+			}
+
+			// HTTP: gameap-http outbound requests.
+			HTTP struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_HTTP_RPS" envDefault:"20"`
+				Burst int     `env:"PLUGIN_RATELIMIT_HTTP_BURST" envDefault:"50"`
+			}
+
+			// RBAC: gameap-rbac role and ability writes.
+			RBAC struct {
+				RPS   float64 `env:"PLUGIN_RATELIMIT_RBAC_RPS" envDefault:"10"`
+				Burst int     `env:"PLUGIN_RATELIMIT_RBAC_BURST" envDefault:"50"`
+			}
+		}
+	}
+
+	// Metrics exposes the Prometheus endpoint.
+	Metrics struct {
+		// Token is the bearer token a scraper must present on GET /metrics;
+		// empty leaves the endpoint unregistered.
+		Token string `env:"METRICS_TOKEN" envDefault:""`
 	}
 
 	PubSub struct {
@@ -486,6 +637,8 @@ func LoadConfig() (*Config, error) {
 	var cfg Config
 	var err error
 
+	applyRenamedVars()
+
 	if cfg, err = env.ParseAs[Config](); err != nil {
 		return nil, errors.WithMessage(err, "failed to parse config")
 	}
@@ -522,6 +675,8 @@ func normalizeConfigValues(cfg *Config) {
 	}
 
 	cfg.UI.DefaultLanguage = strings.ToLower(cfg.UI.DefaultLanguage)
+
+	cfg.Plugin.NodeFS.PathPolicy = strings.ToLower(strings.TrimSpace(cfg.Plugin.NodeFS.PathPolicy))
 
 	cfg.PubSub.Driver = strings.ToLower(cfg.PubSub.Driver)
 	switch cfg.PubSub.Driver {

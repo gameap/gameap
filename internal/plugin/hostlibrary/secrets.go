@@ -17,10 +17,6 @@ import (
 	"github.com/tetratelabs/wazero"
 )
 
-// secretsPermissionDeniedMessage is what a plugin without the grant sees. It
-// names the missing permission so plugin authors know what to declare.
-const secretsPermissionDeniedMessage = "plugin permission " + string(domain.PluginPermissionSecrets) + " required"
-
 // encryptionDisabledMessage is returned instead of writing a credential in
 // plaintext: a secrets store that silently degrades to plaintext is worse than
 // one that refuses to accept the value.
@@ -56,7 +52,7 @@ type SecretsServiceImpl struct {
 	pluginID uint64
 	repo     repositories.PluginSecretRepository
 	cipher   *secret.Cipher
-	checker  PluginPermissionChecker
+	guard    *PluginGuard
 	cfg      SecretsConfig
 }
 
@@ -64,7 +60,7 @@ func NewSecretsService(
 	pluginID uint64,
 	repo repositories.PluginSecretRepository,
 	cipher *secret.Cipher,
-	checker PluginPermissionChecker,
+	guard *PluginGuard,
 	cfg SecretsConfig,
 ) *SecretsServiceImpl {
 	if cfg.MaxKeysPerPlugin <= 0 {
@@ -79,29 +75,17 @@ func NewSecretsService(
 		pluginID: pluginID,
 		repo:     repo,
 		cipher:   cipher,
-		checker:  checker,
+		guard:    guard,
 		cfg:      cfg,
 	}
 }
 
 // authorize gates every method of this module on the "secrets" grant. Plugin
-// ID 0 (transient dry-run loads) is never granted anything.
-func (s *SecretsServiceImpl) authorize(ctx context.Context) (bool, string) {
-	allowed, err := s.checker.Has(ctx, s.pluginID, domain.PluginPermissionSecrets)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to check plugin secrets permission",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("error", err.Error()))
-
-		return false, "failed to check plugin permission: " + err.Error()
-	}
-
-	if !allowed {
-		slog.WarnContext(ctx, "plugin denied access to the secrets host library",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("permission", string(domain.PluginPermissionSecrets)))
-
-		return false, secretsPermissionDeniedMessage
+// ID 0 (transient dry-run loads) is never granted anything. Secrets are the
+// plugin's private data, so the calls themselves are not audited.
+func (s *SecretsServiceImpl) authorize(ctx context.Context, export string) (bool, string) {
+	if msg := s.guard.Check(ctx, ModuleSecrets, export); msg != "" {
+		return false, msg
 	}
 
 	return true, ""
@@ -111,7 +95,7 @@ func (s *SecretsServiceImpl) Get(
 	ctx context.Context,
 	req *secrets.SecretGetRequest,
 ) (*secrets.SecretGetResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "get"); !allowed {
 		return &secrets.SecretGetResponse{Error: new(msg)}, nil
 	}
 
@@ -148,7 +132,7 @@ func (s *SecretsServiceImpl) Set(
 	ctx context.Context,
 	req *secrets.SecretSetRequest,
 ) (*secrets.SecretSetResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "set"); !allowed {
 		return &secrets.SecretSetResponse{Error: new(msg)}, nil
 	}
 
@@ -217,7 +201,7 @@ func (s *SecretsServiceImpl) Delete(
 	ctx context.Context,
 	req *secrets.SecretDeleteRequest,
 ) (*secrets.SecretDeleteResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "delete"); !allowed {
 		return &secrets.SecretDeleteResponse{Error: new(msg)}, nil
 	}
 
@@ -234,7 +218,7 @@ func (s *SecretsServiceImpl) ListKeys(
 	ctx context.Context,
 	req *secrets.SecretListKeysRequest,
 ) (*secrets.SecretListKeysResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "list_keys"); !allowed {
 		return &secrets.SecretListKeysResponse{Error: new(msg)}, nil
 	}
 
@@ -306,11 +290,11 @@ func NewSecretsHostLibrary(
 	pluginID uint64,
 	repo repositories.PluginSecretRepository,
 	cipher *secret.Cipher,
-	checker PluginPermissionChecker,
+	guard *PluginGuard,
 	cfg SecretsConfig,
 ) *SecretsHostLibrary {
 	return &SecretsHostLibrary{
-		impl: NewSecretsService(pluginID, repo, cipher, checker, cfg),
+		impl: NewSecretsService(pluginID, repo, cipher, guard, cfg),
 	}
 }
 
@@ -319,26 +303,26 @@ func (l *SecretsHostLibrary) Instantiate(ctx context.Context, r wazero.Runtime) 
 }
 
 type SecretsHostLibraryFactory struct {
-	repo    repositories.PluginSecretRepository
-	cipher  *secret.Cipher
-	checker PluginPermissionChecker
-	cfg     SecretsConfig
+	repo   repositories.PluginSecretRepository
+	cipher *secret.Cipher
+	guard  *Guard
+	cfg    SecretsConfig
 }
 
 func NewSecretsHostLibraryFactory(
 	repo repositories.PluginSecretRepository,
 	cipher *secret.Cipher,
-	checker PluginPermissionChecker,
+	guard *Guard,
 	cfg SecretsConfig,
 ) *SecretsHostLibraryFactory {
 	return &SecretsHostLibraryFactory{
-		repo:    repo,
-		cipher:  cipher,
-		checker: checker,
-		cfg:     cfg,
+		repo:   repo,
+		cipher: cipher,
+		guard:  guard,
+		cfg:    cfg,
 	}
 }
 
 func (f *SecretsHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
-	return NewSecretsHostLibrary(pluginID, f.repo, f.cipher, f.checker, f.cfg)
+	return NewSecretsHostLibrary(pluginID, f.repo, f.cipher, f.guard.For(pluginID), f.cfg)
 }

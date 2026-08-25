@@ -956,7 +956,7 @@ would re-open the category:
    than a denylist) means new HTTP headers invented next year
    default to "stripped".
 
-6. **TimeoutSeconds cap** (`PLUGIN_HTTP_MAX_TIMEOUT_SECONDS`,
+6. **TimeoutSeconds cap** (`PLUGIN_HTTP_MAX_TIMEOUT`,
    default 30s). A plugin asking for an hour-long timeout is
    clamped to the operator ceiling.
 
@@ -1680,7 +1680,7 @@ classification, anti-automation on write endpoints) and C-6
     every hop; scheme allow-list (`PLUGIN_HTTP_ALLOWED_SCHEMES`,
     default `https`); response-header **allow**list (Set-Cookie,
     Authorization, WWW-Authenticate, Proxy-Authenticate stripped
-    on the way back to the plugin); `PLUGIN_HTTP_MAX_TIMEOUT_SECONDS`
+    on the way back to the plugin); `PLUGIN_HTTP_MAX_TIMEOUT`
     cap; `PLUGIN_HTTP_MAX_REDIRECTS` cap; operator allow-list
     `PLUGIN_HTTP_ALLOWED_HOSTS` that bypasses the private-IP block
     but never bypasses cloud-metadata IPs. Tests:

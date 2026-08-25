@@ -36,7 +36,7 @@ type mockFileService struct {
 	mkDirFunc       func(ctx context.Context, node *domain.Node, path string) error
 	copyFunc        func(ctx context.Context, node *domain.Node, src, dst string) error
 	moveFunc        func(ctx context.Context, node *domain.Node, src, dst string) error
-	downloadFunc    func(ctx context.Context, node *domain.Node, path string) ([]byte, error)
+	downloadFunc    func(ctx context.Context, node *domain.Node, path string, limit uint64) ([]byte, error)
 	uploadFunc      func(ctx context.Context, node *domain.Node, path string, content []byte, perm os.FileMode) error
 	removeFunc      func(ctx context.Context, node *domain.Node, path string, recursive bool) error
 	getFileInfoFunc func(ctx context.Context, node *domain.Node, path string) (*daemon.FileDetails, error)
@@ -80,9 +80,11 @@ func (m *mockFileService) Move(ctx context.Context, node *domain.Node, src, dst 
 	return nil
 }
 
-func (m *mockFileService) Download(ctx context.Context, node *domain.Node, path string) ([]byte, error) {
+func (m *mockFileService) DownloadLimited(
+	ctx context.Context, node *domain.Node, path string, limit uint64,
+) ([]byte, error) {
 	if m.downloadFunc != nil {
-		return m.downloadFunc(ctx, node, path)
+		return m.downloadFunc(ctx, node, path, limit)
 	}
 
 	return nil, nil
@@ -320,7 +322,7 @@ func newNodeFSService(
 
 	return NewNodeFSService(
 		testPluginID, fs, nodeRepo, newMockArchiveService(), &mockRegistrar{},
-		stubPermissionChecker{allowed: true},
+		allowAllGuard(testPluginID),
 	)
 }
 
@@ -335,7 +337,7 @@ func newArchiveNodeFSService(
 ) *NodeFSServiceImpl {
 	return NewNodeFSService(
 		testPluginID, &mockFileService{}, repo, archive, registrar,
-		stubPermissionChecker{allowed: true},
+		allowAllGuard(testPluginID),
 	)
 }
 
@@ -605,7 +607,7 @@ func TestNodeFSService_Download(t *testing.T) {
 			setupRepo: seedTestNode,
 			setupFS: func() *mockFileService {
 				return &mockFileService{
-					downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
+					downloadFunc: func(_ context.Context, _ *domain.Node, _ string, _ uint64) ([]byte, error) {
 						return []byte("file content"), nil
 					},
 				}
@@ -621,7 +623,7 @@ func TestNodeFSService_Download(t *testing.T) {
 			setupRepo: seedTestNode,
 			setupFS: func() *mockFileService {
 				return &mockFileService{
-					downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
+					downloadFunc: func(_ context.Context, _ *domain.Node, _ string, _ uint64) ([]byte, error) {
 						return nil, errFileNotFoundInternal
 					},
 				}
@@ -1353,7 +1355,7 @@ func TestNodeFSHostLibraryFactory_Create(t *testing.T) {
 	repo := inmemory.NewNodeRepository()
 	factory := NewNodeFSHostLibraryFactory(
 		&mockFileService{}, repo, newMockArchiveService(), &mockRegistrar{},
-		stubPermissionChecker{allowed: true},
+		NewGuard(stubPermissionChecker{allowed: true}),
 	)
 
 	lib := factory.Create(42)
@@ -1372,7 +1374,7 @@ func TestNodeFSService_FilesPermissionGatesEveryOperation(t *testing.T) {
 	registrar := &mockRegistrar{}
 	svc := NewNodeFSService(
 		testPluginID, &mockFileService{}, repo, archive, registrar,
-		&stubPermissionChecker{allowed: false},
+		NewGuard(&stubPermissionChecker{allowed: false}).For(testPluginID),
 	)
 	ctx := context.Background()
 
@@ -1468,7 +1470,12 @@ func TestNodeFSService_FilesPermissionGatesEveryOperation(t *testing.T) {
 			success, errMsg := tt.call()
 			assert.False(t, success, "operation must be denied without the files grant")
 			require.NotNil(t, errMsg)
-			assert.Contains(t, *errMsg, "plugin permission files required")
+			wantPermission := domain.PluginPermissionFiles
+			if readOnlyNodeFSExports[tt.name] {
+				wantPermission = domain.PluginPermissionFilesRead
+			}
+
+			assert.Contains(t, *errMsg, "plugin permission "+string(wantPermission)+" required")
 		})
 	}
 
@@ -1799,4 +1806,10 @@ func TestNodeFSService_StartCreateArchive_DaemonErrorSurfacesAsMessage(t *testin
 	require.NotNil(t, resp.Error)
 	assert.Contains(t, *resp.Error, "node does not support archive operations")
 	assert.Empty(t, registrar.Calls(), "failed starts must not register interest")
+}
+
+// readOnlyNodeFSExports lists the operations gated on files_read rather than
+// files.
+var readOnlyNodeFSExports = map[string]bool{
+	"read_dir": true, "download": true, "get_file_info": true, "hash": true, "get_archive_operation": true,
 }

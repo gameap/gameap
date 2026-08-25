@@ -7,6 +7,8 @@ option go_package = "github.com/gameap/gameap/pkg/plugin/proto";
 import "pkg/proto/server.proto";
 import "pkg/proto/user.proto";
 import "pkg/proto/pat.proto";
+import "pkg/proto/node.proto";
+import "pkg/proto/serversetting.proto";
 
 // ===============================
 // Events
@@ -37,10 +39,39 @@ enum EventType {
   EVENT_TYPE_SERVER_UPDATED = 121;
   EVENT_TYPE_SERVER_DELETED = 122;
 
+  // Server settings (the key/value table) were saved; payload lists the
+  // settings that changed.
+  EVENT_TYPE_SERVER_SETTINGS_CHANGED = 130;
+
+  // User events. USER_PRE_DELETE is delivered synchronously and may be
+  // cancelled; the others are asynchronous.
+  EVENT_TYPE_USER_CREATED = 200;
+  EVENT_TYPE_USER_UPDATED = 201;
+  EVENT_TYPE_USER_PRE_DELETE = 202;
+  EVENT_TYPE_USER_DELETED = 203;
+
   // Task events
   EVENT_TYPE_DAEMON_TASK_CREATED = 300;
   EVENT_TYPE_DAEMON_TASK_COMPLETED = 301;
   EVENT_TYPE_DAEMON_TASK_FAILED = 302;
+  // The daemon picked the task up (status "working"); the daemon reports no
+  // progress percentage, so this is the only intermediate transition.
+  EVENT_TYPE_DAEMON_TASK_STARTED = 303;
+
+  // Node events. NODE_PRE_DELETE is delivered synchronously and may be
+  // cancelled. NODE_ONLINE / NODE_OFFLINE follow the daemon session and are
+  // delivered on the panel instance that owns the session.
+  EVENT_TYPE_NODE_CREATED = 400;
+  EVENT_TYPE_NODE_UPDATED = 401;
+  EVENT_TYPE_NODE_PRE_DELETE = 402;
+  EVENT_TYPE_NODE_DELETED = 403;
+  EVENT_TYPE_NODE_ONLINE = 410;
+  EVENT_TYPE_NODE_OFFLINE = 411;
+
+  // Plugin lifecycle events, never delivered to the plugin they describe.
+  EVENT_TYPE_PLUGIN_LOADED = 500;
+  EVENT_TYPE_PLUGIN_UNLOADED = 501;
+  EVENT_TYPE_PLUGIN_ERROR = 502;
 }
 
 // Event is the main event message sent to plugins
@@ -52,10 +83,16 @@ message Event {
   oneof payload {
     ServerEventPayload server_event = 10;
     TaskEventPayload task_event = 11;
+    UserEventPayload user_event = 12;
+    NodeEventPayload node_event = 13;
+    ServerSettingsEventPayload server_settings_event = 14;
+    PluginEventPayload plugin_event = 15;
   }
 }
 
-// PluginContext provides context for plugin calls
+// PluginContext provides context for plugin calls. plugin_id names the
+// receiving plugin; permissions is reserved (empty) — a plugin reads its own
+// grants through gameap-host.
 message PluginContext {
   string plugin_id = 1;
   string request_id = 2;
@@ -76,6 +113,37 @@ message TaskEventPayload {
   optional uint64 server_id = 3;
   string task_type = 4;
   string status = 5;
+  map<string, string> extra_data = 6;
+}
+
+// UserEventPayload contains user-related event data
+message UserEventPayload {
+  gameap.User user = 1;
+  map<string, string> extra_data = 2;
+}
+
+// NodeEventPayload contains node-related event data
+message NodeEventPayload {
+  gameap.Node node = 1;
+  map<string, string> extra_data = 2;
+}
+
+// ServerSettingsEventPayload lists the server settings a save changed
+message ServerSettingsEventPayload {
+  uint64 server_id = 1;
+  repeated gameap.ServerSetting settings = 2;
+  map<string, string> extra_data = 3;
+}
+
+// PluginEventPayload describes another plugin's lifecycle transition
+message PluginEventPayload {
+  // Compact database id, as the admin API reports it
+  string plugin_id = 1;
+  string name = 2;
+  string version = 3;
+  // active | error | unloaded | uninstalled
+  string status = 4;
+  optional string error = 5;
   map<string, string> extra_data = 6;
 }
 
@@ -219,6 +287,27 @@ message HTTPResponse {
   int32 status_code = 1;
   map<string, string> headers = 2;
   bytes body = 3;
+  // When set, body is ignored: the panel streams the referenced node file to
+  // the client itself, so the bytes never pass through the plugin. Requires
+  // the plugin's "files" grant (403 without it) and an authenticated client
+  // (401 otherwise, whatever the route's requires_auth says). Panels that
+  // predate this field ignore it and send an empty body.
+  optional FileRef file = 4;
+}
+
+// FileRef points at a file on a node for HTTPResponse.file. The panel owns
+// Content-Length and Content-Disposition (always an attachment); of the
+// HTTPResponse.headers only Content-Type, Content-Language, Cache-Control,
+// Expires, Pragma, Last-Modified, ETag, Vary and the plugin metadata
+// headers X-Plugin and X-Plugin-* reach the client. Other X-* names
+// (X-Accel-*, X-Sendfile, X-Frame-Options, …) are dropped like the rest.
+message FileRef {
+  uint64 node_id = 1;
+  // Absolute node path, the same form gameap-nodefs accepts; ".." segments
+  // are rejected.
+  string path = 2;
+  // Name offered to the client; empty means the base name of path.
+  string filename = 3;
 }
 
 // Frontend bundle request/response

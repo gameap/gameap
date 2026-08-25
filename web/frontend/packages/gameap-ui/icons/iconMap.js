@@ -41,6 +41,8 @@ export const defaultIconMap = {
   "eraser": "fa-solid fa-eraser",
   "ban": "fa-solid fa-ban",
   "move": "fa-solid fa-dolly",
+  "history": "fa-solid fa-clock-rotate-left",
+  "clock-rotate-left": "fa-solid fa-clock-rotate-left",
   "maximize": MaximizeIcon,
 
   // ===== Navigation Icons =====

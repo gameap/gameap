@@ -25,7 +25,9 @@ import (
 	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/plugin/hostlibrary"
 	"github.com/gameap/gameap/internal/pubsub"
+	pubsubintegration "github.com/gameap/gameap/internal/pubsub/integration"
 	pubsubmemory "github.com/gameap/gameap/internal/pubsub/memory"
 	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
@@ -42,10 +44,12 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
+	"github.com/gameap/gameap/internal/telemetry"
 	"github.com/gameap/gameap/internal/upload"
 	"github.com/gameap/gameap/internal/ws"
 	pkgapi "github.com/gameap/gameap/pkg/api"
@@ -60,6 +64,7 @@ import (
 
 type InmemoryContainer struct {
 	cfg                     *config.Config
+	telemetry               *telemetry.Registry
 	responder               *pkgapi.Responder
 	gameRepo                repositories.GameRepository
 	gameModRepo             repositories.GameModRepository
@@ -91,6 +96,10 @@ type InmemoryContainer struct {
 	auditLogger             audit.Logger
 	pluginScheduler         *pluginscheduler.Service
 	pluginArchiveEvents     *pluginarchive.Service
+	pluginSubscriptionsPS   *pubsubintegration.PluginSubscriptionsNotifier
+	pluginGuard             *hostlibrary.Guard
+	pluginPermissions       *hostlibrary.CachedPermissionChecker
+	pluginRepo              repositories.PluginRepository
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -177,10 +186,41 @@ func (c *InmemoryContainer) FrontendFS() fs.FS {
 	return fsys
 }
 
+// PluginRepository answers the same repository every time: the router hands it
+// to every plugin handler separately, and the permission checker reads the
+// grants they write.
 func (c *InmemoryContainer) PluginRepository() repositories.PluginRepository {
-	return inmemory.NewPluginRepository()
+	if c.pluginRepo == nil {
+		c.pluginRepo = inmemory.NewPluginRepository()
+	}
+
+	return c.pluginRepo
+}
+
+func (c *InmemoryContainer) PluginStorageRepository() repositories.PluginStorageRepository {
+	return inmemory.NewPluginStorageRepository()
+}
+
+func (c *InmemoryContainer) PluginSecretRepository() repositories.PluginSecretRepository {
+	return inmemory.NewPluginSecretRepository()
 }
 func (c *InmemoryContainer) PluginLoader() *internalplugin.Loader { return nil }
+
+func (c *InmemoryContainer) PluginPathPolicy() *hostlibrary.PathPolicy {
+	return hostlibrary.DefaultPathPolicy()
+}
+
+func (c *InmemoryContainer) PluginSync() *pluginsync.Service { return nil }
+
+// Telemetry is a fresh registry per container so tests never share metric
+// state.
+func (c *InmemoryContainer) Telemetry() *telemetry.Registry {
+	if c.telemetry == nil {
+		c.telemetry = telemetry.New()
+	}
+
+	return c.telemetry
+}
 
 // PluginScheduler is cached so every caller shares one task store: a handler
 // registering tasks and one cleaning them up on uninstall must see the same
@@ -205,6 +245,49 @@ func (c *InmemoryContainer) PluginArchiveEvents() *pluginarchive.Service {
 	}
 
 	return c.pluginArchiveEvents
+}
+
+// PluginGuard answers a guard with no permission checker: the API tests
+// exercise the handlers, not the host-library policy.
+func (c *InmemoryContainer) PluginGuard() *hostlibrary.Guard {
+	if c.pluginGuard == nil {
+		c.pluginGuard = hostlibrary.NewGuard(c.PluginPermissionEnforcer())
+	}
+
+	return c.pluginGuard
+}
+
+// PluginPermissionEnforcer mirrors the application container: the real
+// checker while the config enforces permissions, allow-everything otherwise.
+func (c *InmemoryContainer) PluginPermissionEnforcer() hostlibrary.PluginPermissionChecker {
+	if c.cfg.Plugin.Permissions.Enforce {
+		return c.PluginPermissionChecker()
+	}
+
+	return hostlibrary.AllowAllPermissionChecker{}
+}
+
+// PluginPermissionChecker answers grants from the in-memory plugin repository.
+// The cache is disabled so a test that changes a grant sees it at once.
+func (c *InmemoryContainer) PluginPermissionChecker() *hostlibrary.CachedPermissionChecker {
+	if c.pluginPermissions == nil {
+		c.pluginPermissions = hostlibrary.NewCachedPermissionChecker(
+			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
+			0,
+		)
+	}
+
+	return c.pluginPermissions
+}
+
+// PluginSubscriptionsNotifier answers a notifier over an in-memory pubsub:
+// handlers only publish through it, and nothing subscribes in tests.
+func (c *InmemoryContainer) PluginSubscriptionsNotifier() *pubsubintegration.PluginSubscriptionsNotifier {
+	if c.pluginSubscriptionsPS == nil {
+		c.pluginSubscriptionsPS = pubsubintegration.NewPluginSubscriptionsNotifier(pubsubmemory.New(), nil)
+	}
+
+	return c.pluginSubscriptionsPS
 }
 
 func (c *InmemoryContainer) PluginStoreService() *pluginstore.Service         { return nil }
@@ -297,11 +380,16 @@ func buildInmemoryTestContainer() *InmemoryContainer {
 		panic(tfErr)
 	}
 
+	cfg := &config.Config{
+		AuthSecret:    "test-secret-key-for-testing",
+		EncryptionKey: "test-encryption-key-testing",
+	}
+	// Tests exercise today's enforced behavior; the release default is off
+	// only to give plugin developers a migration period.
+	cfg.Plugin.Permissions.Enforce = true
+
 	c := &InmemoryContainer{
-		cfg: &config.Config{
-			AuthSecret:    "test-secret-key-for-testing",
-			EncryptionKey: "test-encryption-key-testing",
-		},
+		cfg:                     cfg,
 		responder:               pkgapi.NewResponder(),
 		gameRepo:                inmemory.NewGameRepository(),
 		gameModRepo:             inmemory.NewGameModRepository(),

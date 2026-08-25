@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
@@ -17,12 +19,24 @@ import (
 	"github.com/pkg/errors"
 )
 
+// PluginDispatcher publishes the settings a save changed to plugins;
+// satisfied by *plugin.Dispatcher.
+type PluginDispatcher interface {
+	DispatchServerSettingsEventAsync(
+		ctx context.Context,
+		serverID uint,
+		settings []domain.ServerSetting,
+		extraData map[string]string,
+	)
+}
+
 type Handler struct {
 	serverSettingsRepo repositories.ServerSettingRepository
 	serverFinder       *serversbase.ServerFinder
 	abilityChecker     *serversbase.AbilityChecker
 	gameModsRepo       repositories.GameModRepository
 	configPusher       *serverconfigpush.Pusher
+	pluginDispatcher   PluginDispatcher
 	rbac               base.RBAC
 	responder          base.Responder
 }
@@ -32,6 +46,7 @@ func NewHandler(
 	serverRepo repositories.ServerRepository,
 	gameModsRepo repositories.GameModRepository,
 	configPusher *serverconfigpush.Pusher,
+	pluginDispatcher PluginDispatcher,
 	rbac base.RBAC,
 	responder base.Responder,
 ) *Handler {
@@ -41,6 +56,7 @@ func NewHandler(
 		abilityChecker:     serversbase.NewAbilityChecker(rbac),
 		gameModsRepo:       gameModsRepo,
 		configPusher:       configPusher,
+		pluginDispatcher:   pluginDispatcher,
 		rbac:               rbac,
 		responder:          responder,
 	}
@@ -124,7 +140,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.saveSettings(ctx, server, settingsInput, isAdmin)
+	changed, err := h.saveSettings(ctx, server, settingsInput, isAdmin)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -135,7 +151,25 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.configPusher.PushServerConfig(ctx, server.ID)
 	}
 
+	h.dispatchChanged(ctx, server.ID, changed)
+
 	h.responder.Write(ctx, rw, SuccessResponse{})
+}
+
+// dispatchChanged tells plugins which settings a save created or changed; a
+// save that touched nothing publishes nothing.
+func (h *Handler) dispatchChanged(ctx context.Context, serverID uint, changed []domain.ServerSetting) {
+	if h.pluginDispatcher == nil || len(changed) == 0 {
+		return
+	}
+
+	names := make([]string, 0, len(changed))
+	for _, setting := range changed {
+		names = append(names, setting.Name)
+	}
+
+	h.pluginDispatcher.DispatchServerSettingsEventAsync(ctx, serverID, changed,
+		map[string]string{"changed_fields": strings.Join(names, ",")})
 }
 
 func (h *Handler) findGameMod(ctx context.Context, gameModID uint) (*domain.GameMod, error) {
@@ -156,50 +190,77 @@ func (h *Handler) findGameMod(ctx context.Context, gameModID uint) (*domain.Game
 	return &gameMods[0], nil
 }
 
+// saveSettings persists the allowed settings and reports the ones that are
+// new or whose value changed, in a stable (name) order.
 func (h *Handler) saveSettings(
 	ctx context.Context,
 	server *domain.Server,
 	settingsInput saveSettingsInput,
 	isAdmin bool,
-) error {
+) ([]domain.ServerSetting, error) {
 	gameMod, err := h.findGameMod(ctx, server.GameModID)
 	if err != nil {
-		return errors.WithMessage(err, "failed to find game mod")
+		return nil, errors.WithMessage(err, "failed to find game mod")
 	}
 	if gameMod == nil {
-		return api.NewNotFoundError("game mod not found")
+		return nil, api.NewNotFoundError("game mod not found")
 	}
 
 	// Everything is validated before anything is written: a violation halfway
 	// through must not leave the server with a half-applied configuration.
 	normalized, err := settingsbase.Normalize(gameMod, settingsInput, isAdmin)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	existingSettings, err := h.serverSettingsRepo.Find(ctx, &filters.FindServerSetting{
 		ServerIDs: []uint{server.ID},
 	}, nil, nil)
 	if err != nil {
-		return errors.WithMessage(err, "failed to find server settings")
+		return nil, errors.WithMessage(err, "failed to find server settings")
 	}
 
-	existingIDs := make(map[string]uint, len(existingSettings))
+	existingSettingsMap := make(map[string]*domain.ServerSetting, len(existingSettings))
 	for i := range existingSettings {
-		existingIDs[existingSettings[i].Name] = existingSettings[i].ID
+		existingSettingsMap[existingSettings[i].Name] = &existingSettings[i]
 	}
 
-	for _, setting := range normalized {
-		err := h.serverSettingsRepo.Save(ctx, &domain.ServerSetting{
-			ID:       existingIDs[setting.Name],
+	changed := make([]domain.ServerSetting, 0, len(normalized))
+
+	for _, normalizedSetting := range normalized {
+		setting := domain.ServerSetting{
 			ServerID: server.ID,
-			Name:     setting.Name,
-			Value:    setting.Value,
-		})
+			Name:     normalizedSetting.Name,
+			Value:    normalizedSetting.Value,
+		}
+
+		existingSetting, exists := existingSettingsMap[setting.Name]
+		if exists {
+			setting.ID = existingSetting.ID
+		}
+
+		err := h.serverSettingsRepo.Save(ctx, &setting)
 		if err != nil {
-			return errors.WithMessage(err, "failed to save setting")
+			return nil, errors.WithMessage(err, "failed to save setting")
+		}
+
+		if !exists || !sameSettingValue(existingSetting.Value, setting.Value) {
+			changed = append(changed, setting)
 		}
 	}
 
-	return nil
+	sort.Slice(changed, func(i, j int) bool { return changed[i].Name < changed[j].Name })
+
+	return changed, nil
+}
+
+// sameSettingValue compares the text that is actually stored. Raw is read
+// instead of String because a value coming back from the database keeps its
+// original text while its guessed type may differ, and "007" would otherwise
+// look changed on every save.
+func sameSettingValue(a, b domain.ServerSettingValue) bool {
+	left, leftPresent := a.Raw()
+	right, rightPresent := b.Raw()
+
+	return leftPresent == rightPresent && left == right
 }

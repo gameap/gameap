@@ -7,9 +7,12 @@ import { downloadDirectoryArchive } from '../http/download-archive.js'
 import { downloadSingleFile } from '../http/download-file.js'
 import { StreamDownloadError } from '../http/download-stream.js'
 import { detectConflicts, joinPath, dirOf } from '../http/upload-conflicts.js'
+import { queryVariants } from '../keyboardLayout.js'
+import { foldText } from '../textFold.js'
 import { useSettingsStore } from './useSettingsStore.js'
 import { useMessagesStore } from './useMessagesStore.js'
 import { useModalStore } from './useModalStore.js'
+import { useHistoryStore } from './useHistoryStore.js'
 import { useTranslate } from '../composables/useTranslate.js'
 import { notification } from '@/parts/dialogs.js'
 
@@ -106,6 +109,13 @@ export const useFileManagerStore = defineStore('fm', () => {
     const disks = ref({})
     const fileCallback = ref(null)
     const fullScreen = ref(false)
+
+    // Search state is root-level and applies to the active manager
+    const searchOpen = ref(false)
+    const searchQuery = ref('')
+    const searchCursor = ref(0)
+    const searchFocusRequestId = ref(0)
+    const searchScrollTick = ref(0)
 
     // Manager states (left/right)
     const left = reactive(createManagerState())
@@ -426,6 +436,111 @@ export const useFileManagerStore = defineStore('fm', () => {
         fullScreen.value = !fullScreen.value
     }
 
+    // Search: names follow the visible order (directories first, then files),
+    // the same index space as TableView row refs and useManager flatVisible.
+    const foldedNames = computed(() => [
+        ...getDirectories(activeManager.value).map((directory) => foldText(directory.basename)),
+        ...getFiles(activeManager.value).map((file) => foldText(file.basename)),
+    ])
+
+    function collectMatches(query) {
+        const needle = foldText(query)
+        const matches = []
+
+        foldedNames.value.forEach((name, index) => {
+            if (name.includes(needle)) {
+                matches.push(index)
+            }
+        })
+
+        return matches
+    }
+
+    // Other keyboard layouts are only a fallback: as long as the typed text
+    // finds something, a wrong-layout reading never steals the results.
+    const searchResult = computed(() => {
+        if (!searchOpen.value || searchQuery.value === '') {
+            return { query: '', matches: [] }
+        }
+
+        const variants = queryVariants(searchQuery.value)
+        for (const variant of variants) {
+            const matches = collectMatches(variant)
+            if (matches.length) {
+                return { query: variant, matches }
+            }
+        }
+
+        return { query: variants[0], matches: [] }
+    })
+
+    const searchMatches = computed(() => searchResult.value.matches)
+    const effectiveSearchQuery = computed(() => searchResult.value.query)
+
+    const currentSearchMatch = computed(() => {
+        const matches = searchMatches.value
+        if (matches.length === 0) return -1
+
+        return matches[Math.min(searchCursor.value, matches.length - 1)]
+    })
+
+    function openSearch() {
+        searchOpen.value = true
+        searchFocusRequestId.value += 1
+    }
+
+    function openSearchWithQuery(query) {
+        searchOpen.value = true
+        setSearchQuery(query)
+        searchFocusRequestId.value += 1
+    }
+
+    function closeSearch() {
+        searchOpen.value = false
+        searchQuery.value = ''
+        searchCursor.value = 0
+    }
+
+    function toggleSearch() {
+        if (searchOpen.value) {
+            closeSearch()
+        } else {
+            openSearch()
+        }
+    }
+
+    function setSearchQuery(query) {
+        searchQuery.value = query
+        searchCursor.value = 0
+        searchScrollTick.value += 1
+    }
+
+    function appendSearchChar(char) {
+        setSearchQuery(searchQuery.value + char)
+        searchFocusRequestId.value += 1
+    }
+
+    function searchNext() {
+        const len = searchMatches.value.length
+        if (len === 0) return
+
+        searchCursor.value = (Math.min(searchCursor.value, len - 1) + 1) % len
+        searchScrollTick.value += 1
+    }
+
+    function searchPrev() {
+        const len = searchMatches.value.length
+        if (len === 0) return
+
+        searchCursor.value = (Math.min(searchCursor.value, len - 1) - 1 + len) % len
+        searchScrollTick.value += 1
+    }
+
+    function resetSearchCursor() {
+        searchCursor.value = 0
+        searchScrollTick.value += 1
+    }
+
     // Manager actions
     async function selectDirectory(managerName, { path, history }) {
         const manager = getManager(managerName)
@@ -440,6 +555,16 @@ export const useFileManagerStore = defineStore('fm', () => {
                 resetSortSettings(managerName)
                 setManagerContent(managerName, response.data)
                 setManagerDirectory(managerName, path)
+
+                // Visit history follows the left manager only — the single
+                // rendered pane today.
+                if (managerName === 'left') {
+                    useHistoryStore().onDirectoryChanged({ disk: manager.selectedDisk, path })
+                }
+
+                if (managerName === activeManager.value) {
+                    resetSearchCursor()
+                }
 
                 if (history) {
                     addToHistory(managerName, path)
@@ -474,8 +599,15 @@ export const useFileManagerStore = defineStore('fm', () => {
 
             if (response.data.result.status === 'success') {
                 setManagerContent(managerName, response.data)
+
+                if (managerName === activeManager.value) {
+                    resetSearchCursor()
+                }
             } else if (response.data.result.status === 'danger' && !retried) {
                 setManagerDirectory(managerName, null)
+                if (managerName === 'left') {
+                    useHistoryStore().onDirectoryChanged({ disk: manager.selectedDisk, path: null })
+                }
                 await refreshDirectory(managerName, true)
             } else {
                 setManagerError(managerName, {
@@ -574,6 +706,11 @@ export const useFileManagerStore = defineStore('fm', () => {
             const response = await GET.content(disk, path)
             if (response.data.result.status === 'success') {
                 setManagerContent(manager, response.data)
+                // Initial load bypasses selectDirectory, so the visit
+                // tracker is fed here.
+                if (manager === 'left') {
+                    useHistoryStore().onDirectoryChanged({ disk, path })
+                }
             } else {
                 setManagerError(manager, {
                     status: 0,
@@ -999,6 +1136,7 @@ export const useFileManagerStore = defineStore('fm', () => {
         })
 
         if (response.data.result.status === 'success') {
+            useHistoryStore().onItemsDeleted({ disk: selectedDisk.value, items })
             refreshManagers()
         }
         return response
@@ -1091,6 +1229,15 @@ export const useFileManagerStore = defineStore('fm', () => {
             oldName,
             type,
         })
+
+        if (response.data.result.status === 'success') {
+            useHistoryStore().onItemRenamed({
+                disk: selectedDisk.value,
+                type,
+                oldPath: oldName,
+                newPath: newName,
+            })
+        }
 
         if (type === 'dir') {
             refreshAll()
@@ -1203,6 +1350,7 @@ export const useFileManagerStore = defineStore('fm', () => {
         disks.value = {}
         fileCallback.value = null
         fullScreen.value = false
+        closeSearch()
     }
 
     function openPDF({ disk, path }) {
@@ -1251,6 +1399,24 @@ export const useFileManagerStore = defineStore('fm', () => {
         setActiveManager,
         setFileCallBack,
         screenToggle,
+        // Search
+        searchOpen,
+        searchQuery,
+        searchCursor,
+        searchFocusRequestId,
+        searchScrollTick,
+        searchMatches,
+        effectiveSearchQuery,
+        currentSearchMatch,
+        openSearch,
+        openSearchWithQuery,
+        closeSearch,
+        toggleSearch,
+        setSearchQuery,
+        appendSearchChar,
+        searchNext,
+        searchPrev,
+        resetSearchCursor,
         // Manager mutations
         setManagerDisk,
         setManagerDirectory,

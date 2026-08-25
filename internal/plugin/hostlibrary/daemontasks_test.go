@@ -165,7 +165,7 @@ func TestDaemonTasksService_FindDaemonTasks(t *testing.T) {
 			repo := inmemory.NewDaemonTaskRepository()
 			tt.setupRepo(repo)
 
-			svc := NewDaemonTasksService(repo, nil)
+			svc := NewDaemonTasksService(repo, nil, allowAllGuard(testPluginID))
 			resp, err := svc.FindDaemonTasks(context.Background(), tt.request)
 
 			require.NoError(t, err)
@@ -239,7 +239,7 @@ func TestDaemonTasksService_CreateDaemonTask(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			repo := inmemory.NewDaemonTaskRepository()
-			svc := NewDaemonTasksService(repo, nil)
+			svc := NewDaemonTasksService(repo, nil, allowAllGuard(testPluginID))
 
 			resp, err := svc.CreateDaemonTask(context.Background(), tt.request)
 
@@ -345,7 +345,7 @@ func TestDaemonTasksService_CreateDaemonTask_Dispatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			repo := inmemory.NewDaemonTaskRepository()
-			svc := NewDaemonTasksService(repo, tt.dispatcher)
+			svc := NewDaemonTasksService(repo, tt.dispatcher, allowAllGuard(testPluginID))
 
 			resp, err := svc.CreateDaemonTask(context.Background(), tt.request)
 
@@ -522,11 +522,13 @@ func TestConvertDaemonTaskToProto_NilOptionalFields(t *testing.T) {
 	assert.Nil(t, result.Output)
 }
 
-func TestNewDaemonTasksHostLibrary(t *testing.T) {
+func TestNewDaemonTasksHostLibraryFactory(t *testing.T) {
 	t.Parallel()
 	repo := inmemory.NewDaemonTaskRepository()
-	lib := NewDaemonTasksHostLibrary(repo, nil)
+	factory := NewDaemonTasksHostLibraryFactory(repo, nil, NewGuard(stubPermissionChecker{allowed: true}))
 
-	assert.NotNil(t, lib)
-	assert.NotNil(t, lib.impl)
+	lib, ok := factory.Create(42).(*DaemonTasksHostLibrary)
+	require.True(t, ok)
+	require.NotNil(t, lib.impl)
+	assert.Equal(t, uint64(42), lib.impl.guard.PluginID(), "factory must bind the plugin id")
 }

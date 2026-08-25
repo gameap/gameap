@@ -171,3 +171,43 @@ func TestDryRun_no_file_uploaded(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 }
+
+func TestDryRun_reports_used_and_undeclared_permissions(t *testing.T) {
+	t.Parallel()
+
+	manager := &mockLoaderManager{
+		loadFunc: func(_ context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
+			return &pkgplugin.LoadedPlugin{
+				Info: &proto.PluginInfo{
+					Id:                  "testplugin",
+					Name:                "Test Plugin",
+					Version:             "1.0.0",
+					ApiVersion:          "1",
+					RequiredPermissions: []string{"files"},
+				},
+				// The mock service subscribes to SERVER_POST_START.
+				Instance: &mockPluginService{},
+				HostImports: []pkgplugin.HostImport{
+					{Module: "gameap-nodecmd", Function: "execute_command"},
+					{Module: "gameap-nodefs", Function: "read_dir"},
+					{Module: "gameap-log", Function: "log"},
+				},
+			}, nil
+		},
+	}
+
+	h := dryrun.NewHandler(manager, api.NewResponder())
+	recorder := httptest.NewRecorder()
+	h.ServeHTTP(recorder, createMultipartRequest(t, "plugin.wasm", validWASMBytes()))
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+
+	assert.Equal(t, []any{"files"}, resp["required_permissions"])
+	assert.Equal(t, []any{"files_read", "listen_events", "node_commands"}, resp["used_permissions"],
+		"the fixture only reads through gameap-nodefs")
+	assert.Equal(t, []any{"listen_events", "node_commands"}, resp["undeclared_permissions"],
+		"used but not declared: the install would not grant them; the declared files covers files_read")
+}

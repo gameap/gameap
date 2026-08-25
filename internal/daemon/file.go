@@ -138,9 +138,25 @@ func (s *FileService) readDir(
 	return result, nil
 }
 
+// Download reads the whole file into memory. DownloadLimited bounds the
+// read; DownloadStream avoids buffering the file altogether.
 func (s *FileService) Download(ctx context.Context, node *domain.Node, filePath string) ([]byte, error) {
+	return s.DownloadLimited(ctx, node, filePath, 0)
+}
+
+// DownloadLimited reads at most limit bytes from the start of the file
+// (0 = the whole file). A caller with a size cap asks for cap+1 bytes: the
+// answer tells whether the file exceeds the cap without the rest of it ever
+// being buffered.
+func (s *FileService) DownloadLimited(
+	ctx context.Context,
+	node *domain.Node,
+	filePath string,
+	limit uint64,
+) ([]byte, error) {
 	nodeID := uint64(node.ID)
 	relPath := stripWorkPath(node.WorkPath, filePath)
+	length := int64(min(limit, math.MaxInt64)) //nolint:gosec // G115: clamped to MaxInt64 just before
 
 	local, err := s.resolveRoute(nodeID)
 	if err != nil {
@@ -148,7 +164,7 @@ func (s *FileService) Download(ctx context.Context, node *domain.Node, filePath 
 	}
 
 	if local {
-		resp, readErr := s.gateway.RequestFileRead(ctx, nodeID, relPath, 0, 0)
+		resp, readErr := s.gateway.RequestFileRead(ctx, nodeID, relPath, 0, length)
 		if readErr != nil {
 			return nil, errors.WithMessage(readErr, "file read request")
 		}
@@ -164,7 +180,7 @@ func (s *FileService) Download(ctx context.Context, node *domain.Node, filePath 
 		return resp.Content, nil
 	}
 
-	result, err := s.dispatcher.DispatchFileRead(ctx, nodeID, relPath, 0, 0)
+	result, err := s.dispatcher.DispatchFileRead(ctx, nodeID, relPath, 0, length)
 	if err != nil {
 		return nil, errors.WithMessage(err, "dispatched file read")
 	}

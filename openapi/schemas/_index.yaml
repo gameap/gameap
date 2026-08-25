@@ -81,6 +81,14 @@ PluginDryRunResponse:
   $ref: './PluginDryRunResponse.yaml'
 LoadedPlugin:
   $ref: './LoadedPlugin.yaml'
+PluginReloadResponse:
+  $ref: './PluginReloadResponse.yaml'
+PluginPermission:
+  $ref: './PluginPermission.yaml'
+PluginPermissionsUpdateRequest:
+  $ref: './PluginPermissionsUpdateRequest.yaml'
+PluginPermissionsResponse:
+  $ref: './PluginPermissionsResponse.yaml'
 
 # Request schemas
 LoginRequest:

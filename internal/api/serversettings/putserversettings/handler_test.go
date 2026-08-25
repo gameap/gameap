@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gameap/gameap/internal/api/serversettings/putserversettings"
@@ -42,6 +44,7 @@ func TestPutServerSettings(t *testing.T) {
 		wantFinalVals    map[string]string
 		wantErrorField   string
 		wantUnwritten    []string
+		wantChanged      []string
 	}{
 		{
 			name:     "success updating existing settings",
@@ -128,6 +131,8 @@ func TestPutServerSettings(t *testing.T) {
 				"maxplayers": "32",
 				"hostname":   "Updated Server",
 			},
+			// maxplayers changed, hostname is new, autostart changed; nothing else.
+			wantChanged: []string{"autostart", "hostname", "maxplayers"},
 		},
 		{
 			name:     "success with admin vars when user is admin",
@@ -939,11 +944,13 @@ func TestPutServerSettings(t *testing.T) {
 
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 
+			dispatcher := &fakePluginDispatcher{}
 			h := putserversettings.NewHandler(
 				serverSettingsRepo,
 				serversRepo,
 				gameModsRepo,
 				nil,
+				dispatcher,
 				rbacService,
 				api.NewResponder(),
 			)
@@ -1005,6 +1012,13 @@ func TestPutServerSettings(t *testing.T) {
 				}
 			}
 
+			if test.expectedStatus != http.StatusOK {
+				assert.Nil(t, dispatcher.changedNames(), "a failed save publishes nothing")
+			} else if test.wantChanged != nil {
+				assert.Equal(t, test.wantChanged, dispatcher.changedNames(), "settings reported to plugins")
+				assert.Equal(t, strings.Join(test.wantChanged, ","), dispatcher.extra["changed_fields"])
+			}
+
 			if test.verifySettings && test.expectedStatus == http.StatusOK {
 				savedSettings, err := serverSettingsRepo.Find(ctx, &filters.FindServerSetting{
 					ServerIDs: []uint{test.serverID},
@@ -1031,4 +1045,42 @@ func TestPutServerSettings(t *testing.T) {
 			}
 		})
 	}
+}
+
+type fakePluginDispatcher struct {
+	mu      sync.Mutex
+	changed [][]string
+	extra   map[string]string
+}
+
+func (f *fakePluginDispatcher) DispatchServerSettingsEventAsync(
+	_ context.Context, _ uint, settings []domain.ServerSetting, extraData map[string]string,
+) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	names := make([]string, 0, len(settings))
+	for _, setting := range settings {
+		names = append(names, setting.Name)
+	}
+
+	f.changed = append(f.changed, names)
+	f.extra = extraData
+}
+
+// changedNames flattens every dispatch; nil when nothing was published.
+func (f *fakePluginDispatcher) changedNames() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if len(f.changed) == 0 {
+		return nil
+	}
+
+	var names []string
+	for _, batch := range f.changed {
+		names = append(names, batch...)
+	}
+
+	return names
 }

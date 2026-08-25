@@ -142,7 +142,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			usersRepo := inmemory.NewUserRepository()
 			userService := services.NewUserService(usersRepo)
 			responder := api.NewResponder()
-			handler := NewHandler(userService, responder)
+			handler := NewHandler(userService, nil, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(usersRepo)
@@ -184,7 +184,7 @@ func TestHandler_UserActuallyDeleted(t *testing.T) {
 	usersRepo := inmemory.NewUserRepository()
 	userService := services.NewUserService(usersRepo)
 	responder := api.NewResponder()
-	handler := NewHandler(userService, responder)
+	handler := NewHandler(userService, nil, responder)
 
 	now := time.Now()
 	name := "User To Delete"
@@ -228,7 +228,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	userService := services.NewUserService(usersRepo)
 	responder := api.NewResponder()
 
-	handler := NewHandler(userService, responder)
+	handler := NewHandler(userService, nil, responder)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, userService, handler.userService)

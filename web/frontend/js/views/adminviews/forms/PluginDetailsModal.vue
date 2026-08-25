@@ -20,43 +20,50 @@
             <a v-if="plugin.url" :href="plugin.url" target="_blank" class="text-info hover:text-info-hover">
               <GIcon name="external-link" />
             </a>
-            <span v-if="plugin.installed" class="hidden md:inline px-2 py-0.5 text-xs font-medium rounded-full bg-success-soft text-success-soft-text whitespace-nowrap">
-              {{ trans('plugins.already_installed') }}
-            </span>
-            <span
+            <GStatusBadge
+              v-if="plugin.installed"
+              color="green"
+              :text="trans('plugins.already_installed')"
+              class="hidden md:inline-flex"
+            />
+            <GStatusBadge
               v-if="loadedInfo?.source_type"
-              class="hidden md:inline px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
-              :class="loadedInfo.source_type === 'file'
-                ? 'bg-info-soft text-info-soft-text'
-                : 'bg-success-soft text-success-soft-text'"
-            >
-              {{ loadedInfo.source_type === 'file' ? trans('plugins.source_file') : trans('plugins.source_store') }}
-            </span>
-            <span
+              :color="loadedInfo.source_type === 'file' ? 'blue' : 'green'"
+              :text="loadedInfo.source_type === 'file' ? trans('plugins.source_file') : trans('plugins.source_store')"
+              class="hidden md:inline-flex"
+            />
+            <GStatusBadge
               v-if="loadedInfo"
-              class="hidden md:inline px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
-              :class="loadedInfo.enabled
-                ? 'bg-success-soft text-success-soft-text'
-                : 'bg-danger-soft text-danger-soft-text'"
-            >
-              {{ loadedInfo.enabled ? trans('plugins.status_active') : trans('plugins.status_disabled') }}
-            </span>
+              :color="loadedStatusColor"
+              :text="trans('plugins.status_' + loadedStatus)"
+              :title="loadedStatus === 'error' ? loadedInfo.error : undefined"
+              class="hidden md:inline-flex"
+            />
           </div>
+
+          <n-alert
+            v-if="loadedStatus === 'error' && loadedInfo?.error"
+            type="error"
+            :show-icon="true"
+            class="mb-4"
+            :title="trans('plugins.last_error')"
+          >
+            <span class="break-words">{{ loadedInfo.error }}</span>
+            <span v-if="loadedInfo.error_at" class="text-xs opacity-75">({{ formatDateTime(loadedInfo.error_at) }})</span>
+          </n-alert>
 
           <div v-if="plugin.summary" class="mb-4 text-stone-600 dark:text-stone-400">
             {{ plugin.summary }}
           </div>
 
           <div v-if="plugin.labels?.length > 0" class="hidden md:flex flex-wrap gap-1 mt-1">
-            <span
+            <GStatusBadge
                 v-for="label in plugin.labels"
                 :key="label.id"
-                class="px-2 py-0.5 text-xs font-medium rounded-full"
+                :color="label.color ? 'stone' : 'light'"
+                :text="label.name"
                 :style="label.color ? { backgroundColor: label.color, color: '#fff' } : {}"
-                :class="!label.color ? 'bg-stone-100 text-stone-800 dark:bg-stone-700 dark:text-stone-300' : ''"
-            >
-              {{ label.name }}
-            </span>
+            />
           </div>
 
           <div v-if="!isFilePlugin" class="flex items-center gap-2 mt-2">
@@ -196,9 +203,7 @@
             <span class="text-sm font-medium whitespace-nowrap">{{ plugin.latest_version }}</span>
             <span class="text-xs text-stone-500">{{ trans('plugins.latest_version') }}</span>
           </div>
-          <span v-if="hasUpdate" class="self-center px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">
-            {{ trans('plugins.update') }}
-          </span>
+          <GStatusBadge v-if="hasUpdate" color="orange" :text="trans('plugins.update')" class="self-center" />
         </template>
       </div>
     </div>
@@ -206,12 +211,13 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { trans } from '@/i18n/i18n'
-import { GIcon, Loading } from '@gameap/ui'
+import { GIcon, GStatusBadge, Loading } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
 import PluginIcon from '@/components/plugins/PluginIcon.vue'
-import { NSelect } from 'naive-ui'
+import { useIsSmallScreen } from '@/composables/useIsSmallScreen'
+import { NAlert, NSelect } from 'naive-ui'
 
 const props = defineProps({
   plugin: {
@@ -234,22 +240,25 @@ const props = defineProps({
 
 const isFilePlugin = computed(() => props.loadedInfo?.source_type === 'file' || props.plugin?.source_type === 'file')
 
-const emit = defineEmits(['install', 'update', 'uninstall'])
-
-const selectedVersion = ref(null)
-const isSmallScreen = ref(window.innerWidth < 768)
-
-const handleResize = () => {
-  isSmallScreen.value = window.innerWidth < 768
+const loadedStatusColors = {
+  active: 'green',
+  error: 'red',
+  updating: 'orange',
+  disabled: 'stone',
 }
 
-onMounted(() => {
-  window.addEventListener('resize', handleResize)
+const loadedStatus = computed(() => {
+  const status = props.loadedInfo?.status || (props.loadedInfo?.enabled ? 'active' : 'disabled')
+
+  return loadedStatusColors[status] ? status : 'disabled'
 })
 
-onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-})
+const loadedStatusColor = computed(() => loadedStatusColors[loadedStatus.value])
+
+defineEmits(['install', 'update', 'uninstall'])
+
+const selectedVersion = ref(null)
+const isSmallScreen = useIsSmallScreen()
 
 const hasUpdate = computed(() => {
   if (!props.plugin?.installed) return false
@@ -307,5 +316,11 @@ function formatDate(dateString) {
   if (!dateString) return ''
   const date = new Date(dateString)
   return date.toLocaleDateString()
+}
+
+function formatDateTime(dateString) {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleString()
 }
 </script>

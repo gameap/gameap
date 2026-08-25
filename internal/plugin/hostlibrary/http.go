@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/pkg/netutil"
+	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/sdk/http"
 	"github.com/pkg/errors"
 	"github.com/tetratelabs/wazero"
@@ -41,7 +42,7 @@ type HTTPConfig struct {
 	BlockPrivateIPs         bool
 	AllowedSchemes          []string
 	AllowedHosts            []string
-	MaxTimeoutSeconds       int
+	MaxTimeout              time.Duration
 	MaxRedirects            int
 	ResponseHeaderAllowlist []string
 }
@@ -102,7 +103,7 @@ func newHTTPService(cfg HTTPConfig, resolver netResolver, dialer *net.Dialer) *H
 		dialer = &net.Dialer{Timeout: defaultTimeout}
 	}
 
-	timeoutCap := time.Duration(cfg.MaxTimeoutSeconds) * time.Second
+	timeoutCap := cfg.MaxTimeout
 	if timeoutCap <= 0 {
 		timeoutCap = defaultTimeout
 	}
@@ -403,11 +404,12 @@ func buildResponseHeaderAllowlist(extra []string) map[string]struct{} {
 
 // HTTPHostLibrary wires the SSRF-hardened service into the wazero runtime.
 type HTTPHostLibrary struct {
-	impl *HTTPServiceImpl
+	impl http.HTTPService
 }
 
-// NewHTTPHostLibrary constructs the host library from operator config.
-// Callers should source HTTPConfig from internal/config Plugin.HTTP.
+// NewHTTPHostLibrary constructs an ungated host library from operator
+// config; the panel registers the per-plugin, rate-limited variant through
+// NewHTTPHostLibraryFactory instead.
 func NewHTTPHostLibrary(cfg HTTPConfig) *HTTPHostLibrary {
 	return &HTTPHostLibrary{
 		impl: NewHTTPService(cfg),
@@ -416,4 +418,43 @@ func NewHTTPHostLibrary(cfg HTTPConfig) *HTTPHostLibrary {
 
 func (l *HTTPHostLibrary) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	return http.Instantiate(ctx, r, l.impl)
+}
+
+// guardedHTTPService puts the plugin's rate limit in front of the shared
+// service. The service itself is shared between plugins (one resolver and
+// dialer), only the guard binding is per plugin.
+type guardedHTTPService struct {
+	impl  *HTTPServiceImpl
+	guard *PluginGuard
+}
+
+func (s *guardedHTTPService) Fetch(
+	ctx context.Context,
+	req *http.HTTPFetchRequest,
+) (*http.HTTPFetchResponse, error) {
+	if msg := s.guard.Check(ctx, ModuleHTTP, "fetch"); msg != "" {
+		return &http.HTTPFetchResponse{Error: new(msg)}, nil
+	}
+
+	return s.impl.Fetch(ctx, req)
+}
+
+// HTTPHostLibraryFactory builds a per-plugin gameap-http module over one
+// shared SSRF-hardened service.
+type HTTPHostLibraryFactory struct {
+	impl  *HTTPServiceImpl
+	guard *Guard
+}
+
+func NewHTTPHostLibraryFactory(cfg HTTPConfig, guard *Guard) *HTTPHostLibraryFactory {
+	return &HTTPHostLibraryFactory{
+		impl:  NewHTTPService(cfg),
+		guard: guard,
+	}
+}
+
+func (f *HTTPHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
+	return &HTTPHostLibrary{
+		impl: &guardedHTTPService{impl: f.impl, guard: f.guard.For(pluginID)},
+	}
 }

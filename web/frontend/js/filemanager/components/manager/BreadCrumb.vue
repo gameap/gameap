@@ -28,6 +28,8 @@
                     </li>
                 </template>
             </ol>
+
+            <history-popover v-bind:manager="manager" />
         </nav>
     </div>
 </template>
@@ -35,6 +37,7 @@
 <script setup>
 import { computed } from 'vue'
 import { GIcon } from '@gameap/ui'
+import HistoryPopover from '../blocks/HistoryPopover.vue'
 import { useManager } from '../../composables/useManager.js'
 
 const props = defineProps({

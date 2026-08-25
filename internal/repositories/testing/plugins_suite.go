@@ -76,6 +76,7 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 			Filename:    new("full-plugin.wasm"),
 			Source:      new("https://github.com/example/plugin"),
 			Homepage:    new("https://example.com/plugin"),
+			Checksum:    new("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
 			RequiredPermissions: []domain.PluginPermission{
 				domain.PluginPermissionManageServers,
 				domain.PluginPermissionManageNodes,
@@ -86,6 +87,7 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 			},
 			Status:       domain.PluginStatusActive,
 			Priority:     100,
+			Generation:   3,
 			Category:     new("monitoring"),
 			Dependencies: []string{"base-plugin", "auth-plugin"},
 			Config: map[string]any{
@@ -117,6 +119,9 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 		assert.Equal(t, "https://github.com/example/plugin", *retrieved.Source)
 		require.NotNil(t, retrieved.Homepage)
 		assert.Equal(t, "https://example.com/plugin", *retrieved.Homepage)
+		require.NotNil(t, retrieved.Checksum)
+		assert.Equal(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", *retrieved.Checksum)
+		assert.Equal(t, 3, retrieved.Generation)
 		require.Len(t, retrieved.RequiredPermissions, 2)
 		assert.Contains(t, retrieved.RequiredPermissions, domain.PluginPermissionManageServers)
 		assert.Contains(t, retrieved.RequiredPermissions, domain.PluginPermissionManageNodes)
@@ -138,6 +143,110 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 		assert.InDelta(t, now.Unix(), retrieved.LastLoadedAt.Unix(), 1.0)
 		assert.NotNil(t, retrieved.CreatedAt)
 		assert.NotNil(t, retrieved.UpdatedAt)
+		assert.Nil(t, retrieved.LastError)
+		assert.Nil(t, retrieved.LastErrorAt)
+	})
+
+	s.T().Run("save_with_last_error", func(t *testing.T) {
+		errorAt := time.Now().Truncate(time.Second)
+		plugin := &domain.Plugin{
+			ID:         1008,
+			Name:       "errored-plugin",
+			Version:    "1.0.0",
+			APIVersion: "1",
+		}
+		plugin.MarkError("event handler timed out (SERVER_PRE_START)", errorAt)
+
+		err := s.repo.Save(ctx, plugin)
+		require.NoError(t, err)
+
+		result, err := s.repo.Find(ctx, &filters.FindPlugin{IDs: []domain.Uint64ID{plugin.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+
+		retrieved := result[0]
+		assert.Equal(t, domain.PluginStatusError, retrieved.Status)
+		require.NotNil(t, retrieved.LastError)
+		assert.Equal(t, "event handler timed out (SERVER_PRE_START)", *retrieved.LastError)
+		require.NotNil(t, retrieved.LastErrorAt)
+		assert.InDelta(t, errorAt.Unix(), retrieved.LastErrorAt.Unix(), 1.0)
+	})
+
+	s.T().Run("clear_last_error", func(t *testing.T) {
+		plugin := &domain.Plugin{
+			ID:         1009,
+			Name:       "recovered-plugin",
+			Version:    "1.0.0",
+			APIVersion: "1",
+		}
+		plugin.MarkError("http handler timed out", time.Now())
+
+		err := s.repo.Save(ctx, plugin)
+		require.NoError(t, err)
+
+		plugin.MarkActive(time.Now())
+
+		err = s.repo.Save(ctx, plugin)
+		require.NoError(t, err)
+
+		result, err := s.repo.Find(ctx, &filters.FindPlugin{IDs: []domain.Uint64ID{plugin.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+
+		retrieved := result[0]
+		assert.Equal(t, domain.PluginStatusActive, retrieved.Status)
+		assert.Nil(t, retrieved.LastError)
+		assert.Nil(t, retrieved.LastErrorAt)
+		assert.NotNil(t, retrieved.LastLoadedAt)
+	})
+
+	s.T().Run("update_load_state_leaves_config_and_grants_alone", func(t *testing.T) {
+		plugin := &domain.Plugin{
+			ID:                 1010,
+			Name:               "load-state-plugin",
+			Version:            "1.0.0",
+			APIVersion:         "1",
+			Status:             domain.PluginStatusActive,
+			AllowedPermissions: []domain.PluginPermission{domain.PluginPermissionFiles},
+			Config:             map[string]any{"api_key": "before"},
+		}
+		require.NoError(t, s.repo.Save(ctx, plugin))
+
+		edited := *plugin
+		edited.AllowedPermissions = []domain.PluginPermission{domain.PluginPermissionSecrets}
+		edited.Config = map[string]any{"api_key": "after"}
+		require.NoError(t, s.repo.Save(ctx, &edited))
+
+		loadedAt := time.Now().Truncate(time.Second)
+		err := s.repo.UpdateLoadState(ctx, plugin.ID, domain.PluginLoadState{
+			Status:       domain.PluginStatusError,
+			LastError:    new("initialize failed"),
+			LastErrorAt:  &loadedAt,
+			LastLoadedAt: &loadedAt,
+			Generation:   7,
+		})
+		require.NoError(t, err)
+
+		result, err := s.repo.Find(ctx, &filters.FindPlugin{IDs: []domain.Uint64ID{plugin.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+
+		retrieved := result[0]
+		assert.Equal(t, domain.PluginStatusError, retrieved.Status)
+		require.NotNil(t, retrieved.LastError)
+		assert.Equal(t, "initialize failed", *retrieved.LastError)
+		require.NotNil(t, retrieved.LastErrorAt)
+		assert.InDelta(t, loadedAt.Unix(), retrieved.LastErrorAt.Unix(), 1.0)
+		require.NotNil(t, retrieved.LastLoadedAt)
+		assert.Equal(t, 7, retrieved.Generation)
+		assert.Equal(t, []domain.PluginPermission{domain.PluginPermissionSecrets}, retrieved.AllowedPermissions)
+		assert.Equal(t, "after", retrieved.Config["api_key"])
+		assert.NotNil(t, retrieved.UpdatedAt)
+	})
+
+	s.T().Run("update_load_state_of_unknown_plugin_fails", func(t *testing.T) {
+		err := s.repo.UpdateLoadState(ctx, 999999, domain.PluginLoadState{Status: domain.PluginStatusActive})
+		require.ErrorIs(t, err, repositories.ErrPluginNotFound)
 	})
 
 	s.T().Run("update_existing_plugin", func(t *testing.T) {
@@ -248,6 +357,8 @@ func (s *PluginRepositorySuite) TestPluginRepositorySave() {
 		retrieved := result[0]
 		assert.Nil(t, retrieved.Source)
 		assert.Nil(t, retrieved.Homepage)
+		assert.Nil(t, retrieved.Checksum)
+		assert.Equal(t, 0, retrieved.Generation)
 		assert.Empty(t, retrieved.RequiredPermissions)
 		assert.Empty(t, retrieved.AllowedPermissions)
 		assert.Nil(t, retrieved.Category)

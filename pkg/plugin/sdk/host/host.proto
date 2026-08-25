@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package gameap.plugin.sdk.host;
+
+option go_package = "github.com/gameap/gameap/pkg/plugin/sdk/host";
+
+// HostService lets a plugin introspect itself and the panel it runs on: the
+// grants it holds and what the host provides. Open to every plugin (no grant,
+// no rate limit). Transient loads (dry-run) answer empty grants.
+// go:plugin type=host module=gameap-host
+service HostService {
+  // GetGrants answers the permissions the operator granted this plugin,
+  // read live from the panel database.
+  rpc GetGrants(GetGrantsRequest) returns (GetGrantsResponse);
+
+  // GetHostInfo describes the panel and the host modules instantiated for
+  // this plugin, so a plugin can degrade gracefully instead of failing calls.
+  rpc GetHostInfo(GetHostInfoRequest) returns (GetHostInfoResponse);
+}
+
+message GetGrantsRequest {}
+
+message GetGrantsResponse {
+  repeated string permissions = 1;
+}
+
+message GetHostInfoRequest {}
+
+message GetHostInfoResponse {
+  string panel_version = 1;
+  uint32 plugin_api_version = 2;
+  // Host modules instantiated for this plugin ("gameap-nodefs", ...), sorted.
+  repeated string modules = 3;
+  // Identifier of the panel instance answering the call.
+  string instance_id = 4;
+}

@@ -82,7 +82,7 @@ Key-value configuration storage for individual game servers with type-flexible v
 ## Plugin System
 
 ### Plugin (`plugin.go`)
-Represents a WebAssembly plugin with metadata, event hooks, and HTTP route registrations for extending GameAP functionality.
+Represents a WebAssembly plugin with metadata, event hooks, and HTTP route registrations for extending GameAP functionality. `Status` is `active`, `error` (last load or guest call failed — retried on the next panel start, reason in `LastError`/`LastErrorAt`), `disabled` (operator state, never loaded) or `updating`. `Config` is the operator-set configuration, `Checksum` the sha256 of the wasm file and `Generation` a counter bumped by operator reloads; version, filename, checksum, config and generation form the fingerprint every panel instance reconciles its running module against. `PluginLoadState` is the partial update a load outcome writes (status, errors, timestamps, generation) so it never overwrites a concurrent config or permission edit. `PermissionSatisfied` resolves implied grants (`files` includes `files_read`).
 
 ### PluginStorageEntry (`plugin_storage.go`)
 Persistent key-value storage for plugins, allowing them to store and retrieve data associated with specific entities (servers, users, etc.).

@@ -187,6 +187,10 @@ func TestLoader_ProcessAutoLoad_AddsToDatabase(t *testing.T) {
 	assert.Equal(t, "test-plugin", plugins[0].Name)
 	assert.Equal(t, domain.PluginStatusActive, plugins[0].Status)
 	assert.NotNil(t, plugins[0].InstalledAt)
+	require.NotNil(t, plugins[0].Source)
+	assert.Equal(t, "file://new-plugin.wasm", *plugins[0].Source, "an autoloaded file is a local plugin, not a store one")
+	require.NotNil(t, plugins[0].Checksum)
+	assert.Equal(t, FileChecksum([]byte("wasm-content")), *plugins[0].Checksum)
 }
 
 func TestLoader_ProcessAutoLoad_ActivatesExisting(t *testing.T) {
@@ -353,4 +357,38 @@ func TestLoader_LoadAll_UpdatesLastLoadedAt(t *testing.T) {
 	assert.NotNil(t, plugins[0].LastLoadedAt)
 	assert.True(t, lo.FromPtr(plugins[0].LastLoadedAt).After(beforeLoad) ||
 		lo.FromPtr(plugins[0].LastLoadedAt).Equal(beforeLoad))
+}
+
+func TestLoader_ProcessAutoLoad_GrantsDeclaredPermissions(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	manager := &mockPluginManager{
+		loadFunc: func(context.Context, []byte, map[string]string, uint64) (*pkgplugin.LoadedPlugin, error) {
+			return &pkgplugin.LoadedPlugin{
+				Info: &proto.PluginInfo{
+					Id:                  "declaring-plugin",
+					Name:                "declaring",
+					Version:             "1.0.0",
+					RequiredPermissions: []string{"files", "listen_events", "not-a-permission"},
+				},
+				Enabled: true,
+			}, nil
+		},
+	}
+	fileManager := files.NewInMemoryFileManager()
+	pluginRepo := inmemory.NewPluginRepository()
+
+	_ = fileManager.Write(ctx, "plugins/declaring.wasm", []byte("wasm-content"))
+
+	loader := NewLoader(manager, fileManager, pluginRepo, []string{"declaring.wasm"}, "plugins")
+
+	require.NoError(t, loader.processAutoLoad(ctx))
+
+	plugins, err := pluginRepo.FindAll(ctx, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, plugins, 1)
+
+	declared := []domain.PluginPermission{domain.PluginPermissionFiles, domain.PluginPermissionListenEvents}
+	assert.Equal(t, declared, plugins[0].RequiredPermissions, "unknown names are dropped")
+	assert.Equal(t, declared, plugins[0].AllowedPermissions, "autoload grants what the manifest declares")
 }
