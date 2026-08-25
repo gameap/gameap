@@ -9,9 +9,7 @@
     <template #label>
       <span class="inline-flex items-center gap-2">
         {{ label }}
-        <n-tag v-if="definition.adminVar" size="tiny" type="warning" round>
-          {{ trans('servers.settings_admin_var') }}
-        </n-tag>
+        <GStatusBadge v-if="definition.adminVar" color="orange" :text="trans('servers.settings_admin_var')" />
       </span>
     </template>
 
@@ -35,7 +33,8 @@
 
 <script setup>
 import { computed } from 'vue'
-import { NFormItem, NTag } from 'naive-ui'
+import { NFormItem } from 'naive-ui'
+import { GStatusBadge } from '@gameap/ui'
 import { trans, getCurrentLanguage } from '@/i18n/i18n'
 import { buildVarRules, localizedDescription, localizedLabel } from '@/parts/gameModVars'
 import VarValueField from '@/components/input/VarValueField.vue'
