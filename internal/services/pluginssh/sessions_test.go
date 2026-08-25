@@ -464,6 +464,34 @@ func TestSessions_ClosedSetRefusesEverything(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// TestSessions_CloseDuringStartExec: Close can land between session
+// preparation and registration; the already-started command must be torn down
+// and the slot released instead of surviving in a closed set.
+func TestSessions_CloseDuringStartExec(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+	sessions := newTestSessions(t, Config{})
+	handle := connectToTestServer(t, sessions, server)
+
+	conn, err := sessions.connection(handle)
+	require.NoError(t, err)
+	require.NoError(t, sessions.reserveOperationSlot())
+
+	params := ExecParams{Handle: handle, Command: "sleep 30000"}
+	session, err := sessions.prepareSession(conn, params)
+	require.NoError(t, err)
+
+	sessions.Close()
+
+	_, err = sessions.registerOperation(conn, session, params)
+	assert.ErrorIs(t, err, ErrSessionsClosed)
+
+	sessions.mu.Lock()
+	defer sessions.mu.Unlock()
+	assert.Empty(t, sessions.ops, "no operation may survive in a closed set")
+	assert.Zero(t, sessions.running, "the reserved slot must be released")
+}
+
 func TestSessions_ConnectValidation(t *testing.T) {
 	t.Parallel()
 	sessions := newTestSessions(t, Config{})

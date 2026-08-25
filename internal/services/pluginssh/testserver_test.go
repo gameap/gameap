@@ -174,11 +174,14 @@ func (s *testSSHServer) serve(conn net.Conn) {
 	}
 }
 
+// handleSession keeps consuming requests while a command runs, so a "signal"
+// sent mid-execution reaches the command instead of queueing behind it. The
+// channel is closed by whoever finishes last: the command goroutine after the
+// exit status, or the loop when no command ever started.
 func (s *testSSHServer) handleSession(conn net.Conn, channel ssh.Channel, requests <-chan *ssh.Request) {
-	defer func() { _ = channel.Close() }()
-
 	killed := make(chan struct{})
 	var killOnce sync.Once
+	execStarted := false
 
 	for req := range requests {
 		switch req.Type {
@@ -202,18 +205,26 @@ func (s *testSSHServer) handleSession(conn net.Conn, channel ssh.Channel, reques
 			var payload struct{ Command string }
 			if err := ssh.Unmarshal(req.Payload, &payload); err != nil {
 				_ = req.Reply(false, nil)
+				_ = channel.Close()
 
 				return
 			}
 			_ = req.Reply(true, nil)
 
-			code := s.runCommand(conn, channel, payload.Command, killed)
-			sendExitStatus(channel, code)
+			execStarted = true
 
-			return
+			go func() {
+				code := s.runCommand(conn, channel, payload.Command, killed)
+				sendExitStatus(channel, code)
+				_ = channel.Close()
+			}()
 		default:
 			_ = req.Reply(false, nil)
 		}
+	}
+
+	if !execStarted {
+		_ = channel.Close()
 	}
 }
 

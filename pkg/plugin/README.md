@@ -1360,12 +1360,11 @@ Privileged host modules are gated on the plugin's own grants, kept in the
 | `listen_events` | Event subscriptions: a plugin without it is never called for events (its `GetSubscribedEvents` answer is ignored, with a warning in the log) |
 | `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
 | `secrets` | `gameap-secrets` — reading, writing, listing and deleting the plugin's encrypted credentials |
-| `ssh` | every `gameap-ssh` operation — connecting to a host the plugin names itself, running commands on it and transferring files, all outside the daemon and the node inventory; key generation included, so a plugin cannot mint credentials without the grant |
+| `ssh` | every `gameap-ssh` operation — connecting to a host the plugin names itself, running commands on it and transferring files, all outside the daemon and the node inventory; key generation included, so a plugin cannot mint credentials without the grant. The grant alone is not enough: the operator must also set `PLUGIN_SSH_ENABLED=true` |
 | `manage_nodes` | `gameap-nodes` — the mutating calls: `UpdateNode`, `DeleteNode` and the enrollment setup keys. Reads stay open to every plugin |
-| `ssh` | `gameap-ssh` — every method. The grant alone is not enough: the operator must also set `PLUGIN_SSH_ENABLED=true` |
 
-`manage_nodes`, `manage_games`, `manage_game_mods` and `manage_users` are
-reserved for write operations the repository modules do not expose yet.
+`manage_games`, `manage_game_mods` and `manage_users` are reserved for write
+operations the repository modules do not expose yet.
 Reads — `gameap-servers.Find/Get`, `gameap-users`, `gameap-nodes`,
 `gameap-games`, `gameap-gamemods`, `gameap-daemontasks.Find`,
 `gameap-serversettings.Find`, `gameap-authz` — and `gameap-http`,

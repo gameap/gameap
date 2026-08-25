@@ -58,7 +58,10 @@ func (p *Sessions) StartExec(_ context.Context, params ExecParams) (string, erro
 		return "", err
 	}
 
-	op := p.registerOperation(conn, session, params)
+	op, err := p.registerOperation(conn, session, params)
+	if err != nil {
+		return "", err
+	}
 
 	return op.id, nil
 }
@@ -149,8 +152,10 @@ func (p *Sessions) prepareSession(conn *connection, params ExecParams) (*ssh.Ses
 }
 
 // registerOperation records the running command and spawns the goroutine that
-// waits for it, enforces the timeout and publishes the outcome.
-func (p *Sessions) registerOperation(conn *connection, session *ssh.Session, params ExecParams) *operation {
+// waits for it, enforces the timeout and publishes the outcome. Sessions may
+// have been closed while the session was being prepared: the already-started
+// command is then torn down instead of surviving in a closed set.
+func (p *Sessions) registerOperation(conn *connection, session *ssh.Session, params ExecParams) (*operation, error) {
 	timeout := clampDuration(params.Timeout, p.svc.cfg.MaxExecTimeout)
 
 	// Detached from the guest call: the command outlives the host call that
@@ -172,6 +177,16 @@ func (p *Sessions) registerOperation(conn *connection, session *ssh.Session, par
 	}
 
 	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+
+		cancel(&cancelCauseError{reason: "plugin unloaded"})
+		cancelTimeout()
+		_ = session.Close()
+		p.releaseOperationSlot()
+
+		return nil, ErrSessionsClosed
+	}
 	p.ops[op.id] = op
 	p.mu.Unlock()
 
@@ -195,7 +210,7 @@ func (p *Sessions) registerOperation(conn *connection, session *ssh.Session, par
 		p.finishOperation(op, classifyExec(opCtx, waitErr))
 	}()
 
-	return op
+	return op, nil
 }
 
 // execOutcome is the terminal state of a command.

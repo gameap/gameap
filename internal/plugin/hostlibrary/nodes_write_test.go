@@ -113,6 +113,8 @@ func testResolver() stubConnectResolver {
 // TestNodesService_WritesRequireManageNodes: the grant is the only thing
 // standing between an installed plugin and someone else's infrastructure, so
 // every mutating entry point must consult it.
+//
+//nolint:paralleltest // subtests share env/audit state and must finish before the final assertions
 func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -120,7 +122,6 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	node := seedNode(t, env.nodes)
 
 	t.Run("update_node", func(t *testing.T) {
-		t.Parallel()
 		resp, err := env.service.UpdateNode(ctx, &nodes.UpdateNodeRequest{Id: uint64(node.ID), Name: new("hacked")})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -129,7 +130,6 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	})
 
 	t.Run("delete_node", func(t *testing.T) {
-		t.Parallel()
 		resp, err := env.service.DeleteNode(ctx, &nodes.DeleteNodeRequest{Id: uint64(node.ID)})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -138,7 +138,6 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	})
 
 	t.Run("create_setup_key", func(t *testing.T) {
-		t.Parallel()
 		resp, err := env.service.CreateSetupKey(ctx, &nodes.CreateSetupKeyRequest{})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -148,7 +147,6 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	})
 
 	t.Run("get_setup_key", func(t *testing.T) {
-		t.Parallel()
 		resp, err := env.service.GetSetupKey(ctx, &nodes.GetSetupKeyRequest{TicketId: "whatever"})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -156,7 +154,6 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	})
 
 	t.Run("revoke_setup_key", func(t *testing.T) {
-		t.Parallel()
 		resp, err := env.service.RevokeSetupKey(ctx, &nodes.RevokeSetupKeyRequest{TicketId: "whatever"})
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
@@ -172,6 +169,8 @@ func TestNodesService_WritesRequireManageNodes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, stored, 1)
 	assert.Equal(t, "node-1", stored[0].Name, "a denied update must not touch the record")
+
+	assert.Empty(t, env.audit.events, "denied writes must not be audited")
 }
 
 func TestNodesService_UpdateNode(t *testing.T) {

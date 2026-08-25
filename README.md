@@ -430,14 +430,18 @@ private networks or cloud metadata endpoints.
 - `PLUGIN_HTTP_BLOCK_PRIVATE_IPS` - Refuse plugin HTTP requests to loopback/private/link-local addresses (default: `true`)
 - `PLUGIN_HTTP_ALLOWED_SCHEMES` - Comma-separated URL schemes plugins may fetch (default: `https`)
 - `PLUGIN_HTTP_ALLOWED_HOSTS` - Hosts exempt from the private-IP block; empty leaves the blocklist as the only gate
-- `PLUGIN_HTTP_MAX_TIMEOUT_SECONDS` - Ceiling for a plugin's own request timeout (default: `30`)
+- `PLUGIN_HTTP_MAX_TIMEOUT` - Ceiling for a plugin's own request timeout (default: `30s`)
 - `PLUGIN_HTTP_MAX_REDIRECTS` - Redirect limit (default: `5`)
 - `PLUGIN_NET_ENABLED` - Enable the plugin socket library used by custom RCON/Query protocols (default: `true`)
 - `PLUGIN_NET_BLOCK_PRIVATE_IPS` - Refuse game-server connections to private addresses (default: `false`; self-hosted servers commonly live on private networks)
 - `PLUGIN_NET_ALLOWED_HOSTS` - Hosts exempt from that block
-- `PLUGIN_NET_MAX_TIMEOUT_SECONDS` - Ceiling for a single read/write (default: `10`)
-- `PLUGIN_NET_READ_BUFFER_BYTES` - Cap on a single read (default: `65536`)
+- `PLUGIN_NET_MAX_TIMEOUT` - Ceiling for a single read/write (default: `10s`)
+- `PLUGIN_NET_READ_BUFFER` - Cap on a single read (default: `64K`)
 - `PLUGIN_NET_MAX_CONNECTIONS` - Open connections per plugin (default: `8`)
+
+The former `PLUGIN_HTTP_MAX_TIMEOUT_SECONDS`, `PLUGIN_NET_MAX_TIMEOUT_SECONDS`
+and `PLUGIN_NET_READ_BUFFER_BYTES` names are still accepted and translated at
+startup.
 
 SSH is the one capability where a plugin names its own target, so a machine can
 be reached before it has a daemon. It is off until an operator turns it on:
