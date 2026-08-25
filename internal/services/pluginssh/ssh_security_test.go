@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -205,6 +206,43 @@ func TestSSH_SSRF_UnresolvableHost(t *testing.T) {
 	assert.Empty(t, dialer.dialed)
 }
 
+// TestSSH_SSRF_ResolverErrorIsReported — API7:2023 Server Side Request Forgery.
+// A lookup that errors must be as final as one that answers with nothing: the
+// address policy has nothing to check, so there is no target to dial.
+func TestSSH_SSRF_ResolverErrorIsReported(t *testing.T) {
+	t.Parallel()
+	resolver := staticResolver{err: errors.New("dns is unavailable")}
+	sessions, dialer := newPolicySessions(t, Config{BlockPrivateIPs: true}, resolver)
+
+	err := connectTo(t, sessions, "node.example.com")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrHostNotResolved)
+	assert.Contains(t, err.Error(), "dns is unavailable",
+		"the resolver failure is kept so an operator can tell it from a policy refusal")
+	assert.Empty(t, dialer.dialed, "a name that never resolved must not be dialed")
+}
+
+// TestSSH_SSRF_DefaultPortIsDialed — API7:2023 Server Side Request Forgery.
+// The port a plugin left out is filled in by the panel, so omitting it cannot
+// steer the connection anywhere the policy did not check.
+func TestSSH_SSRF_DefaultPortIsDialed(t *testing.T) {
+	t.Parallel()
+	sessions, dialer := newPolicySessions(t, Config{BlockPrivateIPs: true}, staticResolver{})
+
+	_, err := sessions.Connect(context.Background(), ConnectParams{
+		Host:     "203.0.113.10",
+		User:     "root",
+		Password: testPassword,
+		HostKey:  HostKeyPolicy{AcceptAny: true},
+	})
+
+	require.Error(t, err, "the recording dialer never completes a connection")
+	assert.NotErrorIs(t, err, ErrDialBlocked)
+	require.Len(t, dialer.dialed, 1)
+	assert.Equal(t, "203.0.113.10:22", dialer.dialed[0])
+}
+
 func TestSSH_HostKeyVerification(t *testing.T) {
 	t.Parallel()
 	server := newTestSSHServer(t)
@@ -216,8 +254,8 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 	tests := []struct {
 		name        string
 		policy      func() HostKeyPolicy
-		wantErr     bool
 		wantErrorIs error
+		wantError   string
 	}{
 		{
 			name:   "accept_any_trusts_first_contact",
@@ -248,22 +286,30 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 			policy: func() HostKeyPolicy {
 				return HostKeyPolicy{FingerprintsSHA256: []string{otherPair.FingerprintSHA256}}
 			},
-			wantErr:     true,
 			wantErrorIs: ErrHostKeyRejected,
+			wantError:   "host key verification failed",
 		},
 		{
 			name: "wrong_public_key_is_rejected",
 			policy: func() HostKeyPolicy {
 				return HostKeyPolicy{PublicKeys: []string{otherPair.PublicKey}}
 			},
-			wantErr:     true,
 			wantErrorIs: ErrHostKeyRejected,
+			wantError:   "host key verification failed",
 		},
 		{
 			name:        "no_policy_is_refused",
 			policy:      func() HostKeyPolicy { return HostKeyPolicy{} },
-			wantErr:     true,
 			wantErrorIs: ErrHostKeyPolicyRequired,
+			wantError:   "set accept_any or pin a fingerprint",
+		},
+		{
+			name: "unparsable_pinned_public_key_is_refused",
+			policy: func() HostKeyPolicy {
+				return HostKeyPolicy{PublicKeys: []string{"ssh-ed25519 not-a-base64-blob"}}
+			},
+			wantErrorIs: ErrHostKeyInvalid,
+			wantError:   "invalid host public key",
 		},
 	}
 
@@ -280,9 +326,11 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 				HostKey:  tt.policy(),
 			})
 
-			if tt.wantErr {
+			if tt.wantErrorIs != nil {
 				require.Error(t, err)
 				assert.ErrorIs(t, err, tt.wantErrorIs)
+				assert.Contains(t, err.Error(), tt.wantError)
+				assert.Nil(t, result, "a refused host key must not hand out a handle")
 
 				return
 			}
@@ -315,6 +363,49 @@ func TestSSH_HostKeyRejectionNamesTheObservedKey(t *testing.T) {
 	require.ErrorAs(t, err, &rejected)
 	assert.Equal(t, server.fingerprint, rejected.FingerprintSHA256)
 	assert.Equal(t, "ssh-ed25519", rejected.KeyType)
+}
+
+// TestSSH_HostKeyInvalidPinIsRefusedBeforeDialing — API8:2023 Security
+// Misconfiguration. A pin the panel cannot parse is a policy it cannot
+// enforce, so the connection has to stop before a socket exists rather than
+// quietly degrade to trusting whatever answers.
+func TestSSH_HostKeyInvalidPinIsRefusedBeforeDialing(t *testing.T) {
+	t.Parallel()
+	sessions, dialer := newPolicySessions(t, Config{}, staticResolver{})
+
+	_, err := sessions.Connect(context.Background(), ConnectParams{
+		Host:     "203.0.113.10",
+		Port:     22,
+		User:     "root",
+		Password: testPassword,
+		HostKey:  HostKeyPolicy{PublicKeys: []string{"definitely not an authorized_keys line"}},
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrHostKeyInvalid)
+	assert.Empty(t, dialer.dialed, "an unenforceable host key policy must never reach the network")
+}
+
+// TestSSH_PaddedFingerprintPinMatches — API8:2023 Security Misconfiguration.
+// Operators paste fingerprints from whatever tool printed them, padding and
+// stray whitespace included. A pin that silently fails to match pushes them
+// back to accept-any, which is the configuration this policy exists to avoid.
+func TestSSH_PaddedFingerprintPinMatches(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+	sessions := newTestSessions(t, Config{})
+	host, port := server.addr()
+
+	result, err := sessions.Connect(context.Background(), ConnectParams{
+		Host:     host,
+		Port:     port,
+		User:     "gameap",
+		Password: testPassword,
+		HostKey:  HostKeyPolicy{FingerprintsSHA256: []string{"  " + server.fingerprint + "=  "}},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, server.fingerprint, result.HostKeyFingerprintSHA256)
 }
 
 // TestSSH_ForeignHandleIsUnknown: handles live in the session set of one

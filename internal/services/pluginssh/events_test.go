@@ -185,7 +185,7 @@ func TestEvents_SubscribeBeforeCompletionDeliversOnce(t *testing.T) {
 	}, 5*time.Second, 20*time.Millisecond)
 
 	time.Sleep(200 * time.Millisecond)
-	assert.Len(t, env.instance.recorded(), 1, "exactly one completion per operation")
+	require.Len(t, env.instance.recorded(), 1, "exactly one completion per operation")
 }
 
 // TestEvents_BusyPluginIsRetried: the plugin call gate serializes guest calls,
