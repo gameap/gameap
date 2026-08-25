@@ -32,6 +32,18 @@ type HTTPHandler struct {
 	adminMiddleware Middleware
 	timeout         time.Duration
 	maxBody         int64
+	fileRefs        FileRefServer
+}
+
+// HTTPHandlerOption configures a handler created by NewHTTPHandler.
+type HTTPHandlerOption func(*HTTPHandler)
+
+// WithFileRefServer enables HTTPResponse.file: the server streams the
+// referenced node file to the client. Without it such responses answer 501.
+func WithFileRefServer(server FileRefServer) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.fileRefs = server
+	}
 }
 
 // NewHTTPHandler creates a new HTTP handler for plugin routes.
@@ -39,14 +51,21 @@ func NewHTTPHandler(
 	manager *Manager,
 	authMiddleware Middleware,
 	adminMiddleware Middleware,
+	opts ...HTTPHandlerOption,
 ) *HTTPHandler {
-	return &HTTPHandler{
+	handler := &HTTPHandler{
 		manager:         manager,
 		authMiddleware:  authMiddleware,
 		adminMiddleware: adminMiddleware,
 		timeout:         DefaultTimeout,
 		maxBody:         DefaultMaxBodySize,
 	}
+
+	for _, opt := range opts {
+		opt(handler)
+	}
+
+	return handler
 }
 
 // ServeHTTP handles HTTP requests for plugin routes.
@@ -144,7 +163,7 @@ func (h *HTTPHandler) handlePluginRequest(
 
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
 			// The runtime closed the module on deadline; stop routing to it.
-			plugin.Disable()
+			plugin.DisableWithReason(DisableReasonHTTPTimeout + " (" + r.Method + " " + pluginPath + ")")
 
 			slog.Error("plugin HTTP handler timed out, plugin disabled until reload",
 				slog.String("plugin_id", plugin.Info.Id),
@@ -159,7 +178,73 @@ func (h *HTTPHandler) handlePluginRequest(
 		return
 	}
 
+	if resp.File != nil {
+		// The file is streamed on the request's own context, not the guest
+		// call budget: the guest is done, the transfer may take longer.
+		h.serveFileRef(w, r, plugin, resp)
+
+		return
+	}
+
 	h.writeResponse(w, resp)
+}
+
+// serveFileRef hands a file response to the FileRefServer. The plugin's
+// body is ignored by contract; its status and headers are passed along.
+func (h *HTTPHandler) serveFileRef(
+	w http.ResponseWriter,
+	r *http.Request,
+	plugin *LoadedPlugin,
+	resp *proto.HTTPResponse,
+) {
+	if h.fileRefs == nil {
+		slog.Error("plugin answered with a file reference but file responses are not enabled",
+			slog.String("plugin_id", plugin.Info.Id),
+		)
+		http.Error(w, "file responses are not enabled", http.StatusNotImplemented)
+
+		return
+	}
+
+	err := h.fileRefs.ServeFileRef(w, r, FileRefRequest{
+		PluginID:   plugin.DBID,
+		PluginName: plugin.Info.Id,
+		Ref:        resp.File,
+		Headers:    resp.Headers,
+		StatusCode: int(resp.StatusCode),
+	})
+	if err == nil {
+		return
+	}
+
+	status := fileRefErrorStatus(err)
+
+	//nolint:gosec // G706: slog structured logging safely encodes values
+	slog.Error("plugin file response failed",
+		slog.String("plugin_id", plugin.Info.Id),
+		slog.Uint64("node_id", resp.File.NodeId),
+		slog.String("path", resp.File.Path),
+		slog.Int("status", status),
+		slog.String("error", err.Error()),
+	)
+
+	message := "failed to serve file"
+	if status < http.StatusInternalServerError {
+		message = err.Error()
+	}
+
+	http.Error(w, message, status)
+}
+
+// fileRefErrorStatus reads the status an error carries (pkg/api wrapped
+// errors, daemon file errors); anything else is an internal failure.
+func fileRefErrorStatus(err error) int {
+	var withStatus interface{ HTTPStatus() int }
+	if errors.As(err, &withStatus) {
+		return withStatus.HTTPStatus()
+	}
+
+	return http.StatusInternalServerError
 }
 
 func extractPluginPath(fullPath, pluginID string) string {
@@ -260,11 +345,16 @@ func (h *HTTPHandler) buildProtoRequest(
 
 	session := h.buildProtoSession(r.Context())
 
+	pluginContext := &proto.PluginContext{
+		PluginId:  pluginID,
+		RequestId: r.Header.Get("X-Request-ID"),
+	}
+	if session != nil {
+		pluginContext.UserId = new(session.User.Id)
+	}
+
 	return &proto.HTTPRequest{
-		Context: &proto.PluginContext{
-			PluginId:  pluginID,
-			RequestId: r.Header.Get("X-Request-ID"),
-		},
+		Context:     pluginContext,
 		Method:      r.Method,
 		Path:        pluginPath,
 		Headers:     headers,

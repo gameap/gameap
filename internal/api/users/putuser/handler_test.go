@@ -384,6 +384,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				services.NewNilTransactionManager(),
 				responder,
 				nil,
+				nil,
 			)
 
 			if tt.setupRepo != nil {
@@ -447,6 +448,7 @@ func TestHandler_UpdateUserFields(t *testing.T) {
 		rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0),
 		services.NewNilTransactionManager(),
 		responder,
+		nil,
 		nil,
 	)
 
@@ -544,6 +546,7 @@ func TestHandler_UpdateUser_WithoutPasswordDoesNotStampChangedAt(t *testing.T) {
 		rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0),
 		services.NewNilTransactionManager(),
 		api.NewResponder(),
+		nil,
 		nil,
 	)
 
@@ -659,6 +662,7 @@ func setupPutUserAudit(t *testing.T) (*Handler, *auditCapture) {
 		services.NewNilTransactionManager(),
 		api.NewResponder(),
 		recorder,
+		nil,
 	)
 
 	now := time.Now()

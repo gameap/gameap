@@ -3,9 +3,11 @@ package hostlibrary
 import (
 	"context"
 	"log/slog"
+	"net"
+	"strconv"
 	"time"
 
-	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/services/pluginssh"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	sshsdk "github.com/gameap/gameap/pkg/plugin/sdk/ssh"
@@ -13,58 +15,74 @@ import (
 	"github.com/tetratelabs/wazero"
 )
 
-// sshPermissionDeniedMessage is what a plugin without the grant sees. It names
-// the missing permission so plugin authors know what to declare.
-const sshPermissionDeniedMessage = "plugin permission " + string(domain.PluginPermissionSSH) + " required"
+// sshDefaultPort mirrors the port the session layer dials when the request
+// names none; the audit record names the endpoint actually used.
+const sshDefaultPort = 22
 
 // errDeadlineTooClose is reported when the guest call is about to expire: the
 // host answers instead of starting work it could not finish.
 var errDeadlineTooClose = errors.New("guest call deadline is too close to run this operation")
 
+// errRemoteFileCommandFailed marks a refused remote file transfer for the
+// audit record; the plugin sees the exit code and stderr, the audit stream
+// only needs the outcome.
+var errRemoteFileCommandFailed = errors.New("remote file command failed")
+
 // SSHServiceImpl implements sshsdk.SSHService for a single plugin, delegating
 // the actual SSH work to the session set the factory bound to it.
 type SSHServiceImpl struct {
-	pluginID uint64
 	sessions SSHSessionManager
-	checker  PluginPermissionChecker
+	guard    *PluginGuard
 }
 
-func NewSSHService(pluginID uint64, sessions SSHSessionManager, checker PluginPermissionChecker) *SSHServiceImpl {
+func NewSSHService(sessions SSHSessionManager, guard *PluginGuard) *SSHServiceImpl {
 	return &SSHServiceImpl{
-		pluginID: pluginID,
 		sessions: sessions,
-		checker:  checker,
+		guard:    guard,
 	}
 }
 
-// authorize gates every method of this module on the "ssh" grant. Plugin ID 0
-// (transient dry-run loads) is never granted anything.
-func (s *SSHServiceImpl) authorize(ctx context.Context) (bool, string) {
-	allowed, err := s.checker.Has(ctx, s.pluginID, domain.PluginPermissionSSH)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to check plugin ssh permission",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("error", err.Error()))
-
-		return false, "failed to check plugin permission: " + err.Error()
+// sshTargetResourceID names the endpoint of a connection for the audit
+// resource_id.
+func sshTargetResourceID(host string, port uint32) string {
+	if port == 0 {
+		port = sshDefaultPort
 	}
 
-	if !allowed {
-		slog.WarnContext(ctx, "plugin denied access to the ssh host library",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("permission", string(domain.PluginPermissionSSH)))
+	return net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10))
+}
 
-		return false, sshPermissionDeniedMessage
+// sshHandleResourceID names an open connection for the audit resource_id.
+func sshHandleResourceID(handle uint64) string {
+	return strconv.FormatUint(handle, 10)
+}
+
+// auditExec records a command run on a plugin-named host. The command text and
+// its stdin never reach the audit stream: they routinely carry credentials the
+// plugin is bootstrapping the machine with.
+func (s *SSHServiceImpl) auditExec(ctx context.Context, action string, handle uint64, operationID string, err error) {
+	extra := make([]slog.Attr, 0, 1)
+	if operationID != "" {
+		extra = append(extra, slog.String("operation_id", operationID))
 	}
 
-	return true, ""
+	s.guard.Audit(ctx, audit.EventPluginSSHExec, action,
+		"ssh_session", sshHandleResourceID(handle), err, extra...)
+}
+
+// auditFile records a remote file transfer: the path it touched and the
+// connection it used, never the content that moved over it.
+func (s *SSHServiceImpl) auditFile(ctx context.Context, action string, handle uint64, path string, err error) {
+	s.guard.Audit(ctx, audit.EventPluginSSHFile, action,
+		"ssh_session", sshHandleResourceID(handle), err,
+		slog.String("path", path))
 }
 
 func (s *SSHServiceImpl) GenerateKeyPair(
 	ctx context.Context,
 	req *sshsdk.GenerateKeyPairRequest,
 ) (*sshsdk.GenerateKeyPairResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if msg := s.guard.Check(ctx, ModuleSSH, "generate_key_pair"); msg != "" {
 		return &sshsdk.GenerateKeyPairResponse{Error: new(msg)}, nil
 	}
 
@@ -86,7 +104,7 @@ func (s *SSHServiceImpl) Connect(
 	ctx context.Context,
 	req *sshsdk.ConnectRequest,
 ) (*sshsdk.ConnectResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if msg := s.guard.Check(ctx, ModuleSSH, "connect"); msg != "" {
 		return &sshsdk.ConnectResponse{Error: new(msg)}, nil
 	}
 
@@ -100,6 +118,10 @@ func (s *SSHServiceImpl) Connect(
 
 	result, err := s.sessions.Connect(connectCtx, connectParamsFromProto(req))
 	if err != nil {
+		s.guard.Audit(ctx, audit.EventPluginSSHConnect, "connect",
+			"ssh_host", sshTargetResourceID(req.Host, req.Port), err,
+			slog.String("user", req.User))
+
 		response := &sshsdk.ConnectResponse{Error: new(err.Error())}
 
 		// A rejected host key is the one failure where the plugin needs to see
@@ -112,6 +134,12 @@ func (s *SSHServiceImpl) Connect(
 
 		return response, nil
 	}
+
+	s.guard.Audit(ctx, audit.EventPluginSSHConnect, "connect",
+		"ssh_host", sshTargetResourceID(req.Host, req.Port), nil,
+		slog.String("user", req.User),
+		slog.String("host_key_type", result.HostKeyType),
+		slog.String("host_key_fingerprint", result.HostKeyFingerprintSHA256))
 
 	return &sshsdk.ConnectResponse{
 		Success:                  true,
@@ -126,7 +154,7 @@ func (s *SSHServiceImpl) Disconnect(
 	ctx context.Context,
 	req *sshsdk.DisconnectRequest,
 ) (*sshsdk.DisconnectResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if msg := s.guard.Check(ctx, ModuleSSH, "disconnect"); msg != "" {
 		return &sshsdk.DisconnectResponse{Error: new(msg)}, nil
 	}
 
@@ -145,7 +173,7 @@ func (s *SSHServiceImpl) Exec(
 	ctx context.Context,
 	req *sshsdk.ExecRequest,
 ) (*sshsdk.ExecSyncResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if msg := s.guard.Check(ctx, ModuleSSH, "exec"); msg != "" {
 		return &sshsdk.ExecSyncResponse{Error: new(msg)}, nil
 	}
 
@@ -154,8 +182,12 @@ func (s *SSHServiceImpl) Exec(
 
 	operationID, err := s.sessions.StartExec(ctx, params)
 	if err != nil {
+		s.auditExec(ctx, "exec", req.Handle, "", err)
+
 		return &sshsdk.ExecSyncResponse{Error: new(err.Error())}, nil
 	}
+
+	s.auditExec(ctx, "exec", req.Handle, operationID, nil)
 
 	response := &sshsdk.ExecSyncResponse{
 		Success:     true,
@@ -194,7 +226,7 @@ func (s *SSHServiceImpl) Exec(
 func (s *SSHServiceImpl) subscribeCompletion(ctx context.Context, operationID string) {
 	if err := s.sessions.SubscribeCompletion(operationID); err != nil {
 		slog.DebugContext(ctx, "failed to subscribe to ssh exec completion",
-			slog.Uint64("plugin_id", s.pluginID),
+			slog.Uint64("plugin_id", s.guard.PluginID()),
 			slog.String("operation_id", operationID),
 			slog.String("error", err.Error()))
 	}
@@ -204,7 +236,7 @@ func (s *SSHServiceImpl) StartExec(
 	ctx context.Context,
 	req *sshsdk.ExecRequest,
 ) (*sshsdk.StartExecResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if msg := s.guard.Check(ctx, ModuleSSH, "start_exec"); msg != "" {
 		return &sshsdk.StartExecResponse{Error: new(msg)}, nil
 	}
 
@@ -213,8 +245,12 @@ func (s *SSHServiceImpl) StartExec(
 
 	operationID, err := s.sessions.StartExec(ctx, params)
 	if err != nil {
+		s.auditExec(ctx, "start_exec", req.Handle, "", err)
+
 		return &sshsdk.StartExecResponse{Error: new(err.Error())}, nil
 	}
+
+	s.auditExec(ctx, "start_exec", req.Handle, operationID, nil)
 
 	return &sshsdk.StartExecResponse{Success: true, OperationId: operationID}, nil
 }
@@ -223,7 +259,7 @@ func (s *SSHServiceImpl) GetExecOperation(
 	ctx context.Context,
 	req *sshsdk.GetExecOperationRequest,
 ) (*sshsdk.GetExecOperationResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if msg := s.guard.Check(ctx, ModuleSSH, "get_exec_operation"); msg != "" {
 		return &sshsdk.GetExecOperationResponse{Error: new(msg)}, nil
 	}
 
@@ -271,11 +307,16 @@ func (s *SSHServiceImpl) CancelExec(
 	ctx context.Context,
 	req *sshsdk.CancelExecRequest,
 ) (*sshsdk.CancelExecResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if msg := s.guard.Check(ctx, ModuleSSH, "cancel_exec"); msg != "" {
 		return &sshsdk.CancelExecResponse{Error: new(msg)}, nil
 	}
 
-	if err := s.sessions.Cancel(req.OperationId, req.Reason); err != nil {
+	err := s.sessions.Cancel(req.OperationId, req.Reason)
+
+	s.guard.Audit(ctx, audit.EventPluginSSHExec, "cancel_exec",
+		"ssh_operation", req.OperationId, err)
+
+	if err != nil {
 		return &sshsdk.CancelExecResponse{Error: new(err.Error())}, nil
 	}
 
@@ -288,7 +329,7 @@ func (s *SSHServiceImpl) WriteFile(
 	ctx context.Context,
 	req *sshsdk.WriteFileRequest,
 ) (*sshsdk.WriteFileResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if msg := s.guard.Check(ctx, ModuleSSH, "write_file"); msg != "" {
 		return &sshsdk.WriteFileResponse{Error: new(msg)}, nil
 	}
 
@@ -304,15 +345,21 @@ func (s *SSHServiceImpl) WriteFile(
 		TimeoutSeconds: req.TimeoutSeconds,
 	})
 	if err != nil {
+		s.auditFile(ctx, "write_file", req.Handle, req.Path, err)
+
 		return &sshsdk.WriteFileResponse{Error: new(err.Error())}, nil
 	}
 
 	if !snapshot.Succeeded() {
+		s.auditFile(ctx, "write_file", req.Handle, req.Path, errRemoteFileCommandFailed)
+
 		return &sshsdk.WriteFileResponse{
 			Error:  new(remoteFailureMessage(snapshot)),
 			Stderr: string(snapshot.Stderr),
 		}, nil
 	}
+
+	s.auditFile(ctx, "write_file", req.Handle, req.Path, nil)
 
 	return &sshsdk.WriteFileResponse{Success: true, Stderr: string(snapshot.Stderr)}, nil
 }
@@ -321,7 +368,7 @@ func (s *SSHServiceImpl) ReadFile(
 	ctx context.Context,
 	req *sshsdk.ReadFileRequest,
 ) (*sshsdk.ReadFileResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if msg := s.guard.Check(ctx, ModuleSSH, "read_file"); msg != "" {
 		return &sshsdk.ReadFileResponse{Error: new(msg)}, nil
 	}
 
@@ -337,15 +384,21 @@ func (s *SSHServiceImpl) ReadFile(
 		MaxOutputBytes: req.MaxBytes,
 	})
 	if err != nil {
+		s.auditFile(ctx, "read_file", req.Handle, req.Path, err)
+
 		return &sshsdk.ReadFileResponse{Error: new(err.Error())}, nil
 	}
 
 	if !snapshot.Succeeded() {
+		s.auditFile(ctx, "read_file", req.Handle, req.Path, errRemoteFileCommandFailed)
+
 		return &sshsdk.ReadFileResponse{
 			Error:  new(remoteFailureMessage(snapshot)),
 			Stderr: string(snapshot.Stderr),
 		}, nil
 	}
+
+	s.auditFile(ctx, "read_file", req.Handle, req.Path, nil)
 
 	return &sshsdk.ReadFileResponse{
 		Success:   true,
@@ -410,19 +463,20 @@ func (l *SSHHostLibrary) Close(_ context.Context) error {
 var _ pkgplugin.HostLibraryCloser = (*SSHHostLibrary)(nil)
 
 // SSHHostLibraryFactory builds a gameap-ssh library bound to each plugin's ID:
-// the module is gated on the plugin's own ssh grant and its connections are
-// released when that plugin is unloaded.
+// the module is gated on the plugin's own ssh grant, rate limited and audited
+// through the shared guard, and its connections are released when that plugin
+// is unloaded.
 type SSHHostLibraryFactory struct {
-	opener  SSHSessionOpener
-	checker PluginPermissionChecker
+	opener SSHSessionOpener
+	guard  *Guard
 }
 
-func NewSSHHostLibraryFactory(opener SSHSessionOpener, checker PluginPermissionChecker) *SSHHostLibraryFactory {
-	return &SSHHostLibraryFactory{opener: opener, checker: checker}
+func NewSSHHostLibraryFactory(opener SSHSessionOpener, guard *Guard) *SSHHostLibraryFactory {
+	return &SSHHostLibraryFactory{opener: opener, guard: guard}
 }
 
 func (f *SSHHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
 	return &SSHHostLibrary{
-		impl: NewSSHService(pluginID, f.opener.NewSessions(pluginID), f.checker),
+		impl: NewSSHService(f.opener.NewSessions(pluginID), f.guard.For(pluginID)),
 	}
 }

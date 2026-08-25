@@ -45,10 +45,10 @@ func newNodeCmdService(
 	cmd NodeCommandService, repo *inmemory.NodeRepository, repoFails bool,
 ) *NodeCmdServiceImpl {
 	if repoFails {
-		return NewNodeCmdService(cmd, &errNodeRepository{NodeRepository: repo})
+		return NewNodeCmdService(cmd, &errNodeRepository{NodeRepository: repo}, allowAllGuard(testPluginID))
 	}
 
-	return NewNodeCmdService(cmd, repo)
+	return NewNodeCmdService(cmd, repo, allowAllGuard(testPluginID))
 }
 
 func TestNodeCmdService_ExecuteCommand(t *testing.T) {
@@ -223,7 +223,7 @@ func TestNodeCmdService_ExecuteCommand_ForwardsCommandAndWorkDir(t *testing.T) {
 			return &daemon.CommandResult{Output: "ok", ExitCode: 0}, nil
 		},
 	}
-	svc := NewNodeCmdService(cmdSvc, repo)
+	svc := NewNodeCmdService(cmdSvc, repo, allowAllGuard(testPluginID))
 
 	// ACT
 	resp, err := svc.ExecuteCommand(context.Background(), &nodecmd.ExecuteCommandRequest{
@@ -255,7 +255,7 @@ func TestNodeCmdService_ExecuteCommand_OmitsWorkDirOptionWhenUnset(t *testing.T)
 			return &daemon.CommandResult{Output: "ok", ExitCode: 0}, nil
 		},
 	}
-	svc := NewNodeCmdService(cmdSvc, repo)
+	svc := NewNodeCmdService(cmdSvc, repo, allowAllGuard(testPluginID))
 
 	// ACT
 	_, err := svc.ExecuteCommand(context.Background(), &nodecmd.ExecuteCommandRequest{
@@ -268,11 +268,13 @@ func TestNodeCmdService_ExecuteCommand_OmitsWorkDirOptionWhenUnset(t *testing.T)
 	assert.Equal(t, 0, gotOptCount, "no options must be passed when work dir is unset")
 }
 
-func TestNewNodeCmdHostLibrary(t *testing.T) {
+func TestNewNodeCmdHostLibraryFactory(t *testing.T) {
 	t.Parallel()
 	repo := inmemory.NewNodeRepository()
-	lib := NewNodeCmdHostLibrary(nil, repo)
+	factory := NewNodeCmdHostLibraryFactory(nil, repo, NewGuard(stubPermissionChecker{allowed: true}))
 
-	assert.NotNil(t, lib)
-	assert.NotNil(t, lib.impl)
+	lib, ok := factory.Create(42).(*NodeCmdHostLibrary)
+	require.True(t, ok)
+	require.NotNil(t, lib.impl)
+	assert.Equal(t, uint64(42), lib.impl.guard.PluginID(), "factory must bind the plugin id")
 }

@@ -22,6 +22,7 @@ runs `go test -race -v -count=1 ./pkg/plugin/compatrust/...`.
 | `stubs_v44_test.go` | v4.4+ only | Stubs for host modules added in panel 4.4 — dropped on v4.3.5, where they would not compile |
 | `compat_v44_test.go` | v4.4+ only | Fixtures importing 4.4 modules must load on 4.4+ |
 | `compat_v43only_test.go` | v4.3.5 only | Fixtures importing 4.4 modules must be **rejected** by 4.3.x |
+| `stubs_head_test.go` | `HEAD` only | Stub methods for host-module RPCs added after the latest release (nodefs hash/archive) — dropped on every tagged leg, where the interface does not have them |
 
 The workflow deletes the files that do not apply to the matrix leg under
 test, so these files must never reference each other across version groups —

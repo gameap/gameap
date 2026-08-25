@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -344,6 +345,10 @@ type PluginStorageRepository interface {
 	DeleteByPlugin(ctx context.Context, pluginID uint64) error
 
 	DeleteByFilter(ctx context.Context, filter *filters.FindPluginStorage) error
+
+	// UsageByPlugin counts the plugin's entries and sums their payload sizes
+	// in one query; it backs the per-plugin quotas.
+	UsageByPlugin(ctx context.Context, pluginID uint64) (domain.PluginStorageUsage, error)
 }
 
 type PluginSecretRepository interface {
@@ -366,6 +371,10 @@ type PluginSecretRepository interface {
 	CountByPlugin(ctx context.Context, pluginID domain.Uint64ID) (int, error)
 }
 
+// ErrPluginNotFound is answered by UpdateLoadState when the row is gone: an
+// uninstall raced with a reload and the outcome has nothing to describe.
+var ErrPluginNotFound = errors.New("plugin not found")
+
 type PluginRepository interface {
 	FindAll(
 		ctx context.Context,
@@ -381,6 +390,12 @@ type PluginRepository interface {
 	) ([]domain.Plugin, error)
 
 	Save(ctx context.Context, plugin *domain.Plugin) error
+
+	// UpdateLoadState writes only the load outcome columns (status, last error,
+	// last loaded time, generation), leaving the configuration and the grants
+	// untouched: a load outcome recorded seconds after the row was read must
+	// not overwrite a concurrent operator edit.
+	UpdateLoadState(ctx context.Context, id domain.Uint64ID, state domain.PluginLoadState) error
 
 	Delete(ctx context.Context, id domain.Uint64ID) error
 

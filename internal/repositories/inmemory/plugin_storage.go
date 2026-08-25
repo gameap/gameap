@@ -338,7 +338,39 @@ func (r *PluginStorageRepository) getFilteredEntryIDs(filter *filters.FindPlugin
 		r.intersectWithEntityPairs(resultIDs, filter.EntityPairs)
 	}
 
+	if filter.KeyPrefix != nil && *filter.KeyPrefix != "" {
+		r.intersectWithKeyPrefix(resultIDs, *filter.KeyPrefix)
+	}
+
 	return resultIDs
+}
+
+func (r *PluginStorageRepository) intersectWithKeyPrefix(resultIDs map[uint64]struct{}, prefix string) {
+	for entryID := range resultIDs {
+		entry, ok := r.entries[entryID]
+		if !ok || !strings.HasPrefix(entry.Key, prefix) {
+			delete(resultIDs, entryID)
+		}
+	}
+}
+
+func (r *PluginStorageRepository) UsageByPlugin(_ context.Context, pluginID uint64) (domain.PluginStorageUsage, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var usage domain.PluginStorageUsage
+
+	for entryID := range r.pluginIDIndex[pluginID] {
+		entry, ok := r.entries[entryID]
+		if !ok {
+			continue
+		}
+
+		usage.Keys++
+		usage.Bytes += uint64(len(entry.Payload))
+	}
+
+	return usage, nil
 }
 
 func (r *PluginStorageRepository) intersectWithPluginIDs(resultIDs map[uint64]struct{}, pluginIDs []uint64) {

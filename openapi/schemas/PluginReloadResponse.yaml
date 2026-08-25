@@ -1,0 +1,48 @@
+type: object
+description: Outcome of a plugin reload
+properties:
+  id:
+    type: string
+    description: Plugin compact ID
+    example: "myplugin_com_example"
+  name:
+    type: string
+    description: Plugin name
+    example: "My Plugin"
+  version:
+    type: string
+    description: Plugin version
+    example: "1.0.0"
+  status:
+    type: string
+    description: Lifecycle status after the reload
+    enum:
+      - active
+      - error
+      - disabled
+      - updating
+    example: "active"
+  error:
+    type: string
+    nullable: true
+    description: Why the plugin is in status `error`; null after a successful reload
+  error_at:
+    type: string
+    format: date-time
+    nullable: true
+    description: When `error` was recorded
+  loaded:
+    type: boolean
+    description: Whether the plugin is loaded on this panel instance after the reload
+    example: true
+  last_loaded_at:
+    type: string
+    format: date-time
+    nullable: true
+    description: When the plugin last loaded successfully
+required:
+  - id
+  - name
+  - version
+  - status
+  - loaded

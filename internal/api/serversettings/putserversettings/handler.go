@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
@@ -22,12 +24,24 @@ const (
 	updateBeforeStartSettingKey = "update_before_start"
 )
 
+// PluginDispatcher publishes the settings a save changed to plugins;
+// satisfied by *plugin.Dispatcher.
+type PluginDispatcher interface {
+	DispatchServerSettingsEventAsync(
+		ctx context.Context,
+		serverID uint,
+		settings []domain.ServerSetting,
+		extraData map[string]string,
+	)
+}
+
 type Handler struct {
 	serverSettingsRepo repositories.ServerSettingRepository
 	serverFinder       *serversbase.ServerFinder
 	abilityChecker     *serversbase.AbilityChecker
 	gameModsRepo       repositories.GameModRepository
 	configPusher       *serverconfigpush.Pusher
+	pluginDispatcher   PluginDispatcher
 	rbac               base.RBAC
 	responder          base.Responder
 }
@@ -37,6 +51,7 @@ func NewHandler(
 	serverRepo repositories.ServerRepository,
 	gameModsRepo repositories.GameModRepository,
 	configPusher *serverconfigpush.Pusher,
+	pluginDispatcher PluginDispatcher,
 	rbac base.RBAC,
 	responder base.Responder,
 ) *Handler {
@@ -46,6 +61,7 @@ func NewHandler(
 		abilityChecker:     serversbase.NewAbilityChecker(rbac),
 		gameModsRepo:       gameModsRepo,
 		configPusher:       configPusher,
+		pluginDispatcher:   pluginDispatcher,
 		rbac:               rbac,
 		responder:          responder,
 	}
@@ -125,7 +141,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	settingsInputMap := settingsInput.ToSettingsMap()
 
-	err = h.saveSettings(ctx, server, settingsInputMap, isAdmin)
+	changed, err := h.saveSettings(ctx, server, settingsInputMap, isAdmin)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save settings"))
 
@@ -136,7 +152,25 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.configPusher.PushServerConfig(ctx, server.ID)
 	}
 
+	h.dispatchChanged(ctx, server.ID, changed)
+
 	h.responder.Write(ctx, rw, SuccessResponse{})
+}
+
+// dispatchChanged tells plugins which settings a save created or changed; a
+// save that touched nothing publishes nothing.
+func (h *Handler) dispatchChanged(ctx context.Context, serverID uint, changed []domain.ServerSetting) {
+	if h.pluginDispatcher == nil || len(changed) == 0 {
+		return
+	}
+
+	names := make([]string, 0, len(changed))
+	for _, setting := range changed {
+		names = append(names, setting.Name)
+	}
+
+	h.pluginDispatcher.DispatchServerSettingsEventAsync(ctx, serverID, changed,
+		map[string]string{"changed_fields": strings.Join(names, ",")})
 }
 
 func (h *Handler) findGameMod(ctx context.Context, gameModID uint) (*domain.GameMod, error) {
@@ -186,18 +220,20 @@ func (h *Handler) buildAllowedSettings(gameMod *domain.GameMod, isAdmin bool) ma
 	return allowedSettings
 }
 
+// saveSettings persists the allowed settings and reports the ones that are
+// new or whose value changed, in a stable (name) order.
 func (h *Handler) saveSettings(
 	ctx context.Context,
 	server *domain.Server,
 	settingsInputMap map[string]any,
 	isAdmin bool,
-) error {
+) ([]domain.ServerSetting, error) {
 	gameMod, err := h.findGameMod(ctx, server.GameModID)
 	if err != nil {
-		return errors.WithMessage(err, "failed to find game mod")
+		return nil, errors.WithMessage(err, "failed to find game mod")
 	}
 	if gameMod == nil {
-		return api.NewNotFoundError("game mod not found")
+		return nil, api.NewNotFoundError("game mod not found")
 	}
 
 	allowedSettings := h.buildAllowedSettings(gameMod, isAdmin)
@@ -206,13 +242,15 @@ func (h *Handler) saveSettings(
 		ServerIDs: []uint{server.ID},
 	}, nil, nil)
 	if err != nil {
-		return errors.WithMessage(err, "failed to find server settings")
+		return nil, errors.WithMessage(err, "failed to find server settings")
 	}
 
 	existingSettingsMap := make(map[string]*domain.ServerSetting)
 	for i := range existingSettings {
 		existingSettingsMap[existingSettings[i].Name] = &existingSettings[i]
 	}
+
+	changed := make([]domain.ServerSetting, 0)
 
 	for settingName, settingValue := range settingsInputMap {
 		allowedSetting, isAllowed := allowedSettings[settingName]
@@ -224,32 +262,40 @@ func (h *Handler) saveSettings(
 			continue
 		}
 
+		setting := domain.ServerSetting{
+			ServerID: server.ID,
+			Name:     settingName,
+			Value:    domain.NewServerSettingValue(settingValue),
+		}
+
 		existingSetting, exists := existingSettingsMap[settingName]
 		if exists {
-			updatedSetting := &domain.ServerSetting{
-				ID:       existingSetting.ID,
-				ServerID: server.ID,
-				Name:     settingName,
-				Value:    domain.NewServerSettingValue(settingValue),
+			setting.ID = existingSetting.ID
+		}
+
+		if err := h.serverSettingsRepo.Save(ctx, &setting); err != nil {
+			if exists {
+				return nil, errors.WithMessage(err, "failed to update setting")
 			}
-			err := h.serverSettingsRepo.Save(ctx, updatedSetting)
-			if err != nil {
-				return errors.WithMessage(err, "failed to update setting")
-			}
-		} else {
-			newSetting := &domain.ServerSetting{
-				ServerID: server.ID,
-				Name:     settingName,
-				Value:    domain.NewServerSettingValue(settingValue),
-			}
-			err := h.serverSettingsRepo.Save(ctx, newSetting)
-			if err != nil {
-				return errors.WithMessage(err, "failed to create setting")
-			}
+
+			return nil, errors.WithMessage(err, "failed to create setting")
+		}
+
+		if !exists || !sameSettingValue(existingSetting.Value, setting.Value) {
+			changed = append(changed, setting)
 		}
 	}
 
-	return nil
+	sort.Slice(changed, func(i, j int) bool { return changed[i].Name < changed[j].Name })
+
+	return changed, nil
+}
+
+func sameSettingValue(a, b domain.ServerSettingValue) bool {
+	left, _ := a.String()
+	right, _ := b.String()
+
+	return left == right
 }
 
 type settingMetadata struct {

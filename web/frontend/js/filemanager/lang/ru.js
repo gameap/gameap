@@ -22,6 +22,10 @@ const ru = {
         paste: 'Вставить',
         refresh: 'Обновить',
         retryFailed: 'Повторить ошибочные',
+        search: 'Поиск',
+        searchClose: 'Закрыть поиск',
+        searchNext: 'Следующее совпадение',
+        searchPrev: 'Предыдущее совпадение',
         submit: 'Отправить',
         table: 'Таблица',
         upload: 'Загрузить',
@@ -35,9 +39,12 @@ const ru = {
     },
     hint: {
         ctrlA: 'Ctrl+A',
+        ctrlF: 'Ctrl+F',
         esc: 'Esc',
         del: 'Del',
         f5: 'F5',
+        enter: 'Enter',
+        shiftEnter: 'Shift+Enter',
         shiftClick: 'Shift+клик для диапазона',
     },
     clipboard: {
@@ -117,6 +124,7 @@ const ru = {
         errorRetry: 'Повторить',
         sortAsc: 'По возрастанию',
         sortDesc: 'По убыванию',
+        searchPlaceholder: 'Поиск в папке…',
     },
     modal: {
         about: {
@@ -284,6 +292,23 @@ const ru = {
             copyManual: 'Нажмите Ctrl+C, чтобы скопировать',
             failed: 'Ошибка',
             noSelected: 'Ничего не выбрано!',
+        },
+    },
+    history: {
+        title: 'История',
+        tabRecent: 'История',
+        tabFrequent: 'Частота',
+        directories: 'Каталоги',
+        files: 'Файлы',
+        empty: 'Пока пусто',
+        emptyHint: 'Открывайте каталоги и файлы — они появятся здесь',
+        staleRemoved: 'Элемент больше не существует — удалён из истории',
+        time: {
+            justNow: 'только что',
+            min: '{n} мин назад',
+            hour: '{n} ч назад',
+            yesterday: 'вчера',
+            day: '{n} дн назад',
         },
     },
     notifications: {

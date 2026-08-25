@@ -11,6 +11,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/base"
 	"github.com/pkg/errors"
 )
@@ -25,15 +26,19 @@ var pluginFields = []string{
 	"filename",
 	"source",
 	"homepage",
+	"checksum",
 	"required_permissions",
 	"allowed_permissions",
 	"status",
 	"priority",
+	"generation",
 	"category",
 	"dependencies",
 	"config",
 	"installed_at",
 	"last_loaded_at",
+	"last_error",
+	"last_error_at",
 	"created_at",
 	"updated_at",
 }
@@ -176,15 +181,19 @@ func (r *PluginRepository) insert(ctx context.Context, plugin *domain.Plugin) er
 			plugin.Filename,
 			plugin.Source,
 			plugin.Homepage,
+			plugin.Checksum,
 			requiredPermissions,
 			allowedPermissions,
 			plugin.Status,
 			plugin.Priority,
+			plugin.Generation,
 			plugin.Category,
 			dependencies,
 			configJSON,
 			plugin.InstalledAt,
 			plugin.LastLoadedAt,
+			plugin.LastError,
+			plugin.LastErrorAt,
 			plugin.CreatedAt,
 			plugin.UpdatedAt,
 		).
@@ -221,15 +230,19 @@ func (r *PluginRepository) update(ctx context.Context, plugin *domain.Plugin) er
 		Set("filename", plugin.Filename).
 		Set("source", plugin.Source).
 		Set("homepage", plugin.Homepage).
+		Set("checksum", plugin.Checksum).
 		Set("required_permissions", requiredPermissions).
 		Set("allowed_permissions", allowedPermissions).
 		Set("status", plugin.Status).
 		Set("priority", plugin.Priority).
+		Set("generation", plugin.Generation).
 		Set("category", plugin.Category).
 		Set("dependencies", dependencies).
 		Set("config", configJSON).
 		Set("installed_at", plugin.InstalledAt).
 		Set("last_loaded_at", plugin.LastLoadedAt).
+		Set("last_error", plugin.LastError).
+		Set("last_error_at", plugin.LastErrorAt).
 		Set("updated_at", plugin.UpdatedAt).
 		Where(sq.Eq{"id": plugin.ID}).
 		PlaceholderFormat(sq.Dollar).
@@ -241,6 +254,42 @@ func (r *PluginRepository) update(ctx context.Context, plugin *domain.Plugin) er
 	_, err = r.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return errors.WithMessage(err, "failed to execute query")
+	}
+
+	return nil
+}
+
+func (r *PluginRepository) UpdateLoadState(
+	ctx context.Context,
+	id domain.Uint64ID,
+	state domain.PluginLoadState,
+) error {
+	query, args, err := sq.Update(base.PluginsTable).
+		Set("status", state.Status).
+		Set("last_error", state.LastError).
+		Set("last_error_at", state.LastErrorAt).
+		Set("last_loaded_at", state.LastLoadedAt).
+		Set("generation", state.Generation).
+		Set("updated_at", time.Now()).
+		Where(sq.Eq{"id": id}).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build query")
+	}
+
+	res, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to execute query")
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return errors.WithMessage(err, "failed to read update result")
+	}
+
+	if affected == 0 {
+		return repositories.ErrPluginNotFound
 	}
 
 	return nil
@@ -302,15 +351,19 @@ func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 		&plugin.Filename,
 		&plugin.Source,
 		&plugin.Homepage,
+		&plugin.Checksum,
 		&requiredPermissionsStr,
 		&allowedPermissionsStr,
 		&plugin.Status,
 		&plugin.Priority,
+		&plugin.Generation,
 		&plugin.Category,
 		&dependenciesStr,
 		&configJSON,
 		&plugin.InstalledAt,
 		&plugin.LastLoadedAt,
+		&plugin.LastError,
+		&plugin.LastErrorAt,
 		&plugin.CreatedAt,
 		&plugin.UpdatedAt,
 	)

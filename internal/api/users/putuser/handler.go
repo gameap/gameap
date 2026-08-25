@@ -10,21 +10,35 @@ import (
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/audit"
+	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
 )
 
+// PluginDispatcher publishes user events to plugins; satisfied by
+// *plugin.Dispatcher.
+type PluginDispatcher interface {
+	DispatchUserEventAsync(
+		ctx context.Context,
+		eventType pluginproto.EventType,
+		user *domain.User,
+		extraData map[string]string,
+	)
+}
+
 type Handler struct {
-	usersRepo   repositories.UserRepository
-	serversRepo repositories.ServerRepository
-	rbac        base.RBAC
-	tm          base.TransactionManager
-	responder   base.Responder
-	audit       audit.Logger
+	usersRepo        repositories.UserRepository
+	serversRepo      repositories.ServerRepository
+	rbac             base.RBAC
+	tm               base.TransactionManager
+	responder        base.Responder
+	audit            audit.Logger
+	pluginDispatcher PluginDispatcher
 }
 
 func NewHandler(
@@ -34,18 +48,20 @@ func NewHandler(
 	tm base.TransactionManager,
 	responder base.Responder,
 	auditLogger audit.Logger,
+	pluginDispatcher PluginDispatcher,
 ) *Handler {
 	if auditLogger == nil {
 		auditLogger = audit.NopLogger{}
 	}
 
 	return &Handler{
-		usersRepo:   usersRepo,
-		serversRepo: serversRepo,
-		rbac:        rbac,
-		tm:          tm,
-		responder:   responder,
-		audit:       auditLogger,
+		usersRepo:        usersRepo,
+		serversRepo:      serversRepo,
+		rbac:             rbac,
+		tm:               tm,
+		responder:        responder,
+		audit:            auditLogger,
+		pluginDispatcher: pluginDispatcher,
 	}
 }
 
@@ -116,6 +132,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	user := &users[0]
 
+	changedFields := updateInput.changedFields(user)
+
 	err = updateInput.Apply(user)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to apply input"))
@@ -159,6 +177,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		audit.SensitiveOp(ctx, h.audit, audit.EventUserRolesAssign, audit.CategoryAdminOp,
 			"user", userResID, "role_assign",
 			slog.String("roles", strings.Join(updateInput.Roles, ",")))
+	}
+
+	if h.pluginDispatcher != nil {
+		h.pluginDispatcher.DispatchUserEventAsync(ctx, pluginproto.EventType_EVENT_TYPE_USER_UPDATED, user,
+			map[string]string{"changed_fields": strings.Join(changedFields, ",")})
 	}
 
 	roleNames, err := h.rbac.GetRoles(ctx, user.ID)

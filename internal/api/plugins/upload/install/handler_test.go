@@ -176,6 +176,7 @@ func TestInstall(t *testing.T) {
 				fileManager,
 				nil,
 				nil,
+				nil,
 				"plugins",
 				api.NewResponder(),
 				nil,
@@ -249,6 +250,7 @@ func TestInstall_already_installed_returns_409(t *testing.T) {
 		fileManager,
 		nil,
 		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -268,6 +270,7 @@ func TestInstall_no_file_uploaded(t *testing.T) {
 		&mockLoaderManager{},
 		inmemory.NewPluginRepository(),
 		files.NewInMemoryFileManager(),
+		nil,
 		nil,
 		nil,
 		"plugins",
@@ -321,7 +324,7 @@ func TestInstall_Audit_SuccessfulInstallIsRecorded(t *testing.T) {
 
 	recorder := &auditCapture{}
 	h := install.NewHandler(
-		mockManager, pluginRepo, fileManager, nil, nil, "plugins", api.NewResponder(), recorder,
+		mockManager, pluginRepo, fileManager, nil, nil, nil, "plugins", api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
 
@@ -376,7 +379,7 @@ func TestInstall_Audit_AlreadyInstalledIsNotRecorded(t *testing.T) {
 
 	recorder := &auditCapture{}
 	h := install.NewHandler(
-		mockManager, pluginRepo, files.NewInMemoryFileManager(), nil, nil, "plugins",
+		mockManager, pluginRepo, files.NewInMemoryFileManager(), nil, nil, nil, "plugins",
 		api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	domainproto "github.com/gameap/gameap/pkg/proto"
@@ -45,6 +46,31 @@ const (
 	maxAsyncDispatches = 64
 )
 
+// SubscriptionGate decides whether a plugin that subscribes to events may
+// receive them. It is consulted on every RefreshSubscriptions for plugins
+// with a non-empty subscription list, and again before each delivery: the
+// subscription map is per instance, so a revocation on another instance
+// would otherwise keep reaching this one until it refreshes. The panel
+// gates on the plugin's "listen_events" grant.
+type SubscriptionGate func(ctx context.Context, plugin *LoadedPlugin) bool
+
+// DispatcherOption tunes a Dispatcher.
+type DispatcherOption func(*Dispatcher)
+
+// WithSubscriptionGate installs the gate; nil admits every plugin.
+func WithSubscriptionGate(gate SubscriptionGate) DispatcherOption {
+	return func(d *Dispatcher) {
+		d.gate = gate
+	}
+}
+
+// WithDispatcherObserver reports delivery outcomes and drops to the observer.
+func WithDispatcherObserver(observer Observer) DispatcherOption {
+	return func(d *Dispatcher) {
+		d.observer = observerOrNop(observer)
+	}
+}
+
 // Dispatcher handles event dispatching to plugins.
 type Dispatcher struct {
 	mu              sync.RWMutex
@@ -54,17 +80,26 @@ type Dispatcher struct {
 	callTimeout     time.Duration
 	asyncSlots      chan struct{}
 	subscriptionsOK bool
+	gate            SubscriptionGate
+	observer        Observer
 }
 
 // NewDispatcher creates a new event dispatcher.
-func NewDispatcher(manager *Manager, logger *slog.Logger) *Dispatcher {
-	return &Dispatcher{
+func NewDispatcher(manager *Manager, logger *slog.Logger, opts ...DispatcherOption) *Dispatcher {
+	d := &Dispatcher{
 		manager:       manager,
 		subscriptions: make(map[proto.EventType][]*LoadedPlugin),
 		logger:        logger,
 		callTimeout:   defaultEventCallTimeout,
 		asyncSlots:    make(chan struct{}, maxAsyncDispatches),
+		observer:      NopObserver{},
 	}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+
+	return d
 }
 
 // RefreshSubscriptions queries all plugins for their subscribed events.
@@ -91,6 +126,19 @@ func (d *Dispatcher) RefreshSubscriptions(ctx context.Context) error {
 			continue
 		}
 
+		if len(resp.Events) == 0 {
+			continue
+		}
+
+		if d.gate != nil && !d.gate(ctx, plugin) {
+			d.logger.Warn("plugin subscribes to events without the listen_events grant, subscriptions ignored",
+				slog.String("plugin_id", plugin.Info.Id),
+				slog.Int("events", len(resp.Events)),
+			)
+
+			continue
+		}
+
 		for _, eventType := range resp.Events {
 			d.subscriptions[eventType] = append(d.subscriptions[eventType], plugin)
 		}
@@ -101,16 +149,27 @@ func (d *Dispatcher) RefreshSubscriptions(ctx context.Context) error {
 	return nil
 }
 
-// Dispatch dispatches an event to all subscribed plugins.
-func (d *Dispatcher) Dispatch(ctx context.Context, event *proto.Event) *EventDispatchResult {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+// AsyncBacklog reports how many fire-and-forget deliveries are in flight or
+// queued (bounded by maxAsyncDispatches).
+func (d *Dispatcher) AsyncBacklog() int {
+	return len(d.asyncSlots)
+}
 
+// Dispatch dispatches an event to all subscribed plugins. A nil dispatcher
+// (plugins disabled) delivers nothing.
+func (d *Dispatcher) Dispatch(ctx context.Context, event *proto.Event) *EventDispatchResult {
 	result := &EventDispatchResult{
 		HandledBy:    make([]string, 0),
 		ModifiedData: make(map[string]string),
 		Errors:       make([]error, 0),
 	}
+
+	if d == nil {
+		return result
+	}
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	subscribers := d.subscriptions[event.Type]
 	if len(subscribers) == 0 {
@@ -120,11 +179,17 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *proto.Event) *EventDis
 	cancellable := isCancellableEvent(event.Type)
 
 	for _, plugin := range subscribers {
-		if !plugin.IsEnabled() {
+		if !plugin.IsEnabled() || isPluginEventSubject(plugin, event) {
 			continue
 		}
 
-		eventResult, err := d.handleEvent(ctx, plugin, event)
+		if !d.admits(ctx, plugin) {
+			d.observer.EventDispatched(event.Type, EventResultDenied)
+
+			continue
+		}
+
+		eventResult, err := d.handleEvent(ctx, plugin, withSubscriberContext(event, plugin))
 		if err != nil {
 			result.Errors = append(result.Errors, errors.Wrapf(
 				err, "plugin %s failed to handle event", plugin.Info.Id,
@@ -135,6 +200,8 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *proto.Event) *EventDis
 				slog.Int("event_type", int(event.Type)),
 				slog.Any("error", err),
 			)
+
+			d.observer.EventDispatched(event.Type, EventResultError)
 
 			continue
 		}
@@ -150,13 +217,41 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *proto.Event) *EventDis
 				result.CancelMessage = *eventResult.Message
 			}
 
+			d.observer.EventDispatched(event.Type, EventResultCancelled)
+
 			return result
+		}
+
+		if eventResult.Handled {
+			d.observer.EventDispatched(event.Type, EventResultHandled)
+		} else {
+			d.observer.EventDispatched(event.Type, EventResultIgnored)
 		}
 
 		maps.Copy(result.ModifiedData, eventResult.ModifiedData)
 	}
 
 	return result
+}
+
+// admits reports whether the plugin still holds the grant behind its
+// subscriptions. The cached map is only refreshed on this instance, so the
+// gate is evaluated again per delivery; a plugin that lost the grant is
+// skipped until the next refresh drops it from the map.
+func (d *Dispatcher) admits(ctx context.Context, plugin *LoadedPlugin) bool {
+	if d.gate == nil {
+		return true
+	}
+
+	if d.gate(ctx, plugin) {
+		return true
+	}
+
+	d.logger.Warn("event delivery skipped, plugin no longer holds the listen_events grant",
+		slog.String("plugin_id", plugin.Info.Id),
+	)
+
+	return false
 }
 
 // handleEvent calls a single plugin with a per-call deadline. On expiry the
@@ -174,7 +269,7 @@ func (d *Dispatcher) handleEvent(
 	// ErrPluginBusy means the wait for the call gate was abandoned — the
 	// module is untouched, so the plugin must stay enabled.
 	if err != nil && callCtx.Err() != nil && ctx.Err() == nil && !errors.Is(err, ErrPluginBusy) {
-		plugin.Disable()
+		plugin.DisableWithReason(EventTimeoutReason(event.Type))
 
 		d.logger.Error("plugin event handler timed out, plugin disabled until reload",
 			slog.String("plugin_id", plugin.Info.Id),
@@ -193,7 +288,7 @@ func (d *Dispatcher) DispatchServerEvent(
 	server *domain.Server,
 	extraData map[string]string,
 ) *EventDispatchResult {
-	return d.Dispatch(ctx, buildServerEvent(eventType, server, extraData))
+	return d.Dispatch(ctx, buildServerEvent(ctx, eventType, server, extraData))
 }
 
 // DispatchServerEventAsync dispatches a server event in the background.
@@ -205,7 +300,7 @@ func (d *Dispatcher) DispatchServerEventAsync(
 	server *domain.Server,
 	extraData map[string]string,
 ) {
-	d.dispatchAsync(ctx, buildServerEvent(eventType, server, extraData))
+	d.dispatchAsync(ctx, buildServerEvent(ctx, eventType, server, extraData))
 }
 
 // DispatchServerEventsAsync dispatches several server events for one operation
@@ -219,7 +314,7 @@ func (d *Dispatcher) DispatchServerEventsAsync(
 ) {
 	events := make([]*proto.Event, 0, len(eventTypes))
 	for _, eventType := range eventTypes {
-		events = append(events, buildServerEvent(eventType, server, extraData))
+		events = append(events, buildServerEvent(ctx, eventType, server, extraData))
 	}
 
 	d.dispatchAsync(ctx, events...)
@@ -234,7 +329,7 @@ func (d *Dispatcher) DispatchTaskEvent(
 	taskType, status string,
 	extraData map[string]string,
 ) *EventDispatchResult {
-	return d.Dispatch(ctx, buildTaskEvent(eventType, taskID, nodeID, serverID, taskType, status, extraData))
+	return d.Dispatch(ctx, buildTaskEvent(ctx, eventType, taskID, nodeID, serverID, taskType, status, extraData))
 }
 
 // DispatchTaskEventAsync dispatches a task event in the background.
@@ -246,7 +341,182 @@ func (d *Dispatcher) DispatchTaskEventAsync(
 	taskType, status string,
 	extraData map[string]string,
 ) {
-	d.dispatchAsync(ctx, buildTaskEvent(eventType, taskID, nodeID, serverID, taskType, status, extraData))
+	d.dispatchAsync(ctx, buildTaskEvent(ctx, eventType, taskID, nodeID, serverID, taskType, status, extraData))
+}
+
+// DispatchUserEvent dispatches a user event synchronously; USER_PRE_DELETE
+// may be cancelled by a plugin.
+func (d *Dispatcher) DispatchUserEvent(
+	ctx context.Context,
+	eventType proto.EventType,
+	user *domain.User,
+	extraData map[string]string,
+) *EventDispatchResult {
+	return d.Dispatch(ctx, buildUserEvent(ctx, eventType, user, extraData))
+}
+
+// DispatchUserEventAsync dispatches a user event in the background.
+func (d *Dispatcher) DispatchUserEventAsync(
+	ctx context.Context,
+	eventType proto.EventType,
+	user *domain.User,
+	extraData map[string]string,
+) {
+	if d == nil {
+		return
+	}
+
+	d.dispatchAsync(ctx, buildUserEvent(ctx, eventType, user, extraData))
+}
+
+// DispatchNodeEvent dispatches a node event synchronously; NODE_PRE_DELETE
+// may be cancelled by a plugin.
+func (d *Dispatcher) DispatchNodeEvent(
+	ctx context.Context,
+	eventType proto.EventType,
+	node *domain.Node,
+	extraData map[string]string,
+) *EventDispatchResult {
+	return d.Dispatch(ctx, buildNodeEvent(ctx, eventType, node, extraData))
+}
+
+// DispatchNodeEventAsync dispatches a node event in the background.
+func (d *Dispatcher) DispatchNodeEventAsync(
+	ctx context.Context,
+	eventType proto.EventType,
+	node *domain.Node,
+	extraData map[string]string,
+) {
+	if d == nil {
+		return
+	}
+
+	d.dispatchAsync(ctx, buildNodeEvent(ctx, eventType, node, extraData))
+}
+
+// DispatchServerSettingsEventAsync publishes the server settings a save
+// changed, in the background.
+func (d *Dispatcher) DispatchServerSettingsEventAsync(
+	ctx context.Context,
+	serverID uint,
+	settings []domain.ServerSetting,
+	extraData map[string]string,
+) {
+	if d == nil {
+		return
+	}
+
+	d.dispatchAsync(ctx, buildServerSettingsEvent(ctx, serverID, settings, extraData))
+}
+
+func buildUserEvent(
+	ctx context.Context,
+	eventType proto.EventType,
+	user *domain.User,
+	extraData map[string]string,
+) *proto.Event {
+	return &proto.Event{
+		Type:      eventType,
+		Timestamp: time.Now().Unix(),
+		Context:   buildEventContext(ctx),
+		Payload: &proto.Event_UserEvent{
+			UserEvent: &proto.UserEventPayload{
+				User:      DomainUserToProto(user),
+				ExtraData: extraData,
+			},
+		},
+	}
+}
+
+func buildNodeEvent(
+	ctx context.Context,
+	eventType proto.EventType,
+	node *domain.Node,
+	extraData map[string]string,
+) *proto.Event {
+	return &proto.Event{
+		Type:      eventType,
+		Timestamp: time.Now().Unix(),
+		Context:   buildEventContext(ctx),
+		Payload: &proto.Event_NodeEvent{
+			NodeEvent: &proto.NodeEventPayload{
+				Node:      DomainNodeToProto(node),
+				ExtraData: extraData,
+			},
+		},
+	}
+}
+
+func buildServerSettingsEvent(
+	ctx context.Context,
+	serverID uint,
+	settings []domain.ServerSetting,
+	extraData map[string]string,
+) *proto.Event {
+	converted := make([]*domainproto.ServerSetting, 0, len(settings))
+	for _, setting := range settings {
+		converted = append(converted, DomainServerSettingToProto(setting))
+	}
+
+	return &proto.Event{
+		Type:      proto.EventType_EVENT_TYPE_SERVER_SETTINGS_CHANGED,
+		Timestamp: time.Now().Unix(),
+		Context:   buildEventContext(ctx),
+		Payload: &proto.Event_ServerSettingsEvent{
+			ServerSettingsEvent: &proto.ServerSettingsEventPayload{
+				ServerId:  uint64(serverID),
+				Settings:  converted,
+				ExtraData: extraData,
+			},
+		},
+	}
+}
+
+// EventInfo describes the plugin a PLUGIN_* event is about.
+type EventInfo struct {
+	DBID    uint64
+	Name    string
+	Version string
+	Status  string
+	Error   *string
+}
+
+// DispatchPluginEventAsync publishes a plugin lifecycle transition in the
+// background; the plugin the event describes never receives it.
+func (d *Dispatcher) DispatchPluginEventAsync(
+	ctx context.Context,
+	eventType proto.EventType,
+	info EventInfo,
+	extraData map[string]string,
+) {
+	if d == nil {
+		return
+	}
+
+	d.dispatchAsync(ctx, buildPluginEvent(ctx, eventType, info, extraData))
+}
+
+func buildPluginEvent(
+	ctx context.Context,
+	eventType proto.EventType,
+	info EventInfo,
+	extraData map[string]string,
+) *proto.Event {
+	return &proto.Event{
+		Type:      eventType,
+		Timestamp: time.Now().Unix(),
+		Context:   buildEventContext(ctx),
+		Payload: &proto.Event_PluginEvent{
+			PluginEvent: &proto.PluginEventPayload{
+				PluginId:  CompactPluginID(domain.Uint64ID(info.DBID)),
+				Name:      info.Name,
+				Version:   info.Version,
+				Status:    info.Status,
+				Error:     info.Error,
+				ExtraData: extraData,
+			},
+		},
+	}
 }
 
 func (d *Dispatcher) dispatchAsync(ctx context.Context, events ...*proto.Event) {
@@ -271,6 +541,10 @@ func (d *Dispatcher) dispatchAsync(ctx context.Context, events ...*proto.Event) 
 			slog.Int("capacity", cap(d.asyncSlots)),
 		)
 
+		for _, event := range events {
+			d.observer.EventDispatched(event.Type, EventResultDropped)
+		}
+
 		return
 	}
 
@@ -288,7 +562,23 @@ func (d *Dispatcher) dispatchAsync(ctx context.Context, events ...*proto.Event) 
 	}()
 }
 
+// buildEventContext identifies the delivery and, when the triggering request
+// was made by an authenticated user, that user — so a plugin can attribute
+// what it does in response (and the panel audits it the same way).
+func buildEventContext(ctx context.Context) *proto.PluginContext {
+	eventCtx := &proto.PluginContext{
+		RequestId: idgen.New(),
+	}
+
+	if session := auth.SessionFromContext(ctx); session.IsAuthenticated() {
+		eventCtx.UserId = new(uint64(session.User.ID))
+	}
+
+	return eventCtx
+}
+
 func buildServerEvent(
+	ctx context.Context,
 	eventType proto.EventType,
 	server *domain.Server,
 	extraData map[string]string,
@@ -296,9 +586,7 @@ func buildServerEvent(
 	return &proto.Event{
 		Type:      eventType,
 		Timestamp: time.Now().Unix(),
-		Context: &proto.PluginContext{
-			RequestId: idgen.New(),
-		},
+		Context:   buildEventContext(ctx),
 		Payload: &proto.Event_ServerEvent{
 			ServerEvent: &proto.ServerEventPayload{
 				Server:    domainServerToProto(server),
@@ -309,6 +597,7 @@ func buildServerEvent(
 }
 
 func buildTaskEvent(
+	ctx context.Context,
 	eventType proto.EventType,
 	taskID, nodeID uint,
 	serverID *uint,
@@ -330,9 +619,7 @@ func buildTaskEvent(
 	return &proto.Event{
 		Type:      eventType,
 		Timestamp: time.Now().Unix(),
-		Context: &proto.PluginContext{
-			RequestId: idgen.New(),
-		},
+		Context:   buildEventContext(ctx),
 		Payload: &proto.Event_TaskEvent{
 			TaskEvent: payload,
 		},
@@ -363,47 +650,50 @@ func isCancellableEvent(eventType proto.EventType) bool {
 		proto.EventType_EVENT_TYPE_SERVER_PRE_INSTALL,
 		proto.EventType_EVENT_TYPE_SERVER_PRE_UPDATE,
 		proto.EventType_EVENT_TYPE_SERVER_PRE_REINSTALL,
-		proto.EventType_EVENT_TYPE_SERVER_PRE_DELETE:
+		proto.EventType_EVENT_TYPE_SERVER_PRE_DELETE,
+		proto.EventType_EVENT_TYPE_USER_PRE_DELETE,
+		proto.EventType_EVENT_TYPE_NODE_PRE_DELETE:
 		return true
 	default:
 		return false
 	}
 }
 
-// domainServerToProto converts a domain.Server to proto.Server.
-func domainServerToProto(s *domain.Server) *domainproto.Server {
-	if s == nil {
-		return nil
+// withSubscriberContext returns a shallow copy of the event whose context
+// names the receiving plugin (the id it declared, as Initialize and Shutdown
+// use); the payload is shared between subscribers.
+func withSubscriberContext(event *proto.Event, plugin *LoadedPlugin) *proto.Event {
+	if plugin.Info == nil {
+		return event
 	}
 
-	var queryPort, rconPort *int32
-	if s.QueryPort != nil {
-		qp := int32(*s.QueryPort) //nolint:gosec
-		queryPort = &qp
-	}
-	if s.RconPort != nil {
-		rp := int32(*s.RconPort) //nolint:gosec
-		rconPort = &rp
+	eventCtx := &proto.PluginContext{PluginId: plugin.Info.Id}
+	if event.Context != nil {
+		eventCtx.RequestId = event.Context.RequestId
+		eventCtx.UserId = event.Context.UserId
+		eventCtx.Permissions = event.Context.Permissions
 	}
 
-	return &domainproto.Server{
-		Id:            uint64(s.ID),
-		Uuid:          s.UUID.String(),
-		UuidShort:     s.UUIDShort,
-		Enabled:       s.Enabled,
-		Installed:     domainproto.ServerInstalledStatus(s.Installed), //nolint:gosec
-		Blocked:       s.Blocked,
-		Name:          s.Name,
-		GameId:        s.GameID,
-		DsId:          uint64(s.DSID),
-		GameModId:     uint64(s.GameModID),
-		ServerIp:      s.ServerIP,
-		ServerPort:    int32(s.ServerPort), //nolint:gosec
-		QueryPort:     queryPort,
-		RconPort:      rconPort,
-		Dir:           s.Dir,
-		SuUser:        s.SuUser,
-		StartCommand:  s.StartCommand,
-		ProcessActive: s.ProcessActive,
+	return &proto.Event{
+		Type:      event.Type,
+		Context:   eventCtx,
+		Timestamp: event.Timestamp,
+		Payload:   event.Payload,
 	}
+}
+
+// isPluginEventSubject reports whether a PLUGIN_* event describes the plugin
+// itself: a plugin never hears about its own lifecycle, its module was not
+// running when it happened.
+func isPluginEventSubject(plugin *LoadedPlugin, event *proto.Event) bool {
+	payload := event.GetPluginEvent()
+	if payload == nil {
+		return false
+	}
+
+	if plugin.DBID != 0 && CompactPluginID(domain.Uint64ID(plugin.DBID)) == payload.PluginId {
+		return true
+	}
+
+	return plugin.Info != nil && normalizePluginID(plugin.Info.Id) == normalizePluginID(payload.PluginId)
 }

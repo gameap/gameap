@@ -5,6 +5,10 @@ This plugin logs server lifecycle events and provides statistics via HTTP API an
 ## Features
 
 - Subscribes to all server lifecycle events (start, stop, restart, install, update, reinstall, delete)
+  and to a few panel events (server settings, users, node presence, other plugins' lifecycle), logging
+  each payload (`events.go`)
+- Uses the gameap-host module during `Initialize` to log the grants the operator gave it and the
+  host modules the panel provides
 - Provides HTTP API endpoints for status and statistics
 - Includes a Vue.js frontend with dashboard widget and server tab
 - Contributes static assets via `GetAssets` (see `assets/`): a Spanish translation served at

@@ -47,6 +47,7 @@ func TestInstall_refreshes_subscriptions(t *testing.T) {
 		files.NewInMemoryFileManager(),
 		nil,
 		refresher,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,

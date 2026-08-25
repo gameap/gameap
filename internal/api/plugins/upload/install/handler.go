@@ -33,6 +33,7 @@ type Handler struct {
 	fileManager   files.FileManager
 	loader        *plugin.Loader
 	subscriptions plugininstall.SubscriptionRefresher
+	sync          plugininstall.SyncNotifier
 	pluginsDir    string
 	responder     base.Responder
 	audit         audit.Logger
@@ -44,6 +45,7 @@ func NewHandler(
 	fileManager files.FileManager,
 	loader *plugin.Loader,
 	subscriptions plugininstall.SubscriptionRefresher,
+	sync plugininstall.SyncNotifier,
 	pluginsDir string,
 	responder base.Responder,
 	auditLogger audit.Logger,
@@ -58,6 +60,7 @@ func NewHandler(
 		fileManager:   fileManager,
 		loader:        loader,
 		subscriptions: subscriptions,
+		sync:          sync,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 		audit:         auditLogger,
@@ -116,7 +119,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pluginRecord := plugininstall.BuildPluginRecord(dbID, loaded, filename, "file://"+filename)
+	pluginRecord := plugininstall.BuildPluginRecord(dbID, loaded, filename, "file://"+filename, wasmBytes)
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
 		_ = h.fileManager.Delete(ctx, pluginPath)
@@ -129,7 +132,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		"plugin", strconv.FormatUint(uint64(dbID), 10), "install",
 		slog.String("plugin", loaded.Info.Id))
 
-	if _, err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
+	if _, err := plugininstall.TryLoadPlugin(ctx, h.loader, pluginRecord); err != nil {
+		// The row exists (status error): peers still learn about it.
+		plugininstall.Notify(ctx, h.sync, dbID, plugininstall.ActionInstall)
+
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "plugin installed but failed to load"),
 			http.StatusUnprocessableEntity,
@@ -138,7 +144,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
+	plugininstall.AfterChange(ctx, h.subscriptions, h.sync, dbID, plugininstall.ActionInstall)
 
 	h.responder.Write(ctx, rw, newInstallResponse(pluginRecord))
 }

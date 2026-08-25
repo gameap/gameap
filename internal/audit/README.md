@@ -24,11 +24,26 @@ and addresses OWASP ASVS 4.0.3 L2:
    or propagates a sanitized `X-Request-Id`, captures client IP / user
    agent / method / path into the context, and echoes the ID back in the
    response header.
-2. Call sites invoke a helper (`audit.SensitiveOp`, `audit.AccessDenied`,
-   `audit.TokenRejected`, …). Each helper builds an `Event`, auto-fills the
-   actor from the request context (`pkg/auth` session → `session`/`pat`,
-   daemon session → `daemon`, else `anonymous`) and the request metadata,
-   then emits one `slog` record (message `"audit"`).
+2. Call sites invoke a helper (`audit.SensitiveOp`, `audit.SensitiveOpFailed`,
+   `audit.AccessDenied`, `audit.TokenRejected`, …). Each helper builds an
+   `Event`, auto-fills the actor from the request context (`pkg/auth` session →
+   `session`/`pat`, daemon session → `daemon`, else `anonymous`) and the
+   request metadata, then emits one `slog` record (message `"audit"`).
+   `audit.SystemOp` is for work the panel does on its own, outside any request
+   (actor `system`): `plugin.disabled` / `plugin.reloaded` from the plugin
+   recovery supervisor. `audit.PluginOp` is for what a plugin does through the
+   host libraries (actor `plugin`): `plugin.server.control`,
+   `plugin.server.save` / `plugin.server.delete`, `plugin.server.setting`,
+   `plugin.task.create`, `plugin.node.command`, `plugin.node.file`,
+   `plugin.ssh.connect` / `plugin.ssh.exec` / `plugin.ssh.file`,
+   `plugin.rbac.role` / `plugin.rbac.grant` / `plugin.rbac.revoke`, plus
+   `access.denied` (reason `plugin_permission_missing`) and
+   `plugin.hostcall.ratelimited` for refused calls — the latter two throttled
+   to one record per minute per plugin and function so a looping plugin cannot
+   flood the stream. When the plugin acted inside a user's request (an event
+   or a plugin HTTP route) the user is recorded as `on_behalf_of_user_id` /
+   `on_behalf_of_login`. `plugin.permissions.update` records an operator
+   changing a plugin's grants (`granted` / `revoked`).
 
 `audit.Logger` is the only interface (`contracts.go`). `NewLogger` wraps an
 `*slog.Logger`; `NopLogger` is used when `AUDIT_ENABLED=false` and in tests.
@@ -44,7 +59,7 @@ category         authentication | authorization | ratelimit | *_op
 outcome          success | failure | denied | blocked
 actor_id         uint user/node id (omitted when anonymous)
 actor_login      user login / node name
-auth_method      session | pat | daemon | anonymous
+auth_method      session | pat | daemon | anonymous | system (panel-initiated, e.g. plugin recovery) | plugin (a plugin acting through a host library; actor_id is its database id, actor_login its compact id)
 resource_type    server | node | user | token | plugin | file
 resource_id      target id / path
 action           delete | rename | role_assign | …

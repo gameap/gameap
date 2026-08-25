@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"sync"
@@ -1496,3 +1497,58 @@ var _ MetricsWaiterRegistrar = (*fakeMetricsWaiterRegistrar)(nil)
 // Ensure io.EOF is referenced so unused-import linters don't complain in
 // case stubStream's Recv path is exercised by future tests.
 var _ = io.EOF
+
+type sessionObserverRecorder struct {
+	mu     sync.Mutex
+	events []string
+}
+
+func (o *sessionObserverRecorder) SessionRegistered(_ context.Context, nodeID uint64, version string, reconnect bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, fmt.Sprintf("registered:%d:%s:%t", nodeID, version, reconnect))
+}
+
+func (o *sessionObserverRecorder) SessionUnregistered(_ context.Context, nodeID uint64, version string, _ time.Time) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, fmt.Sprintf("unregistered:%d:%s", nodeID, version))
+}
+
+func (o *sessionObserverRecorder) all() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	return append([]string(nil), o.events...)
+}
+
+func TestRegistry_Observer_sees_only_local_transitions(t *testing.T) {
+	t.Parallel()
+
+	r, ps, ctx := setupRegistry(t, true)
+	observer := &sessionObserverRecorder{}
+	r.SetSessionObserver(observer)
+
+	s1, _ := newTestSession(7, nil)
+	s1.Version = "4.4.0"
+	require.NoError(t, r.Register(ctx, s1))
+
+	s2, _ := newTestSession(7, nil)
+	s2.Version = "4.4.1"
+	require.NoError(t, r.Register(ctx, s2))
+
+	require.NoError(t, r.UnregisterSession(ctx, s1), "stale cleanup of the replaced session")
+	require.NoError(t, r.UnregisterSession(ctx, s2))
+	require.NoError(t, r.Unregister(ctx, 7), "nothing registered any more")
+
+	// A session owned by another instance only reaches this registry through
+	// pub/sub and is not reported.
+	publishSessionEvent(ctx, t, ps, channels.DaemonSessionConnected, messages.TypeDaemonConnected, 9, "instance-other")
+	waitFor(t, func() bool { return r.IsConnectedAnywhere(9) }, "remote session to be tracked globally")
+
+	assert.Equal(t, []string{
+		"registered:7:4.4.0:false",
+		"registered:7:4.4.1:true",
+		"unregistered:7:4.4.1",
+	}, observer.all())
+}

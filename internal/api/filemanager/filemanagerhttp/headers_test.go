@@ -250,3 +250,68 @@ func TestSafeContentHeaders_FilenameEncoding(t *testing.T) {
 func startsWith(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }
+
+func TestAttachmentContentHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		filename        string
+		contentType     string
+		wantContentType string
+		wantDisposition []string
+	}{
+		{
+			name:            "valid_type_is_kept_with_parameters",
+			filename:        "report.csv",
+			contentType:     "text/csv; charset=utf-8",
+			wantContentType: "text/csv; charset=utf-8",
+			wantDisposition: []string{"attachment", "filename=report.csv", `filename*=UTF-8''report.csv`},
+		},
+		{
+			name:            "active_content_type_is_still_an_attachment",
+			filename:        "page.html",
+			contentType:     "text/html",
+			wantContentType: "text/html",
+			wantDisposition: []string{"attachment", "filename=page.html"},
+		},
+		{
+			name:            "invalid_type_falls_back_to_octet_stream",
+			filename:        "blob",
+			contentType:     "not a media type",
+			wantContentType: "application/octet-stream",
+			wantDisposition: []string{"attachment", "filename=blob"},
+		},
+		{
+			name:            "empty_type_falls_back_to_octet_stream",
+			filename:        "blob",
+			contentType:     "",
+			wantContentType: "application/octet-stream",
+			wantDisposition: []string{"attachment"},
+		},
+		{
+			name:            "non_ascii_filename_is_encoded",
+			filename:        "отчёт.csv",
+			contentType:     "text/csv",
+			wantContentType: "text/csv",
+			wantDisposition: []string{`filename*=UTF-8''%D0%BE%D1%82%D1%87%D1%91%D1%82.csv`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			h := http.Header{}
+
+			filemanagerhttp.AttachmentContentHeaders(h, tt.filename, tt.contentType)
+
+			assert.Equal(t, tt.wantContentType, h.Get("Content-Type"))
+			assert.Equal(t, "nosniff", h.Get("X-Content-Type-Options"))
+			assert.Equal(t, "sandbox", h.Get("Content-Security-Policy"))
+			for _, want := range tt.wantDisposition {
+				assert.Contains(t, h.Get("Content-Disposition"), want)
+			}
+			assert.NotContains(t, h.Get("Content-Disposition"), "inline")
+		})
+	}
+}

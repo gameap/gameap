@@ -2,6 +2,7 @@ package putnode
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -357,4 +358,37 @@ func (in *updateNodeInput) applyScriptFields(node *domain.Node) {
 	if in.ScriptDelete != nil {
 		node.ScriptDelete = in.ScriptDelete
 	}
+}
+
+// changedFields names the fields the request carries (its JSON names), for
+// the plugin event: names only, so a rotated API key or password is reported
+// as a change without its value.
+func (in *updateNodeInput) changedFields() []string {
+	value := reflect.ValueOf(in).Elem()
+	valueType := value.Type()
+
+	fields := make([]string, 0, valueType.NumField())
+
+	for i := range valueType.NumField() {
+		field := value.Field(i)
+		// Maps count as much as pointers and slices: Metadata is a nil map
+		// when the request omitted it, and reporting it as changed would tell
+		// every plugin the bag was rewritten on every node update.
+		switch field.Kind() {
+		case reflect.Ptr, reflect.Slice, reflect.Map:
+			if field.IsNil() {
+				continue
+			}
+		default:
+		}
+
+		name, _, _ := strings.Cut(valueType.Field(i).Tag.Get("json"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+
+		fields = append(fields, name)
+	}
+
+	return fields
 }

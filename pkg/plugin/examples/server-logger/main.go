@@ -11,6 +11,7 @@ import (
 	"github.com/gameap/gameap/pkg/plugin/sdk"
 	"github.com/gameap/gameap/pkg/plugin/sdk/gamemods"
 	"github.com/gameap/gameap/pkg/plugin/sdk/games"
+	"github.com/gameap/gameap/pkg/plugin/sdk/host"
 	"github.com/gameap/gameap/pkg/plugin/sdk/log"
 	"github.com/gameap/gameap/pkg/plugin/sdk/nodefs"
 	"github.com/gameap/gameap/pkg/plugin/sdk/scheduler"
@@ -25,6 +26,7 @@ var (
 	gameModRepo  gamemods.GameModsService
 	serversRepo  servers.ServersService
 	schedulerSvc scheduler.SchedulerService
+	hostSvc      host.HostService
 	eventCounter atomic.Uint64
 )
 
@@ -34,6 +36,7 @@ func init() {
 	gameModRepo = gamemods.NewGameModsService()
 	serversRepo = servers.NewServersService()
 	schedulerSvc = scheduler.NewSchedulerService()
+	hostSvc = host.NewHostService()
 	pluginproto.RegisterPluginService(&ServerLoggerPlugin{})
 	scheduler.RegisterScheduledTaskHandler(&scheduledTaskHandler{})
 	// Registration alone adds the optional archive_events_handler_* exports;
@@ -56,6 +59,9 @@ func (p *ServerLoggerPlugin) GetInfo(
 		Description: "Logs server lifecycle events",
 		Author:      "GameAP",
 		ApiVersion:  "1",
+		// Event subscriptions are gated on listen_events; the install grants
+		// exactly what is declared here.
+		RequiredPermissions: []string{"listen_events"},
 	}, nil
 }
 
@@ -64,10 +70,35 @@ func (p *ServerLoggerPlugin) Initialize(
 	_ *pluginproto.InitializeRequest,
 ) (*pluginproto.InitializeResponse, error) {
 	registerStatsReportTask(ctx)
+	reportStartup(ctx)
 
 	return &pluginproto.InitializeResponse{
 		Result: &pluginproto.Result{Success: true},
 	}, nil
+}
+
+// reportStartup shows what gameap-host offers: the grants the operator gave
+// this plugin and the host modules it may call.
+func reportStartup(ctx context.Context) {
+	grants, err := hostSvc.GetGrants(ctx, &host.GetGrantsRequest{})
+	if err != nil {
+		logger.Warn("Cannot read grants", slog.String("error", err.Error()))
+	} else {
+		logger.Info("Plugin grants", slog.Any("permissions", grants.GetPermissions()))
+	}
+
+	info, err := hostSvc.GetHostInfo(ctx, &host.GetHostInfoRequest{})
+	if err != nil {
+		logger.Warn("Cannot read host info", slog.String("error", err.Error()))
+	} else {
+		logger.Info("Host info",
+			slog.String("panel_version", info.GetPanelVersion()),
+			slog.Int("plugin_api_version", int(info.GetPluginApiVersion())),
+			slog.String("instance_id", info.GetInstanceId()),
+			slog.Int("modules", len(info.GetModules())),
+		)
+	}
+
 }
 
 func (p *ServerLoggerPlugin) Shutdown(

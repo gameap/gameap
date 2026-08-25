@@ -138,6 +138,7 @@ func assertServerPostStartHandled(t *testing.T, loadedPlugin *plugin.LoadedPlugi
 }
 
 func TestRustPluginCompat(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		// newStubs builds a fresh set of stub services per subtest and returns
@@ -364,6 +365,7 @@ func TestRustPluginCompat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			libraries, verify := tt.newStubs()
 			loadedPlugin := loadFixturePlugin(t, tt.name, libraries)

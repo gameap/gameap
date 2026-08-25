@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/internal/services"
+	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/sdk/nodes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -286,7 +287,10 @@ func TestNodesService_UpdateNode(t *testing.T) {
 			require.Len(t, env.audit.events, 1)
 			assert.Equal(t, audit.EventNodeUpdate, env.audit.events[0].Type)
 			assert.Equal(t, audit.AuthMethodPlugin, env.audit.events[0].AuthMethod)
-			assert.Equal(t, "plugin:7", env.audit.events[0].ActorLogin)
+			// The compact plugin ID is what every host library files as the
+			// actor, so one query over the audit stream finds all of it.
+			assert.Equal(t, pkgplugin.CompactPluginID(nodesTestPluginID), env.audit.events[0].ActorLogin)
+			assert.Equal(t, uint(nodesTestPluginID), env.audit.events[0].ActorID)
 		})
 	}
 }

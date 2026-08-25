@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/services/pluginssh"
 	sshsdk "github.com/gameap/gameap/pkg/plugin/sdk/ssh"
 	"github.com/stretchr/testify/assert"
@@ -138,7 +139,7 @@ func (m *mockSSHSessions) recordedSubscriptions() []string {
 func newSSHService(t *testing.T, allowed bool, sessions *mockSSHSessions) *SSHServiceImpl {
 	t.Helper()
 
-	return NewSSHService(sshTestPluginID, sessions, stubPermissionChecker{allowed: allowed})
+	return NewSSHService(sessions, NewGuard(stubPermissionChecker{allowed: allowed}).For(sshTestPluginID))
 }
 
 // TestSSHService_EveryMethodRequiresTheGrant: the ssh grant is the plugin-side
@@ -217,13 +218,109 @@ func TestSSHService_EveryMethodRequiresTheGrant(t *testing.T) {
 	assert.Empty(t, sessions.recordedExec())
 }
 
+// TestSSHService_RateLimitStopsTheCallBeforeTheEngine covers OWASP
+// API4:2023 Unrestricted Resource Consumption: gameap-ssh opens real TCP
+// connections to hosts the plugin picks, so a plugin looping on Connect must
+// be throttled by the panel, not by the remote side.
+func TestSSHService_RateLimitStopsTheCallBeforeTheEngine(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sessions := &mockSSHSessions{connectResult: &pluginssh.ConnectResult{Handle: 1}}
+	guard := NewGuard(
+		stubPermissionChecker{allowed: true},
+		WithGuardRateLimits(map[RateClass]RateLimit{RateClassSSH: {RPS: 1, Burst: 1}}),
+	)
+	svc := NewSSHService(sessions, guard.For(sshTestPluginID))
+
+	first, err := svc.Connect(ctx, &sshsdk.ConnectRequest{Host: "example.com", User: "root"})
+	require.NoError(t, err)
+	require.True(t, first.Success, first.Error)
+
+	second, err := svc.Connect(ctx, &sshsdk.ConnectRequest{Host: "example.com", User: "root"})
+
+	require.NoError(t, err)
+	assert.False(t, second.Success)
+	require.NotNil(t, second.Error)
+	assert.Contains(t, *second.Error, "rate limited: gameap-ssh")
+	assert.Len(t, sessions.connectParams, 1, "a throttled call must not reach the engine")
+}
+
+// TestSSHService_AuditsTheOperationWithoutTheSecrets covers OWASP
+// API9:2023 Improper Inventory Management: reaching a host outside the node
+// inventory has to leave a trail, and that trail must not become the place
+// the bootstrap credentials end up.
+func TestSSHService_AuditsTheOperationWithoutTheSecrets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	recorder := &auditRecorder{}
+	sessions := &mockSSHSessions{
+		connectResult: &pluginssh.ConnectResult{Handle: 4, HostKeyType: "ssh-ed25519"},
+		operationID:   "op-1",
+	}
+	svc := NewSSHService(
+		sessions,
+		NewGuard(stubPermissionChecker{allowed: true}, WithGuardAudit(recorder)).For(sshTestPluginID),
+	)
+
+	_, err := svc.Connect(ctx, &sshsdk.ConnectRequest{Host: "example.com", Port: 2222, User: "root"})
+	require.NoError(t, err)
+
+	_, err = svc.StartExec(ctx, &sshsdk.ExecRequest{
+		Handle:  4,
+		Command: "echo hunter2 | passwd --stdin root",
+		Stdin:   []byte("hunter2"),
+	})
+	require.NoError(t, err)
+
+	events := recorder.all()
+	require.Len(t, events, 2)
+
+	assert.Equal(t, audit.EventPluginSSHConnect, events[0].Type)
+	assert.Equal(t, audit.OutcomeSuccess, events[0].Outcome)
+	assert.Equal(t, audit.AuthMethodPlugin, events[0].AuthMethod)
+	assert.Equal(t, "ssh_host", events[0].ResourceType)
+	assert.Equal(t, "example.com:2222", events[0].ResourceID)
+
+	assert.Equal(t, audit.EventPluginSSHExec, events[1].Type)
+	assert.Equal(t, "start_exec", events[1].Action)
+	assert.Equal(t, "ssh_session", events[1].ResourceType)
+	assert.Equal(t, "4", events[1].ResourceID)
+
+	for _, event := range events {
+		for _, attr := range event.Extra {
+			assert.NotContains(t, attr.Value.String(), "hunter2",
+				"neither the command nor its stdin may reach the audit stream")
+		}
+	}
+}
+
+// TestSSHService_UsesTheDefaultPortInTheAuditRecord: an operator reading the
+// trail needs the endpoint that was actually dialed, not the zero the plugin
+// left in the request.
+func TestSSHService_UsesTheDefaultPortInTheAuditRecord(t *testing.T) {
+	t.Parallel()
+	recorder := &auditRecorder{}
+	sessions := &mockSSHSessions{connectResult: &pluginssh.ConnectResult{Handle: 1}}
+	svc := NewSSHService(
+		sessions,
+		NewGuard(stubPermissionChecker{allowed: true}, WithGuardAudit(recorder)).For(sshTestPluginID),
+	)
+
+	_, err := svc.Connect(context.Background(), &sshsdk.ConnectRequest{Host: "example.com", User: "root"})
+
+	require.NoError(t, err)
+	events := recorder.all()
+	require.Len(t, events, 1)
+	assert.Equal(t, "example.com:22", events[0].ResourceID)
+}
+
 // TestSSHService_PermissionCheckFailureIsReported keeps a database hiccup from
 // silently granting access.
 func TestSSHService_PermissionCheckFailureIsReported(t *testing.T) {
 	t.Parallel()
 	sessions := &mockSSHSessions{}
-	svc := NewSSHService(sshTestPluginID, sessions,
-		stubPermissionChecker{allowed: true, err: assert.AnError})
+	svc := NewSSHService(sessions,
+		NewGuard(stubPermissionChecker{allowed: true, err: assert.AnError}).For(sshTestPluginID))
 
 	resp, err := svc.Connect(context.Background(), &sshsdk.ConnectRequest{Host: "example.com", User: "root"})
 
@@ -577,13 +674,16 @@ func TestSSHService_GenerateKeyPair(t *testing.T) {
 func TestSSHHostLibrary_CloseReleasesSessions(t *testing.T) {
 	t.Parallel()
 	sessions := &mockSSHSessions{}
-	factory := NewSSHHostLibraryFactory(stubSSHOpener{sessions: sessions}, stubPermissionChecker{allowed: true})
+	factory := NewSSHHostLibraryFactory(
+		stubSSHOpener{sessions: sessions},
+		NewGuard(stubPermissionChecker{allowed: true}),
+	)
 
 	lib := factory.Create(sshTestPluginID)
 
 	impl, ok := lib.(*SSHHostLibrary)
 	require.True(t, ok)
-	assert.Equal(t, uint64(sshTestPluginID), impl.impl.pluginID)
+	assert.Equal(t, uint64(sshTestPluginID), impl.impl.guard.PluginID())
 
 	require.NoError(t, impl.Close(context.Background()))
 	assert.True(t, sessions.closed)

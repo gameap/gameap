@@ -456,6 +456,63 @@ func (s *stubNodesService) GetNode(
 	return &nodes.GetNodeResponse{Node: &domainproto.Node{Id: req.Id, Name: "node-1"}, Found: true}, nil
 }
 
+func (s *stubNodesService) UpdateNode(
+	_ context.Context,
+	req *nodes.UpdateNodeRequest,
+) (*nodes.UpdateNodeResponse, error) {
+	s.record("UpdateNode")
+
+	return &nodes.UpdateNodeResponse{
+		Success: true,
+		Node:    &domainproto.Node{Id: req.Id, Name: "node-1"},
+	}, nil
+}
+
+func (s *stubNodesService) DeleteNode(
+	_ context.Context,
+	_ *nodes.DeleteNodeRequest,
+) (*nodes.DeleteNodeResponse, error) {
+	s.record("DeleteNode")
+
+	return &nodes.DeleteNodeResponse{Success: true}, nil
+}
+
+func (s *stubNodesService) CreateSetupKey(
+	_ context.Context,
+	_ *nodes.CreateSetupKeyRequest,
+) (*nodes.CreateSetupKeyResponse, error) {
+	s.record("CreateSetupKey")
+
+	return &nodes.CreateSetupKeyResponse{
+		Success:    true,
+		SetupKey:   "setup-key",
+		TicketId:   "ticket-1",
+		ConnectUrl: "https://panel.example.com/enroll",
+	}, nil
+}
+
+func (s *stubNodesService) GetSetupKey(
+	_ context.Context,
+	_ *nodes.GetSetupKeyRequest,
+) (*nodes.GetSetupKeyResponse, error) {
+	s.record("GetSetupKey")
+
+	return &nodes.GetSetupKeyResponse{
+		Success: true,
+		Found:   true,
+		Status:  nodes.SetupKeyStatus_SETUP_KEY_STATUS_PENDING,
+	}, nil
+}
+
+func (s *stubNodesService) RevokeSetupKey(
+	_ context.Context,
+	_ *nodes.RevokeSetupKeyRequest,
+) (*nodes.RevokeSetupKeyResponse, error) {
+	s.record("RevokeSetupKey")
+
+	return &nodes.RevokeSetupKeyResponse{Success: true}, nil
+}
+
 // stubServerSettingsService satisfies serversettings.ServerSettingsService with fake responses.
 type stubServerSettingsService struct {
 	callRecorder

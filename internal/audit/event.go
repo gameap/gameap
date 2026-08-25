@@ -83,6 +83,43 @@ const (
 	EventPluginUninstall      EventType = "plugin.uninstall"
 )
 
+// Plugin runtime lifecycle: recorded by the panel itself (AuthMethodSystem)
+// when a guest misbehaves and when it is brought back, and by an operator
+// reloading a plugin on demand.
+const (
+	EventPluginDisabled EventType = "plugin.disabled"
+	EventPluginReloaded EventType = "plugin.reloaded"
+)
+
+// Privileged actions a plugin performs through the host libraries, recorded
+// with the plugin as the actor (AuthMethodPlugin). The user whose request
+// triggered the plugin, when there is one, travels in the on_behalf_of_*
+// attributes. Grant denials reuse EventAccessDenied with the plugin actor.
+const (
+	EventPluginServerControl EventType = "plugin.server.control"
+	EventPluginServerSave    EventType = "plugin.server.save"
+	EventPluginServerDelete  EventType = "plugin.server.delete"
+	EventPluginServerSetting EventType = "plugin.server.setting"
+	EventPluginTaskCreate    EventType = "plugin.task.create"
+	EventPluginNodeCommand   EventType = "plugin.node.command"
+	EventPluginNodeFile      EventType = "plugin.node.file"
+	// EventPluginSSH*: gameap-ssh reaches hosts the plugin names itself,
+	// outside the daemon and outside the node inventory, so the connection,
+	// the commands and the file transfers are recorded separately. The
+	// command text, stdin and any key material are never part of the record.
+	EventPluginSSHConnect        EventType = "plugin.ssh.connect"
+	EventPluginSSHExec           EventType = "plugin.ssh.exec"
+	EventPluginSSHFile           EventType = "plugin.ssh.file"
+	EventPluginRBACRole          EventType = "plugin.rbac.role"
+	EventPluginRBACGrant         EventType = "plugin.rbac.grant"
+	EventPluginRBACRevoke        EventType = "plugin.rbac.revoke"
+	EventPluginPermissionsUpdate EventType = "plugin.permissions.update"
+	// EventPluginHostCallRateLimited: a host call refused by the per-plugin
+	// rate limiter. Throttled per plugin and limiter class so a plugin
+	// looping on a refused call cannot flood the audit stream.
+	EventPluginHostCallRateLimited EventType = "plugin.hostcall.ratelimited"
+)
+
 // AuthMethod describes how the actor authenticated for the audited request.
 type AuthMethod string
 
@@ -91,9 +128,12 @@ const (
 	AuthMethodPAT        AuthMethod = "pat"
 	AuthMethodShortLived AuthMethod = "shortlived"
 	AuthMethodAnonymous  AuthMethod = "anonymous"
-	// AuthMethodPlugin marks an action a WASM plugin performed through a host
-	// library. There is no request session behind it, so the helpers cannot
-	// derive the actor — PluginOp sets it explicitly.
+	// AuthMethodSystem marks actions the panel takes on its own, outside
+	// any request (plugin recovery, background maintenance).
+	AuthMethodSystem AuthMethod = "system"
+	// AuthMethodPlugin marks actions a plugin performs through the host
+	// libraries; ActorID is the plugin's database ID and ActorLogin its
+	// declared ID.
 	AuthMethodPlugin AuthMethod = "plugin"
 )
 

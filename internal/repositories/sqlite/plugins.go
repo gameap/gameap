@@ -10,6 +10,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/base"
 	"github.com/pkg/errors"
 )
@@ -24,15 +25,19 @@ var pluginFields = []string{
 	"filename",
 	"source",
 	"homepage",
+	"checksum",
 	"required_permissions",
 	"allowed_permissions",
 	"status",
 	"priority",
+	"generation",
 	"category",
 	"dependencies",
 	"config",
 	"installed_at",
 	"last_loaded_at",
+	"last_error",
+	"last_error_at",
 	"created_at",
 	"updated_at",
 }
@@ -209,15 +214,19 @@ func (r *PluginRepository) insert(
 			plugin.Filename,
 			plugin.Source,
 			plugin.Homepage,
+			plugin.Checksum,
 			jsonFields.requiredPermissions,
 			jsonFields.allowedPermissions,
 			plugin.Status,
 			plugin.Priority,
+			plugin.Generation,
 			plugin.Category,
 			jsonFields.dependencies,
 			jsonFields.config,
 			formatTimePtr(plugin.InstalledAt),
 			formatTimePtr(plugin.LastLoadedAt),
+			plugin.LastError,
+			formatTimePtr(plugin.LastErrorAt),
 			formatTimePtr(plugin.CreatedAt),
 			formatTimePtr(plugin.UpdatedAt),
 		).
@@ -248,15 +257,19 @@ func (r *PluginRepository) update(
 		Set("filename", plugin.Filename).
 		Set("source", plugin.Source).
 		Set("homepage", plugin.Homepage).
+		Set("checksum", plugin.Checksum).
 		Set("required_permissions", jsonFields.requiredPermissions).
 		Set("allowed_permissions", jsonFields.allowedPermissions).
 		Set("status", plugin.Status).
 		Set("priority", plugin.Priority).
+		Set("generation", plugin.Generation).
 		Set("category", plugin.Category).
 		Set("dependencies", jsonFields.dependencies).
 		Set("config", jsonFields.config).
 		Set("installed_at", formatTimePtr(plugin.InstalledAt)).
 		Set("last_loaded_at", formatTimePtr(plugin.LastLoadedAt)).
+		Set("last_error", plugin.LastError).
+		Set("last_error_at", formatTimePtr(plugin.LastErrorAt)).
 		Set("updated_at", formatTimePtr(plugin.UpdatedAt)).
 		Where(sq.Eq{"id": plugin.ID}).
 		ToSql()
@@ -267,6 +280,41 @@ func (r *PluginRepository) update(
 	_, err = r.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return errors.WithMessage(err, "failed to execute query")
+	}
+
+	return nil
+}
+
+func (r *PluginRepository) UpdateLoadState(
+	ctx context.Context,
+	id domain.Uint64ID,
+	state domain.PluginLoadState,
+) error {
+	query, args, err := sq.Update(base.PluginsTable).
+		Set("status", state.Status).
+		Set("last_error", state.LastError).
+		Set("last_error_at", formatTimePtr(state.LastErrorAt)).
+		Set("last_loaded_at", formatTimePtr(state.LastLoadedAt)).
+		Set("generation", state.Generation).
+		Set("updated_at", formatTimePtr(new(time.Now()))).
+		Where(sq.Eq{"id": id}).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build query")
+	}
+
+	res, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to execute query")
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return errors.WithMessage(err, "failed to read update result")
+	}
+
+	if affected == 0 {
+		return repositories.ErrPluginNotFound
 	}
 
 	return nil
@@ -314,7 +362,7 @@ func (r *PluginRepository) Exists(ctx context.Context, filter *filters.FindPlugi
 func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 	var plugin domain.Plugin
 	var requiredPermissionsJSON, allowedPermissionsJSON, dependenciesJSON, configJSON []byte
-	var installedAtStr, lastLoadedAtStr, createdAtStr, updatedAtStr *string
+	var installedAtStr, lastLoadedAtStr, lastErrorAtStr, createdAtStr, updatedAtStr *string
 
 	err := row.Scan(
 		&plugin.ID,
@@ -326,15 +374,19 @@ func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 		&plugin.Filename,
 		&plugin.Source,
 		&plugin.Homepage,
+		&plugin.Checksum,
 		&requiredPermissionsJSON,
 		&allowedPermissionsJSON,
 		&plugin.Status,
 		&plugin.Priority,
+		&plugin.Generation,
 		&plugin.Category,
 		&dependenciesJSON,
 		&configJSON,
 		&installedAtStr,
 		&lastLoadedAtStr,
+		&plugin.LastError,
+		&lastErrorAtStr,
 		&createdAtStr,
 		&updatedAtStr,
 	)
@@ -378,6 +430,11 @@ func (r *PluginRepository) scan(row base.Scanner) (*domain.Plugin, error) {
 	plugin.LastLoadedAt, err = parseTimePtr(lastLoadedAtStr)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to parse last_loaded_at")
+	}
+
+	plugin.LastErrorAt, err = parseTimePtr(lastErrorAtStr)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to parse last_error_at")
 	}
 
 	plugin.CreatedAt, err = parseTimePtr(createdAtStr)

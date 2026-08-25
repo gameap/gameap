@@ -17,3 +17,10 @@ type PluginStorageEntityPair struct {
 	EntityType *string
 	EntityID   *uint
 }
+
+// PluginStorageUsage is what one plugin keeps in gameap-storage; it backs
+// the per-plugin quotas without reading payloads.
+type PluginStorageUsage struct {
+	Keys  int
+	Bytes uint64
+}

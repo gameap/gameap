@@ -22,6 +22,10 @@ const en = {
         paste: 'Paste',
         refresh: 'Refresh',
         retryFailed: 'Retry failed',
+        search: 'Search',
+        searchClose: 'Close search',
+        searchNext: 'Next match',
+        searchPrev: 'Previous match',
         submit: 'Submit',
         table: 'Table',
         upload: 'Upload',
@@ -35,9 +39,12 @@ const en = {
     },
     hint: {
         ctrlA: 'Ctrl+A',
+        ctrlF: 'Ctrl+F',
         esc: 'Esc',
         del: 'Del',
         f5: 'F5',
+        enter: 'Enter',
+        shiftEnter: 'Shift+Enter',
         shiftClick: 'Shift+Click for range',
     },
     clipboard: {
@@ -117,6 +124,7 @@ const en = {
         errorRetry: 'Retry',
         sortAsc: 'Sort ascending',
         sortDesc: 'Sort descending',
+        searchPlaceholder: 'Search in folder…',
     },
     modal: {
         about: {
@@ -284,6 +292,23 @@ const en = {
             copyManual: 'Press Ctrl+C to copy',
             failed: 'Failed',
             noSelected: 'Nothing selected!',
+        },
+    },
+    history: {
+        title: 'History',
+        tabRecent: 'Recent',
+        tabFrequent: 'Frequent',
+        directories: 'Folders',
+        files: 'Files',
+        empty: 'Nothing here yet',
+        emptyHint: 'Open folders and files — they will show up here.',
+        staleRemoved: 'Item no longer exists — removed from history',
+        time: {
+            justNow: 'just now',
+            min: '{n} min ago',
+            hour: '{n} h ago',
+            yesterday: 'yesterday',
+            day: '{n} d ago',
         },
     },
     notifications: {

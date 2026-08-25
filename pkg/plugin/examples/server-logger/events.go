@@ -31,6 +31,15 @@ func (p *ServerLoggerPlugin) GetSubscribedEvents(
 			pluginproto.EventType_EVENT_TYPE_SERVER_POST_REINSTALL,
 			pluginproto.EventType_EVENT_TYPE_SERVER_PRE_DELETE,
 			pluginproto.EventType_EVENT_TYPE_SERVER_POST_DELETE,
+			// Events a panel older than these values never raises; an older
+			// panel ignores the unknown subscriptions.
+			pluginproto.EventType_EVENT_TYPE_SERVER_SETTINGS_CHANGED,
+			pluginproto.EventType_EVENT_TYPE_USER_CREATED,
+			pluginproto.EventType_EVENT_TYPE_USER_DELETED,
+			pluginproto.EventType_EVENT_TYPE_NODE_ONLINE,
+			pluginproto.EventType_EVENT_TYPE_NODE_OFFLINE,
+			pluginproto.EventType_EVENT_TYPE_PLUGIN_LOADED,
+			pluginproto.EventType_EVENT_TYPE_PLUGIN_ERROR,
 		},
 	}, nil
 }
@@ -41,7 +50,7 @@ func (p *ServerLoggerPlugin) HandleEvent(
 ) (*pluginproto.EventResult, error) {
 	serverEvent := event.GetServerEvent()
 	if serverEvent == nil || serverEvent.Server == nil {
-		return &pluginproto.EventResult{Handled: false}, nil
+		return handleOtherEvent(event), nil
 	}
 
 	server := serverEvent.Server
@@ -117,4 +126,40 @@ func eventTypeName(eventType pluginproto.EventType) string {
 	default:
 		return "UNKNOWN"
 	}
+}
+
+// handleOtherEvent logs the non-server payloads this plugin subscribes to.
+func handleOtherEvent(event *pluginproto.Event) *pluginproto.EventResult {
+	attrs := []any{
+		slog.String("event_type", pluginproto.EventType_name[int32(event.GetType())]),
+		slog.String("receiver", event.GetContext().GetPluginId()),
+	}
+
+	switch payload := event.GetPayload().(type) {
+	case *pluginproto.Event_UserEvent:
+		attrs = append(attrs,
+			slog.Uint64("user_id", payload.UserEvent.GetUser().GetId()),
+			slog.String("login", payload.UserEvent.GetUser().GetLogin()))
+	case *pluginproto.Event_NodeEvent:
+		attrs = append(attrs,
+			slog.Uint64("node_id", payload.NodeEvent.GetNode().GetId()),
+			slog.String("node", payload.NodeEvent.GetNode().GetName()),
+			slog.String("instance_id", payload.NodeEvent.GetExtraData()["instance_id"]))
+	case *pluginproto.Event_ServerSettingsEvent:
+		attrs = append(attrs,
+			slog.Uint64("server_id", payload.ServerSettingsEvent.GetServerId()),
+			slog.String("changed_fields", payload.ServerSettingsEvent.GetExtraData()["changed_fields"]))
+	case *pluginproto.Event_PluginEvent:
+		attrs = append(attrs,
+			slog.String("plugin", payload.PluginEvent.GetName()),
+			slog.String("status", payload.PluginEvent.GetStatus()),
+			slog.String("error", payload.PluginEvent.GetError()))
+	default:
+		return &pluginproto.EventResult{Handled: false}
+	}
+
+	logger.Info("Panel event", attrs...)
+	eventCounter.Add(1)
+
+	return &pluginproto.EventResult{Handled: true}
 }

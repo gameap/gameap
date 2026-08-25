@@ -7,6 +7,7 @@ package enrollment
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -339,4 +341,48 @@ func TestService_Enroll_UnknownTicketKeepsTheGlobalKeyError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidSetupKey)
+}
+
+type nodeEventRecorder struct {
+	mu     sync.Mutex
+	events []pluginproto.EventType
+	nodes  []uint
+	extra  []map[string]string
+}
+
+func (r *nodeEventRecorder) DispatchNodeEventAsync(
+	_ context.Context, eventType pluginproto.EventType, node *domain.Node, extraData map[string]string,
+) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.events = append(r.events, eventType)
+	r.nodes = append(r.nodes, node.ID)
+	r.extra = append(r.extra, extraData)
+}
+
+func TestService_Enroll_publishes_node_created(t *testing.T) {
+	t.Parallel()
+
+	cacheInstance := cache.NewInMemory()
+	fileManager := files.NewInMemoryFileManager()
+	recorder := &nodeEventRecorder{}
+	svc := NewService(NewSetupKeyManager(cacheInstance, ""), inmemory.NewNodeRepository(),
+		inmemory.NewClientCertificateRepository(), certificates.NewService(fileManager), WithNodeEvents(recorder))
+	ctx := context.Background()
+
+	require.NoError(t, cacheInstance.Set(ctx, SetupKeyCacheKey, "test-setup-key-32-chars-long1234"))
+
+	_, err := svc.Enroll(ctx, "wrong-key", &EnrollInput{Host: "192.168.1.100", Port: 31717, OS: "linux"})
+	require.Error(t, err)
+	assert.Empty(t, recorder.events, "a refused enrollment creates no node")
+
+	result, err := svc.Enroll(ctx, "test-setup-key-32-chars-long1234", &EnrollInput{
+		Host: "192.168.1.100", Port: 31717, OS: "linux", Version: "4.4.0",
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []pluginproto.EventType{pluginproto.EventType_EVENT_TYPE_NODE_CREATED}, recorder.events)
+	assert.Equal(t, []uint{result.NodeID}, recorder.nodes)
+	assert.Equal(t, map[string]string{"source": "enrollment", "daemon_version": "4.4.0"}, recorder.extra[0])
 }

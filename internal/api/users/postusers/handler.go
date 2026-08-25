@@ -6,20 +6,34 @@ import (
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	pluginproto "github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/pkg/errors"
 )
 
+// PluginDispatcher publishes user events to plugins; satisfied by
+// *plugin.Dispatcher.
+type PluginDispatcher interface {
+	DispatchUserEventAsync(
+		ctx context.Context,
+		eventType pluginproto.EventType,
+		user *domain.User,
+		extraData map[string]string,
+	)
+}
+
 type Handler struct {
-	usersRepo   repositories.UserRepository
-	serversRepo repositories.ServerRepository
-	rbac        base.RBAC
-	tm          base.TransactionManager
-	responder   base.Responder
+	usersRepo        repositories.UserRepository
+	serversRepo      repositories.ServerRepository
+	rbac             base.RBAC
+	tm               base.TransactionManager
+	pluginDispatcher PluginDispatcher
+	responder        base.Responder
 }
 
 func NewHandler(
@@ -27,14 +41,16 @@ func NewHandler(
 	serversRepo repositories.ServerRepository,
 	rbac base.RBAC,
 	tm base.TransactionManager,
+	pluginDispatcher PluginDispatcher,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		usersRepo:   usersRepo,
-		rbac:        rbac,
-		serversRepo: serversRepo,
-		tm:          tm,
-		responder:   responder,
+		usersRepo:        usersRepo,
+		rbac:             rbac,
+		serversRepo:      serversRepo,
+		tm:               tm,
+		pluginDispatcher: pluginDispatcher,
+		responder:        responder,
 	}
 }
 
@@ -149,6 +165,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		h.responder.WriteError(ctx, rw, err)
 
 		return
+	}
+
+	if h.pluginDispatcher != nil {
+		h.pluginDispatcher.DispatchUserEventAsync(ctx, pluginproto.EventType_EVENT_TYPE_USER_CREATED, user, nil)
 	}
 
 	roles, err := h.rbac.GetRoles(ctx, user.ID)

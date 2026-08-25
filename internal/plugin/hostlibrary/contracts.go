@@ -29,7 +29,9 @@ type NodeFileService interface {
 	MkDir(ctx context.Context, node *domain.Node, directory string, owner daemon.OwnerOptions) error
 	Copy(ctx context.Context, node *domain.Node, source, destination string) error
 	Move(ctx context.Context, node *domain.Node, source, destination string) error
-	Download(ctx context.Context, node *domain.Node, filePath string) ([]byte, error)
+	// DownloadLimited reads at most limit bytes from the start of the file;
+	// 0 reads the whole file.
+	DownloadLimited(ctx context.Context, node *domain.Node, filePath string, limit uint64) ([]byte, error)
 	Upload(
 		ctx context.Context,
 		node *domain.Node,
@@ -122,4 +124,19 @@ type SSHSessionManager interface {
 	WaitCompletion(ctx context.Context, operationID string) error
 	SubscribeCompletion(operationID string) error
 	Close()
+}
+
+// PluginGrantsReader reads the whole grant set of a plugin at once, so one
+// database read answers every permission question about it. Satisfied by
+// *RepositoryPermissionChecker.
+type PluginGrantsReader interface {
+	Grants(ctx context.Context, pluginID uint64) ([]domain.PluginPermission, error)
+}
+
+// PermissionCacheInvalidator drops cached grants. Satisfied by
+// *CachedPermissionChecker; the plain repository checker holds no state and
+// does not implement it.
+type PermissionCacheInvalidator interface {
+	Invalidate(pluginID uint64)
+	InvalidateAll()
 }

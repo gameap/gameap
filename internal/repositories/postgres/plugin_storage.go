@@ -354,6 +354,11 @@ func (r *PluginStorageRepository) filterToSq(filter *filters.FindPluginStorage) 
 		and = append(and, sq.Eq{"key": filter.Keys})
 	}
 
+	if filter.KeyPrefix != nil && *filter.KeyPrefix != "" {
+		and = append(and, sq.Expr("key"+" LIKE ? ESCAPE '"+base.LikeEscapeChar+"'",
+			base.LikePrefixPattern(*filter.KeyPrefix)))
+	}
+
 	if len(filter.EntityPairs) > 0 {
 		or := make(sq.Or, 0, len(filter.EntityPairs))
 		for _, pair := range filter.EntityPairs {
@@ -367,4 +372,25 @@ func (r *PluginStorageRepository) filterToSq(filter *filters.FindPluginStorage) 
 	}
 
 	return and
+}
+
+func (r *PluginStorageRepository) UsageByPlugin(
+	ctx context.Context,
+	pluginID uint64,
+) (domain.PluginStorageUsage, error) {
+	query, args, err := sq.Select("COUNT(*)", "COALESCE(SUM(octet_length(payload)), 0)").
+		From(base.PluginStorageTable).
+		Where(sq.Eq{"plugin_id": pluginID}).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if err != nil {
+		return domain.PluginStorageUsage{}, errors.WithMessage(err, "failed to build query")
+	}
+
+	var usage domain.PluginStorageUsage
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&usage.Keys, &usage.Bytes); err != nil {
+		return domain.PluginStorageUsage{}, errors.WithMessage(err, "failed to execute query")
+	}
+
+	return usage, nil
 }

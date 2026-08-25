@@ -92,6 +92,15 @@ func (s *NodesServiceImpl) authorize(ctx context.Context) (bool, string) {
 	return true, ""
 }
 
+// auditActor identifies this plugin as the actor of an audited operation,
+// the same identity the guard files for the other host libraries.
+func (s *NodesServiceImpl) auditActor() audit.PluginActor {
+	return audit.PluginActor{
+		ID:   s.pluginID,
+		Name: pkgplugin.CompactPluginID(domain.Uint64ID(s.pluginID)),
+	}
+}
+
 // owner identifies this plugin as the issuer of an enrollment ticket, so one
 // plugin cannot inspect or revoke another's.
 func (s *NodesServiceImpl) owner() string {
@@ -182,9 +191,9 @@ func (s *NodesServiceImpl) UpdateNode(
 		return &nodes.UpdateNodeResponse{Error: new(err.Error())}, nil
 	}
 
-	audit.PluginOp(ctx, s.auditLoger, s.pluginID,
-		audit.EventNodeUpdate, audit.CategoryNodeOp,
-		"node", strconv.FormatUint(req.Id, 10), "update")
+	audit.PluginOp(ctx, s.auditLoger, audit.EventNodeUpdate, audit.CategoryNodeOp,
+		audit.OutcomeSuccess, s.auditActor(),
+		"node", strconv.FormatUint(req.Id, 10), "update", "")
 
 	return &nodes.UpdateNodeResponse{
 		Success: true,
@@ -206,9 +215,9 @@ func (s *NodesServiceImpl) DeleteNode(
 		return &nodes.DeleteNodeResponse{Error: new(err.Error())}, nil
 	}
 
-	audit.PluginOp(ctx, s.auditLoger, s.pluginID,
-		audit.EventNodeDelete, audit.CategoryNodeOp,
-		"node", strconv.FormatUint(req.Id, 10), "delete")
+	audit.PluginOp(ctx, s.auditLoger, audit.EventNodeDelete, audit.CategoryNodeOp,
+		audit.OutcomeSuccess, s.auditActor(),
+		"node", strconv.FormatUint(req.Id, 10), "delete", "")
 
 	return &nodes.DeleteNodeResponse{Success: true}, nil
 }
@@ -256,9 +265,9 @@ func (s *NodesServiceImpl) CreateSetupKey(
 	connectURL := enrollment.FormatConnectURL(target.Host, target.Port, setupKey)
 	scriptOpts := scriptOptionsFromProto(req.InstallScript)
 
-	audit.PluginOp(ctx, s.auditLoger, s.pluginID,
-		audit.EventNodeSetupKeyCreate, audit.CategoryNodeOp,
-		"enroll_ticket", ticket.ID, "create",
+	audit.PluginOp(ctx, s.auditLoger, audit.EventNodeSetupKeyCreate, audit.CategoryNodeOp,
+		audit.OutcomeSuccess, s.auditActor(),
+		"enroll_ticket", ticket.ID, "create", "",
 		slog.Int64("ttl_seconds", int64(req.TtlSeconds)))
 
 	return &nodes.CreateSetupKeyResponse{
@@ -322,9 +331,9 @@ func (s *NodesServiceImpl) RevokeSetupKey(
 		return &nodes.RevokeSetupKeyResponse{Error: new(err.Error())}, nil
 	}
 
-	audit.PluginOp(ctx, s.auditLoger, s.pluginID,
-		audit.EventNodeSetupKeyRevoke, audit.CategoryNodeOp,
-		"enroll_ticket", req.TicketId, "revoke")
+	audit.PluginOp(ctx, s.auditLoger, audit.EventNodeSetupKeyRevoke, audit.CategoryNodeOp,
+		audit.OutcomeSuccess, s.auditActor(),
+		"enroll_ticket", req.TicketId, "revoke", "")
 
 	return &nodes.RevokeSetupKeyResponse{Success: true}, nil
 }

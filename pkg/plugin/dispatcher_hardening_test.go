@@ -39,6 +39,10 @@ func TestDispatcher_Dispatch_call_timeout_disables_plugin(t *testing.T) {
 	require.Len(t, result.Errors, 1)
 	assert.Contains(t, result.Errors[0].Error(), "context deadline exceeded")
 	assert.False(t, plugin.IsEnabled(), "plugin must be disabled after a handler timeout")
+
+	reason, ok := plugin.DisabledReason()
+	require.True(t, ok)
+	assert.Equal(t, "event handler timed out (SERVER_POST_START)", reason)
 }
 
 func TestDispatcher_Dispatch_caller_deadline_does_not_disable_plugin(t *testing.T) {

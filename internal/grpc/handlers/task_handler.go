@@ -92,12 +92,12 @@ func (h *TaskHandler) HandleTaskStatusUpdate(ctx context.Context, nodeID uint64,
 
 	if isTerminalStatus(task.Status) {
 		h.publishTaskComplete(ctx, update.TaskId, string(task.Status), task.DedicatedServerID)
+	}
 
-		// The daemon may re-deliver a terminal update (retry, reconnect
-		// replay); plugins must see each transition only once.
-		if prevStatus != task.Status {
-			h.dispatchPluginTaskEvent(ctx, &task)
-		}
+	// The daemon may re-deliver an update (retry, reconnect replay);
+	// plugins must see each transition only once.
+	if prevStatus != task.Status && (isTerminalStatus(task.Status) || task.Status == domain.DaemonTaskStatusWorking) {
+		h.dispatchPluginTaskEvent(ctx, &task)
 	}
 
 	h.logger.Debug("task status updated",
@@ -246,14 +246,21 @@ func (h *TaskHandler) markTaskAbandoned(ctx context.Context, task *domain.Daemon
 	return nil
 }
 
-// dispatchPluginTaskEvent notifies plugins about a terminal task transition.
+// dispatchPluginTaskEvent notifies plugins about a task transition: the
+// daemon picking it up (working) and the terminal outcomes.
 func (h *TaskHandler) dispatchPluginTaskEvent(ctx context.Context, task *domain.DaemonTask) {
 	if h.pluginEvents == nil {
 		return
 	}
 
-	eventType := pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED
-	if task.Status != domain.DaemonTaskStatusSuccess {
+	var eventType pluginproto.EventType
+
+	switch task.Status {
+	case domain.DaemonTaskStatusWorking:
+		eventType = pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_STARTED
+	case domain.DaemonTaskStatusSuccess:
+		eventType = pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_COMPLETED
+	default:
 		eventType = pluginproto.EventType_EVENT_TYPE_DAEMON_TASK_FAILED
 	}
 

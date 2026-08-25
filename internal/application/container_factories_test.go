@@ -130,6 +130,7 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"PluginManager", func(c *Container) any { return c.PluginManager() }},
 		{"PluginDispatcher", func(c *Container) any { return c.PluginDispatcher() }},
 		{"PluginLoader", func(c *Container) any { return c.PluginLoader() }},
+		{"PluginRecovery", func(c *Container) any { return c.PluginRecovery() }},
 		{"PluginStoreService", func(c *Container) any { return c.PluginStoreService() }},
 		{"PluginSSH", func(c *Container) any { return c.PluginSSH() }},
 

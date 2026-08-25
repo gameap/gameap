@@ -2,8 +2,6 @@ package installplugin
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -28,6 +26,7 @@ type Handler struct {
 	fileManager   files.FileManager
 	loader        *plugin.Loader
 	subscriptions plugininstall.SubscriptionRefresher
+	sync          plugininstall.SyncNotifier
 	pluginsDir    string
 	responder     base.Responder
 }
@@ -38,6 +37,7 @@ func NewHandler(
 	fileManager files.FileManager,
 	loader *plugin.Loader,
 	subscriptions plugininstall.SubscriptionRefresher,
+	sync plugininstall.SyncNotifier,
 	pluginsDir string,
 	responder base.Responder,
 ) *Handler {
@@ -47,6 +47,7 @@ func NewHandler(
 		fileManager:   fileManager,
 		loader:        loader,
 		subscriptions: subscriptions,
+		sync:          sync,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 	}
@@ -126,7 +127,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pluginRecord := h.buildPluginRecord(dbID, pluginDetails, selectedVersion, filename, storePluginID)
+	pluginRecord := h.buildPluginRecord(dbID, pluginDetails, selectedVersion, filename, storePluginID, wasmBytes)
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
 		_ = h.fileManager.Delete(ctx, pluginPath)
@@ -135,13 +136,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.loadAndGrant(ctx, pluginRecord, filename, wasmBytes); err != nil {
+	if err := h.loadAndGrant(ctx, pluginRecord, wasmBytes); err != nil {
+		// The row exists (status error): peers still learn about it.
+		plugininstall.Notify(ctx, h.sync, dbID, plugininstall.ActionInstall)
+
 		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}
 
-	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
+	plugininstall.AfterChange(ctx, h.subscriptions, h.sync, dbID, plugininstall.ActionInstall)
 
 	h.responder.Write(ctx, rw, newInstallResponse(pluginRecord))
 }
@@ -152,17 +156,14 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func (h *Handler) loadAndGrant(
 	ctx context.Context,
 	pluginRecord *domain.Plugin,
-	filename string,
 	wasmBytes []byte,
 ) error {
-	loaded, err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename)
+	loaded, err := plugininstall.TryLoadPlugin(ctx, h.loader, pluginRecord)
 	if err != nil {
-		wasmHash := sha256.Sum256(wasmBytes)
-
 		slog.WarnContext(
 			ctx,
 			"failed to load wasm file",
-			slog.String("wasm_hash", hex.EncodeToString(wasmHash[:])),
+			slog.String("wasm_hash", plugin.FileChecksum(wasmBytes)),
 			slog.String("error", err.Error()),
 		)
 
@@ -227,7 +228,7 @@ func (h *Handler) disableUngrantedPlugin(
 		}
 	}
 
-	pluginRecord.Status = domain.PluginStatusError
+	pluginRecord.MarkError("plugin permissions were not recorded", time.Now())
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
 		slog.WarnContext(ctx, "failed to mark plugin as errored",
@@ -352,6 +353,7 @@ func (h *Handler) buildPluginRecord(
 	version *pluginstore.PluginVersion,
 	filename string,
 	storePluginID string,
+	wasmBytes []byte,
 ) *domain.Plugin {
 	source := h.storeService.BaseURL() + "/plugins/" + storePluginID
 
@@ -363,6 +365,7 @@ func (h *Handler) buildPluginRecord(
 		Author:      details.Author.Username,
 		Filename:    new(filename),
 		Source:      new(source),
+		Checksum:    new(plugin.FileChecksum(wasmBytes)),
 		Status:      domain.PluginStatusActive,
 		InstalledAt: new(time.Now()),
 	}
