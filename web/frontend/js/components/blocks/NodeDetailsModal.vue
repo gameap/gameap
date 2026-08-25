@@ -14,24 +14,10 @@
       <div class="flex items-center gap-3 flex-wrap">
         <GIcon :name="osIcon" class="text-xl" />
         <span class="font-semibold">{{ node?.name || `node #${nodeId}` }}</span>
-        <n-tag
-            v-if="online"
-            type="success"
-            size="small"
-            round
-            :bordered="false"
-        >
-          {{ trans('dedicated_servers.online') }}
-        </n-tag>
-        <n-tag
-            v-else
-            type="error"
-            size="small"
-            round
-            :bordered="false"
-        >
-          {{ trans('dedicated_servers.offline') }}
-        </n-tag>
+        <GStatusBadge
+            :status="online ? 'success' : 'error'"
+            :text="online ? trans('dedicated_servers.online') : trans('dedicated_servers.offline')"
+        />
       </div>
     </template>
 
@@ -44,6 +30,14 @@
         >
           <GIcon name="edit" class="mr-0.5" />
           <span>{{ trans('main.edit') }}</span>
+        </GButton>
+        <GButton
+            color="black"
+            size="small"
+            :route="{ name: 'admin.gdaemon_tasks.index', query: { node: String(nodeId) } }"
+        >
+          <GIcon name="tasks" class="mr-0.5" />
+          <span>{{ trans('gdaemon_tasks.gdaemon_tasks') }}</span>
         </GButton>
         <GButton color="green" size="small" :disabled="downloading" @click="downloadCertificates">
           <GIcon name="certificate" class="mr-0.5" />
@@ -80,8 +74,8 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { NModal, NTabs, NTabPane, NTag } from 'naive-ui'
-import { GIcon, Loading, Progressbar } from '@gameap/ui'
+import { NModal, NTabs, NTabPane } from 'naive-ui'
+import { GIcon, Loading, Progressbar, GStatusBadge } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
 import NodeOverviewTab from './NodeOverviewTab.vue'
 import NodeMetricsTab from './NodeMetricsTab.vue'

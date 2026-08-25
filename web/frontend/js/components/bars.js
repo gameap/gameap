@@ -25,11 +25,6 @@ const adminLinks = [
         route: {name: 'admin.games.index'},
     },
     {
-        icon: 'tasks',
-        text: trans('sidebar.gdaemon_tasks'),
-        route: {name: 'admin.gdaemon_tasks.index'},
-    },
-    {
         icon: 'users',
         text: trans('sidebar.users'),
         route: {name: 'admin.users.index'}
