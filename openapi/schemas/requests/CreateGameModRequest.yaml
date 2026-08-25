@@ -15,39 +15,14 @@ properties:
       - "null"
     description: Fast RCON commands
     items:
-      type: object
-      properties:
-        info:
-          type: string
-          description: Command description
-        command:
-          type: string
-          description: RCON command
-      required:
-        - info
-        - command
+      $ref: '../GameModFastRcon.yaml'
   vars:
     type:
       - array
       - "null"
     description: Mod variables
     items:
-      type: object
-      properties:
-        var:
-          type: string
-          description: Variable name
-        default:
-          type: string
-          description: Default value
-        info:
-          type: string
-          description: Description
-        admin_var:
-          type: boolean
-          description: Admin-only variable
-      required:
-        - var
+      $ref: '../GameModVar.yaml'
   remote_repository_linux:
     type:
       - string

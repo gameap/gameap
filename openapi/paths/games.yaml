@@ -182,10 +182,17 @@
       - If a mod with the same name exists for the game, it will be updated
       - Existing mods that are not in the import file are preserved
 
+      **Variables**: `mods[].vars[]` follows the same shape as `GameModVar`
+      (`type`, `description`, `options`, `allow_custom`, `true_value`,
+      `false_value`, `rules`, `i18n`); `mods[].fast_rcon[]` follows
+      `GameModFastRcon` and may carry `i18n`. All of those keys are optional,
+      so files written for older panels still import unchanged.
+
       **Validation**:
       - Maximum body size: 1 MB
       - game.code: 2-16 characters, pattern: ^[a-z0-9_-]+$
       - Duplicate mod names in the same file are not allowed
+      - Variable definitions are validated the same way as on `PUT /api/game_mods/{id}`
     operationId: importGameAP
     parameters:
       - $ref: '../parameters/QueryGameName.yaml'
@@ -355,7 +362,10 @@
       - exported_at: timestamp of export
       - exported_by: GameAP version
       - game: game configuration
-      - mods: all mods for the game
+      - mods: all mods for the game, including the full variable definitions
+        (`type`, `options`, `rules`, `i18n`, …) and fast RCON translations
+
+      The result can be fed straight back into `POST /api/games/import/gameap`.
     operationId: exportGame
     parameters:
       - $ref: '../parameters/PathGameCode.yaml'

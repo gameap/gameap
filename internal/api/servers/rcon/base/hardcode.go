@@ -48,6 +48,7 @@ var mapProtocolByEngine = map[string]rcon.Protocol{
 	"goldsrc":    rcon.ProtocolGoldSrc,
 	"source":     rcon.ProtocolSource,
 	"minecraft":  rcon.ProtocolSource,
+	"factorio":   rcon.ProtocolSource, // Factorio headless speaks Valve RCON
 	"q2":         rcon.ProtocolQuake2,
 	"q3":         rcon.ProtocolQuake3,
 	"cod4":       rcon.ProtocolQuake3,

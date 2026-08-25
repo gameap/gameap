@@ -1,6 +1,7 @@
 package postserver
 
 import (
+	settingsbase "github.com/gameap/gameap/internal/api/serversettings/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/flexible"
@@ -30,26 +31,21 @@ var (
 	ErrInvalidDir          = api.NewValidationError("dir must be a relative path without drive letter or '..' segments")
 )
 
-type settingInput struct {
-	Name  string `json:"name"`
-	Value any    `json:"value"`
-}
-
 type serverInput struct {
-	Install      *flexible.Bool `json:"install,omitempty"`
-	Name         string         `json:"name"`
-	DSID         flexible.Int   `json:"ds_id"`
-	GameID       string         `json:"game_id"`
-	GameModID    flexible.Int   `json:"game_mod_id"`
-	ServerIP     string         `json:"server_ip"`
-	ServerPort   flexible.Int   `json:"server_port"`
-	QueryPort    *flexible.Int  `json:"query_port,omitempty"`
-	RconPort     *flexible.Int  `json:"rcon_port,omitempty"`
-	Rcon         *string        `json:"rcon,omitempty"`
-	Dir          *string        `json:"dir,omitempty"`
-	StartCommand *string        `json:"start_command,omitempty"`
-	SuUser       *string        `json:"su_user,omitempty"`
-	Settings     []settingInput `json:"settings,omitempty"`
+	Install      *flexible.Bool              `json:"install,omitempty"`
+	Name         string                      `json:"name"`
+	DSID         flexible.Int                `json:"ds_id"`
+	GameID       string                      `json:"game_id"`
+	GameModID    flexible.Int                `json:"game_mod_id"`
+	ServerIP     string                      `json:"server_ip"`
+	ServerPort   flexible.Int                `json:"server_port"`
+	QueryPort    *flexible.Int               `json:"query_port,omitempty"`
+	RconPort     *flexible.Int               `json:"rcon_port,omitempty"`
+	Rcon         *string                     `json:"rcon,omitempty"`
+	Dir          *string                     `json:"dir,omitempty"`
+	StartCommand *string                     `json:"start_command,omitempty"`
+	SuUser       *string                     `json:"su_user,omitempty"`
+	Settings     []settingsbase.InputSetting `json:"settings,omitempty"`
 }
 
 func (s *serverInput) Validate() error {
@@ -104,15 +100,6 @@ func (s *serverInput) Validate() error {
 	}
 
 	return nil
-}
-
-func (s *serverInput) SettingsToMap() map[string]any {
-	settingsMap := make(map[string]any, len(s.Settings))
-	for _, setting := range s.Settings {
-		settingsMap[setting.Name] = setting.Value
-	}
-
-	return settingsMap
 }
 
 func (s *serverInput) ToDomain() *domain.Server {

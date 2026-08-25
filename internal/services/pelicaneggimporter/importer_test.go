@@ -97,7 +97,13 @@ func TestImporter_Import(t *testing.T) {
 				require.Len(t, result.GameMod.Vars, 1)
 				assert.Equal(t, "SERVER_NAME", result.GameMod.Vars[0].Var)
 				assert.Equal(t, "My Rage.MP Server", string(result.GameMod.Vars[0].Default))
-				assert.Equal(t, "Name of your server", result.GameMod.Vars[0].Info)
+				assert.Equal(t, "Server Name", result.GameMod.Vars[0].Info)
+				assert.Equal(t, "Name of your server", result.GameMod.Vars[0].Description)
+				assert.Equal(t, domain.GameModVarTypeString, result.GameMod.Vars[0].EffectiveType())
+				require.NotNil(t, result.GameMod.Vars[0].Rules)
+				assert.True(t, result.GameMod.Vars[0].Rules.IsRequired())
+				require.NotNil(t, result.GameMod.Vars[0].Rules.MaxLength)
+				assert.Equal(t, 64, *result.GameMod.Vars[0].Rules.MaxLength)
 				assert.False(t, result.GameMod.Vars[0].AdminVar)
 
 				dockerImage, ok := result.GameMod.Metadata["docker_image"].(string)
@@ -393,7 +399,8 @@ func TestImporter_Import(t *testing.T) {
 				assert.False(t, result.GameMod.Vars[0].AdminVar)
 
 				assert.Equal(t, "VAR_TWO", result.GameMod.Vars[1].Var)
-				assert.Equal(t, "Second variable", result.GameMod.Vars[1].Info)
+				assert.Equal(t, "Var Two", result.GameMod.Vars[1].Info)
+				assert.Equal(t, "Second variable", result.GameMod.Vars[1].Description)
 				assert.True(t, result.GameMod.Vars[1].AdminVar)
 
 				assert.Equal(t, "VAR_THREE", result.GameMod.Vars[2].Var)
@@ -799,10 +806,11 @@ func TestTransformVariables(t *testing.T) {
 			},
 			expected: domain.GameModVarList{
 				{
-					Var:      "SERVER_NAME",
-					Default:  "My Server",
-					Info:     "Name of the server",
-					AdminVar: false,
+					Var:         "SERVER_NAME",
+					Default:     "My Server",
+					Info:        "Server Name",
+					Description: "Name of the server",
+					AdminVar:    false,
 				},
 			},
 		},
@@ -824,6 +832,49 @@ func TestTransformVariables(t *testing.T) {
 					AdminVar: true,
 				},
 			},
+		},
+		{
+			name: "variable_with_empty_name_uses_description",
+			variables: []gamesimport.PelicanEggVariable{
+				{
+					Description:  "Name of the server",
+					EnvVariable:  "SERVER_NAME",
+					DefaultValue: "My Server",
+					UserEditable: true,
+				},
+			},
+			expected: domain.GameModVarList{
+				{
+					Var:         "SERVER_NAME",
+					Default:     "My Server",
+					Info:        "Name of the server",
+					Description: "Name of the server",
+					AdminVar:    false,
+				},
+			},
+		},
+		{
+			name: "variable_without_name_or_description_uses_env_variable",
+			variables: []gamesimport.PelicanEggVariable{
+				{
+					EnvVariable:  "SERVER_NAME",
+					UserEditable: true,
+				},
+			},
+			expected: domain.GameModVarList{
+				{Var: "SERVER_NAME", Info: "SERVER_NAME", AdminVar: false},
+			},
+		},
+		{
+			name: "variable_with_a_name_longer_than_the_limit_is_skipped",
+			variables: []gamesimport.PelicanEggVariable{
+				{
+					Name:         "Too long",
+					EnvVariable:  "A_VERY_LONG_ENVIRONMENT_VARIABLE_NAME",
+					UserEditable: true,
+				},
+			},
+			expected: domain.GameModVarList{},
 		},
 		{
 			name: "variable_with_empty_description_uses_name",
@@ -858,6 +909,7 @@ func TestTransformVariables(t *testing.T) {
 				assert.Equal(t, tt.expected[i].Var, v.Var)
 				assert.Equal(t, tt.expected[i].Default, v.Default)
 				assert.Equal(t, tt.expected[i].Info, v.Info)
+				assert.Equal(t, tt.expected[i].Description, v.Description)
 				assert.Equal(t, tt.expected[i].AdminVar, v.AdminVar)
 			}
 		})

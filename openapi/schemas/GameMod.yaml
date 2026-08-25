@@ -19,45 +19,14 @@ properties:
       - "null"
     description: Fast RCON commands
     items:
-      type: object
-      properties:
-        info:
-          type: string
-          description: Command description
-          example: "Restart Map"
-        command:
-          type: string
-          description: RCON command
-          example: "changelevel {map}"
-      required:
-        - info
-        - command
+      $ref: './GameModFastRcon.yaml'
   vars:
     type:
       - array
       - "null"
     description: Mod variables
     items:
-      type: object
-      properties:
-        var:
-          type: string
-          description: Variable name
-          example: "maxplayers"
-        default:
-          type: string
-          description: Default value
-          example: "32"
-        info:
-          type: string
-          description: Variable description
-          example: "Maximum number of players"
-        admin_var:
-          type: boolean
-          description: Whether variable is admin-only
-          example: false
-      required:
-        - var
+      $ref: './GameModVar.yaml'
   remote_repository_linux:
     type:
       - string

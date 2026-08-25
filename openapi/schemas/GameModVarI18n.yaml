@@ -1,0 +1,27 @@
+type: object
+minProperties: 1
+description: |
+  Translations keyed by lowercase BCP-47 locale (`ru`, `uk`, `pt-br`).
+  English is the base language and lives in the top-level `info` / `description`
+  fields, so `en` is not allowed here.
+propertyNames:
+  # The lookahead excludes the base language; the panel checks that half
+  # separately because Go's RE2 has no lookarounds.
+  pattern: '^(?!en$)[a-z]{2,3}(-[a-z0-9]+)*$'
+additionalProperties:
+  type: object
+  minProperties: 1
+  properties:
+    info:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: Translated short label
+    description:
+      type: string
+      minLength: 1
+      maxLength: 1000
+      description: Translated long help text
+example:
+  ru:
+    info: "Максимум игроков на сервере"

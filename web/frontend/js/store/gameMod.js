@@ -13,9 +13,16 @@ export const useGameModStore = defineStore('gameMod', {
         },
         async fetchMod() {
             this.loading = true
+            const requestedId = this.modId
+
             try {
-                const response = await axios.get('/api/game_mods/' + this.modId)
-                this.mod = response.data;
+                const response = await axios.get('/api/game_mods/' + requestedId)
+
+                // A slower response for a mod that is no longer selected must not
+                // replace the one the views are already rendering.
+                if (requestedId === this.modId) {
+                    this.mod = response.data;
+                }
             } catch (error) {
                 throw error
             } finally {

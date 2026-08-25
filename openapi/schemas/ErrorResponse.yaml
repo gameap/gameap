@@ -13,6 +13,19 @@ properties:
     type: string
     description: Error message (backward compatibility)
     example: Invalid credentials
+  errors:
+    type: object
+    description: |
+      Per-field validation messages, present on 422 responses produced by a
+      field-aware validator. The key is the field (for server settings, the
+      variable name).
+    additionalProperties:
+      type: array
+      items:
+        type: string
+    example:
+      maxplayers:
+        - "value must be at most 64"
   http_code:
     type: integer
     description: HTTP status code (backward compatibility)

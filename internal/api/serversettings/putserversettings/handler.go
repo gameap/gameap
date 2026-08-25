@@ -9,6 +9,7 @@ import (
 
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
+	settingsbase "github.com/gameap/gameap/internal/api/serversettings/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -16,12 +17,6 @@ import (
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/pkg/errors"
-)
-
-const (
-	autostartSettingKey         = "autostart"
-	autostartCurrentSettingKey  = "autostart_current"
-	updateBeforeStartSettingKey = "update_before_start"
 )
 
 // PluginDispatcher publishes the settings a save changed to plugins;
@@ -119,7 +114,13 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var settingsInput saveSettingsInput
-	err = json.NewDecoder(r.Body).Decode(&settingsInput)
+
+	// UseNumber keeps an integer out of float64, which would silently lose
+	// precision on large values before the variable type is even known.
+	decoder := json.NewDecoder(r.Body)
+	decoder.UseNumber()
+
+	err = decoder.Decode(&settingsInput)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "failed to read request body"),
@@ -139,11 +140,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	settingsInputMap := settingsInput.ToSettingsMap()
-
-	changed, err := h.saveSettings(ctx, server, settingsInputMap, isAdmin)
+	changed, err := h.saveSettings(ctx, server, settingsInput, isAdmin)
 	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save settings"))
+		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}
@@ -191,41 +190,12 @@ func (h *Handler) findGameMod(ctx context.Context, gameModID uint) (*domain.Game
 	return &gameMods[0], nil
 }
 
-func (h *Handler) buildAllowedSettings(gameMod *domain.GameMod, isAdmin bool) map[string]settingMetadata {
-	allowedSettings := make(map[string]settingMetadata)
-
-	allowedSettings[autostartSettingKey] = settingMetadata{
-		name:     autostartSettingKey,
-		adminVar: false,
-	}
-
-	allowedSettings[updateBeforeStartSettingKey] = settingMetadata{
-		name:     updateBeforeStartSettingKey,
-		adminVar: false,
-	}
-
-	if gameMod != nil {
-		for _, gmVar := range gameMod.Vars {
-			if gmVar.AdminVar && !isAdmin {
-				continue
-			}
-
-			allowedSettings[gmVar.Var] = settingMetadata{
-				name:     gmVar.Var,
-				adminVar: gmVar.AdminVar,
-			}
-		}
-	}
-
-	return allowedSettings
-}
-
 // saveSettings persists the allowed settings and reports the ones that are
 // new or whose value changed, in a stable (name) order.
 func (h *Handler) saveSettings(
 	ctx context.Context,
 	server *domain.Server,
-	settingsInputMap map[string]any,
+	settingsInput saveSettingsInput,
 	isAdmin bool,
 ) ([]domain.ServerSetting, error) {
 	gameMod, err := h.findGameMod(ctx, server.GameModID)
@@ -236,7 +206,12 @@ func (h *Handler) saveSettings(
 		return nil, api.NewNotFoundError("game mod not found")
 	}
 
-	allowedSettings := h.buildAllowedSettings(gameMod, isAdmin)
+	// Everything is validated before anything is written: a violation halfway
+	// through must not leave the server with a half-applied configuration.
+	normalized, err := settingsbase.Normalize(gameMod, settingsInput, isAdmin)
+	if err != nil {
+		return nil, err
+	}
 
 	existingSettings, err := h.serverSettingsRepo.Find(ctx, &filters.FindServerSetting{
 		ServerIDs: []uint{server.ID},
@@ -245,40 +220,28 @@ func (h *Handler) saveSettings(
 		return nil, errors.WithMessage(err, "failed to find server settings")
 	}
 
-	existingSettingsMap := make(map[string]*domain.ServerSetting)
+	existingSettingsMap := make(map[string]*domain.ServerSetting, len(existingSettings))
 	for i := range existingSettings {
 		existingSettingsMap[existingSettings[i].Name] = &existingSettings[i]
 	}
 
-	changed := make([]domain.ServerSetting, 0)
+	changed := make([]domain.ServerSetting, 0, len(normalized))
 
-	for settingName, settingValue := range settingsInputMap {
-		allowedSetting, isAllowed := allowedSettings[settingName]
-		if !isAllowed {
-			continue
-		}
-
-		if allowedSetting.adminVar && !isAdmin {
-			continue
-		}
-
+	for _, normalizedSetting := range normalized {
 		setting := domain.ServerSetting{
 			ServerID: server.ID,
-			Name:     settingName,
-			Value:    domain.NewServerSettingValue(settingValue),
+			Name:     normalizedSetting.Name,
+			Value:    normalizedSetting.Value,
 		}
 
-		existingSetting, exists := existingSettingsMap[settingName]
+		existingSetting, exists := existingSettingsMap[setting.Name]
 		if exists {
 			setting.ID = existingSetting.ID
 		}
 
-		if err := h.serverSettingsRepo.Save(ctx, &setting); err != nil {
-			if exists {
-				return nil, errors.WithMessage(err, "failed to update setting")
-			}
-
-			return nil, errors.WithMessage(err, "failed to create setting")
+		err := h.serverSettingsRepo.Save(ctx, &setting)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to save setting")
 		}
 
 		if !exists || !sameSettingValue(existingSetting.Value, setting.Value) {
@@ -291,14 +254,13 @@ func (h *Handler) saveSettings(
 	return changed, nil
 }
 
+// sameSettingValue compares the text that is actually stored. Raw is read
+// instead of String because a value coming back from the database keeps its
+// original text while its guessed type may differ, and "007" would otherwise
+// look changed on every save.
 func sameSettingValue(a, b domain.ServerSettingValue) bool {
-	left, _ := a.String()
-	right, _ := b.String()
+	left, leftPresent := a.Raw()
+	right, rightPresent := b.Raw()
 
-	return left == right
-}
-
-type settingMetadata struct {
-	name     string
-	adminVar bool
+	return leftPresent == rightPresent && left == right
 }

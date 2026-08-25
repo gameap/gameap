@@ -125,8 +125,12 @@ func buildAliases(
 	}
 
 	// Game mod default values (lowest priority)
+	varNames := make(map[string]struct{})
+
 	if gameMod != nil {
 		for _, v := range gameMod.Vars {
+			varNames[v.Var] = struct{}{}
+
 			if v.Default != "" {
 				aliases[v.Var] = string(v.Default)
 			}
@@ -140,6 +144,16 @@ func buildAliases(
 
 	// Server settings override everything
 	for _, setting := range settings {
+		// A game mod variable is substituted into commands verbatim, so the raw
+		// text is used: Any would report "007" as the number 7.
+		if _, isVar := varNames[setting.Name]; isVar {
+			if raw, present := setting.Value.Raw(); present {
+				aliases[setting.Name] = raw
+			}
+
+			continue
+		}
+
 		if value := setting.Value.Any(); value != nil {
 			aliases[setting.Name] = value
 		}

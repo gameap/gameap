@@ -112,6 +112,68 @@ func (s *GameModRepositorySuite) TestGameModRepositorySave() {
 		assert.NotZero(t, gameMod.ID)
 	})
 
+	s.T().Run("save_and_find_typed_vars", func(t *testing.T) {
+		gameMod := &domain.GameMod{
+			GameCode: "minecraft",
+			Name:     "Typed",
+			FastRcon: domain.GameModFastRconList{
+				{
+					Info:    "Status",
+					Command: "status",
+					I18n:    domain.GameModFastRconI18n{"ru": {Info: "Статус"}},
+				},
+			},
+			Vars: domain.GameModVarList{
+				{
+					Var:         "version",
+					Default:     "1.20.4",
+					Info:        "Minecraft version",
+					AdminVar:    true,
+					Type:        domain.GameModVarTypeSelect,
+					Description: "The version the server runs",
+					Options: domain.GameModVarOptions{
+						{Value: "1.21"},
+						{
+							Value: "1.20.4",
+							Label: "1.20.4 (LTS)",
+							I18n:  domain.GameModVarOptionI18n{"ru": {Label: "1.20.4 (LTS)"}},
+						},
+					},
+					AllowCustom: true,
+					Rules:       &domain.GameModVarRules{MinLength: new(1), MaxLength: new(16), Pattern: `[0-9.]+`},
+					I18n:        domain.GameModVarI18n{"ru": {Info: "Версия Minecraft"}},
+				},
+				{
+					Var:        "pvp",
+					Default:    "-v",
+					Info:       "PvP",
+					Type:       domain.GameModVarTypeBool,
+					TrueValue:  new("-v"),
+					FalseValue: new(""),
+				},
+				{
+					Var:     "maxplayers",
+					Default: "20",
+					Info:    "Max players",
+					Type:    domain.GameModVarTypeInt,
+					Rules:   &domain.GameModVarRules{Required: new(true), Min: new(1.0), Max: new(64.0)},
+				},
+			},
+		}
+
+		err := s.repo.Save(ctx, gameMod)
+		require.NoError(t, err)
+
+		results, err := s.repo.Find(ctx, &filters.FindGameMod{IDs: []uint{gameMod.ID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+
+		// Compared as decoded structs, never as raw JSON: postgres JSONB reorders
+		// object keys, so a byte comparison would be driver-dependent.
+		assert.Equal(t, gameMod.Vars, results[0].Vars)
+		assert.Equal(t, gameMod.FastRcon, results[0].FastRcon)
+	})
+
 	s.T().Run("save_game_mod_with_empty_arrays", func(t *testing.T) {
 		gameMod := &domain.GameMod{
 			GameCode: "rust",

@@ -1,6 +1,10 @@
 type: object
 description: Update game mod request
 properties:
+  game_code:
+    type: string
+    description: Game code the mod belongs to
+    example: "cstrike"
   name:
     type: string
     description: Mod name
@@ -10,33 +14,14 @@ properties:
       - "null"
     description: Fast RCON commands
     items:
-      type: object
-      properties:
-        info:
-          type: string
-        command:
-          type: string
-      required:
-        - info
-        - command
+      $ref: '../GameModFastRcon.yaml'
   vars:
     type:
       - array
       - "null"
     description: Mod variables
     items:
-      type: object
-      properties:
-        var:
-          type: string
-        default:
-          type: string
-        info:
-          type: string
-        admin_var:
-          type: boolean
-      required:
-        - var
+      $ref: '../GameModVar.yaml'
   remote_repository_linux:
     type:
       - string

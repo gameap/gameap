@@ -25,14 +25,20 @@ type withDescriptionError interface {
 	Description() string
 }
 
+type withFieldErrors interface {
+	error
+	FieldErrors() map[string][]string
+}
+
 type response struct {
-	Status      string `json:"status"`
-	Title       string `json:"title,omitempty"`
-	Error       string `json:"error,omitempty"`
-	Message     string `json:"message,omitempty"`
-	Description string `json:"description,omitempty"`
-	HTTPCode    int    `json:"http_code,omitempty"`
-	Result      any    `json:"result,omitempty"`
+	Status      string              `json:"status"`
+	Title       string              `json:"title,omitempty"`
+	Error       string              `json:"error,omitempty"`
+	Message     string              `json:"message,omitempty"`
+	Description string              `json:"description,omitempty"`
+	Errors      map[string][]string `json:"errors,omitempty"`
+	HTTPCode    int                 `json:"http_code,omitempty"`
+	Result      any                 `json:"result,omitempty"`
 }
 
 type Responder struct{}
@@ -121,8 +127,15 @@ func WriteErrWithTitle(rw http.ResponseWriter, code int, title string, err error
 
 	errMsg := err.Error()
 
+	var fields map[string][]string
+
 	if code >= http.StatusInternalServerError {
 		errMsg = http.StatusText(code)
+	} else {
+		var errWithFields withFieldErrors
+		if errors.As(err, &errWithFields) {
+			fields = errWithFields.FieldErrors()
+		}
 	}
 
 	resp := response{
@@ -130,7 +143,8 @@ func WriteErrWithTitle(rw http.ResponseWriter, code int, title string, err error
 		Title:    title,
 		Error:    errMsg,
 		Message:  errMsg, // for backward compatibility
-		HTTPCode: code,   // for backward compatibility
+		Errors:   fields,
+		HTTPCode: code, // for backward compatibility
 	}
 
 	if errEncode := json.NewEncoder(rw).Encode(resp); errEncode != nil {

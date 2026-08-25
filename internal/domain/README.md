@@ -28,6 +28,29 @@ Represents a base game definition with engine information and installation repos
 
 ### GameMod (`game_mod.go`)
 Represents a game modification or variant with RCON commands, game variables, and server control commands.
+`Merge` is used by the catalog upgrade: variables and fast RCON commands are merged by name, so an
+entry from the catalog replaces the one it matches while locally added ones survive.
+
+### GameModVar (`game_mod_var.go`, `game_mod_var_validation.go`)
+One template variable of a game mod, referenced as `{var}` in command templates and mirroring
+`games.schema.json`: `type` (`string`/`text`/`int`/`float`/`bool`/`select`/`password`), `description`,
+`options`, `allow_custom`, `true_value`/`false_value`, `rules` and `i18n`. The whole definition lives
+in the `game_mods.vars` JSON column, so adding a field needs no migration.
+
+Two things are easy to get wrong:
+
+- **The stored value is always a string** — the one substituted into `{var}`. `NormalizeValue` turns an
+  incoming JSON value into it (a bool becomes `true_value`/`false_value`), `FormatValue` types it back
+  for a response. Anything writing a server setting must go through `NormalizeValue`, which is also
+  what enforces `rules`.
+- **A `select` option round-trips in the form it was written in.** An option carrying neither a label
+  nor translations marshals back to a bare string, matching the catalog shorthand. HTTP responses
+  expand it to `{value, label}` so the frontend has one shape to bind to; storage and the YAML export
+  keep the shorthand.
+
+Variable names accept a superset of the catalog pattern (`^[A-Za-z_][A-Za-z0-9_]*$`, at most 32
+characters): imported Pelican eggs keep their uppercase environment variable names, and the 32-character
+limit is `servers_settings.name VARCHAR(32)` — a longer name could never be overridden per server.
 
 ## Authentication & Authorization
 
