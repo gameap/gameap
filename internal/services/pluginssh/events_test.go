@@ -88,6 +88,7 @@ type eventsEnv struct {
 	sessions *Sessions
 	instance *fakePluginInstance
 	plugin   *pkgplugin.LoadedPlugin
+	provider *fakeProvider
 }
 
 func newEventsEnv(t *testing.T, cfg Config, hasHandler bool) *eventsEnv {
@@ -115,7 +116,7 @@ func newEventsEnv(t *testing.T, cfg Config, hasHandler bool) *eventsEnv {
 		svc.Stop()
 	})
 
-	return &eventsEnv{service: svc, sessions: sessions, instance: instance, plugin: plugin}
+	return &eventsEnv{service: svc, sessions: sessions, instance: instance, plugin: plugin, provider: provider}
 }
 
 func TestEvents_StartExecDeliversCompletion(t *testing.T) {
@@ -280,4 +281,38 @@ func TestService_StoppedServiceHandsOutClosedSessions(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("NewSessions blocked after Stop")
 	}
+}
+
+// TestEvents_CompletionRacingCloseIsNotDelivered: the completion callback
+// resolves the plugin by database id at delivery time, so a callback already
+// in flight when the plugin unloads must be dropped — after a reload the same
+// id names an instance that never started the operation.
+func TestEvents_CompletionRacingCloseIsNotDelivered(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+	env := newEventsEnv(t, Config{}, true)
+	handle := connectToTestServer(t, env.sessions, server)
+
+	// Holding the provider lock stalls the delivery goroutine inside
+	// resolveHandler, keeping the unload window open deterministically.
+	env.provider.mu.Lock()
+
+	operationID, err := env.sessions.StartExec(context.Background(), ExecParams{
+		Handle:           handle,
+		Command:          "echo hi",
+		NotifyCompletion: true,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, env.sessions.WaitCompletion(ctx, operationID))
+
+	env.sessions.Close()
+	env.provider.mu.Unlock()
+
+	env.service.Stop()
+
+	assert.Empty(t, env.instance.recorded(),
+		"a completion racing the unload must not reach the reloaded instance")
 }

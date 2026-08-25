@@ -32,6 +32,12 @@ type Config struct {
 	// AllowedHosts bypasses the private-IP block for the listed hostnames.
 	AllowedHosts []string
 
+	// DisallowAcceptAnyHostKey refuses connections whose host key policy is
+	// accept_any, forcing plugins to pin. The zero value permits accept_any:
+	// first contact with a machine that was just created has nothing to pin
+	// yet, so trust-on-first-use stays the default.
+	DisallowAcceptAnyHostKey bool
+
 	MaxConnections int
 	MaxOperations  int
 	ConnectTimeout time.Duration

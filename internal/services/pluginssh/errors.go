@@ -16,6 +16,12 @@ var (
 	ErrHostKeyPolicyRequired = errors.New(
 		"plugin ssh: host key policy required: set accept_any or pin a fingerprint",
 	)
+	ErrHostKeyPolicyConflict = errors.New(
+		"plugin ssh: host key policy conflict: accept_any cannot be combined with pinned fingerprints or public keys",
+	)
+	ErrHostKeyAcceptAnyDisabled = errors.New(
+		"plugin ssh: accept_any host key policy is disabled by the panel operator: pin a fingerprint or public key",
+	)
 	ErrHostKeyRejected = errors.New("plugin ssh: host key verification failed")
 	ErrHostKeyInvalid  = errors.New("plugin ssh: invalid host public key")
 
@@ -26,8 +32,11 @@ var (
 	ErrDialBlocked     = errors.New("plugin ssh: target address is blocked")
 	ErrHostNotResolved = errors.New("plugin ssh: failed to resolve host")
 	ErrConnectTimeout  = errors.New("plugin ssh: connect timed out")
+	ErrConnectRefused  = errors.New("plugin ssh: connection refused")
+	ErrDialFailed      = errors.New("plugin ssh: failed to reach the host")
 
 	ErrHostRequired    = errors.New("plugin ssh: host is required")
+	ErrInvalidPort     = errors.New("plugin ssh: invalid port: must be at most 65535")
 	ErrUserRequired    = errors.New("plugin ssh: user is required")
 	ErrCommandRequired = errors.New("plugin ssh: command is required")
 	ErrPathRequired    = errors.New("plugin ssh: path is required")

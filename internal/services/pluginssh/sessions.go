@@ -18,6 +18,12 @@ const (
 	maxCommandBytes = 64 << 10
 	maxEnvVars      = 128
 	handleAttempts  = 8
+
+	// minIdleTimeout floors a plugin-requested idle timeout: the watchdog tick
+	// derives from it, and a millisecond request would turn the sweep into a
+	// probe flood at the remote host. A ceiling configured below the floor
+	// (tests, a deliberate operator choice) wins.
+	minIdleTimeout = 10 * time.Second
 )
 
 // Sessions holds everything one gameap-ssh module instance owns: its open
@@ -33,6 +39,7 @@ type Sessions struct {
 	conns    map[uint64]*connection
 	ops      map[string]*operation
 	finished []string
+	timers   map[string]*time.Timer
 	running  int
 	closed   bool
 
@@ -45,6 +52,7 @@ func newSessions(svc *Service, pluginID uint64) *Sessions {
 		pluginID: pluginID,
 		conns:    make(map[uint64]*connection),
 		ops:      make(map[string]*operation),
+		timers:   make(map[string]*time.Timer),
 		closedCh: make(chan struct{}),
 	}
 }
@@ -52,6 +60,10 @@ func newSessions(svc *Service, pluginID uint64) *Sessions {
 // Connect validates the request, dials under the panel's address policy and
 // registers the resulting client under an unpredictable handle.
 func (p *Sessions) Connect(ctx context.Context, params ConnectParams) (*ConnectResult, error) {
+	// hostAllowed trims its side of the comparison; resolution and the stored
+	// conn.host must see the same spelling.
+	params.Host = strings.TrimSpace(params.Host)
+
 	if err := validateConnect(params); err != nil {
 		return nil, err
 	}
@@ -60,7 +72,7 @@ func (p *Sessions) Connect(ctx context.Context, params ConnectParams) (*ConnectR
 		return nil, err
 	}
 
-	client, observed, err := p.dial(ctx, params)
+	client, address, observed, err := p.dial(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -85,25 +97,32 @@ func (p *Sessions) Connect(ctx context.Context, params ConnectParams) (*ConnectR
 
 	return &ConnectResult{
 		Handle:                   handle,
+		Address:                  address,
 		HostKeyFingerprintSHA256: fingerprint,
 		HostKeyType:              keyType,
 		ServerVersion:            string(client.ServerVersion()),
+		HostKeyVerified:          !params.HostKey.AcceptAny,
 	}, nil
 }
 
 // dial builds the client config and performs the handshake. The observed host
-// key is returned even on failure so the caller can report what answered.
-func (p *Sessions) dial(ctx context.Context, params ConnectParams) (*ssh.Client, *observedHostKey, error) {
+// key is returned even on failure so the caller can report what answered; the
+// address is the numeric ip:port actually dialed, for the audit trail.
+func (p *Sessions) dial(ctx context.Context, params ConnectParams) (*ssh.Client, string, *observedHostKey, error) {
 	observed := &observedHostKey{}
+
+	if params.HostKey.AcceptAny && p.svc.cfg.DisallowAcceptAnyHostKey {
+		return nil, "", observed, ErrHostKeyAcceptAnyDisabled
+	}
 
 	hostKeyCallback, err := buildHostKeyCallback(params.HostKey, observed)
 	if err != nil {
-		return nil, observed, err
+		return nil, "", observed, err
 	}
 
 	authMethods, err := buildAuthMethods(params)
 	if err != nil {
-		return nil, observed, err
+		return nil, "", observed, err
 	}
 
 	timeout := clampDuration(params.ConnectTimeout, p.svc.cfg.ConnectTimeout)
@@ -111,17 +130,17 @@ func (p *Sessions) dial(ctx context.Context, params ConnectParams) (*ssh.Client,
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	client, err := p.svc.dialSSH(dialCtx, params, &ssh.ClientConfig{
+	client, address, err := p.svc.dialSSH(dialCtx, p.pluginID, params, &ssh.ClientConfig{
 		User:            params.User,
 		Auth:            authMethods,
 		HostKeyCallback: hostKeyCallback,
 		Timeout:         timeout,
 	})
 	if err != nil {
-		return nil, observed, err
+		return nil, "", observed, err
 	}
 
-	return client, observed, nil
+	return client, address, observed, nil
 }
 
 // checkConnectionSlot fails fast before an expensive dial; registerConnection
@@ -158,12 +177,17 @@ func (p *Sessions) registerConnection(client *ssh.Client, params ConnectParams, 
 		return 0, err
 	}
 
+	idleTimeout := clampDuration(params.IdleTimeout, p.svc.cfg.IdleTimeout)
+	if idleTimeout > 0 && idleTimeout < minIdleTimeout && p.svc.cfg.IdleTimeout >= minIdleTimeout {
+		idleTimeout = minIdleTimeout
+	}
+
 	conn := &connection{
 		handle:      handle,
 		client:      client,
 		host:        params.Host,
 		fingerprint: fingerprint,
-		idleTimeout: clampDuration(params.IdleTimeout, p.svc.cfg.IdleTimeout),
+		idleTimeout: idleTimeout,
 		lastUsed:    time.Now(),
 		closed:      make(chan struct{}),
 	}
@@ -215,7 +239,7 @@ func (p *Sessions) Disconnect(handle uint64) error {
 	delete(p.conns, handle)
 	p.mu.Unlock()
 
-	p.cancelConnectionOperations(handle, "connection closed by plugin")
+	p.cancelConnectionOperations(handle, "connection closed by plugin", nil)
 	conn.close()
 
 	return nil
@@ -234,10 +258,33 @@ func (p *Sessions) connection(handle uint64) (*connection, error) {
 		return nil, ErrConnectionNotFound
 	}
 
+	// The handout itself is use: prepareSession can spend longer than the idle
+	// budget on a slow network, and the sweep must not close the connection
+	// under a command that is still being started.
+	conn.touch()
+
 	return conn, nil
 }
 
-func (p *Sessions) cancelConnectionOperations(handle uint64, reason string) {
+// ConnectionHost names the host a handle is connected to, so the audit records
+// of commands and file transfers can be tied to the machine they ran on.
+func (p *Sessions) ConnectionHost(handle uint64) (string, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.closed {
+		return "", false
+	}
+
+	conn, ok := p.conns[handle]
+	if !ok {
+		return "", false
+	}
+
+	return conn.host, true
+}
+
+func (p *Sessions) cancelConnectionOperations(handle uint64, reason string, cause error) {
 	p.mu.Lock()
 	targets := make([]*operation, 0, len(p.ops))
 	for _, op := range p.ops {
@@ -248,7 +295,7 @@ func (p *Sessions) cancelConnectionOperations(handle uint64, reason string) {
 	p.mu.Unlock()
 
 	for _, op := range targets {
-		op.cancel(&cancelCauseError{reason: reason})
+		op.cancel(&cancelCauseError{reason: reason, cause: cause})
 	}
 }
 
@@ -277,6 +324,12 @@ func (p *Sessions) Close() {
 	}
 	p.ops = make(map[string]*operation)
 	p.finished = nil
+	p.running = 0
+
+	for _, timer := range p.timers {
+		timer.Stop()
+	}
+	p.timers = make(map[string]*time.Timer)
 	p.mu.Unlock()
 
 	for _, op := range ops {
@@ -296,6 +349,10 @@ func (p *Sessions) Close() {
 func validateConnect(params ConnectParams) error {
 	if strings.TrimSpace(params.Host) == "" {
 		return ErrHostRequired
+	}
+
+	if params.Port > 65535 {
+		return ErrInvalidPort
 	}
 
 	if strings.TrimSpace(params.User) == "" {
@@ -323,13 +380,20 @@ func clampBytes(requested, ceiling int) int {
 	return requested
 }
 
-// cancelCause carries the reason a plugin (or the panel) stopped an operation.
+// cancelCauseError carries the reason a plugin (or the panel) stopped an
+// operation. cause distinguishes the engine's own interruptions (a lost
+// connection) from a deliberate cancellation; classifyExec unwraps to it.
 type cancelCauseError struct {
 	reason string
+	cause  error
 }
 
 func (c *cancelCauseError) Error() string {
 	return "canceled: " + c.reason
+}
+
+func (c *cancelCauseError) Unwrap() error {
+	return c.cause
 }
 
 var (

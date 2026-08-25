@@ -456,6 +456,13 @@ be reached before it has a daemon. It is off until an operator turns it on:
 - `PLUGIN_SSH_IDLE_TIMEOUT` - Close a connection nothing has run on for this long (default: `10m`)
 - `PLUGIN_SSH_MAX_OUTPUT_BYTES` - Captured stdout/stderr per command; the head is kept (default: `1048576`)
 - `PLUGIN_SSH_MAX_STDIN_BYTES` - Cap on what a plugin may pipe into a command (default: `1048576`)
+- `PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY` - Permit the `accept_any` host key policy (trust-on-first-use); disable to force pinned keys (default: `true`)
+- `PLUGIN_SSH_OPERATION_RETENTION` - Keep a finished command (with its captured output) readable for late polls (default: `10m`)
+- `PLUGIN_SSH_MAX_RETAINED_OPERATIONS` - Finished commands kept per plugin; the oldest are evicted first (default: `64`)
+- `PLUGIN_SSH_KEEPALIVE_INTERVAL` - Pacing of liveness probes on open connections; the effective sweep is floored at one second (default: `30s`)
+- `PLUGIN_SSH_COMPLETION_CALL_TIMEOUT` - Budget for one completion callback into the plugin (default: `30s`)
+- `PLUGIN_SSH_BUSY_RETRY_DELAY` - Pause between completion callback retries while the plugin is busy (default: `2s`)
+- `PLUGIN_SSH_BUSY_RETRIES` - Completion callback retries before the callback is dropped (default: `5`)
 
 ### Plugin Store Configuration
 

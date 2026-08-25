@@ -123,6 +123,7 @@ type SSHSessionManager interface {
 	Snapshot(operationID string, stdoutOffset, stderrOffset uint64) (pluginssh.ExecSnapshot, bool)
 	WaitCompletion(ctx context.Context, operationID string) error
 	SubscribeCompletion(operationID string) error
+	ConnectionHost(handle uint64) (string, bool)
 	Close()
 }
 

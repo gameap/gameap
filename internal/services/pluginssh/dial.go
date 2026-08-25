@@ -2,10 +2,12 @@ package pluginssh
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"net/netip"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gameap/gameap/pkg/netutil"
@@ -89,9 +91,10 @@ func (s *Service) hostAllowed(host string) bool {
 // call past its deadline.
 func (s *Service) dialSSH(
 	ctx context.Context,
+	pluginID uint64,
 	params ConnectParams,
 	clientConfig *ssh.ClientConfig,
-) (*ssh.Client, error) {
+) (*ssh.Client, string, error) {
 	port := params.Port
 	if port == 0 {
 		port = defaultSSHPort
@@ -99,14 +102,14 @@ func (s *Service) dialSSH(
 
 	ip, err := s.resolveAndCheck(ctx, params.Host)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	address := net.JoinHostPort(ip.String(), strconv.FormatUint(uint64(port), 10))
 
 	conn, err := s.dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
-		return nil, errors.Wrap(ErrConnectTimeout, err.Error())
+		return nil, "", s.classifyDialError(ctx, pluginID, params.Host, port, err)
 	}
 
 	if deadline, ok := ctx.Deadline(); ok {
@@ -135,18 +138,45 @@ func (s *Service) dialSSH(
 		if result.err != nil {
 			_ = conn.Close()
 
-			return nil, classifyHandshakeError(ctx, result.err)
+			return nil, "", classifyHandshakeError(ctx, result.err)
 		}
 
 		_ = conn.SetDeadline(time.Time{})
 
-		return ssh.NewClient(result.conn, result.chans, result.reqs), nil
+		return ssh.NewClient(result.conn, result.chans, result.reqs), address, nil
 	case <-ctx.Done():
 		// Closing the socket unblocks the handshake goroutine, which then
 		// drains into the buffered channel and exits.
 		_ = conn.Close()
 
-		return nil, errors.Wrap(ErrConnectTimeout, ctx.Err().Error())
+		return nil, "", errors.Wrap(ErrConnectTimeout, ctx.Err().Error())
+	}
+}
+
+// classifyDialError sorts a TCP dial failure into the sentinel a plugin can
+// act on: retry later (timeout), the port is not listening (refused), or give
+// up (failed). The raw OS text goes to the panel log only — echoing "refused"
+// vs "filtered" details to the guest would turn the panel into a port scanner
+// with its network position.
+func (s *Service) classifyDialError(ctx context.Context, pluginID uint64, host string, port uint32, err error) error {
+	s.logger.Warn("plugin ssh dial failed",
+		slog.Uint64("plugin_id", pluginID),
+		slog.String("host", host),
+		slog.Uint64("port", uint64(port)),
+		slog.String("error", err.Error()))
+
+	var netErr net.Error
+
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded),
+		errors.As(err, &netErr) && netErr.Timeout():
+		return ErrConnectTimeout
+	case errors.Is(err, syscall.ECONNREFUSED):
+		// On Windows the refused errno differs and falls through to
+		// ErrDialFailed; an acceptable degradation.
+		return ErrConnectRefused
+	default:
+		return ErrDialFailed
 	}
 }
 

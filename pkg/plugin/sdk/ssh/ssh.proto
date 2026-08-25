@@ -278,7 +278,12 @@ message WriteFileRequest {
   // Absolute path on the target; it is passed to the remote shell quoted.
   string path = 2;
   bytes content = 3;
-  // Octal mode applied after the write, e.g. 0755. 0 leaves the default.
+  // Permission bits as an octal value, e.g. 0755; anything above 0o777 is
+  // rejected, so a decimal literal like 755 errors instead of setting garbage
+  // permissions, and setuid/setgid/sticky bits are not supported. 0 keeps the
+  // login umask default. The content goes to a temporary name in the same
+  // directory and is renamed into place (assumes a POSIX shell on the target);
+  // an existing file is replaced and its previous permissions are not kept.
   uint32 mode = 4;
   uint32 timeout_seconds = 5;
 }

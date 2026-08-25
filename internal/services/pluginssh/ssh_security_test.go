@@ -9,6 +9,8 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -252,10 +254,11 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name        string
-		policy      func() HostKeyPolicy
-		wantErrorIs error
-		wantError   string
+		name         string
+		policy       func() HostKeyPolicy
+		wantVerified bool
+		wantErrorIs  error
+		wantError    string
 	}{
 		{
 			name:   "accept_any_trusts_first_contact",
@@ -266,6 +269,7 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 			policy: func() HostKeyPolicy {
 				return HostKeyPolicy{FingerprintsSHA256: []string{server.fingerprint}}
 			},
+			wantVerified: true,
 		},
 		{
 			name: "pinned_fingerprint_without_prefix_matches",
@@ -274,12 +278,14 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 
 				return HostKeyPolicy{FingerprintsSHA256: []string{bare}}
 			},
+			wantVerified: true,
 		},
 		{
 			name: "pinned_public_key_matches",
 			policy: func() HostKeyPolicy {
 				return HostKeyPolicy{PublicKeys: []string{string(ssh.MarshalAuthorizedKey(server.hostKey.PublicKey()))}}
 			},
+			wantVerified: true,
 		},
 		{
 			name: "wrong_fingerprint_is_rejected",
@@ -311,6 +317,17 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 			wantErrorIs: ErrHostKeyInvalid,
 			wantError:   "invalid host public key",
 		},
+		{
+			name: "accept_any_combined_with_pins_is_refused",
+			policy: func() HostKeyPolicy {
+				// The natural shape of a plugin that kept accept_any from its
+				// template and later added a pin, believing pins are checked:
+				// accept_any would skip them, so the combination is an error.
+				return HostKeyPolicy{AcceptAny: true, FingerprintsSHA256: []string{server.fingerprint}}
+			},
+			wantErrorIs: ErrHostKeyPolicyConflict,
+			wantError:   "accept_any cannot be combined",
+		},
 	}
 
 	for _, tt := range tests {
@@ -337,8 +354,50 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, server.fingerprint, result.HostKeyFingerprintSHA256)
+			assert.Equal(t, tt.wantVerified, result.HostKeyVerified,
+				"the audit trail keys off whether the key was actually checked")
 		})
 	}
+}
+
+// TestSSH_AcceptAnyDisabledByTheOperator: PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY
+// is the operator's lever against unverified connections; with it off,
+// accept_any must be refused before anything is dialed while pinned policies
+// keep working (API8:2023 Security Misconfiguration).
+func TestSSH_AcceptAnyDisabledByTheOperator(t *testing.T) {
+	t.Parallel()
+
+	t.Run("accept_any_is_refused_before_dialing", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{BlockPrivateIPs: false, DisallowAcceptAnyHostKey: true}
+		sessions, dialer := newPolicySessions(t, cfg, staticResolver{})
+
+		err := connectTo(t, sessions, "8.8.8.8")
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrHostKeyAcceptAnyDisabled)
+		assert.Empty(t, dialer.dialed, "a refused policy must never open a socket")
+	})
+
+	t.Run("pinned_fingerprint_still_connects", func(t *testing.T) {
+		t.Parallel()
+
+		server := newTestSSHServer(t)
+		sessions := newTestSessions(t, Config{DisallowAcceptAnyHostKey: true})
+		host, port := server.addr()
+
+		result, err := sessions.Connect(context.Background(), ConnectParams{
+			Host:     host,
+			Port:     port,
+			User:     "gameap",
+			Password: testPassword,
+			HostKey:  HostKeyPolicy{FingerprintsSHA256: []string{server.fingerprint}},
+		})
+
+		require.NoError(t, err)
+		assert.True(t, result.HostKeyVerified)
+	})
 }
 
 // TestSSH_HostKeyRejectionNamesTheObservedKey: after a mismatch the plugin has
@@ -529,4 +588,95 @@ func boolName(v bool) string {
 	}
 
 	return "off"
+}
+
+// failingDialer answers every dial with a staged error, so the tests can pin
+// how the engine classifies transport failures.
+type failingDialer struct {
+	err error
+}
+
+func (d *failingDialer) DialContext(context.Context, string, string) (net.Conn, error) {
+	return nil, d.err
+}
+
+// timeoutNetError mimics the OS-level "i/o timeout" the dialer produces.
+type timeoutNetError struct{}
+
+func (timeoutNetError) Error() string   { return "dial tcp 203.0.113.9:22: i/o timeout" }
+func (timeoutNetError) Timeout() bool   { return true }
+func (timeoutNetError) Temporary() bool { return false }
+
+// TestSSH_DialFailureClassification: a dial failure reaches the plugin as a
+// coarse sentinel it can act on, never as the raw OS text — echoing
+// "refused" vs "no route" details would let a plugin port-scan through the
+// panel's network position (API7:2023 Server Side Request Forgery).
+func TestSSH_DialFailureClassification(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		dialErr error
+		want    error
+	}{
+		{
+			name:    "timeout_flavored_errors_map_to_connect_timeout",
+			dialErr: &net.OpError{Op: "dial", Net: "tcp", Err: timeoutNetError{}},
+			want:    ErrConnectTimeout,
+		},
+		{
+			name:    "refused_connections_map_to_connect_refused",
+			dialErr: &net.OpError{Op: "dial", Net: "tcp", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)},
+			want:    ErrConnectRefused,
+		},
+		{
+			name:    "other_transport_errors_map_to_dial_failed",
+			dialErr: errors.New("raw-os-detail: no route to host 203.0.113.9"),
+			want:    ErrDialFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc := newService(nil, nil, Config{BlockPrivateIPs: false}, nil, staticResolver{}, &failingDialer{err: tt.dialErr})
+			sessions := svc.NewSessions(testPluginID)
+			t.Cleanup(func() {
+				sessions.Close()
+				svc.Stop()
+			})
+
+			err := connectTo(t, sessions, "8.8.8.8")
+
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tt.want)
+			// The sentinel text is the whole answer: no OS detail leaks out.
+			assert.EqualError(t, err, tt.want.Error())
+		})
+	}
+}
+
+// TestSSH_SSRF_HostIsTrimmedBeforeResolutionAndAllowlist: the allow-list
+// comparison trims and lowercases its side, so the same normalization must be
+// applied before resolution — otherwise " node.internal " passes the list but
+// resolves as a different name (API7:2023 Server Side Request Forgery).
+func TestSSH_SSRF_HostIsTrimmedBeforeResolutionAndAllowlist(t *testing.T) {
+	t.Parallel()
+
+	cfg := Config{BlockPrivateIPs: true, AllowedHosts: []string{"node.internal"}}
+	sessions, dialer := newPolicySessions(t, cfg, staticResolver{
+		answers: map[string][]netip.Addr{"node.internal": {netip.MustParseAddr("10.10.0.5")}},
+	})
+
+	err := connectTo(t, sessions, " node.internal ")
+
+	// The recording dialer refuses every dial; what matters is that the
+	// blocked-address policy and the resolver both saw the trimmed name and
+	// the dial was attempted exactly once.
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrDialBlocked)
+	assert.NotErrorIs(t, err, ErrHostNotResolved)
+	require.Len(t, dialer.dialed, 1)
+	assert.Equal(t, "10.10.0.5:22", dialer.dialed[0])
 }

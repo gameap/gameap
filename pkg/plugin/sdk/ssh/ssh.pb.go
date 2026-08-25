@@ -969,7 +969,12 @@ type WriteFileRequest struct {
 	// Absolute path on the target; it is passed to the remote shell quoted.
 	Path    string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	Content []byte `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	// Octal mode applied after the write, e.g. 0755. 0 leaves the default.
+	// Permission bits as an octal value, e.g. 0755; anything above 0o777 is
+	// rejected, so a decimal literal like 755 errors instead of setting garbage
+	// permissions, and setuid/setgid/sticky bits are not supported. 0 keeps the
+	// login umask default. The content goes to a temporary name in the same
+	// directory and is renamed into place (assumes a POSIX shell on the target);
+	// an existing file is replaced and its previous permissions are not kept.
 	Mode           uint32 `protobuf:"varint,4,opt,name=mode,proto3" json:"mode,omitempty"`
 	TimeoutSeconds uint32 `protobuf:"varint,5,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
 }

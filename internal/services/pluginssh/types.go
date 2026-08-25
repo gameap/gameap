@@ -56,12 +56,18 @@ type ConnectParams struct {
 }
 
 // ConnectResult carries the handle plus what the host presented, so a plugin
-// using AcceptAny can pin the key for later connections.
+// using AcceptAny can pin the key for later connections. HostKeyVerified says
+// whether the offered key was actually checked against pins — an accept_any
+// connection reports false, and the audit trail keeps the difference.
 type ConnectResult struct {
-	Handle                   uint64
+	Handle uint64
+	// Address is the numeric ip:port the panel actually dialed — with an
+	// allowlisted name this can differ from what the plugin asked for.
+	Address                  string
 	HostKeyFingerprintSHA256 string
 	HostKeyType              string
 	ServerVersion            string
+	HostKeyVerified          bool
 }
 
 // ExecParams describes one remote command.

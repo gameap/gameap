@@ -15,10 +15,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Causes and transport errors classifyExec has to map. Two of them — a lost
-// connection as the context cause and a plain error as the cause — cannot be
-// produced through the engine today (connectionLost always wraps its reason in
-// a cancelCauseError), so the mapping is driven directly instead.
+// Causes and transport errors classifyExec has to map. The engine wraps a
+// lost connection in a cancelCauseError carrying errConnectionLost as its
+// cause; the bare-sentinel and plain-error entries below keep the fallback
+// branches covered, driven directly.
 var (
 	errExecTestCause     = errors.New("panel is shutting down")
 	errExecTestTransport = errors.New("broken pipe")
@@ -130,6 +130,7 @@ func TestClassifyExec(t *testing.T) {
 
 				return ctx
 			},
+			waitErr:     missingErr,
 			wantStatus:  StatusTimedOut,
 			wantCode:    -1,
 			wantMessage: errExecTimeout.Error(),
@@ -143,9 +144,24 @@ func TestClassifyExec(t *testing.T) {
 
 				return ctx
 			},
+			waitErr:     missingErr,
 			wantStatus:  StatusFailed,
 			wantCode:    -1,
 			wantMessage: errConnectionLost.Error(),
+		},
+		{
+			name: "engine_wrapped_connection_loss_is_reported_as_errored",
+			opCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				ctx, cancel := context.WithCancelCause(context.Background())
+				cancel(&cancelCauseError{reason: "connection closed: EOF", cause: errConnectionLost})
+
+				return ctx
+			},
+			waitErr:     missingErr,
+			wantStatus:  StatusFailed,
+			wantCode:    -1,
+			wantMessage: "connection closed: EOF",
 		},
 		{
 			name: "explicit_cancellation_carries_its_reason",
@@ -156,6 +172,7 @@ func TestClassifyExec(t *testing.T) {
 
 				return ctx
 			},
+			waitErr:     missingErr,
 			wantStatus:  StatusCanceled,
 			wantCode:    -1,
 			wantMessage: "scale down",
@@ -169,9 +186,22 @@ func TestClassifyExec(t *testing.T) {
 
 				return ctx
 			},
+			waitErr:     errExecTestTransport,
 			wantStatus:  StatusCanceled,
 			wantCode:    -1,
 			wantMessage: errExecTestCause.Error(),
+		},
+		{
+			name: "clean_exit_wins_over_a_late_cancellation",
+			opCtx: func(t *testing.T) context.Context {
+				t.Helper()
+				ctx, cancel := context.WithCancelCause(context.Background())
+				cancel(&cancelCauseError{reason: "plugin unloaded"})
+
+				return ctx
+			},
+			wantStatus: StatusCompleted,
+			wantCode:   0,
 		},
 		{
 			name:       "clean_exit_is_completed_with_code_zero",

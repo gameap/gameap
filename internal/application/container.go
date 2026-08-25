@@ -235,6 +235,11 @@ type Container struct {
 	pluginSync          *pluginsync.Service
 
 	pluginSSH *pluginssh.Service
+	// pluginSSHOnce guards the lazy construction: lazySSHSessions resolves the
+	// service during plugin load, which LoadTransient runs under a read lock —
+	// concurrent loads would otherwise build two engines and leak the loser's
+	// connections past Shutdown.
+	pluginSSHOnce sync.Once
 
 	// HTTP
 	router                    *http.ServeMux
@@ -2136,24 +2141,31 @@ func (c *Container) PluginManager() *pkgplugin.Manager {
 // PluginSSH is the SSH engine behind the gameap-ssh host library: it owns the
 // dial policy, the per-plugin limits and the delivery of completion callbacks.
 func (c *Container) PluginSSH() *pluginssh.Service {
-	if c.pluginSSH == nil {
+	c.pluginSSHOnce.Do(func() {
 		c.pluginSSH = pluginssh.New(
 			c.PluginManager(),
 			c.PluginLoader(),
 			pluginssh.Config{
-				BlockPrivateIPs: c.config.Plugin.SSH.BlockPrivateIPs,
-				AllowedHosts:    c.config.Plugin.SSH.AllowedHosts,
-				MaxConnections:  c.config.Plugin.SSH.MaxConnections,
-				MaxOperations:   c.config.Plugin.SSH.MaxOperations,
-				ConnectTimeout:  c.config.Plugin.SSH.ConnectTimeout,
-				MaxExecTimeout:  c.config.Plugin.SSH.MaxExecTimeout,
-				IdleTimeout:     c.config.Plugin.SSH.IdleTimeout,
-				MaxOutputBytes:  c.config.Plugin.SSH.MaxOutputBytes,
-				MaxStdinBytes:   c.config.Plugin.SSH.MaxStdinBytes,
+				BlockPrivateIPs:          c.config.Plugin.SSH.BlockPrivateIPs,
+				AllowedHosts:             c.config.Plugin.SSH.AllowedHosts,
+				DisallowAcceptAnyHostKey: !c.config.Plugin.SSH.AllowAcceptAnyHostKey,
+				MaxConnections:           c.config.Plugin.SSH.MaxConnections,
+				MaxOperations:            c.config.Plugin.SSH.MaxOperations,
+				ConnectTimeout:           c.config.Plugin.SSH.ConnectTimeout,
+				MaxExecTimeout:           c.config.Plugin.SSH.MaxExecTimeout,
+				IdleTimeout:              c.config.Plugin.SSH.IdleTimeout,
+				MaxOutputBytes:           c.config.Plugin.SSH.MaxOutputBytes,
+				MaxStdinBytes:            c.config.Plugin.SSH.MaxStdinBytes,
+				OperationRetention:       c.config.Plugin.SSH.OperationRetention,
+				MaxRetainedOperations:    c.config.Plugin.SSH.MaxRetainedOperations,
+				KeepaliveInterval:        c.config.Plugin.SSH.KeepaliveInterval,
+				CompletionCallTimeout:    c.config.Plugin.SSH.CompletionCallTimeout,
+				BusyRetryDelay:           c.config.Plugin.SSH.BusyRetryDelay,
+				BusyRetries:              c.config.Plugin.SSH.BusyRetries,
 			},
 			slog.Default(),
 		)
-	}
+	})
 
 	return c.pluginSSH
 }

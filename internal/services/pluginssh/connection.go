@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -54,7 +55,9 @@ func (c *connection) run(sessions *Sessions) {
 	if c.idleTimeout > 0 && c.idleTimeout/2 < interval {
 		interval = c.idleTimeout / 2
 	}
-	if interval <= 0 {
+	// A sub-second sweep would flood the remote host with keepalive probes
+	// while a command is running (and time.NewTicker refuses zero outright).
+	if interval < time.Second {
 		interval = time.Second
 	}
 
@@ -158,7 +161,7 @@ func (s *Sessions) connectionLost(conn *connection, err error) {
 	}
 
 	reason := "connection closed"
-	if err != nil {
+	if err != nil && !errors.Is(err, errConnectionLost) {
 		reason = "connection closed: " + err.Error()
 	}
 
@@ -168,5 +171,5 @@ func (s *Sessions) connectionLost(conn *connection, err error) {
 		slog.Uint64("handle", conn.handle),
 		slog.String("reason", reason))
 
-	s.cancelConnectionOperations(conn.handle, reason)
+	s.cancelConnectionOperations(conn.handle, reason, errConnectionLost)
 }

@@ -41,6 +41,12 @@ func buildHostKeyCallback(policy HostKeyPolicy, observed *observedHostKey) (ssh.
 		return nil, ErrHostKeyPolicyRequired
 	}
 
+	// Both at once is a plugin that believes its pins are checked while
+	// accept_any would skip them; refusing is what makes the author notice.
+	if policy.AcceptAny && (len(policy.FingerprintsSHA256) > 0 || len(policy.PublicKeys) > 0) {
+		return nil, ErrHostKeyPolicyConflict
+	}
+
 	fingerprints := make(map[string]struct{}, len(policy.FingerprintsSHA256))
 	for _, fingerprint := range policy.FingerprintsSHA256 {
 		fingerprints[normalizeFingerprint(fingerprint)] = struct{}{}

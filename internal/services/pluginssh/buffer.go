@@ -7,12 +7,21 @@ import "sync"
 // window and hang the remote process, so overflow is simply dropped and the
 // stream is flagged truncated.
 type capturedStream struct {
-	mu        sync.Mutex
-	buf       []byte
-	capacity  int
-	total     uint64
-	truncated bool
+	mu            sync.Mutex
+	buf           []byte
+	capacity      int
+	total         uint64
+	truncated     bool
+	transferLimit uint64
+	onOverflow    func()
+	overflowFired bool
 }
+
+// transferLimitMultiplier scales the panel's capture cap into the total the
+// remote side may send at all. The capture cap protects memory; this one
+// protects bandwidth and CPU — without it a discarded stream still lets
+// "cat /dev/urandom" pump data at line rate for the whole exec timeout.
+const transferLimitMultiplier = 8
 
 func newCapturedStream(capacity int) *capturedStream {
 	return &capturedStream{capacity: capacity}
@@ -20,29 +29,55 @@ func newCapturedStream(capacity int) *capturedStream {
 
 func (s *capturedStream) Write(p []byte) (int, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	s.total += uint64(len(p))
 
 	free := s.capacity - len(s.buf)
-	if free <= 0 {
+	switch {
+	case free <= 0:
 		if len(p) > 0 {
 			s.truncated = true
 		}
-
-		return len(p), nil
-	}
-
-	if len(p) > free {
+	case len(p) > free:
 		s.buf = append(s.buf, p[:free]...)
 		s.truncated = true
-
-		return len(p), nil
+	default:
+		s.buf = append(s.buf, p...)
 	}
 
-	s.buf = append(s.buf, p...)
+	overflow := s.takeOverflowLocked()
+	s.mu.Unlock()
+
+	if overflow != nil {
+		overflow()
+	}
 
 	return len(p), nil
+}
+
+// armTransferLimit caps the total number of bytes the remote side may send on
+// this stream. The callback fires exactly once and outside the stream lock;
+// arming after the limit was already crossed fires immediately, which closes
+// the gap between session start and operation registration.
+func (s *capturedStream) armTransferLimit(limit uint64, onOverflow func()) {
+	s.mu.Lock()
+	s.transferLimit = limit
+	s.onOverflow = onOverflow
+	overflow := s.takeOverflowLocked()
+	s.mu.Unlock()
+
+	if overflow != nil {
+		overflow()
+	}
+}
+
+func (s *capturedStream) takeOverflowLocked() func() {
+	if s.transferLimit == 0 || s.onOverflow == nil || s.overflowFired || s.total <= s.transferLimit {
+		return nil
+	}
+	s.overflowFired = true
+
+	return s.onOverflow
 }
 
 // slice returns a copy of the captured bytes from offset onwards, plus the

@@ -107,9 +107,14 @@ const (
 	// outside the daemon and outside the node inventory, so the connection,
 	// the commands and the file transfers are recorded separately. The
 	// command text, stdin and any key material are never part of the record.
-	EventPluginSSHConnect        EventType = "plugin.ssh.connect"
-	EventPluginSSHExec           EventType = "plugin.ssh.exec"
-	EventPluginSSHFile           EventType = "plugin.ssh.file"
+	EventPluginSSHConnect EventType = "plugin.ssh.connect"
+	EventPluginSSHExec    EventType = "plugin.ssh.exec"
+	EventPluginSSHFile    EventType = "plugin.ssh.file"
+	// EventPluginSSHKey: a plugin minted an SSH credential. The record carries
+	// the key type and the public fingerprint only — never key material — and
+	// the fingerprint is what ties an authorized_keys line found on a machine
+	// back to the plugin that produced it.
+	EventPluginSSHKey            EventType = "plugin.ssh.key"
 	EventPluginRBACRole          EventType = "plugin.rbac.role"
 	EventPluginRBACGrant         EventType = "plugin.rbac.grant"
 	EventPluginRBACRevoke        EventType = "plugin.rbac.revoke"

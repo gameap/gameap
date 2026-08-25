@@ -193,9 +193,30 @@ func TestConnection_Lost(t *testing.T) {
 		require.Error(t, context.Cause(opCtx))
 		assert.Contains(t, context.Cause(opCtx).Error(), errConnTestTransport.Error(),
 			"the plugin must learn why the command stopped")
+		assert.ErrorIs(t, context.Cause(opCtx), errConnectionLost,
+			"classifyExec keys the failed status off this cause")
 
 		_, err := sessions.connection(connTestHandle)
 		assert.ErrorIs(t, err, ErrConnectionNotFound, "a lost connection must not stay usable")
+	})
+
+	t.Run("keepalive_detected_loss_is_not_doubled_in_the_reason", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		sessions := newTestSessions(t, Config{})
+		conn := connTestRegisterConnection(t, sessions, 0)
+		opCtx := connTestRegisterOperation(sessions)
+
+		// ACT
+		// The keepalive path reports the loss with the bare sentinel; the
+		// reason must not become "connection closed: connection closed".
+		sessions.connectionLost(conn, errConnectionLost)
+
+		// ASSERT
+		require.Error(t, context.Cause(opCtx))
+		assert.Contains(t, context.Cause(opCtx).Error(), "connection closed")
+		assert.NotContains(t, context.Cause(opCtx).Error(), "connection closed: connection closed")
 	})
 
 	t.Run("untracked_connection_leaves_operations_alone", func(t *testing.T) {
@@ -219,15 +240,15 @@ func TestConnection_Lost(t *testing.T) {
 }
 
 // TestConnection_RunUsesASecondTickWhenTheIdleTimeoutIsTiny: halving an idle
-// timeout this small rounds to a zero interval, which time.NewTicker refuses.
-// The watchdog has to fall back to a one-second sweep and still retire the
-// connection.
+// timeout this small produces a sub-second interval; the watchdog floors the
+// sweep at one second and still retires the connection. The tiny IdleTimeout
+// ceiling keeps the 10s request floor out of the way.
 func TestConnection_RunUsesASecondTickWhenTheIdleTimeoutIsTiny(t *testing.T) {
 	t.Parallel()
 
 	// ARRANGE
 	server := newTestSSHServer(t)
-	sessions := newTestSessions(t, Config{})
+	sessions := newTestSessions(t, Config{IdleTimeout: time.Nanosecond})
 	host, port := server.addr()
 
 	// ACT
@@ -241,13 +262,21 @@ func TestConnection_RunUsesASecondTickWhenTheIdleTimeoutIsTiny(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// The probe watches the connection itself: sessions.connection counts as
+	// use and would keep resetting the idle clock.
+	conn, err := sessions.connection(result.Handle)
+	require.NoError(t, err)
+
 	// ASSERT
 	assert.Eventually(t, func() bool {
-		_, err := sessions.connection(result.Handle)
-
-		return errors.Is(err, ErrConnectionNotFound)
+		select {
+		case <-conn.closed:
+			return true
+		default:
+			return false
+		}
 	}, 5*time.Second, 20*time.Millisecond,
-		"the sweep must keep running even when the halved idle timeout rounds to zero")
+		"the sweep must keep running even when the halved idle timeout is sub-second")
 }
 
 // TestConnection_KeepaliveTreatsAClosedConnectionAsAlive: the panel closing a

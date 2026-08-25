@@ -11,7 +11,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-var errPathRequired = errors.New("path is required")
+var (
+	errPathRequired    = errors.New("path is required")
+	errInvalidFileMode = errors.New(
+		"invalid file mode: the value is octal permission bits up to 0o777 (write 0o644, not decimal 644); " +
+			"setuid/setgid/sticky bits are not supported")
+)
 
 func keyTypeFromProto(keyType sshsdk.KeyType) pluginssh.KeyType {
 	switch keyType {
@@ -126,19 +131,35 @@ func remoteFailureMessage(snapshot pluginssh.ExecSnapshot) string {
 	return "remote command " + string(snapshot.Status)
 }
 
-// writeFileCommand builds a shell pipeline that creates the file from stdin
-// and applies the mode. The path is quoted, so a name with spaces or shell
-// metacharacters cannot break out of the argument.
+const writeFileTempSuffix = ".gameap-tmp"
+
+// writeFileCommand builds a shell pipeline that writes stdin to a temporary
+// file next to the target and renames it into place. The temp file is created
+// under umask 077 and chmod-ed before the rename, so the content is never
+// readable wider than the requested mode, an interrupted transfer leaves no
+// partial target, and an existing symlink is replaced instead of followed.
+// Quoting keeps hostile names one argument; the -- marker stops a leading dash
+// from being read as an option.
 func writeFileCommand(path string, mode uint32) (string, error) {
-	quoted, err := quoteRemotePath(path)
-	if err != nil {
-		return "", err
+	if mode > 0o777 {
+		return "", errInvalidFileMode
 	}
 
-	command := "cat > " + quoted
-	if mode > 0 {
-		command += " && chmod " + strconv.FormatUint(uint64(mode), 8) + " " + quoted
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", errPathRequired
 	}
+
+	quoted := shellescape.Quote(trimmed)
+	temp := shellescape.Quote(trimmed + writeFileTempSuffix)
+
+	command := "{ cat > " + temp
+	if mode > 0 {
+		command = "umask 077; " + command
+		command += " && chmod " + strconv.FormatUint(uint64(mode), 8) + " -- " + temp
+	}
+	command += " && mv -f -- " + temp + " " + quoted + "; }"
+	command += " || { rc=$?; rm -f -- " + temp + "; exit $rc; }"
 
 	return command, nil
 }
@@ -149,7 +170,7 @@ func readFileCommand(path string) (string, error) {
 		return "", err
 	}
 
-	return "cat " + quoted, nil
+	return "cat -- " + quoted, nil
 }
 
 func quoteRemotePath(path string) (string, error) {

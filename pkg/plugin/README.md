@@ -793,8 +793,11 @@ Semantics worth knowing:
   multi-instance panel a later scheduler tick may run elsewhere, where
   `GetExecOperation` answers `found=false` — prefer the completion callback
   (delivered on the owning instance) and persist the result.
-- **A host key policy is mandatory.** Either `accept_any` or a pin list; the
-  observed key is always returned so first contact can pin it.
+- **A host key policy is mandatory.** Either `accept_any` or a pin list —
+  never both: the combination is rejected, because `accept_any` would silently
+  skip the pins. The observed key is always returned so first contact can pin
+  it, and an operator can forbid `accept_any` panel-wide with
+  `PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY=false`.
 - **Environment variables** go through SSH `env` requests, which most sshd
   configurations accept only for the names in `AcceptEnv`. Use
   `env K=V command` inside the command for anything else.
@@ -802,7 +805,11 @@ Semantics worth knowing:
   kept and the stream is flagged truncated, with the produced byte count
   reported separately.
 - **File helpers** (`WriteFile`, `ReadFile`) stream through a remote `cat`, so
-  no SFTP subsystem is needed on a freshly installed machine.
+  no SFTP subsystem is needed on a freshly installed machine. `WriteFile`
+  writes to a same-directory temporary file under `umask 077` and renames it
+  into place: the content is never readable wider than the requested mode, and
+  a failed transfer leaves no partial target. `mode` is octal permission bits
+  up to `0o777` — write `0o644`, not decimal `644`; larger values are rejected.
 
 Targets go through the same address policy as `gameap-http`: cloud-metadata
 addresses are never reachable, and private addresses are refused unless the

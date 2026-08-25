@@ -150,6 +150,10 @@ func (s *Service) context() context.Context {
 // notifyCompleted schedules the completion callback. It is called from the
 // operation goroutine, never from a host call holding a lock.
 func (s *Service) notifyCompleted(sessions *Sessions, op *operation) {
+	if sessionsClosed(sessions) {
+		return
+	}
+
 	s.mu.Lock()
 	if s.stopped {
 		s.mu.Unlock()
@@ -167,6 +171,10 @@ func (s *Service) notifyCompleted(sessions *Sessions, op *operation) {
 }
 
 func (s *Service) deliverCompleted(sessions *Sessions, op *operation) {
+	if sessionsClosed(sessions) {
+		return
+	}
+
 	handler, plugin, ok := s.resolveHandler(sessions.pluginID)
 	if !ok {
 		return
@@ -175,6 +183,13 @@ func (s *Service) deliverCompleted(sessions *Sessions, op *operation) {
 	request := op.completionRequest()
 
 	for attempt := 0; attempt <= s.cfg.BusyRetries; attempt++ {
+		// resolveHandler finds the plugin by its database id at delivery time,
+		// so once this set is closed the id may already belong to a reloaded
+		// instance that never started the operation.
+		if sessionsClosed(sessions) {
+			return
+		}
+
 		callCtx, cancel := context.WithTimeout(
 			context.WithoutCancel(s.context()),
 			s.cfg.CompletionCallTimeout,
@@ -204,6 +219,15 @@ func (s *Service) deliverCompleted(sessions *Sessions, op *operation) {
 	s.logger.Error("plugin stayed busy, ssh exec completion callback dropped",
 		slog.Uint64("plugin_id", sessions.pluginID),
 		slog.String("operation_id", op.id))
+}
+
+func sessionsClosed(sessions *Sessions) bool {
+	select {
+	case <-sessions.closedCh:
+		return true
+	default:
+		return false
+	}
 }
 
 // waitBeforeRetry pauses between busy retries, giving up early when the plugin

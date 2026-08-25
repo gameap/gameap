@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -111,6 +112,8 @@ func TestSessions_ConnectAndExec(t *testing.T) {
 		"the observed key must be reported so a plugin can pin it")
 	assert.Equal(t, "ssh-ed25519", result.HostKeyType)
 	assert.Contains(t, result.ServerVersion, "SSH-2.0")
+	assert.Equal(t, net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10)), result.Address,
+		"the audit trail needs the address that was actually dialed")
 
 	snapshot := runToCompletion(t, sessions, ExecParams{Handle: result.Handle, Command: "echo hello"})
 
@@ -354,30 +357,29 @@ func TestSessions_ConnectionLossEndsOperations(t *testing.T) {
 
 	snapshot, ok := sessions.Snapshot(operationID, 0, 0)
 	require.True(t, ok)
-	// The exact outcome is a race the engine does not arbitrate: the dying
-	// transport wakes session.Wait and the connection watchdog at the same
-	// time, so the plugin sees either the watchdog's cancellation or the
-	// channel that closed without an exit status. What must hold whoever wins
-	// is that the operation ends, ends unsuccessfully and says why.
-	// TestSessions_LostConnectionIsReportedAsCanceled pins the watchdog path
-	// itself, without the race.
-	assert.True(t, snapshot.Status.Finished(), "a machine that went away must not leave the operation running")
-	assert.NotEqual(t, StatusCompleted, snapshot.Status)
+	// The dying transport wakes session.Wait and the connection watchdog at
+	// the same time. Both arms classify as StatusFailed — the watchdog through
+	// the errConnectionLost cause, session.Wait through the channel that
+	// closed without an exit status — matching the EXEC_STATUS_FAILED contract
+	// in ssh.proto. TestSessions_LostConnectionIsReportedAsFailed pins the
+	// watchdog path itself, without the race.
+	assert.Equal(t, StatusFailed, snapshot.Status,
+		"a machine that went away is a transport failure, not a cancellation")
 	assert.False(t, snapshot.Succeeded())
 	assert.NotEmpty(t, snapshot.Error, "the plugin has to be able to report why the command died")
 }
 
-// TestSessions_LostConnectionIsReportedAsCanceled pins what a plugin is told
-// when the engine gives up on a connection: connectionLost hands the reason to
-// the operations running on it as a cancellation cause, so they end as
-// StatusCanceled and the StatusFailed branch classifyExec keeps for
-// errConnectionLost is never reached this way. Current behaviour, deliberately
-// pinned — changing it changes what every plugin sees.
+// TestSessions_LostConnectionIsReportedAsFailed pins what a plugin is told
+// when the engine gives up on a connection: connectionLost cancels the
+// operations running on it with errConnectionLost as the cause, classifyExec
+// unwraps to it and reports StatusFailed — the EXEC_STATUS_FAILED contract in
+// ssh.proto ("Transport failure, connection closed"). A retry loop in a plugin
+// keys off this status; a user's cancellation must stay distinguishable.
 //
 // The cancellation is driven directly instead of by killing the socket: a
 // dying transport also wakes session.Wait, and whichever lands first decides
-// the outcome (see TestSessions_ConnectionLossFailsOperations).
-func TestSessions_LostConnectionIsReportedAsCanceled(t *testing.T) {
+// the outcome (see TestSessions_ConnectionLossEndsOperations).
+func TestSessions_LostConnectionIsReportedAsFailed(t *testing.T) {
 	t.Parallel()
 	server := newTestSSHServer(t)
 	sessions := newTestSessions(t, Config{})
@@ -391,7 +393,7 @@ func TestSessions_LostConnectionIsReportedAsCanceled(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	sessions.cancelConnectionOperations(handle, "connection closed: EOF")
+	sessions.cancelConnectionOperations(handle, "connection closed: EOF", errConnectionLost)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -399,7 +401,7 @@ func TestSessions_LostConnectionIsReportedAsCanceled(t *testing.T) {
 
 	snapshot, ok := sessions.Snapshot(operationID, 0, 0)
 	require.True(t, ok)
-	assert.Equal(t, StatusCanceled, snapshot.Status)
+	assert.Equal(t, StatusFailed, snapshot.Status)
 	assert.Contains(t, snapshot.Error, "connection closed: EOF",
 		"the transport error is what the plugin has to report to its operator")
 	assert.Equal(t, int32(-1), snapshot.ExitCode)
@@ -491,6 +493,79 @@ func TestSessions_RetentionAndEviction(t *testing.T) {
 	})
 }
 
+// TestSessions_CloseStopsRetentionTimers: an unloaded plugin must not stay
+// reachable from the timer queue for the whole retention window.
+func TestSessions_CloseStopsRetentionTimers(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+	sessions := newTestSessions(t, Config{OperationRetention: time.Hour})
+	handle := connectToTestServer(t, sessions, server)
+
+	runToCompletion(t, sessions, ExecParams{Handle: handle, Command: "echo hi"})
+
+	sessions.mu.Lock()
+	pending := len(sessions.timers)
+	sessions.mu.Unlock()
+	require.Equal(t, 1, pending, "a finished operation must be on a retention timer")
+
+	sessions.Close()
+
+	sessions.mu.Lock()
+	defer sessions.mu.Unlock()
+	assert.Empty(t, sessions.timers, "Close must stop and drop every retention timer")
+}
+
+// TestSessions_EvictionRemovesTheRetentionTimer: eviction is what bounds the
+// retained output, so the timer of an evicted operation must go with it —
+// otherwise the timer queue keeps one entry per finished command with no
+// upper bound.
+func TestSessions_EvictionRemovesTheRetentionTimer(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+	sessions := newTestSessions(t, Config{MaxRetainedOperations: 2, OperationRetention: time.Hour})
+	handle := connectToTestServer(t, sessions, server)
+
+	runToCompletion(t, sessions, ExecParams{Handle: handle, Command: "echo 1"})
+	runToCompletion(t, sessions, ExecParams{Handle: handle, Command: "echo 2"})
+	runToCompletion(t, sessions, ExecParams{Handle: handle, Command: "echo 3"})
+
+	sessions.mu.Lock()
+	defer sessions.mu.Unlock()
+	assert.Len(t, sessions.timers, 2, "evicted operations must not keep their timers")
+}
+
+// TestSessions_FinishAfterCloseKeepsTheSetEmpty: a wait goroutine finishing
+// after Close must not resurrect bookkeeping on the closed set — the finished
+// list, the timer queue and the running counter all belong to an instance that
+// no longer exists.
+func TestSessions_FinishAfterCloseKeepsTheSetEmpty(t *testing.T) {
+	t.Parallel()
+	sessions := newTestSessions(t, Config{})
+	op := execTestOperation(connTestHandle, true)
+
+	sessions.mu.Lock()
+	sessions.ops[op.id] = op
+	sessions.running = 1
+	sessions.mu.Unlock()
+
+	sessions.Close()
+
+	sessions.finishOperation(op, execOutcome{status: StatusCompleted, exitCode: 0})
+
+	select {
+	case <-op.done:
+	default:
+		t.Fatal("waiters must still be released by the late finish")
+	}
+
+	sessions.mu.Lock()
+	defer sessions.mu.Unlock()
+	assert.Empty(t, sessions.ops)
+	assert.Empty(t, sessions.finished, "a late finish must not repopulate the finished list")
+	assert.Empty(t, sessions.timers, "a late finish must not schedule a retention timer")
+	assert.Zero(t, sessions.running)
+}
+
 func TestSessions_ClosedSetRefusesEverything(t *testing.T) {
 	t.Parallel()
 	server := newTestSSHServer(t)
@@ -562,6 +637,14 @@ func TestSessions_ConnectValidation(t *testing.T) {
 			wantError: ErrUserRequired,
 		},
 		{
+			name: "port_above_65535_is_refused",
+			params: ConnectParams{
+				Host: "example.com", Port: 70000, User: "gameap",
+				Password: testPassword, HostKey: HostKeyPolicy{AcceptAny: true},
+			},
+			wantError: ErrInvalidPort,
+		},
+		{
 			name:      "host_key_policy_required",
 			params:    ConnectParams{Host: "example.com", User: "gameap", Password: testPassword},
 			wantError: ErrHostKeyPolicyRequired,
@@ -611,7 +694,9 @@ func TestSessions_PublicKeyAuthentication(t *testing.T) {
 func TestSessions_IdleTimeoutClosesConnection(t *testing.T) {
 	t.Parallel()
 	server := newTestSSHServer(t)
-	sessions := newTestSessions(t, Config{KeepaliveInterval: 30 * time.Millisecond})
+	// The tiny IdleTimeout ceiling keeps the 10s request floor out of the way;
+	// the sweep itself still ticks on the floored one-second interval.
+	sessions := newTestSessions(t, Config{KeepaliveInterval: 30 * time.Millisecond, IdleTimeout: 100 * time.Millisecond})
 	host, port := server.addr()
 
 	result, err := sessions.Connect(context.Background(), ConnectParams{
@@ -624,11 +709,105 @@ func TestSessions_IdleTimeoutClosesConnection(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool {
-		_, err := sessions.connection(result.Handle)
+	// Polling sessions.connection would count as use and keep the connection
+	// alive forever, so the probe watches the connection itself.
+	conn, err := sessions.connection(result.Handle)
+	require.NoError(t, err)
 
-		return err != nil
+	assert.Eventually(t, func() bool {
+		select {
+		case <-conn.closed:
+			return true
+		default:
+			return false
+		}
 	}, 5*time.Second, 25*time.Millisecond, "an unused connection must not stay open forever")
+}
+
+// TestSessions_ConnectionHost: the host by handle is what lets the audit
+// records of commands name the machine they ran on.
+func TestSessions_ConnectionHost(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+	sessions := newTestSessions(t, Config{})
+	handle := connectToTestServer(t, sessions, server)
+	host, _ := server.addr()
+
+	got, ok := sessions.ConnectionHost(handle)
+	require.True(t, ok)
+	assert.Equal(t, host, got)
+
+	_, ok = sessions.ConnectionHost(handle + 1)
+	assert.False(t, ok, "an unknown handle has no host")
+
+	sessions.Close()
+
+	_, ok = sessions.ConnectionHost(handle)
+	assert.False(t, ok, "a closed set answers for no handles")
+}
+
+// TestSessions_TransferLimitCancelsARunawayCommand: capture stops at the
+// output cap, but the remote side used to keep sending at line rate for the
+// whole exec timeout; the transfer cap must end the operation instead.
+func TestSessions_TransferLimitCancelsARunawayCommand(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+	sessions := newTestSessions(t, Config{MaxOutputBytes: 1024})
+	handle := connectToTestServer(t, sessions, server)
+
+	snapshot := runToCompletion(t, sessions, ExecParams{Handle: handle, Command: "spam 33554432"})
+
+	assert.Equal(t, StatusCanceled, snapshot.Status)
+	assert.Contains(t, snapshot.Error, "transfer limit exceeded")
+	assert.False(t, snapshot.Succeeded())
+}
+
+// TestSessions_ConnectionHandoutMarksItUsed: prepareSession can spend longer
+// than the idle budget between the handle lookup and the first byte on the
+// wire, so the handout itself must reset the idle clock — otherwise the sweep
+// closes the connection under a command that is still being started.
+func TestSessions_ConnectionHandoutMarksItUsed(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+	sessions := newTestSessions(t, Config{})
+	handle := connectToTestServer(t, sessions, server)
+
+	conn, err := sessions.connection(handle)
+	require.NoError(t, err)
+
+	conn.mu.Lock()
+	conn.lastUsed = time.Now().Add(-time.Hour)
+	conn.mu.Unlock()
+
+	_, err = sessions.connection(handle)
+	require.NoError(t, err)
+
+	assert.Less(t, conn.idleFor(), time.Minute, "the handout must count as use")
+}
+
+// TestSessions_TinyIdleTimeoutIsFlooredUnderALargeCeiling: the watchdog tick
+// derives from the requested idle timeout, so a millisecond request would turn
+// the sweep into a probe flood; under the default ceiling it is floored.
+func TestSessions_TinyIdleTimeoutIsFlooredUnderALargeCeiling(t *testing.T) {
+	t.Parallel()
+	server := newTestSSHServer(t)
+	sessions := newTestSessions(t, Config{})
+	host, port := server.addr()
+
+	result, err := sessions.Connect(context.Background(), ConnectParams{
+		Host:        host,
+		Port:        port,
+		User:        "gameap",
+		Password:    testPassword,
+		HostKey:     HostKeyPolicy{AcceptAny: true},
+		IdleTimeout: 5 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	conn, err := sessions.connection(result.Handle)
+	require.NoError(t, err)
+
+	assert.Equal(t, minIdleTimeout, conn.idleTimeout)
 }
 
 // TestSessions_SignalledCommandReportsTheSignal: a command the remote OS

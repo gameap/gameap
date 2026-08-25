@@ -190,6 +190,17 @@ func (p *Sessions) registerOperation(conn *connection, session *ssh.Session, par
 	p.ops[op.id] = op
 	p.mu.Unlock()
 
+	// The cap uses the panel ceiling, not the per-request capture cap: a
+	// plugin asking to keep only the head of the output is not asking for the
+	// transfer to be cut short.
+	//nolint:gosec // MaxOutputBytes is positive after withDefaults.
+	transferLimit := uint64(p.svc.cfg.MaxOutputBytes) * transferLimitMultiplier
+	overflow := func() {
+		op.cancel(&cancelCauseError{reason: "transfer limit exceeded"})
+	}
+	op.stdout.armTransferLimit(transferLimit, overflow)
+	op.stderr.armTransferLimit(transferLimit, overflow)
+
 	conn.touch()
 
 	// Killing the remote command on cancellation: the signal is best-effort
@@ -221,16 +232,22 @@ type execOutcome struct {
 	message    string
 }
 
-// classifyExec turns "why did Wait return" into the status a plugin sees. The
-// context cause is checked first: a killed command also reports a transport
-// error, and the cancellation is the more useful answer.
+// classifyExec turns "why did Wait return" into the status a plugin sees. A
+// clean Wait wins outright: the exit status arrived before any cancellation
+// could land, and a killed session never returns nil. Only an interrupted wait
+// consults the context cause — a killed command also reports a transport
+// error, and the cancellation is the more useful answer there.
 func classifyExec(opCtx context.Context, waitErr error) execOutcome {
+	if waitErr == nil {
+		return execOutcome{status: StatusCompleted, exitCode: 0}
+	}
+
 	if cause := context.Cause(opCtx); cause != nil {
 		switch {
 		case errors.Is(cause, errExecTimeout):
 			return execOutcome{status: StatusTimedOut, exitCode: -1, message: errExecTimeout.Error()}
 		case errors.Is(cause, errConnectionLost):
-			return execOutcome{status: StatusFailed, exitCode: -1, message: errConnectionLost.Error()}
+			return execOutcome{status: StatusFailed, exitCode: -1, message: connectionLostMessage(cause)}
 		}
 
 		var canceled *cancelCauseError
@@ -239,10 +256,6 @@ func classifyExec(opCtx context.Context, waitErr error) execOutcome {
 		}
 
 		return execOutcome{status: StatusCanceled, exitCode: -1, message: cause.Error()}
-	}
-
-	if waitErr == nil {
-		return execOutcome{status: StatusCompleted, exitCode: 0}
 	}
 
 	var exitErr *ssh.ExitError
@@ -271,28 +284,54 @@ func classifyExec(opCtx context.Context, waitErr error) execOutcome {
 	return execOutcome{status: StatusFailed, exitCode: -1, message: waitErr.Error()}
 }
 
+// connectionLostMessage prefers the watchdog's reason ("connection closed:
+// EOF") over the bare sentinel, so the transport detail reaches the plugin.
+func connectionLostMessage(cause error) string {
+	var canceled *cancelCauseError
+	if errors.As(cause, &canceled) {
+		return canceled.reason
+	}
+
+	return errConnectionLost.Error()
+}
+
 // finishOperation publishes the outcome, retires the record and fires the
 // completion callback if the plugin asked for one.
 func (p *Sessions) finishOperation(op *operation, outcome execOutcome) {
 	notify := op.finish(outcome)
+	id := op.id
 
 	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+
+		// Close already dropped the record and the notification interest; the
+		// bookkeeping below would resurrect state on a closed set and hand the
+		// completion to a reloaded instance.
+		p.svc.logger.Debug("plugin ssh command finished after unload, outcome discarded",
+			slog.Uint64("plugin_id", p.pluginID),
+			slog.String("operation_id", id),
+			slog.String("status", string(outcome.status)))
+
+		return
+	}
 	if p.running > 0 {
 		p.running--
 	}
-	p.finished = append(p.finished, op.id)
+	p.finished = append(p.finished, id)
+	// The timer closure holds the id only: holding op would keep the captured
+	// output reachable for the whole retention window even after eviction.
+	p.timers[id] = time.AfterFunc(p.svc.cfg.OperationRetention, func() { p.dropOperation(id) })
 	evicted := p.evictOldFinishedLocked()
 	p.mu.Unlock()
 
-	for _, id := range evicted {
-		p.dropOperation(id)
+	for _, evictedID := range evicted {
+		p.dropOperation(evictedID)
 	}
-
-	time.AfterFunc(p.svc.cfg.OperationRetention, func() { p.dropOperation(op.id) })
 
 	p.svc.logger.Debug("plugin ssh command finished",
 		slog.Uint64("plugin_id", p.pluginID),
-		slog.String("operation_id", op.id),
+		slog.String("operation_id", id),
 		slog.String("status", string(outcome.status)),
 		slog.Int("exit_code", int(outcome.exitCode)))
 
@@ -311,7 +350,10 @@ func (p *Sessions) evictOldFinishedLocked() []string {
 
 	evicted := make([]string, len(p.finished)-limit)
 	copy(evicted, p.finished[:len(p.finished)-limit])
-	p.finished = p.finished[len(p.finished)-limit:]
+
+	remaining := make([]string, limit)
+	copy(remaining, p.finished[len(p.finished)-limit:])
+	p.finished = remaining
 
 	return evicted
 }
@@ -319,6 +361,11 @@ func (p *Sessions) evictOldFinishedLocked() []string {
 func (p *Sessions) dropOperation(operationID string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	if timer, ok := p.timers[operationID]; ok {
+		timer.Stop()
+		delete(p.timers, operationID)
+	}
 
 	delete(p.ops, operationID)
 

@@ -192,3 +192,52 @@ func TestCapturedStream_SliceReturnsACopy(t *testing.T) {
 	after, _, _, _ := stream.slice(0) //nolint:dogsled // only the captured bytes matter here
 	assert.Equal(t, "secret", string(after), "a chunk handed out must not share memory with the capture buffer")
 }
+
+// TestCapturedStream_TransferLimit: the transfer cap is what stops a runaway
+// command from pumping data for the whole exec timeout, so the callback must
+// fire exactly once, fire late-armed if the limit was already crossed, and
+// stay silent below the limit.
+func TestCapturedStream_TransferLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("callback_fires_once_when_the_limit_is_crossed", func(t *testing.T) {
+		t.Parallel()
+
+		stream := newCapturedStream(4)
+		fired := 0
+		stream.armTransferLimit(10, func() { fired++ })
+
+		for range 5 {
+			_, err := stream.Write(make([]byte, 4))
+			require.NoError(t, err)
+		}
+
+		assert.Equal(t, 1, fired, "the overflow callback must fire exactly once")
+	})
+
+	t.Run("late_arming_fires_immediately_when_already_over_the_limit", func(t *testing.T) {
+		t.Parallel()
+
+		stream := newCapturedStream(4)
+		_, err := stream.Write(make([]byte, 32))
+		require.NoError(t, err)
+
+		fired := 0
+		stream.armTransferLimit(10, func() { fired++ })
+
+		assert.Equal(t, 1, fired, "data sent before arming still counts against the limit")
+	})
+
+	t.Run("writes_below_the_limit_stay_silent", func(t *testing.T) {
+		t.Parallel()
+
+		stream := newCapturedStream(4)
+		fired := 0
+		stream.armTransferLimit(10, func() { fired++ })
+
+		_, err := stream.Write(make([]byte, 10))
+		require.NoError(t, err)
+
+		assert.Zero(t, fired, "reaching the limit exactly is not crossing it")
+	})
+}

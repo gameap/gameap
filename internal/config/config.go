@@ -431,6 +431,12 @@ type Config struct {
 			// for panels whose dedicated servers live on a private network.
 			AllowedHosts []string `env:"PLUGIN_SSH_ALLOWED_HOSTS" envSeparator:"," envDefault:""`
 
+			// AllowAcceptAnyHostKey permits the accept_any host key policy
+			// (trust-on-first-use), which first contact with a freshly created
+			// machine needs. Disable to force every plugin to pin the host key
+			// or its fingerprint.
+			AllowAcceptAnyHostKey bool `env:"PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY" envDefault:"true"`
+
 			// MaxConnections caps concurrent SSH connections per plugin.
 			MaxConnections int `env:"PLUGIN_SSH_MAX_CONNECTIONS" envDefault:"8"`
 
@@ -454,6 +460,33 @@ type Config struct {
 			// MaxStdinBytes caps what a plugin may pipe into a command, which
 			// is how install scripts are delivered.
 			MaxStdinBytes int `env:"PLUGIN_SSH_MAX_STDIN_BYTES" envDefault:"1048576"`
+
+			// OperationRetention keeps a finished operation (with its captured
+			// output) readable, so a plugin that polls late still sees the
+			// outcome. Together with MaxRetainedOperations and MaxOutputBytes
+			// it bounds the memory held per plugin.
+			OperationRetention time.Duration `env:"PLUGIN_SSH_OPERATION_RETENTION" envDefault:"10m"`
+
+			// MaxRetainedOperations caps how many finished operations are kept
+			// per plugin; the oldest are evicted first. 0 selects the default.
+			MaxRetainedOperations int `env:"PLUGIN_SSH_MAX_RETAINED_OPERATIONS" envDefault:"64"`
+
+			// KeepaliveInterval paces the liveness probes on open connections.
+			// The engine floors the effective sweep at one second.
+			KeepaliveInterval time.Duration `env:"PLUGIN_SSH_KEEPALIVE_INTERVAL" envDefault:"30s"`
+
+			// CompletionCallTimeout bounds one completion callback into the
+			// plugin; a guest that cannot answer in time is disabled.
+			CompletionCallTimeout time.Duration `env:"PLUGIN_SSH_COMPLETION_CALL_TIMEOUT" envDefault:"30s"`
+
+			// BusyRetryDelay is the pause between completion callback retries
+			// while the plugin instance is busy with another call.
+			BusyRetryDelay time.Duration `env:"PLUGIN_SSH_BUSY_RETRY_DELAY" envDefault:"2s"`
+
+			// BusyRetries is how many times a busy completion callback is
+			// retried before it is dropped. 0 selects the default; retries
+			// cannot be disabled.
+			BusyRetries int `env:"PLUGIN_SSH_BUSY_RETRIES" envDefault:"5"`
 		}
 
 		// Net gates the plugin socket host library

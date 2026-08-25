@@ -61,9 +61,12 @@ func sshHandleResourceID(handle uint64) string {
 // its stdin never reach the audit stream: they routinely carry credentials the
 // plugin is bootstrapping the machine with.
 func (s *SSHServiceImpl) auditExec(ctx context.Context, action string, handle uint64, operationID string, err error) {
-	extra := make([]slog.Attr, 0, 1)
+	extra := make([]slog.Attr, 0, 2)
 	if operationID != "" {
 		extra = append(extra, slog.String("operation_id", operationID))
+	}
+	if host, ok := s.sessions.ConnectionHost(handle); ok {
+		extra = append(extra, slog.String("host", host))
 	}
 
 	s.guard.Audit(ctx, audit.EventPluginSSHExec, action,
@@ -73,9 +76,14 @@ func (s *SSHServiceImpl) auditExec(ctx context.Context, action string, handle ui
 // auditFile records a remote file transfer: the path it touched and the
 // connection it used, never the content that moved over it.
 func (s *SSHServiceImpl) auditFile(ctx context.Context, action string, handle uint64, path string, err error) {
+	extra := make([]slog.Attr, 0, 2)
+	extra = append(extra, slog.String("path", path))
+	if host, ok := s.sessions.ConnectionHost(handle); ok {
+		extra = append(extra, slog.String("host", host))
+	}
+
 	s.guard.Audit(ctx, audit.EventPluginSSHFile, action,
-		"ssh_session", sshHandleResourceID(handle), err,
-		slog.String("path", path))
+		"ssh_session", sshHandleResourceID(handle), err, extra...)
 }
 
 func (s *SSHServiceImpl) GenerateKeyPair(
@@ -88,8 +96,17 @@ func (s *SSHServiceImpl) GenerateKeyPair(
 
 	pair, err := pluginssh.GenerateKeyPair(keyTypeFromProto(req.Type), req.Comment)
 	if err != nil {
+		s.guard.Audit(ctx, audit.EventPluginSSHKey, "generate_key_pair", "ssh_key", "", err)
+
 		return &sshsdk.GenerateKeyPairResponse{Error: new(err.Error())}, nil
 	}
+
+	// The fingerprint is what ties an authorized_keys line found on a machine
+	// back to the plugin that minted it; the key material itself never enters
+	// the record.
+	s.guard.Audit(ctx, audit.EventPluginSSHKey, "generate_key_pair",
+		"ssh_key", pair.FingerprintSHA256, nil,
+		slog.String("key_type", pair.KeyType))
 
 	return &sshsdk.GenerateKeyPairResponse{
 		Success:           true,
@@ -139,7 +156,10 @@ func (s *SSHServiceImpl) Connect(
 		"ssh_host", sshTargetResourceID(req.Host, req.Port), nil,
 		slog.String("user", req.User),
 		slog.String("host_key_type", result.HostKeyType),
-		slog.String("host_key_fingerprint", result.HostKeyFingerprintSHA256))
+		slog.String("host_key_fingerprint", result.HostKeyFingerprintSHA256),
+		slog.Bool("host_key_verified", result.HostKeyVerified),
+		slog.String("handle", sshHandleResourceID(result.Handle)),
+		slog.String("address", result.Address))
 
 	return &sshsdk.ConnectResponse{
 		Success:                  true,

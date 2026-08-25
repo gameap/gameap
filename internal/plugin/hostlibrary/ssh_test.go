@@ -2,6 +2,7 @@ package hostlibrary
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -40,6 +41,8 @@ type mockSSHSessions struct {
 
 	disconnected []uint64
 	disconnErr   error
+
+	hosts map[uint64]string
 
 	closed bool
 }
@@ -113,6 +116,15 @@ func (m *mockSSHSessions) SubscribeCompletion(operationID string) error {
 	m.subscribed = append(m.subscribed, operationID)
 
 	return nil
+}
+
+func (m *mockSSHSessions) ConnectionHost(handle uint64) (string, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	host, ok := m.hosts[handle]
+
+	return host, ok
 }
 
 func (m *mockSSHSessions) Close() {
@@ -553,10 +565,12 @@ func TestSSHService_WriteFile(t *testing.T) {
 		require.True(t, resp.Success, resp.Error)
 
 		require.Len(t, sessions.recordedExec(), 1)
-		command := sessions.recordedExec()[0].Command
-		assert.Contains(t, command, "cat > '/tmp/install script.sh'",
-			"a path with spaces must stay one argument")
-		assert.Contains(t, command, "chmod 755 '/tmp/install script.sh'")
+		assert.Equal(t,
+			"umask 077; { cat > '/tmp/install script.sh.gameap-tmp'"+
+				" && chmod 755 -- '/tmp/install script.sh.gameap-tmp'"+
+				" && mv -f -- '/tmp/install script.sh.gameap-tmp' '/tmp/install script.sh'; }"+
+				" || { rc=$?; rm -f -- '/tmp/install script.sh.gameap-tmp'; exit $rc; }",
+			sessions.recordedExec()[0].Command)
 		assert.Equal(t, []byte("#!/bin/bash"), sessions.recordedExec()[0].Stdin)
 	})
 
@@ -595,6 +609,25 @@ func TestSSHService_WriteFile(t *testing.T) {
 		assert.False(t, resp.Success)
 		assert.Empty(t, sessions.recordedExec())
 	})
+
+	t.Run("invalid_mode_is_refused_before_the_engine", func(t *testing.T) {
+		t.Parallel()
+		sessions := &mockSSHSessions{}
+		svc := newSSHService(t, true, sessions)
+
+		resp, err := svc.WriteFile(context.Background(), &sshsdk.WriteFileRequest{
+			Handle:  9,
+			Path:    "/etc/ssh/key",
+			Content: []byte("secret"),
+			Mode:    755,
+		})
+
+		require.NoError(t, err)
+		assert.False(t, resp.Success)
+		require.NotNil(t, resp.Error)
+		assert.Contains(t, *resp.Error, "0o644")
+		assert.Empty(t, sessions.recordedExec())
+	})
 }
 
 func TestSSHService_ReadFile(t *testing.T) {
@@ -623,7 +656,7 @@ func TestSSHService_ReadFile(t *testing.T) {
 	assert.True(t, resp.Truncated)
 
 	require.Len(t, sessions.recordedExec(), 1)
-	assert.Equal(t, "cat '/etc/gameap-daemon/gameap-daemon.yaml'", sessions.recordedExec()[0].Command)
+	assert.Equal(t, "cat -- '/etc/gameap-daemon/gameap-daemon.yaml'", sessions.recordedExec()[0].Command)
 	assert.Equal(t, 4096, sessions.recordedExec()[0].MaxOutputBytes)
 }
 
@@ -759,4 +792,140 @@ func deadlineCtx(in time.Duration) func(t *testing.T) context.Context {
 
 		return ctx
 	}
+}
+
+// auditAttrValue extracts one attribute from an audit event's extras.
+func auditAttrValue(t *testing.T, event audit.Event, key string) (string, bool) {
+	t.Helper()
+
+	for _, attr := range event.Extra {
+		if attr.Key == key {
+			return attr.Value.String(), true
+		}
+	}
+
+	return "", false
+}
+
+// TestSSHService_GenerateKeyPairIsAuditedWithoutKeyMaterial covers OWASP
+// API9:2023 Improper Inventory Management: key generation mints a credential
+// the panel never stores, so the fingerprint in the audit trail is the only
+// way to tie an authorized_keys line found on a machine back to the plugin —
+// and the trail must not become the place the key material ends up.
+func TestSSHService_GenerateKeyPairIsAuditedWithoutKeyMaterial(t *testing.T) {
+	t.Parallel()
+	recorder := &auditRecorder{}
+	svc := NewSSHService(
+		&mockSSHSessions{},
+		NewGuard(stubPermissionChecker{allowed: true}, WithGuardAudit(recorder)).For(sshTestPluginID),
+	)
+
+	resp, err := svc.GenerateKeyPair(context.Background(), &sshsdk.GenerateKeyPairRequest{
+		Type:    sshsdk.KeyType_KEY_TYPE_ED25519,
+		Comment: "autoscale@panel",
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Success, resp.Error)
+
+	events := recorder.all()
+	require.Len(t, events, 1)
+	assert.Equal(t, audit.EventPluginSSHKey, events[0].Type)
+	assert.Equal(t, "generate_key_pair", events[0].Action)
+	assert.Equal(t, audit.OutcomeSuccess, events[0].Outcome)
+	assert.Equal(t, "ssh_key", events[0].ResourceType)
+	assert.Equal(t, resp.FingerprintSha256, events[0].ResourceID)
+
+	keyType, ok := auditAttrValue(t, events[0], "key_type")
+	require.True(t, ok)
+	assert.Equal(t, resp.KeyType, keyType)
+
+	publicKeyBody := strings.Fields(resp.PublicKey)[1]
+	assert.NotContains(t, events[0].ResourceID, publicKeyBody)
+	for _, attr := range events[0].Extra {
+		assert.NotContains(t, attr.Value.String(), "PRIVATE KEY",
+			"key material must never enter the audit stream")
+		assert.NotContains(t, attr.Value.String(), publicKeyBody,
+			"the fingerprint stands in for the key; the key itself stays out")
+	}
+}
+
+// TestSSHService_ConnectAuditLinksHandleAndAddress covers OWASP API9:2023
+// Improper Inventory Management: commands are audited by session handle, so
+// the connect record must carry that handle — and the numeric address that was
+// actually dialed, which with an allowlisted name can differ from the request.
+func TestSSHService_ConnectAuditLinksHandleAndAddress(t *testing.T) {
+	t.Parallel()
+	recorder := &auditRecorder{}
+	sessions := &mockSSHSessions{
+		connectResult: &pluginssh.ConnectResult{
+			Handle:          7,
+			Address:         "203.0.113.9:22",
+			HostKeyType:     "ssh-ed25519",
+			HostKeyVerified: true,
+		},
+	}
+	svc := NewSSHService(
+		sessions,
+		NewGuard(stubPermissionChecker{allowed: true}, WithGuardAudit(recorder)).For(sshTestPluginID),
+	)
+
+	_, err := svc.Connect(context.Background(), &sshsdk.ConnectRequest{Host: "node.internal", User: "root"})
+	require.NoError(t, err)
+
+	events := recorder.all()
+	require.Len(t, events, 1)
+
+	handle, ok := auditAttrValue(t, events[0], "handle")
+	require.True(t, ok, "the connect record must name the handle commands are audited under")
+	assert.Equal(t, "7", handle)
+
+	address, ok := auditAttrValue(t, events[0], "address")
+	require.True(t, ok, "the record must name the address that was actually dialed")
+	assert.Equal(t, "203.0.113.9:22", address)
+
+	verified, ok := auditAttrValue(t, events[0], "host_key_verified")
+	require.True(t, ok)
+	assert.Equal(t, "true", verified)
+}
+
+// TestSSHService_ExecAuditNamesTheHost covers OWASP API9:2023 Improper
+// Inventory Management: without the host in the command and file records, the
+// audit stream cannot say which machine a command ran on.
+func TestSSHService_ExecAuditNamesTheHost(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	recorder := &auditRecorder{}
+	sessions := &mockSSHSessions{
+		operationID:   "op-1",
+		hosts:         map[uint64]string{4: "build-42.example.com"},
+		snapshotFound: true,
+		snapshot:      pluginssh.ExecSnapshot{Status: pluginssh.StatusCompleted, ExitCode: 0},
+	}
+	svc := NewSSHService(
+		sessions,
+		NewGuard(stubPermissionChecker{allowed: true}, WithGuardAudit(recorder)).For(sshTestPluginID),
+	)
+
+	_, err := svc.StartExec(ctx, &sshsdk.ExecRequest{Handle: 4, Command: "uptime"})
+	require.NoError(t, err)
+
+	_, err = svc.WriteFile(ctx, &sshsdk.WriteFileRequest{Handle: 4, Path: "/etc/motd", Content: []byte("hi")})
+	require.NoError(t, err)
+
+	_, err = svc.StartExec(ctx, &sshsdk.ExecRequest{Handle: 9, Command: "uptime"})
+	require.NoError(t, err)
+
+	events := recorder.all()
+	require.Len(t, events, 3)
+
+	host, ok := auditAttrValue(t, events[0], "host")
+	require.True(t, ok, "the command record must name the machine it ran on")
+	assert.Equal(t, "build-42.example.com", host)
+
+	host, ok = auditAttrValue(t, events[1], "host")
+	require.True(t, ok, "the file record must name the machine it touched")
+	assert.Equal(t, "build-42.example.com", host)
+
+	_, ok = auditAttrValue(t, events[2], "host")
+	assert.False(t, ok, "an unknown handle has no host to report")
 }
