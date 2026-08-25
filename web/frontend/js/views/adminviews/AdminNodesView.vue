@@ -7,6 +7,11 @@
       <span>{{ trans('dedicated_servers.create') }}</span>
     </GButton>
 
+    <GButton color="black" size="middle" :route="{ name: 'admin.gdaemon_tasks.index' }">
+      <GIcon name="tasks" class="mr-0.5" />
+      <span>{{ trans('gdaemon_tasks.gdaemon_tasks') }}</span>
+    </GButton>
+
     <GButton color="orange" size="middle" :route="{ name: 'admin.client_certificates.index' }">
       <GIcon name="certificate" class="mr-0.5" />
       <span>{{ trans('client_certificates.client_certificates') }}</span>

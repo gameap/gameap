@@ -19,27 +19,10 @@
     </template>
 
     <template #header-extra>
-      <n-tag
-          v-if="online"
-          type="success"
-          size="small"
-          round
-          :bordered="false"
-      >
-        <template #icon>
-          <span class="online-dot" />
-        </template>
-        {{ trans('dedicated_servers.online') }}
-      </n-tag>
-      <n-tag
-          v-else
-          type="error"
-          size="small"
-          round
-          :bordered="false"
-      >
-        {{ trans('dedicated_servers.offline') }}
-      </n-tag>
+      <GStatusBadge
+          :status="online ? 'success' : 'error'"
+          :text="online ? trans('dedicated_servers.online') : trans('dedicated_servers.offline')"
+      />
     </template>
 
     <div class="text-sm text-stone-500 dark:text-stone-400 mb-3 flex flex-wrap gap-x-3 gap-y-1">
@@ -100,8 +83,8 @@
 
 <script setup>
 import { computed } from 'vue'
-import { NCard, NProgress, NTag } from 'naive-ui'
-import { GIcon } from '@gameap/ui'
+import { NCard, NProgress } from 'naive-ui'
+import { GIcon, GStatusBadge } from '@gameap/ui'
 import { useThemeVars } from '@/utils/theme'
 import { trans } from '@/i18n/i18n'
 
@@ -178,28 +161,3 @@ function formatBitrate(bps) {
     return `${n.toFixed(1)} ${u[i]}`
 }
 </script>
-
-<style scoped>
-.online-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 0 0 currentColor;
-    animation: online-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes online-pulse {
-    0%, 100% {
-        box-shadow: 0 0 0 0 rgba(132, 204, 22, 0.6);
-    }
-    50% {
-        box-shadow: 0 0 0 4px rgba(132, 204, 22, 0);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .online-dot { animation: none; }
-}
-</style>

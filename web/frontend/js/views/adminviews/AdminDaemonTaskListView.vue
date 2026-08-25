@@ -69,7 +69,7 @@ import {trans} from "@/i18n/i18n"
 import {useDaemonTaskListStore} from "@/store/daemonTaskList"
 import {useNodeListStore} from "@/store/nodeList"
 import {useServerListStore} from "@/store/serverList"
-import {RouterLink} from "vue-router"
+import {RouterLink, useRoute, useRouter} from "vue-router"
 import {storeToRefs} from "pinia"
 import GButton from "@/components/GButton.vue";
 import {errorNotification} from "@/parts/dialogs"
@@ -77,6 +77,9 @@ import {errorNotification} from "@/parts/dialogs"
 const daemonTaskListStore = useDaemonTaskListStore()
 const nodeListStore = useNodeListStore()
 const serverListStore = useServerListStore()
+
+const route = useRoute()
+const router = useRouter()
 
 const breadcrumbs = computed(() => {
   return [
@@ -279,11 +282,26 @@ const listData = computed(() => {
   })
 })
 
+const parseNodesQuery = (value) => {
+  if (!value) {
+    return null
+  }
+
+  const ids = [...new Set(
+    (Array.isArray(value) ? value : [value])
+      .flatMap((v) => String(v).split(','))
+      .map(Number)
+      .filter((id) => Number.isInteger(id) && id > 0),
+  )]
+
+  return ids.length > 0 ? ids : null
+}
+
 const search = ref({
   tasks: null,
   statuses: null,
   servers: null,
-  nodes: null,
+  nodes: parseNodesQuery(route.query.node),
 })
 
 const taskOptions = [
@@ -402,7 +420,18 @@ const handlePageChange = (page) => {
   fetchTasks()
 }
 
+const stripNodesQuery = () => {
+  if (route.query.node === undefined) {
+    return
+  }
+
+  const query = {...route.query}
+  delete query.node
+  router.replace({query})
+}
+
 const onUpdateFilters = () => {
+  stripNodesQuery()
   currentPage.value = 1
   fetchTasks()
 }
@@ -412,6 +441,7 @@ const isFiltersSet = () => {
 }
 
 const clearFilters = () => {
+  stripNodesQuery()
   search.value.tasks = null
   search.value.statuses = null
   search.value.servers = null
