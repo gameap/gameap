@@ -1,0 +1,27 @@
+type: object
+description: >-
+  Returned instead of a session when the target account has two-factor auth
+  enabled. Single sign-on does not bypass the second factor: complete it via
+  `POST /api/auth/2fa/verify` with the challenge_token.
+properties:
+  two_factor_required:
+    type: boolean
+    example: true
+  challenge_token:
+    type: string
+    description: >-
+      Single-use challenge token (prefixed `g2fa_`). Not a bearer token —
+      presenting it in the `Authorization` header is rejected.
+    example: "g2fa_aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9f"
+  expires_in:
+    type: integer
+    description: Challenge lifetime in seconds.
+    example: 300
+  redirect_to:
+    type: string
+    description: The redirect target recorded when the ticket was minted.
+    example: "/servers/6"
+required:
+  - two_factor_required
+  - challenge_token
+  - expires_in

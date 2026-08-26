@@ -2,6 +2,9 @@ package cache
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -193,6 +196,64 @@ func (s *Suite) TestDeleteNonExistentKey() {
 
 	err := s.cacheInstance.Delete(ctx, "non_existent_key")
 	assert.NoError(s.T(), err)
+}
+
+func (s *Suite) TestPullReturnsValueAndRemoves() {
+	ctx := context.Background()
+
+	require.NoError(s.T(), s.cacheInstance.Set(ctx, "pull_key", "pull_value"))
+
+	value, err := s.cacheInstance.Pull(ctx, "pull_key")
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), "pull_value", value)
+
+	value, err = s.cacheInstance.Get(ctx, "pull_key")
+	assert.ErrorIs(s.T(), err, ErrNotFound)
+	assert.Nil(s.T(), value)
+}
+
+func (s *Suite) TestPullNotFound() {
+	ctx := context.Background()
+
+	value, err := s.cacheInstance.Pull(ctx, "missing_pull_key")
+	assert.ErrorIs(s.T(), err, ErrNotFound)
+	assert.Nil(s.T(), value)
+}
+
+func (s *Suite) TestPullIsSingleUseUnderConcurrency() {
+	ctx := context.Background()
+
+	require.NoError(s.T(), s.cacheInstance.Set(ctx, "one_shot", "the_value"))
+
+	const workers = 25
+
+	var (
+		wg       sync.WaitGroup
+		winners  atomic.Int64
+		notFound atomic.Int64
+	)
+
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+
+			value, err := s.cacheInstance.Pull(ctx, "one_shot")
+			switch {
+			case err == nil:
+				winners.Add(1)
+				assert.Equal(s.T(), "the_value", value)
+			case errors.Is(err, ErrNotFound):
+				notFound.Add(1)
+			default:
+				assert.NoError(s.T(), err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(s.T(), int64(1), winners.Load(), "exactly one Pull must win the value")
+	assert.Equal(s.T(), int64(workers-1), notFound.Load(), "every other Pull must get ErrNotFound")
 }
 
 func (s *Suite) TestClear() {

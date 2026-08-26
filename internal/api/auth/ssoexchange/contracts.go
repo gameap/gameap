@@ -9,11 +9,11 @@ import (
 
 // tokenCache is the narrow cache surface used to consume the single-use ticket
 // and, when the account has a second factor, to store the challenge that
-// replaces the session.
+// replaces the session. Pull consumes the ticket atomically, so a replay cannot
+// read it between a separate Get and Delete.
 type tokenCache interface {
-	Get(ctx context.Context, key string) (any, error)
+	Pull(ctx context.Context, key string) (any, error)
 	Set(ctx context.Context, key string, value any, options ...cache.Option) error
-	Delete(ctx context.Context, key string) error
 }
 
 // adminChecker is the slice of the RBAC service this handler needs: refusing

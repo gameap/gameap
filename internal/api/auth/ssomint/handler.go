@@ -26,6 +26,11 @@ const (
 	// maxTicketTTL caps whatever an operator configures. The ticket travels in
 	// a URL, so its window has to stay short even if someone sets an hour.
 	maxTicketTTL = 120 * time.Second
+
+	// defaultTicketTTL is the fallback when the configured value is missing or
+	// non-positive. It matches config's AUTH_SSO_TICKET_TTL default so a broken
+	// config lands on the intended 60s, not the 120s hard cap.
+	defaultTicketTTL = 60 * time.Second
 )
 
 var (
@@ -63,8 +68,12 @@ func NewHandler(
 		auditLogger = audit.NopLogger{}
 	}
 
-	if ttl <= 0 || ttl > maxTicketTTL {
+	if ttl > maxTicketTTL {
 		ttl = maxTicketTTL
+	}
+
+	if ttl <= 0 {
+		ttl = defaultTicketTTL
 	}
 
 	return &Handler{

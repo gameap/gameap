@@ -1,0 +1,37 @@
+type: object
+description: >-
+  Session issued when the target account has no second factor. Mirrors the login
+  response so the SPA can reuse the same "store this token" path.
+properties:
+  token:
+    type: string
+    description: Bearer token for subsequent requests.
+    example: "v4.public.eyJ1c2VyX2lkIjo0Mn0..."
+  expires_in:
+    type: integer
+    description: Token lifetime in seconds.
+    example: 86400
+  user:
+    type: object
+    properties:
+      login:
+        type: string
+        example: "customer"
+      email:
+        type: string
+        format: email
+        example: "customer@example.com"
+      name:
+        type: ["string", "null"]
+        example: "Customer"
+    required:
+      - login
+      - email
+  redirect_to:
+    type: string
+    description: The redirect target recorded when the ticket was minted.
+    example: "/servers/6"
+required:
+  - token
+  - expires_in
+  - user

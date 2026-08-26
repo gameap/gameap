@@ -52,6 +52,10 @@ func (c *controllableCache) Get(ctx context.Context, key string) (any, error) {
 	return c.delegate.Get(ctx, key)
 }
 
+func (c *controllableCache) Pull(ctx context.Context, key string) (any, error) {
+	return c.delegate.Pull(ctx, key)
+}
+
 func (c *controllableCache) Set(
 	ctx context.Context, key string, value any, options ...cache.Option,
 ) error {

@@ -327,3 +327,135 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+
+/api/auth/sso/tickets:
+  post:
+    tags:
+      - Auth
+    summary: Mint an SSO login ticket
+    description: |
+      Mints a **single-use** ticket that logs one specific user into the panel.
+      For external systems that already own the customer relationship (a billing
+      panel's "open my game panel" button); neither a PAT nor a short-lived
+      token fits, as both are always issued for their own owner.
+
+      Requires the `admin:user:sso` token ability (or an interactive admin
+      session). A ticket **cannot** be minted for an administrator. The ticket
+      is not a credential elsewhere: presenting it in the `Authorization`
+      header, query or cookie is rejected with `401`. Deliver it to the
+      customer's browser and exchange it at `POST /api/auth/sso/exchange`.
+
+      Multi-instance note: the ticket lives in the cache, so behind a load
+      balancer a shared `CACHE_DRIVER` (redis/postgres) is required — it is
+      redeemed by a browser that may reach a different instance.
+    operationId: createSSOTicket
+    x-codeSamples:
+      - lang: cURL
+        label: CLI
+        source: |
+          curl -s -X POST "https://demo.gameap.com/api/auth/sso/tickets" \
+            -H "Authorization: Bearer 42|YOUR_PAT_WITH_SSO_ABILITY" \
+            -H "Content-Type: application/json" \
+            -d '{"user_id": 42, "redirect_to": "/servers/6"}' \
+            -w "\nHTTP Status: %{http_code}\n"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/requests/SSOTicketRequest.yaml'
+    responses:
+      '200':
+        description: Ticket minted
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/responses/SSOTicketResponse.yaml'
+      '401':
+        description: Missing or invalid token
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: >-
+          The token lacks the `admin:user:sso` ability, or the target user is an
+          administrator.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Target user not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: >-
+          Validation error (missing user_id, unsafe redirect_to, or invalid
+          client_ip).
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/auth/sso/exchange:
+  post:
+    tags:
+      - Auth
+    summary: Exchange an SSO ticket for a session
+    description: |
+      Exchanges a single-use SSO ticket (see `POST /api/auth/sso/tickets`) for a
+      real session. A guest endpoint by necessity — the browser arrives with no
+      session — wrapped in the login rate limiter under its own counter. The
+      ticket is consumed atomically, so a replay loses the race.
+
+      When the target account has two-factor auth enabled the response instead
+      carries `two_factor_required: true` and a `challenge_token`: SSO does not
+      bypass the second factor. Complete it with `POST /api/auth/2fa/verify`.
+    operationId: exchangeSSOTicket
+    security: []
+    x-codeSamples:
+      - lang: cURL
+        label: CLI
+        source: |
+          curl -s -X POST "https://demo.gameap.com/api/auth/sso/exchange" \
+            -H "Content-Type: application/json" \
+            -d '{"ticket": "THE_TICKET_FROM_THE_URL_FRAGMENT"}' \
+            -w "\nHTTP Status: %{http_code}\n"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/requests/SSOExchangeRequest.yaml'
+    responses:
+      '200':
+        description: >-
+          Session issued, or — when the account has 2FA — a challenge that must
+          be completed at `POST /api/auth/2fa/verify`.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '../schemas/responses/SSOExchangeSessionResponse.yaml'
+                - $ref: '../schemas/responses/SSOExchangeChallengeResponse.yaml'
+      '401':
+        description: Invalid, expired, already-used, or IP-mismatched ticket
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: Validation error (missing ticket)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '429':
+        description: Too many exchange attempts from this client
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'

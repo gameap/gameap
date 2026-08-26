@@ -286,22 +286,41 @@ func (h *Handler) rehashPasswordIfNeeded(
 }
 
 // issueTwoFactorChallenge is reached only after the password check passed for
-// an account with 2FA enabled. It mints a single-use challenge token, stores
-// the post-password state in the cache keyed by the token's hash, and returns
-// the token instead of a session. No access token is issued here — the caller
-// must complete /api/auth/2fa/verify. The challenge token uses a prefix the
-// auth middleware does not recognise, so it cannot be replayed as a session.
+// an account with 2FA enabled. It mints a single-use challenge instead of a
+// session; the caller must complete /api/auth/2fa/verify.
 func (h *Handler) issueTwoFactorChallenge(
 	ctx context.Context, rw http.ResponseWriter, user *domain.User, remember bool,
 ) {
-	secret, err := pkgstrings.CryptoRandomString(challengeSecretLength)
+	challengeToken, err := IssueTwoFactorChallenge(ctx, h.cache, h.audit, user, remember)
 	if err != nil {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.WithMessage(err, "failed to generate challenge token"),
-			http.StatusInternalServerError,
-		))
+		h.responder.WriteError(ctx, rw, err)
 
 		return
+	}
+
+	h.responder.Write(ctx, rw, newTwoFactorChallengeResponse(challengeToken, ChallengeTokenDuration))
+}
+
+// IssueTwoFactorChallenge mints a single-use second-factor challenge for user,
+// stores the post-authentication state in the cache keyed by the token's hash,
+// records the TwoFactorChallengeIssued audit event, and returns the opaque
+// challenge token. It is shared by the password login and the SSO ticket
+// exchange so the two paths cannot drift — in particular so both leave the same
+// audit trail. The token uses a prefix the auth middleware does not recognise,
+// so it cannot be replayed as a session.
+func IssueTwoFactorChallenge(
+	ctx context.Context,
+	store TwoFactorChallengeStore,
+	auditLogger audit.Logger,
+	user *domain.User,
+	remember bool,
+) (string, error) {
+	secret, err := pkgstrings.CryptoRandomString(challengeSecretLength)
+	if err != nil {
+		return "", api.WrapHTTPError(
+			errors.WithMessage(err, "failed to generate challenge token"),
+			http.StatusInternalServerError,
+		)
 	}
 
 	challengeToken := twofactor.ChallengeTokenPrefix + secret
@@ -314,29 +333,25 @@ func (h *Handler) issueTwoFactorChallenge(
 		ExpiresAt: time.Now().Add(ChallengeTokenDuration).Unix(),
 	})
 	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to encode challenge payload"))
-
-		return
+		return "", errors.WithMessage(err, "failed to encode challenge payload")
 	}
 
-	err = h.cache.Set(
+	err = store.Set(
 		ctx,
 		twofactor.ChallengeCacheKey(challengeToken),
 		encoded,
 		cache.WithExpiration(ChallengeTokenDuration),
 	)
 	if err != nil {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
+		return "", api.WrapHTTPError(
 			errors.WithMessage(err, "failed to store challenge"),
 			http.StatusInternalServerError,
-		))
-
-		return
+		)
 	}
 
-	audit.TwoFactorChallengeIssued(ctx, h.audit, user.ID, user.Login)
+	audit.TwoFactorChallengeIssued(ctx, auditLogger, user.ID, user.Login)
 
-	h.responder.Write(ctx, rw, newTwoFactorChallengeResponse(challengeToken, ChallengeTokenDuration))
+	return challengeToken, nil
 }
 
 // clientIP returns the best-effort client IP captured by the global

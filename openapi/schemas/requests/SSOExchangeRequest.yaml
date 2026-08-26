@@ -1,0 +1,9 @@
+type: object
+description: Exchange a single-use SSO ticket for a session.
+properties:
+  ticket:
+    type: string
+    description: The ticket secret returned by `POST /api/auth/sso/tickets`.
+    example: "glsso_aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9f"
+required:
+  - ticket

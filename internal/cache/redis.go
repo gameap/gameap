@@ -73,6 +73,26 @@ func (r *Redis) Get(ctx context.Context, key string) (any, error) {
 	return result, nil
 }
 
+// Pull atomically returns a value and deletes it using the single-round-trip
+// GETDEL command, so a replayed request loses the race deterministically.
+func (r *Redis) Pull(ctx context.Context, key string) (any, error) {
+	val, err := r.client.GetDel(ctx, redisKeyPrefix+key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("redis getdel error: %w", err)
+	}
+
+	var result any
+	if err := json.Unmarshal([]byte(val), &result); err != nil {
+		return nil, fmt.Errorf("unmarshal error: %w", err)
+	}
+
+	return result, nil
+}
+
 // Set stores a value in cache with optional TTL.
 func (r *Redis) Set(ctx context.Context, key string, value any, options ...Option) error {
 	opts := ApplyOptions(options...)

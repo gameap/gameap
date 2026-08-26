@@ -607,3 +607,96 @@ func TestRouterSecurity_SSOTicketIsNotACredential(t *testing.T) {
 		})
 	}
 }
+
+// TestRouterSecurity_TokenCannotEscalateViaUserUpdate covers OWASP API Top
+// 10:2023 API1 (Broken Object Level Authorization) and API5 (Broken Function
+// Level Authorization): a leaked "manage users" PAT must not be able to take
+// over or de-throne an administrator, nor reset any existing user's password —
+// while the provisioning path a billing integration actually needs keeps working.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
+func TestRouterSecurity_TokenCannotEscalateViaUserUpdate(t *testing.T) {
+	tests := []struct {
+		name               string
+		request            string
+		body               string
+		expectedStatusCode int
+	}{
+		{
+			// K1: resetting an existing user's password through a token is
+			// refused regardless of the target.
+			name:               "token_cannot_change_regular_user_password",
+			request:            "PUT /api/users/2",
+			body:               `{"email":"test@gameap.com","password":"S0me-Str0ng-Pass!"}`,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// K1: the same, targeting an administrator.
+			name:               "token_cannot_change_admin_password",
+			request:            "PUT /api/users/1",
+			body:               `{"email":"admin@yousite.local","password":"S0me-Str0ng-Pass!"}`,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// K1/K2: any edit aimed at an administrator is refused, even a benign one.
+			name:               "token_cannot_edit_administrator",
+			request:            "PUT /api/users/1",
+			body:               `{"email":"admin@yousite.local"}`,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// K2: an omitted/empty roles list clears assignments; against an
+			// administrator that would strip their roles, so it must be refused.
+			name:               "token_cannot_strip_admin_roles",
+			request:            "PUT /api/users/1",
+			body:               `{"email":"admin@yousite.local","roles":[]}`,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// The legitimate provisioning path still works: updating a regular
+			// customer with non-administrative roles.
+			name:               "token_can_update_regular_user",
+			request:            "PUT /api/users/2",
+			body:               `{"email":"test@gameap.com","roles":["user"]}`,
+			expectedStatusCode: http.StatusOK,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c, err := testcontainer.LoadInmemoryContainer()
+			require.NoError(t, err)
+
+			ctx := context.Background()
+
+			fixtures, err := testcontainer.SetupFixtures(ctx, c)
+			require.NoError(t, err)
+
+			abilities := []domain.PATAbility{domain.PATAbilityUserManage}
+			tokenString, err := pkgstrings.CryptoRandomString(40)
+			require.NoError(t, err)
+			token := &domain.PersonalAccessToken{
+				TokenableType: domain.EntityTypeUser,
+				TokenableID:   fixtures.AdminUser.ID,
+				Name:          "Billing Token",
+				Token:         pkgstrings.SHA256(tokenString),
+				Abilities:     &abilities,
+			}
+			require.NoError(t, c.PersonalAccessTokenRepository().Save(ctx, token))
+
+			router := api.CreateRouter(c)
+
+			method, path := parseRequest(test.request)
+			req := httptest.NewRequest(method, path, strings.NewReader(test.body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+fmt.Sprintf("%d|%s", token.ID, tokenString))
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if !assert.Equal(t, test.expectedStatusCode, w.Code) {
+				t.Logf("Response body: %s", w.Body.String())
+			}
+		})
+	}
+}

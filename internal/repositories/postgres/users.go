@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -254,7 +255,14 @@ func (r *UserRepository) filterToSq(filter *filters.FindUser) sq.Sqlizer {
 	}
 
 	if len(filter.Emails) > 0 {
-		and = append(and, sq.Eq{"email": filter.Emails})
+		// Case-insensitive: email casing is not normalised on write and the
+		// default collation differs across backends (MySQL ci vs PG/SQLite cs),
+		// so compare on LOWER(...) for a consistent result everywhere.
+		lowered := make([]string, len(filter.Emails))
+		for i, email := range filter.Emails {
+			lowered[i] = strings.ToLower(email)
+		}
+		and = append(and, sq.Eq{"LOWER(email)": lowered})
 	}
 
 	return and

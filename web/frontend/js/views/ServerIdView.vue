@@ -1,7 +1,7 @@
 <template>
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
-  <InactiveServer v-if="!loading && !isServerEnabled" :server="server"></InactiveServer>
+  <InactiveServer v-if="!loading && (accessBlocked || !isServerEnabled)" :server="server" :access-blocked="accessBlocked"></InactiveServer>
   <n-tabs
     v-else
     v-model:value="activeTab"
@@ -317,6 +317,7 @@ const pendingPluginTab = ref(initialTabName.startsWith('plugin-') ? initialTabNa
 const {
   serverId,
   server,
+  accessBlocked,
 } = storeToRefs(serverStore)
 
 const {
@@ -346,10 +347,10 @@ onMounted(() => {
     } else {
       setInitialTabFromHash()
     }
-  })
+  }).catch(() => {})
   serverStore.fetchAbilities().then(() => {
     setInitialTabFromHash()
-  })
+  }).catch(() => {})
 });
 
 const isServerEnabled = ref(true)

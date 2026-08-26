@@ -46,6 +46,26 @@ func (c *InMemory) Get(_ context.Context, key string) (any, error) {
 	return item.value, nil
 }
 
+func (c *InMemory) Pull(_ context.Context, key string) (any, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	item, exists := c.items[key]
+	if !exists {
+		return nil, ErrNotFound
+	}
+
+	// Removed under the same lock as the read, so two goroutines cannot both
+	// observe the item before it is gone.
+	delete(c.items, key)
+
+	if item.isExpired() {
+		return nil, ErrNotFound
+	}
+
+	return item.value, nil
+}
+
 func (c *InMemory) Set(_ context.Context, key string, value any, options ...Option) error {
 	opts := ApplyOptions(options...)
 

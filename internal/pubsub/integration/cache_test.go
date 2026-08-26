@@ -35,6 +35,10 @@ func (r *recordingCache) Get(ctx context.Context, key string) (any, error) {
 	return r.inner.Get(ctx, key)
 }
 
+func (r *recordingCache) Pull(ctx context.Context, key string) (any, error) {
+	return r.inner.Pull(ctx, key)
+}
+
 func (r *recordingCache) Set(ctx context.Context, key string, value any, opts ...cache.Option) error {
 	r.mu.Lock()
 	r.setCalls = append(r.setCalls, key)

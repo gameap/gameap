@@ -87,6 +87,7 @@ type InmemoryContainer struct {
 	gameUpgradeService      *services.GameUpgradeService
 	fileManager             files.FileManager
 	cacheService            cache.Cache
+	transactionManager      base.TransactionManager
 	certificatesService     *certificates.Service
 	globalAPIService        *services.GlobalAPIService
 	daemonStatusService     *daemon.StatusService
@@ -105,7 +106,7 @@ type InmemoryContainer struct {
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
 func (c *InmemoryContainer) SecretCipher() *secret.Cipher                      { return secret.Disabled() }
 func (c *InmemoryContainer) DB() *sql.DB                                       { return nil }
-func (c *InmemoryContainer) TransactionManager() base.TransactionManager       { return nil }
+func (c *InmemoryContainer) TransactionManager() base.TransactionManager       { return c.transactionManager }
 func (c *InmemoryContainer) Responder() *pkgapi.Responder                      { return c.responder }
 func (c *InmemoryContainer) GameRepository() repositories.GameRepository       { return c.gameRepo }
 func (c *InmemoryContainer) GameModRepository() repositories.GameModRepository { return c.gameModRepo }
@@ -413,6 +414,7 @@ func buildInmemoryTestContainer() *InmemoryContainer {
 		gameUpgradeService:    nil,
 		fileManager:           nil,
 		cacheService:          cache.NewInMemory(),
+		transactionManager:    tm,
 		certificatesService:   nil,
 		globalAPIService:      nil,
 		daemonStatusService:   nil,

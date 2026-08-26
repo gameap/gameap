@@ -15,6 +15,7 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import { GBreadcrumbs } from "@gameap/ui";
 import {trans} from "../../i18n/i18n";
 import GButton from "../../components/GButton.vue";
@@ -22,7 +23,7 @@ import GButton from "../../components/GButton.vue";
 const breadcrumbs = computed(() => {
   return [
     {route:'/', text:'GameAP', icon: 'gameap'},
-    {text: 404},
+    {text: 403},
   ]
 })
 </script>

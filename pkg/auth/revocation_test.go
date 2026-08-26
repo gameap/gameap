@@ -148,6 +148,10 @@ func (r *recordingCache) Delete(ctx context.Context, key string) error {
 	return r.inner.Delete(ctx, key)
 }
 
+func (r *recordingCache) Pull(ctx context.Context, key string) (any, error) {
+	return r.inner.Pull(ctx, key)
+}
+
 func (r *recordingCache) Clear(ctx context.Context) error {
 	return r.inner.Clear(ctx)
 }

@@ -237,6 +237,38 @@ func TestMint_TTLIsCapped(t *testing.T) {
 	assert.Equal(t, int64(maxTicketTTL.Seconds()), response.ExpiresIn)
 }
 
+func TestMint_TTLDefaultsAndHonoursConfiguredValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		ttl           time.Duration
+		wantExpiresIn int64
+	}{
+		{"zero_falls_back_to_default", 0, int64(defaultTicketTTL.Seconds())},
+		{"negative_falls_back_to_default", -5 * time.Second, int64(defaultTicketTTL.Seconds())},
+		{"valid_value_is_honoured", 90 * time.Second, 90},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newMintFixture(t, test.ttl)
+
+			recorder := f.request(t, `{"user_id":`+itoa(f.client.ID)+`}`, adminSession())
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+
+			var response struct {
+				ExpiresIn int64 `json:"expires_in"`
+			}
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+			assert.Equal(t, test.wantExpiresIn, response.ExpiresIn)
+		})
+	}
+}
+
 func itoa(id uint) string {
 	return strconv.FormatUint(uint64(id), 10)
 }

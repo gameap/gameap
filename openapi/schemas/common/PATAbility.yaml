@@ -13,4 +13,9 @@ enum:
   - server:settings-manage
   - admin:server:create
   - admin:gdaemon-task:read
+  - admin:user:read
+  - admin:user:manage
+  - admin:user:sso
+  - admin:node:read
+  - admin:game:read
 example: server:list

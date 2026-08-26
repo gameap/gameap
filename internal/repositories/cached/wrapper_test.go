@@ -39,7 +39,9 @@ func (c *flakyCache) Set(_ context.Context, _ string, _ any, _ ...cache.Option) 
 }
 
 func (c *flakyCache) Delete(_ context.Context, _ string) error { return c.deleteErr }
-func (c *flakyCache) Clear(_ context.Context) error            { return c.clearErr }
+
+func (c *flakyCache) Pull(_ context.Context, _ string) (any, error) { return nil, cache.ErrNotFound }
+func (c *flakyCache) Clear(_ context.Context) error                 { return c.clearErr }
 
 func newWrapper(c cache.Cache) *cached.Wrapper {
 	return cached.NewWrapper(c, cached.CacheConfig{TTL: time.Minute})

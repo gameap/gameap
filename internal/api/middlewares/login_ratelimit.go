@@ -52,6 +52,7 @@ type LoginRateLimitMiddleware struct {
 	clock          func() time.Time
 	clientIPHeader string // optional header to consult before RemoteAddr (e.g. X-Real-IP); empty disables
 	audit          audit.Logger
+	keyPrefix      string // cache key namespace; overridable so a reusing route gets its own counters
 }
 
 // LoginRateLimitOption configures the middleware at construction time.
@@ -88,6 +89,18 @@ func WithLoginRateLimitAuditLogger(l audit.Logger) LoginRateLimitOption {
 	}
 }
 
+// WithLoginRateLimitKeyPrefix overrides the cache key namespace. A route that
+// reuses this limiter (the SSO ticket exchange) must pass its own prefix so its
+// failures do not share counters with /api/auth/login — otherwise a customer
+// retrying a stale magic link would lock themselves out of password login.
+func WithLoginRateLimitKeyPrefix(prefix string) LoginRateLimitOption {
+	return func(m *LoginRateLimitMiddleware) {
+		if prefix != "" {
+			m.keyPrefix = prefix
+		}
+	}
+}
+
 func NewLoginRateLimitMiddleware(
 	c cache.Cache,
 	responder base.Responder,
@@ -101,6 +114,7 @@ func NewLoginRateLimitMiddleware(
 		maxPerUser: defaultLoginRateLimitMaxPerUsername,
 		clock:      time.Now,
 		audit:      audit.NopLogger{},
+		keyPrefix:  loginRateLimitKeyPrefix,
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -145,7 +159,7 @@ func (m *LoginRateLimitMiddleware) Middleware(next http.Handler) http.Handler {
 			// counting so a noisy origin remains noisy even when one of the
 			// usernames it tested happens to succeed.
 			if username != "" {
-				_ = m.cache.Delete(ctx, loginRateLimitKeyPrefix+"user:"+pkgstrings.SHA256(username))
+				_ = m.cache.Delete(ctx, m.keyPrefix+"user:"+pkgstrings.SHA256(username))
 			}
 		}
 
@@ -182,7 +196,7 @@ func (m *LoginRateLimitMiddleware) recordFailure(ctx context.Context, ip, userna
 }
 
 func (m *LoginRateLimitMiddleware) increment(ctx context.Context, suffix string) error {
-	key := loginRateLimitKeyPrefix + suffix
+	key := m.keyPrefix + suffix
 	count, _ := m.readCount(ctx, suffix)
 	count++
 
@@ -193,7 +207,7 @@ func (m *LoginRateLimitMiddleware) increment(ctx context.Context, suffix string)
 // returns numbers as float64) and the in-memory cache (which returns the original
 // type). Anything else is treated as zero.
 func (m *LoginRateLimitMiddleware) readCount(ctx context.Context, suffix string) (int, error) {
-	raw, err := m.cache.Get(ctx, loginRateLimitKeyPrefix+suffix)
+	raw, err := m.cache.Get(ctx, m.keyPrefix+suffix)
 	if err != nil {
 		if errors.Is(err, cache.ErrNotFound) {
 			return 0, nil

@@ -449,3 +449,45 @@ func TestLoginRateLimitMiddleware_Audit_SuccessIsNotAudited(t *testing.T) {
 	assert.Equal(t, 0, countEvents(events, audit.EventLoginBlocked),
 		"the rate limiter must not record a block for a successful login")
 }
+
+// TestLoginRateLimitMiddleware_KeyPrefixIsolatesCounters proves the S2 fix: two
+// limiters sharing one cache but declaring different key prefixes keep
+// independent counters, so a failed SSO ticket exchange never spends the
+// customer's password-login budget (and vice versa).
+func TestLoginRateLimitMiddleware_KeyPrefixIsolatesCounters(t *testing.T) {
+	t.Parallel()
+	c := cache.NewInMemory()
+
+	const ip = "10.0.0.20:1234"
+
+	loginMW := NewLoginRateLimitMiddleware(c, api.NewResponder(),
+		WithLoginRateLimitPerIP(1),
+		WithLoginRateLimitPerUsername(100),
+		WithLoginRateLimitWindow(time.Minute),
+	).Middleware(&loginAttemptHandler{outcome: http.StatusUnauthorized})
+
+	exchangeMW := NewLoginRateLimitMiddleware(c, api.NewResponder(),
+		WithLoginRateLimitPerIP(1),
+		WithLoginRateLimitPerUsername(100),
+		WithLoginRateLimitWindow(time.Minute),
+		WithLoginRateLimitKeyPrefix("auth:sso-exchange-fail:"),
+	).Middleware(&loginAttemptHandler{outcome: http.StatusUnauthorized})
+
+	// Exhaust the login limiter for this IP.
+	req := newLoginRequest(t, "alice", "wrong", ip)
+	w := httptest.NewRecorder()
+	loginMW.ServeHTTP(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+
+	req = newLoginRequest(t, "alice", "wrong", ip)
+	w = httptest.NewRecorder()
+	loginMW.ServeHTTP(w, req)
+	require.Equal(t, http.StatusTooManyRequests, w.Code, "login limiter must now block this IP")
+
+	// Same cache, same IP, different prefix: the exchange limiter must not have
+	// inherited the login failures.
+	req = newLoginRequest(t, "alice", "wrong", ip)
+	w = httptest.NewRecorder()
+	exchangeMW.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusUnauthorized, w.Code, "exchange limiter must keep its own IP counter")
+}

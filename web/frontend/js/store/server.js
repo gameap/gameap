@@ -50,6 +50,10 @@ export const useServerStore = defineStore('server', () => {
     })
     const settings = ref([])
     const apiProcesses = ref(0)
+    // Set when the server card answers 403: a blocked server is closed to its
+    // owner (a non-owned server would be 404), so this uniquely means the
+    // service is suspended and drives the inline explanation.
+    const accessBlocked = ref(false)
 
     // From legacy servers.js - form port state
     const formIp = ref('')
@@ -78,11 +82,19 @@ export const useServerStore = defineStore('server', () => {
 
     async function fetchServer() {
         apiProcesses.value++
+        accessBlocked.value = false
         try {
             const response = await axios.get('/api/servers/' + serverId.value)
             server.value = response.data
         } catch (error) {
             if (error.__CANCEL__) {
+                return
+            }
+            // A blocked server answers 403 to its owner. Flag it and resolve so
+            // the page can explain the suspension, instead of the global handler
+            // bouncing the user to /403.
+            if (error.response && error.response.status === 403) {
+                accessBlocked.value = true
                 return
             }
             throw error
@@ -98,6 +110,12 @@ export const useServerStore = defineStore('server', () => {
             abilities.value = response.data
         } catch (error) {
             if (error.__CANCEL__) {
+                return
+            }
+            // Same suspension case as fetchServer: swallow the 403 so it does not
+            // redirect; the blocked view is driven by fetchServer.
+            if (error.response && error.response.status === 403) {
+                accessBlocked.value = true
                 return
             }
             throw error
@@ -174,6 +192,7 @@ export const useServerStore = defineStore('server', () => {
         server,
         settings,
         apiProcesses,
+        accessBlocked,
         formIp,
         formPort,
         formQueryPort,

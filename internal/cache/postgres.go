@@ -130,6 +130,38 @@ func (c *PostgreSQL) Get(ctx context.Context, key string) (any, error) {
 	return value, nil
 }
 
+// Pull deletes the row and returns its value in a single statement, so two
+// concurrent redemptions cannot both read it: the DELETE ... RETURNING is
+// atomic and only one caller gets the row back.
+func (c *PostgreSQL) Pull(ctx context.Context, key string) (any, error) {
+	fullKey := c.buildKey(key)
+
+	query := `DELETE FROM ` + postgresKVStoreTable + ` WHERE key = $1 RETURNING value, expires_at`
+
+	var valueJSON string
+	var expiresAt sql.NullTime
+
+	err := c.db.QueryRowContext(ctx, query, fullKey).Scan(&valueJSON, &expiresAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("failed to pull cache value: %w", err)
+	}
+
+	if expiresAt.Valid && expiresAt.Time.Before(time.Now()) {
+		return nil, ErrNotFound
+	}
+
+	var value any
+	if err := json.Unmarshal([]byte(valueJSON), &value); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal value: %w", err)
+	}
+
+	return value, nil
+}
+
 func (c *PostgreSQL) Set(ctx context.Context, key string, value any, options ...Option) error {
 	opts := ApplyOptions(options...)
 	fullKey := c.buildKey(key)

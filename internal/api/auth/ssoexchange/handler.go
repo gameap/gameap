@@ -17,12 +17,8 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
-	pkgstrings "github.com/gameap/gameap/pkg/strings"
-	"github.com/gameap/gameap/pkg/twofactor"
 	"github.com/pkg/errors"
 )
-
-const challengeSecretLength = 48
 
 // errInvalidTicket is the single answer to every rejection: expired, already
 // used, never existed, wrong shape, bound to another address. Distinguishing
@@ -143,9 +139,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	))
 }
 
-// consumeTicket validates the shape, reads the entry and deletes it before
-// looking at its contents. Deleting first is what makes a replay lose the race
-// deterministically: a ticket that fails any check below is already gone.
+// consumeTicket validates the shape, then atomically pulls the entry (read and
+// delete in one step) before looking at its contents. The atomic pull is what
+// makes a replay lose the race deterministically: a ticket that fails any check
+// below is already gone, and two redemptions cannot both read it.
 func (h *Handler) consumeTicket(
 	rw http.ResponseWriter, r *http.Request, ticket string,
 ) (auth.SSOTicketPayload, bool) {
@@ -161,7 +158,7 @@ func (h *Handler) consumeTicket(
 
 	key := auth.SSOTicketCacheKey(ticket)
 
-	raw, err := h.cache.Get(ctx, key)
+	raw, err := h.cache.Pull(ctx, key)
 	if err != nil {
 		if errors.Is(err, cache.ErrNotFound) {
 			h.reject(ctx, rw, "sso_ticket_not_found")
@@ -169,13 +166,11 @@ func (h *Handler) consumeTicket(
 			return auth.SSOTicketPayload{}, false
 		}
 
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to load ticket"))
-
-		return auth.SSOTicketPayload{}, false
-	}
-
-	if delErr := h.cache.Delete(ctx, key); delErr != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(delErr, "failed to consume ticket"))
+		// The secret has been on the wire but we could not consume it, so the
+		// entry may still be live until its TTL. Record it: this is the only
+		// signal that a redeemable ticket outlived its single-use guarantee.
+		audit.TokenRejected(ctx, h.audit, "sso_ticket_consume_error")
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to consume ticket"))
 
 		return auth.SSOTicketPayload{}, false
 	}
@@ -230,38 +225,13 @@ func (h *Handler) issueTwoFactorChallenge(
 	user *domain.User,
 	payload auth.SSOTicketPayload,
 ) {
-	secret, err := pkgstrings.CryptoRandomString(challengeSecretLength)
+	// SSO tickets never carry a "remember me": the customer arrives through a
+	// one-shot link rather than a login form, so the eventual session takes the
+	// default lifetime. The shared helper also records the TwoFactorChallengeIssued
+	// audit event this path used to omit.
+	challengeToken, err := login.IssueTwoFactorChallenge(ctx, h.cache, h.audit, user, false)
 	if err != nil {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.WithMessage(err, "failed to generate challenge token"),
-			http.StatusInternalServerError,
-		))
-
-		return
-	}
-
-	challengeToken := twofactor.ChallengeTokenPrefix + secret
-
-	encoded, err := twofactor.MarshalChallengePayload(twofactor.ChallengePayload{
-		UserID:    user.ID,
-		Login:     user.Login,
-		Email:     user.Email,
-		ExpiresAt: time.Now().Add(login.ChallengeTokenDuration).Unix(),
-	})
-	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to encode challenge"))
-
-		return
-	}
-
-	err = h.cache.Set(
-		ctx,
-		twofactor.ChallengeCacheKey(challengeToken),
-		encoded,
-		cache.WithExpiration(login.ChallengeTokenDuration),
-	)
-	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to store challenge"))
+		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}

@@ -40,9 +40,8 @@ func readInput(r *http.Request) (*input, error) {
 	}
 	result.Logins = logins
 
-	// Matching is exact. Pass every spelling you want to accept — the filter
-	// turns a list into an IN (...), so a caller unsure about the stored
-	// casing can send both the original and the lower-cased address.
+	// Email matching is case-insensitive — every backend compares on LOWER(...)
+	// — so the stored casing does not matter and a single spelling is enough.
 	emails, err := queryReader.ReadList("filter[email]")
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read filter[email] list")

@@ -540,6 +540,12 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				middlewares.WithLoginRateLimitAuditLogger(c.AuditLogger()),
 				middlewares.WithLoginRateLimitClientIPHeader(c.Config().Audit.ClientIPHeader),
+				// Own key namespace: a failed ticket exchange must not spend the
+				// customer's /api/auth/login budget. The ticket secret is 48
+				// crypto-random chars — unguessable — so this limiter only guards
+				// against load, and can be looser than password login.
+				middlewares.WithLoginRateLimitKeyPrefix("auth:sso-exchange-fail:"),
+				middlewares.WithLoginRateLimitPerIP(60),
 			).Middleware(
 				ssoexchange.NewHandler(
 					c.AuthService(),

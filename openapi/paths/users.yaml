@@ -3,27 +3,55 @@
     tags:
       - Users
     summary: List users
-    description: Returns a paginated list of users (Admin only)
+    description: |
+      Returns users as a **bare JSON array** (Admin only), ordered by `id`
+      ascending. Optional `filter[...]` parameters narrow the result;
+      `page[number]`/`page[size]` page it. Pagination is applied only when a
+      `page[...]` parameter is present. Email matching is case-insensitive.
     operationId: listUsers
     parameters:
-      - $ref: '../parameters/QueryPage.yaml'
-      - $ref: '../parameters/QueryPerPage.yaml'
-      - $ref: '../parameters/QuerySort.yaml'
-      - $ref: '../parameters/QuerySearch.yaml'
+      - name: filter[id]
+        in: query
+        required: false
+        description: Filter by user ID. Comma-separated for multiple.
+        schema:
+          type: string
+        example: "1,2,3"
+      - name: filter[login]
+        in: query
+        required: false
+        description: Filter by exact login. Comma-separated for multiple.
+        schema:
+          type: string
+        example: "admin,billing"
+      - name: filter[email]
+        in: query
+        required: false
+        description: >-
+          Filter by email (case-insensitive — compared on LOWER(...) in every
+          backend). Comma-separated for multiple.
+        schema:
+          type: string
+        example: "customer@example.com"
+      - $ref: '../parameters/QueryPageNumber.yaml'
+      - $ref: '../parameters/QueryPageSize.yaml'
     responses:
       '200':
-        description: List of users
+        description: >-
+          Array of users, ordered by id ascending. A `page[size]` above the
+          maximum is clamped, not rejected.
         content:
           application/json:
             schema:
-              allOf:
-                - $ref: '../schemas/PaginatedResponse.yaml'
-                - type: object
-                  properties:
-                    data:
-                      type: array
-                      items:
-                        $ref: '../schemas/User.yaml'
+              type: array
+              items:
+                $ref: '../schemas/User.yaml'
+      '400':
+        description: Invalid pagination parameter (e.g. a non-numeric page[size])
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
         content:

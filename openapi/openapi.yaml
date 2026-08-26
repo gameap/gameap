@@ -339,6 +339,10 @@ paths:
     $ref: './paths/auth.yaml#/~1api~1auth~1short-lived-token'
   /api/auth/2fa/verify:
     $ref: './paths/auth.yaml#/~1api~1auth~12fa~1verify'
+  /api/auth/sso/tickets:
+    $ref: './paths/auth.yaml#/~1api~1auth~1sso~1tickets'
+  /api/auth/sso/exchange:
+    $ref: './paths/auth.yaml#/~1api~1auth~1sso~1exchange'
 
   # User & Profile
   /api/user:
