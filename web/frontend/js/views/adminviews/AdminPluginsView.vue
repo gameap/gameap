@@ -628,10 +628,12 @@ function showUploadModal() {
   uploadModalVisible.value = true
 }
 
-function onPluginInstalled() {
+function onPluginInstalled(payload) {
   uploadModalVisible.value = false
   notification({
-    content: trans('plugins.install_success_msg'),
+    content: payload?.updated
+      ? trans('plugins.update_from_file_success')
+      : trans('plugins.install_from_file_success'),
     type: 'success'
   }, () => window.location.reload())
 }

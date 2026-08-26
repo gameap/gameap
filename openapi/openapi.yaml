@@ -593,6 +593,8 @@ paths:
     $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1{id}~1reload'
   /api/admin/plugins/{id}/permissions:
     $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1{id}~1permissions'
+  /api/admin/plugins/{id}/upload:
+    $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1{id}~1upload'
 
   # Admin Let's Encrypt
   /api/admin/letsencrypt/status:

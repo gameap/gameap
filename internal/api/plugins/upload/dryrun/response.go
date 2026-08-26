@@ -3,6 +3,7 @@ package dryrun
 import (
 	"github.com/gameap/gameap/internal/domain"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/services/plugininstall"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 )
@@ -37,11 +38,21 @@ type dryRunResponse struct {
 	HasFrontendBundle     bool                    `json:"has_frontend_bundle"`
 	FrontendBundleSize    int                     `json:"frontend_bundle_size,omitempty"`
 	HasFrontendStyles     bool                    `json:"has_frontend_styles"`
-	IsValid               bool                    `json:"is_valid"`
-	Errors                []string                `json:"errors"`
+	// Installed and the two fields below describe the plugin already
+	// installed under this id: uploading the file replaces it (through
+	// POST /api/admin/plugins/{id}/upload) instead of adding a plugin.
+	Installed           bool     `json:"installed"`
+	InstalledVersion    string   `json:"installed_version,omitempty"`
+	InstalledSourceType string   `json:"installed_source_type,omitempty"`
+	IsValid             bool     `json:"is_valid"`
+	Errors              []string `json:"errors"`
 }
 
-func newDryRunResponse(loaded *pkgplugin.LoadedPlugin, subscribedEvents []proto.EventType) *dryRunResponse {
+func newDryRunResponse(
+	loaded *pkgplugin.LoadedPlugin,
+	subscribedEvents []proto.EventType,
+	installed *domain.Plugin,
+) *dryRunResponse {
 	resp := &dryRunResponse{
 		ID:                 pkgplugin.CompactPluginID(pkgplugin.ParsePluginID(loaded.Info.Id)),
 		Name:               loaded.Info.Name,
@@ -54,6 +65,17 @@ func newDryRunResponse(loaded *pkgplugin.LoadedPlugin, subscribedEvents []proto.
 		HasFrontendStyles:  len(loaded.FrontendStyles) > 0,
 		IsValid:            true,
 		Errors:             []string{},
+	}
+
+	if installed != nil {
+		var source string
+		if installed.Source != nil {
+			source = *installed.Source
+		}
+
+		resp.Installed = true
+		resp.InstalledVersion = installed.Version
+		resp.InstalledSourceType = plugininstall.SourceType(source)
 	}
 
 	if loaded.Info.RequiredPermissions != nil {

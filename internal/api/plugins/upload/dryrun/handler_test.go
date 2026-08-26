@@ -8,9 +8,12 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gameap/gameap/internal/api/plugins/upload/dryrun"
+	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -109,13 +112,13 @@ func TestDryRun(t *testing.T) {
 			name:        "invalid_wasm_magic",
 			wasmContent: []byte{0x01, 0x02, 0x03, 0x04},
 			mockManager: &mockLoaderManager{},
-			wantStatus:  http.StatusInternalServerError,
+			wantStatus:  http.StatusBadRequest,
 		},
 		{
 			name:        "wasm_too_small",
 			wasmContent: []byte{0x00, 0x61},
 			mockManager: &mockLoaderManager{},
-			wantStatus:  http.StatusInternalServerError,
+			wantStatus:  http.StatusBadRequest,
 		},
 		{
 			name:        "load_returns_error",
@@ -132,7 +135,7 @@ func TestDryRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			h := dryrun.NewHandler(tt.mockManager, api.NewResponder())
+			h := dryrun.NewHandler(tt.mockManager, inmemory.NewPluginRepository(), api.NewResponder())
 			recorder := httptest.NewRecorder()
 
 			req := createMultipartRequest(t, "plugin.wasm", tt.wasmContent)
@@ -161,7 +164,7 @@ func TestDryRun(t *testing.T) {
 
 func TestDryRun_no_file_uploaded(t *testing.T) {
 	t.Parallel()
-	h := dryrun.NewHandler(&mockLoaderManager{}, api.NewResponder())
+	h := dryrun.NewHandler(&mockLoaderManager{}, inmemory.NewPluginRepository(), api.NewResponder())
 	recorder := httptest.NewRecorder()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/admin/plugins/upload/dry-run", nil)
@@ -196,7 +199,7 @@ func TestDryRun_reports_used_and_undeclared_permissions(t *testing.T) {
 		},
 	}
 
-	h := dryrun.NewHandler(manager, api.NewResponder())
+	h := dryrun.NewHandler(manager, inmemory.NewPluginRepository(), api.NewResponder())
 	recorder := httptest.NewRecorder()
 	h.ServeHTTP(recorder, createMultipartRequest(t, "plugin.wasm", validWASMBytes()))
 
@@ -210,4 +213,86 @@ func TestDryRun_reports_used_and_undeclared_permissions(t *testing.T) {
 		"the fixture only reads through gameap-nodefs")
 	assert.Equal(t, []any{"listen_events", "node_commands"}, resp["undeclared_permissions"],
 		"used but not declared: the install would not grant them; the declared files covers files_read")
+}
+
+func TestDryRun_reports_the_plugin_already_installed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		installed               *domain.Plugin
+		wantInstalled           bool
+		wantInstalledVersion    any
+		wantInstalledSourceType any
+	}{
+		{
+			name:          "not_installed",
+			wantInstalled: false,
+		},
+		{
+			name: "installed_from_file",
+			installed: &domain.Plugin{
+				ID:      pkgplugin.ParsePluginID("testplugin"),
+				Name:    "Test Plugin",
+				Version: "0.9.0",
+				Source:  new("file://" + strconv.FormatUint(uint64(pkgplugin.ParsePluginID("testplugin")), 10) + ".wasm"),
+				Status:  domain.PluginStatusActive,
+			},
+			wantInstalled:           true,
+			wantInstalledVersion:    "0.9.0",
+			wantInstalledSourceType: "file",
+		},
+		{
+			name: "installed_from_store",
+			installed: &domain.Plugin{
+				ID:      pkgplugin.ParsePluginID("testplugin"),
+				Name:    "Test Plugin",
+				Version: "0.9.0",
+				Source:  new("https://store.gameap.com/plugins/testplugin"),
+				Status:  domain.PluginStatusActive,
+			},
+			wantInstalled:           true,
+			wantInstalledVersion:    "0.9.0",
+			wantInstalledSourceType: "store",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pluginRepo := inmemory.NewPluginRepository()
+			if tt.installed != nil {
+				require.NoError(t, pluginRepo.Save(context.Background(), tt.installed))
+			}
+
+			manager := &mockLoaderManager{
+				loadFunc: func(_ context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
+					return &pkgplugin.LoadedPlugin{
+						Info: &proto.PluginInfo{
+							Id:         "testplugin",
+							Name:       "Test Plugin",
+							Version:    "1.0.0",
+							ApiVersion: "v1",
+						},
+						Instance: &mockPluginService{},
+					}, nil
+				},
+			}
+
+			h := dryrun.NewHandler(manager, pluginRepo, api.NewResponder())
+			recorder := httptest.NewRecorder()
+			h.ServeHTTP(recorder, createMultipartRequest(t, "plugin.wasm", validWASMBytes()))
+
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+			var resp map[string]any
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+
+			assert.Equal(t, tt.wantInstalled, resp["installed"])
+			assert.Equal(t, tt.wantInstalledVersion, resp["installed_version"])
+			assert.Equal(t, tt.wantInstalledSourceType, resp["installed_source_type"])
+			assert.Equal(t, "1.0.0", resp["version"], "the uploaded build's version, not the installed one")
+		})
+	}
 }

@@ -150,7 +150,7 @@ func TestInstall(t *testing.T) {
 			name:        "invalid_wasm_magic",
 			wasmContent: []byte{0x01, 0x02, 0x03, 0x04},
 			mockManager: &mockLoaderManager{},
-			wantStatus:  http.StatusInternalServerError,
+			wantStatus:  http.StatusBadRequest,
 		},
 		{
 			name:        "load_returns_error",

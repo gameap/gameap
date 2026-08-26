@@ -101,7 +101,10 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '409':
-        description: Plugin already installed
+        description: |
+          A plugin with this id is already installed. Installing never
+          replaces a running plugin silently: use
+          `POST /api/admin/plugins/{id}/upload` to update it from a file.
         content:
           application/json:
             schema:
@@ -322,6 +325,96 @@
               $ref: '../schemas/ErrorResponse.yaml'
       '422':
         description: Unknown permission name
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/admin/plugins/{id}/upload:
+  post:
+    tags:
+      - PluginStore
+    summary: Update installed plugin from a file
+    description: |
+      Replaces an installed plugin with an uploaded WASM file: the running
+      module is unloaded, the plugin file is overwritten and the record is
+      rewritten from the new build's manifest (name, version, description,
+      author, api version, checksum), then the module is loaded again.
+
+      The uploaded module must declare the same plugin id as `{id}`, otherwise
+      the request is refused — the file is validated before anything is
+      replaced.
+
+      The plugin keeps everything an uninstall would destroy: its
+      `gameap-storage` entries, its encrypted secrets, its configuration and
+      its granted permissions. Grants are never widened here — a build that
+      starts requiring more permissions has them recorded in
+      `required_permissions`, and the calls behind them stay refused until an
+      operator grants them through `PUT /api/admin/plugins/{id}/permissions`.
+
+      A plugin installed from the store becomes a file plugin: `source` is set
+      to `file://`, so the panel no longer offers store updates for it and
+      other panel instances can no longer re-download its file (use
+      `FILES_DRIVER=s3` for shared plugin storage). Admin only; recorded in
+      the audit log as `plugin.update`.
+    operationId: updatePluginFromFile
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Plugin ID (compact ID; database ID is decoded server-side)
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required:
+              - file
+            properties:
+              file:
+                type: string
+                format: binary
+                description: WASM plugin file (max 100MB)
+    responses:
+      '200':
+        description: Plugin updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/PluginUpdateResponse.yaml'
+      '400':
+        description: |
+          Invalid request or WASM file, or the uploaded module declares a
+          different plugin id than the one being updated
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Plugin not installed
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: |
+          The plugin file was replaced and the record updated, but the new
+          build failed to load; the plugin is left with status `error`
         content:
           application/json:
             schema:

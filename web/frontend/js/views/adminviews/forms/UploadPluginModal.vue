@@ -35,7 +35,12 @@
           <GIcon name="puzzle-piece" class="text-4xl text-stone-400" />
           <div>
             <h3 class="text-lg font-bold">{{ uploadResult.name }}</h3>
-            <span class="text-sm text-stone-500">v{{ uploadResult.version }}</span>
+            <span v-if="uploadResult.installed" class="text-sm text-stone-500" data-testid="dry-run-version-change">
+              v{{ uploadResult.installed_version }}
+              <span class="mx-1">&rarr;</span>
+              <span class="font-medium text-stone-700 dark:text-stone-300">v{{ uploadResult.version }}</span>
+            </span>
+            <span v-else class="text-sm text-stone-500">v{{ uploadResult.version }}</span>
           </div>
           <GStatusBadge
             :color="uploadResult.is_valid ? 'green' : 'red'"
@@ -70,6 +75,26 @@
             </p>
           </div>
         </div>
+
+        <n-alert
+          v-if="uploadResult.installed"
+          type="info"
+          :show-icon="true"
+          class="mb-4"
+          data-testid="dry-run-replaces-installed"
+        >
+          {{ trans('plugins.upload_replaces_installed', { version: uploadResult.installed_version }) }}
+        </n-alert>
+
+        <n-alert
+          v-if="uploadResult.installed && uploadResult.installed_source_type === 'store'"
+          type="warning"
+          :show-icon="true"
+          class="mb-4"
+          data-testid="dry-run-replaces-store-plugin"
+        >
+          {{ trans('plugins.upload_replaces_store_plugin') }}
+        </n-alert>
 
         <div v-if="uploadResult.required_permissions?.length" class="mb-4" data-testid="dry-run-permissions">
           <span class="text-xs text-stone-500">{{ trans('plugins.required_permissions') }}</span>
@@ -109,8 +134,20 @@
         <div class="flex justify-end gap-2 mt-4">
           <GButton color="gray" @click="resetUpload">{{ trans('main.back') }}</GButton>
           <GButton
+            v-if="uploadResult.installed"
+            color="blue"
+            :disabled="!uploadResult.is_valid"
+            data-testid="upload-update-button"
+            @click="updatePlugin"
+          >
+            <GIcon name="sync" class="mr-1" />
+            {{ trans('plugins.update') }}
+          </GButton>
+          <GButton
+            v-else
             color="green"
             :disabled="!uploadResult.is_valid"
+            data-testid="upload-install-button"
             @click="installPlugin"
           >
             <GIcon name="download" class="mr-1" />
@@ -130,7 +167,7 @@ import GButton from '@/components/GButton.vue'
 import { NAlert, NUpload, NUploadDragger, NSpin } from 'naive-ui'
 import { usePluginStoreStore } from '@/store/pluginStore'
 import { storeToRefs } from 'pinia'
-import { errorNotification, notification } from '@/parts/dialogs'
+import { errorNotification } from '@/parts/dialogs'
 
 const props = defineProps({
   show: {
@@ -176,11 +213,19 @@ async function installPlugin() {
 
   try {
     await pluginStore.installFromFile(selectedFile.value)
-    notification({
-      content: trans('plugins.install_from_file_success'),
-      type: 'success'
-    })
-    emit('installed')
+    emit('installed', { updated: false })
+    close()
+  } catch (err) {
+    errorNotification(err)
+  }
+}
+
+async function updatePlugin() {
+  if (!selectedFile.value || !uploadResult.value?.id) return
+
+  try {
+    await pluginStore.updateFromFile(uploadResult.value.id, selectedFile.value)
+    emit('installed', { updated: true })
     close()
   } catch (err) {
     errorNotification(err)

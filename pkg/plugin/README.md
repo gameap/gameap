@@ -1448,7 +1448,12 @@ host function cannot slip in ungated.
 A plugin declares what it needs in `PluginInfo.RequiredPermissions`, and
 **installing grants exactly the declared permissions** (upload, store and
 `PLUGINS_AUTOLOAD` alike). Unknown permission names are dropped rather than
-stored. Installations that predate a gate were grandfathered the grant by a
+stored. **Updating grants nothing**: replacing an installed plugin's build,
+from the store (`POST /api/plugin-store/plugins/{id}/update`) or by uploading
+a file (`POST /api/admin/plugins/{id}/upload`), records the new declaration in
+`required_permissions` and leaves `allowed_permissions` as it was, so a build
+that starts asking for more is refused those calls until an operator grants
+them. Installations that predate a gate were grandfathered the grant by a
 migration (`files` in 015; `manage_servers`, `node_commands` and
 `listen_events` in 020), so an upgrade never takes a working plugin's access
 away.
@@ -1574,7 +1579,8 @@ its stdin), `plugin.ssh.file` (path and connection — never the content), and
 `plugin.rbac.role` / `plugin.rbac.grant` / `plugin.rbac.revoke`. Refusals
 are `access.denied` with the plugin as the actor (reason
 `plugin_permission_missing` or `plugin_path_policy`). Operator actions on a plugin are recorded with the
-operator as the actor: `plugin.install`, `plugin.uninstall`,
+operator as the actor: `plugin.install`, `plugin.update` (an installed plugin
+replaced by an uploaded build), `plugin.uninstall`,
 `plugin.permissions.update` and `plugin.reloaded` with `trigger` = `manual`,
 `auto` (recovery) or `sync` (another instance's change applied here). When the
 plugin acted inside a user's request — an event raised by that request or a

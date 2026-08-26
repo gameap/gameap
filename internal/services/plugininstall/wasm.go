@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/gameap/gameap/pkg/api"
 	"github.com/pkg/errors"
 )
 
@@ -12,6 +13,9 @@ const (
 	MaxUploadSize = 100 << 20 // 100 MB
 )
 
+// The three below describe a request the caller got wrong, so they travel as
+// 400: a 5xx would put a mistyped upload in the error log and tell the client
+// to retry something that can only be fixed by picking another file.
 var (
 	ErrNoFileUploaded   = errors.New("no file uploaded")
 	ErrFileTooSmall     = errors.New("file too small to be valid WASM")
@@ -20,11 +24,11 @@ var (
 
 func ValidateWASM(data []byte) error {
 	if len(data) < 4 {
-		return ErrFileTooSmall
+		return api.WrapHTTPError(ErrFileTooSmall, http.StatusBadRequest)
 	}
 	// WASM magic number: \x00asm
 	if data[0] != 0x00 || data[1] != 0x61 || data[2] != 0x73 || data[3] != 0x6d {
-		return ErrInvalidWASMMagic
+		return api.WrapHTTPError(ErrInvalidWASMMagic, http.StatusBadRequest)
 	}
 
 	return nil
@@ -39,7 +43,7 @@ func ReadWASMFromMultipart(rw http.ResponseWriter, r *http.Request) ([]byte, err
 
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		return nil, ErrNoFileUploaded
+		return nil, api.WrapHTTPError(ErrNoFileUploaded, http.StatusBadRequest)
 	}
 	defer func() { _ = file.Close() }()
 

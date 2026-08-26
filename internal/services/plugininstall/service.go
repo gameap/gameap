@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -17,6 +18,28 @@ import (
 )
 
 var ErrPluginAlreadyInstalled = errors.New("plugin already installed")
+
+// Source types reported for an installed plugin, derived from plugins.source.
+const (
+	SourceTypeStore = "store"
+	SourceTypeFile  = "file"
+)
+
+// FileSourcePrefix marks a plugin whose file was uploaded by an operator
+// rather than downloaded from the store; pluginsync refuses to re-download
+// such a file on another instance, because no one else has it.
+const FileSourcePrefix = "file://"
+
+// SourceType tells apart a plugin uploaded as a file from one installed from
+// the store. Anything that is not a file:// source is a store plugin, rows
+// written before the column existed included.
+func SourceType(source string) string {
+	if strings.HasPrefix(source, FileSourcePrefix) {
+		return SourceTypeFile
+	}
+
+	return SourceTypeStore
+}
 
 func CheckNotInstalled(ctx context.Context, repo repositories.PluginRepository, dbID domain.Uint64ID) error {
 	exists, err := repo.Exists(ctx, filters.FindPluginByIDs(dbID))
