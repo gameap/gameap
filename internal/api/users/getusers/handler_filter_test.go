@@ -21,6 +21,8 @@ import (
 // customer to a panel account. Without a filter it would have to download
 // every user on every order, so these cases guard the narrow lookups.
 func TestGetUsersFiltering(t *testing.T) {
+	t.Parallel()
+
 	seed := []domain.User{
 		{ID: 1, Login: "admin", Email: "admin@example.com"},
 		{ID: 2, Login: "alice", Email: "alice@example.com"},
@@ -89,6 +91,8 @@ func TestGetUsersFiltering(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			repo := inmemory.NewUserRepository()
 			for _, user := range seed {

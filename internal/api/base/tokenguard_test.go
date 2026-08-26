@@ -19,6 +19,8 @@ import (
 var errRolesLookupFailed = errors.New("db is down")
 
 func TestEnsureRolesAllowedForSession(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		session        *auth.Session
@@ -79,6 +81,8 @@ func TestEnsureRolesAllowedForSession(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			ctrl := gomock.NewController(t)
 			rbac := mocks.NewMockRBAC(ctrl)

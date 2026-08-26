@@ -96,6 +96,8 @@ func adminSession() *auth.Session {
 }
 
 func TestMint_IssuesUsableTicketForRegularUser(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newMintFixture(t, 60*time.Second)
 
@@ -132,6 +134,8 @@ func TestMint_IssuesUsableTicketForRegularUser(t *testing.T) {
 }
 
 func TestMint_RefusesAdministratorTarget(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newMintFixture(t, 60*time.Second)
 
@@ -144,6 +148,8 @@ func TestMint_RefusesAdministratorTarget(t *testing.T) {
 }
 
 func TestMint_Validation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		body       string
@@ -197,6 +203,8 @@ func TestMint_Validation(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			f := newMintFixture(t, 60*time.Second)
 
@@ -211,6 +219,8 @@ func TestMint_Validation(t *testing.T) {
 }
 
 func TestMint_TTLIsCapped(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: an operator configures an hour; the handler must not honour it.
 	f := newMintFixture(t, time.Hour)
 

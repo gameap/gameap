@@ -115,6 +115,8 @@ func (f *exchangeFixture) exchange(t *testing.T, ticket string) *httptest.Respon
 }
 
 func TestExchange_IssuesSessionAndConsumesTicket(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newExchangeFixture(t, false)
 	ticket := f.storeTicket(t, nil)
@@ -147,6 +149,8 @@ func TestExchange_IssuesSessionAndConsumesTicket(t *testing.T) {
 }
 
 func TestExchange_TwoFactorAccountGetsChallengeNotSession(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newExchangeFixture(t, true)
 	ticket := f.storeTicket(t, nil)
@@ -174,6 +178,8 @@ func TestExchange_TwoFactorAccountGetsChallengeNotSession(t *testing.T) {
 }
 
 func TestExchange_Rejections(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		ticket     func(t *testing.T, f *exchangeFixture) string
@@ -240,6 +246,8 @@ func TestExchange_Rejections(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			f := newExchangeFixture(t, false)
 			if test.setup != nil {
@@ -258,6 +266,8 @@ func TestExchange_Rejections(t *testing.T) {
 }
 
 func TestExchange_MissingTicketIsRejected(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newExchangeFixture(t, false)
 

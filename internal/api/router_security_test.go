@@ -552,6 +552,8 @@ func TestRouterSecurity_UserAccess(t *testing.T) {
 // An SSO ticket travels in a URL, so it must be worthless as a credential
 // anywhere except the exchange endpoint. The auth middleware does not know its
 // prefix, which is what makes every other presentation a 401.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_SSOTicketIsNotACredential(t *testing.T) {
 	ticket := auth.SSOTicketPrefix + "0123456789abcdef0123456789abcdef0123456789abcdef"
 
