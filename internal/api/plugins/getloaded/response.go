@@ -1,11 +1,11 @@
 package getloaded
 
 import (
-	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/services/plugininstall"
 	"github.com/gameap/gameap/internal/services/pluginsync"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -123,7 +123,7 @@ func newLoadedPluginResponse(
 		Version:           loaded.Info.Version,
 		Description:       loaded.Info.Description,
 		Source:            source,
-		SourceType:        determineSourceType(source),
+		SourceType:        plugininstall.SourceType(source),
 		Enabled:           loaded.IsEnabled(),
 		Loaded:            true,
 		HasFrontendBundle: len(loaded.FrontendBundle) > 0,
@@ -200,7 +200,7 @@ func newInstalledPluginResponse(record *domain.Plugin) *loadedPluginResponse {
 		Version:     record.Version,
 		Description: record.Description,
 		Source:      source,
-		SourceType:  determineSourceType(source),
+		SourceType:  plugininstall.SourceType(source),
 		Enabled:     false,
 		Loaded:      false,
 		Status:      string(record.Status),
@@ -246,12 +246,4 @@ func convertServerAbilities(abilities []*proto.ServerAbility) []serverAbilityRes
 	}
 
 	return result
-}
-
-func determineSourceType(source string) string {
-	if strings.HasPrefix(source, "file://") {
-		return "file"
-	}
-
-	return "store"
 }

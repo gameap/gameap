@@ -80,7 +80,11 @@ const (
 	EventFileArchiveExtract   EventType = "file.archive.extract"
 	EventFileArchiveCancel    EventType = "file.archive.cancel"
 	EventPluginInstall        EventType = "plugin.install"
-	EventPluginUninstall      EventType = "plugin.uninstall"
+	// EventPluginUpdate: an installed plugin's code was replaced by an
+	// operator-uploaded build. Recorded separately from plugin.install so a
+	// running plugin swapped for different bytes is visible on its own.
+	EventPluginUpdate    EventType = "plugin.update"
+	EventPluginUninstall EventType = "plugin.uninstall"
 )
 
 // Plugin runtime lifecycle: recorded by the panel itself (AuthMethodSystem)

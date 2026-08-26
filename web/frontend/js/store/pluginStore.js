@@ -357,6 +357,22 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         }
     }
 
+    async function updateFromFile(id, file) {
+        apiProcesses.value++
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+            const response = await axios.post(`/api/admin/plugins/${id}/upload`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            })
+            uploadResult.value = null
+            uploadFile.value = null
+            return response.data
+        } finally {
+            apiProcesses.value--
+        }
+    }
+
     function clearUpload() {
         uploadResult.value = null
         uploadFile.value = null
@@ -406,6 +422,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
         updatePluginPermissions,
         dryRunUpload,
         installFromFile,
+        updateFromFile,
         clearUpload,
     }
 })

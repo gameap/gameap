@@ -87,6 +87,7 @@ import (
 	pluginupdatepermissions "github.com/gameap/gameap/internal/api/plugins/updatepermissions"
 	pluginuploaddryrun "github.com/gameap/gameap/internal/api/plugins/upload/dryrun"
 	pluginuploadinstall "github.com/gameap/gameap/internal/api/plugins/upload/install"
+	pluginuploadupdate "github.com/gameap/gameap/internal/api/plugins/upload/update"
 	"github.com/gameap/gameap/internal/api/pluginstore/getcategories"
 	"github.com/gameap/gameap/internal/api/pluginstore/getlabels"
 	"github.com/gameap/gameap/internal/api/pluginstore/getplugin"
@@ -1979,6 +1980,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/admin/plugins/upload/dry-run",
 			Handler: pluginuploaddryrun.NewHandler(
 				c.PluginManager(),
+				c.PluginRepository(),
 				c.Responder(),
 			),
 			AdminOnly: true,
@@ -1987,6 +1989,22 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Method: http.MethodPost,
 			Path:   "/api/admin/plugins/upload/install",
 			Handler: pluginuploadinstall.NewHandler(
+				c.PluginManager(),
+				c.PluginRepository(),
+				c.FileManager(),
+				c.PluginLoader(),
+				c.PluginDispatcher(),
+				c.PluginSync(),
+				c.PluginsDir(),
+				c.Responder(),
+				c.AuditLogger(),
+			),
+			AdminOnly: true,
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/admin/plugins/{id}/upload",
+			Handler: pluginuploadupdate.NewHandler(
 				c.PluginManager(),
 				c.PluginRepository(),
 				c.FileManager(),

@@ -91,6 +91,25 @@ properties:
     type: boolean
     description: Whether the plugin has frontend styles
     example: false
+  installed:
+    type: boolean
+    description: |
+      Whether a plugin with this id is already installed. When true the file
+      can only replace it through `POST /api/admin/plugins/{id}/upload`;
+      `POST /api/admin/plugins/upload/install` answers 409.
+    example: false
+  installed_version:
+    type: string
+    description: Version currently installed, when `installed` is true
+    example: "1.0.0"
+  installed_source_type:
+    type: string
+    enum: [store, file]
+    description: |
+      Where the installed plugin came from, when `installed` is true.
+      Replacing a `store` plugin with an uploaded file turns it into a `file`
+      plugin: the panel stops offering store updates for it.
+    example: "file"
   is_valid:
     type: boolean
     description: Whether the plugin is valid and can be installed

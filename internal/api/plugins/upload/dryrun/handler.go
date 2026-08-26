@@ -8,6 +8,9 @@ import (
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/services/plugininstall"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
@@ -21,17 +24,20 @@ type LoaderManager interface {
 }
 
 type Handler struct {
-	manager   LoaderManager
-	responder base.Responder
+	manager    LoaderManager
+	pluginRepo repositories.PluginRepository
+	responder  base.Responder
 }
 
 func NewHandler(
 	manager LoaderManager,
+	pluginRepo repositories.PluginRepository,
 	responder base.Responder,
 ) *Handler {
 	return &Handler{
-		manager:   manager,
-		responder: responder,
+		manager:    manager,
+		pluginRepo: pluginRepo,
+		responder:  responder,
 	}
 }
 
@@ -83,7 +89,35 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	subscribedEvents := h.getSubscribedEvents(ctx, loaded)
 
-	h.responder.Write(ctx, rw, newDryRunResponse(loaded, subscribedEvents))
+	h.responder.Write(ctx, rw, newDryRunResponse(loaded, subscribedEvents, h.findInstalled(ctx, loaded)))
+}
+
+// findInstalled reports the plugin already installed under the uploaded
+// module's id, so the caller knows before confirming that the file replaces a
+// running plugin rather than adding one. A repository failure is not fatal
+// for a validation request: the file is still reported as valid, and the
+// install endpoint refuses the conflict on its own.
+func (h *Handler) findInstalled(ctx context.Context, loaded *pkgplugin.LoadedPlugin) *domain.Plugin {
+	if h.pluginRepo == nil {
+		return nil
+	}
+
+	dbID := pkgplugin.ParsePluginID(loaded.Info.Id)
+
+	installed, err := h.pluginRepo.Find(ctx, filters.FindPluginByIDs(dbID), nil, nil)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to check whether the plugin is already installed",
+			slog.String("plugin_id", loaded.Info.Id),
+			slog.String("error", err.Error()))
+
+		return nil
+	}
+
+	if len(installed) == 0 {
+		return nil
+	}
+
+	return &installed[0]
 }
 
 func (h *Handler) getSubscribedEvents(ctx context.Context, loaded *pkgplugin.LoadedPlugin) []proto.EventType {
