@@ -133,6 +133,8 @@ func (r *eventRecorder) Messages() []*pubsub.Message {
 }
 
 func TestArchiveService_StartCreate_LocalHappyPath(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -236,6 +238,8 @@ func TestArchiveService_StartCreate_LocalHappyPath(t *testing.T) {
 }
 
 func TestArchiveService_StartCreate_SourceOutsideBaseRejected(t *testing.T) {
+	t.Parallel()
+
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 	s := setupArchiveService(t, ps, "inst-a")
@@ -257,6 +261,8 @@ func TestArchiveService_StartCreate_SourceOutsideBaseRejected(t *testing.T) {
 }
 
 func TestSourceRelToBase(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		base      string
@@ -280,6 +286,8 @@ func TestSourceRelToBase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := sourceRelToBase(tt.base, tt.src)
 
 			if tt.wantError != "" {
@@ -296,6 +304,8 @@ func TestSourceRelToBase(t *testing.T) {
 }
 
 func TestArchiveService_StartCreate_NoArchiveCapability(t *testing.T) {
+	t.Parallel()
+
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 	s := setupArchiveService(t, ps, "inst-a")
@@ -320,6 +330,8 @@ func TestArchiveService_StartCreate_NoArchiveCapability(t *testing.T) {
 }
 
 func TestArchiveService_StartExtract_NotConnected(t *testing.T) {
+	t.Parallel()
+
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 	s := setupArchiveService(t, ps, "inst-a")
@@ -334,6 +346,8 @@ func TestArchiveService_StartExtract_NotConnected(t *testing.T) {
 }
 
 func TestArchiveService_RemoteStart_TwoInstances(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: one shared pub/sub, instance A initiates, instance B owns the
 	// daemon session.
 	ps := memory.New()
@@ -400,6 +414,8 @@ func TestArchiveService_RemoteStart_TwoInstances(t *testing.T) {
 }
 
 func TestArchiveService_RemoteStart_CapabilityErrorMapsToSentinel(t *testing.T) {
+	t.Parallel()
+
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 	a := setupArchiveService(t, ps, "inst-a")
@@ -422,7 +438,11 @@ func TestArchiveService_RemoteStart_CapabilityErrorMapsToSentinel(t *testing.T) 
 }
 
 func TestArchiveService_Cancel(t *testing.T) {
+	t.Parallel()
+
 	t.Run("local_session_sends_gateway_cancel", func(t *testing.T) {
+		t.Parallel()
+
 		ps := memory.New()
 		t.Cleanup(func() { _ = ps.Close() })
 		s := setupArchiveService(t, ps, "inst-a")
@@ -441,6 +461,8 @@ func TestArchiveService_Cancel(t *testing.T) {
 	})
 
 	t.Run("remote_session_dispatches_cancel", func(t *testing.T) {
+		t.Parallel()
+
 		ps := memory.New()
 		t.Cleanup(func() { _ = ps.Close() })
 		a := setupArchiveService(t, ps, "inst-a")
@@ -461,6 +483,8 @@ func TestArchiveService_Cancel(t *testing.T) {
 	})
 
 	t.Run("not_connected_anywhere_returns_sentinel", func(t *testing.T) {
+		t.Parallel()
+
 		ps := memory.New()
 		t.Cleanup(func() { _ = ps.Close() })
 		s := setupArchiveService(t, ps, "inst-a")
@@ -473,6 +497,8 @@ func TestArchiveService_Cancel(t *testing.T) {
 }
 
 func TestArchiveService_NodeScopedOpSkipsServerChannel(t *testing.T) {
+	t.Parallel()
+
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 	s := setupArchiveService(t, ps, "inst-a")
@@ -506,6 +532,8 @@ func TestArchiveService_NodeScopedOpSkipsServerChannel(t *testing.T) {
 }
 
 func TestArchiveService_WaitCompletion_UnknownOperation(t *testing.T) {
+	t.Parallel()
+
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 	s := setupArchiveService(t, ps, "inst-a")
@@ -517,6 +545,8 @@ func TestArchiveService_WaitCompletion_UnknownOperation(t *testing.T) {
 }
 
 func TestArchiveService_SweepExpired(t *testing.T) {
+	t.Parallel()
+
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
 	s := setupArchiveService(t, ps, "inst-a")
@@ -547,6 +577,8 @@ func TestArchiveService_SweepExpired(t *testing.T) {
 }
 
 func TestArchiveFormatAPINames(t *testing.T) {
+	t.Parallel()
+
 	format, ok := ArchiveFormatFromAPIName("tar_zstd")
 	require.True(t, ok)
 	assert.Equal(t, proto.ArchiveFormat_ARCHIVE_FORMAT_TAR_ZSTD, format)

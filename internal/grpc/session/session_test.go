@@ -18,6 +18,7 @@ import (
 var errTestStream = errors.New("test stream error")
 
 func TestNewSession_initialState(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	stream := newStubStream(context.Background())
 	caps := []string{"cap-a", "cap-b"}
@@ -47,7 +48,9 @@ func TestNewSession_initialState(t *testing.T) {
 }
 
 func TestSession_SetLogger(t *testing.T) {
+	t.Parallel()
 	t.Run("overrides_the_default_logger", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 		custom := slog.New(slog.DiscardHandler)
@@ -60,6 +63,7 @@ func TestSession_SetLogger(t *testing.T) {
 	})
 
 	t.Run("nil_logger_is_ignored", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE: the nil-guard must protect the working logger so a stray
 		// SetLogger(nil) cannot leave the session with a nil logger that later
 		// panics inside dispatchLoop / Enqueue.
@@ -76,7 +80,9 @@ func TestSession_SetLogger(t *testing.T) {
 }
 
 func TestSession_Send_proxiesToStream(t *testing.T) {
+	t.Parallel()
 	t.Run("happy_path_forwards_to_stream", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		stream := newStubStream(context.Background())
 		s := NewSession(1, stream, "v", nil, nil)
@@ -93,6 +99,7 @@ func TestSession_Send_proxiesToStream(t *testing.T) {
 	})
 
 	t.Run("propagates_stream_error", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		stream := newStubStream(context.Background())
 		stream.sendErr = errTestStream
@@ -108,6 +115,7 @@ func TestSession_Send_proxiesToStream(t *testing.T) {
 }
 
 func TestSession_Send_concurrent(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	const goroutines = 50
 
@@ -144,6 +152,7 @@ func TestSession_Send_concurrent(t *testing.T) {
 }
 
 func TestSession_Enqueue_deliversToStreamAsync(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	stream := newStubStream(context.Background())
 	s := NewSession(1, stream, "v", nil, nil)
@@ -160,6 +169,7 @@ func TestSession_Enqueue_deliversToStreamAsync(t *testing.T) {
 }
 
 func TestSession_Enqueue_afterClose_returnsClosed(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 	s.Close()
@@ -186,6 +196,7 @@ func (b *blockingStream) Send(m *proto.GatewayMessage) error {
 }
 
 func TestSession_Enqueue_stalledStream_doesNotBlockCaller(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: a stream whose Send blocks indefinitely. Enqueue must never
 	// block the caller (the shared pubsub goroutine) on it — this is the whole
 	// point of the outbound queue.
@@ -237,6 +248,7 @@ func (f *flakyStream) Send(m *proto.GatewayMessage) error {
 }
 
 func TestSession_dispatchLoop_survivesSendError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: the first queued Send fails. dispatchLoop must log-and-continue
 	// rather than let the worker die, so a subsequent message still reaches the
 	// stream.
@@ -265,6 +277,7 @@ func TestSession_dispatchLoop_survivesSendError(t *testing.T) {
 }
 
 func TestSession_UpdateLastPing_advancesTime(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 	original := s.LastPing()
@@ -279,6 +292,7 @@ func TestSession_UpdateLastPing_advancesTime(t *testing.T) {
 }
 
 func TestSession_RegisterPendingRequest_returnsBufferedChan(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 
@@ -302,6 +316,7 @@ func TestSession_RegisterPendingRequest_returnsBufferedChan(t *testing.T) {
 }
 
 func TestSession_ResolvePendingRequest_deliversAndCloses(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 	ch := s.RegisterPendingRequest("req-1")
@@ -329,6 +344,7 @@ func TestSession_ResolvePendingRequest_deliversAndCloses(t *testing.T) {
 }
 
 func TestSession_ResolvePendingRequest_unknownID_returnsFalse(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 
@@ -340,6 +356,7 @@ func TestSession_ResolvePendingRequest_unknownID_returnsFalse(t *testing.T) {
 }
 
 func TestSession_CancelPendingRequest_closesWithoutDelivery(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 	ch := s.RegisterPendingRequest("req-1")
@@ -365,6 +382,7 @@ func TestSession_CancelPendingRequest_closesWithoutDelivery(t *testing.T) {
 }
 
 func TestSession_HasCapability(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		caps []string
@@ -389,6 +407,7 @@ func TestSession_HasCapability(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			s := NewSession(1, newStubStream(context.Background()), "v", tt.caps, nil)
 
@@ -402,6 +421,7 @@ func TestSession_HasCapability(t *testing.T) {
 }
 
 func TestSession_Cancel_invokesCancelFunc(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	var calls atomic.Int32
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, func() {
@@ -418,6 +438,7 @@ func TestSession_Cancel_invokesCancelFunc(t *testing.T) {
 }
 
 func TestSession_Cancel_nilCancel_noPanic(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 
@@ -426,6 +447,7 @@ func TestSession_Cancel_nilCancel_noPanic(t *testing.T) {
 }
 
 func TestSession_Close_failsPendingRequests(t *testing.T) {
+	t.Parallel()
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 	ch := s.RegisterPendingRequest("req-1")
 
@@ -445,6 +467,7 @@ func TestSession_Close_failsPendingRequests(t *testing.T) {
 }
 
 func TestSession_Close_isIdempotent(t *testing.T) {
+	t.Parallel()
 	s := NewSession(1, newStubStream(context.Background()), "v", nil, nil)
 	s.RegisterPendingRequest("req-1")
 

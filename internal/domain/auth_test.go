@@ -9,6 +9,8 @@ import (
 )
 
 func TestPersonalAccessToken_HasAbility(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		token   *PersonalAccessToken
@@ -66,6 +68,8 @@ func TestPersonalAccessToken_HasAbility(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := test.token.HasAbility(test.ability)
 			assert.Equal(t, test.want, result)
 		})
@@ -73,6 +77,8 @@ func TestPersonalAccessToken_HasAbility(t *testing.T) {
 }
 
 func TestPersonalAccessToken_HasAnyAbility(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		token     *PersonalAccessToken
@@ -135,6 +141,8 @@ func TestPersonalAccessToken_HasAnyAbility(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := test.token.HasAnyAbility(test.abilities...)
 			assert.Equal(t, test.want, result)
 		})
@@ -142,6 +150,8 @@ func TestPersonalAccessToken_HasAnyAbility(t *testing.T) {
 }
 
 func TestPersonalAccessToken_HasAllAbilities(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		token     *PersonalAccessToken
@@ -207,6 +217,8 @@ func TestPersonalAccessToken_HasAllAbilities(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := test.token.HasAllAbilities(test.abilities...)
 			assert.Equal(t, test.want, result)
 		})
@@ -214,6 +226,8 @@ func TestPersonalAccessToken_HasAllAbilities(t *testing.T) {
 }
 
 func TestGetUserAbilities(t *testing.T) {
+	t.Parallel()
+
 	abilities := GetUserAbilities()
 
 	assert.Len(t, abilities, 10, "should return 10 user abilities")
@@ -232,6 +246,8 @@ func TestGetUserAbilities(t *testing.T) {
 }
 
 func TestGetAdminAbilities(t *testing.T) {
+	t.Parallel()
+
 	abilities := GetAdminAbilities()
 
 	assert.ElementsMatch(t, []PATAbility{
@@ -249,6 +265,8 @@ func TestGetAdminAbilities(t *testing.T) {
 }
 
 func TestGetAllAbilities(t *testing.T) {
+	t.Parallel()
+
 	abilities := GetAllAbilities()
 
 	userAbilities := GetUserAbilities()
@@ -266,6 +284,8 @@ func TestGetAllAbilities(t *testing.T) {
 }
 
 func TestGetAbilityDescriptions(t *testing.T) {
+	t.Parallel()
+
 	descriptions := GetAbilityDescriptions()
 
 	allAbilities := GetAllAbilities()
@@ -284,7 +304,11 @@ func TestGetAbilityDescriptions(t *testing.T) {
 }
 
 func TestGetGroupedAbilities(t *testing.T) {
+	t.Parallel()
+
 	t.Run("without_admin_abilities", func(t *testing.T) {
+		t.Parallel()
+
 		grouped := GetGroupedAbilities(false)
 
 		require.Contains(t, grouped, PATAbilityGroupServer)
@@ -308,6 +332,8 @@ func TestGetGroupedAbilities(t *testing.T) {
 	})
 
 	t.Run("with_admin_abilities", func(t *testing.T) {
+		t.Parallel()
+
 		grouped := GetGroupedAbilities(true)
 
 		require.Contains(t, grouped, PATAbilityGroupServer)
@@ -354,6 +380,8 @@ func TestGetGroupedAbilities(t *testing.T) {
 	})
 
 	t.Run("all_abilities_have_descriptions", func(t *testing.T) {
+		t.Parallel()
+
 		grouped := GetGroupedAbilities(true)
 
 		for group, abilities := range grouped {
@@ -365,6 +393,8 @@ func TestGetGroupedAbilities(t *testing.T) {
 }
 
 func TestValidateAbility(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		ability  string
@@ -414,6 +444,8 @@ func TestValidateAbility(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := ValidateAbility(test.ability)
 			assert.Equal(t, test.expected, result)
 		})
@@ -421,6 +453,8 @@ func TestValidateAbility(t *testing.T) {
 }
 
 func TestParseAbilities(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		input       []string
@@ -505,6 +539,8 @@ func TestParseAbilities(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := ParseAbilities(test.input)
 			if test.expectEmpty {
 				assert.Empty(t, result)
@@ -516,6 +552,8 @@ func TestParseAbilities(t *testing.T) {
 }
 
 func TestPersonalAccessToken_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	tokenableType := EntityTypeUser
 	abilities := []PATAbility{PATAbilityServerStart, PATAbilityServerStop}
@@ -544,6 +582,8 @@ func TestPersonalAccessToken_Fields(t *testing.T) {
 }
 
 func TestPasswordReset_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	reset := PasswordReset{
@@ -558,6 +598,8 @@ func TestPasswordReset_Fields(t *testing.T) {
 }
 
 func TestPATAbilityConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, PATAbility("admin:server:create"), PATAbilityServerCreate)
 	assert.Equal(t, PATAbility("admin:gdaemon-task:read"), PATAbilityGDaemonTaskRead)
 	assert.Equal(t, PATAbility("server:start"), PATAbilityServerStart)
@@ -572,6 +614,8 @@ func TestPATAbilityConstants(t *testing.T) {
 }
 
 func TestPATAbilityGroupConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, PATAbilityGroup("server"), PATAbilityGroupServer)
 	assert.Equal(t, PATAbilityGroup("gdaemon-task"), PATAbilityGroupGDaemonTask)
 }

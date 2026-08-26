@@ -163,6 +163,7 @@ func firstError(r *fakeResponder) error {
 // refuses requests without a Session in the context with a 401 before reading
 // any path or query parameters.
 func TestHandler_ServeHTTP_unauthenticated_returns401(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newGateEnv(t)
 	h := newGateHandler(env)
@@ -186,6 +187,7 @@ func TestHandler_ServeHTTP_unauthenticated_returns401(t *testing.T) {
 // TestHandler_ServeHTTP_invalidServerID_returns400 verifies that a non-numeric
 // server path parameter is rejected at the input-reader gate with a 400.
 func TestHandler_ServeHTTP_invalidServerID_returns400(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	env := newGateEnv(t)
 	h := newGateHandler(env)
@@ -205,6 +207,7 @@ func TestHandler_ServeHTTP_invalidServerID_returns400(t *testing.T) {
 // TestHandler_ServeHTTP_unknownServer_returns404 verifies that referencing a
 // server that does not belong to the user surfaces a 404 from ServerFinder.
 func TestHandler_ServeHTTP_unknownServer_returns404(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — pristine repo, no servers saved.
 	env := newGateEnv(t)
 	env.serverRepo = inmemory.NewServerRepository()
@@ -226,6 +229,7 @@ func TestHandler_ServeHTTP_unknownServer_returns404(t *testing.T) {
 // once the server is reachable but the user lacks GameServerConsoleView the
 // AbilityChecker maps the denial to a 403.
 func TestHandler_ServeHTTP_lacksConsoleViewPermission_returns403(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — strip the admin shortcut and intentionally leave the entity
 	// allow set empty: every CanForEntity call will return false.
 	env := newGateEnv(t)
@@ -256,6 +260,7 @@ func TestHandler_ServeHTTP_lacksConsoleViewPermission_returns403(t *testing.T) {
 // TestHandler_ServeHTTP_unknownNode_returns404 verifies that a server pointing
 // to a non-existent DSID surfaces a 404 from findNode.
 func TestHandler_ServeHTTP_unknownNode_returns404(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — server exists but the node repo is empty so findNode fails.
 	env := newGateEnv(t)
 	env.nodeRepo = inmemory.NewNodeRepository()
@@ -278,6 +283,7 @@ func TestHandler_ServeHTTP_unknownNode_returns404(t *testing.T) {
 // session and no global record for the node, the handler must refuse with a
 // 503 before attempting the WebSocket upgrade.
 func TestHandler_ServeHTTP_daemonNotConnected_returns503(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — server exists, user authenticated, RBAC admin (so view passes),
 	// node exists, but no session is registered for the node anywhere.
 	env := newGateEnv(t)

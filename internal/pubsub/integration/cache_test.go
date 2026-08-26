@@ -84,6 +84,8 @@ func waitFor(t *testing.T, cond func() bool, timeout time.Duration, msgFmt strin
 }
 
 func TestCacheInvalidator_PublishInvalidation_PublishesMessage(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 
@@ -113,6 +115,8 @@ func TestCacheInvalidator_PublishInvalidation_PublishesMessage(t *testing.T) {
 }
 
 func TestCacheInvalidator_PublishInvalidation_NoEntityIDs(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := subscribeRecorder(ctx, t, bus, channels.CacheInvalidate)
@@ -133,6 +137,8 @@ func TestCacheInvalidator_PublishInvalidation_NoEntityIDs(t *testing.T) {
 }
 
 func TestCacheInvalidator_Start_Subscribes_GenericCache_CallsClear(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := newRecordingCache()
@@ -166,6 +172,8 @@ func TestCacheInvalidator_Start_Subscribes_GenericCache_CallsClear(t *testing.T)
 }
 
 func TestCacheInvalidator_handleInvalidation_BadPayload_NoOp(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus, ctx := setupPubsub(t)
 	rec := newRecordingCache()
@@ -198,6 +206,8 @@ func TestCacheInvalidator_handleInvalidation_BadPayload_NoOp(t *testing.T) {
 }
 
 func TestCacheInvalidator_handleInvalidation_RedisBranch_TakesDeletePattern(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	// We construct a *cache.Redis whose client points at an unreachable port.
 	// The handler still must take the Redis branch (type assertion succeeds);
@@ -258,6 +268,8 @@ func TestCacheInvalidator_handleInvalidation_RedisBranch_TakesDeletePattern(t *t
 }
 
 func TestNewCacheInvalidator_AssignsLogger(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bus := memory.New()
 	t.Cleanup(func() { _ = bus.Close() })

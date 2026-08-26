@@ -592,6 +592,15 @@ type DownloadRequest struct {
 
 	NodeId uint64 `protobuf:"varint,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	Path   string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// Byte offset to read from; 0 starts at the beginning. An offset at or past
+	// the end of the file is not an error: the answer is empty content with
+	// total_size set, which is how a caller paging through a file learns it is
+	// done.
+	Offset uint64 `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	// Bytes to read; 0 means "as much as the inline limit allows". It is the
+	// window, not the file, that has to fit the limit — a file larger than the
+	// limit is readable one window at a time rather than refused outright.
+	Length uint64 `protobuf:"varint,4,opt,name=length,proto3" json:"length,omitempty"`
 }
 
 func (x *DownloadRequest) ProtoReflect() protoreflect.Message {
@@ -612,6 +621,20 @@ func (x *DownloadRequest) GetPath() string {
 	return ""
 }
 
+func (x *DownloadRequest) GetOffset() uint64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *DownloadRequest) GetLength() uint64 {
+	if x != nil {
+		return x.Length
+	}
+	return 0
+}
+
 type DownloadResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -619,6 +642,14 @@ type DownloadResponse struct {
 
 	Content []byte  `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
 	Error   *string `protobuf:"bytes,2,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	// The offset the content starts at, echoed back.
+	Offset uint64 `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	// Size of the whole file, so a caller paging through one does not need a
+	// separate GetFileInfo. Set whenever the panel had to stat the file — that
+	// is, on every windowed read and on every panel with an inline limit
+	// configured (the default). Zero means it was not measured, which only an
+	// uncapped panel answering a whole-file read can produce.
+	TotalSize uint64 `protobuf:"varint,4,opt,name=total_size,json=totalSize,proto3" json:"total_size,omitempty"`
 }
 
 func (x *DownloadResponse) ProtoReflect() protoreflect.Message {
@@ -637,6 +668,20 @@ func (x *DownloadResponse) GetError() string {
 		return *x.Error
 	}
 	return ""
+}
+
+func (x *DownloadResponse) GetOffset() uint64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *DownloadResponse) GetTotalSize() uint64 {
+	if x != nil {
+		return x.TotalSize
+	}
+	return 0
 }
 
 type UploadRequest struct {

@@ -86,6 +86,8 @@ func (m *mockFileService) ReadDir(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		serverID         string
@@ -1002,6 +1004,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -1056,6 +1060,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestParseFilename(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		input         string
@@ -1096,6 +1102,8 @@ func TestParseFilename(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			filename, extension := parseFilename(tt.input)
 			assert.Equal(t, tt.wantFilename, filename)
 			assert.Equal(t, tt.wantExtension, extension)
@@ -1104,6 +1112,8 @@ func TestParseFilename(t *testing.T) {
 }
 
 func TestCalculateVisibility(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		perm           uint32
@@ -1133,6 +1143,8 @@ func TestCalculateVisibility(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			visibility := calculateVisibility(tt.perm)
 			assert.Equal(t, tt.wantVisibility, visibility)
 		})
@@ -1140,6 +1152,8 @@ func TestCalculateVisibility(t *testing.T) {
 }
 
 func TestHandler_FullPathConstruction(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		nodeWorkPath     string
@@ -1179,6 +1193,8 @@ func TestHandler_FullPathConstruction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()

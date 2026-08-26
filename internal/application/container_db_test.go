@@ -37,6 +37,8 @@ func newPingMonitoredDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
 }
 
 func TestPingDBWithRetry_TransientFailures(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newPingMonitoredDB(t)
 	mock.ExpectPing().WillReturnError(errDBShuttingDown)
 	mock.ExpectPing().WillReturnError(errConnectionRefused)
@@ -52,6 +54,8 @@ func TestPingDBWithRetry_TransientFailures(t *testing.T) {
 }
 
 func TestPingDBWithRetry_WindowExhausted(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newPingMonitoredDB(t)
 	mock.ExpectPing().WillReturnError(errDBShuttingDown)
 
@@ -68,6 +72,8 @@ func TestPingDBWithRetry_WindowExhausted(t *testing.T) {
 }
 
 func TestPingDBWithRetry_BlockedPing(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newPingMonitoredDB(t)
 	mock.ExpectPing().WillDelayFor(10 * time.Second)
 
@@ -84,6 +90,8 @@ func TestPingDBWithRetry_BlockedPing(t *testing.T) {
 }
 
 func TestPingDBWithRetry_FinalPartialWait(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newPingMonitoredDB(t)
 	mock.ExpectPing().WillReturnError(errDBShuttingDown)
 
@@ -103,6 +111,8 @@ func TestPingDBWithRetry_FinalPartialWait(t *testing.T) {
 }
 
 func TestPingDBWithRetry_RetriesDisabled(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newPingMonitoredDB(t)
 	mock.ExpectPing().WillReturnError(errConnectionRefused)
 
@@ -118,6 +128,8 @@ func TestPingDBWithRetry_RetriesDisabled(t *testing.T) {
 }
 
 func TestPingDBWithRetry_ContextCancelled(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newPingMonitoredDB(t)
 	mock.ExpectPing().WillReturnError(errConnectionRefused)
 
@@ -138,6 +150,8 @@ func TestPingDBWithRetry_ContextCancelled(t *testing.T) {
 }
 
 func TestPingDBWithRetry_NilContext(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newPingMonitoredDB(t)
 	mock.ExpectPing()
 

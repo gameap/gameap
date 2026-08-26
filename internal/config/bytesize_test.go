@@ -9,6 +9,8 @@ import (
 )
 
 func TestByteSize_UnmarshalText(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -46,6 +48,7 @@ func TestByteSize_UnmarshalText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			var bs config.ByteSize
 
@@ -67,6 +70,8 @@ func TestByteSize_UnmarshalText(t *testing.T) {
 }
 
 func TestByteSize_Uint64_ReturnsRawValue(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	bs := config.ByteSize(42)
 

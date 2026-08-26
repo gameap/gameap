@@ -1,0 +1,31 @@
+type: object
+minProperties: 1
+description: |
+  Validation rules applied when saving a server setting. Rules apply to
+  non-empty values; emptiness is rejected only by `required`.
+properties:
+  required:
+    type: boolean
+    description: A non-empty value must be provided.
+  min:
+    type: number
+    description: "`int`/`float` only: minimum value (also the lower bound of the number widget)."
+  max:
+    type: number
+    description: "`int`/`float` only: maximum value (also the upper bound of the number widget)."
+  min_length:
+    type: integer
+    minimum: 0
+    description: "`string`/`text`/`password` (and `select` with `allow_custom`): minimum length in characters."
+  max_length:
+    type: integer
+    minimum: 1
+    description: "`string`/`text`/`password` (and `select` with `allow_custom`): maximum length in characters."
+  pattern:
+    type: string
+    minLength: 1
+    maxLength: 512
+    description: |
+      `string`/`text`/`password` (and `select` with `allow_custom`): regular
+      expression the whole value must match. Must be RE2-compatible: no
+      lookarounds, no backreferences.

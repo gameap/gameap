@@ -17,6 +17,8 @@ import (
 )
 
 func TestIsBlockedIP_BlocksLoopback(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"127.0.0.1",
 		"127.255.255.254",
@@ -24,6 +26,8 @@ func TestIsBlockedIP_BlocksLoopback(t *testing.T) {
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.True(t, netutil.IsBlockedIP(ip))
 			assert.Equal(t, netutil.BlockReasonLoopback, netutil.BlockReason(ip))
@@ -32,6 +36,8 @@ func TestIsBlockedIP_BlocksLoopback(t *testing.T) {
 }
 
 func TestIsBlockedIP_BlocksPrivateRFC1918(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"10.0.0.1",
 		"10.255.255.254",
@@ -42,6 +48,8 @@ func TestIsBlockedIP_BlocksPrivateRFC1918(t *testing.T) {
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.True(t, netutil.IsBlockedIP(ip))
 			assert.Equal(t, netutil.BlockReasonPrivate, netutil.BlockReason(ip))
@@ -50,6 +58,8 @@ func TestIsBlockedIP_BlocksPrivateRFC1918(t *testing.T) {
 }
 
 func TestIsBlockedIP_BlocksIPv6ULA(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"fc00::1",
 		"fd00::1",
@@ -57,6 +67,8 @@ func TestIsBlockedIP_BlocksIPv6ULA(t *testing.T) {
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.True(t, netutil.IsBlockedIP(ip))
 			assert.Equal(t, netutil.BlockReasonPrivate, netutil.BlockReason(ip))
@@ -65,6 +77,8 @@ func TestIsBlockedIP_BlocksIPv6ULA(t *testing.T) {
 }
 
 func TestIsBlockedIP_BlocksLinkLocal(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"169.254.1.1", // not the metadata IP
 		"169.254.255.254",
@@ -72,6 +86,8 @@ func TestIsBlockedIP_BlocksLinkLocal(t *testing.T) {
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.True(t, netutil.IsBlockedIP(ip))
 			assert.Equal(t, netutil.BlockReasonLinkLocal, netutil.BlockReason(ip))
@@ -80,6 +96,8 @@ func TestIsBlockedIP_BlocksLinkLocal(t *testing.T) {
 }
 
 func TestIsBlockedIP_BlocksCloudMetadata(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"169.254.169.254",
 		"fd00:ec2::254",
@@ -87,6 +105,8 @@ func TestIsBlockedIP_BlocksCloudMetadata(t *testing.T) {
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.True(t, netutil.IsBlockedIP(ip))
 			assert.True(t, netutil.IsCloudMetadataIP(ip))
@@ -97,9 +117,13 @@ func TestIsBlockedIP_BlocksCloudMetadata(t *testing.T) {
 }
 
 func TestIsBlockedIP_BlocksUnspecified(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{"0.0.0.0", "::"}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.True(t, netutil.IsBlockedIP(ip))
 			// 0.0.0.0 hits both "unspecified" and "reserved_v4 (0.0.0.0/8)";
@@ -111,6 +135,8 @@ func TestIsBlockedIP_BlocksUnspecified(t *testing.T) {
 }
 
 func TestIsBlockedIP_BlocksMulticast(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"224.0.0.1",
 		"239.255.255.250", // SSDP
@@ -118,6 +144,8 @@ func TestIsBlockedIP_BlocksMulticast(t *testing.T) {
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.True(t, netutil.IsBlockedIP(ip))
 			reason := netutil.BlockReason(ip)
@@ -130,12 +158,16 @@ func TestIsBlockedIP_BlocksMulticast(t *testing.T) {
 }
 
 func TestIsBlockedIP_BlocksCGNAT(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"100.64.0.1",
 		"100.127.255.254",
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.True(t, netutil.IsBlockedIP(ip))
 			assert.Equal(t, netutil.BlockReasonCGNAT, netutil.BlockReason(ip))
@@ -144,6 +176,8 @@ func TestIsBlockedIP_BlocksCGNAT(t *testing.T) {
 }
 
 func TestIsBlockedIP_BlocksReservedV4(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"0.1.2.3",   // 0.0.0.0/8 — "this network"
 		"240.0.0.1", // 240.0.0.0/4 — future use
@@ -151,6 +185,8 @@ func TestIsBlockedIP_BlocksReservedV4(t *testing.T) {
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.True(t, netutil.IsBlockedIP(ip))
 			assert.Equal(t, netutil.BlockReasonReservedV4, netutil.BlockReason(ip))
@@ -159,6 +195,8 @@ func TestIsBlockedIP_BlocksReservedV4(t *testing.T) {
 }
 
 func TestIsBlockedIP_AllowsPublicAddresses(t *testing.T) {
+	t.Parallel()
+
 	cases := []string{
 		"8.8.8.8",
 		"1.1.1.1",
@@ -169,6 +207,8 @@ func TestIsBlockedIP_AllowsPublicAddresses(t *testing.T) {
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.False(t, netutil.IsBlockedIP(ip), "public IP must be allowed")
 			assert.Empty(t, netutil.BlockReason(ip))
@@ -177,6 +217,8 @@ func TestIsBlockedIP_AllowsPublicAddresses(t *testing.T) {
 }
 
 func TestIsCloudMetadataIP_RejectsLookalikes(t *testing.T) {
+	t.Parallel()
+
 	// IPs that are link-local but NOT the metadata endpoint must NOT
 	// match IsCloudMetadataIP — otherwise an allow-list bypass that
 	// trusts "not metadata" would accidentally allow IMDS access.
@@ -189,6 +231,8 @@ func TestIsCloudMetadataIP_RejectsLookalikes(t *testing.T) {
 	}
 	for _, raw := range cases {
 		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
 			ip := netip.MustParseAddr(raw)
 			assert.False(t, netutil.IsCloudMetadataIP(ip))
 		})
@@ -196,6 +240,8 @@ func TestIsCloudMetadataIP_RejectsLookalikes(t *testing.T) {
 }
 
 func TestBlockReason_InvalidAddrIsRejected(t *testing.T) {
+	t.Parallel()
+
 	// netip.Addr zero value (Addr{}) is !IsValid() — must be rejected.
 	var zero netip.Addr
 	assert.True(t, netutil.IsBlockedIP(zero))

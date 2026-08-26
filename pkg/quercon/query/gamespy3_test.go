@@ -10,6 +10,7 @@ import (
 )
 
 func TestParseGameSpy3Challenge(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		input     []byte
@@ -50,6 +51,7 @@ func TestParseGameSpy3Challenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := parseGameSpy3Challenge(tt.input)
 
 			if tt.wantError != "" {
@@ -66,6 +68,7 @@ func TestParseGameSpy3Challenge(t *testing.T) {
 }
 
 func TestParseGameSpy3PacketHeader(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		input     []byte
@@ -102,6 +105,7 @@ func TestParseGameSpy3PacketHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result, err := parseGameSpy3PacketHeader(tt.input)
 
 			if tt.wantError != "" {
@@ -120,6 +124,7 @@ func TestParseGameSpy3PacketHeader(t *testing.T) {
 }
 
 func TestCleanGameSpy3Packets(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		packets []gamespy3Packet
@@ -165,6 +170,7 @@ func TestCleanGameSpy3Packets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := cleanGameSpy3Packets(tt.packets)
 			assert.Equal(t, tt.want, result)
 		})
@@ -172,6 +178,7 @@ func TestCleanGameSpy3Packets(t *testing.T) {
 }
 
 func TestFindOverlap(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		ending    []byte
@@ -206,6 +213,7 @@ func TestFindOverlap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := findOverlap(tt.ending, tt.beginning)
 			assert.Equal(t, tt.want, result)
 		})
@@ -213,6 +221,7 @@ func TestFindOverlap(t *testing.T) {
 }
 
 func TestParseGameSpy3Response(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      []byte
@@ -252,6 +261,7 @@ func TestParseGameSpy3Response(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			err := parseGameSpy3Response(tt.input, result)
 
@@ -279,6 +289,7 @@ func TestParseGameSpy3Response(t *testing.T) {
 }
 
 func TestParseGameSpy3ServerDetails(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      []byte
@@ -311,6 +322,7 @@ func TestParseGameSpy3ServerDetails(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			parseGameSpy3ServerDetails(tt.input, result)
 

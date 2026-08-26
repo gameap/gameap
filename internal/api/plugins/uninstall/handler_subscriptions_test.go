@@ -40,6 +40,7 @@ func (f *fakeResolver) GetPluginManagerID(_ domain.Uint64ID) (string, bool) {
 }
 
 func TestUninstall_refreshes_subscriptions_after_unload(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 	manager := newMockPluginManager()
 
@@ -60,6 +61,10 @@ func TestUninstall_refreshes_subscriptions_after_unload(t *testing.T) {
 		refresher,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -76,6 +81,7 @@ func TestUninstall_refreshes_subscriptions_after_unload(t *testing.T) {
 }
 
 func TestUninstall_resolves_manager_id_via_loader(t *testing.T) {
+	t.Parallel()
 	// The wasm's own info ID may differ from the store ID; the resolver
 	// mapping must win over the compact DB id fallback.
 	pluginRepo := inmemory.NewPluginRepository()
@@ -96,6 +102,10 @@ func TestUninstall_resolves_manager_id_via_loader(t *testing.T) {
 		manager,
 		&fakeResolver{managerID: "custom-manager-id"},
 		refresher,
+		nil,
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 		"plugins",

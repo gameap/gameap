@@ -11,9 +11,13 @@ import (
 const (
 	TypeCacheInvalidate = "cache.invalidate"
 	TypePluginEvent     = "plugin.event"
-	TypeServerStatus    = "server.status"
-	TypeTaskProgress    = "task.progress"
-	TypeNotification    = "notification"
+	TypePluginSync      = "plugin.sync"
+	// TypePluginSubscriptionsRefresh asks every instance to rebuild its
+	// plugin event subscriptions.
+	TypePluginSubscriptionsRefresh = "plugin.subscriptions.refresh"
+	TypeServerStatus               = "server.status"
+	TypeTaskProgress               = "task.progress"
+	TypeNotification               = "notification"
 
 	TypeDaemonConnected    = "daemon.connected"
 	TypeDaemonClosed       = "daemon.closed"
@@ -71,12 +75,28 @@ type CacheInvalidatePayload struct {
 	Pattern    string   `json:"pattern,omitempty"`
 }
 
+// PluginSyncPayload is a hint, not state. The receiving instance always
+// re-reads the plugins table before it decides anything, so a message that is
+// lost, duplicated or delivered out of order costs at most one refresh
+// interval of staleness. The fields exist for logging.
+type PluginSyncPayload struct {
+	PluginID uint64 `json:"plugin_id,omitempty"`
+	Action   string `json:"action,omitempty"`
+}
+
 type PluginEventPayload struct {
 	EventType int32             `json:"event_type"`
 	ServerID  *uint             `json:"server_id,omitempty"`
 	TaskID    *uint             `json:"task_id,omitempty"`
 	NodeID    *uint             `json:"node_id,omitempty"`
 	ExtraData map[string]string `json:"extra_data,omitempty"`
+}
+
+// PluginSubscriptionsRefreshPayload names the plugin whose grants changed;
+// the subscription map is rebuilt as a whole, so the ID is informational
+// (logging, and future targeted refreshes).
+type PluginSubscriptionsRefreshPayload struct {
+	PluginID uint64 `json:"plugin_id"`
 }
 
 type ServerStatusPayload struct {

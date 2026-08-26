@@ -36,7 +36,7 @@ type mockFileService struct {
 	mkDirFunc       func(ctx context.Context, node *domain.Node, path string) error
 	copyFunc        func(ctx context.Context, node *domain.Node, src, dst string) error
 	moveFunc        func(ctx context.Context, node *domain.Node, src, dst string) error
-	downloadFunc    func(ctx context.Context, node *domain.Node, path string) ([]byte, error)
+	downloadFunc    func(ctx context.Context, node *domain.Node, path string, limit uint64) ([]byte, error)
 	uploadFunc      func(ctx context.Context, node *domain.Node, path string, content []byte, perm os.FileMode) error
 	removeFunc      func(ctx context.Context, node *domain.Node, path string, recursive bool) error
 	getFileInfoFunc func(ctx context.Context, node *domain.Node, path string) (*daemon.FileDetails, error)
@@ -44,6 +44,9 @@ type mockFileService struct {
 	hashFunc        func(
 		ctx context.Context, node *domain.Node, paths []string, algorithm proto.HashAlgorithm,
 	) (*proto.HashResult, error)
+	downloadRangeFunc func(
+		ctx context.Context, node *domain.Node, path string, offset, limit uint64,
+	) ([]byte, error)
 }
 
 func (m *mockFileService) ReadDir(ctx context.Context, node *domain.Node, path string) ([]*daemon.FileInfo, error) {
@@ -80,12 +83,24 @@ func (m *mockFileService) Move(ctx context.Context, node *domain.Node, src, dst 
 	return nil
 }
 
-func (m *mockFileService) Download(ctx context.Context, node *domain.Node, path string) ([]byte, error) {
+func (m *mockFileService) DownloadLimited(
+	ctx context.Context, node *domain.Node, path string, limit uint64,
+) ([]byte, error) {
 	if m.downloadFunc != nil {
-		return m.downloadFunc(ctx, node, path)
+		return m.downloadFunc(ctx, node, path, limit)
 	}
 
 	return nil, nil
+}
+
+func (m *mockFileService) DownloadRange(
+	ctx context.Context, node *domain.Node, path string, offset, limit uint64,
+) ([]byte, error) {
+	if m.downloadRangeFunc != nil {
+		return m.downloadRangeFunc(ctx, node, path, offset, limit)
+	}
+
+	return m.DownloadLimited(ctx, node, path, limit)
 }
 
 func (m *mockFileService) Upload(
@@ -320,7 +335,7 @@ func newNodeFSService(
 
 	return NewNodeFSService(
 		testPluginID, fs, nodeRepo, newMockArchiveService(), &mockRegistrar{},
-		stubPermissionChecker{allowed: true},
+		allowAllGuard(testPluginID),
 	)
 }
 
@@ -335,7 +350,7 @@ func newArchiveNodeFSService(
 ) *NodeFSServiceImpl {
 	return NewNodeFSService(
 		testPluginID, &mockFileService{}, repo, archive, registrar,
-		stubPermissionChecker{allowed: true},
+		allowAllGuard(testPluginID),
 	)
 }
 
@@ -344,6 +359,7 @@ func seedTestNode(r *inmemory.NodeRepository) {
 }
 
 func TestNodeFSService_ReadDir(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.NodeRepository)
@@ -417,6 +433,7 @@ func TestNodeFSService_ReadDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
@@ -441,6 +458,7 @@ func TestNodeFSService_ReadDir(t *testing.T) {
 }
 
 func TestNodeFSService_ReadDir_MapsFileFields(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	seedTestNode(repo)
@@ -467,6 +485,7 @@ func TestNodeFSService_ReadDir_MapsFileFields(t *testing.T) {
 }
 
 func TestNodeFSService_MkDir(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.NodeRepository)
@@ -540,6 +559,7 @@ func TestNodeFSService_MkDir(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
@@ -560,6 +580,7 @@ func TestNodeFSService_MkDir(t *testing.T) {
 }
 
 func TestNodeFSService_Download(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.NodeRepository)
@@ -599,7 +620,7 @@ func TestNodeFSService_Download(t *testing.T) {
 			setupRepo: seedTestNode,
 			setupFS: func() *mockFileService {
 				return &mockFileService{
-					downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
+					downloadFunc: func(_ context.Context, _ *domain.Node, _ string, _ uint64) ([]byte, error) {
 						return []byte("file content"), nil
 					},
 				}
@@ -615,7 +636,7 @@ func TestNodeFSService_Download(t *testing.T) {
 			setupRepo: seedTestNode,
 			setupFS: func() *mockFileService {
 				return &mockFileService{
-					downloadFunc: func(_ context.Context, _ *domain.Node, _ string) ([]byte, error) {
+					downloadFunc: func(_ context.Context, _ *domain.Node, _ string, _ uint64) ([]byte, error) {
 						return nil, errFileNotFoundInternal
 					},
 				}
@@ -630,6 +651,7 @@ func TestNodeFSService_Download(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
@@ -654,6 +676,7 @@ func TestNodeFSService_Download(t *testing.T) {
 }
 
 func TestNodeFSService_Copy(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.NodeRepository)
@@ -711,6 +734,7 @@ func TestNodeFSService_Copy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
@@ -739,6 +763,7 @@ func TestNodeFSService_Copy(t *testing.T) {
 }
 
 func TestNodeFSService_Copy_PassesSourceAndDestination(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	seedTestNode(repo)
@@ -768,6 +793,7 @@ func TestNodeFSService_Copy_PassesSourceAndDestination(t *testing.T) {
 }
 
 func TestNodeFSService_Move(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.NodeRepository)
@@ -825,6 +851,7 @@ func TestNodeFSService_Move(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
@@ -853,6 +880,7 @@ func TestNodeFSService_Move(t *testing.T) {
 }
 
 func TestNodeFSService_Upload(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.NodeRepository)
@@ -910,6 +938,7 @@ func TestNodeFSService_Upload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
@@ -939,6 +968,7 @@ func TestNodeFSService_Upload(t *testing.T) {
 }
 
 func TestNodeFSService_Upload_ForwardsContentAndPermissions(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	seedTestNode(repo)
@@ -970,6 +1000,7 @@ func TestNodeFSService_Upload_ForwardsContentAndPermissions(t *testing.T) {
 }
 
 func TestNodeFSService_Remove(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.NodeRepository)
@@ -1033,6 +1064,7 @@ func TestNodeFSService_Remove(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
@@ -1061,6 +1093,7 @@ func TestNodeFSService_Remove(t *testing.T) {
 }
 
 func TestNodeFSService_GetFileInfo(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.NodeRepository)
@@ -1124,6 +1157,7 @@ func TestNodeFSService_GetFileInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
@@ -1156,6 +1190,7 @@ func TestNodeFSService_GetFileInfo(t *testing.T) {
 }
 
 func TestNodeFSService_Chmod(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupRepo   func(*inmemory.NodeRepository)
@@ -1213,6 +1248,7 @@ func TestNodeFSService_Chmod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := setupNodeFSRepo(tt.setupRepo)
 			svc := newNodeFSService(tt.setupFS(), repo, tt.repoFails)
@@ -1241,6 +1277,7 @@ func TestNodeFSService_Chmod(t *testing.T) {
 }
 
 func TestNodeFSService_Chmod_ForwardsPermissionsUnchanged(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	seedTestNode(repo)
@@ -1269,6 +1306,7 @@ func TestNodeFSService_Chmod_ForwardsPermissionsUnchanged(t *testing.T) {
 }
 
 func TestConvertFileTypeToProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    daemon.FileType
@@ -1318,6 +1356,7 @@ func TestConvertFileTypeToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := convertFileTypeToProto(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -1325,10 +1364,11 @@ func TestConvertFileTypeToProto(t *testing.T) {
 }
 
 func TestNodeFSHostLibraryFactory_Create(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewNodeRepository()
 	factory := NewNodeFSHostLibraryFactory(
 		&mockFileService{}, repo, newMockArchiveService(), &mockRegistrar{},
-		stubPermissionChecker{allowed: true},
+		NewGuard(stubPermissionChecker{allowed: true}),
 	)
 
 	lib := factory.Create(42)
@@ -1341,12 +1381,13 @@ func TestNodeFSHostLibraryFactory_Create(t *testing.T) {
 }
 
 func TestNodeFSService_FilesPermissionGatesEveryOperation(t *testing.T) {
+	t.Parallel()
 	repo := setupNodeFSRepo(seedTestNode)
 	archive := newMockArchiveService()
 	registrar := &mockRegistrar{}
 	svc := NewNodeFSService(
 		testPluginID, &mockFileService{}, repo, archive, registrar,
-		&stubPermissionChecker{allowed: false},
+		NewGuard(&stubPermissionChecker{allowed: false}).For(testPluginID),
 	)
 	ctx := context.Background()
 
@@ -1438,10 +1479,16 @@ func TestNodeFSService_FilesPermissionGatesEveryOperation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			success, errMsg := tt.call()
 			assert.False(t, success, "operation must be denied without the files grant")
 			require.NotNil(t, errMsg)
-			assert.Contains(t, *errMsg, "plugin permission files required")
+			wantPermission := domain.PluginPermissionFiles
+			if readOnlyNodeFSExports[tt.name] {
+				wantPermission = domain.PluginPermissionFilesRead
+			}
+
+			assert.Contains(t, *errMsg, "plugin permission "+string(wantPermission)+" required")
 		})
 	}
 
@@ -1451,6 +1498,7 @@ func TestNodeFSService_FilesPermissionGatesEveryOperation(t *testing.T) {
 }
 
 func TestNodeFSService_Hash_MapsResults(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := setupNodeFSRepo(seedTestNode)
 	fsSvc := &mockFileService{
@@ -1490,6 +1538,7 @@ func TestNodeFSService_Hash_MapsResults(t *testing.T) {
 }
 
 func TestNodeFSService_StartCreateArchive_RegistersAndMapsParams(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := setupNodeFSRepo(seedTestNode)
 	archive := newMockArchiveService()
@@ -1533,6 +1582,7 @@ func TestNodeFSService_StartCreateArchive_RegistersAndMapsParams(t *testing.T) {
 }
 
 func TestNodeFSService_CreateArchive_SyncWaitsForCompletion(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := setupNodeFSRepo(seedTestNode)
 	archive := newMockArchiveService()
@@ -1575,6 +1625,7 @@ func TestNodeFSService_CreateArchive_SyncWaitsForCompletion(t *testing.T) {
 }
 
 func TestNodeFSService_CreateArchive_SyncWaitBudgetExhausted(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := setupNodeFSRepo(seedTestNode)
 	archive := newMockArchiveService()
@@ -1599,6 +1650,7 @@ func TestNodeFSService_CreateArchive_SyncWaitBudgetExhausted(t *testing.T) {
 }
 
 func TestNodeFSService_CancelArchive_OwnershipEnforced(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := setupNodeFSRepo(seedTestNode)
 	archive := newMockArchiveService()
@@ -1637,6 +1689,7 @@ func TestNodeFSService_CancelArchive_OwnershipEnforced(t *testing.T) {
 }
 
 func TestNodeFSService_GetArchiveOperation(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := setupNodeFSRepo(seedTestNode)
 	archive := newMockArchiveService()
@@ -1705,6 +1758,7 @@ func TestNodeFSService_GetArchiveOperation(t *testing.T) {
 }
 
 func TestNodeFSService_StartCreateArchive_ReplaysCompletionThatBeatRegistration(t *testing.T) {
+	t.Parallel()
 	// ARRANGE: the operation finished (snapshot carries a Result) before the
 	// host library could register — the completion must be replayed.
 	repo := setupNodeFSRepo(seedTestNode)
@@ -1743,6 +1797,7 @@ func TestNodeFSService_StartCreateArchive_ReplaysCompletionThatBeatRegistration(
 }
 
 func TestNodeFSService_StartCreateArchive_DaemonErrorSurfacesAsMessage(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := setupNodeFSRepo(seedTestNode)
 	archive := newMockArchiveService()
@@ -1764,4 +1819,10 @@ func TestNodeFSService_StartCreateArchive_DaemonErrorSurfacesAsMessage(t *testin
 	require.NotNil(t, resp.Error)
 	assert.Contains(t, *resp.Error, "node does not support archive operations")
 	assert.Empty(t, registrar.Calls(), "failed starts must not register interest")
+}
+
+// readOnlyNodeFSExports lists the operations gated on files_read rather than
+// files.
+var readOnlyNodeFSExports = map[string]bool{
+	"read_dir": true, "download": true, "get_file_info": true, "hash": true, "get_archive_operation": true,
 }

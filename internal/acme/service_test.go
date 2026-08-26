@@ -66,6 +66,8 @@ func (fakeProvider) Present(_, _, _ string) error { return nil }
 func (fakeProvider) CleanUp(_, _, _ string) error { return nil }
 
 func TestService_Status_DefaultsToPending(t *testing.T) {
+	t.Parallel()
+
 	svc := newServiceForTest(t, nil)
 
 	st := svc.Status()
@@ -75,6 +77,8 @@ func TestService_Status_DefaultsToPending(t *testing.T) {
 }
 
 func TestService_HTTP01Handler_NilForDNS01(t *testing.T) {
+	t.Parallel()
+
 	cfg := serviceConfigFor("example.com")
 	cfg.ChallengeType = acme.ChallengeDNS01
 
@@ -86,6 +90,8 @@ func TestService_HTTP01Handler_NilForDNS01(t *testing.T) {
 }
 
 func TestService_HTTP01Handler_PresentForHTTP01(t *testing.T) {
+	t.Parallel()
+
 	cfg := serviceConfigFor("example.com")
 	cfg.ChallengeType = acme.ChallengeHTTP01
 
@@ -97,6 +103,8 @@ func TestService_HTTP01Handler_PresentForHTTP01(t *testing.T) {
 }
 
 func TestService_GetCertificate_ReturnsErrorBeforeStart(t *testing.T) {
+	t.Parallel()
+
 	svc := newServiceForTest(t, nil)
 
 	cert, err := svc.GetCertificate(nil)
@@ -106,6 +114,8 @@ func TestService_GetCertificate_ReturnsErrorBeforeStart(t *testing.T) {
 }
 
 func TestService_Start_ObtainsAndCachesCertificate(t *testing.T) {
+	t.Parallel()
+
 	resource := generateTestResource(t, "example.com", time.Now().Add(60*24*time.Hour))
 
 	client := &fakeClient{
@@ -134,6 +144,8 @@ func TestService_Start_ObtainsAndCachesCertificate(t *testing.T) {
 }
 
 func TestService_Start_FailsWhenObtainFails(t *testing.T) {
+	t.Parallel()
+
 	leUnreachableErr := errors.New("LE unreachable")
 
 	client := &fakeClient{
@@ -154,6 +166,8 @@ func TestService_Start_FailsWhenObtainFails(t *testing.T) {
 }
 
 func TestService_ForceRenew_ReplacesCertificate(t *testing.T) {
+	t.Parallel()
+
 	original := generateTestResource(t, "example.com", time.Now().Add(60*24*time.Hour))
 	renewed := generateTestResource(t, "example.com", time.Now().Add(90*24*time.Hour))
 
@@ -181,6 +195,8 @@ func TestService_ForceRenew_ReplacesCertificate(t *testing.T) {
 }
 
 func TestService_Start_LoadsCachedCertificateWhenFresh(t *testing.T) {
+	t.Parallel()
+
 	fm := files.NewInMemoryFileManager()
 	st := storage.NewFileStorage(fm, "acme")
 	resource := generateTestResource(t, "example.com", time.Now().Add(60*24*time.Hour))
@@ -325,6 +341,8 @@ func (c *fakeRegisterClient) RenewCertificate(
 // =============================================================================
 
 func TestService_RenewalLoop_TriggersRenewalWhenThresholdCrossed(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: cert expires in 1 hour, threshold is 2 hours → loop must renew.
 	expiring := generateTestResource(t, "example.com", time.Now().Add(1*time.Hour))
 	renewed := generateTestResource(t, "example.com", time.Now().Add(60*24*time.Hour))
@@ -364,6 +382,8 @@ func TestService_RenewalLoop_TriggersRenewalWhenThresholdCrossed(t *testing.T) {
 }
 
 func TestService_RenewalLoop_SkipsRenewalWhenCertFresh(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: cert expires in 60d, threshold is 30d → loop must NOT renew.
 	fresh := generateTestResource(t, "example.com", time.Now().Add(60*24*time.Hour))
 
@@ -401,6 +421,8 @@ func TestService_RenewalLoop_SkipsRenewalWhenCertFresh(t *testing.T) {
 }
 
 func TestService_Stop_CancelsRunningLoop(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	resource := generateTestResource(t, "example.com", time.Now().Add(60*24*time.Hour))
 
@@ -433,6 +455,8 @@ func TestService_Stop_CancelsRunningLoop(t *testing.T) {
 }
 
 func TestService_LoadCached_WithInvalidPEMTriggersReissue(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: storage holds a corrupted resource; service must fall back to Obtain.
 	fm := files.NewInMemoryFileManager()
 	st := storage.NewFileStorage(fm, "acme")
@@ -471,6 +495,8 @@ func TestService_LoadCached_WithInvalidPEMTriggersReissue(t *testing.T) {
 }
 
 func TestService_LoadCached_WithExpiredCertTriggersImmediateRenewal(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: stored cert is already expired; service must reissue immediately.
 	expired := generateTestResource(t, "example.com", time.Now().Add(-1*time.Hour))
 
@@ -510,6 +536,8 @@ func TestService_LoadCached_WithExpiredCertTriggersImmediateRenewal(t *testing.T
 }
 
 func TestService_Status_ReportsNotBeforeNotAfterAfterObtain(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: cert with explicit validity window we can match against Status.
 	notAfter := time.Now().Add(60 * 24 * time.Hour).Truncate(time.Second)
 	resource := generateTestResource(t, "example.com", notAfter)
@@ -538,6 +566,8 @@ func TestService_Status_ReportsNotBeforeNotAfterAfterObtain(t *testing.T) {
 // =============================================================================
 
 func TestService_EnsureAccount_CreatesNewAccountWhenStorageEmpty(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	resource := generateTestResource(t, "example.com", time.Now().Add(60*24*time.Hour))
 
@@ -567,6 +597,8 @@ func TestService_EnsureAccount_CreatesNewAccountWhenStorageEmpty(t *testing.T) {
 }
 
 func TestService_EnsureAccount_LoadsExistingAccountWithoutRegistering(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: prepopulate storage, ensure factory returns a client that does NOT register.
 	fm := files.NewInMemoryFileManager()
 	st := storage.NewFileStorage(fm, "acme")
@@ -597,6 +629,8 @@ func TestService_EnsureAccount_LoadsExistingAccountWithoutRegistering(t *testing
 }
 
 func TestService_EnsureAccount_PropagatesRegistrationError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	regErr := errors.New("registration rejected by CA")
 	client := &fakeRegisterClient{
@@ -626,6 +660,8 @@ func TestService_EnsureAccount_PropagatesRegistrationError(t *testing.T) {
 // =============================================================================
 
 func TestService_Status_SetsFailedWithLastErrorOnObtainError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	obtainErr := errors.New("CA validation failed")
 
@@ -647,6 +683,8 @@ func TestService_Status_SetsFailedWithLastErrorOnObtainError(t *testing.T) {
 }
 
 func TestService_Status_ClearsLastErrorOnSuccessfulRenew(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: first Obtain fails, ForceRenew succeeds.
 	resource := generateTestResource(t, "example.com", time.Now().Add(60*24*time.Hour))
 
@@ -683,6 +721,8 @@ func TestService_Status_ClearsLastErrorOnSuccessfulRenew(t *testing.T) {
 // =============================================================================
 
 func TestService_ForceRenew_ConcurrentSerializesViaLocker(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: lots of parallel ForceRenew callers; the locker must serialize
 	// them so RenewCertificate is not called concurrently. With the in-memory
 	// locker this means losing callers see ErrLocked while one caller proceeds.
@@ -746,6 +786,8 @@ func TestService_ForceRenew_ConcurrentSerializesViaLocker(t *testing.T) {
 }
 
 func TestService_Status_SafeUnderConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	resource := generateTestResource(t, "example.com", time.Now().Add(60*24*time.Hour))
 	client := &fakeClient{

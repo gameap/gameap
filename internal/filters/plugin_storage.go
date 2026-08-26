@@ -7,4 +7,7 @@ type FindPluginStorage struct {
 	PluginIDs   []uint64
 	Keys        []string
 	EntityPairs []domain.PluginStorageEntityPair
+	// KeyPrefix keeps only entries whose key starts with the prefix
+	// (case-sensitive where the column collation is).
+	KeyPrefix *string
 }

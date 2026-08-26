@@ -88,6 +88,7 @@ func baseConfig() Config {
 }
 
 func TestResolveRcon_PluginOverridesBuiltin(t *testing.T) {
+	t.Parallel()
 	cfg := baseConfig()
 	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
 		{PluginID: "p1", ProtocolID: "custom", GameCodes: []string{"cs"}, Transport: RconPlugin},
@@ -102,6 +103,7 @@ func TestResolveRcon_PluginOverridesBuiltin(t *testing.T) {
 }
 
 func TestResolveRcon_GameCodeTakesPrecedenceOverEngine(t *testing.T) {
+	t.Parallel()
 	cfg := baseConfig()
 	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
 		{PluginID: "p1", ProtocolID: "by-engine", Engines: []string{"source"}, Transport: RconBuiltinSource},
@@ -116,6 +118,7 @@ func TestResolveRcon_GameCodeTakesPrecedenceOverEngine(t *testing.T) {
 }
 
 func TestResolveRcon_NoProviderNoMatch(t *testing.T) {
+	t.Parallel()
 	r := New(baseConfig())
 
 	_, ok := r.resolveRcon(domain.Game{Code: "cs", Engine: "goldsource"})
@@ -124,6 +127,7 @@ func TestResolveRcon_NoProviderNoMatch(t *testing.T) {
 }
 
 func TestRconClient_BuiltinFallback(t *testing.T) {
+	t.Parallel()
 	r := New(baseConfig())
 
 	client, err := r.RconClient(context.Background(), domain.Game{Code: "cs2"}, rcon.Config{Address: "127.0.0.1:27015"})
@@ -133,6 +137,7 @@ func TestRconClient_BuiltinFallback(t *testing.T) {
 }
 
 func TestRconClient_UnsupportedGameWrapsSentinel(t *testing.T) {
+	t.Parallel()
 	r := New(baseConfig())
 
 	_, err := r.RconClient(context.Background(), domain.Game{Code: "unknown"}, rcon.Config{})
@@ -142,6 +147,7 @@ func TestRconClient_UnsupportedGameWrapsSentinel(t *testing.T) {
 }
 
 func TestRconClient_PluginTransportRoutesToExecutor(t *testing.T) {
+	t.Parallel()
 	exec := &fakeRconExecutor{client: &rcon.Source{}}
 	cfg := baseConfig()
 	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
@@ -158,6 +164,7 @@ func TestRconClient_PluginTransportRoutesToExecutor(t *testing.T) {
 }
 
 func TestRconClient_PluginTransportWithoutExecutorErrors(t *testing.T) {
+	t.Parallel()
 	cfg := baseConfig()
 	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
 		{PluginID: "p9", ProtocolID: "myproto", GameCodes: []string{"newgame"}, Transport: RconPlugin},
@@ -170,6 +177,7 @@ func TestRconClient_PluginTransportWithoutExecutorErrors(t *testing.T) {
 }
 
 func TestQuery_PluginBuiltinAlias(t *testing.T) {
+	t.Parallel()
 	cfg := baseConfig()
 	cfg.QueryProvider = &fakeQueryProvider{regs: []QueryRegistration{
 		{PluginID: "p1", ProtocolID: "q", GameCodes: []string{"newgame"}, Transport: QueryBuiltin, BuiltinProtocol: "bogus"},
@@ -187,6 +195,7 @@ func TestQuery_PluginBuiltinAlias(t *testing.T) {
 }
 
 func TestQuery_PluginTransportRoutesToExecutor(t *testing.T) {
+	t.Parallel()
 	exec := &fakeQueryExecutor{result: &query.Result{Online: true, Name: "srv"}}
 	cfg := baseConfig()
 	cfg.QueryProvider = &fakeQueryProvider{regs: []QueryRegistration{
@@ -204,6 +213,7 @@ func TestQuery_PluginTransportRoutesToExecutor(t *testing.T) {
 }
 
 func TestQuery_UnsupportedEngine(t *testing.T) {
+	t.Parallel()
 	r := New(baseConfig())
 
 	_, err := r.Query(context.Background(), domain.Game{Engine: "nope"}, "host", 1)
@@ -212,6 +222,7 @@ func TestQuery_UnsupportedEngine(t *testing.T) {
 }
 
 func TestRconClient_BuiltinTransportUsesDeclaredProtocol(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		protocol string
@@ -227,6 +238,7 @@ func TestRconClient_BuiltinTransportUsesDeclaredProtocol(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := baseConfig()
 			cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
 				{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"},
@@ -243,6 +255,7 @@ func TestRconClient_BuiltinTransportUsesDeclaredProtocol(t *testing.T) {
 }
 
 func TestRconClient_BuiltinTransportUnknownProtocol(t *testing.T) {
+	t.Parallel()
 	cfg := baseConfig()
 	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
 		{PluginID: "p1", ProtocolID: "typo", GameCodes: []string{"newgame"},
@@ -257,6 +270,7 @@ func TestRconClient_BuiltinTransportUnknownProtocol(t *testing.T) {
 }
 
 func TestRconFeatures(t *testing.T) {
+	t.Parallel()
 	cfg := baseConfig()
 	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
 		{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"}, Transport: RconPlugin,
@@ -282,6 +296,7 @@ func TestRconFeatures(t *testing.T) {
 }
 
 func TestRconFeatures_ListOnlyPlugin(t *testing.T) {
+	t.Parallel()
 	cfg := baseConfig()
 	cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{
 		{PluginID: "p1", ProtocolID: "c", GameCodes: []string{"newgame"}, Transport: RconPlugin,
@@ -296,6 +311,7 @@ func TestRconFeatures_ListOnlyPlugin(t *testing.T) {
 }
 
 func TestRconFeatures_UnrunnableRegistrations(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		reg          RconRegistration
@@ -346,6 +362,7 @@ func TestRconFeatures_UnrunnableRegistrations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := baseConfig()
 			cfg.RconProvider = &fakeRconProvider{regs: []RconRegistration{tt.reg}}
 			if tt.withExec {
@@ -360,6 +377,7 @@ func TestRconFeatures_UnrunnableRegistrations(t *testing.T) {
 }
 
 func TestPluginPlayerManager_TemplatesAndParse(t *testing.T) {
+	t.Parallel()
 	exec := &fakeRconExecutor{parsePlayers: []players.Player{{Name: "alice"}}}
 	reg := RconRegistration{
 		PluginID:   "p1",
@@ -396,6 +414,7 @@ func TestPluginPlayerManager_TemplatesAndParse(t *testing.T) {
 }
 
 func TestPluginPlayerManager_MissingIdentityField(t *testing.T) {
+	t.Parallel()
 	reg := RconRegistration{
 		Players: PlayerCapability{Supported: true, KickCommand: "kick {uniqid}", ParseViaPlugin: true},
 	}

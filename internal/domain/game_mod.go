@@ -4,7 +4,6 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"log/slog"
-	"unicode"
 
 	"github.com/pkg/errors"
 )
@@ -76,26 +75,76 @@ func (gm *GameMod) Merge(other *GameMod) {
 		gm.PasswdCmd = other.PasswdCmd
 	}
 
-	gm.FastRcon = other.FastRcon
-	gm.Vars = other.Vars
+	gm.FastRcon = mergeFastRcon(gm.FastRcon, other.FastRcon)
+	gm.Vars = mergeVars(gm.Vars, other.Vars)
+}
+
+// mergeVars lets a catalog entry replace the local variable of the same name
+// while keeping variables an administrator added by hand. Catalog order comes
+// first so an upgrade still controls how the settings page is laid out.
+func mergeVars(local, incoming GameModVarList) GameModVarList {
+	if len(incoming) == 0 {
+		return local
+	}
+
+	incomingNames := make(map[string]struct{}, len(incoming))
+	for _, v := range incoming {
+		incomingNames[v.Var] = struct{}{}
+	}
+
+	merged := make(GameModVarList, 0, len(incoming)+len(local))
+	merged = append(merged, incoming...)
+
+	for _, v := range local {
+		if _, exists := incomingNames[v.Var]; !exists {
+			merged = append(merged, v)
+		}
+	}
+
+	return merged
+}
+
+// mergeFastRcon follows mergeVars, keyed by the command itself: two buttons
+// running the same command are the same button.
+func mergeFastRcon(local, incoming GameModFastRconList) GameModFastRconList {
+	if len(incoming) == 0 {
+		return local
+	}
+
+	incomingCommands := make(map[string]struct{}, len(incoming))
+	for _, fr := range incoming {
+		incomingCommands[fr.Command] = struct{}{}
+	}
+
+	merged := make(GameModFastRconList, 0, len(incoming)+len(local))
+	merged = append(merged, incoming...)
+
+	for _, fr := range local {
+		if _, exists := incomingCommands[fr.Command]; !exists {
+			merged = append(merged, fr)
+		}
+	}
+
+	return merged
 }
 
 type GameModFastRcon struct {
-	Info    string `json:"info"`
-	Command string `json:"command"`
+	Info    string              `json:"info"           yaml:"info"`
+	Command string              `json:"command"        yaml:"command"`
+	I18n    GameModFastRconI18n `json:"i18n,omitempty" yaml:"i18n,omitempty"`
+}
+
+func (f *GameModFastRcon) Normalize() {
+	f.I18n = f.I18n.Normalized()
 }
 
 type GameModFastRconList []GameModFastRcon
 
 func (f *GameModFastRconList) Scan(value any) error {
-	if value == nil {
+	bytes, ok := jsonColumnBytes(value)
+	if !ok {
 		*f = nil
 
-		return nil
-	}
-
-	bytes, ok := value.([]byte)
-	if !ok {
 		return nil
 	}
 
@@ -110,48 +159,13 @@ func (f GameModFastRconList) Value() (driver.Value, error) {
 	return json.Marshal(f)
 }
 
-type GameModVar struct {
-	Var      string            `json:"var"`
-	Default  GameModVarDefault `json:"default"`
-	Info     string            `json:"info"`
-	AdminVar bool              `json:"admin_var"`
-}
-
-type GameModVarDefault string
-
-func (gmvd GameModVarDefault) MarshalJSON() ([]byte, error) {
-	return json.Marshal(string(gmvd))
-}
-
-func (gmvd *GameModVarDefault) UnmarshalJSON(data []byte) error {
-	// Try to unmarshal as string
-	var str string
-	if err := json.Unmarshal(data, &str); err == nil {
-		*gmvd = GameModVarDefault(str)
-	}
-
-	// Try to unmarshal as number
-	var num int
-	if err := json.Unmarshal(data, &num); err == nil {
-		if num >= 0 && num <= unicode.MaxRune {
-			*gmvd = GameModVarDefault(rune(num))
-		}
-	}
-
-	return nil
-}
-
 type GameModVarList []GameModVar
 
 func (g *GameModVarList) Scan(value any) error {
-	if value == nil {
+	bytes, ok := jsonColumnBytes(value)
+	if !ok {
 		*g = nil
 
-		return nil
-	}
-
-	bytes, ok := value.([]byte)
-	if !ok {
 		return nil
 	}
 
@@ -183,4 +197,27 @@ func (g GameModVarList) Value() (driver.Value, error) {
 	}
 
 	return json.Marshal(g)
+}
+
+// jsonColumnBytes accepts both driver shapes for a JSON column: []byte from the
+// postgres and mysql drivers, string from sqlite.
+func jsonColumnBytes(value any) ([]byte, bool) {
+	switch v := value.(type) {
+	case nil:
+		return nil, false
+	case []byte:
+		if len(v) == 0 {
+			return nil, false
+		}
+
+		return v, true
+	case string:
+		if v == "" {
+			return nil, false
+		}
+
+		return []byte(v), true
+	default:
+		return nil, false
+	}
 }

@@ -39,6 +39,7 @@ import (
 // 5 users
 
 func TestValvePlayerManager_ParsePlayers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -177,6 +178,7 @@ not a player line
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := NewValvePlayers()
 			result, err := mgr.ParsePlayers(tt.input)
 
@@ -188,6 +190,7 @@ not a player line
 }
 
 func TestValvePlayerManager_parsePlayer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		input       string
@@ -292,6 +295,7 @@ func TestValvePlayerManager_parsePlayer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := &ValvePlayerManager{}
 			result, err := mgr.parsePlayer(tt.input)
 
@@ -311,6 +315,7 @@ func TestValvePlayerManager_parsePlayer(t *testing.T) {
 }
 
 func TestValvePlayerManager_KickCommand(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		player      Player
@@ -354,6 +359,7 @@ func TestValvePlayerManager_KickCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := NewValvePlayers()
 			result, err := mgr.KickCommand(tt.player, tt.reason)
 			if tt.expectedErr != nil {
@@ -368,6 +374,7 @@ func TestValvePlayerManager_KickCommand(t *testing.T) {
 }
 
 func TestValvePlayerManager_BanCommand(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		player      Player
@@ -417,6 +424,7 @@ func TestValvePlayerManager_BanCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := NewValvePlayers()
 			result, err := mgr.BanCommand(tt.player, tt.reason, tt.duration)
 			if tt.expectedErr != nil {

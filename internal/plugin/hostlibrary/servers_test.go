@@ -15,6 +15,7 @@ import (
 )
 
 func TestServersService_FindServers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.ServerRepository)
@@ -113,10 +114,11 @@ func TestServersService_FindServers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 
-			svc := NewServersService(repo)
+			svc := NewServersService(repo, allowAllGuard(testPluginID))
 			resp, err := svc.FindServers(context.Background(), tt.request)
 
 			require.NoError(t, err)
@@ -131,6 +133,7 @@ func TestServersService_FindServers(t *testing.T) {
 }
 
 func TestServersService_GetServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.ServerRepository)
@@ -170,10 +173,11 @@ func TestServersService_GetServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 
-			svc := NewServersService(repo)
+			svc := NewServersService(repo, allowAllGuard(testPluginID))
 			resp, err := svc.GetServer(context.Background(), &servers.GetServerRequest{Id: tt.serverID})
 
 			require.NoError(t, err)
@@ -191,6 +195,7 @@ func TestServersService_GetServer(t *testing.T) {
 }
 
 func TestServersService_SaveServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		server    *proto.Server
@@ -226,6 +231,7 @@ func TestServersService_SaveServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			if tt.server != nil && tt.server.Id > 0 {
 				_ = repo.Save(context.Background(), &domain.Server{
@@ -235,7 +241,7 @@ func TestServersService_SaveServer(t *testing.T) {
 				})
 			}
 
-			svc := NewServersService(repo)
+			svc := NewServersService(repo, allowAllGuard(testPluginID))
 			resp, err := svc.SaveServer(context.Background(), &servers.SaveServerRequest{Server: tt.server})
 
 			require.NoError(t, err)
@@ -256,6 +262,7 @@ func TestServersService_SaveServer(t *testing.T) {
 }
 
 func TestServersService_DeleteServer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.ServerRepository)
@@ -277,10 +284,11 @@ func TestServersService_DeleteServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerRepository()
 			tt.setupRepo(repo)
 
-			svc := NewServersService(repo)
+			svc := NewServersService(repo, allowAllGuard(testPluginID))
 			resp, err := svc.DeleteServer(context.Background(), &servers.DeleteServerRequest{Id: tt.serverID})
 
 			require.NoError(t, err)
@@ -290,6 +298,7 @@ func TestServersService_DeleteServer(t *testing.T) {
 }
 
 func TestConvertServerToProto(t *testing.T) {
+	t.Parallel()
 	serverUUID := uuid.New()
 	server := &domain.Server{
 		ID:            42,
@@ -339,6 +348,7 @@ func TestConvertServerToProto(t *testing.T) {
 }
 
 func TestConvertServerToProto_NilOptionalFields(t *testing.T) {
+	t.Parallel()
 	server := &domain.Server{
 		ID:         1,
 		Name:       "BasicServer",
@@ -357,6 +367,7 @@ func TestConvertServerToProto_NilOptionalFields(t *testing.T) {
 }
 
 func TestConvertServerFromProto(t *testing.T) {
+	t.Parallel()
 	protoServer := &proto.Server{
 		Id:           42,
 		Enabled:      true,
@@ -398,10 +409,13 @@ func TestConvertServerFromProto(t *testing.T) {
 	assert.Equal(t, "./start.sh", *result.StartCommand)
 }
 
-func TestNewServersHostLibrary(t *testing.T) {
+func TestNewServersHostLibraryFactory(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewServerRepository()
-	lib := NewServersHostLibrary(repo)
+	factory := NewServersHostLibraryFactory(repo, NewGuard(stubPermissionChecker{allowed: true}))
 
-	assert.NotNil(t, lib)
-	assert.NotNil(t, lib.impl)
+	lib, ok := factory.Create(42).(*ServersHostLibrary)
+	require.True(t, ok)
+	require.NotNil(t, lib.impl)
+	assert.Equal(t, uint64(42), lib.impl.guard.PluginID(), "factory must bind the plugin id")
 }

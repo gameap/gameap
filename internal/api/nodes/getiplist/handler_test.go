@@ -24,6 +24,7 @@ var testUser = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		nodeID         string
@@ -204,6 +205,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			nodeRepo := inmemory.NewNodeRepository()
 			responder := api.NewResponder()
 			handler := NewHandler(nodeRepo, responder)
@@ -245,6 +247,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestNewHandler(t *testing.T) {
+	t.Parallel()
 	nodeRepo := inmemory.NewNodeRepository()
 	responder := api.NewResponder()
 
@@ -256,6 +259,7 @@ func TestNewHandler(t *testing.T) {
 }
 
 func TestNewIPListResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    domain.IPList
@@ -280,6 +284,7 @@ func TestNewIPListResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := newIPListResponse(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})

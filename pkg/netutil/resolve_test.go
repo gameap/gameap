@@ -9,6 +9,8 @@ import (
 )
 
 func TestResolveBindAddress(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		host     string
@@ -53,6 +55,8 @@ func TestResolveBindAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := ResolveBindAddress(context.Background(), tt.host)
 			assert.Equal(t, tt.wantAddr, got)
 		})
@@ -60,6 +64,8 @@ func TestResolveBindAddress(t *testing.T) {
 }
 
 func TestResolveBindAddress_localhost(t *testing.T) {
+	t.Parallel()
+
 	result := ResolveBindAddress(context.Background(), "localhost")
 
 	parsed := net.ParseIP(result)

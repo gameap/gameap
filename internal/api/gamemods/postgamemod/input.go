@@ -3,10 +3,9 @@ package postgamemod
 import (
 	"fmt"
 
+	"github.com/gameap/gameap/internal/api/gamemods/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
-	"github.com/gameap/gameap/pkg/flexible"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -51,23 +50,23 @@ var (
 )
 
 type gameModInput struct {
-	GameCode                string          `json:"game_code"`
-	Name                    string          `json:"name"`
-	FastRcon                []fastRconInput `json:"fast_rcon,omitempty"`
-	Vars                    []varInput      `json:"vars,omitempty"`
-	RemoteRepositoryLinux   *string         `json:"remote_repository_linux,omitempty"`
-	RemoteRepositoryWindows *string         `json:"remote_repository_windows,omitempty"`
-	LocalRepositoryLinux    *string         `json:"local_repository_linux,omitempty"`
-	LocalRepositoryWindows  *string         `json:"local_repository_windows,omitempty"`
-	StartCmdLinux           *string         `json:"start_cmd_linux,omitempty"`
-	StartCmdWindows         *string         `json:"start_cmd_windows,omitempty"`
-	KickCmd                 *string         `json:"kick_cmd,omitempty"`
-	BanCmd                  *string         `json:"ban_cmd,omitempty"`
-	ChnameCmd               *string         `json:"chname_cmd,omitempty"`
-	SrestartCmd             *string         `json:"srestart_cmd,omitempty"`
-	ChmapCmd                *string         `json:"chmap_cmd,omitempty"`
-	SendmsgCmd              *string         `json:"sendmsg_cmd,omitempty"`
-	PasswdCmd               *string         `json:"passwd_cmd,omitempty"`
+	GameCode                string               `json:"game_code"`
+	Name                    string               `json:"name"`
+	FastRcon                []base.FastRconInput `json:"fast_rcon,omitempty"`
+	Vars                    []base.VarInput      `json:"vars,omitempty"`
+	RemoteRepositoryLinux   *string              `json:"remote_repository_linux,omitempty"`
+	RemoteRepositoryWindows *string              `json:"remote_repository_windows,omitempty"`
+	LocalRepositoryLinux    *string              `json:"local_repository_linux,omitempty"`
+	LocalRepositoryWindows  *string              `json:"local_repository_windows,omitempty"`
+	StartCmdLinux           *string              `json:"start_cmd_linux,omitempty"`
+	StartCmdWindows         *string              `json:"start_cmd_windows,omitempty"`
+	KickCmd                 *string              `json:"kick_cmd,omitempty"`
+	BanCmd                  *string              `json:"ban_cmd,omitempty"`
+	ChnameCmd               *string              `json:"chname_cmd,omitempty"`
+	SrestartCmd             *string              `json:"srestart_cmd,omitempty"`
+	ChmapCmd                *string              `json:"chmap_cmd,omitempty"`
+	SendmsgCmd              *string              `json:"sendmsg_cmd,omitempty"`
+	PasswdCmd               *string              `json:"passwd_cmd,omitempty"`
 }
 
 func (g *gameModInput) Validate() error {
@@ -123,19 +122,11 @@ func (g *gameModInput) Validate() error {
 		return ErrPasswdCmdTooLong
 	}
 
-	for i := range g.FastRcon {
-		if err := g.FastRcon[i].Validate(); err != nil {
-			return errors.WithMessagef(err, "game mod input FastRcon[%d]", i)
-		}
+	if err := base.ValidateFastRconInputs(g.FastRcon); err != nil {
+		return err
 	}
 
-	for i := range g.Vars {
-		if err := g.Vars[i].Validate(); err != nil {
-			return errors.WithMessagef(err, "game mod input Vars[%d]", i)
-		}
-	}
-
-	return nil
+	return base.ValidateVarInputs(g.Vars)
 }
 
 func (g *gameModInput) ToDomain() *domain.GameMod {
@@ -167,57 +158,5 @@ func (g *gameModInput) ToDomain() *domain.GameMod {
 		ChmapCmd:                g.ChmapCmd,
 		SendmsgCmd:              g.SendmsgCmd,
 		PasswdCmd:               g.PasswdCmd,
-	}
-}
-
-type fastRconInput struct {
-	Info    string `json:"info"`
-	Command string `json:"command"`
-}
-
-func (f *fastRconInput) Validate() error {
-	if f.Info == "" {
-		return api.NewValidationError("fast rcon info is required")
-	}
-
-	if f.Command == "" {
-		return api.NewValidationError("fast rcon command is required")
-	}
-
-	return nil
-}
-
-func (f *fastRconInput) ToDomain() domain.GameModFastRcon {
-	return domain.GameModFastRcon{
-		Info:    f.Info,
-		Command: f.Command,
-	}
-}
-
-type varInput struct {
-	Var      string        `json:"var"`
-	Default  string        `json:"default"`
-	Info     string        `json:"info"`
-	AdminVar flexible.Bool `json:"admin_var,omitempty"`
-}
-
-func (v *varInput) Validate() error {
-	if v.Var == "" {
-		return api.NewValidationError("var is required")
-	}
-
-	if v.Info == "" {
-		return api.NewValidationError("info is required")
-	}
-
-	return nil
-}
-
-func (v *varInput) ToDomain() domain.GameModVar {
-	return domain.GameModVar{
-		Var:      v.Var,
-		Default:  domain.GameModVarDefault(v.Default),
-		Info:     v.Info,
-		AdminVar: v.AdminVar.Bool(),
 	}
 }

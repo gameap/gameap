@@ -10,6 +10,7 @@ import (
 )
 
 func TestLoad_duplicate_returns_already_loaded(t *testing.T) {
+	t.Parallel()
 	loadSharedServerLoggerWASM(t)
 	wasmBytes, err := decompressServerLoggerWASM()
 	require.NoError(t, err)
@@ -24,6 +25,7 @@ func TestLoad_duplicate_returns_already_loaded(t *testing.T) {
 }
 
 func TestLoadTransient_returns_error_when_manager_closed(t *testing.T) {
+	t.Parallel()
 	manager := NewManager(ManagerConfig{})
 	manager.closed = true
 
@@ -34,6 +36,7 @@ func TestLoadTransient_returns_error_when_manager_closed(t *testing.T) {
 }
 
 func TestLoadTransient_does_not_register_plugin(t *testing.T) {
+	t.Parallel()
 	shared := loadSharedServerLoggerWASM(t)
 	wasmBytes, err := decompressServerLoggerWASM()
 	require.NoError(t, err)

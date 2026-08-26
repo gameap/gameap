@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	sdkhttp "github.com/gameap/gameap/pkg/plugin/sdk/http"
 	"github.com/stretchr/testify/assert"
@@ -18,14 +19,15 @@ import (
 // internal/config Plugin.HTTP which keeps BlockPrivateIPs=true.
 func permissiveTestConfig() HTTPConfig {
 	return HTTPConfig{
-		BlockPrivateIPs:   false,
-		AllowedSchemes:    []string{"http", "https"},
-		MaxTimeoutSeconds: 60,
-		MaxRedirects:      5,
+		BlockPrivateIPs: false,
+		AllowedSchemes:  []string{"http", "https"},
+		MaxTimeout:      60 * time.Second,
+		MaxRedirects:    5,
 	}
 }
 
 func TestHTTPService_Fetch(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		setupServer    func() *httptest.Server
@@ -125,6 +127,7 @@ func TestHTTPService_Fetch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			server := tt.setupServer()
 			defer server.Close()
 
@@ -156,6 +159,7 @@ func TestHTTPService_Fetch(t *testing.T) {
 }
 
 func TestHTTPService_Fetch_InvalidURL(t *testing.T) {
+	t.Parallel()
 	svc := NewHTTPService(permissiveTestConfig())
 	resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
 		Url:    "://invalid-url",
@@ -168,6 +172,7 @@ func TestHTTPService_Fetch_InvalidURL(t *testing.T) {
 }
 
 func TestHTTPService_Fetch_UnreachableHost(t *testing.T) {
+	t.Parallel()
 	svc := NewHTTPService(permissiveTestConfig())
 	resp, err := svc.Fetch(context.Background(), &sdkhttp.HTTPFetchRequest{
 		Url:            "http://localhost:59999",
@@ -184,6 +189,7 @@ func TestHTTPService_Fetch_UnreachableHost(t *testing.T) {
 // response headers from a reached origin must be stripped so a plugin
 // cannot read credentials or fingerprints set by a third-party endpoint.
 func TestHTTPService_Fetch_ResponseHeaders(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Custom-Response", "test-value")
 		w.Header().Set("Content-Type", "application/json")
@@ -207,6 +213,7 @@ func TestHTTPService_Fetch_ResponseHeaders(t *testing.T) {
 }
 
 func TestHTTPService_Fetch_CustomTimeout(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -225,6 +232,7 @@ func TestHTTPService_Fetch_CustomTimeout(t *testing.T) {
 }
 
 func TestHTTPService_Fetch_PutMethod(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPut {
 			w.WriteHeader(http.StatusOK)
@@ -250,6 +258,7 @@ func TestHTTPService_Fetch_PutMethod(t *testing.T) {
 }
 
 func TestHTTPService_Fetch_DeleteMethod(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
 			w.WriteHeader(http.StatusNoContent)
@@ -272,6 +281,7 @@ func TestHTTPService_Fetch_DeleteMethod(t *testing.T) {
 }
 
 func TestNewHTTPHostLibrary(t *testing.T) {
+	t.Parallel()
 	lib := NewHTTPHostLibrary(permissiveTestConfig())
 
 	assert.NotNil(t, lib)

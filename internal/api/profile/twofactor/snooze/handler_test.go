@@ -46,10 +46,14 @@ func nudgeConfig(require bool, hardFailDays int) config.Config {
 }
 
 func TestHandler_Snooze(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	clock := func() time.Time { return time.Date(2026, 1, 10, 12, 0, 0, 0, time.UTC) }
 
 	t.Run("persists_snooze_and_suppresses_modal", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		shown := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 		admin := &domain.User{Login: "admin", Email: "a@example.com", Password: "x"}
@@ -84,6 +88,8 @@ func TestHandler_Snooze(t *testing.T) {
 	})
 
 	t.Run("unauthenticated_is_rejected", func(t *testing.T) {
+		t.Parallel()
+
 		handler := NewHandler(
 			inmemory.NewUserRepository(), mfanudge.New(nudgeConfig(true, 30), clock),
 			stubAdminChecker{isAdmin: true}, api.NewResponder(),
@@ -98,6 +104,8 @@ func TestHandler_Snooze(t *testing.T) {
 	})
 
 	t.Run("non_admin_gets_null_nudge", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		user := &domain.User{Login: "regular", Email: "r@example.com", Password: "x"}
 		require.NoError(t, repo.Save(ctx, user))
@@ -122,6 +130,8 @@ func TestHandler_Snooze(t *testing.T) {
 	})
 
 	t.Run("two_factor_enabled_gets_null_nudge", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		secret := "encrypted-secret"
 		user := &domain.User{
@@ -150,6 +160,8 @@ func TestHandler_Snooze(t *testing.T) {
 	})
 
 	t.Run("rbac_error_returns_500", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		user := &domain.User{Login: "admin", Email: "a@example.com", Password: "x"}
 		require.NoError(t, repo.Save(ctx, user))

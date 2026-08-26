@@ -237,13 +237,7 @@
         >
           <Loading v-if="loading"></Loading>
           <div :class="loading ? 'hidden' : ''">
-            <InputManyList
-                v-model="vars"
-                class="mb-4"
-                :labels="[trans('labels.key'), trans('labels.the_value')]"
-                :keys="['key', 'value']"
-                :input-types="['text', 'text']"
-            />
+            <ServerVarsEditor v-model="vars" :vars="gameModVars" class="mb-4" />
           </div>
         </n-card>
       </div>
@@ -285,7 +279,7 @@
 
 <script setup>
 import { GBreadcrumbs, GIcon, Loading, GSwitch } from "@gameap/ui"
-import {computed, ref} from "vue"
+import {computed, ref, watch} from "vue"
 import {trans} from "@/i18n/i18n"
 import {NForm, NFormItem, NCard} from "naive-ui"
 import GButton from "@/components/GButton.vue"
@@ -307,6 +301,8 @@ import {metadataKeyGroups} from "@/parts/metadataKeys";
 import SmartPortSelector from "@/components/servers/SmartPortSelector.vue";
 import DsIpSelector from "@/components/servers/DsIpSelector.vue";
 import GameModSelector from "@/components/servers/GameModSelector.vue";
+import ServerVarsEditor from "@/components/servers/ServerVarsEditor.vue";
+import {useGameModStore} from "@/store/gameMod"
 
 const route = useRoute()
 const router = useRouter()
@@ -329,9 +325,30 @@ const cpuLimit = ref(null)
 const ramLimit = ref(null)
 const vars = ref([])
 
+const gameModStore = useGameModStore()
+
 const {games} = storeToRefs(gamesStore)
 const {nodes} = storeToRefs(nodeListStore)
 const {server} = storeToRefs(serverStore)
+const {mod: gameMod} = storeToRefs(gameModStore)
+
+// server.vars overrides the mod defaults, so the keys naming a mod variable are
+// edited with that variable's widget instead of a bare text field.
+const gameModVars = computed(() => gameMod.value?.vars || [])
+
+watch(() => serverForm.value.gameMod, async (modId) => {
+  if (!modId) {
+    return
+  }
+
+  gameModStore.setModId(modId)
+
+  try {
+    await gameModStore.fetchMod()
+  } catch (error) {
+    errorNotification(error)
+  }
+}, {immediate: true})
 
 const breadcrumbs = computed(() => {
   return [

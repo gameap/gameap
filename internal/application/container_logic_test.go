@@ -31,7 +31,11 @@ const (
 )
 
 func TestContainerShutdown(t *testing.T) {
+	t.Parallel()
+
 	t.Run("runs_shutdown_then_late_shutdown_hooks_in_registration_order", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{})
 		var order []string
@@ -62,6 +66,8 @@ func TestContainerShutdown(t *testing.T) {
 	})
 
 	t.Run("erroring_hook_is_logged_but_does_not_abort_remaining_hooks", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{})
 		var ran []string
@@ -92,6 +98,8 @@ func TestContainerShutdown(t *testing.T) {
 	})
 
 	t.Run("invokes_cancel_when_set", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{})
 		ctx, cancel := context.WithCancel(context.Background())
@@ -107,6 +115,8 @@ func TestContainerShutdown(t *testing.T) {
 	})
 
 	t.Run("is_safe_with_nil_session_registry_and_servers", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{})
 		require.Nil(t, c.sessionRegistry)
@@ -126,7 +136,11 @@ func TestContainerShutdown(t *testing.T) {
 // the cipher must be disabled (logged plaintext passthrough) only when no key is
 // configured, and enabled whenever a key is present.
 func TestContainerSecretCipher(t *testing.T) {
+	t.Parallel()
+
 	t.Run("empty_encryption_key_yields_disabled_cipher", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{EncryptionKey: ""})
 
@@ -139,6 +153,8 @@ func TestContainerSecretCipher(t *testing.T) {
 	})
 
 	t.Run("valid_32_byte_key_yields_enabled_cipher", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{EncryptionKey: wiredEncryptionKey})
 
@@ -151,6 +167,8 @@ func TestContainerSecretCipher(t *testing.T) {
 	})
 
 	t.Run("returns_same_cached_instance_on_second_call", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{EncryptionKey: wiredEncryptionKey})
 
@@ -168,7 +186,11 @@ func TestContainerSecretCipher(t *testing.T) {
 // password changes must be checked against a breached-password list unless the
 // operator has explicitly opted out.
 func TestContainerPasswordBlocklist(t *testing.T) {
+	t.Parallel()
+
 	t.Run("allow_weak_passwords_yields_noop_blocklist", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.Auth.AllowWeakPasswords = true
@@ -185,6 +207,8 @@ func TestContainerPasswordBlocklist(t *testing.T) {
 	})
 
 	t.Run("default_config_loads_embedded_blocklist", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{})
 
@@ -199,6 +223,8 @@ func TestContainerPasswordBlocklist(t *testing.T) {
 	})
 
 	t.Run("returns_same_instance_on_second_call", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{})
 
@@ -216,7 +242,11 @@ func TestContainerPasswordBlocklist(t *testing.T) {
 // derives from ENCRYPTION_KEY when present, otherwise AUTH_SECRET, and the
 // manager must refuse to initialise when neither is configured.
 func TestCreateTwoFactorManager(t *testing.T) {
+	t.Parallel()
+
 	t.Run("uses_encryption_key_when_set", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{EncryptionKey: wiredEncryptionKey, AuthSecret: wiredAuthSecret}
 		c := newMinimalContainer(cfg)
@@ -229,6 +259,8 @@ func TestCreateTwoFactorManager(t *testing.T) {
 	})
 
 	t.Run("falls_back_to_auth_secret_when_encryption_key_empty", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{EncryptionKey: "", AuthSecret: wiredAuthSecret}
 		c := newMinimalContainer(cfg)
@@ -241,6 +273,8 @@ func TestCreateTwoFactorManager(t *testing.T) {
 	})
 
 	t.Run("panics_when_neither_key_is_set", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{EncryptionKey: "", AuthSecret: ""})
 
@@ -253,7 +287,11 @@ func TestCreateTwoFactorManager(t *testing.T) {
 }
 
 func TestBuildRetryConfig(t *testing.T) {
+	t.Parallel()
+
 	t.Run("copies_max_retries_and_multiplier_and_parses_valid_durations", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.PubSub.Retry.MaxRetries = 7
@@ -273,6 +311,8 @@ func TestBuildRetryConfig(t *testing.T) {
 	})
 
 	t.Run("invalid_duration_strings_keep_default_config_values", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.PubSub.Retry.MaxRetries = 2
@@ -297,6 +337,8 @@ func TestBuildRetryConfig(t *testing.T) {
 }
 
 func TestCreateCache(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		driver    string
@@ -309,6 +351,8 @@ func TestCreateCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			cfg := &config.Config{}
 			cfg.Cache.Driver = tt.driver
@@ -329,6 +373,8 @@ func TestCreateCache(t *testing.T) {
 }
 
 func TestCreateBasePubSub(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		driver    string
@@ -341,6 +387,8 @@ func TestCreateBasePubSub(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			cfg := &config.Config{}
 			cfg.PubSub.Driver = tt.driver
@@ -360,7 +408,11 @@ func TestCreateBasePubSub(t *testing.T) {
 }
 
 func TestCreatePubSub(t *testing.T) {
+	t.Parallel()
+
 	t.Run("retry_disabled_returns_base_pubsub_directly", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.PubSub.Driver = pubsubDriverMemory
@@ -377,6 +429,8 @@ func TestCreatePubSub(t *testing.T) {
 	})
 
 	t.Run("retry_enabled_without_dlq_returns_wrapped_pubsub", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.PubSub.Driver = pubsubDriverMemory
@@ -393,6 +447,8 @@ func TestCreatePubSub(t *testing.T) {
 	})
 
 	t.Run("retry_enabled_with_dlq_returns_wrapped_pubsub", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.PubSub.Driver = pubsubDriverMemory
@@ -412,7 +468,11 @@ func TestCreatePubSub(t *testing.T) {
 }
 
 func TestCreateDLQStore(t *testing.T) {
+	t.Parallel()
+
 	t.Run("default_driver_yields_in_memory_store", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.PubSub.DLQ.Driver = dlqDriverMemory
@@ -428,6 +488,8 @@ func TestCreateDLQStore(t *testing.T) {
 	})
 
 	t.Run("database_driver_yields_dlq_repository", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t, func(cfg *config.Config) {
 			cfg.PubSub.DLQ.Driver = dlqDriverDatabase
@@ -443,6 +505,8 @@ func TestCreateDLQStore(t *testing.T) {
 	})
 
 	t.Run("db_alias_yields_dlq_repository", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newWiredContainer(t, func(cfg *config.Config) {
 			cfg.PubSub.DLQ.Driver = dlqDriverDBAlias
@@ -484,7 +548,11 @@ func (panicPubSub) Publish(_ context.Context, _ string, _ *pubsub.Message) error
 }
 
 func TestWrappedPubSubPublish(t *testing.T) {
+	t.Parallel()
+
 	t.Run("delegates_to_retry_publisher_not_embedded_pubsub", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		rec := &recordingPublisher{}
 		w := &wrappedPubSub{
@@ -505,6 +573,8 @@ func TestWrappedPubSubPublish(t *testing.T) {
 	})
 
 	t.Run("propagates_publisher_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		rec := &recordingPublisher{ret: assert.AnError}
 		w := &wrappedPubSub{
@@ -522,7 +592,11 @@ func TestWrappedPubSubPublish(t *testing.T) {
 }
 
 func TestContainerConfigAccessors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_the_configured_values", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.GRPC.Port = 31718
@@ -540,7 +614,11 @@ func TestContainerConfigAccessors(t *testing.T) {
 }
 
 func TestGetMultiplexerAddress(t *testing.T) {
+	t.Parallel()
+
 	t.Run("uses_https_port_when_tls_enabled", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.HTTPBindIP = "127.0.0.1"
@@ -560,6 +638,8 @@ func TestGetMultiplexerAddress(t *testing.T) {
 	})
 
 	t.Run("uses_http_port_when_tls_disabled", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 		cfg.HTTPBindIP = "127.0.0.1"
@@ -578,7 +658,11 @@ func TestGetMultiplexerAddress(t *testing.T) {
 }
 
 func TestNewContainerAndSetContext(t *testing.T) {
+	t.Parallel()
+
 	t.Run("new_container_retains_config_and_no_context", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		cfg := &config.Config{}
 
@@ -592,6 +676,8 @@ func TestNewContainerAndSetContext(t *testing.T) {
 	})
 
 	t.Run("set_context_stores_context_and_cancel", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := NewContainer(&config.Config{})
 		ctx, cancel := context.WithCancel(context.Background())

@@ -13,6 +13,7 @@ import (
 )
 
 func TestNodesService_FindNodes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.NodeRepository)
@@ -79,10 +80,11 @@ func TestNodesService_FindNodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewNodeRepository()
 			tt.setupRepo(repo)
 
-			svc := NewNodesService(repo)
+			svc := newReadOnlyNodesService(repo)
 			resp, err := svc.FindNodes(context.Background(), tt.request)
 
 			require.NoError(t, err)
@@ -97,6 +99,7 @@ func TestNodesService_FindNodes(t *testing.T) {
 }
 
 func TestNodesService_GetNode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.NodeRepository)
@@ -138,10 +141,11 @@ func TestNodesService_GetNode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewNodeRepository()
 			tt.setupRepo(repo)
 
-			svc := NewNodesService(repo)
+			svc := newReadOnlyNodesService(repo)
 			resp, err := svc.GetNode(context.Background(), &nodes.GetNodeRequest{Id: tt.nodeID})
 
 			require.NoError(t, err)
@@ -159,6 +163,7 @@ func TestNodesService_GetNode(t *testing.T) {
 }
 
 func TestConvertNodeToProto(t *testing.T) {
+	t.Parallel()
 	node := &domain.Node{
 		ID:          42,
 		Name:        "TestNode",
@@ -188,6 +193,7 @@ func TestConvertNodeToProto(t *testing.T) {
 }
 
 func TestConvertNodeToProto_MinimalFields(t *testing.T) {
+	t.Parallel()
 	node := &domain.Node{
 		ID:      1,
 		Name:    "BasicNode",
@@ -206,10 +212,31 @@ func TestConvertNodeToProto_MinimalFields(t *testing.T) {
 	assert.Nil(t, result.Ips)
 }
 
-func TestNewNodesHostLibrary(t *testing.T) {
+func TestNodesHostLibraryFactory_Create(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewNodeRepository()
-	lib := NewNodesHostLibrary(repo)
+	factory := NewNodesHostLibraryFactory(repo, nil, nil, nil, stubPermissionChecker{}, nil)
 
-	assert.NotNil(t, lib)
-	assert.NotNil(t, lib.impl)
+	lib := factory.Create(nodesTestPluginID)
+
+	require.NotNil(t, lib)
+	impl, ok := lib.(*NodesHostLibrary)
+	require.True(t, ok)
+	assert.Equal(t, uint64(nodesTestPluginID), impl.impl.pluginID)
+}
+
+const nodesTestPluginID = 7
+
+// newReadOnlyNodesService builds the module the way a plugin without the
+// manage_nodes grant sees it: reads work, every write is refused.
+func newReadOnlyNodesService(repo *inmemory.NodeRepository) *NodesServiceImpl {
+	return NewNodesService(
+		nodesTestPluginID,
+		repo,
+		nil,
+		nil,
+		nil,
+		stubPermissionChecker{},
+		nil,
+	)
 }

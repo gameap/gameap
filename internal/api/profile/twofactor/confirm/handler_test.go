@@ -135,6 +135,8 @@ func confirmReq(t *testing.T, body string) *http.Request {
 }
 
 func TestConfirm_ValidCodeActivatesAndReturnsRecoveryCodes(t *testing.T) {
+	t.Parallel()
+
 	f := newConfirmFixture(t, true)
 
 	w := httptest.NewRecorder()
@@ -153,6 +155,8 @@ func TestConfirm_ValidCodeActivatesAndReturnsRecoveryCodes(t *testing.T) {
 }
 
 func TestConfirm_WrongCodeDoesNotActivate(t *testing.T) {
+	t.Parallel()
+
 	f := newConfirmFixture(t, true)
 
 	w := httptest.NewRecorder()
@@ -167,6 +171,8 @@ func TestConfirm_WrongCodeDoesNotActivate(t *testing.T) {
 }
 
 func TestConfirm_RejectsWithoutPendingSecret(t *testing.T) {
+	t.Parallel()
+
 	f := newConfirmFixture(t, false)
 
 	w := httptest.NewRecorder()
@@ -177,6 +183,8 @@ func TestConfirm_RejectsWithoutPendingSecret(t *testing.T) {
 }
 
 func TestConfirm_MissingCodeIsValidationError(t *testing.T) {
+	t.Parallel()
+
 	f := newConfirmFixture(t, true)
 
 	w := httptest.NewRecorder()
@@ -188,6 +196,8 @@ func TestConfirm_MissingCodeIsValidationError(t *testing.T) {
 
 // Activation must never be reachable without a session.
 func TestConfirm_RejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newConfirmFixture(t, true)
 	req := httptest.NewRequest(http.MethodPost, "/api/profile/2fa/confirm",
@@ -202,6 +212,8 @@ func TestConfirm_RejectsUnauthenticated(t *testing.T) {
 }
 
 func TestConfirm_MalformedBodyIsBadRequest(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newConfirmFixture(t, true)
 
@@ -217,6 +229,8 @@ func TestConfirm_MalformedBodyIsBadRequest(t *testing.T) {
 // Confirming twice must not re-issue recovery codes: the second call has to be
 // rejected before any code is minted.
 func TestConfirm_RejectsWhenAlreadyEnabled(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	secret := "enc:already"
@@ -237,6 +251,8 @@ func TestConfirm_RejectsWhenAlreadyEnabled(t *testing.T) {
 }
 
 func TestConfirm_RejectsWhenSessionUserIsGone(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	handler := NewHandler(inmemory.NewUserRepository(), &stubTwoFactor{}, api.NewResponder(), nil)
 
@@ -252,6 +268,8 @@ func TestConfirm_RejectsWhenSessionUserIsGone(t *testing.T) {
 // Whatever fails on the activation path, 2FA must stay off and no recovery
 // codes may leak into the response.
 func TestConfirm_StorageAndCryptoErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		repo        func(t *testing.T) *errUserRepository
@@ -302,6 +320,8 @@ func TestConfirm_StorageAndCryptoErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			repo := tt.repo(t)
 			handler := NewHandler(repo, tt.twoFactor, api.NewResponder(), nil)

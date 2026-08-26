@@ -104,6 +104,7 @@ func authorizedRequest(serverID string) *http.Request {
 }
 
 func TestHandler_RejectsRequest(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		setup      func(t *testing.T, s *handlerSetup)
@@ -143,6 +144,7 @@ func TestHandler_RejectsRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			s := newHandlerSetup(t)
 			if tt.setup != nil {
@@ -164,6 +166,7 @@ func TestHandler_RejectsRequest(t *testing.T) {
 // archive topic: a broadcast for server 1 is delivered, a broadcast for
 // another server is not.
 func TestHandler_SubscribedClientReceivesServerArchiveFrames(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	s := newHandlerSetup(t)
 	require.NoError(t, s.serverRepo.Save(context.Background(), newTestServer()))

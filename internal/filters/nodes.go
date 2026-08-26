@@ -1,7 +1,11 @@
 package filters
 
+import "github.com/gameap/gameap/internal/domain"
+
 type FindNode struct {
 	IDs             []uint
+	Enabled         *bool
+	OS              *domain.NodeOS
 	GDaemonAPIKey   *string
 	GDaemonAPIToken *string
 	WithDeleted     bool

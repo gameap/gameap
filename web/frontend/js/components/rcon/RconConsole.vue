@@ -14,13 +14,16 @@
       </div>
 
       <div v-if="fastRcon" class="gap-x-2 mt-2">
-        <span
-            v-for="fastCommand in fastRcon"
+        <button
+            v-for="(fastCommand, index) in fastRcon"
+            :key="`${index}-${fastCommand.command}`"
+            type="button"
             v-on:click="setAndSendCommand(fastCommand.command)"
+            :title="fastCommand.command"
             class="bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-medium me-2
             px-2.5 py-1 rounded dark:bg-stone-700 dark:text-stone-300 cursor-pointer">
-          {{ fastCommand.info }}
-        </span>
+          {{ fastCommandLabel(fastCommand) }}
+        </button>
       </div>
 
       <div class="grid grid-cols-8 gap-x-2 mt-2">
@@ -53,6 +56,8 @@ import {storeToRefs} from "pinia"
 import GButton from "../GButton.vue"
 import {errorNotification} from "../../parts/dialogs"
 import {useServerRconStore} from "../../store/serverRcon";
+import {getCurrentLanguage} from "../../i18n/i18n"
+import {resolveI18n} from "../../parts/gameModVars"
 
 const serverRconStore = useServerRconStore()
 
@@ -64,6 +69,9 @@ const props = defineProps({
 
 const command = ref('')
 const loading = computed(() => serverRconStore.loading)
+
+const locale = getCurrentLanguage()
+const fastCommandLabel = (fastCommand) => resolveI18n(fastCommand, 'info', locale)
 
 const sendCommand = () => {
   serverRconStore.sendCommand(command.value).

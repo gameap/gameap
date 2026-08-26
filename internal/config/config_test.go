@@ -63,7 +63,49 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "local", cfg.Files.Driver)
 		assert.Equal(t, "info", cfg.Logger.Level)
 		assert.False(t, cfg.Logger.LogDBQueries)
+		assert.False(t, cfg.Plugin.Permissions.Enforce,
+			"the migration period ships with grants recorded but not applied")
 		assert.Equal(t, "https://api.gameap.com", cfg.GlobalAPI.URL)
+	})
+
+	t.Run("plugin_ssh_defaults", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.True(t, cfg.Plugin.SSH.AllowAcceptAnyHostKey,
+			"first contact with a fresh machine needs trust-on-first-use by default")
+		assert.Equal(t, 10*time.Minute, cfg.Plugin.SSH.OperationRetention)
+		assert.Equal(t, 64, cfg.Plugin.SSH.MaxRetainedOperations)
+		assert.Equal(t, 30*time.Second, cfg.Plugin.SSH.KeepaliveInterval)
+		assert.Equal(t, 30*time.Second, cfg.Plugin.SSH.CompletionCallTimeout)
+		assert.Equal(t, 2*time.Second, cfg.Plugin.SSH.BusyRetryDelay)
+		assert.Equal(t, 5, cfg.Plugin.SSH.BusyRetries)
+	})
+
+	t.Run("plugin_ssh_overrides", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+		t.Setenv("PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY", "false")
+		t.Setenv("PLUGIN_SSH_OPERATION_RETENTION", "2m")
+		t.Setenv("PLUGIN_SSH_MAX_RETAINED_OPERATIONS", "8")
+		t.Setenv("PLUGIN_SSH_KEEPALIVE_INTERVAL", "10s")
+		t.Setenv("PLUGIN_SSH_COMPLETION_CALL_TIMEOUT", "5s")
+		t.Setenv("PLUGIN_SSH_BUSY_RETRY_DELAY", "500ms")
+		t.Setenv("PLUGIN_SSH_BUSY_RETRIES", "2")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.False(t, cfg.Plugin.SSH.AllowAcceptAnyHostKey)
+		assert.Equal(t, 2*time.Minute, cfg.Plugin.SSH.OperationRetention)
+		assert.Equal(t, 8, cfg.Plugin.SSH.MaxRetainedOperations)
+		assert.Equal(t, 10*time.Second, cfg.Plugin.SSH.KeepaliveInterval)
+		assert.Equal(t, 5*time.Second, cfg.Plugin.SSH.CompletionCallTimeout)
+		assert.Equal(t, 500*time.Millisecond, cfg.Plugin.SSH.BusyRetryDelay)
+		assert.Equal(t, 2, cfg.Plugin.SSH.BusyRetries)
 	})
 
 	t.Run("database_connect_timeout_override", func(t *testing.T) {
@@ -168,6 +210,8 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func TestNormalizeConfigValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                   string
 		databaseDriver         string
@@ -270,6 +314,8 @@ func TestNormalizeConfigValues(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := &Config{
 				DatabaseDriver: test.databaseDriver,
 			}
@@ -284,6 +330,8 @@ func TestNormalizeConfigValues(t *testing.T) {
 }
 
 func TestConfig_TLSEnabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		config   Config
@@ -390,6 +438,8 @@ func TestConfig_TLSEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := test.config.TLSEnabled()
 			assert.Equal(t, test.expected, result)
 		})
@@ -397,9 +447,13 @@ func TestConfig_TLSEnabled(t *testing.T) {
 }
 
 func TestConfig_LoadTLSCertificate(t *testing.T) {
+	t.Parallel()
+
 	certPEM, keyPEM := generateTestCertificate(t)
 
 	t.Run("from_files", func(t *testing.T) {
+		t.Parallel()
+
 		tempDir := t.TempDir()
 		certFile := filepath.Join(tempDir, "cert.pem")
 		keyFile := filepath.Join(tempDir, "key.pem")
@@ -419,6 +473,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("from_content", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		cfg.TLS.Cert = string(certPEM)
 		cfg.TLS.Key = string(keyPEM)
@@ -429,6 +485,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("from_base64_content", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		cfg.TLS.Cert = base64.StdEncoding.EncodeToString(certPEM)
 		cfg.TLS.Key = base64.StdEncoding.EncodeToString(keyPEM)
@@ -439,6 +497,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("invalid_file_paths", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		cfg.TLS.CertFile = "/nonexistent/cert.pem"
 		cfg.TLS.KeyFile = "/nonexistent/key.pem"
@@ -450,6 +510,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("invalid_content", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &Config{}
 		cfg.TLS.Cert = "invalid-cert-content"
 		cfg.TLS.Key = "invalid-key-content"
@@ -461,6 +523,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 	})
 
 	t.Run("files_take_priority_over_content", func(t *testing.T) {
+		t.Parallel()
+
 		tempDir := t.TempDir()
 		certFile := filepath.Join(tempDir, "cert.pem")
 		keyFile := filepath.Join(tempDir, "key.pem")
@@ -483,6 +547,8 @@ func TestConfig_LoadTLSCertificate(t *testing.T) {
 }
 
 func TestNormalizeConfigValues_DefaultLanguage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		defaultLanguage  string
@@ -517,6 +583,7 @@ func TestNormalizeConfigValues_DefaultLanguage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := &Config{}
 			cfg.UI.DefaultLanguage = tt.defaultLanguage
 
@@ -538,6 +605,8 @@ const (
 )
 
 func TestConfig_ACMEEnabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		mutate     func(*Config)
@@ -619,6 +688,7 @@ func TestConfig_ACMEEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			cfg := &Config{}
 			tt.mutate(cfg)
@@ -633,6 +703,8 @@ func TestConfig_ACMEEnabled(t *testing.T) {
 }
 
 func TestConfig_EffectiveCertSource(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		mutate func(*Config)
@@ -683,6 +755,7 @@ func TestConfig_EffectiveCertSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			cfg := &Config{}
 			tt.mutate(cfg)
@@ -697,6 +770,8 @@ func TestConfig_EffectiveCertSource(t *testing.T) {
 }
 
 func TestCertSource_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		source CertSource
 		want   string
@@ -710,12 +785,16 @@ func TestCertSource_String(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, tt.source.String())
 		})
 	}
 }
 
 func TestConfig_TLSEnabled_FollowsEffectiveCertSource(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		mutate func(*Config)
@@ -740,6 +819,7 @@ func TestConfig_TLSEnabled_FollowsEffectiveCertSource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := &Config{}
 			tt.mutate(cfg)
 

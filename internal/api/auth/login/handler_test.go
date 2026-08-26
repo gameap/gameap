@@ -74,6 +74,8 @@ func countEvents(events []audit.Event, t audit.EventType) int {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	hashedPassword, _ := auth.HashPassword("password123")
 	now := time.Now()
 	testUser := &domain.User{
@@ -97,7 +99,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		{
 			name: "successful login with username",
 			setupRepo: func(repo *inmemory.UserRepository) {
-				_ = repo.Save(context.Background(), testUser)
+				u := *testUser
+				_ = repo.Save(context.Background(), &u)
 			},
 			requestBody: `{
 				"login": "testuser",
@@ -121,7 +124,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		{
 			name: "successful login with email",
 			setupRepo: func(repo *inmemory.UserRepository) {
-				_ = repo.Save(context.Background(), testUser)
+				u := *testUser
+				_ = repo.Save(context.Background(), &u)
 			},
 			requestBody: `{
 				"email": "test@example.com",
@@ -168,7 +172,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		{
 			name: "invalid password",
 			setupRepo: func(repo *inmemory.UserRepository) {
-				_ = repo.Save(context.Background(), testUser)
+				u := *testUser
+				_ = repo.Save(context.Background(), &u)
 			},
 			requestBody: `{
 				"login": "testuser",
@@ -238,6 +243,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			repo := inmemory.NewUserRepository()
 			if tt.setupRepo != nil {
@@ -298,6 +305,8 @@ func (s *stubCaptcha) Verify(_ context.Context, token, remoteIP string) error {
 // missing/rejected token blocks the login with a 422; a disabled verifier
 // leaves the flow untouched.
 func TestHandler_Captcha(t *testing.T) {
+	t.Parallel()
+
 	hashedPassword, _ := auth.HashPassword("password123")
 	now := time.Now()
 	testUser := &domain.User{
@@ -359,9 +368,12 @@ func TestHandler_Captcha(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			repo := inmemory.NewUserRepository()
-			require.NoError(t, repo.Save(context.Background(), testUser))
+			u := *testUser
+			require.NoError(t, repo.Save(context.Background(), &u))
 
 			var verifier captchaVerifier
 			if !tt.nilVerifier {
@@ -402,6 +414,8 @@ func TestHandler_Captcha(t *testing.T) {
 }
 
 func TestHandler_MultipleUsers(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
@@ -484,6 +498,8 @@ func TestHandler_MultipleUsers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ACT
 			loginData := map[string]string{
 				"login":    tt.login,
@@ -510,6 +526,8 @@ func TestHandler_MultipleUsers(t *testing.T) {
 }
 
 func TestHandler_SpecialCharacters(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
@@ -557,6 +575,8 @@ func TestHandler_SpecialCharacters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ACT
 			loginData := map[string]string{
 				"login":    tt.login,
@@ -577,6 +597,8 @@ func TestHandler_SpecialCharacters(t *testing.T) {
 }
 
 func TestHandler_TokenValidation(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	repo := inmemory.NewUserRepository()
 	responder := api.NewResponder()
@@ -649,6 +671,8 @@ func TestHandler_TokenValidation(t *testing.T) {
 // auth.login.success event with outcome success, auth_method session, and the
 // authenticated user's id/login as the actor.
 func TestHandler_Audit_SuccessfulLoginIsRecorded(t *testing.T) {
+	t.Parallel()
+
 	hashedPassword, _ := auth.HashPassword("password123")
 	now := time.Now()
 	user := &domain.User{
@@ -677,9 +701,12 @@ func TestHandler_Audit_SuccessfulLoginIsRecorded(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			repo := inmemory.NewUserRepository()
-			require.NoError(t, repo.Save(context.Background(), user))
+			userCopy := *user
+			require.NoError(t, repo.Save(context.Background(), &userCopy))
 			recorder := &auditCapture{}
 			handler := NewHandler(
 				auth.NewJWTService([]byte("test-secret-key")), repo, cache.NewInMemory(), api.NewResponder(), recorder, nil, nil, nil, 0,
@@ -719,6 +746,8 @@ func TestHandler_Audit_SuccessfulLoginIsRecorded(t *testing.T) {
 // An invalid-credentials attempt must not emit an auth.login.success event —
 // only a genuine authentication may produce the success record.
 func TestHandler_Audit_FailedLoginIsNotRecordedAsSuccess(t *testing.T) {
+	t.Parallel()
+
 	hashedPassword, _ := auth.HashPassword("password123")
 	now := time.Now()
 	user := &domain.User{
@@ -755,6 +784,8 @@ func TestHandler_Audit_FailedLoginIsNotRecordedAsSuccess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			repo := inmemory.NewUserRepository()
 			tt.setupRepo(repo)
@@ -802,6 +833,8 @@ func TestHandler_Audit_FailedLoginIsNotRecordedAsSuccess(t *testing.T) {
 // otherwise the differing responses would leak account existence and the DB
 // lookup would still run.
 func TestHandler_Captcha_GateRunsBeforeUserLookup(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	repo := inmemory.NewUserRepository() // intentionally empty: user does not exist
 	handler := NewHandler(
@@ -840,6 +873,8 @@ func TestHandler_Captcha_GateRunsBeforeUserLookup(t *testing.T) {
 // unreachable, FailOpen disabled) the handler must answer 503 so the login is
 // blocked rather than waved through.
 func TestHandler_Captcha_UpstreamOutageMapsTo503(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	hashedPassword, _ := auth.HashPassword("password123")
 	now := time.Now()
@@ -883,6 +918,8 @@ func TestHandler_Captcha_UpstreamOutageMapsTo503(t *testing.T) {
 // positive path: when RequestContextMiddleware has populated the request
 // info, the captured IP must be handed to the verifier as the remote IP.
 func TestHandler_Captcha_ForwardsClientIPFromContext(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	hashedPassword, _ := auth.HashPassword("password123")
 	now := time.Now()
@@ -928,6 +965,8 @@ func TestHandler_Captcha_ForwardsClientIPFromContext(t *testing.T) {
 // new SHA-256+bcrypt scheme so the legacy form is phased out over time
 // (OWASP ASVS 4.0.3 §2.1.2 / §2.1.3).
 func TestHandler_ServeHTTP_LegacyHashUpgradesOnLogin(t *testing.T) {
+	t.Parallel()
+
 	const (
 		legacyLogin    = "legacyuser"
 		legacyEmail    = "legacy@example.com"
@@ -986,7 +1025,7 @@ func TestHandler_ServeHTTP_LegacyHashUpgradesOnLogin(t *testing.T) {
 // must be transparently upgraded on the next successful login. The handler
 // must NOT downgrade (target < stored) and must preserve auth on first
 // login (no 2nd request needed).
-func TestHandler_ServeHTTP_RehashesOnBcryptCostUpgrade(t *testing.T) {
+func TestHandler_ServeHTTP_RehashesOnBcryptCostUpgrade(t *testing.T) { //nolint:paralleltest // mutates the package-level bcrypt cost via auth.SetDefaultBcryptCost
 	const (
 		userLogin    = "costupgrade"
 		userEmail    = "costupgrade@example.test"
@@ -1055,7 +1094,7 @@ func TestHandler_ServeHTTP_RehashesOnBcryptCostUpgrade(t *testing.T) {
 // the operator-configured AUTH_BCRYPT_COST is LOWER than the stored hash's
 // cost, the handler must NOT re-hash — a misconfigured downgrade can never
 // weaken existing credentials. Authentication still succeeds.
-func TestHandler_ServeHTTP_DoesNotDowngradeBcryptCost(t *testing.T) {
+func TestHandler_ServeHTTP_DoesNotDowngradeBcryptCost(t *testing.T) { //nolint:paralleltest // mutates the package-level bcrypt cost via auth.SetDefaultBcryptCost
 	const (
 		userLogin    = "nocostdowngrade"
 		userEmail    = "nodowngrade@example.test"
@@ -1155,6 +1194,8 @@ func doLogin(t *testing.T, handler *Handler) *httptest.ResponseRecorder {
 }
 
 func TestHandler_MFANudge(t *testing.T) {
+	t.Parallel()
+
 	hashedPassword, _ := auth.HashPassword("password123")
 
 	newAdmin := func() *domain.User {
@@ -1172,6 +1213,8 @@ func TestHandler_MFANudge(t *testing.T) {
 	clock := func() time.Time { return time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC) }
 
 	t.Run("admin_without_2fa_gets_soft_nudge_and_full_token", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		require.NoError(t, repo.Save(context.Background(), newAdmin()))
 
@@ -1205,6 +1248,8 @@ func TestHandler_MFANudge(t *testing.T) {
 	})
 
 	t.Run("admin_past_grace_window_gets_enrollment_token", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		admin := newAdmin()
 		shown := time.Date(2025, 12, 1, 12, 0, 0, 0, time.UTC) // 31 days before the clock
@@ -1240,6 +1285,8 @@ func TestHandler_MFANudge(t *testing.T) {
 	})
 
 	t.Run("non_admin_gets_no_nudge", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		require.NoError(t, repo.Save(context.Background(), newAdmin()))
 
@@ -1260,6 +1307,8 @@ func TestHandler_MFANudge(t *testing.T) {
 	})
 
 	t.Run("feature_disabled_gets_no_nudge", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		require.NoError(t, repo.Save(context.Background(), newAdmin()))
 
@@ -1278,6 +1327,8 @@ func TestHandler_MFANudge(t *testing.T) {
 	})
 
 	t.Run("snoozed_admin_nudge_hidden", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		admin := newAdmin()
 		shown := clock().Add(-2 * 24 * time.Hour) // two days inside the 30-day window
@@ -1315,6 +1366,8 @@ func TestHandler_MFANudge(t *testing.T) {
 	})
 
 	t.Run("returning_admin_first_shown_not_overwritten", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		admin := newAdmin()
 		shown := clock().Add(-5 * 24 * time.Hour) // five days into the window, no snooze
@@ -1348,6 +1401,8 @@ func TestHandler_MFANudge(t *testing.T) {
 	})
 
 	t.Run("rbac_error_is_open", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		require.NoError(t, repo.Save(context.Background(), newAdmin()))
 
@@ -1369,6 +1424,8 @@ func TestHandler_MFANudge(t *testing.T) {
 	})
 
 	t.Run("two_factor_enabled_admin_has_no_nudge", func(t *testing.T) {
+		t.Parallel()
+
 		repo := inmemory.NewUserRepository()
 		admin := newAdmin()
 		admin.TwoFactorEnabled = true

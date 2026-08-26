@@ -50,6 +50,8 @@ func newBufferLogger(buf *bytes.Buffer) audit.Logger {
 // Verifies the stable wire schema, the outcome→level mapping and that
 // zero-valued fields are omitted from the emitted record.
 func TestSlogLogger_Record_SchemaAndSeverity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		event       audit.Event
@@ -148,6 +150,7 @@ func TestSlogLogger_Record_SchemaAndSeverity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			var buf bytes.Buffer
 			logger := newBufferLogger(&buf)
@@ -178,6 +181,8 @@ func TestSlogLogger_Record_SchemaAndSeverity(t *testing.T) {
 // Event-specific Extra attributes must survive into the emitted record so
 // operators get the non-sensitive context they were given.
 func TestSlogLogger_Record_ExtraAttrsAppear(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	var buf bytes.Buffer
 	logger := newBufferLogger(&buf)
@@ -209,6 +214,8 @@ func TestSlogLogger_Record_ExtraAttrsAppear(t *testing.T) {
 // correlation id and request metadata so records of one request are joinable
 // (OWASP ASVS §7.1.4).
 func TestSlogLogger_Record_EnrichesFromRequestInfo(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	var buf bytes.Buffer
 	logger := newBufferLogger(&buf)
@@ -243,6 +250,8 @@ func TestSlogLogger_Record_EnrichesFromRequestInfo(t *testing.T) {
 // TestSlogLogger_Record_OmitsEmptyRequestInfoFields covers OWASP API8:2023.
 // A RequestInfo with empty fields must not inject blank attributes.
 func TestSlogLogger_Record_OmitsEmptyRequestInfoFields(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	var buf bytes.Buffer
 	logger := newBufferLogger(&buf)
@@ -272,6 +281,8 @@ func TestSlogLogger_Record_OmitsEmptyRequestInfoFields(t *testing.T) {
 // TestNewLogger_NilFallsBackToDefault covers OWASP API8:2023.
 // NewLogger(nil) must not panic and must produce a working sink so a missing
 // logger never silently drops the audit trail.
+//
+//nolint:paralleltest // mutates the global slog default logger via slog.SetDefault
 func TestNewLogger_NilFallsBackToDefault(t *testing.T) {
 	// ARRANGE
 	var buf bytes.Buffer
@@ -301,7 +312,10 @@ func TestNewLogger_NilFallsBackToDefault(t *testing.T) {
 // helpers must tolerate a nil Logger without panicking — call sites rely on
 // this to omit nil-guards.
 func TestNopLogger_Record(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nop_logger_writes_nothing", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		var buf bytes.Buffer
 		// A real logger is wired to buf but NopLogger must never touch it.
@@ -319,6 +333,7 @@ func TestNopLogger_Record(t *testing.T) {
 	})
 
 	t.Run("helpers_with_nil_logger_do_not_panic", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		ctx := context.Background()
 

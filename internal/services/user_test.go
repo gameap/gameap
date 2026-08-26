@@ -13,6 +13,8 @@ import (
 )
 
 func TestUserService_FindAll(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		setupRepo  func(*inmemory.UserRepository)
@@ -76,6 +78,8 @@ func TestUserService_FindAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewUserRepository()
 			tt.setupRepo(repo)
 
@@ -88,6 +92,8 @@ func TestUserService_FindAll(t *testing.T) {
 }
 
 func TestUserService_Find(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.UserRepository)
@@ -179,6 +185,8 @@ func TestUserService_Find(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewUserRepository()
 			tt.setupRepo(repo)
 
@@ -191,6 +199,8 @@ func TestUserService_Find(t *testing.T) {
 }
 
 func TestUserService_Save(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.UserRepository)
@@ -280,6 +290,8 @@ func TestUserService_Save(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewUserRepository()
 			tt.setupRepo(repo)
 
@@ -292,6 +304,8 @@ func TestUserService_Save(t *testing.T) {
 }
 
 func TestUserService_Delete(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.UserRepository)
@@ -334,6 +348,8 @@ func TestUserService_Delete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewUserRepository()
 			tt.setupRepo(repo)
 

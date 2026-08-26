@@ -2,8 +2,10 @@ package getfrontendstyles
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/plugin"
 )
 
@@ -21,13 +23,28 @@ func NewHandler(pluginProvider PluginProvider) *Handler {
 	}
 }
 
-func (h *Handler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+// ServeHTTP answers with the concatenation of every loaded plugin's bundle.
+// The body is validated with a strong ETag so a browser that already holds
+// the current bundles gets 304 instead of re-downloading megabytes on every
+// panel visit; "no-cache" keeps revalidation mandatory, "private" keeps the
+// authenticated response out of shared caches.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	body := []byte(h.generatePluginsCSS())
+	etag := api.StrongETag(body)
+
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Set("ETag", etag)
 
-	css := h.generatePluginsCSS()
+	if api.IfNoneMatchSatisfied(r, etag) {
+		w.WriteHeader(http.StatusNotModified)
 
-	_, _ = w.Write([]byte(css))
+		return
+	}
+
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+
+	_, _ = w.Write(body)
 }
 
 func (h *Handler) generatePluginsCSS() string {

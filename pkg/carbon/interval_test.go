@@ -6,6 +6,8 @@ import (
 )
 
 func TestParseInterval(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -262,6 +264,8 @@ func TestParseInterval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := ParseInterval(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseInterval() error = %v, wantErr %v", err, tt.wantErr)
@@ -276,6 +280,8 @@ func TestParseInterval(t *testing.T) {
 }
 
 func TestHumanize(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		duration time.Duration
@@ -512,6 +518,8 @@ func TestHumanize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := Humanize(tt.duration)
 			if got != tt.expected {
 				t.Errorf("Humanize(%v) = %q, want %q", tt.duration, got, tt.expected)
@@ -521,6 +529,8 @@ func TestHumanize(t *testing.T) {
 }
 
 func TestRoundFloat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		val       float64
@@ -555,6 +565,8 @@ func TestRoundFloat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := roundFloat(tt.val, tt.precision)
 			if got != tt.expected {
 				t.Errorf("roundFloat() = %v, want %v", got, tt.expected)

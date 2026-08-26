@@ -74,3 +74,138 @@ func (h nodesService) GetNode(ctx context.Context, request *GetNodeRequest) (*Ge
 	}
 	return response, nil
 }
+
+//go:wasmimport gameap-nodes update_node
+func _update_node(ptr uint32, size uint32) uint64
+
+func (h nodesService) UpdateNode(ctx context.Context, request *UpdateNodeRequest) (*UpdateNodeResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _update_node(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(UpdateNodeResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodes delete_node
+func _delete_node(ptr uint32, size uint32) uint64
+
+func (h nodesService) DeleteNode(ctx context.Context, request *DeleteNodeRequest) (*DeleteNodeResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _delete_node(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(DeleteNodeResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodes create_setup_key
+func _create_setup_key(ptr uint32, size uint32) uint64
+
+func (h nodesService) CreateSetupKey(ctx context.Context, request *CreateSetupKeyRequest) (*CreateSetupKeyResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _create_setup_key(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(CreateSetupKeyResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodes get_setup_key
+func _get_setup_key(ptr uint32, size uint32) uint64
+
+func (h nodesService) GetSetupKey(ctx context.Context, request *GetSetupKeyRequest) (*GetSetupKeyResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _get_setup_key(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(GetSetupKeyResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+//go:wasmimport gameap-nodes revoke_setup_key
+func _revoke_setup_key(ptr uint32, size uint32) uint64
+
+func (h nodesService) RevokeSetupKey(ctx context.Context, request *RevokeSetupKeyRequest) (*RevokeSetupKeyResponse, error) {
+	buf, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	ptr, size := wasm.ByteToPtr(buf)
+	ptrSize := _revoke_setup_key(ptr, size)
+	wasm.Free(ptr)
+
+	ptr = uint32(ptrSize >> 32)
+	size = uint32(ptrSize)
+	buf = wasm.PtrToByte(ptr, size)
+
+	response := new(RevokeSetupKeyResponse)
+	err = response.UnmarshalVT(buf)
+	if ptr != 0 {
+		wasm.Free(ptr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}

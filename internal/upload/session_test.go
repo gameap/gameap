@@ -7,6 +7,7 @@ import (
 )
 
 func TestSession_ChunkSizeFor(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		totalSize uint64
@@ -43,6 +44,7 @@ func TestSession_ChunkSizeFor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			sess := &Session{TotalSize: tt.totalSize, ChunkSize: tt.chunkSize, TotalChunks: tt.total}
 
@@ -56,29 +58,36 @@ func TestSession_ChunkSizeFor(t *testing.T) {
 }
 
 func TestPathHelpers(t *testing.T) {
+	t.Parallel()
 	const id = "abc123"
 
 	t.Run("transferRoot_uses_transfers_prefix_and_trailing_slash", func(t *testing.T) {
+		t.Parallel()
 		assert.Equal(t, "transfers/abc123/", transferRoot(id))
 	})
 
 	t.Run("metadataPath_lives_inside_transfer_root", func(t *testing.T) {
+		t.Parallel()
 		assert.Equal(t, "transfers/abc123/upload.json", metadataPath(id))
 	})
 
 	t.Run("dataPath_lives_inside_transfer_root", func(t *testing.T) {
+		t.Parallel()
 		assert.Equal(t, "transfers/abc123/data", dataPath(id))
 	})
 
 	t.Run("donePath_lives_inside_transfer_root", func(t *testing.T) {
+		t.Parallel()
 		assert.Equal(t, "transfers/abc123/done", donePath(id))
 	})
 
 	t.Run("chunksPrefix_is_directory_with_trailing_slash", func(t *testing.T) {
+		t.Parallel()
 		assert.Equal(t, "transfers/abc123/chunks/", chunksPrefix(id))
 	})
 
 	t.Run("chunkPath_pads_index_to_six_digits", func(t *testing.T) {
+		t.Parallel()
 		assert.Equal(t, "transfers/abc123/chunks/000000", chunkPath(id, 0))
 		assert.Equal(t, "transfers/abc123/chunks/000007", chunkPath(id, 7))
 		assert.Equal(t, "transfers/abc123/chunks/123456", chunkPath(id, 123456))
@@ -88,6 +97,7 @@ func TestPathHelpers(t *testing.T) {
 }
 
 func TestIndexFromChunkPath(t *testing.T) {
+	t.Parallel()
 	const id = "abc123"
 
 	tests := []struct {
@@ -162,6 +172,7 @@ func TestIndexFromChunkPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got, ok := indexFromChunkPath(id, tt.path)
 
@@ -175,6 +186,7 @@ func TestIndexFromChunkPath(t *testing.T) {
 }
 
 func TestUploadIDFromPath(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		path   string
@@ -224,6 +236,7 @@ func TestUploadIDFromPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got, ok := uploadIDFromPath(tt.path)
 

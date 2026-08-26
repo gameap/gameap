@@ -4,6 +4,8 @@ import { get, eachRight, replace } from 'lodash-es';
 const pluralForms = {
     default: (n) => (n !== 1 ? 1 : 0),
     en: (n) => (n !== 1 ? 1 : 0),
+    es: (n) => (n !== 1 ? 1 : 0),
+    de: (n) => (n !== 1 ? 1 : 0),
     ru: (n) =>
         n % 10 === 1 && n % 100 !== 11
             ? 0

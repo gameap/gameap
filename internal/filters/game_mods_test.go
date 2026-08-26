@@ -8,6 +8,7 @@ import (
 )
 
 func TestFindGameMod_FilterCount(t *testing.T) {
+	t.Parallel()
 	filterType := reflect.TypeFor[FindGameMod]()
 	fieldsCount := filterType.NumField()
 
@@ -36,6 +37,7 @@ func TestFindGameMod_FilterCount(t *testing.T) {
 }
 
 func TestFindGameModByGameCodes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		codes []string
@@ -60,6 +62,7 @@ func TestFindGameModByGameCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT

@@ -49,7 +49,9 @@ func (m *mockMiddleware) Middleware(next http.Handler) http.Handler {
 }
 
 func TestNewHTTPHandler(t *testing.T) {
+	t.Parallel()
 	t.Run("creates_handler_with_default_values", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := NewManager(ManagerConfig{})
 		authMw := &mockMiddleware{}
@@ -69,7 +71,10 @@ func TestNewHTTPHandler(t *testing.T) {
 }
 
 func TestHTTPHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	t.Run("missing_plugin_id", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := NewManager(ManagerConfig{})
 		authMw := &mockMiddleware{}
@@ -89,6 +94,7 @@ func TestHTTPHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("plugin_not_found", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := NewManager(ManagerConfig{})
 		authMw := &mockMiddleware{}
@@ -107,6 +113,8 @@ func TestHTTPHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("plugin_disabled", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := NewManager(ManagerConfig{})
 		pluginID := CompactPluginID(ParsePluginID("disabled-plugin"))
@@ -131,6 +139,7 @@ func TestHTTPHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("route_not_found", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := NewManager(ManagerConfig{})
 		pluginID := CompactPluginID(ParsePluginID("test-plugin"))
@@ -157,6 +166,8 @@ func TestHTTPHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("successful_request", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := NewManager(ManagerConfig{})
 		pluginID := CompactPluginID(ParsePluginID("test-plugin"))
@@ -193,6 +204,7 @@ func TestHTTPHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("auth_middleware_applied", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := NewManager(ManagerConfig{})
 		pluginID := CompactPluginID(ParsePluginID("auth-plugin"))
@@ -221,6 +233,8 @@ func TestHTTPHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("admin_middleware_applied", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := NewManager(ManagerConfig{})
 		pluginID := CompactPluginID(ParsePluginID("admin-plugin"))
@@ -249,6 +263,7 @@ func TestHTTPHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("both_auth_and_admin_middleware_applied", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := NewManager(ManagerConfig{})
 		pluginID := CompactPluginID(ParsePluginID("secure-admin-plugin"))
@@ -279,6 +294,7 @@ func TestHTTPHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestExtractPluginPath(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		fullPath string
@@ -319,6 +335,7 @@ func TestExtractPluginPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := extractPluginPath(tt.fullPath, tt.pluginID)
 
@@ -329,6 +346,7 @@ func TestExtractPluginPath(t *testing.T) {
 }
 
 func TestContainsMethod(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		methods []string
@@ -369,6 +387,7 @@ func TestContainsMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := containsMethod(tt.methods, tt.method)
 
@@ -379,6 +398,7 @@ func TestContainsMethod(t *testing.T) {
 }
 
 func TestMatchPath(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		pattern    string
@@ -442,6 +462,7 @@ func TestMatchPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			params, match := matchPath(tt.pattern, tt.path)
 
@@ -455,6 +476,7 @@ func TestMatchPath(t *testing.T) {
 }
 
 func TestReadBody(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		body      io.Reader
@@ -496,6 +518,7 @@ func TestReadBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := &HTTPHandler{maxBody: tt.maxBody}
 			var req *http.Request
@@ -522,6 +545,7 @@ func TestReadBody(t *testing.T) {
 }
 
 func TestBuildProtoRequest(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupReq    func() *http.Request
@@ -668,6 +692,7 @@ func TestBuildProtoRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := &HTTPHandler{maxBody: tt.maxBody}
 			req := tt.setupReq()
@@ -689,6 +714,7 @@ func TestBuildProtoRequest(t *testing.T) {
 }
 
 func TestBuildProtoSession(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		setupCtx    func() context.Context
@@ -831,6 +857,7 @@ func TestBuildProtoSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := &HTTPHandler{}
 			ctx := tt.setupCtx()
@@ -845,6 +872,7 @@ func TestBuildProtoSession(t *testing.T) {
 }
 
 func TestWriteResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                string
 		response            *proto.HTTPResponse
@@ -921,6 +949,7 @@ func TestWriteResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := &HTTPHandler{}
 			rr := httptest.NewRecorder()
@@ -942,6 +971,7 @@ func TestWriteResponse(t *testing.T) {
 }
 
 func TestExpandQueryValues(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		values []string
@@ -976,6 +1006,7 @@ func TestExpandQueryValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := expandQueryValues(tt.values)
 
@@ -986,6 +1017,7 @@ func TestExpandQueryValues(t *testing.T) {
 }
 
 func TestDomainEntityTypeToProto(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		entityType domain.EntityType
@@ -1040,6 +1072,7 @@ func TestDomainEntityTypeToProto(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := domainEntityTypeToProto(tt.entityType)
 
@@ -1050,6 +1083,7 @@ func TestDomainEntityTypeToProto(t *testing.T) {
 }
 
 func TestBuildProtoToken(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		token       *domain.PersonalAccessToken
@@ -1140,6 +1174,7 @@ func TestBuildProtoToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := buildProtoToken(tt.token)
 
@@ -1150,6 +1185,7 @@ func TestBuildProtoToken(t *testing.T) {
 }
 
 func TestHandlePluginRequest(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		setupPlugin    func() *LoadedPlugin
@@ -1226,6 +1262,7 @@ func TestHandlePluginRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := &HTTPHandler{
 				maxBody: tt.maxBody,
@@ -1248,11 +1285,22 @@ func TestHandlePluginRequest(t *testing.T) {
 			if tt.expectedBody != "" {
 				assert.Contains(t, rr.Body.String(), tt.expectedBody)
 			}
+
+			if tt.expectedStatus == http.StatusGatewayTimeout {
+				assert.False(t, plugin.IsEnabled())
+				reason, ok := plugin.DisabledReason()
+				require.True(t, ok)
+				assert.Equal(t, "http handler timed out (POST /data)", reason)
+			} else {
+				_, ok := plugin.DisabledReason()
+				assert.False(t, ok, "only a timeout disables the plugin")
+			}
 		})
 	}
 }
 
 func TestMatchRoute(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		plugin     *LoadedPlugin
@@ -1338,6 +1386,7 @@ func TestMatchRoute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := &HTTPHandler{}
 

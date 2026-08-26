@@ -2,6 +2,7 @@ package putnode
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -92,6 +93,10 @@ type updateNodeInput struct {
 	ScriptGetConsole    *string        `json:"script_get_console,omitempty"`
 	ScriptSendCommand   *string        `json:"script_send_command,omitempty"`
 	ScriptDelete        *string        `json:"script_delete,omitempty"`
+	// Metadata replaces the stored bag when present, and an empty object clears
+	// it; omitting the field keeps it. The request schema does not accept null,
+	// which decodes to the same nil map as an omitted field.
+	Metadata domain.Metadata `json:"metadata,omitempty"`
 }
 
 func (in *updateNodeInput) Validate() error {
@@ -106,6 +111,7 @@ func (in *updateNodeInput) Validate() error {
 		in.validateGdaemonHost,
 		in.validateGdaemonPort,
 		in.validateGdaemonServerCert,
+		in.validateMetadata,
 	}
 
 	for _, validator := range validators {
@@ -240,6 +246,16 @@ func (in *updateNodeInput) validateGdaemonServerCert() error {
 	return nil
 }
 
+// validateMetadata reuses the domain limits so an admin request cannot store a
+// bag the plugin path would reject, and so the numbers live in one place.
+func (in *updateNodeInput) validateMetadata() error {
+	if err := domain.ValidateNodeMetadata(in.Metadata, nil); err != nil {
+		return api.NewValidationError("metadata: " + err.Error())
+	}
+
+	return nil
+}
+
 func (in *updateNodeInput) ApplyToNode(node *domain.Node) {
 	in.applyBasicFields(node)
 	in.applyGdaemonFields(node)
@@ -276,6 +292,9 @@ func (in *updateNodeInput) applyBasicFields(node *domain.Node) {
 	}
 	if in.SteamcmdPath != nil {
 		node.SteamcmdPath = in.SteamcmdPath
+	}
+	if in.Metadata != nil {
+		node.Metadata = in.Metadata
 	}
 }
 
@@ -352,4 +371,37 @@ func (in *updateNodeInput) applyScriptFields(node *domain.Node) {
 	if in.ScriptDelete != nil {
 		node.ScriptDelete = in.ScriptDelete
 	}
+}
+
+// changedFields names the fields the request carries (its JSON names), for
+// the plugin event: names only, so a rotated API key or password is reported
+// as a change without its value.
+func (in *updateNodeInput) changedFields() []string {
+	value := reflect.ValueOf(in).Elem()
+	valueType := value.Type()
+
+	fields := make([]string, 0, valueType.NumField())
+
+	for i := range valueType.NumField() {
+		field := value.Field(i)
+		// Maps count as much as pointers and slices: Metadata is a nil map
+		// when the request omitted it, and reporting it as changed would tell
+		// every plugin the bag was rewritten on every node update.
+		switch field.Kind() {
+		case reflect.Ptr, reflect.Slice, reflect.Map:
+			if field.IsNil() {
+				continue
+			}
+		default:
+		}
+
+		name, _, _ := strings.Cut(valueType.Field(i).Tag.Get("json"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+
+		fields = append(fields, name)
+	}
+
+	return fields
 }

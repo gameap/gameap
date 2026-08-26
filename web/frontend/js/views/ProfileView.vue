@@ -147,7 +147,7 @@
 import { GBreadcrumbs, GIcon, GModal, GCard, GTable, GStatusBadge } from "@gameap/ui"
 import {computed, ref} from "vue"
 import { NForm, NFormItem, NInput } from "naive-ui"
-import {trans, getCurrentLanguage, changeLanguage} from "@/i18n/i18n"
+import {trans, getCurrentLanguage, changeLanguage, getAvailableLanguages} from "@/i18n/i18n"
 import UpdateProfileForm from "./forms/UpdateProfileForm.vue";
 import TwoFactorSetupForm from "./forms/TwoFactorSetupForm.vue";
 import TwoFactorDisableForm from "./forms/TwoFactorDisableForm.vue";
@@ -160,14 +160,11 @@ import { requiredValidator } from "@/parts/validators";
 const authStore = useAuthStore()
 const uiSettingsStore = useUISettingsStore()
 
-const languageLabels = {
-  'en': 'English',
-  'ru': 'Русский',
-}
-
 const currentLanguageLabel = computed(() => {
   const lang = getCurrentLanguage()
-  return languageLabels[lang] || lang
+  const language = getAvailableLanguages().find((l) => l.code === lang)
+
+  return language?.native_name || language?.name || lang
 })
 
 const breadcrumbs = computed(() => {

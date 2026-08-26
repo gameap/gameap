@@ -25,6 +25,7 @@ var testUser1 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		query          string
@@ -421,6 +422,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			responder := api.NewResponder()
@@ -496,6 +498,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_SearchResponseFields(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
 	responder := api.NewResponder()
@@ -560,6 +563,7 @@ func TestHandler_SearchResponseFields(t *testing.T) {
 }
 
 func TestNewSearchServersResponseFromServers(t *testing.T) {
+	t.Parallel()
 	servers := []*domain.Server{
 		{
 			ID:         1,
@@ -616,6 +620,7 @@ func TestNewSearchServersResponseFromServers(t *testing.T) {
 }
 
 func TestNewSearchServerResponseFromServer(t *testing.T) {
+	t.Parallel()
 	server := &domain.Server{
 		ID:         1,
 		Name:       "Test Server",

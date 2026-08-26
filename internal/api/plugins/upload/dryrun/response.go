@@ -1,6 +1,9 @@
 package dryrun
 
 import (
+	"github.com/gameap/gameap/internal/domain"
+	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/services/plugininstall"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 )
@@ -16,24 +19,40 @@ type serverAbilityResponse struct {
 }
 
 type dryRunResponse struct {
-	ID                  string                  `json:"id"`
-	Name                string                  `json:"name"`
-	Version             string                  `json:"version"`
-	Description         string                  `json:"description,omitempty"`
-	Author              string                  `json:"author,omitempty"`
-	APIVersion          string                  `json:"api_version,omitempty"`
-	RequiredPermissions []string                `json:"required_permissions,omitempty"`
-	HTTPRoutes          []httpRouteResponse     `json:"http_routes,omitempty"`
-	ServerAbilities     []serverAbilityResponse `json:"server_abilities,omitempty"`
-	SubscribedEvents    []string                `json:"subscribed_events,omitempty"`
-	HasFrontendBundle   bool                    `json:"has_frontend_bundle"`
-	FrontendBundleSize  int                     `json:"frontend_bundle_size,omitempty"`
-	HasFrontendStyles   bool                    `json:"has_frontend_styles"`
-	IsValid             bool                    `json:"is_valid"`
-	Errors              []string                `json:"errors"`
+	ID                  string   `json:"id"`
+	Name                string   `json:"name"`
+	Version             string   `json:"version"`
+	Description         string   `json:"description,omitempty"`
+	Author              string   `json:"author,omitempty"`
+	APIVersion          string   `json:"api_version,omitempty"`
+	RequiredPermissions []string `json:"required_permissions,omitempty"`
+	// UsedPermissions is derived from the module's host imports and event
+	// subscriptions; UndeclaredPermissions are the used ones the manifest
+	// does not declare — installing grants only the declared ones, so those
+	// calls would be refused.
+	UsedPermissions       []string                `json:"used_permissions,omitempty"`
+	UndeclaredPermissions []string                `json:"undeclared_permissions,omitempty"`
+	HTTPRoutes            []httpRouteResponse     `json:"http_routes,omitempty"`
+	ServerAbilities       []serverAbilityResponse `json:"server_abilities,omitempty"`
+	SubscribedEvents      []string                `json:"subscribed_events,omitempty"`
+	HasFrontendBundle     bool                    `json:"has_frontend_bundle"`
+	FrontendBundleSize    int                     `json:"frontend_bundle_size,omitempty"`
+	HasFrontendStyles     bool                    `json:"has_frontend_styles"`
+	// Installed and the two fields below describe the plugin already
+	// installed under this id: uploading the file replaces it (through
+	// POST /api/admin/plugins/{id}/upload) instead of adding a plugin.
+	Installed           bool     `json:"installed"`
+	InstalledVersion    string   `json:"installed_version,omitempty"`
+	InstalledSourceType string   `json:"installed_source_type,omitempty"`
+	IsValid             bool     `json:"is_valid"`
+	Errors              []string `json:"errors"`
 }
 
-func newDryRunResponse(loaded *pkgplugin.LoadedPlugin, subscribedEvents []proto.EventType) *dryRunResponse {
+func newDryRunResponse(
+	loaded *pkgplugin.LoadedPlugin,
+	subscribedEvents []proto.EventType,
+	installed *domain.Plugin,
+) *dryRunResponse {
 	resp := &dryRunResponse{
 		ID:                 pkgplugin.CompactPluginID(pkgplugin.ParsePluginID(loaded.Info.Id)),
 		Name:               loaded.Info.Name,
@@ -48,8 +67,26 @@ func newDryRunResponse(loaded *pkgplugin.LoadedPlugin, subscribedEvents []proto.
 		Errors:             []string{},
 	}
 
+	if installed != nil {
+		var source string
+		if installed.Source != nil {
+			source = *installed.Source
+		}
+
+		resp.Installed = true
+		resp.InstalledVersion = installed.Version
+		resp.InstalledSourceType = plugininstall.SourceType(source)
+	}
+
 	if loaded.Info.RequiredPermissions != nil {
 		resp.RequiredPermissions = loaded.Info.RequiredPermissions
+	}
+
+	used := internalplugin.UsedPermissions(loaded.HostImports, subscribedEvents)
+	if len(used) > 0 {
+		resp.UsedPermissions = internalplugin.PermissionNames(used)
+		resp.UndeclaredPermissions = internalplugin.PermissionNames(internalplugin.MissingPermissions(
+			used, domain.ParsePluginPermissions(loaded.Info.RequiredPermissions)))
 	}
 
 	if len(loaded.HTTPRoutes) > 0 {

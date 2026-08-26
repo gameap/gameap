@@ -111,6 +111,30 @@ func (r *PluginStorageRepository) Save(ctx context.Context, entry *domain.Plugin
 		return r.update(ctx, entry)
 	}
 
+	// A global entry (no entity) never conflicts in the unique index — NULLs
+	// are distinct there — so the upsert below would add a second row instead
+	// of updating the first. Update whatever the scope already holds; insert
+	// only when it holds nothing.
+	existingID, err := r.findScopeID(ctx, entry)
+	if err != nil {
+		return err
+	}
+
+	if existingID != 0 {
+		entry.ID = existingID
+
+		err = r.updateScope(ctx, entry)
+		if err != nil {
+			return err
+		}
+
+		// Retry the cleanup an earlier save never reached — a cancelled context,
+		// a crash between its two statements. Once a scope holds duplicates
+		// every later save lands here, so this is the only path left to
+		// collapse them.
+		return r.deleteScopeBefore(ctx, entry)
+	}
+
 	query := `INSERT INTO ` + base.PluginStorageTable +
 		` (plugin_id, ` + "`key`" + `, entity_type, entity_id, payload, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -133,11 +157,94 @@ func (r *PluginStorageRepository) Save(ctx context.Context, entry *domain.Plugin
 	if err != nil {
 		return errors.WithMessage(err, "failed to get last insert ID")
 	}
-	if lastID > 0 {
-		entry.ID = uint64(lastID)
+	if lastID <= 0 {
+		return nil
+	}
+
+	entry.ID = uint64(lastID)
+
+	return r.deleteScopeBefore(ctx, entry)
+}
+
+// findScopeID returns the newest row id of the entry's scope
+// (plugin, key, entity), or 0 when the scope is empty.
+func (r *PluginStorageRepository) findScopeID(ctx context.Context, entry *domain.PluginStorageEntry) (uint64, error) {
+	query, args, err := sq.Select("id").
+		From(base.PluginStorageTable).
+		Where(scopeEq(entry)).
+		OrderBy("id DESC").
+		Limit(1).
+		PlaceholderFormat(sq.Question).
+		ToSql()
+	if err != nil {
+		return 0, errors.WithMessage(err, "failed to build scope lookup query")
+	}
+
+	var id uint64
+	err = r.db.QueryRowContext(ctx, query, args...).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, errors.WithMessage(err, "failed to execute scope lookup query")
+	}
+
+	return id, nil
+}
+
+// updateScope rewrites every row of the entry's scope. Normally that is one
+// row; rows duplicated before the scope-aware save existed converge too.
+func (r *PluginStorageRepository) updateScope(ctx context.Context, entry *domain.PluginStorageEntry) error {
+	query, args, err := sq.Update(base.PluginStorageTable).
+		Set("payload", entry.Payload).
+		Set("updated_at", entry.UpdatedAt).
+		Where(scopeEq(entry)).
+		PlaceholderFormat(sq.Question).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build scope update query")
+	}
+
+	_, err = r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to execute scope update query")
 	}
 
 	return nil
+}
+
+// deleteScopeBefore drops the rows a save racing this one left in the same
+// scope. The lookup and the insert above are two statements, and the unique
+// index does not close the gap between them for a global entry — NULLs never
+// conflict there — so both saves insert. The newest row carries the newest
+// payload and stays.
+func (r *PluginStorageRepository) deleteScopeBefore(ctx context.Context, entry *domain.PluginStorageEntry) error {
+	query, args, err := sq.Delete(base.PluginStorageTable).
+		Where(scopeEq(entry)).
+		Where(sq.Lt{"id": entry.ID}).
+		PlaceholderFormat(sq.Question).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build scope cleanup query")
+	}
+
+	_, err = r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to execute scope cleanup query")
+	}
+
+	return nil
+}
+
+// scopeEq matches the entry's (plugin, key, entity) scope; a nil entity part
+// renders as IS NULL.
+func scopeEq(entry *domain.PluginStorageEntry) sq.Eq {
+	return sq.Eq{
+		"plugin_id":   entry.PluginID,
+		"`key`":       entry.Key,
+		"entity_type": entry.EntityType,
+		"entity_id":   entry.EntityID,
+	}
 }
 
 func (r *PluginStorageRepository) update(ctx context.Context, entry *domain.PluginStorageEntry) error {
@@ -257,6 +364,11 @@ func (r *PluginStorageRepository) filterToSq(filter *filters.FindPluginStorage) 
 		and = append(and, sq.Eq{"`key`": filter.Keys})
 	}
 
+	if filter.KeyPrefix != nil && *filter.KeyPrefix != "" {
+		and = append(and, sq.Expr("`key`"+" LIKE ? ESCAPE '"+base.LikeEscapeChar+"'",
+			base.LikePrefixPattern(*filter.KeyPrefix)))
+	}
+
 	if len(filter.EntityPairs) > 0 {
 		or := make(sq.Or, 0, len(filter.EntityPairs))
 		for _, pair := range filter.EntityPairs {
@@ -270,4 +382,24 @@ func (r *PluginStorageRepository) filterToSq(filter *filters.FindPluginStorage) 
 	}
 
 	return and
+}
+
+func (r *PluginStorageRepository) UsageByPlugin(
+	ctx context.Context,
+	pluginID uint64,
+) (domain.PluginStorageUsage, error) {
+	query, args, err := sq.Select("COUNT(*)", "COALESCE(SUM(LENGTH(payload)), 0)").
+		From(base.PluginStorageTable).
+		Where(sq.Eq{"plugin_id": pluginID}).
+		ToSql()
+	if err != nil {
+		return domain.PluginStorageUsage{}, errors.WithMessage(err, "failed to build query")
+	}
+
+	var usage domain.PluginStorageUsage
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&usage.Keys, &usage.Bytes); err != nil {
+		return domain.PluginStorageUsage{}, errors.WithMessage(err, "failed to execute query")
+	}
+
+	return usage, nil
 }

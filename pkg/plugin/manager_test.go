@@ -13,6 +13,7 @@ import (
 // mockPluginService implements proto.PluginService for testing.
 type mockPluginService struct {
 	infoFunc                func(ctx context.Context, req *proto.GetInfoRequest) (*proto.PluginInfo, error)
+	initializeFunc          func(ctx context.Context, req *proto.InitializeRequest) (*proto.InitializeResponse, error)
 	shutdownFunc            func(ctx context.Context, req *proto.ShutdownRequest) (*proto.ShutdownResponse, error)
 	handleEventFunc         func(ctx context.Context, event *proto.Event) (*proto.EventResult, error)
 	getSubscribedEventsFunc func(ctx context.Context, req *proto.GetSubscribedEventsRequest) (*proto.GetSubscribedEventsResponse, error)
@@ -31,9 +32,13 @@ func (m *mockPluginService) GetInfo(
 }
 
 func (m *mockPluginService) Initialize(
-	_ context.Context,
-	_ *proto.InitializeRequest,
+	ctx context.Context,
+	req *proto.InitializeRequest,
 ) (*proto.InitializeResponse, error) {
+	if m.initializeFunc != nil {
+		return m.initializeFunc(ctx, req)
+	}
+
 	return &proto.InitializeResponse{}, nil
 }
 
@@ -110,6 +115,7 @@ func (m *mockPluginService) GetAssets(
 }
 
 func TestValidateRoutePath(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		path      string
@@ -168,6 +174,7 @@ func TestValidateRoutePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := validateRoutePath(tt.path)
 
 			if tt.wantError != "" {
@@ -181,6 +188,7 @@ func TestValidateRoutePath(t *testing.T) {
 }
 
 func TestIsValidHTTPMethod(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		method string
@@ -260,6 +268,7 @@ func TestIsValidHTTPMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := isValidHTTPMethod(tt.method)
 			assert.Equal(t, tt.want, got)
 		})
@@ -267,6 +276,7 @@ func TestIsValidHTTPMethod(t *testing.T) {
 }
 
 func TestJoinErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		errs      []error
@@ -297,6 +307,7 @@ func TestJoinErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := joinErrors(tt.errs)
 
 			if tt.wantNil {
@@ -310,7 +321,10 @@ func TestJoinErrors(t *testing.T) {
 }
 
 func TestNewManager(t *testing.T) {
+	t.Parallel()
 	t.Run("creates_manager_with_empty_plugins_map", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 
 		require.NotNil(t, manager.plugins)
@@ -318,6 +332,8 @@ func TestNewManager(t *testing.T) {
 	})
 
 	t.Run("stores_config_correctly", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := ManagerConfig{
 			Libraries:        []HostLibrary{},
 			LibraryFactories: []HostLibraryFactory{},
@@ -328,6 +344,7 @@ func TestNewManager(t *testing.T) {
 	})
 
 	t.Run("manager_not_closed_initially", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 
 		assert.False(t, manager.closed)
@@ -335,7 +352,10 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestGetPlugin(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_plugin_when_exists", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 		expectedPlugin := &LoadedPlugin{
 			Info:    &proto.PluginInfo{Id: "test-plugin"},
@@ -350,6 +370,7 @@ func TestGetPlugin(t *testing.T) {
 	})
 
 	t.Run("returns_false_when_not_exists", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 
 		plugin, exists := manager.GetPlugin("nonexistent")
@@ -360,7 +381,10 @@ func TestGetPlugin(t *testing.T) {
 }
 
 func TestGetPlugins(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_empty_slice_when_no_plugins", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 
 		plugins := manager.GetPlugins()
@@ -370,6 +394,7 @@ func TestGetPlugins(t *testing.T) {
 	})
 
 	t.Run("returns_all_plugins", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		plugin1 := &LoadedPlugin{Info: &proto.PluginInfo{Id: "plugin1"}}
 		plugin2 := &LoadedPlugin{Info: &proto.PluginInfo{Id: "plugin2"}}
@@ -383,7 +408,10 @@ func TestGetPlugins(t *testing.T) {
 }
 
 func TestGetHTTPRoutes(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_empty_map_when_no_plugins", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 
 		routes := manager.GetHTTPRoutes()
@@ -393,6 +421,7 @@ func TestGetHTTPRoutes(t *testing.T) {
 	})
 
 	t.Run("returns_routes_from_enabled_plugins_only", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		manager.plugins["enabled-plugin"] = &LoadedPlugin{
 			Info:    &proto.PluginInfo{Id: "enabled-plugin"},
@@ -410,6 +439,8 @@ func TestGetHTTPRoutes(t *testing.T) {
 	})
 
 	t.Run("skips_disabled_plugins", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 		manager.plugins["disabled-plugin"] = &LoadedPlugin{
 			Info:    &proto.PluginInfo{Id: "disabled-plugin"},
@@ -425,6 +456,7 @@ func TestGetHTTPRoutes(t *testing.T) {
 	})
 
 	t.Run("skips_plugins_without_routes", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		manager.plugins["no-routes-plugin"] = &LoadedPlugin{
 			Info:       &proto.PluginInfo{Id: "no-routes-plugin"},
@@ -439,7 +471,10 @@ func TestGetHTTPRoutes(t *testing.T) {
 }
 
 func TestGetAllServerAbilities(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_empty_slice_when_no_plugins", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 
 		abilities := manager.GetAllServerAbilities()
@@ -448,6 +483,7 @@ func TestGetAllServerAbilities(t *testing.T) {
 	})
 
 	t.Run("returns_abilities_from_enabled_plugins_only", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		manager.plugins["test-plugin"] = &LoadedPlugin{
 			Info:    &proto.PluginInfo{Id: "test-plugin"},
@@ -464,6 +500,8 @@ func TestGetAllServerAbilities(t *testing.T) {
 	})
 
 	t.Run("formats_ability_name_correctly", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 		manager.plugins["my-plugin"] = &LoadedPlugin{
 			Info:    &proto.PluginInfo{Id: "my-plugin"},
@@ -482,6 +520,7 @@ func TestGetAllServerAbilities(t *testing.T) {
 	})
 
 	t.Run("skips_disabled_plugins", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		manager.plugins["disabled-plugin"] = &LoadedPlugin{
 			Info:    &proto.PluginInfo{Id: "disabled-plugin"},
@@ -497,6 +536,7 @@ func TestGetAllServerAbilities(t *testing.T) {
 	})
 
 	t.Run("skips_plugins_without_abilities", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		manager.plugins["no-abilities-plugin"] = &LoadedPlugin{
 			Info:            &proto.PluginInfo{Id: "no-abilities-plugin"},
@@ -511,7 +551,9 @@ func TestGetAllServerAbilities(t *testing.T) {
 }
 
 func TestLoadedPlugin_Close(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_nil_when_runtime_is_nil", func(t *testing.T) {
+		t.Parallel()
 		plugin := &LoadedPlugin{
 			Info:    &proto.PluginInfo{Id: "test-plugin"},
 			runtime: nil,
@@ -524,7 +566,10 @@ func TestLoadedPlugin_Close(t *testing.T) {
 }
 
 func TestUnload(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_error_when_plugin_not_found", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 
 		err := manager.Unload(context.Background(), "nonexistent")
@@ -535,6 +580,7 @@ func TestUnload(t *testing.T) {
 	})
 
 	t.Run("removes_plugin_from_map", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		manager.plugins[normalizePluginID("test-plugin")] = &LoadedPlugin{
 			Info:     &proto.PluginInfo{Id: "test-plugin"},
@@ -550,6 +596,8 @@ func TestUnload(t *testing.T) {
 	})
 
 	t.Run("disables_plugin_on_unload", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 		plugin := &LoadedPlugin{
 			Info:     &proto.PluginInfo{Id: "test-plugin"},
@@ -566,6 +614,7 @@ func TestUnload(t *testing.T) {
 	})
 
 	t.Run("unloads_by_decimal_id_when_registered_under_compact_id", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		manager.plugins[normalizePluginID("123")] = &LoadedPlugin{
 			Info:     &proto.PluginInfo{Id: "123"},
@@ -580,6 +629,7 @@ func TestUnload(t *testing.T) {
 	})
 
 	t.Run("calls_shutdown_on_plugin", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		shutdownCalled := false
 		manager.plugins[normalizePluginID("test-plugin")] = &LoadedPlugin{
@@ -603,7 +653,10 @@ func TestUnload(t *testing.T) {
 }
 
 func TestShutdown(t *testing.T) {
+	t.Parallel()
 	t.Run("sets_closed_flag", func(t *testing.T) {
+		t.Parallel()
+
 		manager := NewManager(ManagerConfig{})
 
 		err := manager.Shutdown(context.Background())
@@ -613,6 +666,7 @@ func TestShutdown(t *testing.T) {
 	})
 
 	t.Run("clears_plugins_map", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		manager.plugins["plugin1"] = &LoadedPlugin{
 			Info:     &proto.PluginInfo{Id: "plugin1"},
@@ -632,6 +686,7 @@ func TestShutdown(t *testing.T) {
 	})
 
 	t.Run("passes_declared_plugin_id_to_shutdown_context", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		gotPluginID := ""
 		// "my-custom-plugin" is not a canonical compact ID, so the map key
@@ -656,6 +711,7 @@ func TestShutdown(t *testing.T) {
 	})
 
 	t.Run("calls_shutdown_on_all_plugins", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		shutdownCalls := make(map[string]bool)
 
@@ -683,7 +739,9 @@ func TestShutdown(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_error_when_manager_closed", func(t *testing.T) {
+		t.Parallel()
 		manager := NewManager(ManagerConfig{})
 		manager.closed = true
 

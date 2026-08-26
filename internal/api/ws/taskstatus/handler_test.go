@@ -40,6 +40,7 @@ func makeRequest(t *testing.T, taskIDVar string) *http.Request {
 }
 
 func TestHandler_RejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/tasks/1/status", nil)
@@ -57,6 +58,7 @@ func TestHandler_RejectsUnauthenticated(t *testing.T) {
 }
 
 func TestHandler_MissingID_Returns400(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/tasks/status", nil)
@@ -76,6 +78,7 @@ func TestHandler_MissingID_Returns400(t *testing.T) {
 }
 
 func TestHandler_InvalidID_Returns400(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "abc")
@@ -92,6 +95,7 @@ func TestHandler_InvalidID_Returns400(t *testing.T) {
 }
 
 func TestHandler_RepoError_Returns500(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "1")
@@ -115,6 +119,7 @@ func TestHandler_RepoError_Returns500(t *testing.T) {
 }
 
 func TestHandler_TaskNotFound_Returns404(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "999")
@@ -139,6 +144,7 @@ func TestHandler_TaskNotFound_Returns404(t *testing.T) {
 }
 
 func TestHandler_RBACAdminCheckError_Returns500(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "1")
@@ -165,6 +171,7 @@ func TestHandler_RBACAdminCheckError_Returns500(t *testing.T) {
 }
 
 func TestHandler_RegularUser_TaskWithoutServer_Returns403(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "1")
@@ -191,6 +198,7 @@ func TestHandler_RegularUser_TaskWithoutServer_Returns403(t *testing.T) {
 }
 
 func TestHandler_RegularUser_UnknownTaskType_Returns403(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "1")
@@ -219,6 +227,7 @@ func TestHandler_RegularUser_UnknownTaskType_Returns403(t *testing.T) {
 }
 
 func TestHandler_RegularUser_NoAccessToServer_Returns403(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "1")
@@ -248,6 +257,7 @@ func TestHandler_RegularUser_NoAccessToServer_Returns403(t *testing.T) {
 }
 
 func TestHandler_RegularUser_ServerRepoError_Returns500(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "1")
@@ -275,6 +285,7 @@ func TestHandler_RegularUser_ServerRepoError_Returns500(t *testing.T) {
 }
 
 func TestHandler_RegularUser_LacksAbility_Returns403(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "1")
@@ -306,6 +317,7 @@ func TestHandler_RegularUser_LacksAbility_Returns403(t *testing.T) {
 }
 
 func TestHandler_AdminPassesAuthz_NoErrorResponse(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "1")
@@ -337,6 +349,7 @@ func TestHandler_AdminPassesAuthz_NoErrorResponse(t *testing.T) {
 }
 
 func TestHandler_FindWithOutputFilterShape(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := makeRequest(t, "5")
@@ -366,6 +379,7 @@ func TestHandler_FindWithOutputFilterShape(t *testing.T) {
 }
 
 func TestIsTerminalStatus(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		status domain.DaemonTaskStatus
@@ -381,6 +395,7 @@ func TestIsTerminalStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := isTerminalStatus(tt.status)
 
@@ -453,6 +468,7 @@ func dialAndCollect(
 }
 
 func TestHandler_SendInitialState_WithOutputAndTerminal(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverID := uint(7)
 	output := "task complete"
@@ -481,6 +497,7 @@ func TestHandler_SendInitialState_WithOutputAndTerminal(t *testing.T) {
 }
 
 func TestHandler_SendInitialState_RunningTaskWithoutOutput(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverID := uint(7)
 	task := domain.DaemonTask{
@@ -499,6 +516,7 @@ func TestHandler_SendInitialState_RunningTaskWithoutOutput(t *testing.T) {
 }
 
 func TestHandler_SendInitialState_TerminalEmptyOutput(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	serverID := uint(7)
 	emptyOutput := ""

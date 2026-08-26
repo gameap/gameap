@@ -80,12 +80,16 @@ import (
 	"github.com/gameap/gameap/internal/api/nodes/nodesetup"
 	"github.com/gameap/gameap/internal/api/nodes/putnode"
 	"github.com/gameap/gameap/internal/api/nodes/setupkey"
+	pluginfileref "github.com/gameap/gameap/internal/api/plugins/fileref"
 	"github.com/gameap/gameap/internal/api/plugins/getfrontendplugins"
 	"github.com/gameap/gameap/internal/api/plugins/getfrontendstyles"
 	pluginsloaded "github.com/gameap/gameap/internal/api/plugins/getloaded"
+	pluginreload "github.com/gameap/gameap/internal/api/plugins/reload"
 	pluginuninstall "github.com/gameap/gameap/internal/api/plugins/uninstall"
+	pluginupdatepermissions "github.com/gameap/gameap/internal/api/plugins/updatepermissions"
 	pluginuploaddryrun "github.com/gameap/gameap/internal/api/plugins/upload/dryrun"
 	pluginuploadinstall "github.com/gameap/gameap/internal/api/plugins/upload/install"
+	pluginuploadupdate "github.com/gameap/gameap/internal/api/plugins/upload/update"
 	"github.com/gameap/gameap/internal/api/pluginstore/getcategories"
 	"github.com/gameap/gameap/internal/api/pluginstore/getlabels"
 	"github.com/gameap/gameap/internal/api/pluginstore/getplugin"
@@ -161,7 +165,9 @@ import (
 	"github.com/gameap/gameap/internal/grpc/session"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
+	"github.com/gameap/gameap/internal/plugin/hostlibrary"
 	"github.com/gameap/gameap/internal/pubsub"
+	pubsubintegration "github.com/gameap/gameap/internal/pubsub/integration"
 	"github.com/gameap/gameap/internal/quercon"
 	"github.com/gameap/gameap/internal/rbac"
 	"github.com/gameap/gameap/internal/repositories"
@@ -176,10 +182,12 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginarchive"
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
+	"github.com/gameap/gameap/internal/services/pluginsync"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
+	"github.com/gameap/gameap/internal/telemetry"
 	uploadservice "github.com/gameap/gameap/internal/upload"
 	"github.com/gameap/gameap/internal/ws"
 	"github.com/gameap/gameap/pkg/api"
@@ -236,9 +244,17 @@ type container interface {
 	QuerconResolver() *quercon.Resolver
 	PluginDispatcher() *plugin.Dispatcher
 	PluginRepository() repositories.PluginRepository
+	PluginPermissionEnforcer() hostlibrary.PluginPermissionChecker
+	PluginStorageRepository() repositories.PluginStorageRepository
+	PluginSecretRepository() repositories.PluginSecretRepository
 	PluginLoader() *internalplugin.Loader
+	PluginPathPolicy() *hostlibrary.PathPolicy
+	PluginSync() *pluginsync.Service
+	Telemetry() *telemetry.Registry
 	PluginScheduler() *pluginscheduler.Service
 	PluginArchiveEvents() *pluginarchive.Service
+	PluginSubscriptionsNotifier() *pubsubintegration.PluginSubscriptionsNotifier
+	PluginGuard() *hostlibrary.Guard
 	PluginStoreService() *pluginstore.Service
 	PluginsDir() string
 	TaskDispatcher() *taskdispatcher.Dispatcher
@@ -291,7 +307,19 @@ func CreateRouter(c container) *http.ServeMux {
 		serverMux.Handle("/plugins.css", frontendPluginsStylesHandler(c))
 	}
 
+	// The scrape endpoint exists only when a token is configured.
+	if token := c.Config().Metrics.Token; token != "" {
+		serverMux.Handle("/metrics", metricsHandler(c, token))
+	}
+
 	return serverMux
+}
+
+func metricsHandler(c container, token string) http.Handler {
+	tokenMiddleware := middlewares.NewMetricsTokenMiddleware(token, c.AuditLogger())
+	recoveryMiddleware := middlewares.NewRecoveryMiddleware(c.Responder())
+
+	return recoveryMiddleware.Middleware(tokenMiddleware.Middleware(c.Telemetry().Handler()))
 }
 
 func frontendPluginsHandler(c container) http.Handler {
@@ -551,6 +579,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler: putprofile.NewHandler(
 				c.UserService(),
 				c.AuthService(),
+				c.PluginDispatcher(),
 				c.Responder(),
 			),
 		},
@@ -1236,6 +1265,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.GameModRepository(),
 				c.ServerConfigPusher(),
+				c.PluginDispatcher(),
 				c.RBAC(),
 				c.Responder(),
 			),
@@ -1368,6 +1398,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.RBAC(),
 				c.TransactionManager(),
+				c.PluginDispatcher(),
 				c.Responder(),
 			),
 			AdminOnly: true,
@@ -1398,6 +1429,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.TransactionManager(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 			CheckPATAbilities: []domain.PATAbility{
@@ -1409,6 +1441,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/users/{id}",
 			Handler: deleteuser.NewHandler(
 				c.UserService(),
+				c.PluginDispatcher(),
 				c.Responder(),
 			),
 			AdminOnly: true,
@@ -1598,6 +1631,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.SecretCipher(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 		},
@@ -1611,6 +1645,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.SecretCipher(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 		},
@@ -1622,6 +1657,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 		},
@@ -1634,6 +1670,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerRepository(),
 				c.Responder(),
 				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 		},
@@ -1993,6 +2030,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 			),
@@ -2007,6 +2045,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 			),
@@ -2023,6 +2062,10 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginDispatcher(),
 				c.PluginScheduler(),
 				c.PluginArchiveEvents(),
+				c.PluginStorageRepository(),
+				c.PluginSecretRepository(),
+				c.PluginSync(),
+				c.PluginGuard(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -2036,6 +2079,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:   "/api/admin/plugins/upload/dry-run",
 			Handler: pluginuploaddryrun.NewHandler(
 				c.PluginManager(),
+				c.PluginRepository(),
 				c.Responder(),
 			),
 			AdminOnly: true,
@@ -2049,6 +2093,23 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.PluginLoader(),
 				c.PluginDispatcher(),
+				c.PluginSync(),
+				c.PluginsDir(),
+				c.Responder(),
+				c.AuditLogger(),
+			),
+			AdminOnly: true,
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/admin/plugins/{id}/upload",
+			Handler: pluginuploadupdate.NewHandler(
+				c.PluginManager(),
+				c.PluginRepository(),
+				c.FileManager(),
+				c.PluginLoader(),
+				c.PluginDispatcher(),
+				c.PluginSync(),
 				c.PluginsDir(),
 				c.Responder(),
 				c.AuditLogger(),
@@ -2062,7 +2123,35 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 				c.PluginLoader(),
 				c.PluginRepository(),
+				c.Config().Plugin.Permissions.Enforce,
 				c.Responder(),
+				pluginsloaded.WithSyncStatus(c.PluginSync()),
+			),
+			AdminOnly: true,
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/admin/plugins/{id}/reload",
+			Handler: pluginreload.NewHandler(
+				c.PluginLoader(),
+				c.PluginSync(),
+				c.Responder(),
+				c.AuditLogger(),
+			),
+			AdminOnly: true,
+		},
+		{
+			Method: http.MethodPut,
+			Path:   "/api/admin/plugins/{id}/permissions",
+			Handler: pluginupdatepermissions.NewHandler(
+				c.PluginRepository(),
+				c.PluginManager(),
+				c.PluginLoader(),
+				c.PluginDispatcher(),
+				c.PluginSync(),
+				c.PluginSubscriptionsNotifier(),
+				c.Responder(),
+				c.AuditLogger(),
 			),
 			AdminOnly: true,
 		},
@@ -2282,10 +2371,22 @@ func registerPluginRoutes(
 		return
 	}
 
+	// File responses reuse the "files_read" grant check and the path policy
+	// of the nodefs host library, so a plugin can only stream what it could
+	// read itself.
+	fileRefServer := pluginfileref.NewServer(
+		c.DaemonFiles(),
+		c.NodeRepository(),
+		c.PluginPermissionEnforcer(),
+		c.AuditLogger(),
+		pluginfileref.WithPathPolicy(c.PluginPathPolicy()),
+	)
+
 	pluginHandler := plugin.NewHTTPHandler(
 		pluginManager,
 		authMiddleware,
 		isAdminMiddleware,
+		plugin.WithFileRefServer(fileRefServer),
 	)
 
 	var handler http.Handler = pluginHandler

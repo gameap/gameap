@@ -10,6 +10,8 @@ import (
 )
 
 func TestClientCertificateRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewClientCertificatesRepositorySuite(
 		func(_ *testing.T) repositories.ClientCertificateRepository {
 			return inmemory.NewClientCertificateRepository()

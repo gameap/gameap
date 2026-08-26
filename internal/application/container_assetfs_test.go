@@ -13,6 +13,8 @@ import (
 // base layers, proving the container wires them through correctly.
 
 func TestContainer_I18nFS_ServesBaseTranslations(t *testing.T) {
+	t.Parallel()
+
 	c := newWiredContainer(t)
 
 	data, err := fs.ReadFile(c.I18nFS(), "en.json")
@@ -21,6 +23,8 @@ func TestContainer_I18nFS_ServesBaseTranslations(t *testing.T) {
 }
 
 func TestContainer_FrontendFS_ServesSPA(t *testing.T) {
+	t.Parallel()
+
 	c := newWiredContainer(t)
 
 	f, err := c.FrontendFS().Open("index.html")
@@ -29,6 +33,8 @@ func TestContainer_FrontendFS_ServesSPA(t *testing.T) {
 }
 
 func TestContainer_PluginAssetLayers_BaseIsLastWithoutPlugins(t *testing.T) {
+	t.Parallel()
+
 	c := newWiredContainer(t)
 
 	base := fstest.MapFS{"marker.json": &fstest.MapFile{Data: []byte("base")}}

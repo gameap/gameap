@@ -126,26 +126,15 @@
 
         <template v-if="isAdmin">
           <router-link
-              v-for="link in adminLinks"
-              :key="'admin-' + link.route.name"
-              @click="showMobileMenu = !showMobileMenu"
-              :to="link.route"
-              class="bg-chrome-item text-white flex items-center rounded px-3 py-2 font-medium"
-              aria-current="page"
-          >
-            <GIcon :name="link.icon" class="ml-1 shrink-0" />
-            <span class="ml-2">{{ link.text }}</span>
-          </router-link>
-          <router-link
-              v-for="item in pluginAdminMenuItems"
-              :key="'plugin-admin-' + item.pluginId + '-' + item.text"
+              v-for="item in adminMenuItems"
+              :key="'admin-' + item.key"
               @click="showMobileMenu = !showMobileMenu"
               :to="item.route"
               class="bg-chrome-item text-white flex items-center rounded px-3 py-2 font-medium"
               aria-current="page"
           >
             <GIcon :name="item.icon" class="ml-1 shrink-0" />
-            <span class="ml-2">{{ pluginsStore.resolvePluginText(item.pluginId, item.text) }}</span>
+            <span class="ml-2">{{ item.text }}</span>
           </router-link>
         </template>
 
@@ -172,8 +161,9 @@
 import {trans, pageLanguage} from "@/i18n/i18n"
 import {computed, ref} from 'vue'
 import MainNavbarDropdown from "./MainNavbarDropdown.vue";
-import {adminLinks, serversLinks} from "./bars";
+import {serversLinks} from "./bars";
 import {useAuthStore} from "@/store/auth";
+import {useAdminMenuItems} from "@/composables/useAdminMenuItems";
 import {useUISettingsStore} from "@/store/uiSettings";
 import {usePluginsStore} from "@/store/plugins";
 import {errorNotification} from "@/parts/dialogs";
@@ -196,7 +186,7 @@ const isAdmin = computed(() => authStore.isAdmin)
 
 const pluginServersMenuItems = computed(() => pluginsStore.getMenuItems('servers'))
 
-const pluginAdminMenuItems = computed(() => pluginsStore.getMenuItems('admin'))
+const adminMenuItems = useAdminMenuItems()
 
 const customPluginSections = computed(() => {
     const items = pluginsStore.getMenuItems('custom')

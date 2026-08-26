@@ -10,6 +10,8 @@ import (
 )
 
 func TestGameModFastRconList_Scan(t *testing.T) {
+	t.Parallel()
+
 	prefilled := GameModFastRconList{
 		{Info: "preexisting", Command: "preexisting_cmd"},
 	}
@@ -74,16 +76,25 @@ func TestGameModFastRconList_Scan(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:     "non_byte_slice_value_leaves_receiver_unchanged",
+			name:     "json_string_value_from_sqlite_driver",
+			receiver: nil,
+			input:    `[{"info":"Status","command":"status"}]`,
+			expected: GameModFastRconList{
+				{Info: "Status", Command: "status"},
+			},
+			wantErr: false,
+		},
+		{
+			name:     "empty_string_resets_receiver",
 			receiver: prefilled,
-			input:    "string value",
-			expected: prefilled,
+			input:    "",
+			expected: nil,
 			wantErr:  false,
 		},
 		{
-			name:     "non_byte_slice_value_with_nil_receiver",
-			receiver: nil,
-			input:    "string value",
+			name:     "unsupported_value_type_resets_receiver",
+			receiver: prefilled,
+			input:    42,
 			expected: nil,
 			wantErr:  false,
 		},
@@ -94,10 +105,19 @@ func TestGameModFastRconList_Scan(t *testing.T) {
 			expected: nil,
 			wantErr:  true,
 		},
+		{
+			name:     "invalid_json_string",
+			receiver: nil,
+			input:    "string value",
+			expected: nil,
+			wantErr:  true,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			result := test.receiver
 
@@ -118,6 +138,8 @@ func TestGameModFastRconList_Scan(t *testing.T) {
 }
 
 func TestGameModFastRconList_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    GameModFastRconList
@@ -157,6 +179,8 @@ func TestGameModFastRconList_Value(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := test.input.Value()
 
 			if test.wantErr {
@@ -174,6 +198,8 @@ func TestGameModFastRconList_Value(t *testing.T) {
 }
 
 func TestGameModVarDefault_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    GameModVarDefault
@@ -203,6 +229,8 @@ func TestGameModVarDefault_MarshalJSON(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := json.Marshal(test.input)
 			require.NoError(t, err)
 			assert.JSONEq(t, test.expected, string(result))
@@ -211,6 +239,8 @@ func TestGameModVarDefault_MarshalJSON(t *testing.T) {
 }
 
 func TestGameModVarDefault_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -234,47 +264,59 @@ func TestGameModVarDefault_UnmarshalJSON(t *testing.T) {
 		{
 			name:     "integer_number",
 			input:    `42`,
-			expected: GameModVarDefault("*"),
+			expected: GameModVarDefault("42"),
 		},
 		{
 			name:     "zero_number",
 			input:    `0`,
-			expected: GameModVarDefault("\x00"),
+			expected: GameModVarDefault("0"),
 		},
 		{
 			name:     "large_number",
 			input:    `65`,
-			expected: GameModVarDefault("A"),
+			expected: GameModVarDefault("65"),
 		},
 		{
-			name:     "zero_lower_boundary",
-			input:    `0`,
-			expected: GameModVarDefault("\x00"),
-		},
-		{
-			name:     "negative_one_rejected",
+			name:     "negative_number",
 			input:    `-1`,
-			expected: GameModVarDefault(""),
+			expected: GameModVarDefault("-1"),
 		},
 		{
-			name:     "negative_large_rejected",
+			name:     "negative_large_number",
 			input:    `-1000`,
-			expected: GameModVarDefault(""),
+			expected: GameModVarDefault("-1000"),
 		},
 		{
-			name:     "max_rune_accepted",
-			input:    `1114111`,
-			expected: GameModVarDefault(string(rune(1114111))),
-		},
-		{
-			name:     "max_rune_plus_one_rejected",
+			name:     "number_beyond_rune_range",
 			input:    `1114112`,
+			expected: GameModVarDefault("1114112"),
+		},
+		{
+			name:     "fractional_number",
+			input:    `1.5`,
+			expected: GameModVarDefault("1.5"),
+		},
+		{
+			name:     "null_becomes_empty_string",
+			input:    `null`,
 			expected: GameModVarDefault(""),
+		},
+		{
+			name:     "boolean_true",
+			input:    `true`,
+			expected: GameModVarDefault("true"),
+		},
+		{
+			name:     "boolean_false",
+			input:    `false`,
+			expected: GameModVarDefault("false"),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			var result GameModVarDefault
 
@@ -289,6 +331,8 @@ func TestGameModVarDefault_UnmarshalJSON(t *testing.T) {
 }
 
 func TestGameModVarList_Scan(t *testing.T) {
+	t.Parallel()
+
 	prefilled := GameModVarList{
 		{Var: "preexisting_var", Default: "preexisting", Info: "preexisting"},
 	}
@@ -362,16 +406,25 @@ func TestGameModVarList_Scan(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:     "non_byte_slice_value_leaves_receiver_unchanged",
+			name:     "json_string_value_from_sqlite_driver",
+			receiver: nil,
+			input:    `[{"var":"maxplayers","default":"32","info":"Max players"}]`,
+			expected: GameModVarList{
+				{Var: "maxplayers", Default: "32", Info: "Max players"},
+			},
+			wantErr: false,
+		},
+		{
+			name:     "empty_string_resets_receiver",
 			receiver: prefilled,
-			input:    "string value",
-			expected: prefilled,
+			input:    "",
+			expected: nil,
 			wantErr:  false,
 		},
 		{
-			name:     "non_byte_slice_value_with_nil_receiver",
-			receiver: nil,
-			input:    "string value",
+			name:     "unsupported_value_type_resets_receiver",
+			receiver: prefilled,
+			input:    42,
 			expected: nil,
 			wantErr:  false,
 		},
@@ -382,10 +435,19 @@ func TestGameModVarList_Scan(t *testing.T) {
 			expected: nil,
 			wantErr:  true,
 		},
+		{
+			name:     "invalid_json_string",
+			receiver: nil,
+			input:    "string value",
+			expected: nil,
+			wantErr:  true,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			result := test.receiver
 
@@ -406,6 +468,8 @@ func TestGameModVarList_Scan(t *testing.T) {
 }
 
 func TestGameModVarList_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    GameModVarList
@@ -445,6 +509,8 @@ func TestGameModVarList_Value(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := test.input.Value()
 
 			if test.wantErr {
@@ -462,6 +528,8 @@ func TestGameModVarList_Value(t *testing.T) {
 }
 
 func TestGameModFastRconList_ScanAndValue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	original := GameModFastRconList{
 		{Info: "Status", Command: "status"},
 		{Info: "Players", Command: "players"},
@@ -479,6 +547,8 @@ func TestGameModFastRconList_ScanAndValue_RoundTrip(t *testing.T) {
 }
 
 func TestGameModVarList_ScanAndValue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	original := GameModVarList{
 		{Var: "sv_cheats", Default: "0", Info: "Enable cheats", AdminVar: true},
 		{Var: "hostname", Default: "My Server", Info: "Server name", AdminVar: false},
@@ -496,6 +566,8 @@ func TestGameModVarList_ScanAndValue_RoundTrip(t *testing.T) {
 }
 
 func TestGameModVarDefault_MarshalUnmarshal_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input GameModVarDefault
@@ -520,6 +592,8 @@ func TestGameModVarDefault_MarshalUnmarshal_RoundTrip(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			marshaled, err := json.Marshal(test.input)
 			require.NoError(t, err)
 
@@ -533,6 +607,8 @@ func TestGameModVarDefault_MarshalUnmarshal_RoundTrip(t *testing.T) {
 }
 
 func TestGameMod_Merge(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		base     *GameMod
@@ -630,9 +706,11 @@ func TestGameMod_Merge(t *testing.T) {
 				KickCmd:                 new("new kick"),
 				FastRcon: GameModFastRconList{
 					{Info: "New Status", Command: "new status"},
+					{Info: "Old Status", Command: "old status"},
 				},
 				Vars: GameModVarList{
 					{Var: "new_var", Default: "new", Info: "New", AdminVar: true},
+					{Var: "old_var", Default: "old", Info: "Old", AdminVar: false},
 				},
 			},
 		},
@@ -720,7 +798,7 @@ func TestGameMod_Merge(t *testing.T) {
 				FastRcon: GameModFastRconList{
 					{Info: "Status", Command: "status"},
 				},
-				Vars: GameModVarList{},
+				Vars: nil,
 			},
 		},
 		{
@@ -743,12 +821,16 @@ func TestGameMod_Merge(t *testing.T) {
 				GameCode:              "csgo",
 				Name:                  "Counter-Strike: GO",
 				RemoteRepositoryLinux: new("existing-linux-repo"),
-				FastRcon:              nil,
-				Vars:                  nil,
+				FastRcon: GameModFastRconList{
+					{Info: "Old Status", Command: "old status"},
+				},
+				Vars: GameModVarList{
+					{Var: "old_var", Default: "old", Info: "Old", AdminVar: false},
+				},
 			},
 		},
 		{
-			name: "merge_fast_rcon_and_vars_overwrites_completely",
+			name: "merge_fast_rcon_and_vars_keeps_local_additions",
 			base: &GameMod{
 				ID:       1,
 				GameCode: "csgo",
@@ -776,9 +858,13 @@ func TestGameMod_Merge(t *testing.T) {
 				Name:     "Counter-Strike: GO",
 				FastRcon: GameModFastRconList{
 					{Info: "Maps", Command: "maps"},
+					{Info: "Status", Command: "status"},
+					{Info: "Players", Command: "players"},
 				},
 				Vars: GameModVarList{
 					{Var: "mp_timelimit", Default: "30", Info: "Time", AdminVar: true},
+					{Var: "sv_cheats", Default: "0", Info: "Cheats", AdminVar: true},
+					{Var: "hostname", Default: "Server", Info: "Name", AdminVar: false},
 				},
 			},
 		},
@@ -811,14 +897,48 @@ func TestGameMod_Merge(t *testing.T) {
 				ChmapCmd:    new("chmap_cmd"),
 				SendmsgCmd:  new("sendmsg_cmd"),
 				PasswdCmd:   new("passwd_cmd"),
-				FastRcon:    GameModFastRconList{},
-				Vars:        GameModVarList{},
+				FastRcon:    nil,
+				Vars:        nil,
+			},
+		},
+		{
+			name: "merge_replaces_the_catalog_variable_of_the_same_name",
+			base: &GameMod{
+				ID:       1,
+				GameCode: "csgo",
+				Name:     "Counter-Strike: GO",
+				Vars: GameModVarList{
+					{Var: "maxplayers", Default: "16", Info: "Locally tuned", AdminVar: false},
+					{Var: "custom", Default: "x", Info: "Added by an admin", AdminVar: false},
+				},
+			},
+			other: &GameMod{
+				Vars: GameModVarList{
+					{
+						Var: "maxplayers", Default: "32", Info: "Max players", AdminVar: true,
+						Type: GameModVarTypeInt, Rules: &GameModVarRules{Max: new(64.0)},
+					},
+				},
+			},
+			expected: &GameMod{
+				ID:       1,
+				GameCode: "csgo",
+				Name:     "Counter-Strike: GO",
+				Vars: GameModVarList{
+					{
+						Var: "maxplayers", Default: "32", Info: "Max players", AdminVar: true,
+						Type: GameModVarTypeInt, Rules: &GameModVarRules{Max: new(64.0)},
+					},
+					{Var: "custom", Default: "x", Info: "Added by an admin", AdminVar: false},
+				},
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			test.base.Merge(test.other)
 			assert.Equal(t, test.expected, test.base)
 		})

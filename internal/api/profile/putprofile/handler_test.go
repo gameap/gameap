@@ -20,6 +20,8 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		setupAuth      func() context.Context
@@ -378,11 +380,13 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			repo := inmemory.NewUserRepository()
 			userService := services.NewUserService(repo)
 			responder := api.NewResponder()
 			authService := auth.NewJWTService([]byte("test-secret-key-for-testing"))
-			handler := NewHandler(userService, authService, responder)
+			handler := NewHandler(userService, authService, nil, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(repo)
@@ -452,6 +456,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestUpdateProfileInput_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     updateProfileInput
@@ -545,6 +551,8 @@ func TestUpdateProfileInput_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.input.Validate()
 
 			if tt.wantError != "" {
@@ -563,6 +571,8 @@ func TestUpdateProfileInput_Validate(t *testing.T) {
 }
 
 func TestNewUpdateProfileResponse(t *testing.T) {
+	t.Parallel()
+
 	response := newUpdateProfileResponse()
 	assert.Equal(t, "Profile updated successfully", response.Message)
 }

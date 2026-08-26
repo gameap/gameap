@@ -89,6 +89,7 @@ s1PL2QMvr5M=
 -----END CERTIFICATE-----`
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		nodeID           uint
@@ -494,6 +495,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewNodeRepository()
 			fileManager := &files.MockFileManager{}
 			responder := api.NewResponder()
@@ -506,7 +508,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				tt.setupFileManager(fileManager)
 			}
 
-			handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil)
+			handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil, nil)
 
 			body, err := json.Marshal(tt.input)
 			require.NoError(t, err)
@@ -551,6 +553,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_UpdatedAtTimestamp(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewNodeRepository()
 	fileManager := &files.MockFileManager{}
 	responder := api.NewResponder()
@@ -573,7 +576,7 @@ func TestHandler_UpdatedAtTimestamp(t *testing.T) {
 		UpdatedAt:           &oldTime,
 	})
 
-	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil)
+	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil, nil)
 
 	input := updateNodeInput{
 		Name: new("Updated Name"),
@@ -599,6 +602,7 @@ func TestHandler_UpdatedAtTimestamp(t *testing.T) {
 }
 
 func TestHandler_CertificateFileCleanup(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewNodeRepository()
 	deletedFiles := []string{}
 	fileManager := &files.MockFileManager{
@@ -631,7 +635,7 @@ func TestHandler_CertificateFileCleanup(t *testing.T) {
 		UpdatedAt:           &now,
 	})
 
-	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil)
+	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil, nil)
 
 	input := updateNodeInput{
 		GdaemonServerCert: new(validCertPEM),
@@ -666,6 +670,7 @@ func TestHandler_CertificateFileCleanup(t *testing.T) {
 // successful node update must emit exactly one node.update event with outcome
 // success, category node_op, and the updated node id as the resource.
 func TestHandler_Audit_SuccessfulNodeUpdateIsRecorded(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	now := time.Now()
@@ -687,7 +692,7 @@ func TestHandler_Audit_SuccessfulNodeUpdateIsRecorded(t *testing.T) {
 	}))
 
 	recorder := &auditCapture{}
-	handler := NewHandler(repo, &files.MockFileManager{}, secret.Disabled(), api.NewResponder(), recorder)
+	handler := NewHandler(repo, &files.MockFileManager{}, secret.Disabled(), api.NewResponder(), recorder, nil)
 
 	body, err := json.Marshal(updateNodeInput{
 		Name:     new("Partially Updated Node"),
@@ -724,10 +729,11 @@ func TestHandler_Audit_SuccessfulNodeUpdateIsRecorded(t *testing.T) {
 // node.update event (the audit trail must not claim a change that did not
 // happen).
 func TestHandler_Audit_FailedNodeUpdateDoesNotEmitNodeUpdate(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	recorder := &auditCapture{}
-	handler := NewHandler(repo, &files.MockFileManager{}, secret.Disabled(), api.NewResponder(), recorder)
+	handler := NewHandler(repo, &files.MockFileManager{}, secret.Disabled(), api.NewResponder(), recorder, nil)
 
 	body, err := json.Marshal(updateNodeInput{
 		Name:     new("Ghost Node"),
@@ -756,6 +762,7 @@ func TestHandler_Audit_FailedNodeUpdateDoesNotEmitNodeUpdate(t *testing.T) {
 // (enc:-prefixed, recoverable) and the gdaemon API key must be persisted as
 // a SHA-256 digest. Security review findings #3a/#3b/#6.
 func TestHandler_SecretsAtRest(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	fileManager := &files.MockFileManager{
@@ -788,7 +795,7 @@ func TestHandler_SecretsAtRest(t *testing.T) {
 		UpdatedAt:           &now,
 	}))
 
-	handler := NewHandler(repo, fileManager, cipher, responder, nil)
+	handler := NewHandler(repo, fileManager, cipher, responder, nil, nil)
 
 	const newPlainPassword = "Sup3r-S3cret-SSH!"
 	const newPlainAPIKey = "rotated-api-key"
@@ -840,6 +847,7 @@ func TestHandler_SecretsAtRest(t *testing.T) {
 // fragile ApplyToNode/cipher interaction so a future refactor cannot silently
 // retain the old password on an explicit clear.
 func TestHandler_ClearGdaemonPassword(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	fileManager := &files.MockFileManager{
@@ -870,7 +878,7 @@ func TestHandler_ClearGdaemonPassword(t *testing.T) {
 		UpdatedAt:           &now,
 	}))
 
-	handler := NewHandler(repo, fileManager, cipher, responder, nil)
+	handler := NewHandler(repo, fileManager, cipher, responder, nil, nil)
 
 	body, err := json.Marshal(updateNodeInput{
 		GdaemonPassword: new(""),
@@ -909,6 +917,7 @@ func TestHandler_ClearGdaemonPassword(t *testing.T) {
 // daemon presenting that value would be hashed on the auth path and never
 // match, silently breaking authentication.
 func TestHandler_APIKeyHashedEvenWhen64HexInput(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewNodeRepository()
 	fileManager := &files.MockFileManager{
@@ -935,7 +944,7 @@ func TestHandler_APIKeyHashedEvenWhen64HexInput(t *testing.T) {
 		UpdatedAt:           &now,
 	}))
 
-	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil)
+	handler := NewHandler(repo, fileManager, secret.Disabled(), responder, nil, nil)
 
 	// A real 64-char lowercase-hex string the admin could paste as the key.
 	hexKey := pkgstrings.SHA256("some-plaintext-key-that-looks-hashed")
@@ -966,4 +975,193 @@ func TestHandler_APIKeyHashedEvenWhen64HexInput(t *testing.T) {
 		"a 64-hex plaintext key must not be stored verbatim")
 	assert.Equal(t, pkgstrings.SHA256(hexKey), stored.GdaemonAPIKey,
 		"the submitted value must be hashed as plaintext, even when it is 64-char hex")
+}
+
+// TestHandler_Metadata covers the free-form metadata bag: an absent field
+// keeps the stored value (so a client that never learned about metadata
+// cannot wipe it), a present object replaces it wholesale.
+func TestHandler_Metadata(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		body         string
+		wantMetadata domain.Metadata
+	}{
+		{
+			name:         "absent_field_keeps_stored_metadata",
+			body:         `{"name":"Renamed Node"}`,
+			wantMetadata: domain.Metadata{"region": "fsn1"},
+		},
+		{
+			name:         "present_object_replaces_metadata",
+			body:         `{"metadata":{"hetzner.server_id":"42"}}`,
+			wantMetadata: domain.Metadata{"hetzner.server_id": "42"},
+		},
+		{
+			name:         "empty_object_clears_metadata",
+			body:         `{"metadata":{}}`,
+			wantMetadata: domain.Metadata{},
+		},
+		{
+			// The request schema does not accept null; it decodes to the same
+			// nil map as an omitted field, so the stored bag survives. Clients
+			// clear the bag with {} instead.
+			name:         "null_keeps_stored_metadata",
+			body:         `{"metadata":null}`,
+			wantMetadata: domain.Metadata{"region": "fsn1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// ARRANGE
+			repo := inmemory.NewNodeRepository()
+			fileManager := &files.MockFileManager{
+				WriteFunc:  func(_ context.Context, _ string, _ []byte) error { return nil },
+				DeleteFunc: func(_ context.Context, _ string) error { return nil },
+			}
+			now := time.Now()
+			require.NoError(t, repo.Save(context.Background(), &domain.Node{
+				ID:                  1,
+				Enabled:             true,
+				Name:                "Metadata Node",
+				OS:                  "linux",
+				Location:            "US",
+				IPs:                 []string{"10.0.0.1"},
+				WorkPath:            "/srv/gameap",
+				GdaemonHost:         "10.0.0.1",
+				GdaemonPort:         12345,
+				GdaemonAPIKey:       pkgstrings.SHA256("api-key"),
+				GdaemonServerCert:   "certs/node.crt",
+				ClientCertificateID: 1,
+				Metadata:            domain.Metadata{"region": "fsn1"},
+				CreatedAt:           &now,
+				UpdatedAt:           &now,
+			}))
+
+			handler := NewHandler(repo, fileManager, secret.Disabled(), api.NewResponder(), nil, nil)
+
+			req := httptest.NewRequest(http.MethodPut, "/api/nodes/1", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			req = mux.SetURLVars(req, map[string]string{"id": "1"})
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+			nodes, err := repo.FindAll(context.Background(), nil, nil)
+			require.NoError(t, err)
+			require.Len(t, nodes, 1)
+			assert.Equal(t, tt.wantMetadata, nodes[0].Metadata)
+
+			var response nodeResponse
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, tt.wantMetadata, response.Metadata,
+				"the response must echo the stored metadata")
+		})
+	}
+}
+
+// TestHandler_MetadataLimits pins the domain caps on the admin path: without
+// them an operator could store a bag the plugin path would reject and bloat
+// every later node read.
+func TestHandler_MetadataLimits(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		metadata  domain.Metadata
+		wantError string
+	}{
+		{
+			name:      "too_many_keys",
+			metadata:  metadataWithKeys(domain.NodeMetadataMaxKeys + 1),
+			wantError: "metadata is too large",
+		},
+		{
+			name:      "key_too_long",
+			metadata:  domain.Metadata{strings.Repeat("k", domain.NodeMetadataKeyMaxLength+1): "v"},
+			wantError: "metadata is too large",
+		},
+		{
+			name:      "string_value_too_long",
+			metadata:  domain.Metadata{"key": strings.Repeat("v", domain.NodeMetadataValueMaxLength+1)},
+			wantError: "metadata is too large",
+		},
+		{
+			name:      "nested_value_too_long",
+			metadata:  domain.Metadata{"key": []any{strings.Repeat("v", domain.NodeMetadataValueMaxLength)}},
+			wantError: "metadata is too large",
+		},
+		{
+			name:      "empty_key",
+			metadata:  domain.Metadata{" ": "v"},
+			wantError: "metadata key must not be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// ARRANGE
+			repo := inmemory.NewNodeRepository()
+			fileManager := &files.MockFileManager{
+				WriteFunc:  func(_ context.Context, _ string, _ []byte) error { return nil },
+				DeleteFunc: func(_ context.Context, _ string) error { return nil },
+			}
+			now := time.Now()
+			require.NoError(t, repo.Save(context.Background(), &domain.Node{
+				ID:                  1,
+				Enabled:             true,
+				Name:                "Metadata Node",
+				OS:                  "linux",
+				Location:            "US",
+				IPs:                 []string{"10.0.0.1"},
+				WorkPath:            "/srv/gameap",
+				GdaemonHost:         "10.0.0.1",
+				GdaemonPort:         12345,
+				GdaemonAPIKey:       pkgstrings.SHA256("api-key"),
+				GdaemonServerCert:   "certs/node.crt",
+				ClientCertificateID: 1,
+				Metadata:            domain.Metadata{"region": "fsn1"},
+				CreatedAt:           &now,
+				UpdatedAt:           &now,
+			}))
+
+			handler := NewHandler(repo, fileManager, secret.Disabled(), api.NewResponder(), nil, nil)
+
+			body, err := json.Marshal(map[string]any{"metadata": tt.metadata})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPut, "/api/nodes/1", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req = mux.SetURLVars(req, map[string]string{"id": "1"})
+			w := httptest.NewRecorder()
+
+			// ACT
+			handler.ServeHTTP(w, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusUnprocessableEntity, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), tt.wantError)
+
+			nodes, findErr := repo.FindAll(context.Background(), nil, nil)
+			require.NoError(t, findErr)
+			require.Len(t, nodes, 1)
+			assert.Equal(t, domain.Metadata{"region": "fsn1"}, nodes[0].Metadata,
+				"a rejected request must not touch the stored bag")
+		})
+	}
+}
+
+func metadataWithKeys(count int) domain.Metadata {
+	metadata := make(domain.Metadata, count)
+	for i := range count {
+		metadata["key"+strconv.Itoa(i)] = "value"
+	}
+
+	return metadata
 }

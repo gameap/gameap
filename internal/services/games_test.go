@@ -23,6 +23,8 @@ func (m *mockGamesProvider) Games(_ context.Context) ([]domain.GlobalAPIGame, er
 }
 
 func TestGameUpgradeService_UpgradeGames(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		apiGames     []domain.GlobalAPIGame
@@ -286,6 +288,8 @@ func TestGameUpgradeService_UpgradeGames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 

@@ -130,6 +130,8 @@ func (m *mockFileService) Remove(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		serverID         string
@@ -1033,6 +1035,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -1099,6 +1103,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 // outcome success, category file_op, the server as the scoped resource, and
 // the acting user attributed as the actor.
 func TestHandler_Audit_SuccessfulDeleteIsRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -1172,6 +1178,8 @@ func TestHandler_Audit_SuccessfulDeleteIsRecorded(t *testing.T) {
 // file.delete success event (the audit trail must not claim a destructive op
 // happened when it did not).
 func TestHandler_Audit_DeniedDeleteDoesNotEmitFileDelete(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()

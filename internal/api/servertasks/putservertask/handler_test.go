@@ -141,6 +141,8 @@ var defaultSetupRepos = func(
 
 //nolint:gocyclo // Table-driven tests naturally have high cyclomatic complexity
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		setupAuth        func() context.Context
@@ -928,6 +930,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			taskRepo := inmemory.NewServerTaskRepository(serverRepo)
 			rbacRepo := inmemory.NewRBACRepository()

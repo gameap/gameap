@@ -13,6 +13,7 @@ import (
 )
 
 func TestGoldSource_Open_AcceptsValidChallengeReply(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(req []byte, _ int) [][]byte {
 		assert.Equal(t, header+"challenge rcon", string(req),
 			"first datagram must be the GoldSource challenge request")
@@ -36,6 +37,7 @@ func TestGoldSource_Open_AcceptsValidChallengeReply(t *testing.T) {
 }
 
 func TestGoldSource_Open_ReturnsErrorOnConnectFailure(t *testing.T) {
+	t.Parallel()
 	g, err := NewGoldSource(Config{
 		// Reserved-test address with port 0 — DialContext("udp") will fail.
 		Address:  "256.256.256.256:0",
@@ -52,6 +54,7 @@ func TestGoldSource_Open_ReturnsErrorOnConnectFailure(t *testing.T) {
 }
 
 func TestGoldSource_getChallengeNumber_RejectsMalformedReplies(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		reply     []byte
@@ -76,6 +79,7 @@ func TestGoldSource_getChallengeNumber_RejectsMalformedReplies(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 				return [][]byte{tt.reply}
 			})
@@ -99,6 +103,7 @@ func TestGoldSource_getChallengeNumber_RejectsMalformedReplies(t *testing.T) {
 }
 
 func TestGoldSource_getChallengeNumber_ShortReply_LeavesChallengeEmpty(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		// 4 bytes total — a bare header with no challenge body.
 		return [][]byte{[]byte("\xff\xff\xff\xff")}
@@ -120,6 +125,7 @@ func TestGoldSource_getChallengeNumber_ShortReply_LeavesChallengeEmpty(t *testin
 }
 
 func TestGoldSource_Execute_SinglePacketResponse(t *testing.T) {
+	t.Parallel()
 	const password = "topsecret"
 	const challenge = "424242"
 
@@ -161,6 +167,7 @@ func TestGoldSource_Execute_SinglePacketResponse(t *testing.T) {
 }
 
 func TestGoldSource_Execute_MultiPacketResponseReassembled(t *testing.T) {
+	t.Parallel()
 	const challenge = "999"
 	part1 := strings.Repeat("A", 300)
 	const part2 = "tail\n"
@@ -208,6 +215,7 @@ func TestGoldSource_Execute_MultiPacketResponseReassembled(t *testing.T) {
 }
 
 func TestGoldSource_Execute_ShortIntermediatePacketDoesNotEndResponse(t *testing.T) {
+	t.Parallel()
 	const challenge = "111"
 	// A short datagram in the MIDDLE of a response must not terminate reassembly:
 	// only an idle gap marks the end of the response. UDP may also deliver datagrams
@@ -246,6 +254,7 @@ func TestGoldSource_Execute_ShortIntermediatePacketDoesNotEndResponse(t *testing
 }
 
 func TestGoldSource_Execute_LateDatagramDoesNotPoisonNextCommand(t *testing.T) {
+	t.Parallel()
 	const challenge = "222"
 
 	srv := newScriptedUDPServer(t, func(_ []byte, idx int) [][]byte {
@@ -293,6 +302,7 @@ func TestGoldSource_Execute_LateDatagramDoesNotPoisonNextCommand(t *testing.T) {
 }
 
 func TestGoldSource_Execute_PropagatesWriteErrorWhenSocketClosed(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return [][]byte{[]byte(header + "\x00challenge rcon 5\n")}
 	})
@@ -313,6 +323,7 @@ func TestGoldSource_Execute_PropagatesWriteErrorWhenSocketClosed(t *testing.T) {
 }
 
 func TestGoldSource_Close_NilConnection(t *testing.T) {
+	t.Parallel()
 	g, err := NewGoldSource(Config{
 		Address:  "127.0.0.1:0",
 		Password: "pw",
@@ -325,6 +336,7 @@ func TestGoldSource_Close_NilConnection(t *testing.T) {
 }
 
 func TestGoldSource_Execute_LargeDatagramNotTruncated(t *testing.T) {
+	t.Parallel()
 	const challenge = "777"
 	// Non-whitespace, position-identifiable content larger than the old 1024-byte read buffer.
 	// Before the fix this datagram was chopped to 1019 bytes and its tail was silently dropped.
@@ -362,6 +374,7 @@ func TestGoldSource_Execute_LargeDatagramNotTruncated(t *testing.T) {
 }
 
 func TestGoldSource_Execute_PreservesBoundaryWhitespace(t *testing.T) {
+	t.Parallel()
 	const challenge = "555"
 	// The first datagram ends with a space that lands exactly on the datagram boundary.
 	// Trimming must happen once at the very end, not per chunk.
@@ -399,6 +412,7 @@ func TestGoldSource_Execute_PreservesBoundaryWhitespace(t *testing.T) {
 }
 
 func TestGoldSource_Execute_IdleTimeoutTerminatesResponse(t *testing.T) {
+	t.Parallel()
 	const challenge = "321"
 	const part = "partial response"
 
@@ -439,6 +453,7 @@ func TestGoldSource_Execute_IdleTimeoutTerminatesResponse(t *testing.T) {
 }
 
 func TestGoldSource_Open_TimesOutOnSilentServer(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return nil // never answer the challenge request
 	})
@@ -463,6 +478,7 @@ func TestGoldSource_Open_TimesOutOnSilentServer(t *testing.T) {
 }
 
 func TestGoldSource_Execute_CapsReassembledResponse(t *testing.T) {
+	t.Parallel()
 	const challenge = "888"
 
 	// Enough datagrams to exceed maxReassembledResponseSize with no idle gap.

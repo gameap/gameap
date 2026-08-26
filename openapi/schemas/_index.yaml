@@ -33,6 +33,22 @@ Game:
   $ref: './Game.yaml'
 GameMod:
   $ref: './GameMod.yaml'
+GameModVar:
+  $ref: './GameModVar.yaml'
+GameModVarType:
+  $ref: './GameModVarType.yaml'
+GameModVarOption:
+  $ref: './GameModVarOption.yaml'
+GameModVarRules:
+  $ref: './GameModVarRules.yaml'
+GameModVarI18n:
+  $ref: './GameModVarI18n.yaml'
+GameModVarOptionI18n:
+  $ref: './GameModVarOptionI18n.yaml'
+GameModFastRcon:
+  $ref: './GameModFastRcon.yaml'
+GameModFastRconI18n:
+  $ref: './GameModFastRconI18n.yaml'
 Node:
   $ref: './Node.yaml'
 NodeListItem:
@@ -45,6 +61,8 @@ ServerTaskExecution:
   $ref: './ServerTaskExecution.yaml'
 ServerSetting:
   $ref: './ServerSetting.yaml'
+ServerSettingInput:
+  $ref: './ServerSettingInput.yaml'
 ServerPermission:
   $ref: './ServerPermission.yaml'
 ClientCertificate:
@@ -63,6 +81,14 @@ PluginDryRunResponse:
   $ref: './PluginDryRunResponse.yaml'
 LoadedPlugin:
   $ref: './LoadedPlugin.yaml'
+PluginReloadResponse:
+  $ref: './PluginReloadResponse.yaml'
+PluginPermission:
+  $ref: './PluginPermission.yaml'
+PluginPermissionsUpdateRequest:
+  $ref: './PluginPermissionsUpdateRequest.yaml'
+PluginPermissionsResponse:
+  $ref: './PluginPermissionsResponse.yaml'
 
 # Request schemas
 LoginRequest:
@@ -153,3 +179,5 @@ HealthResponse:
   $ref: './responses/HealthResponse.yaml'
 ImportPelicanEggResponse:
   $ref: './responses/ImportPelicanEggResponse.yaml'
+ImportGameAPResponse:
+  $ref: './responses/ImportGameAPResponse.yaml'

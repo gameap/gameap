@@ -9,6 +9,7 @@ import (
 )
 
 func TestParseGameSpy2Response(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      []byte
@@ -73,6 +74,7 @@ func TestParseGameSpy2Response(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			err := parseGameSpy2Response(tt.input, result)
 
@@ -100,6 +102,7 @@ func TestParseGameSpy2Response(t *testing.T) {
 }
 
 func TestParseGameSpy2Players(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      []byte
@@ -137,6 +140,7 @@ func TestParseGameSpy2Players(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			reader := bytes.NewReader(tt.input)
 			parseGameSpy2Players(reader, result)

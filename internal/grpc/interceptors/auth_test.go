@@ -127,6 +127,7 @@ func discardLogger() *slog.Logger {
 
 // OWASP API Top 10:2023 — API2:2023 Broken Authentication.
 func TestAuthInterceptor_UnaryServerInterceptor(t *testing.T) {
+	t.Parallel()
 	cert := makeSelfSignedCert(t, "test-client")
 
 	okHandler := func(_ context.Context, _ any) (any, error) {
@@ -340,6 +341,7 @@ func TestAuthInterceptor_UnaryServerInterceptor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := tt.setupRepo()
 			interceptor := NewAuthInterceptor(repo, tt.requireMTLS, discardLogger())
@@ -376,6 +378,7 @@ func TestAuthInterceptor_UnaryServerInterceptor(t *testing.T) {
 // at-rest digest (security review findings #4/#6); the fixture therefore
 // stores SHA-256(plaintext) while the metadata carries the plaintext.
 func TestAuthInterceptor_UnaryServerInterceptor_SetsNodeIDInContext(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := &fakeNodeRepo{
 		nodes: []domain.Node{{ID: 7, Enabled: true, GdaemonAPIKey: pkgstrings.SHA256("secret")}},
@@ -414,6 +417,7 @@ func (s *stubStream) Context() context.Context { return s.ctx }
 
 // OWASP API Top 10:2023 — API2:2023 Broken Authentication.
 func TestAuthInterceptor_StreamServerInterceptor(t *testing.T) {
+	t.Parallel()
 	cert := makeSelfSignedCert(t, "test-client")
 
 	info := &grpc.StreamServerInfo{FullMethod: "/gameap.DaemonGateway/SomeStream"}
@@ -452,6 +456,7 @@ func TestAuthInterceptor_StreamServerInterceptor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			interceptor := NewAuthInterceptor(&fakeNodeRepo{}, tt.requireMTLS, discardLogger())
 			ss := &stubStream{ctx: tt.ctx}
@@ -479,6 +484,7 @@ func TestAuthInterceptor_StreamServerInterceptor(t *testing.T) {
 }
 
 func TestGetNodeIDFromContext(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		ctx       context.Context
@@ -507,6 +513,7 @@ func TestGetNodeIDFromContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			gotID, gotOK := GetNodeIDFromContext(tt.ctx)
 
@@ -518,6 +525,7 @@ func TestGetNodeIDFromContext(t *testing.T) {
 }
 
 func TestGetNodeFromContext(t *testing.T) {
+	t.Parallel()
 	node := &domain.Node{ID: 99}
 
 	tests := []struct {
@@ -548,6 +556,7 @@ func TestGetNodeFromContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			gotNode, gotOK := GetNodeFromContext(tt.ctx)
 
@@ -559,6 +568,7 @@ func TestGetNodeFromContext(t *testing.T) {
 }
 
 func TestSecureCompare(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		a, b string
@@ -572,6 +582,7 @@ func TestSecureCompare(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := secureCompare(tt.a, tt.b)
 

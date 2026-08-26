@@ -2,23 +2,30 @@ package hostlibrary
 
 import (
 	"context"
+	"log/slog"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/sdk/servers"
 	"github.com/gameap/gameap/pkg/proto"
 	"github.com/samber/lo"
 	"github.com/tetratelabs/wazero"
 )
 
+// ServersServiceImpl is per plugin: reads are open to every plugin, writes
+// (save, delete) are gated on manage_servers, rate limited and audited.
 type ServersServiceImpl struct {
 	serverRepo repositories.ServerRepository
+	guard      *PluginGuard
 }
 
-func NewServersService(serverRepo repositories.ServerRepository) *ServersServiceImpl {
+func NewServersService(serverRepo repositories.ServerRepository, guard *PluginGuard) *ServersServiceImpl {
 	return &ServersServiceImpl{
 		serverRepo: serverRepo,
+		guard:      guard,
 	}
 }
 
@@ -85,6 +92,10 @@ func (s *ServersServiceImpl) SaveServer(
 	ctx context.Context,
 	req *servers.SaveServerRequest,
 ) (*servers.SaveServerResponse, error) {
+	if msg := s.guard.Check(ctx, ModuleServers, "save_server"); msg != "" {
+		return &servers.SaveServerResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	if req.Server == nil {
 		return &servers.SaveServerResponse{
 			Success: false,
@@ -93,7 +104,17 @@ func (s *ServersServiceImpl) SaveServer(
 	}
 
 	server := convertServerFromProto(req.Server)
-	if err := s.serverRepo.Save(ctx, server); err != nil {
+	err := s.serverRepo.Save(ctx, server)
+
+	action := "update"
+	if req.Server.Id == 0 {
+		action = "create"
+	}
+
+	s.guard.Audit(ctx, audit.EventPluginServerSave, action, "server", serverResourceID(uint64(server.ID)), err,
+		slog.Uint64("node_id", uint64(server.DSID)))
+
+	if err != nil {
 		return &servers.SaveServerResponse{
 			Success: false,
 			Error:   new(err.Error()),
@@ -110,7 +131,14 @@ func (s *ServersServiceImpl) DeleteServer(
 	ctx context.Context,
 	req *servers.DeleteServerRequest,
 ) (*servers.DeleteServerResponse, error) {
-	if err := s.serverRepo.Delete(ctx, uint(req.Id)); err != nil {
+	if msg := s.guard.Check(ctx, ModuleServers, "delete_server"); msg != "" {
+		return &servers.DeleteServerResponse{Success: false, Error: new(msg)}, nil
+	}
+
+	err := s.serverRepo.Delete(ctx, uint(req.Id))
+	s.guard.Audit(ctx, audit.EventPluginServerDelete, "delete", "server", serverResourceID(req.Id), err)
+
+	if err != nil {
 		return &servers.DeleteServerResponse{
 			Success: false,
 			Error:   new(err.Error()),
@@ -210,12 +238,21 @@ type ServersHostLibrary struct {
 	impl *ServersServiceImpl
 }
 
-func NewServersHostLibrary(serverRepo repositories.ServerRepository) *ServersHostLibrary {
-	return &ServersHostLibrary{
-		impl: NewServersService(serverRepo),
-	}
-}
-
 func (l *ServersHostLibrary) Instantiate(ctx context.Context, r wazero.Runtime) error {
 	return servers.Instantiate(ctx, r, l.impl)
+}
+
+// ServersHostLibraryFactory builds a per-plugin servers module bound to the
+// plugin's guard.
+type ServersHostLibraryFactory struct {
+	serverRepo repositories.ServerRepository
+	guard      *Guard
+}
+
+func NewServersHostLibraryFactory(serverRepo repositories.ServerRepository, guard *Guard) *ServersHostLibraryFactory {
+	return &ServersHostLibraryFactory{serverRepo: serverRepo, guard: guard}
+}
+
+func (f *ServersHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
+	return &ServersHostLibrary{impl: NewServersService(f.serverRepo, f.guard.For(pluginID))}
 }

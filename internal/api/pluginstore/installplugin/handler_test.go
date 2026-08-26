@@ -30,6 +30,7 @@ import (
 )
 
 func TestInstallPlugin(t *testing.T) {
+	t.Parallel()
 	pluginDetails := pluginstore.PluginDetails{
 		ID:            "testplugin123",
 		Name:          "Test Plugin",
@@ -87,6 +88,7 @@ func TestInstallPlugin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 
@@ -114,6 +116,7 @@ func TestInstallPlugin(t *testing.T) {
 				storeService,
 				pluginRepo,
 				fileManager,
+				nil,
 				nil,
 				nil,
 				"plugins",
@@ -161,6 +164,7 @@ func TestInstallPlugin(t *testing.T) {
 }
 
 func TestInstallPlugin_already_installed(t *testing.T) {
+	t.Parallel()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -183,6 +187,7 @@ func TestInstallPlugin_already_installed(t *testing.T) {
 		storeService,
 		pluginRepo,
 		fileManager,
+		nil,
 		nil,
 		nil,
 		"plugins",
@@ -345,6 +350,14 @@ func (r *errPluginRepo) Save(ctx context.Context, p *domain.Plugin) error {
 	return r.inner.Save(ctx, p)
 }
 
+func (r *errPluginRepo) UpdateLoadState(ctx context.Context, id domain.Uint64ID, state domain.PluginLoadState) error {
+	if r.saveErr != nil {
+		return r.saveErr
+	}
+
+	return r.inner.UpdateLoadState(ctx, id, state)
+}
+
 func (r *errPluginRepo) Delete(ctx context.Context, id domain.Uint64ID) error {
 	return r.inner.Delete(ctx, id)
 }
@@ -414,6 +427,7 @@ func defaultVersions() *pluginstore.PaginatedResponse[pluginstore.PluginVersion]
 }
 
 func TestInstallPlugin_errors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		licenseKey    string
@@ -618,6 +632,7 @@ func TestInstallPlugin_errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			cfg := tt.buildUpstream()
 			mockServer := newUpstreamServer(t, cfg)
@@ -649,6 +664,7 @@ func TestInstallPlugin_errors(t *testing.T) {
 				repo,
 				fm,
 				loader,
+				nil,
 				nil,
 				"plugins",
 				api.NewResponder(),
@@ -691,6 +707,7 @@ func TestInstallPlugin_errors(t *testing.T) {
 }
 
 func TestInstallPlugin_load_error_keeps_record_with_correct_timestamps(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	cfg := upstreamConfig{
 		pluginDetails: defaultPluginDetails(false),
@@ -711,7 +728,7 @@ func TestInstallPlugin_load_error_keeps_record_with_correct_timestamps(t *testin
 		"plugins",
 	)
 
-	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
+	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, nil, "plugins", api.NewResponder())
 
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -742,4 +759,195 @@ func TestInstallPlugin_load_error_keeps_record_with_correct_timestamps(t *testin
 	assert.Equal(t, testPluginID+".wasm", *got.Filename)
 	require.NotNil(t, got.Source)
 	assert.Equal(t, mockServer.URL+"/plugins/"+testPluginID, *got.Source)
+}
+
+// manifestLoaderManager loads successfully and reports the manifest of the
+// installed module, including the permissions it asks for.
+type manifestLoaderManager struct {
+	requiredPermissions []string
+}
+
+func (m *manifestLoaderManager) Load(
+	_ context.Context,
+	_ []byte,
+	_ map[string]string,
+	_ uint64,
+) (*pkgplugin.LoadedPlugin, error) {
+	return &pkgplugin.LoadedPlugin{
+		Info: &proto.PluginInfo{
+			Id:                  testPluginID,
+			Name:                "Test Plugin",
+			Version:             "1.0.0",
+			RequiredPermissions: m.requiredPermissions,
+		},
+	}, nil
+}
+
+func (m *manifestLoaderManager) LoadTransient(
+	ctx context.Context,
+	wasmBytes []byte,
+	config map[string]string,
+	pluginID uint64,
+) (*pkgplugin.LoadedPlugin, error) {
+	return m.Load(ctx, wasmBytes, config, pluginID)
+}
+
+func (m *manifestLoaderManager) Unload(_ context.Context, _ string) error { return nil }
+func (m *manifestLoaderManager) GetPlugin(_ string) (*pkgplugin.LoadedPlugin, bool) {
+	return nil, false
+}
+func (m *manifestLoaderManager) GetPlugins() []*pkgplugin.LoadedPlugin { return nil }
+func (m *manifestLoaderManager) Shutdown(_ context.Context) error      { return nil }
+
+// TestInstallPlugin_records_manifest_permissions covers the store install
+// path, which builds its record from store metadata: without reading the
+// manifest after the load the plugin would hold no grants at all and every
+// gated host module would deny it.
+func TestInstallPlugin_records_manifest_permissions(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                string
+		requiredPermissions []string
+		wantPermissions     []domain.PluginPermission
+	}{
+		{
+			name:                "records_declared_permissions",
+			requiredPermissions: []string{"secrets", "files"},
+			wantPermissions: []domain.PluginPermission{
+				domain.PluginPermissionSecrets,
+				domain.PluginPermissionFiles,
+			},
+		},
+		{
+			name:                "drops_unknown_permission_names",
+			requiredPermissions: []string{"secrets", "take_over_the_panel"},
+			wantPermissions:     []domain.PluginPermission{domain.PluginPermissionSecrets},
+		},
+		{
+			name:                "manifest_without_permissions_grants_nothing",
+			requiredPermissions: nil,
+			wantPermissions:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// ARRANGE
+			mockServer := newUpstreamServer(t, upstreamConfig{
+				pluginDetails: defaultPluginDetails(false),
+				versions:      defaultVersions(),
+				downloadBody:  testWasmContent,
+			})
+			defer mockServer.Close()
+
+			storeService := pluginstore.NewService(mockServer.URL, "", cache.NewInMemory())
+			fm := newFakeFileManager()
+			repo := inmemory.NewPluginRepository()
+			loader := plugin.NewLoader(
+				&manifestLoaderManager{requiredPermissions: tt.requiredPermissions},
+				fm,
+				repo,
+				nil,
+				"plugins",
+			)
+
+			h := installplugin.NewHandler(storeService, repo, fm, loader, nil, nil, "plugins", api.NewResponder())
+
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/api/admin/plugins/store/plugins/"+testPluginID+"/install",
+				bytes.NewReader([]byte{}),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			req = mux.SetURLVars(req, map[string]string{"id": testPluginID})
+
+			// ACT
+			recorder := httptest.NewRecorder()
+			h.ServeHTTP(recorder, req)
+
+			// ASSERT
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+			stored, err := repo.Find(context.Background(), nil, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, stored, 1)
+
+			assert.Equal(t, tt.wantPermissions, stored[0].AllowedPermissions)
+			assert.Equal(t, tt.wantPermissions, stored[0].RequiredPermissions)
+			assert.Equal(t, domain.PluginStatusActive, stored[0].Status)
+		})
+	}
+}
+
+// failAfterNSavesPluginRepo lets the install record be written and then breaks,
+// which is the window where the manifest permissions are persisted.
+type failAfterNSavesPluginRepo struct {
+	repositories.PluginRepository
+
+	saves   int
+	failAt  int
+	saveErr error
+}
+
+func (r *failAfterNSavesPluginRepo) Save(ctx context.Context, p *domain.Plugin) error {
+	r.saves++
+	if r.saves >= r.failAt {
+		return r.saveErr
+	}
+
+	return r.PluginRepository.Save(ctx, p)
+}
+
+// TestInstallPlugin_permission_save_error_fails_install — reporting success
+// while the grants were not written would leave a plugin that is denied by
+// every gated host library with no sign of what went wrong.
+func TestInstallPlugin_permission_save_error_fails_install(t *testing.T) {
+	t.Parallel()
+	// ARRANGE
+	mockServer := newUpstreamServer(t, upstreamConfig{
+		pluginDetails: defaultPluginDetails(false),
+		versions:      defaultVersions(),
+		downloadBody:  testWasmContent,
+	})
+	defer mockServer.Close()
+
+	storeService := pluginstore.NewService(mockServer.URL, "", cache.NewInMemory())
+	fm := newFakeFileManager()
+	inner := inmemory.NewPluginRepository()
+	repo := &failAfterNSavesPluginRepo{
+		PluginRepository: inner,
+		failAt:           2,
+		saveErr:          errors.New("database is gone"),
+	}
+	loader := plugin.NewLoader(
+		&manifestLoaderManager{requiredPermissions: []string{"secrets"}},
+		fm,
+		repo,
+		nil,
+		"plugins",
+	)
+
+	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, nil, "plugins", api.NewResponder())
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/admin/plugins/store/plugins/"+testPluginID+"/install",
+		bytes.NewReader([]byte{}),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": testPluginID})
+
+	// ACT
+	recorder := httptest.NewRecorder()
+	h.ServeHTTP(recorder, req)
+
+	// ASSERT
+	assert.Equal(t, http.StatusUnprocessableEntity, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "permissions were not recorded")
+
+	stored, err := inner.Find(context.Background(), nil, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	assert.Empty(t, stored[0].AllowedPermissions, "the grant write is what failed")
 }

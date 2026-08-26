@@ -60,6 +60,7 @@ func sessionFor(user *domain.User) context.Context {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -458,6 +459,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -495,6 +497,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ServersResponseFields(t *testing.T) {
+	t.Parallel()
 	userRepo := inmemory.NewUserRepository()
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
@@ -581,6 +584,7 @@ func TestHandler_ServersResponseFields(t *testing.T) {
 }
 
 func TestNewServersResponseFromServers(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	servers := []domain.Server{
 		{
@@ -646,6 +650,7 @@ func TestNewServersResponseFromServers(t *testing.T) {
 }
 
 func TestNewServerResponseFromServer(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	queryPort := 27016
 	server := &domain.Server{

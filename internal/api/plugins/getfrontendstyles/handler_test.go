@@ -20,6 +20,7 @@ func (p *stubPluginProvider) GetPlugins() []*plugin.LoadedPlugin {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		provider        PluginProvider
@@ -70,6 +71,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := NewHandler(tt.provider)
 			req := httptest.NewRequest(http.MethodGet, "/plugins.css", nil)
@@ -84,7 +86,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			assert.Equal(t, "text/css; charset=utf-8", resp.Header.Get("Content-Type"))
-			assert.Equal(t, "no-cache", resp.Header.Get("Cache-Control"),
+			assert.Equal(t, "private, no-cache", resp.Header.Get("Cache-Control"),
 				"generated stylesheet must not be cached, plugins can be reloaded at runtime")
 
 			body := rec.Body.String()
@@ -102,6 +104,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 // The order plugins are loaded in is the order their styles cascade, so later
 // plugins can override earlier ones.
 func TestHandler_ServeHTTP_PreservesPluginOrder(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewHandler(&stubPluginProvider{
 		plugins: []*plugin.LoadedPlugin{
@@ -129,6 +132,7 @@ func TestHandler_ServeHTTP_PreservesPluginOrder(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_HeaderPrecedesPluginStyles(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewHandler(&stubPluginProvider{
 		plugins: []*plugin.LoadedPlugin{{FrontendStyles: []byte(".widget {}")}},

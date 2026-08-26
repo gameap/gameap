@@ -40,6 +40,8 @@ func newStubServer(t *testing.T, status int, body any, capture *url.Values) *htt
 }
 
 func TestService_Enabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		cfg  Config
@@ -69,6 +71,8 @@ func TestService_Enabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := NewService(tt.cfg)
 
 			assert.Equal(t, tt.want, s.Enabled())
@@ -77,6 +81,8 @@ func TestService_Enabled(t *testing.T) {
 }
 
 func TestService_Verify(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		cfg          Config
@@ -160,6 +166,8 @@ func TestService_Verify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			opts := []Option{}
 			if !tt.noServer {
 				server := newStubServer(t, tt.serverStatus, tt.serverBody, nil)
@@ -184,6 +192,8 @@ func TestService_Verify(t *testing.T) {
 }
 
 func TestService_Verify_ForwardsSecretAndRemoteIP(t *testing.T) {
+	t.Parallel()
+
 	var captured url.Values
 
 	server := newStubServer(t, http.StatusOK, verifyResponse{Success: true}, &captured)
@@ -203,6 +213,8 @@ func TestService_Verify_ForwardsSecretAndRemoteIP(t *testing.T) {
 }
 
 func TestResolveVerifyURL(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		provider Provider
@@ -256,6 +268,8 @@ func TestResolveVerifyURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ACT
 			got := resolveVerifyURL(tt.provider, tt.override)
 
@@ -270,6 +284,8 @@ func TestResolveVerifyURL(t *testing.T) {
 // when no endpoint could be resolved (unknown provider, no override), and a
 // non-empty override revives an otherwise-unroutable provider.
 func TestService_Enabled_VerifyURLGate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		cfg  Config
@@ -294,6 +310,8 @@ func TestService_Enabled_VerifyURLGate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			s := NewService(tt.cfg)
 
@@ -308,6 +326,8 @@ func TestService_Enabled_VerifyURLGate(t *testing.T) {
 // 503-mapped "captcha verification unavailable") and FailOpen (login waved
 // through, nil error).
 func TestService_Verify_UpstreamFailures(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// serverURL builds the verifyURL for the run; for the transport-error
@@ -390,6 +410,8 @@ func TestService_Verify_UpstreamFailures(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			s := NewService(
 				Config{Provider: ProviderTurnstile, SecretKey: "secret", FailOpen: tt.failOpen},
@@ -417,6 +439,8 @@ func TestService_Verify_UpstreamFailures(t *testing.T) {
 // threshold accepts a zero score; and a non-v3 provider ignores the score
 // field entirely.
 func TestService_Verify_ScoreBoundary(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		cfg       Config
@@ -445,6 +469,8 @@ func TestService_Verify_ScoreBoundary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			server := newStubServer(t, http.StatusOK, tt.body, nil)
 			defer server.Close()
@@ -470,6 +496,8 @@ func TestService_Verify_ScoreBoundary(t *testing.T) {
 // must keep: POST, the two fixed headers, and that remoteip is omitted when
 // no client IP is known (negative of TestService_Verify_ForwardsSecretAndRemoteIP).
 func TestService_Verify_RequestShape(t *testing.T) {
+	t.Parallel()
+
 	var (
 		gotMethod      string
 		gotContentType string
@@ -512,6 +540,8 @@ func TestService_Verify_RequestShape(t *testing.T) {
 // rejection case for reCAPTCHA v2: success=false yields the 422 verification
 // error regardless of provider.
 func TestService_Verify_RejectsRecaptchaV2(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	server := newStubServer(
 		t, http.StatusOK,
@@ -555,6 +585,8 @@ func (rt *recordingRoundTripper) RoundTrip(_ *http.Request) (*http.Response, err
 // a custom transport returning a forced error must be the thing Verify calls,
 // so the error propagates through the fail-closed path.
 func TestService_Verify_UsesInjectedHTTPClient(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	rt := &recordingRoundTripper{err: errForcedTransport}
 	s := NewService(

@@ -82,6 +82,8 @@ func sessionUser() *domain.User {
 // only as its hash) and bounded to ≤10s; a PAT session propagates its
 // abilities so the short-lived token is never broader than its origin.
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		ttl            time.Duration
@@ -172,6 +174,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			c := cache.NewInMemory()
 			recorder := &auditCapture{}
@@ -231,6 +235,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 // TestHandler_TokensAreUnique covers OWASP API2:2023: two mints must produce
 // distinct secrets so one captured token cannot be predicted from another.
 func TestHandler_TokensAreUnique(t *testing.T) {
+	t.Parallel()
+
 	c := cache.NewInMemory()
 	handler := NewHandler(c, 10*time.Second, api.NewResponder(), nil)
 	session := &auth.Session{Login: "alice", Email: "alice@example.com", User: sessionUser()}
@@ -260,6 +266,8 @@ func TestHandler_TokensAreUnique(t *testing.T) {
 // record may be written, since the audit trail must only claim a token was
 // issued when it actually was.
 func TestHandler_StoreFailure(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	recorder := &auditCapture{}
 	c := failingSetCache{err: errors.New("storage backend offline")}

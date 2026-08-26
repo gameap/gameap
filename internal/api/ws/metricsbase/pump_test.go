@@ -40,6 +40,7 @@ func nodeResponse(series ...*proto.MetricSeries) *proto.MetricsResponse {
 }
 
 func TestEncodeReplay(t *testing.T) {
+	t.Parallel()
 	nodeFilter := NodePrefixFilter()
 	passAllFilter := func(*proto.MetricSeries) bool { return true }
 	dropAllFilter := func(*proto.MetricSeries) bool { return false }
@@ -125,6 +126,7 @@ func TestEncodeReplay(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE — table case binds entries and filter
 
 			// ACT
@@ -142,6 +144,7 @@ func TestEncodeReplay(t *testing.T) {
 }
 
 func TestEncodeReplay_PreservesOrder(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	entries := []*proto.MetricsResponse{
 		nodeResponse(nodeSeries("gameap_node_cpu_first")),
@@ -160,6 +163,7 @@ func TestEncodeReplay_PreservesOrder(t *testing.T) {
 }
 
 func TestEncodeReplay_NilFilter_KeepsAllSeries(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	entries := []*proto.MetricsResponse{
 		nodeResponse(nodeSeries("any_name_at_all")),
@@ -323,6 +327,7 @@ func readFrame(t *testing.T, c *websocket.Conn, timeout time.Duration) (wsFrame,
 }
 
 func TestPump_HubSubscribeError_SendsErrorMessage(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	d := dialClient(t)
 	hub := &fakeHub{subErr: errors.New("subscribe nope")}
@@ -346,6 +351,7 @@ func TestPump_HubSubscribeError_SendsErrorMessage(t *testing.T) {
 }
 
 func TestPump_NoReplay_SendsReplayDoneOnly(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	d := dialClient(t)
 	sub := newFakeSub()
@@ -367,6 +373,7 @@ func TestPump_NoReplay_SendsReplayDoneOnly(t *testing.T) {
 }
 
 func TestPump_WithReplay_SendsReplayThenDone(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	d := dialClient(t)
 	sub := newFakeSub()
@@ -399,6 +406,7 @@ func TestPump_WithReplay_SendsReplayThenDone(t *testing.T) {
 }
 
 func TestPump_LiveSamples_ForwardedThroughFilter(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	d := dialClient(t)
 	sub := newFakeSub()
@@ -434,6 +442,7 @@ func TestPump_LiveSamples_ForwardedThroughFilter(t *testing.T) {
 }
 
 func TestPump_ContextCancelled_StopsForwarding(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	d := dialClient(t)
 	sub := newFakeSub()
@@ -463,6 +472,7 @@ func TestPump_ContextCancelled_StopsForwarding(t *testing.T) {
 }
 
 func TestPump_ClientClosed_StopsForwarding(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	d := dialClient(t)
 	sub := newFakeSub()
@@ -486,6 +496,7 @@ func TestPump_ClientClosed_StopsForwarding(t *testing.T) {
 }
 
 func TestPump_SubscriptionChannelClosed_Exits(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	d := dialClient(t)
 	sub := newFakeSub()
@@ -507,6 +518,7 @@ func TestPump_SubscriptionChannelClosed_Exits(t *testing.T) {
 }
 
 func TestPump_LiveSamplesUseCustomFilter(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	d := dialClient(t)
 	sub := newFakeSub()

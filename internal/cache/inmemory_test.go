@@ -11,6 +11,8 @@ import (
 )
 
 func TestInMemoryCache(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, cache.NewCacheSuite(
 		func(_ *testing.T) cache.Cache {
 			return cache.NewInMemory()
@@ -19,10 +21,14 @@ func TestInMemoryCache(t *testing.T) {
 }
 
 func TestInMemoryCacheCleanup(t *testing.T) {
+	t.Parallel()
+
 	c := cache.NewInMemory()
 	ctx := context.Background()
 
 	t.Run("cleanup_expired", func(t *testing.T) {
+		t.Parallel()
+
 		err := c.Set(ctx, "expired_1", "value1", cache.WithExpiration(1*time.Millisecond))
 		require.NoError(t, err)
 

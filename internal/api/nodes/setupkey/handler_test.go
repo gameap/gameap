@@ -34,6 +34,7 @@ func setupEnrollmentService(t *testing.T) (*enrollment.Service, cache.Cache) {
 }
 
 func TestGetHandler_no_key_configured(t *testing.T) {
+	t.Parallel()
 	svc, _ := setupEnrollmentService(t)
 	handler := NewGetHandler(svc, api.NewResponder())
 
@@ -51,6 +52,7 @@ func TestGetHandler_no_key_configured(t *testing.T) {
 }
 
 func TestGetHandler_key_exists(t *testing.T) {
+	t.Parallel()
 	svc, cacheInstance := setupEnrollmentService(t)
 	handler := NewGetHandler(svc, api.NewResponder())
 
@@ -71,6 +73,7 @@ func TestGetHandler_key_exists(t *testing.T) {
 }
 
 func TestPostHandler_generate_key(t *testing.T) {
+	t.Parallel()
 	svc, _ := setupEnrollmentService(t)
 	handler := NewPostHandler(svc, api.NewResponder())
 
@@ -89,6 +92,7 @@ func TestPostHandler_generate_key(t *testing.T) {
 }
 
 func TestPostHandler_set_custom_key(t *testing.T) {
+	t.Parallel()
 	svc, _ := setupEnrollmentService(t)
 	handler := NewPostHandler(svc, api.NewResponder())
 
@@ -109,6 +113,7 @@ func TestPostHandler_set_custom_key(t *testing.T) {
 }
 
 func TestDeleteHandler(t *testing.T) {
+	t.Parallel()
 	svc, cacheInstance := setupEnrollmentService(t)
 	handler := NewDeleteHandler(svc, api.NewResponder())
 

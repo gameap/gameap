@@ -21,6 +21,7 @@ import (
 )
 
 func TestGetPlugins(t *testing.T) {
+	t.Parallel()
 	storeResp := pluginstore.PaginatedResponse[pluginstore.Plugin]{
 		CurrentPage: 1,
 		Data: []pluginstore.Plugin{
@@ -170,6 +171,7 @@ func TestGetPlugins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
@@ -207,6 +209,7 @@ func TestGetPlugins(t *testing.T) {
 }
 
 func TestGetPlugins_icon_url_rewritten_to_panel_endpoint(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storeResp := pluginstore.PaginatedResponse[pluginstore.Plugin]{
 		CurrentPage: 1,

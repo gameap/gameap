@@ -161,6 +161,16 @@ properties:
       - string
       - "null"
     description: Custom delete script
+  metadata:
+    type:
+      - object
+      - "null"
+    additionalProperties: true
+    description: >-
+      Node metadata (arbitrary key-value pairs). Plugins use it to tag the nodes
+      they provision, e.g. to correlate a node with the cloud instance it runs on.
+    example:
+      hetzner.server_id: "123456"
   created_at:
     type:
       - string

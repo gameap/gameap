@@ -43,6 +43,7 @@ linters:
     - noctx
     - nolintlint
     - nosprintfhostport
+    - paralleltest
     - perfsprint
     - prealloc
     - predeclared
@@ -108,6 +109,15 @@ linters:
           - lll
           - noctx
           - scopelint
+      - path: internal/repositories/(mysql|postgres|sqlite|cached)/
+        linters:
+          - paralleltest
+      - path: internal/pubsub/(postgres|redis)/
+        linters:
+          - paralleltest
+      - path: internal/cache/(mysql|postgres|redis)_test\.go
+        linters:
+          - paralleltest
       - path: migrations/
         linters:
           - err113

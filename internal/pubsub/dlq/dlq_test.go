@@ -27,6 +27,8 @@ func (m *mockPublisher) Publish(ctx context.Context, channel string, msg *pubsub
 }
 
 func TestHandler_RecordFailure(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	publisher := &mockPublisher{}
 	handler := dlq.NewHandler(store, publisher)
@@ -53,6 +55,8 @@ func TestHandler_RecordFailure(t *testing.T) {
 }
 
 func TestHandler_Reprocess_success(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	publisher := &mockPublisher{}
 	handler := dlq.NewHandler(store, publisher)
@@ -81,6 +85,8 @@ func TestHandler_Reprocess_success(t *testing.T) {
 }
 
 func TestHandler_Reprocess_not_found(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	publisher := &mockPublisher{}
 	handler := dlq.NewHandler(store, publisher)
@@ -92,6 +98,8 @@ func TestHandler_Reprocess_not_found(t *testing.T) {
 }
 
 func TestHandler_ReprocessAll(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	publisher := &mockPublisher{}
 	handler := dlq.NewHandler(store, publisher)
@@ -115,6 +123,8 @@ func TestHandler_ReprocessAll(t *testing.T) {
 }
 
 func TestHandler_ReprocessAll_with_some_unsuccessful(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	callCount := 0
 	publisher := &mockPublisher{
@@ -156,6 +166,8 @@ func TestHandler_ReprocessAll_with_some_unsuccessful(t *testing.T) {
 }
 
 func TestHandler_Store(t *testing.T) {
+	t.Parallel()
+
 	store := dlq.NewMemoryStore(100)
 	publisher := &mockPublisher{}
 	handler := dlq.NewHandler(store, publisher)

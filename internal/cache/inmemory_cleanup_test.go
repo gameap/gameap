@@ -19,6 +19,8 @@ import (
 )
 
 func TestInMemory_StartCleanup_RemovesExpiredEntries(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	c := cache.NewInMemory()
 	ctx := context.Background()
@@ -41,6 +43,8 @@ func TestInMemory_StartCleanup_RemovesExpiredEntries(t *testing.T) {
 }
 
 func TestInMemory_StartCleanup_LeavesNonExpiredEntries(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	c := cache.NewInMemory()
 	ctx := context.Background()
@@ -69,6 +73,8 @@ func TestInMemory_StartCleanup_LeavesNonExpiredEntries(t *testing.T) {
 }
 
 func TestInMemory_StartCleanup_RaceFreeUnderConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	c := cache.NewInMemory()
 	ctx := context.Background()

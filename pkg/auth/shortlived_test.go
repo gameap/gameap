@@ -28,6 +28,8 @@ import (
 // treated as a short-lived token, so the auth middleware cannot be tricked
 // into validating a PASETO/JWT/PAT against the short-token cache.
 func TestIsShortLivedToken(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		token string
@@ -87,6 +89,8 @@ func TestIsShortLivedToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			got := IsShortLivedToken(tt.token)
 
@@ -102,11 +106,15 @@ func TestIsShortLivedToken(t *testing.T) {
 // must never appear in the key, so a token captured from a URL/log/proxy
 // cannot be turned back into a cache lookup the attacker controls.
 func TestShortLivedCacheKey(t *testing.T) {
+	t.Parallel()
+
 	const keyPrefix = "auth:shorttoken:"
 	secret := "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9fG1hJ"
 	token := ShortLivedTokenPrefix + secret
 
 	t.Run("key_is_namespaced", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE / ACT
 		key := ShortLivedCacheKey(token)
 
@@ -116,6 +124,8 @@ func TestShortLivedCacheKey(t *testing.T) {
 	})
 
 	t.Run("prefix_is_stripped_before_hashing", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE / ACT
 		key := ShortLivedCacheKey(token)
 
@@ -125,6 +135,8 @@ func TestShortLivedCacheKey(t *testing.T) {
 	})
 
 	t.Run("token_without_prefix_hashes_the_whole_string", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE — TrimPrefix is a no-op when the prefix is absent, so the
 		// entire input is hashed. Documenting the actual behavior.
 		raw := "no-prefix-here"
@@ -138,6 +150,8 @@ func TestShortLivedCacheKey(t *testing.T) {
 	})
 
 	t.Run("derivation_is_deterministic", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE / ACT
 		first := ShortLivedCacheKey(token)
 		second := ShortLivedCacheKey(token)
@@ -147,6 +161,8 @@ func TestShortLivedCacheKey(t *testing.T) {
 	})
 
 	t.Run("different_secrets_derive_different_keys", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE / ACT
 		keyA := ShortLivedCacheKey(ShortLivedTokenPrefix + "secret-a")
 		keyB := ShortLivedCacheKey(ShortLivedTokenPrefix + "secret-b")
@@ -156,6 +172,8 @@ func TestShortLivedCacheKey(t *testing.T) {
 	})
 
 	t.Run("raw_secret_never_appears_in_the_key", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE / ACT
 		key := ShortLivedCacheKey(token)
 
@@ -173,6 +191,8 @@ func TestShortLivedCacheKey(t *testing.T) {
 // shapes the in-memory and Redis caches return — otherwise a reconstructed
 // session could silently gain or lose authority.
 func TestMarshalUnmarshalShortLivedPayload_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		payload ShortLivedPayload
@@ -202,6 +222,8 @@ func TestMarshalUnmarshalShortLivedPayload_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			encoded, err := MarshalShortLivedPayload(tt.payload)
 			require.NoError(t, err)
@@ -227,7 +249,11 @@ func TestMarshalUnmarshalShortLivedPayload_RoundTrip(t *testing.T) {
 // omit them (omitempty) so the cached blob cannot be misread as carrying an
 // empty (= deny-all) ability set. Also pins the stable JSON field names.
 func TestMarshalShortLivedPayload_OmitsEmptyScopeFields(t *testing.T) {
+	t.Parallel()
+
 	t.Run("empty_pat_and_abilities_are_omitted", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		payload := ShortLivedPayload{UserID: 42, Login: "alice", Email: "alice@example.com"}
 
@@ -243,6 +269,8 @@ func TestMarshalShortLivedPayload_OmitsEmptyScopeFields(t *testing.T) {
 	})
 
 	t.Run("populated_scope_fields_use_the_stable_field_names", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		payload := ShortLivedPayload{
 			UserID:    7,
@@ -269,6 +297,8 @@ func TestMarshalShortLivedPayload_OmitsEmptyScopeFields(t *testing.T) {
 // non-JSON/garbage value must return an error (never a zero-valued payload
 // that would otherwise authenticate as user id 0).
 func TestUnmarshalShortLivedPayload_RejectsBadInput(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		raw       any
@@ -313,6 +343,8 @@ func TestUnmarshalShortLivedPayload_RejectsBadInput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			payload, err := UnmarshalShortLivedPayload(tt.raw)
 

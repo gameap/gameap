@@ -2,7 +2,6 @@ package application
 
 import (
 	"log/slog"
-	"time"
 
 	getqueryapi "github.com/gameap/gameap/internal/api/servers/getquery"
 	rconbase "github.com/gameap/gameap/internal/api/servers/rcon/base"
@@ -45,7 +44,7 @@ func (c *Container) createQuerconResolver() *quercon.Resolver {
 		runner := pkgplugin.NewProtocolRunner(manager, c.connRegistry(), pkgplugin.NetDialPolicy{
 			BlockPrivateIPs: c.config.Plugin.Net.BlockPrivateIPs,
 			AllowedHosts:    c.config.Plugin.Net.AllowedHosts,
-			MaxTimeout:      time.Duration(c.config.Plugin.Net.MaxTimeoutSeconds) * time.Second,
+			MaxTimeout:      c.config.Plugin.Net.MaxTimeout,
 		})
 		cfg.RconExecutor = runner
 		cfg.QueryExecutor = runner

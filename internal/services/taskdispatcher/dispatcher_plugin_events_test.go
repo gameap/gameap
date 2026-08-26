@@ -42,6 +42,8 @@ func (f *fakePluginEvents) DispatchTaskEventAsync(
 }
 
 func TestDispatch_EmitsPluginTaskCreatedEvent(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()

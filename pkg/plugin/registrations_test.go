@@ -10,6 +10,7 @@ import (
 )
 
 func TestManager_GetAllRconProtocols_SortedAndFiltered(t *testing.T) {
+	t.Parallel()
 	m := NewManager(ManagerConfig{})
 	m.plugins["bbb"] = &LoadedPlugin{
 		Info: &proto.PluginInfo{Id: "bbb"}, Enabled: true,
@@ -35,6 +36,7 @@ func TestManager_GetAllRconProtocols_SortedAndFiltered(t *testing.T) {
 }
 
 func TestManager_GetAllQueryProtocols_SortedAndFiltered(t *testing.T) {
+	t.Parallel()
 	m := NewManager(ManagerConfig{})
 	m.plugins["zzz"] = &LoadedPlugin{
 		Info: &proto.PluginInfo{Id: "zzz"}, Enabled: true,

@@ -50,6 +50,7 @@ func seedTwoFactorChallenge(t *testing.T, c cache.Cache, userID uint, login, ema
 // must be refused with 401, must not reach the protected handler, and must not
 // consume the challenge cache entry.
 func TestAuthMiddleware_TwoFactorChallenge_NotAcceptedAsBearer(t *testing.T) {
+	t.Parallel()
 	user := &domain.User{ID: 77, Login: "bob", Email: "bob@example.com", TwoFactorEnabled: true}
 	userRepo := inmemory.NewUserRepository()
 	require.NoError(t, userRepo.Save(context.Background(), user))
@@ -85,6 +86,7 @@ func TestAuthMiddleware_TwoFactorChallenge_NotAcceptedAsBearer(t *testing.T) {
 // token — scope confinement cannot be side-stepped by moving the token to the
 // URL.
 func TestAuthMiddleware_TwoFactorChallenge_NotAcceptedAsQueryToken(t *testing.T) {
+	t.Parallel()
 	user := &domain.User{ID: 78, Login: "carol", Email: "carol@example.com", TwoFactorEnabled: true}
 	userRepo := inmemory.NewUserRepository()
 	require.NoError(t, userRepo.Save(context.Background(), user))

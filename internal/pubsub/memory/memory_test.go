@@ -12,6 +12,8 @@ import (
 )
 
 func TestMemory_PublishSubscribe(t *testing.T) {
+	t.Parallel()
+
 	m := New()
 	defer m.Close()
 
@@ -41,6 +43,8 @@ func TestMemory_PublishSubscribe(t *testing.T) {
 }
 
 func TestMemory_PatternMatching(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		pattern     string
@@ -81,6 +85,8 @@ func TestMemory_PatternMatching(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			m := New()
 			defer m.Close()
 
@@ -113,6 +119,8 @@ func TestMemory_PatternMatching(t *testing.T) {
 }
 
 func TestMemory_Unsubscribe(t *testing.T) {
+	t.Parallel()
+
 	m := New()
 	defer m.Close()
 
@@ -142,6 +150,8 @@ func TestMemory_Unsubscribe(t *testing.T) {
 }
 
 func TestMemory_EmptyPattern(t *testing.T) {
+	t.Parallel()
+
 	m := New()
 	defer m.Close()
 
@@ -153,6 +163,8 @@ func TestMemory_EmptyPattern(t *testing.T) {
 }
 
 func TestMemory_ClosedPubSub(t *testing.T) {
+	t.Parallel()
+
 	m := New()
 	_ = m.Close()
 
@@ -167,6 +179,8 @@ func TestMemory_ClosedPubSub(t *testing.T) {
 }
 
 func TestMemory_MultipleSubscribers(t *testing.T) {
+	t.Parallel()
+
 	m := New()
 	defer m.Close()
 
@@ -201,6 +215,8 @@ func TestMemory_MultipleSubscribers(t *testing.T) {
 }
 
 func TestMemory_HandlerPanicRecovery(t *testing.T) {
+	t.Parallel()
+
 	m := New()
 	defer m.Close()
 

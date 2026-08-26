@@ -9,6 +9,8 @@ import (
 )
 
 func TestParseGameExport(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		input      string
@@ -143,6 +145,8 @@ game:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			export, err := ParseGameExport([]byte(tt.input))
 
 			if tt.wantError != "" {
@@ -163,6 +167,8 @@ game:
 }
 
 func TestGameExport_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		export    *GameExport
@@ -656,6 +662,8 @@ func TestGameExport_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.export.Validate()
 
 			if tt.wantError != "" {
@@ -671,6 +679,8 @@ func TestGameExport_Validate(t *testing.T) {
 }
 
 func TestValidateModCommands(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		mod       GameExportMod
@@ -916,6 +926,8 @@ func TestValidateModCommands(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			mod := tt.mod
 
@@ -936,6 +948,8 @@ func TestValidateModCommands(t *testing.T) {
 }
 
 func TestGameExportGame_ToDomainGame(t *testing.T) {
+	t.Parallel()
+
 	exportGame := &GameExportGame{
 		Code:                    "cstrike",
 		Name:                    "Counter-Strike 1.6",
@@ -971,6 +985,8 @@ func TestGameExportGame_ToDomainGame(t *testing.T) {
 }
 
 func TestGameExportMod_ToDomainGameMod(t *testing.T) {
+	t.Parallel()
+
 	exportMod := &GameExportMod{
 		Name: "Classic",
 		FastRcon: []GameExportModFastRcon{
@@ -1014,6 +1030,8 @@ func TestGameExportMod_ToDomainGameMod(t *testing.T) {
 }
 
 func TestNewGameExportFromDomain(t *testing.T) {
+	t.Parallel()
+
 	game := &Game{
 		Code:                    "cstrike",
 		Name:                    "Counter-Strike 1.6",
@@ -1071,6 +1089,8 @@ func TestNewGameExportFromDomain(t *testing.T) {
 }
 
 func TestNewGameExportFromDomain_FastRconAndVarsNilWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		fastRcon        GameModFastRconList
@@ -1118,6 +1138,8 @@ func TestNewGameExportFromDomain_FastRconAndVarsNilWhenEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			mods := []GameMod{
 				{
@@ -1151,6 +1173,8 @@ func TestNewGameExportFromDomain_FastRconAndVarsNilWhenEmpty(t *testing.T) {
 }
 
 func TestNewGameExportFromDomain_ExportedByWithoutVersion(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	game := &Game{
 		Code:    "cstrike",
@@ -1167,6 +1191,8 @@ func TestNewGameExportFromDomain_ExportedByWithoutVersion(t *testing.T) {
 }
 
 func TestGameExport_ToYAML(t *testing.T) {
+	t.Parallel()
+
 	export := &GameExport{
 		SchemaVersion: "1.0",
 		ExportedAt:    "2024-01-15T10:30:00Z",
@@ -1196,4 +1222,224 @@ func TestGameExport_ToYAML(t *testing.T) {
 	require.Len(t, parsed.Mods, 1)
 	assert.Equal(t, "Default", parsed.Mods[0].Name)
 	assert.Equal(t, "./start.sh", *parsed.Mods[0].StartCmdLinux)
+}
+
+func TestGameExport_TypedVarsRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	source := `
+schema_version: "1.0"
+game:
+  code: minecraft
+  name: Minecraft
+  engine: Java
+mods:
+  - name: Default
+    fast_rcon:
+      - info: Status
+        command: status
+        i18n:
+          ru:
+            info: Статус
+    vars:
+      - var: version
+        default: '1.20.4'
+        info: Minecraft version
+        admin_var: true
+        type: select
+        description: The version the server runs
+        allow_custom: true
+        options:
+          - '1.21'
+          - {value: '1.20.4', label: 1.20.4 (LTS), i18n: {ru: {label: 1.20.4 (LTS)}}}
+        rules:
+          min_length: 1
+          max_length: 16
+          pattern: '[0-9.]+'
+        i18n:
+          ru:
+            info: Версия Minecraft
+      - var: pvp
+        default: 'on'
+        info: PvP
+        type: bool
+        true_value: 'on'
+        false_value: 'off'
+      - var: maxplayers
+        default: 20
+        info: Max players
+        type: int
+        rules:
+          required: true
+          min: 1
+          max: 64
+`
+
+	// ACT
+	export, err := ParseGameExport([]byte(source))
+	require.NoError(t, err)
+
+	validateErr := export.Validate()
+
+	// ASSERT
+	require.NoError(t, validateErr)
+	require.Len(t, export.Mods, 1)
+	require.Len(t, export.Mods[0].Vars, 3)
+
+	version := export.Mods[0].Vars[0]
+	assert.Equal(t, GameModVarTypeSelect, version.Type)
+	assert.True(t, version.AllowCustom)
+	assert.Equal(t, "The version the server runs", version.Description)
+	assert.Equal(t, GameModVarOptions{
+		{Value: "1.21"},
+		{Value: "1.20.4", Label: "1.20.4 (LTS)", I18n: GameModVarOptionI18n{"ru": {Label: "1.20.4 (LTS)"}}},
+	}, version.Options)
+	require.NotNil(t, version.Rules)
+	assert.Equal(t, 16, *version.Rules.MaxLength)
+	assert.Equal(t, GameModVarI18n{"ru": {Info: "Версия Minecraft"}}, version.I18n)
+
+	pvp := export.Mods[0].Vars[1]
+	require.NotNil(t, pvp.TrueValue)
+	require.NotNil(t, pvp.FalseValue)
+	assert.Equal(t, "on", *pvp.TrueValue)
+	assert.Equal(t, "off", *pvp.FalseValue)
+
+	// A bare YAML number reaches the panel as its literal text.
+	assert.Equal(t, GameModVarDefault("20"), export.Mods[0].Vars[2].Default)
+
+	assert.Equal(t,
+		GameModFastRconI18n{"ru": {Info: "Статус"}},
+		export.Mods[0].FastRcon[0].I18n,
+	)
+
+	// ACT: the round trip through the domain model and back must not lose a field.
+	// The comparison is made against a second parse: a conversion that mutated
+	// its source would otherwise be compared against its own output.
+	original, originalErr := ParseGameExport([]byte(source))
+	require.NoError(t, originalErr)
+
+	gameMod := export.Mods[0].ToDomainGameMod(export.Game.Code)
+	reexported := NewGameExportFromDomain(export.Game.ToDomainGame(), []GameMod{*gameMod}, "")
+
+	encoded, encodeErr := reexported.ToYAML()
+	require.NoError(t, encodeErr)
+
+	reparsed, parseErr := ParseGameExport(encoded)
+
+	// ASSERT
+	require.NoError(t, parseErr)
+	require.Len(t, reparsed.Mods, 1)
+	assert.Equal(t, original.Mods[0].Vars, reparsed.Mods[0].Vars)
+	assert.Equal(t, original.Mods[0].FastRcon, reparsed.Mods[0].FastRcon)
+}
+
+// Normalize rewrites an option in place, so both conversions have to work on a
+// copy of the option list: a shared backing array would let a conversion edit
+// the definition the caller still holds.
+func TestGameExportMod_ConversionsDoNotRewriteTheirSource(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE: a label repeating its value and an en translation are exactly
+	// what Normalize drops.
+	sourceOptions := func() GameModVarOptions {
+		return GameModVarOptions{
+			{Value: "vanilla", Label: "vanilla"},
+			{Value: "paper", Label: "Paper", I18n: GameModVarOptionI18n{"en": {Label: "Paper"}}},
+		}
+	}
+
+	exportMod := GameExportMod{
+		Name: "Vanilla",
+		Vars: []GameExportModVar{
+			{Var: "mod", Default: "vanilla", Info: "Mod", Type: GameModVarTypeSelect, Options: sourceOptions()},
+		},
+	}
+
+	gameMod := GameMod{
+		GameCode: "minecraft",
+		Name:     "Vanilla",
+		Vars: GameModVarList{
+			{Var: "mod", Default: "vanilla", Info: "Mod", Type: GameModVarTypeSelect, Options: sourceOptions()},
+		},
+	}
+
+	// ACT
+	converted := exportMod.ToDomainGameMod("minecraft")
+	exported := NewGameExportFromDomain(&Game{Code: "minecraft"}, []GameMod{gameMod}, "")
+
+	// ASSERT
+	normalized := GameModVarOptions{{Value: "vanilla"}, {Value: "paper", Label: "Paper"}}
+
+	require.Len(t, converted.Vars, 1)
+	assert.Equal(t, normalized, converted.Vars[0].Options)
+	require.Len(t, exportMod.Vars, 1)
+	assert.Equal(t, sourceOptions(), exportMod.Vars[0].Options)
+
+	require.Len(t, exported.Mods, 1)
+	require.Len(t, exported.Mods[0].Vars, 1)
+	assert.Equal(t, normalized, exported.Mods[0].Vars[0].Options)
+	require.Len(t, gameMod.Vars, 1)
+	assert.Equal(t, sourceOptions(), gameMod.Vars[0].Options)
+}
+
+func TestGameExport_Validate_RejectsInvalidVars(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		vars      string
+		wantError string
+	}{
+		{
+			name:      "select_without_options",
+			vars:      "      - var: mod\n        info: Mod\n        type: select\n",
+			wantError: "type select requires a non-empty options list",
+		},
+		{
+			name:      "unknown_type",
+			vars:      "      - var: mod\n        info: Mod\n        type: date\n",
+			wantError: "unknown variable type: date",
+		},
+		{
+			name:      "duplicate_names",
+			vars:      "      - var: mod\n        info: Mod\n      - var: mod\n        info: Mod again\n",
+			wantError: "duplicate variable name: mod",
+		},
+		{
+			name:      "name_too_long",
+			vars:      "      - var: a_very_long_environment_variable_name\n        info: Long\n",
+			wantError: "variable name must be at most 32 characters",
+		},
+		{
+			name:      "missing_info",
+			vars:      "      - var: mod\n",
+			wantError: "variable info is required",
+		},
+		{
+			name:      "pattern_with_lookahead",
+			vars:      "      - var: mod\n        info: Mod\n        rules:\n          pattern: '(?=a).*'\n",
+			wantError: "invalid regular expression",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			source := "schema_version: \"1.0\"\ngame:\n  code: minecraft\n  name: Minecraft\n  engine: Java\n" +
+				"mods:\n  - name: Default\n    vars:\n" + test.vars
+
+			export, err := ParseGameExport([]byte(source))
+			require.NoError(t, err)
+
+			// ACT
+			validateErr := export.Validate()
+
+			// ASSERT
+			require.Error(t, validateErr)
+			assert.Contains(t, validateErr.Error(), test.wantError)
+		})
+	}
 }

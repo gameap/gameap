@@ -28,12 +28,9 @@
 
         <div v-if="isAdmin" class="w-full px-2">
           <div class="flex flex-col items-center w-full mb-3 border-stone-700">
-            <router-link v-for="link in adminLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2">
-              <GIcon :name="link.icon" class="ml-1" />
-            </router-link>
             <router-link
-                v-for="item in pluginAdminMenuItems"
-                :key="item.pluginId + '-' + item.text"
+                v-for="item in adminMenuItems"
+                :key="item.key"
                 :to="item.route"
                 class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2"
             >
@@ -106,18 +103,14 @@
 
       <div v-if="isAdmin" class="w-full px-2">
         <div class="flex flex-col items-center w-full mb-3 border-stone-700">
-          <router-link v-for="link in adminLinks" :to="link.route" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2">
-            <GIcon :name="link.icon" class="ml-1" />
-            <span class="ml-2 text-sm font-medium">{{ link.text }}</span>
-          </router-link>
           <router-link
-              v-for="item in pluginAdminMenuItems"
-              :key="item.pluginId + '-' + item.text"
+              v-for="item in adminMenuItems"
+              :key="item.key"
               :to="item.route"
               class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2"
           >
             <GIcon :name="item.icon" class="ml-1" />
-            <span class="ml-2 text-sm font-medium">{{ pluginsStore.resolvePluginText(item.pluginId, item.text) }}</span>
+            <span class="ml-2 text-sm font-medium">{{ item.text }}</span>
           </router-link>
         </div>
       </div>
@@ -161,10 +154,11 @@
 
 import {trans} from "@/i18n/i18n";
 import {ref, computed} from "vue";
-import {adminLinks, serversLinks} from "./bars";
+import {serversLinks} from "./bars";
 import {useAuthStore} from "@/store/auth";
 import {useUISettingsStore} from "@/store/uiSettings";
 import {usePluginsStore} from "@/store/plugins";
+import {useAdminMenuItems} from "@/composables/useAdminMenuItems";
 
 const authStore = useAuthStore()
 const uiSettingsStore = useUISettingsStore()
@@ -191,9 +185,7 @@ const pluginServersMenuItems = computed(() => {
   return pluginsStore.getMenuItems('servers')
 })
 
-const pluginAdminMenuItems = computed(() => {
-  return pluginsStore.getMenuItems('admin')
-})
+const adminMenuItems = useAdminMenuItems()
 
 const customPluginSections = computed(() => {
   const items = pluginsStore.getMenuItems('custom')

@@ -71,6 +71,8 @@ func assertSameInstance(t *testing.T, first, second any, msg string) {
 // does not mask the rest, and so any accessor that turns out to bind/dial is
 // trivially identifiable by name.
 func TestContainerLazySingletonSweep(t *testing.T) {
+	t.Parallel()
+
 	type accessor struct {
 		name string
 		get  func(c *Container) any
@@ -91,6 +93,7 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"NodeRepository", func(c *Container) any { return c.NodeRepository() }},
 		{"ClientCertificateRepository", func(c *Container) any { return c.ClientCertificateRepository() }},
 		{"PluginStorageRepository", func(c *Container) any { return c.PluginStorageRepository() }},
+		{"PluginSecretRepository", func(c *Container) any { return c.PluginSecretRepository() }},
 		{"DLQRepository", func(c *Container) any { return c.DLQRepository() }},
 		{"PluginRepository", func(c *Container) any { return c.PluginRepository() }},
 
@@ -112,6 +115,8 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"ServerControlService", func(c *Container) any { return c.ServerControlService() }},
 		{"CertificatesService", func(c *Container) any { return c.CertificatesService() }},
 		{"EnrollmentService", func(c *Container) any { return c.EnrollmentService() }},
+		{"EnrollmentConnectResolver", func(c *Container) any { return c.EnrollmentConnectResolver() }},
+		{"NodeService", func(c *Container) any { return c.NodeService() }},
 		{"GlobalAPIService", func(c *Container) any { return c.GlobalAPIService() }},
 		{"CDNGamesService", func(c *Container) any { return c.CDNGamesService() }},
 		{"CaptchaVerifier", func(c *Container) any { return c.CaptchaVerifier() }},
@@ -125,7 +130,9 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"PluginManager", func(c *Container) any { return c.PluginManager() }},
 		{"PluginDispatcher", func(c *Container) any { return c.PluginDispatcher() }},
 		{"PluginLoader", func(c *Container) any { return c.PluginLoader() }},
+		{"PluginRecovery", func(c *Container) any { return c.PluginRecovery() }},
 		{"PluginStoreService", func(c *Container) any { return c.PluginStoreService() }},
+		{"PluginSSH", func(c *Container) any { return c.PluginSSH() }},
 
 		// Dispatchers
 		{"TaskDispatcher", func(c *Container) any { return c.TaskDispatcher() }},
@@ -175,6 +182,8 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 
 	for _, a := range accessors {
 		t.Run(a.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			// newWiredContainer leaves AuthService unset; createAuthService
 			// panics on an empty value (the paseto default is only applied by
@@ -198,7 +207,11 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 // of representative repositories. newMinimalContainer is used because the
 // inmemory repositories never touch a database handle.
 func TestRepositoryFactoryInMemoryDriver(t *testing.T) {
+	t.Parallel()
+
 	t.Run("server_repository_uses_inmemory_implementation", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{DatabaseDriver: databaseDriverInMemory})
 
@@ -212,6 +225,8 @@ func TestRepositoryFactoryInMemoryDriver(t *testing.T) {
 	})
 
 	t.Run("game_mod_repository_uses_inmemory_implementation", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{DatabaseDriver: databaseDriverInMemory})
 
@@ -231,7 +246,11 @@ func TestRepositoryFactoryInMemoryDriver(t *testing.T) {
 // the in-memory implementation. These tests assert the code as it is — they do
 // not endorse the inconsistency, only fence it so a change is noticed.
 func TestRepositoryFactoryUnknownDriverBehaviour(t *testing.T) {
+	t.Parallel()
+
 	t.Run("create_game_repository_panics_on_unknown_driver", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{DatabaseDriver: "totally-unknown"})
 
@@ -242,6 +261,8 @@ func TestRepositoryFactoryUnknownDriverBehaviour(t *testing.T) {
 	})
 
 	t.Run("create_game_mod_repository_falls_back_to_inmemory_on_unknown_driver", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		c := newMinimalContainer(&config.Config{DatabaseDriver: "totally-unknown"})
 

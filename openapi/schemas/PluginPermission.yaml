@@ -1,0 +1,26 @@
+type: string
+description: |
+  A capability the panel can grant to a plugin. `manage_servers` gates
+  server control, daemon task creation and server / server-setting writes;
+  `node_commands` gates command execution on nodes (gameap-nodecmd and
+  cmdexec daemon tasks); `files` gates gameap-nodefs (reads and writes) and
+  file responses; `files_read` gates only the read operations of
+  gameap-nodefs and file responses — `files` includes it; `listen_events`
+  gates event subscriptions; `manage_rbac` gates gameap-rbac; `secrets`
+  gates gameap-secrets; `ssh` gates gameap-ssh, which reaches hosts the
+  plugin names itself rather than nodes the panel knows. The remaining
+  values are reserved for host libraries that do not exist yet.
+enum:
+  - manage_servers
+  - manage_nodes
+  - manage_games
+  - manage_game_mods
+  - manage_users
+  - manage_rbac
+  - files
+  - files_read
+  - listen_events
+  - secrets
+  - node_commands
+  - ssh
+example: "files"

@@ -138,6 +138,7 @@ func makeNode() *domain.Node {
 // in-memory tests miss this because InMemoryFileManager.List returns full
 // recursive keys.
 func TestService_Complete_LocalStorage(t *testing.T) {
+	t.Parallel()
 	payload := []byte("0123456789")
 	checksum := sha256Hex(t, payload)
 
@@ -173,6 +174,7 @@ func TestService_Complete_LocalStorage(t *testing.T) {
 // reports zero received_chunks and a full missing list, defeating client-side
 // resume.
 func TestService_Status_LocalStorage(t *testing.T) {
+	t.Parallel()
 	payload := []byte("0123456789")
 	checksum := sha256Hex(t, payload)
 
@@ -202,6 +204,7 @@ func TestService_Status_LocalStorage(t *testing.T) {
 }
 
 func TestService_Create(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		cfg       upload.Config
@@ -317,6 +320,7 @@ func TestService_Create(t *testing.T) {
 	checksum := sha256Hex(t, []byte("payload10b"))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			svc, storage, _, _ := newTestSetupWithConfig(t, tt.cfg)
 
@@ -361,6 +365,7 @@ func createSession(
 }
 
 func TestService_WriteChunk(t *testing.T) {
+	t.Parallel()
 	payload := []byte("0123456789") // 10 bytes, with chunkSize=4 => 3 chunks: 4,4,2
 	checksum := sha256Hex(t, payload)
 
@@ -508,6 +513,7 @@ func TestService_WriteChunk(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			svc, storage, _, _ := newTestSetup(t)
 			uploadID := tt.setup(t, svc)
@@ -532,6 +538,7 @@ func TestService_WriteChunk(t *testing.T) {
 }
 
 func TestService_WriteChunk_SizeMismatchKeepsHTTPStatus(t *testing.T) {
+	t.Parallel()
 	payload := []byte("0123456789")
 	checksum := sha256Hex(t, payload)
 	svc, _, _, _ := newTestSetup(t) //nolint:dogsled // 4 returns from setup, only svc needed
@@ -546,6 +553,7 @@ func TestService_WriteChunk_SizeMismatchKeepsHTTPStatus(t *testing.T) {
 }
 
 func TestService_WriteChunk_RejectsExpiredSession(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	payload := []byte("0123456789")
 	checksum := sha256Hex(t, payload)
@@ -562,6 +570,7 @@ func TestService_WriteChunk_RejectsExpiredSession(t *testing.T) {
 }
 
 func TestService_WriteChunk_RejectsAfterCompletion(t *testing.T) {
+	t.Parallel()
 	// ARRANGE — happy-path Complete writes the done sentinel.
 	payload := []byte("0123456789")
 	checksum := sha256Hex(t, payload)
@@ -579,10 +588,12 @@ func TestService_WriteChunk_RejectsAfterCompletion(t *testing.T) {
 }
 
 func TestService_Status(t *testing.T) {
+	t.Parallel()
 	payload := []byte("0123456789")
 	checksum := sha256Hex(t, payload)
 
 	t.Run("returns_received_and_missing_chunks", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 		uploadID := createSession(t, svc, 10, checksum).UploadID
@@ -605,6 +616,7 @@ func TestService_Status(t *testing.T) {
 	})
 
 	t.Run("returns_empty_lists_when_no_chunks_uploaded", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 		uploadID := createSession(t, svc, 10, checksum).UploadID
@@ -622,6 +634,7 @@ func TestService_Status(t *testing.T) {
 	})
 
 	t.Run("marks_completed_when_done_present", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, storage, daemon, _ := newTestSetup(t)
 		uploadID := uploadAllChunks(t, svc, payload, checksum)
@@ -638,6 +651,7 @@ func TestService_Status(t *testing.T) {
 	})
 
 	t.Run("rejects_other_user", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 		uploadID := createSession(t, svc, 10, checksum).UploadID
@@ -651,6 +665,7 @@ func TestService_Status(t *testing.T) {
 	})
 
 	t.Run("rejects_unknown_session", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 
@@ -674,10 +689,12 @@ func uploadAllChunks(t *testing.T, svc *upload.Service, payload []byte, checksum
 }
 
 func TestService_Complete(t *testing.T) {
+	t.Parallel()
 	payload := []byte("0123456789")
 	checksum := sha256Hex(t, payload)
 
 	t.Run("assembles_and_dispatches_when_checksum_matches", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, storage, daemon, _ := newTestSetup(t)
 		uploadID := uploadAllChunks(t, svc, payload, checksum)
@@ -698,6 +715,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("idempotent_when_done_present", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, storage, daemon, _ := newTestSetup(t)
 		uploadID := uploadAllChunks(t, svc, payload, checksum)
@@ -712,6 +730,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("returns_unprocessable_on_checksum_mismatch_and_keeps_chunks", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE — wrongChecksum at Create makes the assembled hash mismatch.
 		svc, storage, daemon, _ := newTestSetup(t)
 		wrongChecksum := strings.Repeat("a", 64)
@@ -740,6 +759,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("keeps_chunks_when_daemon_dispatch_returns_error", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, storage, daemon, _ := newTestSetup(t)
 		daemon.returnErr = errFakeDaemonDown
@@ -757,6 +777,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("hides_status_of_node_filesystem_failure", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, storage, fakeD, _ := newTestSetup(t)
 		fakeD.returnErr = &daemon.FileError{
@@ -782,6 +803,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("keeps_status_of_daemon_not_connected", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, fakeD, _ := newTestSetup(t)
 		fakeD.returnErr = daemon.ErrDaemonNotConnected
@@ -799,6 +821,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("returns_when_daemon_dispatch_times_out", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		cfg := defaultConfig()
 		cfg.DaemonDispatchTimeout = 20 * time.Millisecond
@@ -819,6 +842,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("returns_incomplete_when_chunk_missing", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, daemon, _ := newTestSetup(t)
 		uploadID := createSession(t, svc, 10, checksum).UploadID
@@ -836,6 +860,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("rejects_node_mismatch", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 		uploadID := uploadAllChunks(t, svc, payload, checksum)
@@ -849,6 +874,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("rejects_nil_node", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 		uploadID := uploadAllChunks(t, svc, payload, checksum)
@@ -862,6 +888,7 @@ func TestService_Complete(t *testing.T) {
 	})
 
 	t.Run("rejects_other_user", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 		uploadID := uploadAllChunks(t, svc, payload, checksum)
@@ -876,10 +903,12 @@ func TestService_Complete(t *testing.T) {
 }
 
 func TestService_Abort(t *testing.T) {
+	t.Parallel()
 	payload := []byte("0123456789")
 	checksum := sha256Hex(t, payload)
 
 	t.Run("removes_full_transfer_prefix", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, storage, _, _ := newTestSetup(t)
 		uploadID := createSession(t, svc, 10, checksum).UploadID
@@ -896,6 +925,7 @@ func TestService_Abort(t *testing.T) {
 	})
 
 	t.Run("returns_nil_when_session_not_found", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 
@@ -907,6 +937,7 @@ func TestService_Abort(t *testing.T) {
 	})
 
 	t.Run("idempotent_when_called_after_abort", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 		uploadID := createSession(t, svc, 10, checksum).UploadID
@@ -920,6 +951,7 @@ func TestService_Abort(t *testing.T) {
 	})
 
 	t.Run("rejects_other_user", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		svc, _, _, _ := newTestSetup(t)
 		uploadID := createSession(t, svc, 10, checksum).UploadID
@@ -934,6 +966,7 @@ func TestService_Abort(t *testing.T) {
 }
 
 func TestService_WriteChunk_ParallelDistinctIndices(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	payload := bytes.Repeat([]byte("X"), 40)
 	checksum := sha256Hex(t, payload)

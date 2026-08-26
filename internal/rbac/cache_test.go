@@ -11,6 +11,8 @@ import (
 )
 
 func TestCacheEntry_IsExpired(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		expiresAt time.Time
@@ -35,6 +37,7 @@ func TestCacheEntry_IsExpired(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			entry := &cacheEntry{
 				Permissions: make(map[domain.AbilityName][]domain.Permission),
 				ExpiresAt:   tt.expiresAt,
@@ -47,6 +50,8 @@ func TestCacheEntry_IsExpired(t *testing.T) {
 }
 
 func TestNewPermissionCache(t *testing.T) {
+	t.Parallel()
+
 	ttl := 5 * time.Minute
 	cache := newPermissionCache(ttl)
 
@@ -56,6 +61,8 @@ func TestNewPermissionCache(t *testing.T) {
 }
 
 func TestPermissionCache_SetAndGet(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(1 * time.Hour)
 	key := cacheKey{
 		EntityType: domain.EntityTypeUser,
@@ -76,6 +83,8 @@ func TestPermissionCache_SetAndGet(t *testing.T) {
 }
 
 func TestPermissionCache_Get_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(1 * time.Hour)
 	key := cacheKey{
 		EntityType: domain.EntityTypeUser,
@@ -88,6 +97,8 @@ func TestPermissionCache_Get_NonExistent(t *testing.T) {
 }
 
 func TestPermissionCache_Get_Expired(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(1 * time.Millisecond)
 	key := cacheKey{
 		EntityType: domain.EntityTypeUser,
@@ -110,6 +121,8 @@ func TestPermissionCache_Get_Expired(t *testing.T) {
 }
 
 func TestPermissionCache_Get_ZeroTTL(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(0)
 	key := cacheKey{
 		EntityType: domain.EntityTypeUser,
@@ -130,6 +143,8 @@ func TestPermissionCache_Get_ZeroTTL(t *testing.T) {
 }
 
 func TestPermissionCache_Set_ZeroTTL(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(0)
 	key := cacheKey{
 		EntityType: domain.EntityTypeUser,
@@ -148,6 +163,8 @@ func TestPermissionCache_Set_ZeroTTL(t *testing.T) {
 }
 
 func TestPermissionCache_Delete(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(1 * time.Hour)
 	key := cacheKey{
 		EntityType: domain.EntityTypeUser,
@@ -172,6 +189,8 @@ func TestPermissionCache_Delete(t *testing.T) {
 }
 
 func TestPermissionCache_Delete_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(1 * time.Hour)
 	key := cacheKey{
 		EntityType: domain.EntityTypeUser,
@@ -184,6 +203,8 @@ func TestPermissionCache_Delete_NonExistent(t *testing.T) {
 }
 
 func TestPermissionCache_Clear(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(1 * time.Hour)
 
 	key1 := cacheKey{EntityType: domain.EntityTypeUser, EntityID: 1}
@@ -213,6 +234,8 @@ func TestPermissionCache_Clear(t *testing.T) {
 }
 
 func TestPermissionCache_MultipleKeys(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(1 * time.Hour)
 
 	key1 := cacheKey{EntityType: domain.EntityTypeUser, EntityID: 1}
@@ -247,6 +270,8 @@ func TestPermissionCache_MultipleKeys(t *testing.T) {
 }
 
 func TestPermissionCache_OverwriteExisting(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(1 * time.Hour)
 	key := cacheKey{
 		EntityType: domain.EntityTypeUser,
@@ -270,6 +295,8 @@ func TestPermissionCache_OverwriteExisting(t *testing.T) {
 }
 
 func TestPermissionCache_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
 	cache := newPermissionCache(1 * time.Hour)
 	key := cacheKey{
 		EntityType: domain.EntityTypeUser,
@@ -300,6 +327,8 @@ func TestPermissionCache_ConcurrentAccess(t *testing.T) {
 }
 
 func TestPermissionCache_Cleanup(t *testing.T) {
+	t.Parallel()
+
 	synctest.Test(t, func(t *testing.T) {
 		cache := newPermissionCache(10 * time.Millisecond)
 

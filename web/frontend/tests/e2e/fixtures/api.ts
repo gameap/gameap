@@ -60,11 +60,49 @@ export async function seedGame(
   );
 }
 
+export type GameModVarType =
+  | 'string'
+  | 'text'
+  | 'int'
+  | 'float'
+  | 'bool'
+  | 'select'
+  | 'password';
+
+// An option is either the plain-string shorthand or the object form.
+export type GameModVarOption =
+  | string
+  | { value: string; label?: string; i18n?: Record<string, { label: string }> };
+
+export interface GameModVarRules {
+  required?: boolean;
+  min?: number;
+  max?: number;
+  min_length?: number;
+  max_length?: number;
+  pattern?: string;
+}
+
+// Mirrors openapi/schemas/GameModVar.yaml.
 export interface GameModVar {
   var: string;
   default?: string;
   info?: string;
   admin_var?: boolean;
+  type?: GameModVarType;
+  description?: string;
+  options?: GameModVarOption[];
+  allow_custom?: boolean;
+  true_value?: string;
+  false_value?: string;
+  rules?: GameModVarRules;
+  i18n?: Record<string, { info?: string; description?: string }>;
+}
+
+export interface GameModFastRcon {
+  info: string;
+  command: string;
+  i18n?: Record<string, { info: string }>;
 }
 
 // GameModDefinition mirrors CreateGameModRequest. CreateServerRequest requires a
@@ -75,6 +113,14 @@ export interface GameModDefinition {
   start_cmd_linux?: string;
   remote_repository_linux?: string | null;
   vars?: GameModVar[];
+  fast_rcon?: GameModFastRcon[];
+}
+
+// The full mod as GET /api/game_mods/{id} returns it.
+export interface GameModDetails extends GameModDefinition {
+  id: number;
+  vars: GameModVar[];
+  fast_rcon: GameModFastRcon[];
 }
 
 export interface GameModRecord {
@@ -141,6 +187,42 @@ export async function getGameModId(
   }
 
   return mod.id;
+}
+
+export async function getGameMod(
+  request: APIRequestContext,
+  token: string,
+  id: number,
+): Promise<GameModDetails> {
+  const response = await request.get(`${BASE_URL}/api/game_mods/${id}`, {
+    headers: authHeader(token),
+  });
+
+  if (!response.ok()) {
+    throw new Error(
+      `get game mod ${id} failed: ${response.status()} ${await response.text()}`,
+    );
+  }
+
+  return (await response.json()) as GameModDetails;
+}
+
+export async function updateGameMod(
+  request: APIRequestContext,
+  token: string,
+  id: number,
+  mod: GameModDefinition,
+): Promise<void> {
+  const response = await request.put(`${BASE_URL}/api/game_mods/${id}`, {
+    headers: { ...authHeader(token), 'Content-Type': 'application/json' },
+    data: mod,
+  });
+
+  if (!response.ok()) {
+    throw new Error(
+      `update game mod ${id} failed: ${response.status()} ${await response.text()}`,
+    );
+  }
 }
 
 export interface CreateServerInput {

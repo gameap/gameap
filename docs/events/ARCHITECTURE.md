@@ -235,6 +235,7 @@ sequenceDiagram
 | Cache | `cache:invalidate:*` | Application | CacheInvalidator |
 | Session | `daemon:session:connected` | SessionRegistry | - |
 | Session | `daemon:session:closed` | SessionRegistry | - |
+| Plugin | `plugin:sync` | Plugin admin handlers (install, update, uninstall, reload, permissions, config) | pluginsync reconciler (every instance; the payload is only a hint — the plugin table is re-read) |
 
 All channels are prefixed with `gameap:` (e.g., `gameap:realtime:task:status:{id}`). The WS Bridge strips this prefix when converting to WebSocket topics.
 
@@ -286,7 +287,7 @@ Configured via `config.PubSub.Driver`. Optional retry wrapper (`config.PubSub.Re
 ## Server Startup Sequence
 
 1. Create container (lazy-initializes all services)
-2. Run migrations, seed database, load plugins
+2. Run migrations, seed database; the pluginsync reconciler subscribes to `plugin:sync`, then plugins are loaded and the first reconcile pass runs
 3. `startPubSub()`:
    - CacheInvalidator subscribes to `cache:invalidate:*`
    - WS Bridge subscribes to `realtime:task:*` and `realtime:console:*`

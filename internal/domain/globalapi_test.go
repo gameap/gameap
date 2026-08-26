@@ -8,6 +8,8 @@ import (
 )
 
 func TestGlobalAPIGame_ToDomainGame(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    *GlobalAPIGame
@@ -199,6 +201,8 @@ func TestGlobalAPIGame_ToDomainGame(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			result := test.input.ToDomainGame()
 
@@ -209,6 +213,8 @@ func TestGlobalAPIGame_ToDomainGame(t *testing.T) {
 }
 
 func TestGlobalAPIGameMod_ToDomainGameMod(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    *GlobalAPIGameMod
@@ -467,6 +473,8 @@ func TestGlobalAPIGameMod_ToDomainGameMod(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE / ACT
 			result := test.input.ToDomainGameMod()
 
@@ -477,7 +485,11 @@ func TestGlobalAPIGameMod_ToDomainGameMod(t *testing.T) {
 }
 
 func TestGlobalAPIResponse_Structure(t *testing.T) {
+	t.Parallel()
+
 	t.Run("response_with_string_data", func(t *testing.T) {
+		t.Parallel()
+
 		response := GlobalAPIResponse[string]{
 			Data:    "test data",
 			Message: "Operation successful",
@@ -490,6 +502,8 @@ func TestGlobalAPIResponse_Structure(t *testing.T) {
 	})
 
 	t.Run("response_with_game_data", func(t *testing.T) {
+		t.Parallel()
+
 		game := GlobalAPIGame{
 			Code:   "test",
 			Name:   "Test Game",
@@ -508,6 +522,8 @@ func TestGlobalAPIResponse_Structure(t *testing.T) {
 	})
 
 	t.Run("response_with_game_slice", func(t *testing.T) {
+		t.Parallel()
+
 		games := []GlobalAPIGame{
 			{Code: "game1", Name: "Game One", Engine: "Engine1"},
 			{Code: "game2", Name: "Game Two", Engine: "Engine2"},
@@ -526,6 +542,8 @@ func TestGlobalAPIResponse_Structure(t *testing.T) {
 	})
 
 	t.Run("response_with_error", func(t *testing.T) {
+		t.Parallel()
+
 		response := GlobalAPIResponse[any]{
 			Data:    nil,
 			Message: "Not found",
@@ -539,6 +557,8 @@ func TestGlobalAPIResponse_Structure(t *testing.T) {
 }
 
 func TestGlobalAPIGame_WithMods(t *testing.T) {
+	t.Parallel()
+
 	game := &GlobalAPIGame{
 		Code:   "csgo",
 		Name:   "Counter-Strike: Global Offensive",
@@ -563,6 +583,8 @@ func TestGlobalAPIGame_WithMods(t *testing.T) {
 }
 
 func TestGlobalAPIGameMod_ToDomainGameMod_NilLists(t *testing.T) {
+	t.Parallel()
+
 	mod := &GlobalAPIGameMod{
 		ID:       1,
 		GameCode: "test",
@@ -578,6 +600,8 @@ func TestGlobalAPIGameMod_ToDomainGameMod_NilLists(t *testing.T) {
 }
 
 func TestGlobalAPIGameMod_ToDomainGameMod_EmptyLists(t *testing.T) {
+	t.Parallel()
+
 	mod := &GlobalAPIGameMod{
 		ID:       1,
 		GameCode: "test",

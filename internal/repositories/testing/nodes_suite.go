@@ -76,6 +76,7 @@ func (s *NodeRepositorySuite) TestNodeRepositorySave() {
 			ScriptGetConsole:    new("script-get-console"),
 			ScriptSendCommand:   new("script-send-command"),
 			ScriptDelete:        new("script-delete"),
+			Metadata:            domain.Metadata{"region": "fsn1", "hetzner.server_id": "123"},
 		}
 
 		// ACT
@@ -134,6 +135,48 @@ func (s *NodeRepositorySuite) TestNodeRepositorySave() {
 		assert.Equal(t, "script-send-command", *nodes[0].ScriptSendCommand)
 		require.NotNil(t, nodes[0].ScriptDelete)
 		assert.Equal(t, "script-delete", *nodes[0].ScriptDelete)
+		require.NotNil(t, nodes[0].Metadata)
+		assert.Equal(t, "fsn1", nodes[0].Metadata["region"])
+		assert.Equal(t, "123", nodes[0].Metadata["hetzner.server_id"])
+	})
+
+	s.T().Run("metadata_is_replaced_and_cleared", func(t *testing.T) {
+		// ARRANGE
+		node := &domain.Node{
+			Name:                "Metadata Node",
+			OS:                  domain.NodeOSLinux,
+			Location:            "US-East",
+			WorkPath:            "/var/gameap",
+			GdaemonHost:         "localhost",
+			GdaemonPort:         31717,
+			GdaemonAPIKey:       "metadata-node-key",
+			GdaemonServerCert:   "cert-data",
+			ClientCertificateID: 1,
+			PreferInstallMethod: domain.NodePreferInstallMethodAuto,
+			Metadata:            domain.Metadata{"a": "1", "b": "2"},
+		}
+		require.NoError(t, s.repo.Save(ctx, node))
+
+		// ACT
+		node.Metadata = domain.Metadata{"c": "3"}
+		require.NoError(t, s.repo.Save(ctx, node))
+
+		// ASSERT
+		nodes, err := s.repo.Find(ctx, filters.FindNodeByIDs(node.ID), nil, nil)
+		require.NoError(t, err)
+		require.Len(t, nodes, 1)
+		assert.Equal(t, "3", nodes[0].Metadata["c"])
+		assert.NotContains(t, nodes[0].Metadata, "a")
+
+		// ACT: clearing the bag stores NULL
+		node.Metadata = nil
+		require.NoError(t, s.repo.Save(ctx, node))
+
+		// ASSERT
+		nodes, err = s.repo.Find(ctx, filters.FindNodeByIDs(node.ID), nil, nil)
+		require.NoError(t, err)
+		require.Len(t, nodes, 1)
+		assert.Empty(t, nodes[0].Metadata)
 	})
 
 	s.T().Run("update_existing_node", func(t *testing.T) {
@@ -436,7 +479,8 @@ func (s *NodeRepositorySuite) TestNodeRepositoryFind() {
 	ctx := context.Background()
 
 	node1 := &domain.Node{
-		Name: "Find Node 1", OS: domain.NodeOSLinux, Location: "US", IPs: domain.IPList{"10.1.1.1"},
+		Enabled: true,
+		Name:    "Find Node 1", OS: domain.NodeOSLinux, Location: "US", IPs: domain.IPList{"10.1.1.1"},
 		WorkPath: "/var/gameap", GdaemonHost: "find1", GdaemonPort: 31717,
 		GdaemonAPIKey: "find-key-1", GdaemonAPIToken: new("token-1"),
 		GdaemonServerCert: "cert-1", ClientCertificateID: 1,
@@ -471,6 +515,34 @@ func (s *NodeRepositorySuite) TestNodeRepositoryFind() {
 		require.NoError(t, err)
 		assert.Len(t, results, 1)
 		assert.Equal(t, node1.ID, results[0].ID)
+	})
+
+	s.T().Run("find_by_enabled", func(t *testing.T) {
+		filter := &filters.FindNode{IDs: []uint{node1.ID, node2.ID}, Enabled: new(true)}
+
+		results, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, node1.ID, results[0].ID)
+	})
+
+	s.T().Run("find_by_os", func(t *testing.T) {
+		windows := domain.NodeOSWindows
+		filter := &filters.FindNode{IDs: []uint{node1.ID, node2.ID}, OS: &windows}
+
+		results, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, node2.ID, results[0].ID)
+	})
+
+	s.T().Run("find_by_enabled_and_os_without_match", func(t *testing.T) {
+		windows := domain.NodeOSWindows
+		filter := &filters.FindNode{IDs: []uint{node1.ID, node2.ID}, Enabled: new(true), OS: &windows}
+
+		results, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, results)
 	})
 
 	s.T().Run("find_with_nil_filter", func(t *testing.T) {

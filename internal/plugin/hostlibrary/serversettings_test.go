@@ -12,6 +12,7 @@ import (
 )
 
 func TestServerSettingsService_FindServerSettings(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.ServerSettingRepository)
@@ -98,10 +99,11 @@ func TestServerSettingsService_FindServerSettings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerSettingRepository()
 			tt.setupRepo(repo)
 
-			svc := NewServerSettingsService(repo)
+			svc := NewServerSettingsService(repo, allowAllGuard(testPluginID))
 			resp, err := svc.FindServerSettings(context.Background(), tt.request)
 
 			require.NoError(t, err)
@@ -121,6 +123,7 @@ func TestServerSettingsService_FindServerSettings(t *testing.T) {
 }
 
 func TestServerSettingsService_SaveServerSetting(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		request   *serversettings.SaveServerSettingRequest
@@ -154,8 +157,9 @@ func TestServerSettingsService_SaveServerSetting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewServerSettingRepository()
-			svc := NewServerSettingsService(repo)
+			svc := NewServerSettingsService(repo, allowAllGuard(testPluginID))
 
 			resp, err := svc.SaveServerSetting(context.Background(), tt.request)
 
@@ -185,6 +189,7 @@ func TestServerSettingsService_SaveServerSetting(t *testing.T) {
 }
 
 func TestServerSettingsService_SaveServerSetting_CreatesDuplicate(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewServerSettingRepository()
 	_ = repo.Save(context.Background(), &domain.ServerSetting{
 		ServerID: 1,
@@ -192,7 +197,7 @@ func TestServerSettingsService_SaveServerSetting_CreatesDuplicate(t *testing.T) 
 		Value:    domain.NewServerSettingValue("16"),
 	})
 
-	svc := NewServerSettingsService(repo)
+	svc := NewServerSettingsService(repo, allowAllGuard(testPluginID))
 
 	resp, err := svc.SaveServerSetting(context.Background(), &serversettings.SaveServerSettingRequest{
 		ServerId: 1,
@@ -212,6 +217,7 @@ func TestServerSettingsService_SaveServerSetting_CreatesDuplicate(t *testing.T) 
 }
 
 func TestConvertServerSettingsToProto(t *testing.T) {
+	t.Parallel()
 	settings := []domain.ServerSetting{
 		{
 			ID:       1,
@@ -241,10 +247,13 @@ func TestConvertServerSettingsToProto(t *testing.T) {
 	assert.Equal(t, "Test Server", result[1].Value)
 }
 
-func TestNewServerSettingsHostLibrary(t *testing.T) {
+func TestNewServerSettingsHostLibraryFactory(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewServerSettingRepository()
-	lib := NewServerSettingsHostLibrary(repo)
+	factory := NewServerSettingsHostLibraryFactory(repo, NewGuard(stubPermissionChecker{allowed: true}))
 
-	assert.NotNil(t, lib)
-	assert.NotNil(t, lib.impl)
+	lib, ok := factory.Create(42).(*ServerSettingsHostLibrary)
+	require.True(t, ok)
+	require.NotNil(t, lib.impl)
+	assert.Equal(t, uint64(42), lib.impl.guard.PluginID(), "factory must bind the plugin id")
 }

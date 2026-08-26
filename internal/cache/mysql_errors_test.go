@@ -47,6 +47,7 @@ func newMySQLWithMock(t *testing.T) (*cache.MySQL, sqlmock.Sqlmock, func()) {
 }
 
 func TestNewMySQL_EnsureTable_CreatesWhenMissing(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -66,6 +67,7 @@ func TestNewMySQL_EnsureTable_CreatesWhenMissing(t *testing.T) {
 }
 
 func TestNewMySQL_EnsureTable_PanicsWhenCheckErrors(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -92,6 +94,7 @@ func TestNewMySQL_EnsureTable_PanicsWhenCheckErrors(t *testing.T) {
 }
 
 func TestNewMySQL_EnsureTable_PanicsWhenCreateErrors(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -112,6 +115,7 @@ func TestNewMySQL_EnsureTable_PanicsWhenCreateErrors(t *testing.T) {
 }
 
 func TestMySQL_Get_ErrorPaths(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupMock func(sqlmock.Sqlmock)
@@ -151,6 +155,7 @@ func TestMySQL_Get_ErrorPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			c, mock, cleanup := newMySQLWithMock(t)
 			defer cleanup()
@@ -174,6 +179,7 @@ func TestMySQL_Get_ErrorPaths(t *testing.T) {
 }
 
 func TestMySQL_Get_ReturnsNotFoundWhenExpiredWithoutInlineDelete(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	c, mock, cleanup := newMySQLWithMock(t)
 	defer cleanup()
@@ -197,6 +203,7 @@ func TestMySQL_Get_ReturnsNotFoundWhenExpiredWithoutInlineDelete(t *testing.T) {
 }
 
 func TestMySQL_Set_ErrorPaths(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		key       string
@@ -228,6 +235,7 @@ func TestMySQL_Set_ErrorPaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			c, mock, cleanup := newMySQLWithMock(t)
 			defer cleanup()
@@ -245,6 +253,7 @@ func TestMySQL_Set_ErrorPaths(t *testing.T) {
 }
 
 func TestMySQL_Delete_WrapsExecError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	c, mock, cleanup := newMySQLWithMock(t)
 	defer cleanup()
@@ -262,6 +271,7 @@ func TestMySQL_Delete_WrapsExecError(t *testing.T) {
 }
 
 func TestMySQL_Clear_WrapsExecError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	c, mock, cleanup := newMySQLWithMock(t)
 	defer cleanup()
@@ -279,6 +289,7 @@ func TestMySQL_Clear_WrapsExecError(t *testing.T) {
 }
 
 func TestMySQL_CleanupExpired_WrapsExecError(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	c, mock, cleanup := newMySQLWithMock(t)
 	defer cleanup()
@@ -296,6 +307,7 @@ func TestMySQL_CleanupExpired_WrapsExecError(t *testing.T) {
 }
 
 func TestMySQL_CleanupExpired_Succeeds(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	c, mock, cleanup := newMySQLWithMock(t)
 	defer cleanup()

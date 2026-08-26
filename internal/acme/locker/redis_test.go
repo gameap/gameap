@@ -61,6 +61,8 @@ func cleanupKey(t *testing.T, client *redis.Client, key string) {
 }
 
 func TestRedisLocker_Acquire(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		ttl       time.Duration
@@ -73,6 +75,8 @@ func TestRedisLocker_Acquire(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			l, client := setupRedisLocker(t)
 			key := "acquire-" + tt.name
@@ -103,6 +107,8 @@ func TestRedisLocker_Acquire(t *testing.T) {
 }
 
 func TestRedisLocker_AcquireReturnsErrLockedOnCollision(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
@@ -122,6 +128,8 @@ func TestRedisLocker_AcquireReturnsErrLockedOnCollision(t *testing.T) {
 }
 
 func TestRedisLocker_ReleaseRemovesKeyOnlyWhenTokenMatches(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
@@ -147,6 +155,8 @@ func TestRedisLocker_ReleaseRemovesKeyOnlyWhenTokenMatches(t *testing.T) {
 }
 
 func TestRedisLocker_ReleaseIdempotent(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
@@ -165,6 +175,8 @@ func TestRedisLocker_ReleaseIdempotent(t *testing.T) {
 }
 
 func TestRedisLocker_RefreshExtendsTTL(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
@@ -186,6 +198,8 @@ func TestRedisLocker_RefreshExtendsTTL(t *testing.T) {
 }
 
 func TestRedisLocker_RefreshRejectsNonPositiveTTL(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ttl  time.Duration
@@ -196,6 +210,8 @@ func TestRedisLocker_RefreshRejectsNonPositiveTTL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			l, client := setupRedisLocker(t)
 			ctx := context.Background()
@@ -217,6 +233,8 @@ func TestRedisLocker_RefreshRejectsNonPositiveTTL(t *testing.T) {
 }
 
 func TestRedisLocker_RefreshAfterReleaseReturnsError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
@@ -236,6 +254,8 @@ func TestRedisLocker_RefreshAfterReleaseReturnsError(t *testing.T) {
 }
 
 func TestRedisLocker_RefreshReturnsErrLockLostWhenKeyTaken(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
@@ -259,6 +279,8 @@ func TestRedisLocker_RefreshReturnsErrLockLostWhenKeyTaken(t *testing.T) {
 }
 
 func TestRedisLocker_ConcurrentAcquireOnlyOneSucceeds(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()
@@ -294,6 +316,8 @@ func TestRedisLocker_ConcurrentAcquireOnlyOneSucceeds(t *testing.T) {
 }
 
 func TestRedisLocker_LockExpiresNaturallyAfterTTL(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	l, client := setupRedisLocker(t)
 	ctx := context.Background()

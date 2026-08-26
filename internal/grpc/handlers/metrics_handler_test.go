@@ -20,7 +20,9 @@ import (
 )
 
 func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
+	t.Parallel()
 	t.Run("poll_waiter_publishes_to_realtime_channel", func(t *testing.T) {
+		t.Parallel()
 		ps := memory.New()
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -92,6 +94,7 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 	})
 
 	t.Run("remote_waiter_publishes_to_response_channel", func(t *testing.T) {
+		t.Parallel()
 		ps := memory.New()
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -149,6 +152,7 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 	})
 
 	t.Run("unknown_request_id_is_dropped", func(t *testing.T) {
+		t.Parallel()
 		ps := memory.New()
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -173,6 +177,7 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 	})
 
 	t.Run("cancel_waiter_drops_subsequent_response", func(t *testing.T) {
+		t.Parallel()
 		ps := memory.New()
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -201,6 +206,7 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 	})
 
 	t.Run("nil_publisher_is_noop", func(t *testing.T) {
+		t.Parallel()
 		handler := NewMetricsHandler(nil, nil, slog.Default())
 		handler.RegisterPollWaiter("x", 1)
 
@@ -209,6 +215,7 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 	})
 
 	t.Run("drops_series_for_servers_not_on_this_node", func(t *testing.T) {
+		t.Parallel()
 		ps := memory.New()
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -285,6 +292,7 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 	})
 
 	t.Run("drops_publish_when_all_series_invalid", func(t *testing.T) {
+		t.Parallel()
 		ps := memory.New()
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -326,6 +334,7 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 }
 
 func TestMetricsHandler_pollWaiterExpires(t *testing.T) {
+	t.Parallel()
 	handler := NewMetricsHandler(memory.New(), nil, slog.Default())
 	handler.SetWaiterTTL(20 * time.Millisecond)
 
@@ -344,6 +353,7 @@ func TestMetricsHandler_pollWaiterExpires(t *testing.T) {
 }
 
 func TestMetricsHandler_CancelWaiter_removesWaiter(t *testing.T) {
+	t.Parallel()
 	handler := NewMetricsHandler(memory.New(), nil, slog.Default())
 	handler.SetWaiterTTL(20 * time.Millisecond)
 
@@ -370,6 +380,7 @@ func waiterAbsent(handler *MetricsHandler, requestID string) func() bool {
 }
 
 func TestMetricsHandler_HandleMetricsResponse_stopsReaperTimer(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	ps := memory.New()
 	t.Cleanup(func() { _ = ps.Close() })
@@ -399,6 +410,7 @@ func TestMetricsHandler_HandleMetricsResponse_stopsReaperTimer(t *testing.T) {
 }
 
 func TestMetricsHandler_registerWaiter_reRegistrationResetsReaper(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewMetricsHandler(memory.New(), nil, slog.Default())
 	handler.SetWaiterTTL(100 * time.Millisecond)
@@ -421,6 +433,7 @@ func TestMetricsHandler_registerWaiter_reRegistrationResetsReaper(t *testing.T) 
 }
 
 func TestMetricsHandler_SetWaiterTTL_ignoresNonPositive(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ttl  time.Duration
@@ -431,6 +444,7 @@ func TestMetricsHandler_SetWaiterTTL_ignoresNonPositive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := NewMetricsHandler(memory.New(), nil, slog.Default())
 			handler.SetWaiterTTL(250 * time.Millisecond)
@@ -446,6 +460,7 @@ func TestMetricsHandler_SetWaiterTTL_ignoresNonPositive(t *testing.T) {
 }
 
 func TestMetricsHandler_expireWaiter_alreadyRemovedID_isNoop(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewMetricsHandler(memory.New(), nil, slog.Default())
 

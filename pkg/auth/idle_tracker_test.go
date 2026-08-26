@@ -18,6 +18,8 @@ import (
 )
 
 func TestNoopIdleTracker_AlwaysReportsMissing(t *testing.T) {
+	t.Parallel()
+
 	tr := auth.NoopIdleTracker{}
 
 	require.NoError(t, tr.RecordActivity(context.Background(), "id", time.Minute))
@@ -29,6 +31,8 @@ func TestNoopIdleTracker_AlwaysReportsMissing(t *testing.T) {
 }
 
 func TestCacheIdleTracker_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	clk := &fakeClock{now: now}
 	tr := auth.NewCacheIdleTracker(cache.NewInMemory(), clk.Now)
@@ -45,6 +49,8 @@ func TestCacheIdleTracker_RoundTrip(t *testing.T) {
 }
 
 func TestCacheIdleTracker_MissingEntryReturnsFalse(t *testing.T) {
+	t.Parallel()
+
 	tr := auth.NewCacheIdleTracker(cache.NewInMemory(), nil)
 
 	age, present, err := tr.LastActivity(context.Background(), "never-recorded")
@@ -54,6 +60,8 @@ func TestCacheIdleTracker_MissingEntryReturnsFalse(t *testing.T) {
 }
 
 func TestCacheIdleTracker_TTLZeroIsNoop(t *testing.T) {
+	t.Parallel()
+
 	tr := auth.NewCacheIdleTracker(cache.NewInMemory(), nil)
 
 	require.NoError(t, tr.RecordActivity(context.Background(), "no-ttl", 0))
@@ -64,6 +72,8 @@ func TestCacheIdleTracker_TTLZeroIsNoop(t *testing.T) {
 }
 
 func TestCacheIdleTracker_ExpiredEntryReturnsFalse(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	clk := &fakeClock{now: now}
 

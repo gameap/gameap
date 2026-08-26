@@ -319,6 +319,8 @@ func (e *testEnv) runTaskSync(ctx context.Context, task domain.PluginScheduledTa
 }
 
 func TestNextSlot(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		nowMS    int64
@@ -333,6 +335,8 @@ func TestNextSlot(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := nextSlot(time.UnixMilli(tt.nowMS), tt.interval)
 
 			assert.Equal(t, time.UnixMilli(tt.wantMS), got)
@@ -341,11 +345,15 @@ func TestNextSlot(t *testing.T) {
 }
 
 func TestNextSlot_InvalidInterval(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, nextSlot(time.UnixMilli(10_000), 0).IsZero())
 	assert.True(t, nextSlot(time.UnixMilli(10_000), -time.Second).IsZero())
 }
 
 func TestFireDue_FiresAndAdvancesSlot(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	env := newTestEnv(t, nil)
 	task := testTask(time.Second)
@@ -374,6 +382,8 @@ func TestFireDue_FiresAndAdvancesSlot(t *testing.T) {
 }
 
 func TestFireDue_SkipsWhenRunningLocally(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	task := testTask(time.Second)
 	key := taskKey{pluginID: task.PluginID, name: task.Name}
@@ -394,6 +404,8 @@ func TestFireDue_SkipsWhenRunningLocally(t *testing.T) {
 }
 
 func TestFireDue_NotDueTaskUntouched(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	task := testTask(time.Second)
 	key := taskKey{pluginID: task.PluginID, name: task.Name}
@@ -414,6 +426,8 @@ func TestFireDue_NotDueTaskUntouched(t *testing.T) {
 }
 
 func TestRunTask_SkipsBeforeLocksWhenPluginNotLoaded(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.provider.plugins = map[string]*pkgplugin.LoadedPlugin{}
 
@@ -425,6 +439,8 @@ func TestRunTask_SkipsBeforeLocksWhenPluginNotLoaded(t *testing.T) {
 }
 
 func TestRunTask_SkipsWhenPluginDisabled(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.plugin.Disable()
 
@@ -435,6 +451,8 @@ func TestRunTask_SkipsWhenPluginDisabled(t *testing.T) {
 }
 
 func TestRunTask_SkipsWhenHandlerNotExported(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.instance.hasHandler = false
 
@@ -445,6 +463,8 @@ func TestRunTask_SkipsWhenHandlerNotExported(t *testing.T) {
 }
 
 func TestRunTask_SlotLockDeniedSkipsInvocation(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.locks.deny = func(key string) error {
 		if strings.HasPrefix(key, "pluginscheduler:slot:") {
@@ -464,6 +484,8 @@ func TestRunTask_SlotLockDeniedSkipsInvocation(t *testing.T) {
 }
 
 func TestRunTask_RunLockDeniedSkipsInvocation(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.locks.deny = func(key string) error {
 		if strings.HasPrefix(key, "pluginscheduler:run:") {
@@ -483,6 +505,8 @@ func TestRunTask_RunLockDeniedSkipsInvocation(t *testing.T) {
 }
 
 func TestRunTask_SuccessTakesBothLocksAndReleasesRunLock(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 
 	env.runTaskSync(context.Background(), testTask(time.Second), time.UnixMilli(10_000_000))
@@ -506,6 +530,8 @@ func TestRunTask_SuccessTakesBothLocksAndReleasesRunLock(t *testing.T) {
 }
 
 func TestRunTask_RetryPolicyRetriesWithJitter(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	env := newTestEnv(t, nil)
 	env.service.jitter = func(time.Duration) time.Duration { return 7 * time.Millisecond }
@@ -543,6 +569,8 @@ func TestRunTask_RetryPolicyRetriesWithJitter(t *testing.T) {
 }
 
 func TestRunTask_IgnorePolicySingleAttempt(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.instance.handleFunc = func(context.Context, *scheduler.HandleScheduledTaskRequest) error {
 		return errors.New("handler exploded")
@@ -555,6 +583,8 @@ func TestRunTask_IgnorePolicySingleAttempt(t *testing.T) {
 }
 
 func TestRunTask_RetryAbortsWhenRunLockLost(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.locks.refreshErr = locker.ErrLockLost
 	env.instance.handleFunc = func(context.Context, *scheduler.HandleScheduledTaskRequest) error {
@@ -576,6 +606,8 @@ func TestRunTask_RetryAbortsWhenRunLockLost(t *testing.T) {
 }
 
 func TestRunTask_CancelledContextStopsBeforeInvocation(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -586,6 +618,8 @@ func TestRunTask_CancelledContextStopsBeforeInvocation(t *testing.T) {
 }
 
 func TestRunTask_TimeoutDisablesPlugin(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.instance.handleFunc = func(ctx context.Context, _ *scheduler.HandleScheduledTaskRequest) error {
 		<-ctx.Done()
@@ -601,9 +635,15 @@ func TestRunTask_TimeoutDisablesPlugin(t *testing.T) {
 	require.Len(t, env.instance.recordedRequests(), 1)
 	assert.False(t, env.plugin.IsEnabled(),
 		"a handler eating the whole call budget must disable the plugin, mirroring the event dispatcher")
+
+	reason, ok := env.plugin.DisabledReason()
+	require.True(t, ok)
+	assert.Equal(t, "scheduled task timed out ("+task.Name+")", reason)
 }
 
 func TestRunTask_BusyErrorDoesNotDisablePlugin(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.instance.handleFunc = func(context.Context, *scheduler.HandleScheduledTaskRequest) error {
 		return errors.Wrap(pkgplugin.ErrPluginBusy, "gate is taken")
@@ -616,6 +656,8 @@ func TestRunTask_BusyErrorDoesNotDisablePlugin(t *testing.T) {
 }
 
 func TestRunTask_PanicRecoveredAndRunningCleared(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	env.instance.handleFunc = func(context.Context, *scheduler.HandleScheduledTaskRequest) error {
 		panic("handler exploded")
@@ -632,6 +674,8 @@ func TestRunTask_PanicRecoveredAndRunningCleared(t *testing.T) {
 }
 
 func TestReload_HydratesFromRepository(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	task := testTask(time.Second)
 	require.NoError(t, env.repo.Upsert(context.Background(), &task))
@@ -646,6 +690,8 @@ func TestReload_HydratesFromRepository(t *testing.T) {
 }
 
 func TestReload_AddsChangesAndRemoves(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: registry has a stale task and one whose interval changed
 	env := newTestEnv(t, nil)
 	now := env.clock.Now()
@@ -685,6 +731,8 @@ func TestReload_AddsChangesAndRemoves(t *testing.T) {
 }
 
 func TestReload_SkipsInvalidInterval(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	task := testTask(0)
 	require.NoError(t, env.repo.Upsert(context.Background(), &task))
@@ -711,6 +759,8 @@ func (r *erroringRepo) FindAll(ctx context.Context) ([]domain.PluginScheduledTas
 }
 
 func TestSafeRefresh_KeepsRegistryOnRepositoryError(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 	task := testTask(time.Second)
 	key := taskKey{pluginID: task.PluginID, name: task.Name}
@@ -729,6 +779,8 @@ func TestSafeRefresh_KeepsRegistryOnRepositoryError(t *testing.T) {
 }
 
 func TestDurationToNext(t *testing.T) {
+	t.Parallel()
+
 	env := newTestEnv(t, nil)
 
 	_, ok := env.service.durationToNext()
@@ -746,6 +798,8 @@ func TestDurationToNext(t *testing.T) {
 }
 
 func TestServiceLoop_FiresRegisteredTask(t *testing.T) {
+	t.Parallel()
+
 	// Integration of the real loop with the system clock and tiny intervals.
 	repo := inmemory.NewPluginScheduledTaskRepository()
 	instance := &fakePluginInstance{hasHandler: true}

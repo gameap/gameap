@@ -12,6 +12,8 @@ import (
 )
 
 func TestNewPASETOService(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		secretKey []byte
@@ -37,6 +39,8 @@ func TestNewPASETOService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			service, err := NewPASETOService(tt.secretKey)
 
 			if tt.wantError != "" {
@@ -54,6 +58,8 @@ func TestNewPASETOService(t *testing.T) {
 }
 
 func TestPASETOService_GenerateTokenForUser(t *testing.T) {
+	t.Parallel()
+
 	service, err := NewPASETOService([]byte("12345678901234567890123456789012"))
 	require.NoError(t, err)
 
@@ -93,6 +99,8 @@ func TestPASETOService_GenerateTokenForUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			token, err := service.GenerateTokenForUser(tt.user, tt.tokenDuration)
 
 			require.NoError(t, err)
@@ -102,6 +110,8 @@ func TestPASETOService_GenerateTokenForUser(t *testing.T) {
 }
 
 func TestPASETOService_ValidateToken(t *testing.T) {
+	t.Parallel()
+
 	service, err := NewPASETOService([]byte("12345678901234567890123456789012"))
 	require.NoError(t, err)
 
@@ -112,6 +122,8 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 	}
 
 	t.Run("valid_token", func(t *testing.T) {
+		t.Parallel()
+
 		token, err := service.GenerateTokenForUser(user, time.Hour)
 		require.NoError(t, err)
 
@@ -126,6 +138,8 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("invalid_token_format", func(t *testing.T) {
+		t.Parallel()
+
 		claims, err := service.ValidateToken("invalid-token")
 
 		require.Error(t, err)
@@ -134,6 +148,8 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("token_from_different_key", func(t *testing.T) {
+		t.Parallel()
+
 		differentService, err := NewPASETOService([]byte("different_key_1234567890123456"))
 		require.NoError(t, err)
 
@@ -147,6 +163,8 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("tampered_ciphertext_returns_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		token, err := service.GenerateTokenForUser(user, time.Hour)
 		require.NoError(t, err)
@@ -178,6 +196,8 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("wrong_footer_rejected", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		// Build a token by hand with a non-empty footer; ParseV4Local in the
 		// service uses a nil implicit, but the parser still must successfully
@@ -216,6 +236,8 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("nil_key_padded_round_trips", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		svc, err := NewPASETOService(nil)
 		require.NoError(t, err)
@@ -236,6 +258,8 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("GetExpirationTime_returns_expected_time", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		token, err := service.GenerateTokenForUser(user, time.Hour)
 		require.NoError(t, err)
@@ -255,6 +279,8 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 	})
 
 	t.Run("GetIssuedAt_returns_expected_time", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE — generateToken calls token.SetIssuedAt(time.Now()); this claim
 		// feeds the password-change token-invalidation check.
 		token, err := service.GenerateTokenForUser(user, time.Hour)
@@ -276,6 +302,8 @@ func TestPASETOService_ValidateToken(t *testing.T) {
 }
 
 func TestPASETOService_TokenExpiration(t *testing.T) {
+	t.Parallel()
+
 	service, err := NewPASETOService([]byte("12345678901234567890123456789012"))
 	require.NoError(t, err)
 
@@ -286,6 +314,8 @@ func TestPASETOService_TokenExpiration(t *testing.T) {
 	}
 
 	t.Run("token_with_negative_duration_expired", func(t *testing.T) {
+		t.Parallel()
+
 		token, err := service.GenerateTokenForUser(user, -time.Hour)
 		require.NoError(t, err)
 
@@ -297,6 +327,8 @@ func TestPASETOService_TokenExpiration(t *testing.T) {
 }
 
 func TestPASETOService_GenerateUniqueTokens(t *testing.T) {
+	t.Parallel()
+
 	service, err := NewPASETOService([]byte("12345678901234567890123456789012"))
 	require.NoError(t, err)
 
@@ -316,6 +348,8 @@ func TestPASETOService_GenerateUniqueTokens(t *testing.T) {
 }
 
 func TestPASETOService_SubjectFormat(t *testing.T) {
+	t.Parallel()
+
 	service, err := NewPASETOService([]byte("12345678901234567890123456789012"))
 	require.NoError(t, err)
 
@@ -343,6 +377,8 @@ func TestPASETOService_SubjectFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			user := &domain.User{
 				ID:    1,
 				Login: tt.login,

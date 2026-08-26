@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk/gamemods"
 	"github.com/gameap/gameap/pkg/plugin/sdk/games"
+	"github.com/gameap/gameap/pkg/plugin/sdk/host"
 	"github.com/gameap/gameap/pkg/plugin/sdk/log"
 	"github.com/gameap/gameap/pkg/plugin/sdk/scheduler"
 	"github.com/gameap/gameap/pkg/plugin/sdk/servers"
@@ -152,6 +153,21 @@ func (s *stubSchedulerService) ListTasks(
 	return &scheduler.ListTasksResponse{}, nil
 }
 
+// stubHostService satisfies host.HostService; the example plugin reads its
+// grants and host info during Initialize.
+type stubHostService struct{}
+
+func (s *stubHostService) GetGrants(context.Context, *host.GetGrantsRequest) (*host.GetGrantsResponse, error) {
+	return &host.GetGrantsResponse{Permissions: []string{"listen_events"}}, nil
+}
+
+func (s *stubHostService) GetHostInfo(
+	context.Context,
+	*host.GetHostInfoRequest,
+) (*host.GetHostInfoResponse, error) {
+	return &host.GetHostInfoResponse{PanelVersion: "test", PluginApiVersion: 1, InstanceId: "test"}, nil
+}
+
 // Shared plugin instance — Manager.Load is expensive because of WASM compilation,
 // and the wrapper API is read-only/idempotent for these tests. Each test queries
 // the same loaded plugin without observable cross-test interference. The WASM
@@ -161,6 +177,7 @@ var (
 	sharedPluginOnce sync.Once
 	sharedManager    *Manager
 	sharedPlugin     *LoadedPlugin
+	sharedHostStub   = &stubHostService{}
 	errSharedLoad    error
 )
 
@@ -175,25 +192,7 @@ func loadSharedServerLoggerWASM(t *testing.T) *LoadedPlugin {
 			return
 		}
 
-		cfg := ManagerConfig{
-			Libraries: []HostLibrary{
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return log.Instantiate(ctx, r, &stubLogService{})
-				}),
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return games.Instantiate(ctx, r, &stubGamesService{})
-				}),
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return gamemods.Instantiate(ctx, r, &stubGameModsService{})
-				}),
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return servers.Instantiate(ctx, r, &stubServersService{})
-				}),
-				hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
-					return scheduler.Instantiate(ctx, r, &stubSchedulerService{})
-				}),
-			},
-		}
+		cfg := ManagerConfig{Libraries: sharedTestHostLibraries()}
 		sharedManager = NewManager(cfg)
 		sharedPlugin, errSharedLoad = sharedManager.Load(
 			context.Background(), wasmBytes, map[string]string{}, 0,
@@ -207,6 +206,7 @@ func loadSharedServerLoggerWASM(t *testing.T) *LoadedPlugin {
 }
 
 func TestPluginServiceWrapper_GetInfo(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -225,6 +225,7 @@ func TestPluginServiceWrapper_GetInfo(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_Initialize(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -242,7 +243,10 @@ func TestPluginServiceWrapper_Initialize(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_HandleEvent(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_unhandled_when_payload_is_missing", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		plugin := loadSharedServerLoggerWASM(t)
 		event := &proto.Event{
@@ -261,6 +265,7 @@ func TestPluginServiceWrapper_HandleEvent(t *testing.T) {
 	})
 
 	t.Run("returns_handled_when_server_payload_present", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		plugin := loadSharedServerLoggerWASM(t)
 		event := &proto.Event{
@@ -292,6 +297,7 @@ func TestPluginServiceWrapper_HandleEvent(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetSubscribedEvents(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -313,6 +319,7 @@ func TestPluginServiceWrapper_GetSubscribedEvents(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_Shutdown(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -329,6 +336,7 @@ func TestPluginServiceWrapper_Shutdown(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetHTTPRoutes(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -354,7 +362,10 @@ func TestPluginServiceWrapper_GetHTTPRoutes(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_HandleHTTPRequest(t *testing.T) {
+	t.Parallel()
 	t.Run("status_endpoint_returns_ok_payload", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		plugin := loadSharedServerLoggerWASM(t)
 		req := &proto.HTTPRequest{
@@ -376,6 +387,7 @@ func TestPluginServiceWrapper_HandleHTTPRequest(t *testing.T) {
 	})
 
 	t.Run("unknown_path_returns_404", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		plugin := loadSharedServerLoggerWASM(t)
 		req := &proto.HTTPRequest{
@@ -395,6 +407,7 @@ func TestPluginServiceWrapper_HandleHTTPRequest(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetFrontendBundle(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -413,6 +426,7 @@ func TestPluginServiceWrapper_GetFrontendBundle(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetServerAbilities(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	plugin := loadSharedServerLoggerWASM(t)
 
@@ -433,6 +447,7 @@ func TestPluginServiceWrapper_GetServerAbilities(t *testing.T) {
 }
 
 func TestPluginServiceWrapper_GetFrontendBundle_NilFunctionReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	w := &pluginServiceWrapper{getfrontendbundle: nil}
 
@@ -447,6 +462,7 @@ func TestPluginServiceWrapper_GetFrontendBundle_NilFunctionReturnsEmpty(t *testi
 }
 
 func TestPluginServiceWrapper_GetServerAbilities_NilFunctionReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	w := &pluginServiceWrapper{getserverabilities: nil}
 
@@ -457,4 +473,29 @@ func TestPluginServiceWrapper_GetServerAbilities_NilFunctionReturnsEmpty(t *test
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.Nil(t, resp.Abilities, "wrapper must report nil abilities when export is missing")
+}
+
+// sharedTestHostLibraries are the host modules the embedded example plugin
+// imports; a runtime missing any of them fails to instantiate the module.
+func sharedTestHostLibraries() []HostLibrary {
+	return []HostLibrary{
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return log.Instantiate(ctx, r, &stubLogService{})
+		}),
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return games.Instantiate(ctx, r, &stubGamesService{})
+		}),
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return gamemods.Instantiate(ctx, r, &stubGameModsService{})
+		}),
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return servers.Instantiate(ctx, r, &stubServersService{})
+		}),
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return scheduler.Instantiate(ctx, r, &stubSchedulerService{})
+		}),
+		hostLibFunc(func(ctx context.Context, r wazero.Runtime) error {
+			return host.Instantiate(ctx, r, sharedHostStub)
+		}),
+	}
 }

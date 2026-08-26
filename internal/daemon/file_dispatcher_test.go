@@ -221,6 +221,8 @@ func setupDispatcher(t *testing.T) *dispatcherTestSetup {
 }
 
 func TestNewFileDispatcher_NilLoggerUsesDefault(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	gateway := &fakeFileGateway{}
 	registry := newFakeConnectionChecker()
@@ -236,6 +238,8 @@ func TestNewFileDispatcher_NilLoggerUsesDefault(t *testing.T) {
 }
 
 func TestDispatchFileList_Success(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 7
@@ -278,6 +282,8 @@ func TestDispatchFileList_Success(t *testing.T) {
 }
 
 func TestDispatchFileList_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 7
@@ -297,6 +303,8 @@ func TestDispatchFileList_GatewayError(t *testing.T) {
 }
 
 func TestDispatchFileRead_Success(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 8
@@ -322,6 +330,8 @@ func TestDispatchFileRead_Success(t *testing.T) {
 }
 
 func TestDispatchFileRead_FailureFromDaemon(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 8
@@ -342,6 +352,8 @@ func TestDispatchFileRead_FailureFromDaemon(t *testing.T) {
 }
 
 func TestDispatchFileRead_UnknownFailureFromDaemon(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 8
@@ -365,6 +377,8 @@ func TestDispatchFileRead_UnknownFailureFromDaemon(t *testing.T) {
 }
 
 func TestDispatchFileWrite_Success(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 9
@@ -398,6 +412,8 @@ func TestDispatchFileWrite_Success(t *testing.T) {
 }
 
 func TestDispatchFileWrite_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 9
@@ -418,6 +434,8 @@ func TestDispatchFileWrite_GatewayError(t *testing.T) {
 }
 
 func TestDispatchFileOperation_Success(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 10
@@ -460,6 +478,8 @@ func TestDispatchFileOperation_Success(t *testing.T) {
 }
 
 func TestDispatchUploadTask_Success(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 11
@@ -490,6 +510,8 @@ func TestDispatchUploadTask_Success(t *testing.T) {
 }
 
 func TestDispatchDownloadTask_Success(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 12
@@ -515,6 +537,8 @@ func TestDispatchDownloadTask_Success(t *testing.T) {
 }
 
 func TestDispatchUploadTask_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 11
@@ -532,6 +556,8 @@ func TestDispatchUploadTask_GatewayError(t *testing.T) {
 }
 
 func TestDispatchDownloadTask_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 12
@@ -549,6 +575,8 @@ func TestDispatchDownloadTask_GatewayError(t *testing.T) {
 }
 
 func TestDispatch_NotConnected_TimesOut(t *testing.T) {
+	t.Parallel()
+
 	// When the registry says the daemon is not connected, no goroutine spawns
 	// to publish a response. The dispatcher's wait will surface as context
 	// cancellation when the caller cancels.
@@ -571,13 +599,20 @@ func TestDispatch_NotConnected_TimesOut(t *testing.T) {
 }
 
 func TestDispatch_ContextCancelled(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 100
 
-	// Block in the gateway so dispatcher waits for response.
+	// Block in the gateway so dispatcher waits for response. The gateway must
+	// stay blocked until the assertion is done: releasing it earlier lets a
+	// successful response reach the dispatcher and win the select against the
+	// cancelled context.
 	startedCh := make(chan struct{}, 1)
 	releaseCh := make(chan struct{})
+	defer close(releaseCh)
+
 	s.registry.setConnected(nodeID, true)
 	s.gateway.requestFileList = func(ctx context.Context, _ uint64, _ string, _ bool, _ string) (*proto.FileListResponse, error) {
 		startedCh <- struct{}{}
@@ -590,6 +625,7 @@ func TestDispatch_ContextCancelled(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	resultCh := make(chan error, 1)
 	go func() {
@@ -601,14 +637,11 @@ func TestDispatch_ContextCancelled(t *testing.T) {
 	select {
 	case <-startedCh:
 	case <-time.After(2 * time.Second):
-		cancel()
-		close(releaseCh)
 		t.Fatal("gateway was not invoked within 2s")
 	}
 
 	// ACT
 	cancel()
-	close(releaseCh)
 
 	// ASSERT
 	select {
@@ -621,6 +654,8 @@ func TestDispatch_ContextCancelled(t *testing.T) {
 }
 
 func TestStart_DispatcherSubscribesAndDeliversResponses(t *testing.T) {
+	t.Parallel()
+
 	// Sanity check that Start has wired up the request-handler subscription
 	// (verified indirectly by every other Dispatch* test, but exercise once
 	// to guarantee Start returns no error and routes one request end-to-end).
@@ -643,6 +678,8 @@ func TestStart_DispatcherSubscribesAndDeliversResponses(t *testing.T) {
 }
 
 func TestExecFile_PayloadParseError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		op   string
@@ -655,6 +692,8 @@ func TestExecFile_PayloadParseError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			s := setupDispatcher(t)
 			d := s.dispatcher.(*fileDispatcher)
@@ -669,6 +708,8 @@ func TestExecFile_PayloadParseError(t *testing.T) {
 }
 
 func TestExec_GatewayErrorReturnsPayloadError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	d := s.dispatcher.(*fileDispatcher)
@@ -689,6 +730,8 @@ func TestExec_GatewayErrorReturnsPayloadError(t *testing.T) {
 }
 
 func TestDispatchFileOperation_HashSetsExtendedTimeout(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	const nodeID uint64 = 15
@@ -752,6 +795,8 @@ func TestDispatchFileOperation_HashSetsExtendedTimeout(t *testing.T) {
 }
 
 func TestExecuteFileRequest_TimeoutSecondsCappedByTransferTimeout(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	d := s.dispatcher.(*fileDispatcher)
@@ -795,6 +840,8 @@ func TestExecuteFileRequest_TimeoutSecondsCappedByTransferTimeout(t *testing.T) 
 }
 
 func TestExecuteFileRequest_UnsupportedOperation(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupDispatcher(t)
 	d := s.dispatcher.(*fileDispatcher)

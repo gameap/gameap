@@ -769,6 +769,55 @@ func TestFileService_Download_propagatesStrippedPath(t *testing.T) {
 	assert.Equal(t, "configs/server.cfg", capturedPath, "WorkPath prefix must be stripped before gateway call")
 }
 
+func TestFileService_DownloadLimited_boundsTheRead(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		local      bool
+		limit      uint64
+		wantLength int64
+	}{
+		{name: "gateway_receives_limit", local: true, limit: 1025, wantLength: 1025},
+		{name: "dispatcher_receives_limit", local: false, limit: 1025, wantLength: 1025},
+		{name: "zero_reads_whole_file", local: true, limit: 0, wantLength: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			ctx := testContext(t)
+			s := setupFileService(t)
+			const nodeID uint64 = 15
+			s.registry.setConnected(nodeID, tt.local)
+			s.registry.connectedAnywhere[nodeID] = true
+
+			var gotOffset, gotLength int64
+			s.gateway.requestFileRead = func(_ context.Context, _ uint64, _ string, offset int64, length int64) (*proto.FileReadResponse, error) {
+				gotOffset, gotLength = offset, length
+
+				return &proto.FileReadResponse{Success: true, Content: []byte("x")}, nil
+			}
+			s.dispatcher.dispatchFileRead = func(_ context.Context, _ uint64, _ string, offset int64, length int64) (*FileReadResult, error) {
+				gotOffset, gotLength = offset, length
+
+				return &FileReadResult{Content: []byte("x")}, nil
+			}
+
+			// ACT
+			got, err := s.service.DownloadLimited(ctx, testNode(15, "/srv"), "/srv/file.txt", tt.limit)
+
+			// ASSERT
+			require.NoError(t, err)
+			assert.Equal(t, []byte("x"), got)
+			assert.Equal(t, int64(0), gotOffset, "the read starts at the beginning of the file")
+			assert.Equal(t, tt.wantLength, gotLength, "the limit must reach the node as the read length")
+		})
+	}
+}
+
 func TestFileService_DownloadStream(t *testing.T) {
 	t.Parallel()
 

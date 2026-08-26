@@ -7,26 +7,25 @@
         class="fm-context-menu"
         tabindex="-1"
     >
-        <ul v-if="pluginEditorItems.length > 0" class="list-unstyled">
-          <li
-              v-for="(editorItem, idx) in pluginEditorItems"
-              :key="`pe-${idx}`"
-              :class="{ disabled: editorItem.disabled }"
-              :title="editorItem.disabled ? lang.contextMenu.fileTooLarge : ''"
-              @click="!editorItem.disabled && openPluginEditor(editorItem)"
-          >
-            <span class="fm-context-menu-icon"><GIcon :name="editorItem.editor.icon || 'edit'" /></span>
-            {{ getEditorMenuLabel(editorItem) }}
-          </li>
-        </ul>
-        <ul v-for="(group, index) in menu" v-bind:key="`g-${index}`" class="list-unstyled">
-            <template v-for="(item, idx) in group">
-                <li v-if="showMenuItem(item.name)" v-on:click="menuAction(item.name)" v-bind:key="`i-${idx}`">
-                    <span class="fm-context-menu-icon"><GIcon :name="item.icon" :class="item.iconClass" /></span>
-                    {{ lang.contextMenu[item.name] }}
-                </li>
-            </template>
-        </ul>
+        <template v-for="block in menuBlocks" v-bind:key="`g-${block.group}`">
+            <ul v-if="block.rows.length" class="list-unstyled">
+                <template v-for="row in block.rows" v-bind:key="row.key">
+                    <li v-if="row.item" v-on:click="menuAction(row.item.name)">
+                        <span class="fm-context-menu-icon"><GIcon :name="row.item.icon" :class="row.item.iconClass" /></span>
+                        {{ lang.contextMenu[row.item.name] }}
+                    </li>
+                    <li
+                        v-else
+                        :class="{ disabled: row.editorItem.disabled }"
+                        :title="row.editorItem.disabled ? lang.contextMenu.fileTooLarge : ''"
+                        @click="!row.editorItem.disabled && openPluginEditor(row.editorItem)"
+                    >
+                        <span class="fm-context-menu-icon"><GIcon :name="row.editorItem.editor.icon || 'edit'" /></span>
+                        {{ getEditorMenuLabel(row.editorItem) }}
+                    </li>
+                </template>
+            </ul>
+        </template>
     </div>
 </template>
 
@@ -38,14 +37,16 @@ import { isExtractable } from '../../archive.js'
 import { useFileManagerStore } from '../../stores/useFileManagerStore.js'
 import { useSettingsStore } from '../../stores/useSettingsStore.js'
 import { useModalStore } from '../../stores/useModalStore.js'
+import { useHistoryStore } from '../../stores/useHistoryStore.js'
 import { useTranslate } from '../../composables/useTranslate.js'
-import { useFileEditors, isFileTooLarge } from '../../composables/useFileEditors.js'
+import { useFileEditors, isFileTooLarge, loadsOwnContent } from '../../composables/useFileEditors.js'
 import { usePluginsStore } from '../../../store/plugins'
 
 const fm = useFileManagerStore()
 const pluginsStore = usePluginsStore()
 const settings = useSettingsStore()
 const modal = useModalStore()
+const history = useHistoryStore()
 const { lang } = useTranslate()
 const { getMatchingEditors } = useFileEditors()
 
@@ -56,7 +57,6 @@ const menuStyle = ref({
     left: 0,
 })
 
-const menu = computed(() => settings.contextMenu)
 const selectedDisk = computed(() => fm.selectedDisk)
 const selectedItems = computed(() => fm.selectedItems)
 const selectedDiskDriver = computed(() => fm.disks[selectedDisk.value]?.driver)
@@ -184,6 +184,17 @@ const rules = {
     properties: propertiesRule,
 }
 
+function noteFileOpened() {
+    const item = selectedItems.value[0]
+    if (!item) return
+
+    history.noteFileOpened({
+        disk: selectedDisk.value,
+        path: item.path,
+        dirname: item.dirname,
+    })
+}
+
 // Actions
 function openAction() {
     fm.selectDirectory(fm.activeManager, {
@@ -194,18 +205,22 @@ function openAction() {
 
 function audioPlayAction() {
     modal.setModalState({ modalName: 'AudioPlayerModal', show: true })
+    noteFileOpened()
 }
 
 function videoPlayAction() {
     modal.setModalState({ modalName: 'VideoPlayerModal', show: true })
+    noteFileOpened()
 }
 
 function viewAction() {
     modal.setModalState({ modalName: 'PreviewModal', show: true })
+    noteFileOpened()
 }
 
 function editAction() {
     modal.setModalState({ modalName: 'TextEditModal', show: true })
+    noteFileOpened()
 }
 
 function selectAction() {
@@ -357,11 +372,47 @@ const pluginEditorItems = computed(() => {
     const fileTooLarge = isFileTooLarge(file)
     return getMatchingEditors(file).map(item => ({
         ...item,
-        disabled: fileTooLarge
+        // The size cap is about handing the editor the file's content; an
+        // editor that loads what it needs itself is offered whatever the size.
+        disabled: fileTooLarge && !loadsOwnContent(item.editor)
     }))
 })
 
+// Where a plugin item goes when it names no block, and when it names one this
+// panel does not know: the block plugin items had to themselves before there
+// was a choice of any. An item in an unexpected block is still an item, a
+// dropped one is a bug.
+const PLUGIN_GROUP = 'top'
+
+const menuBlocks = computed(() => {
+    const editors = new Map(
+        [PLUGIN_GROUP, ...settings.contextMenu.map((block) => block.group)].map((group) => [group, []])
+    )
+    for (const item of pluginEditorItems.value) {
+        const named = item.editor.menuGroup
+        editors.get(editors.has(named) ? named : PLUGIN_GROUP).push(item)
+    }
+    // One list per block, plugin items and the file manager's own in the order
+    // the block asks for. Filtered here rather than in the template, so a block
+    // left with nothing to show goes away together with the divider it would
+    // draw.
+    return [{ group: PLUGIN_GROUP, items: [] }, ...settings.contextMenu].map(({ group, items, editorsFirst }) => {
+        const own = items
+            .filter((item) => showMenuItem(item.name))
+            .map((item) => ({ key: `i-${item.name}`, item }))
+        const plugins = editors
+            .get(group)
+            .map((editorItem) => ({ key: `pe-${editorItem.pluginId}-${editorItem.editor.id}`, editorItem }))
+        return { group, rows: editorsFirst ? [...plugins, ...own] : [...own, ...plugins] }
+    })
+})
+
 function getEditorMenuLabel(editorItem) {
+    // An editor that is not "Edit with X" — a viewer, a comparison — names its
+    // own item, and that name goes through the plugin's translations.
+    if (editorItem.editor.menuLabel) {
+        return pluginsStore.resolvePluginText(editorItem.pluginId, editorItem.editor.menuLabel)
+    }
     const baseName = pluginsStore.resolvePluginText(editorItem.pluginId, editorItem.editor.name)
     if (editorItem.isDefault) {
         return `Edit with ${baseName} (default)`
@@ -375,6 +426,7 @@ function openPluginEditor(editorItem) {
         editor: editorItem.editor,
         file: selectedItems.value[0]
     })
+    noteFileOpened()
     closeMenu()
 }
 

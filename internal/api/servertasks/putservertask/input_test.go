@@ -12,6 +12,8 @@ import (
 )
 
 func TestServerTaskInput_Validate(t *testing.T) {
+	t.Parallel()
+
 	future := new(flexible.Time{Time: time.Now().Add(time.Hour)})
 	pastBeyondGrace := new(flexible.Time{Time: time.Now().Add(-2 * time.Minute)})
 	pastWithinGrace := new(flexible.Time{Time: time.Now().Add(-30 * time.Second)})
@@ -202,6 +204,8 @@ func TestServerTaskInput_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.input.Validate()
 
 			if tt.wantError == "" {
@@ -217,6 +221,8 @@ func TestServerTaskInput_Validate(t *testing.T) {
 }
 
 func TestServerTaskInput_ToDomain(t *testing.T) {
+	t.Parallel()
+
 	const serverID = uint(42)
 	future := time.Now().Add(time.Hour).Truncate(time.Second)
 	futureWrapped := new(flexible.Time{Time: future})
@@ -564,6 +570,8 @@ func TestServerTaskInput_ToDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			task, err := tt.input.ToDomain(serverID, tt.existingTask)
 
 			if tt.wantError != "" {

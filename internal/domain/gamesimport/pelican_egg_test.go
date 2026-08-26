@@ -10,6 +10,8 @@ import (
 )
 
 func TestPelicanEggConfig_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		input      string
@@ -126,6 +128,8 @@ func TestPelicanEggConfig_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var config PelicanEggConfig
 			err := json.Unmarshal([]byte(tt.input), &config)
 
@@ -151,6 +155,8 @@ func TestPelicanEggConfig_UnmarshalJSON(t *testing.T) {
 }
 
 func TestParsePelicanEgg_WithStringConfigFields(t *testing.T) {
+	t.Parallel()
+
 	input := `{
 		"meta": {
 			"version": "1.0",
@@ -197,6 +203,8 @@ func TestParsePelicanEgg_WithStringConfigFields(t *testing.T) {
 }
 
 func TestParsePelicanEgg_RawPreservesUnknownFields(t *testing.T) {
+	t.Parallel()
+
 	input := `{
 		"_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL",
 		"meta": {
@@ -253,6 +261,8 @@ func TestParsePelicanEgg_RawPreservesUnknownFields(t *testing.T) {
 }
 
 func TestPelicanEgg_GetStartupCommand(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		egg      *PelicanEgg
@@ -307,6 +317,8 @@ func TestPelicanEgg_GetStartupCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.egg.GetStartupCommand()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -314,6 +326,8 @@ func TestPelicanEgg_GetStartupCommand(t *testing.T) {
 }
 
 func TestFlexibleRules_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -349,6 +363,8 @@ func TestFlexibleRules_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var rules FlexibleRules
 			err := json.Unmarshal([]byte(tt.input), &rules)
 
@@ -366,6 +382,8 @@ func TestFlexibleRules_UnmarshalJSON(t *testing.T) {
 }
 
 func TestParsePelicanEgg_PLCN_v3_Format(t *testing.T) {
+	t.Parallel()
+
 	input := `{
 		"meta": {
 			"version": "PLCN_v3",
@@ -426,6 +444,8 @@ func TestParsePelicanEgg_PLCN_v3_Format(t *testing.T) {
 }
 
 func TestParsePelicanEgg_WithObjectConfigFields(t *testing.T) {
+	t.Parallel()
+
 	input := `{
 		"meta": {
 			"version": "1.0",
@@ -476,6 +496,8 @@ func TestParsePelicanEgg_WithObjectConfigFields(t *testing.T) {
 }
 
 func TestDetectFormat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -515,6 +537,8 @@ func TestDetectFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := detectFormat([]byte(tt.input))
 			assert.Equal(t, tt.expected, result)
 		})
@@ -522,6 +546,8 @@ func TestDetectFormat(t *testing.T) {
 }
 
 func TestFlexibleStringSlice_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -547,6 +573,8 @@ func TestFlexibleStringSlice_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var result FlexibleStringSlice
 			err := json.Unmarshal([]byte(tt.input), &result)
 
@@ -564,6 +592,8 @@ func TestFlexibleStringSlice_UnmarshalJSON(t *testing.T) {
 }
 
 func TestFlexibleStringSlice_UnmarshalYAML(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -589,6 +619,8 @@ func TestFlexibleStringSlice_UnmarshalYAML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var result FlexibleStringSlice
 			err := yaml.Unmarshal([]byte(tt.input), &result)
 
@@ -606,6 +638,8 @@ func TestFlexibleStringSlice_UnmarshalYAML(t *testing.T) {
 }
 
 func TestFlexibleRules_UnmarshalYAML(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -631,6 +665,8 @@ func TestFlexibleRules_UnmarshalYAML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var result FlexibleRules
 			err := yaml.Unmarshal([]byte(tt.input), &result)
 
@@ -648,6 +684,8 @@ func TestFlexibleRules_UnmarshalYAML(t *testing.T) {
 }
 
 func TestPelicanEggConfig_UnmarshalYAML(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		input      string
@@ -694,6 +732,8 @@ stop: ^C`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var config PelicanEggConfig
 			err := yaml.Unmarshal([]byte(tt.input), &config)
 
@@ -719,6 +759,8 @@ stop: ^C`,
 }
 
 func TestParsePelicanEgg_YAML_Format(t *testing.T) {
+	t.Parallel()
+
 	input := `meta:
   version: PLCN_v3
   update_url: https://example.com
@@ -808,6 +850,8 @@ variables:
 }
 
 func TestParsePelicanEgg_YAML_Format_WithFileDenylistArray(t *testing.T) {
+	t.Parallel()
+
 	input := `meta:
   version: PLCN_v3
 uuid: yaml-denylist-test
@@ -842,6 +886,8 @@ variables: []`
 }
 
 func TestParsePelicanEgg_EmptyInput(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -861,6 +907,8 @@ func TestParsePelicanEgg_EmptyInput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := ParsePelicanEgg([]byte(tt.input))
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantError)

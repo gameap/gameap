@@ -5,18 +5,13 @@ import (
 
 	"github.com/gameap/gameap/internal/api/base"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
+	settingsbase "github.com/gameap/gameap/internal/api/serversettings/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/pkg/errors"
-)
-
-const (
-	autostartSettingKey         = "autostart"
-	autostartCurrentSettingKey  = "autostart_current"
-	updateBeforeStartSettingKey = "update_before_start"
 )
 
 type Handler struct {
@@ -153,54 +148,66 @@ func (h *Handler) buildSettingsResponse(
 	settingsMap := make(map[string]SettingResponse)
 	order := make([]string, 0, len(serverSettings)+2)
 
-	settingsMap[autostartSettingKey] = SettingResponse{
-		Name:  autostartSettingKey,
-		Value: false,
-		Type:  "bool",
-		Label: "Autostart",
+	// The two panel-owned settings are real booleans and carry no game mod
+	// definition. The client localizes their labels by name.
+	settingsMap[settingsbase.AutostartSettingKey] = SettingResponse{
+		Name:    settingsbase.AutostartSettingKey,
+		Value:   false,
+		Default: false,
+		Type:    string(domain.GameModVarTypeBool),
+		Label:   "Autostart",
 	}
-	order = append(order, autostartSettingKey)
+	order = append(order, settingsbase.AutostartSettingKey)
 
-	settingsMap[updateBeforeStartSettingKey] = SettingResponse{
-		Name:  updateBeforeStartSettingKey,
-		Value: false,
-		Type:  "bool",
-		Label: "Update before start",
+	settingsMap[settingsbase.UpdateBeforeStartSettingKey] = SettingResponse{
+		Name:    settingsbase.UpdateBeforeStartSettingKey,
+		Value:   false,
+		Default: false,
+		Type:    string(domain.GameModVarTypeBool),
+		Label:   "Update before start",
 	}
-	order = append(order, updateBeforeStartSettingKey)
+	order = append(order, settingsbase.UpdateBeforeStartSettingKey)
+
+	definitions := make(map[string]*domain.GameModVar)
 
 	if gameMod != nil {
-		for _, gmVar := range gameMod.Vars {
+		for i := range gameMod.Vars {
+			gmVar := &gameMod.Vars[i]
+
 			if gmVar.AdminVar && !isAdmin {
 				continue
 			}
 
-			settingsMap[gmVar.Var] = SettingResponse{
-				Name:  gmVar.Var,
-				Value: string(gmVar.Default),
-				Type:  "string",
-				Label: gmVar.Info,
-			}
+			definitions[gmVar.Var] = gmVar
+			settingsMap[gmVar.Var] = newSettingResponseFromVar(gmVar)
 			order = append(order, gmVar.Var)
 		}
 	}
 
 	for _, setting := range serverSettings {
-		if existingSetting, exists := settingsMap[setting.Name]; exists {
-			if existingSetting.AdminVar && !isAdmin {
+		existing, exists := settingsMap[setting.Name]
+		if !exists {
+			continue
+		}
+
+		// Only the value is replaced: rebuilding the entry here would drop the
+		// whole definition that was just assembled from the game mod.
+		if definition, isVar := definitions[setting.Name]; isVar {
+			raw, present := setting.Value.Raw()
+			if !present {
 				continue
 			}
 
-			settingsMap[setting.Name] = SettingResponse{
-				Name:  setting.Name,
-				Value: setting.Value,
-				Label: existingSetting.Label,
-				Type:  existingSetting.Type,
-			}
+			existing.Value = definition.FormatValue(raw)
+		} else {
+			value, _ := setting.Value.Bool()
+			existing.Value = value
 		}
+
+		settingsMap[setting.Name] = existing
 	}
 
-	delete(settingsMap, autostartCurrentSettingKey)
+	delete(settingsMap, settingsbase.AutostartCurrentSettingKey)
 
 	// Build result using order slice
 	result := make([]SettingResponse, 0, len(order))

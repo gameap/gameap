@@ -1,0 +1,25 @@
+description: |
+  Allowed value of a `select` variable. Either a plain string (the label equals
+  the value) or an object carrying a separate label and translations.
+  Responses always use the object form; requests accept both.
+oneOf:
+  - type: string
+    minLength: 1
+    maxLength: 64
+    description: Shorthand — the value is also used as the label.
+  - type: object
+    required:
+      - value
+    properties:
+      value:
+        type: string
+        minLength: 1
+        maxLength: 64
+        description: The string stored and substituted into `{var}`.
+      label:
+        type: string
+        minLength: 1
+        maxLength: 128
+        description: Label shown in the panel. Defaults to `value`.
+      i18n:
+        $ref: './GameModVarOptionI18n.yaml'

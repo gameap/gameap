@@ -27,10 +27,26 @@ properties:
     example: "v1"
   required_permissions:
     type: array
-    description: Required permissions for the plugin
+    description: Permissions the plugin declares; installing grants exactly these
     items:
       type: string
     example: ["manage_servers"]
+  used_permissions:
+    type: array
+    description: |
+      Permissions the module can exercise, derived from the host functions
+      it imports and its event subscriptions
+    items:
+      $ref: './PluginPermission.yaml'
+    example: ["manage_servers", "node_commands"]
+  undeclared_permissions:
+    type: array
+    description: |
+      Used permissions the plugin does not declare: after the install the
+      calls behind them are refused until an operator grants them
+    items:
+      $ref: './PluginPermission.yaml'
+    example: ["node_commands"]
   http_routes:
     type: array
     description: HTTP routes exposed by the plugin
@@ -75,6 +91,25 @@ properties:
     type: boolean
     description: Whether the plugin has frontend styles
     example: false
+  installed:
+    type: boolean
+    description: |
+      Whether a plugin with this id is already installed. When true the file
+      can only replace it through `POST /api/admin/plugins/{id}/upload`;
+      `POST /api/admin/plugins/upload/install` answers 409.
+    example: false
+  installed_version:
+    type: string
+    description: Version currently installed, when `installed` is true
+    example: "1.0.0"
+  installed_source_type:
+    type: string
+    enum: [store, file]
+    description: |
+      Where the installed plugin came from, when `installed` is true.
+      Replacing a `store` plugin with an uploaded file turns it into a `file`
+      plugin: the panel stops offering store updates for it.
+    example: "file"
   is_valid:
     type: boolean
     description: Whether the plugin is valid and can be installed

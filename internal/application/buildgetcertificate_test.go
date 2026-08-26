@@ -96,6 +96,8 @@ func acmeResource(t *testing.T) *certificate.Resource {
 }
 
 func TestBuildGetCertificate_FileSource(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	certPath, keyPath := writeTestCertFiles(t)
 
@@ -122,6 +124,8 @@ func TestBuildGetCertificate_FileSource(t *testing.T) {
 }
 
 func TestBuildGetCertificate_InlineSource(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	certPEM, keyPEM := buildSelfSignedPEM(t)
 
@@ -146,6 +150,8 @@ func TestBuildGetCertificate_InlineSource(t *testing.T) {
 }
 
 func TestBuildGetCertificate_FileSourceWithBadPathReturnsError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	cfg := buildGetCertConfig(t)
 	cfg.TLS.CertFile = "/nonexistent/cert.pem"
@@ -164,6 +170,8 @@ func TestBuildGetCertificate_FileSourceWithBadPathReturnsError(t *testing.T) {
 }
 
 func TestBuildGetCertificate_NoneSourceReturnsError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	cfg := buildGetCertConfig(t)
 	require.Equal(t, config.CertSourceNone, cfg.EffectiveCertSource())
@@ -180,6 +188,8 @@ func TestBuildGetCertificate_NoneSourceReturnsError(t *testing.T) {
 }
 
 func TestBuildGetCertificate_ACMESourceReturnsACMECallback(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: full ACME config + lego factory override so Service.Start
 	// completes against a fake CA and serves the resource we stub in.
 	cfg := buildGetCertConfig(t)
@@ -219,6 +229,8 @@ func TestBuildGetCertificate_ACMESourceReturnsACMECallback(t *testing.T) {
 }
 
 func TestBuildGetCertificate_ACMEStartFailureReturnsError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: ACME-enabled config, but the lego factory always errors so
 	// Service.Start fails inside buildGetCertificate.
 	cfg := buildGetCertConfig(t)

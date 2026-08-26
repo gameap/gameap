@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -17,6 +18,28 @@ import (
 )
 
 var ErrPluginAlreadyInstalled = errors.New("plugin already installed")
+
+// Source types reported for an installed plugin, derived from plugins.source.
+const (
+	SourceTypeStore = "store"
+	SourceTypeFile  = "file"
+)
+
+// FileSourcePrefix marks a plugin whose file was uploaded by an operator
+// rather than downloaded from the store; pluginsync refuses to re-download
+// such a file on another instance, because no one else has it.
+const FileSourcePrefix = "file://"
+
+// SourceType tells apart a plugin uploaded as a file from one installed from
+// the store. Anything that is not a file:// source is a store plugin, rows
+// written before the column existed included.
+func SourceType(source string) string {
+	if strings.HasPrefix(source, FileSourcePrefix) {
+		return SourceTypeFile
+	}
+
+	return SourceTypeStore
+}
 
 func CheckNotInstalled(ctx context.Context, repo repositories.PluginRepository, dbID domain.Uint64ID) error {
 	exists, err := repo.Exists(ctx, filters.FindPluginByIDs(dbID))
@@ -35,6 +58,7 @@ func BuildPluginRecord(
 	loaded *pkgplugin.LoadedPlugin,
 	filename string,
 	source string,
+	wasmBytes []byte,
 ) *domain.Plugin {
 	// Installing is an admin-only action and the dry-run endpoint shows the
 	// manifest's required_permissions beforehand, so confirming the install
@@ -42,7 +66,7 @@ func BuildPluginRecord(
 	// can be narrowed later without touching the manifest.
 	permissions := domain.ParsePluginPermissions(loaded.Info.RequiredPermissions)
 
-	return &domain.Plugin{
+	record := &domain.Plugin{
 		ID:                  dbID,
 		Name:                loaded.Info.Name,
 		Version:             loaded.Info.Version,
@@ -51,11 +75,14 @@ func BuildPluginRecord(
 		APIVersion:          loaded.Info.ApiVersion,
 		Filename:            new(filename),
 		Source:              new(source),
+		Checksum:            new(plugin.FileChecksum(wasmBytes)),
 		RequiredPermissions: permissions,
 		AllowedPermissions:  permissions,
 		Status:              domain.PluginStatusActive,
 		InstalledAt:         new(time.Now()),
 	}
+
+	return record
 }
 
 // RefreshSubscriptions refreshes plugin event subscriptions after a runtime
@@ -73,30 +100,65 @@ func RefreshSubscriptions(ctx context.Context, refresher SubscriptionRefresher) 
 	}
 }
 
+// TryLoadPlugin loads the freshly installed module and records the outcome
+// on its row (the loader marks it active or in error). The loaded plugin is
+// returned so callers that built the database record without a manifest (the
+// store install path) can read PluginInfo from it.
 func TryLoadPlugin(
 	ctx context.Context,
 	loader *plugin.Loader,
-	repo repositories.PluginRepository,
 	pluginRecord *domain.Plugin,
-	filename string,
-) error {
+) (*pkgplugin.LoadedPlugin, error) {
 	if loader == nil {
-		return nil
+		return nil, nil
 	}
 
-	loaded, err := loader.LoadWithID(ctx, filename, uint64(pluginRecord.ID))
+	loaded, err := loader.LoadRecord(ctx, pluginRecord)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to load plugin",
-			slog.String("filename", filename),
-			slog.String("error", err.Error()))
-
-		pluginRecord.Status = domain.PluginStatusError
-		_ = repo.Save(ctx, pluginRecord)
-
-		return errors.WithMessage(err, "failed to load plugin")
+		return nil, errors.WithMessage(err, "failed to load plugin")
 	}
 
-	loader.RegisterPluginID(pluginRecord.ID, loaded.Info.Id)
+	return loaded, nil
+}
 
-	return nil
+// Sync actions reported to the other panel instances after a plugin row
+// changed (plugininstall.SyncNotifier).
+const (
+	ActionInstall     = "install"
+	ActionUpdate      = "update"
+	ActionUninstall   = "uninstall"
+	ActionReload      = "reload"
+	ActionPermissions = "permissions"
+)
+
+// SyncNotifier wakes the other panel instances so they reconcile their
+// plugin runtime against the database; satisfied by *pluginsync.Service. The
+// hint carries no state, so a nil notifier (single instance, sync disabled)
+// costs nothing.
+type SyncNotifier interface {
+	Notify(ctx context.Context, pluginID domain.Uint64ID, action string)
+}
+
+// AfterChange performs the runtime follow-up of a plugin row change:
+// rebuilding the local event subscriptions and hinting the other instances.
+// Detached from the request context so it survives the response being
+// written.
+func AfterChange(
+	ctx context.Context,
+	refresher SubscriptionRefresher,
+	notifier SyncNotifier,
+	pluginID domain.Uint64ID,
+	action string,
+) {
+	RefreshSubscriptions(ctx, refresher)
+	Notify(ctx, notifier, pluginID, action)
+}
+
+// Notify hints the other instances; nil-safe.
+func Notify(ctx context.Context, notifier SyncNotifier, pluginID domain.Uint64ID, action string) {
+	if notifier == nil {
+		return
+	}
+
+	notifier.Notify(context.WithoutCancel(ctx), pluginID, action)
 }

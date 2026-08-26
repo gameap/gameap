@@ -16,6 +16,7 @@ import (
 // on the unreachable port. This branch returns the partially-initialized
 // Result struct alongside the wrapped error.
 func TestQuerySource_QueryInfoFailure(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -41,6 +42,7 @@ func TestQuerySource_QueryInfoFailure(t *testing.T) {
 // at QueryInfo time instead). On this early branch the function returns
 // (nil, wrapped error).
 func TestQuerySource_NewClientFailure(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -56,6 +58,7 @@ func TestQuerySource_NewClientFailure(t *testing.T) {
 // blanked in the signature). A pre-cancelled context must therefore still
 // reach the QueryInfo failure path rather than aborting early.
 func TestQuerySource_ContextIgnored(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

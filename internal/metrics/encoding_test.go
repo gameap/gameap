@@ -38,6 +38,7 @@ func makePointWithStats(ts time.Time, value int64, minV, maxV, avgV *float64, sa
 }
 
 func TestToWire_NilResponse_ReturnsNil(t *testing.T) {
+	t.Parallel()
 	// ARRANGE / ACT
 	got := ToWire(nil, nil)
 
@@ -46,6 +47,7 @@ func TestToWire_NilResponse_ReturnsNil(t *testing.T) {
 }
 
 func TestToWire_NilSeries_ReturnsNil(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	resp := &proto.MetricsResponse{}
 
@@ -57,6 +59,7 @@ func TestToWire_NilSeries_ReturnsNil(t *testing.T) {
 }
 
 func TestToWire_NilFilter_KeepsAllSeries(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	resp := makeResponse(now,
@@ -75,6 +78,7 @@ func TestToWire_NilFilter_KeepsAllSeries(t *testing.T) {
 }
 
 func TestToWire_FilterDropsAll_ReturnsNil(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	resp := makeResponse(now,
@@ -90,6 +94,7 @@ func TestToWire_FilterDropsAll_ReturnsNil(t *testing.T) {
 }
 
 func TestToWire_FilterSelective_KeepsOnlyMatching(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	resp := makeResponse(now,
@@ -110,6 +115,7 @@ func TestToWire_FilterSelective_KeepsOnlyMatching(t *testing.T) {
 }
 
 func TestToWire_PreservesTimestampAndCommonLabelsAndWindow(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	resp := makeResponse(now, makeSeries("cpu", nil, makePoint(now, 1)))
@@ -127,6 +133,7 @@ func TestToWire_PreservesTimestampAndCommonLabelsAndWindow(t *testing.T) {
 }
 
 func TestToWire_PreservesSeriesShape(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	t1 := now.Add(5 * time.Second)
@@ -157,6 +164,7 @@ func TestToWire_PreservesSeriesShape(t *testing.T) {
 }
 
 func TestToWire_AppliesEnumMappingsToSeries(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	series := &proto.MetricSeries{
@@ -178,6 +186,7 @@ func TestToWire_AppliesEnumMappingsToSeries(t *testing.T) {
 }
 
 func TestEncodePoint_AllStatsPresent_AllCopied(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	srcMin := 1.5
@@ -211,6 +220,7 @@ func TestEncodePoint_AllStatsPresent_AllCopied(t *testing.T) {
 }
 
 func TestEncodePoint_NoStats_AllNil(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	src := makePoint(now, 5)
@@ -228,6 +238,7 @@ func TestEncodePoint_NoStats_AllNil(t *testing.T) {
 }
 
 func TestEncodePoint_PartialStats_OnlyPresentCopied(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	srcMin := -2.5
@@ -247,6 +258,7 @@ func TestEncodePoint_PartialStats_OnlyPresentCopied(t *testing.T) {
 }
 
 func TestPointValue(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -328,6 +340,7 @@ func TestPointValue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := pointValue(tc.point)
 
@@ -338,6 +351,7 @@ func TestPointValue(t *testing.T) {
 }
 
 func TestMetricTypeName(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		input proto.MetricType
@@ -367,6 +381,7 @@ func TestMetricTypeName(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := metricTypeName(tc.input)
 
@@ -377,6 +392,7 @@ func TestMetricTypeName(t *testing.T) {
 }
 
 func TestMetricUnitName(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		input proto.MetricUnit
@@ -402,6 +418,7 @@ func TestMetricUnitName(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// ACT
 			got := metricUnitName(tc.input)
 
@@ -412,6 +429,7 @@ func TestMetricUnitName(t *testing.T) {
 }
 
 func TestToWire_JSONMarshal_OmitemptyTagsRespected(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	resp := &proto.MetricsResponse{
@@ -447,6 +465,7 @@ func TestToWire_JSONMarshal_OmitemptyTagsRespected(t *testing.T) {
 }
 
 func TestToWire_JSONMarshal_PopulatedFields_AllPresent(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	srcMin := 1.0

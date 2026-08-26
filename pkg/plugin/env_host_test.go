@@ -10,6 +10,7 @@ import (
 )
 
 func TestUtf16LEToString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		data []byte
@@ -81,6 +82,7 @@ func TestUtf16LEToString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := utf16LEToString(tt.data)
 			assert.Equal(t, tt.want, got)
 		})
@@ -88,6 +90,7 @@ func TestUtf16LEToString(t *testing.T) {
 }
 
 func TestReadAssemblyScriptString_ZeroPointer(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	r := wazero.NewRuntime(ctx)
 	defer func() {
@@ -109,6 +112,7 @@ func TestReadAssemblyScriptString_ZeroPointer(t *testing.T) {
 }
 
 func TestReadAssemblyScriptString_WithMemory(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	r := wazero.NewRuntime(ctx)
 	defer func() {
@@ -201,6 +205,7 @@ func TestReadAssemblyScriptString_WithMemory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tt.setupMem()
 
 			got := readAssemblyScriptString(mod, tt.ptr)
@@ -211,7 +216,10 @@ func TestReadAssemblyScriptString_WithMemory(t *testing.T) {
 }
 
 func TestEnvHostLibrary_Instantiate(t *testing.T) {
+	t.Parallel()
 	t.Run("registers_env_module_successfully", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := context.Background()
 		r := wazero.NewRuntime(ctx)
 		defer func() {
@@ -226,6 +234,7 @@ func TestEnvHostLibrary_Instantiate(t *testing.T) {
 	})
 
 	t.Run("double_instantiate_returns_error", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		r := wazero.NewRuntime(ctx)
 		defer func() {
@@ -243,6 +252,7 @@ func TestEnvHostLibrary_Instantiate(t *testing.T) {
 }
 
 func TestEnvHostLibrary_Abort(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	r := wazero.NewRuntime(ctx)
 	defer func() {
@@ -270,7 +280,9 @@ func TestEnvHostLibrary_Abort(t *testing.T) {
 	mem := mod.Memory()
 	require.NotNil(t, mem)
 
-	t.Run("handles_valid_message_and_filename", func(_ *testing.T) {
+	t.Run("handles_valid_message_and_filename", func(t *testing.T) {
+		t.Parallel()
+
 		lib := &EnvHostLibrary{}
 
 		// Setup message at ptr=20
@@ -289,7 +301,9 @@ func TestEnvHostLibrary_Abort(t *testing.T) {
 		lib.abort(ctx, mod, messagePtr, filePtr, 42, 10)
 	})
 
-	t.Run("handles_zero_pointers", func(_ *testing.T) {
+	t.Run("handles_zero_pointers", func(t *testing.T) {
+		t.Parallel()
+
 		lib := &EnvHostLibrary{}
 
 		// Should not panic
@@ -298,6 +312,7 @@ func TestEnvHostLibrary_Abort(t *testing.T) {
 }
 
 func TestEnvHostLibrary_ConsoleLog(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	r := wazero.NewRuntime(ctx)
 	defer func() {
@@ -325,7 +340,9 @@ func TestEnvHostLibrary_ConsoleLog(t *testing.T) {
 	mem := mod.Memory()
 	require.NotNil(t, mem)
 
-	t.Run("handles_valid_message", func(_ *testing.T) {
+	t.Run("handles_valid_message", func(t *testing.T) {
+		t.Parallel()
+
 		lib := &EnvHostLibrary{}
 
 		// Setup message at ptr=20
@@ -338,7 +355,9 @@ func TestEnvHostLibrary_ConsoleLog(t *testing.T) {
 		lib.consoleLog(ctx, mod, messagePtr)
 	})
 
-	t.Run("handles_zero_pointer", func(_ *testing.T) {
+	t.Run("handles_zero_pointer", func(t *testing.T) {
+		t.Parallel()
+
 		lib := &EnvHostLibrary{}
 
 		// Should not panic

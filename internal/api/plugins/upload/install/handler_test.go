@@ -113,6 +113,7 @@ func validWASMBytes() []byte {
 }
 
 func TestInstall(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		wasmContent    []byte
@@ -149,7 +150,7 @@ func TestInstall(t *testing.T) {
 			name:        "invalid_wasm_magic",
 			wasmContent: []byte{0x01, 0x02, 0x03, 0x04},
 			mockManager: &mockLoaderManager{},
-			wantStatus:  http.StatusInternalServerError,
+			wantStatus:  http.StatusBadRequest,
 		},
 		{
 			name:        "load_returns_error",
@@ -165,6 +166,7 @@ func TestInstall(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			pluginRepo := inmemory.NewPluginRepository()
 			fileManager := files.NewInMemoryFileManager()
 
@@ -172,6 +174,7 @@ func TestInstall(t *testing.T) {
 				tt.mockManager,
 				pluginRepo,
 				fileManager,
+				nil,
 				nil,
 				nil,
 				"plugins",
@@ -213,6 +216,7 @@ func TestInstall(t *testing.T) {
 }
 
 func TestInstall_already_installed_returns_409(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
 
@@ -246,6 +250,7 @@ func TestInstall_already_installed_returns_409(t *testing.T) {
 		fileManager,
 		nil,
 		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -260,10 +265,12 @@ func TestInstall_already_installed_returns_409(t *testing.T) {
 }
 
 func TestInstall_no_file_uploaded(t *testing.T) {
+	t.Parallel()
 	h := install.NewHandler(
 		&mockLoaderManager{},
 		inmemory.NewPluginRepository(),
 		files.NewInMemoryFileManager(),
+		nil,
 		nil,
 		nil,
 		"plugins",
@@ -296,6 +303,7 @@ func TestInstall_no_file_uploaded(t *testing.T) {
 // outcome success, category plugin_op, the plugin id as the resource, and the
 // plugin identifier recorded in Extra for provenance.
 func TestInstall_Audit_SuccessfulInstallIsRecorded(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
@@ -316,7 +324,7 @@ func TestInstall_Audit_SuccessfulInstallIsRecorded(t *testing.T) {
 
 	recorder := &auditCapture{}
 	h := install.NewHandler(
-		mockManager, pluginRepo, fileManager, nil, nil, "plugins", api.NewResponder(), recorder,
+		mockManager, pluginRepo, fileManager, nil, nil, nil, "plugins", api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
 
@@ -346,6 +354,7 @@ func TestInstall_Audit_SuccessfulInstallIsRecorded(t *testing.T) {
 // install rejected because the plugin is already present must NOT emit a
 // plugin.install event (no executable code was newly loaded).
 func TestInstall_Audit_AlreadyInstalledIsNotRecorded(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	pluginRepo := inmemory.NewPluginRepository()
 	require.NoError(t, pluginRepo.Save(context.Background(), &domain.Plugin{
@@ -370,7 +379,7 @@ func TestInstall_Audit_AlreadyInstalledIsNotRecorded(t *testing.T) {
 
 	recorder := &auditCapture{}
 	h := install.NewHandler(
-		mockManager, pluginRepo, files.NewInMemoryFileManager(), nil, nil, "plugins",
+		mockManager, pluginRepo, files.NewInMemoryFileManager(), nil, nil, nil, "plugins",
 		api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()

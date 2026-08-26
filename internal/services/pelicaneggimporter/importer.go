@@ -241,30 +241,6 @@ func wrapInShell(cmd string) string {
 	return `/bin/sh -c "` + escaped + `"`
 }
 
-// transformVariables transforms Pelican egg variables to GameAP GameModVar format.
-func transformVariables(variables []gamesimport.PelicanEggVariable) domain.GameModVarList {
-	vars := make(domain.GameModVarList, 0, len(variables))
-
-	for _, v := range variables {
-		vars = append(vars, domain.GameModVar{
-			Var:      v.EnvVariable,
-			Default:  domain.GameModVarDefault(v.DefaultValue),
-			Info:     buildVarInfo(v),
-			AdminVar: !v.UserEditable,
-		})
-	}
-
-	return vars
-}
-
-func buildVarInfo(v gamesimport.PelicanEggVariable) string {
-	if v.Description != "" {
-		return v.Description
-	}
-
-	return v.Name
-}
-
 func buildGameModMetadata(egg *gamesimport.PelicanEgg) domain.Metadata {
 	return domain.Metadata{
 		"docker_image":                   egg.FirstDockerImage(),

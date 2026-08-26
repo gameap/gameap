@@ -20,6 +20,7 @@ func (m *mockPluginProvider) GetPlugins() []*plugin.LoadedPlugin {
 }
 
 func TestHandler_ServeHTTP_NilProvider(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := getfrontendplugins.NewHandler(nil)
 	recorder := httptest.NewRecorder()
@@ -31,12 +32,13 @@ func TestHandler_ServeHTTP_NilProvider(t *testing.T) {
 	// ASSERT
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "application/javascript; charset=utf-8", recorder.Header().Get("Content-Type"))
-	assert.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
+	assert.Equal(t, "private, no-cache", recorder.Header().Get("Cache-Control"))
 	assert.Contains(t, recorder.Body.String(), "// GameAP Frontend Plugins Module")
 	assert.Contains(t, recorder.Body.String(), "window.Vue")
 }
 
 func TestHandler_ServeHTTP_Headers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		expectedHeaders map[string]string
@@ -45,13 +47,14 @@ func TestHandler_ServeHTTP_Headers(t *testing.T) {
 			name: "correct_content_type_and_cache_headers",
 			expectedHeaders: map[string]string{
 				"Content-Type":  "application/javascript; charset=utf-8",
-				"Cache-Control": "no-cache",
+				"Cache-Control": "private, no-cache",
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			handler := getfrontendplugins.NewHandler(nil)
 			recorder := httptest.NewRecorder()
@@ -69,6 +72,7 @@ func TestHandler_ServeHTTP_Headers(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_PluginsHeader(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := getfrontendplugins.NewHandler(nil)
 	recorder := httptest.NewRecorder()
@@ -87,6 +91,7 @@ func TestHandler_ServeHTTP_PluginsHeader(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_WithPlugins(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		plugins        []*plugin.LoadedPlugin
@@ -201,6 +206,7 @@ func TestHandler_ServeHTTP_WithPlugins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			provider := &mockPluginProvider{plugins: tt.plugins}
 			handler := getfrontendplugins.NewHandler(provider)
@@ -226,7 +232,9 @@ func TestHandler_ServeHTTP_WithPlugins(t *testing.T) {
 }
 
 func TestNewHandler(t *testing.T) {
+	t.Parallel()
 	t.Run("with_nil_provider", func(t *testing.T) {
+		t.Parallel()
 		// ACT
 		handler := getfrontendplugins.NewHandler(nil)
 
@@ -235,6 +243,7 @@ func TestNewHandler(t *testing.T) {
 	})
 
 	t.Run("with_provider", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		provider := &mockPluginProvider{}
 

@@ -26,6 +26,7 @@ func openQuakeClient(t *testing.T, addr string, newClient func(Config) (*Quake, 
 }
 
 func TestQuake_ExecuteSendsOutOfBandRconRequest(t *testing.T) {
+	t.Parallel()
 	requests := make(chan string, 1)
 	srv := newScriptedUDPServer(t, func(req []byte, _ int) [][]byte {
 		requests <- string(req)
@@ -44,6 +45,7 @@ func TestQuake_ExecuteSendsOutOfBandRconRequest(t *testing.T) {
 }
 
 func TestQuake_ExecuteReassemblesChunkedResponse(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return [][]byte{
 			quakePrintDatagram("num score ping name\n  0    15   45 Play"),
@@ -61,6 +63,7 @@ func TestQuake_ExecuteReassemblesChunkedResponse(t *testing.T) {
 }
 
 func TestQuake_ExecuteRefusals(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		newClient func(Config) (*Quake, error)
@@ -108,6 +111,7 @@ func TestQuake_ExecuteRefusals(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 				return [][]byte{quakePrintDatagram(tt.response)}
 			})
@@ -131,6 +135,7 @@ func TestQuake_ExecuteRefusals(t *testing.T) {
 }
 
 func TestQuake_ExecuteSkipsForeignDatagrams(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		datagram []byte
@@ -142,6 +147,7 @@ func TestQuake_ExecuteSkipsForeignDatagrams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 				return [][]byte{tt.datagram, quakePrintDatagram("real output")}
 			})
@@ -159,6 +165,7 @@ func TestQuake_ExecuteSkipsForeignDatagrams(t *testing.T) {
 // A datagram the protocol cannot use must not stand in for the answer: the real reply still has
 // the whole timeout, not just the idle window that follows the first datagram.
 func TestQuake_ExecuteKeepsFullTimeoutUntilFirstUsableDatagram(t *testing.T) {
+	t.Parallel()
 	srv := newPacedScriptedUDPServer(t, responseIdleTimeout+300*time.Millisecond,
 		func(_ []byte, _ int) [][]byte {
 			return [][]byte{
@@ -180,6 +187,7 @@ func TestQuake_ExecuteKeepsFullTimeoutUntilFirstUsableDatagram(t *testing.T) {
 }
 
 func TestQuake_ExecuteReportsTimeoutWhenOnlyUnusableDatagramsArrive(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return [][]byte{[]byte(header + "statusResponse\n\\mapname\\q3dm17")}
 	})
@@ -197,6 +205,7 @@ func TestQuake_ExecuteReportsTimeoutWhenOnlyUnusableDatagramsArrive(t *testing.T
 }
 
 func TestQuake_ExecuteAcceptsPrintWithoutNewline(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return [][]byte{[]byte(header + quakeResponseKeyword + "output without newline")}
 	})
@@ -210,6 +219,7 @@ func TestQuake_ExecuteAcceptsPrintWithoutNewline(t *testing.T) {
 }
 
 func TestQuake_ExecuteTimesOutWhenServerIsSilent(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, _ int) [][]byte {
 		return nil
 	})
@@ -226,6 +236,7 @@ func TestQuake_ExecuteTimesOutWhenServerIsSilent(t *testing.T) {
 }
 
 func TestQuake_OpenRejectsPasswordWithWhitespace(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		password string
@@ -237,6 +248,7 @@ func TestQuake_OpenRejectsPasswordWithWhitespace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			client, err := NewQuake3(Config{Address: "127.0.0.1:27960", Password: tt.password, Timeout: time.Second})
 			require.NoError(t, err)
 
@@ -250,6 +262,7 @@ func TestQuake_OpenRejectsPasswordWithWhitespace(t *testing.T) {
 }
 
 func TestQuake_ExecuteDropsStaleDatagramsFromPreviousCommand(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedUDPServer(t, func(_ []byte, idx int) [][]byte {
 		if idx == 0 {
 			return [][]byte{
@@ -274,6 +287,7 @@ func TestQuake_ExecuteDropsStaleDatagramsFromPreviousCommand(t *testing.T) {
 }
 
 func TestQuake_ExecuteCapsReassembledResponse(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("streams ~1 MiB over loopback UDP")
 	}
@@ -299,6 +313,7 @@ func TestQuake_ExecuteCapsReassembledResponse(t *testing.T) {
 }
 
 func TestQuake_CloseWithoutOpen(t *testing.T) {
+	t.Parallel()
 	client, err := NewQuake2(Config{Address: "127.0.0.1:27910", Password: "secret"})
 	require.NoError(t, err)
 

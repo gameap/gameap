@@ -53,6 +53,7 @@ func (m *recordingLoaderManager) GetPlugins() []*pkgplugin.LoadedPlugin { return
 func (m *recordingLoaderManager) Shutdown(_ context.Context) error      { return nil }
 
 func TestInstallPlugin_loader_receives_db_plugin_id(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	mockServer := newUpstreamServer(t, upstreamConfig{
 		pluginDetails: defaultPluginDetails(false),
@@ -67,7 +68,7 @@ func TestInstallPlugin_loader_receives_db_plugin_id(t *testing.T) {
 	manager := &recordingLoaderManager{}
 	loader := plugin.NewLoader(manager, fm, repo, nil, "plugins")
 
-	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, "plugins", api.NewResponder())
+	h := installplugin.NewHandler(storeService, repo, fm, loader, nil, nil, "plugins", api.NewResponder())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/plugin-store/plugins/"+testPluginID+"/install", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": testPluginID})

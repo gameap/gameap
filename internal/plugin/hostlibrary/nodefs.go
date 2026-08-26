@@ -2,11 +2,13 @@ package hostlibrary
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
@@ -18,28 +20,38 @@ import (
 	"github.com/tetratelabs/wazero"
 )
 
-// filesPermissionDeniedMessage is what a plugin without the grant sees. It
-// names the missing permission so plugin authors know what to declare.
-const filesPermissionDeniedMessage = "plugin permission " + string(domain.PluginPermissionFiles) + " required"
-
-// syncWaitGuestDeadlineGrace keeps the blocking archive wait strictly inside
-// the guest call deadline: hitting the call deadline itself would close the
-// wasm module (WithCloseOnContextDone), while an expired wait merely answers
-// completed=false.
-const syncWaitGuestDeadlineGrace = 2 * time.Second
-
-// defaultSyncWaitBudget applies when the request names no timeout and the
-// context carries no deadline (the wrapper always sets one in production);
-// without it such a call would answer completed=false immediately.
-const defaultSyncWaitBudget = 30 * time.Second
-
 type NodeFSServiceImpl struct {
 	pluginID    uint64
 	fileService NodeFileService
 	nodeRepo    repositories.NodeRepository
 	archive     NodeArchiveService
 	events      ArchiveEventRegistrar
-	checker     PluginPermissionChecker
+	guard       *PluginGuard
+	// maxInlineBytes caps Download/Upload payloads, which are materialized
+	// in panel memory and then copied into the guest; 0 = unlimited.
+	maxInlineBytes uint64
+	policy         *PathPolicy
+}
+
+// NodeFSOption tunes a NodeFSServiceImpl.
+type NodeFSOption func(*NodeFSServiceImpl)
+
+// WithNodeFSMaxInlineBytes caps the size of a file a plugin may download or
+// upload in one message; 0 removes the cap.
+func WithNodeFSMaxInlineBytes(maxBytes uint64) NodeFSOption {
+	return func(s *NodeFSServiceImpl) {
+		s.maxInlineBytes = maxBytes
+	}
+}
+
+// WithNodeFSPathPolicy confines the paths the plugin may name; nil keeps
+// the unrestricted policy.
+func WithNodeFSPathPolicy(policy *PathPolicy) NodeFSOption {
+	return func(s *NodeFSServiceImpl) {
+		if policy != nil {
+			s.policy = policy
+		}
+	}
 }
 
 func NewNodeFSService(
@@ -48,39 +60,72 @@ func NewNodeFSService(
 	nodeRepo repositories.NodeRepository,
 	archive NodeArchiveService,
 	events ArchiveEventRegistrar,
-	checker PluginPermissionChecker,
+	guard *PluginGuard,
+	opts ...NodeFSOption,
 ) *NodeFSServiceImpl {
-	return &NodeFSServiceImpl{
+	service := &NodeFSServiceImpl{
 		pluginID:    pluginID,
 		fileService: fileService,
 		nodeRepo:    nodeRepo,
 		archive:     archive,
 		events:      events,
-		checker:     checker,
+		guard:       guard,
+		policy:      DefaultPathPolicy(),
 	}
+
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	return service
 }
 
-// authorize gates every method of this module on the "files" grant. Plugin
-// ID 0 (transient dry-run loads) is never granted anything.
-func (s *NodeFSServiceImpl) authorize(ctx context.Context) (bool, string) {
-	allowed, err := s.checker.Has(ctx, s.pluginID, domain.PluginPermissionFiles)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to check plugin files permission",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("error", err.Error()))
-
-		return false, "failed to check plugin permission: " + err.Error()
-	}
-
-	if !allowed {
-		slog.WarnContext(ctx, "plugin denied access to the nodefs host library",
-			slog.Uint64("plugin_id", s.pluginID),
-			slog.String("permission", string(domain.PluginPermissionFiles)))
-
-		return false, filesPermissionDeniedMessage
+// authorize gates every method of this module on the "files" grant and the
+// nodefs rate limit. Plugin ID 0 (transient dry-run loads) is never granted
+// anything.
+func (s *NodeFSServiceImpl) authorize(ctx context.Context, export string) (bool, string) {
+	if msg := s.guard.Check(ctx, ModuleNodeFS, export); msg != "" {
+		return false, msg
 	}
 
 	return true, ""
+}
+
+// checkPaths refuses the call before any daemon round trip when one of the
+// paths falls outside the node path policy; the answer is the message to
+// hand the guest, "" when every path is allowed.
+func (s *NodeFSServiceImpl) checkPaths(ctx context.Context, export string, node *domain.Node, paths ...string) string {
+	scope, err := s.policy.ScopeFor(ctx, node, s.pluginID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to resolve the node path policy, refusing the call",
+			slog.Uint64("plugin_id", s.pluginID),
+			slog.Uint64("node_id", uint64(node.ID)),
+			slog.String("error", err.Error()))
+
+		return "path policy: " + err.Error()
+	}
+
+	for _, raw := range paths {
+		if denial := scope.Check(raw); denial != nil {
+			s.guard.DenyPath(ctx, ModuleNodeFS, export, uint64(node.ID), denial)
+
+			return denial.Error()
+		}
+	}
+
+	return ""
+}
+
+// auditFileOp records a write to a node's filesystem with the plugin as the
+// actor.
+func (s *NodeFSServiceImpl) auditFileOp(
+	ctx context.Context,
+	action string,
+	nodeID uint64,
+	err error,
+	attrs ...slog.Attr,
+) {
+	s.guard.Audit(ctx, audit.EventPluginNodeFile, action, "node", nodeResourceID(nodeID), err, attrs...)
 }
 
 func (s *NodeFSServiceImpl) initiator() string {
@@ -104,7 +149,7 @@ func (s *NodeFSServiceImpl) ReadDir(
 	ctx context.Context,
 	req *nodefs.ReadDirRequest,
 ) (*nodefs.ReadDirResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "read_dir"); !allowed {
 		return &nodefs.ReadDirResponse{Error: new(msg)}, nil
 	}
 
@@ -115,6 +160,10 @@ func (s *NodeFSServiceImpl) ReadDir(
 
 	if node == nil {
 		return &nodefs.ReadDirResponse{Error: new("node not found")}, nil
+	}
+
+	if msg := s.checkPaths(ctx, "read_dir", node, req.Path); msg != "" {
+		return &nodefs.ReadDirResponse{Error: new(msg)}, nil
 	}
 
 	files, err := s.fileService.ReadDir(ctx, node, req.Path)
@@ -131,7 +180,7 @@ func (s *NodeFSServiceImpl) MkDir(
 	ctx context.Context,
 	req *nodefs.MkDirRequest,
 ) (*nodefs.MkDirResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "mk_dir"); !allowed {
 		return &nodefs.MkDirResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -144,7 +193,12 @@ func (s *NodeFSServiceImpl) MkDir(
 		return &nodefs.MkDirResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "mk_dir", node, req.Path); msg != "" {
+		return &nodefs.MkDirResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	err = s.fileService.MkDir(ctx, node, req.Path, daemon.OwnerOptions{})
+	s.auditFileOp(ctx, "mkdir", req.NodeId, err, slog.String("path", req.Path))
 	if err != nil {
 		return &nodefs.MkDirResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -156,7 +210,7 @@ func (s *NodeFSServiceImpl) Copy(
 	ctx context.Context,
 	req *nodefs.CopyRequest,
 ) (*nodefs.CopyResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "copy"); !allowed {
 		return &nodefs.CopyResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -169,7 +223,13 @@ func (s *NodeFSServiceImpl) Copy(
 		return &nodefs.CopyResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "copy", node, req.Source, req.Destination); msg != "" {
+		return &nodefs.CopyResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	err = s.fileService.Copy(ctx, node, req.Source, req.Destination)
+	s.auditFileOp(ctx, "copy", req.NodeId, err,
+		slog.String("source", req.Source), slog.String("destination", req.Destination))
 	if err != nil {
 		return &nodefs.CopyResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -181,7 +241,7 @@ func (s *NodeFSServiceImpl) Move(
 	ctx context.Context,
 	req *nodefs.MoveRequest,
 ) (*nodefs.MoveResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "move"); !allowed {
 		return &nodefs.MoveResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -194,7 +254,13 @@ func (s *NodeFSServiceImpl) Move(
 		return &nodefs.MoveResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "move", node, req.Source, req.Destination); msg != "" {
+		return &nodefs.MoveResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	err = s.fileService.Move(ctx, node, req.Source, req.Destination)
+	s.auditFileOp(ctx, "move", req.NodeId, err,
+		slog.String("source", req.Source), slog.String("destination", req.Destination))
 	if err != nil {
 		return &nodefs.MoveResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -206,7 +272,7 @@ func (s *NodeFSServiceImpl) Download(
 	ctx context.Context,
 	req *nodefs.DownloadRequest,
 ) (*nodefs.DownloadResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "download"); !allowed {
 		return &nodefs.DownloadResponse{Error: new(msg)}, nil
 	}
 
@@ -219,19 +285,128 @@ func (s *NodeFSServiceImpl) Download(
 		return &nodefs.DownloadResponse{Error: new("node not found")}, nil
 	}
 
-	content, err := s.fileService.Download(ctx, node, req.Path)
+	if msg := s.checkPaths(ctx, "download", node, req.Path); msg != "" {
+		return &nodefs.DownloadResponse{Error: new(msg)}, nil
+	}
+
+	// Stat only when the answer depends on it: an inline limit to check the
+	// file against, or a window to place inside the file. An uncapped
+	// whole-file read still costs one daemon round trip, as it always did.
+	var size uint64
+
+	if s.maxInlineBytes > 0 || req.Offset > 0 || req.Length > 0 {
+		info, statErr := s.fileService.GetFileInfo(ctx, node, req.Path)
+		if statErr != nil {
+			return &nodefs.DownloadResponse{Error: new("stat failed: " + statErr.Error())}, nil
+		}
+
+		if info == nil {
+			return &nodefs.DownloadResponse{Error: new("file not found")}, nil
+		}
+
+		size = info.Size
+
+		// Reading at or past the end is how a caller paging through a file
+		// finds out it is done, so it answers empty rather than failing.
+		if req.Offset >= size {
+			return &nodefs.DownloadResponse{Offset: req.Offset, TotalSize: size}, nil
+		}
+	}
+
+	length, msg := s.downloadWindow(req, size)
+	if msg != "" {
+		return &nodefs.DownloadResponse{Error: new(msg)}, nil
+	}
+
+	// The stat above is advisory (the file may have grown since), so the read
+	// itself stops one byte past what was allowed: the guest never receives
+	// more than the limit and the panel never buffers much more than it.
+	content, err := s.fileService.DownloadRange(ctx, node, req.Path, req.Offset, readLimit(length))
 	if err != nil {
 		return &nodefs.DownloadResponse{Error: new(err.Error())}, nil
 	}
 
-	return &nodefs.DownloadResponse{Content: content}, nil
+	if length > 0 && uint64(len(content)) > length {
+		// A whole-file read asked for the file, not a prefix of it, and has no
+		// way to tell a truncation from the real thing — the file grew past the
+		// limit since the stat, so the answer is a refusal. A caller that named
+		// a window said how much it wants, and getting the whole window back is
+		// the ordinary case: the extra byte the read took is simply dropped.
+		if wholeFileRead(req) {
+			return &nodefs.DownloadResponse{Error: new(fmt.Sprintf(
+				"file too large: content exceeds the inline download limit of %d bytes", s.maxInlineBytes))}, nil
+		}
+
+		content = content[:length]
+	}
+
+	// len(Content) is the bound that was applied, Offset is echoed and
+	// TotalSize is set on every windowed read, so a caller paging through a
+	// file reads on while Offset+len(Content) < TotalSize.
+	return &nodefs.DownloadResponse{Content: content, Offset: req.Offset, TotalSize: size}, nil
+}
+
+// wholeFileRead is the request that names no window: it asked for the file, not
+// a piece of it.
+func wholeFileRead(req *nodefs.DownloadRequest) bool {
+	return req.Offset == 0 && req.Length == 0
+}
+
+// downloadWindow resolves how many bytes a download may return, or the message
+// that refuses it. It answers 0 for "no bound", which only an uncapped panel
+// can produce.
+//
+// A request that names neither an offset nor a length is the old whole-file
+// read and keeps its old answer: a file past the inline limit is refused
+// outright rather than silently truncated, because a caller that asked for the
+// file and got part of it has no way to tell. A request that names a window has
+// said what it wants, so only the window has to fit — and is served exactly
+// that window, cut to the bound this returns.
+func (s *NodeFSServiceImpl) downloadWindow(req *nodefs.DownloadRequest, size uint64) (uint64, string) {
+	if wholeFileRead(req) {
+		if s.maxInlineBytes > 0 && size > s.maxInlineBytes {
+			return 0, fmt.Sprintf(
+				"file too large: %d bytes exceeds the inline download limit of %d bytes"+
+					" (read it in windows with offset/length)",
+				size, s.maxInlineBytes)
+		}
+
+		return s.maxInlineBytes, ""
+	}
+
+	if req.Length == 0 {
+		if s.maxInlineBytes == 0 {
+			return 0, ""
+		}
+
+		return min(s.maxInlineBytes, size-min(size, req.Offset)), ""
+	}
+
+	if s.maxInlineBytes > 0 && req.Length > s.maxInlineBytes {
+		return 0, fmt.Sprintf(
+			"window too large: %d bytes exceeds the inline download limit of %d bytes",
+			req.Length, s.maxInlineBytes)
+	}
+
+	return req.Length, ""
+}
+
+// readLimit is what the node is asked for: one byte past what the answer may
+// contain, enough to tell a window that is exactly full from one that was cut.
+// Zero stays zero — no bound at all.
+func readLimit(length uint64) uint64 {
+	if length == 0 {
+		return 0
+	}
+
+	return length + 1
 }
 
 func (s *NodeFSServiceImpl) Upload(
 	ctx context.Context,
 	req *nodefs.UploadRequest,
 ) (*nodefs.UploadResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "upload"); !allowed {
 		return &nodefs.UploadResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -244,7 +419,21 @@ func (s *NodeFSServiceImpl) Upload(
 		return &nodefs.UploadResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "upload", node, req.Path); msg != "" {
+		return &nodefs.UploadResponse{Success: false, Error: new(msg)}, nil
+	}
+
+	if s.maxInlineBytes > 0 && uint64(len(req.Content)) > s.maxInlineBytes {
+		return &nodefs.UploadResponse{
+			Success: false,
+			Error: new(fmt.Sprintf("content too large: %d bytes exceeds the inline upload limit of %d bytes",
+				len(req.Content), s.maxInlineBytes)),
+		}, nil
+	}
+
 	err = s.fileService.Upload(ctx, node, req.Path, req.Content, os.FileMode(req.Permissions), daemon.OwnerOptions{})
+	s.auditFileOp(ctx, "upload", req.NodeId, err,
+		slog.String("path", req.Path), slog.Int("size", len(req.Content)))
 	if err != nil {
 		return &nodefs.UploadResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -256,7 +445,7 @@ func (s *NodeFSServiceImpl) Remove(
 	ctx context.Context,
 	req *nodefs.RemoveRequest,
 ) (*nodefs.RemoveResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "remove"); !allowed {
 		return &nodefs.RemoveResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -269,7 +458,13 @@ func (s *NodeFSServiceImpl) Remove(
 		return &nodefs.RemoveResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "remove", node, req.Path); msg != "" {
+		return &nodefs.RemoveResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	err = s.fileService.Remove(ctx, node, req.Path, req.Recursive)
+	s.auditFileOp(ctx, "remove", req.NodeId, err,
+		slog.String("path", req.Path), slog.Bool("recursive", req.Recursive))
 	if err != nil {
 		return &nodefs.RemoveResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -281,7 +476,7 @@ func (s *NodeFSServiceImpl) GetFileInfo(
 	ctx context.Context,
 	req *nodefs.GetFileInfoRequest,
 ) (*nodefs.GetFileInfoResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "get_file_info"); !allowed {
 		return &nodefs.GetFileInfoResponse{Found: false, Error: new(msg)}, nil
 	}
 
@@ -292,6 +487,10 @@ func (s *NodeFSServiceImpl) GetFileInfo(
 
 	if node == nil {
 		return &nodefs.GetFileInfoResponse{Found: false, Error: new("node not found")}, nil
+	}
+
+	if msg := s.checkPaths(ctx, "get_file_info", node, req.Path); msg != "" {
+		return &nodefs.GetFileInfoResponse{Found: false, Error: new(msg)}, nil
 	}
 
 	details, err := s.fileService.GetFileInfo(ctx, node, req.Path)
@@ -309,7 +508,7 @@ func (s *NodeFSServiceImpl) Chmod(
 	ctx context.Context,
 	req *nodefs.ChmodRequest,
 ) (*nodefs.ChmodResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "chmod"); !allowed {
 		return &nodefs.ChmodResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -322,7 +521,13 @@ func (s *NodeFSServiceImpl) Chmod(
 		return &nodefs.ChmodResponse{Success: false, Error: new("node not found")}, nil
 	}
 
+	if msg := s.checkPaths(ctx, "chmod", node, req.Path); msg != "" {
+		return &nodefs.ChmodResponse{Success: false, Error: new(msg)}, nil
+	}
+
 	err = s.fileService.Chmod(ctx, node, req.Path, req.Permissions)
+	s.auditFileOp(ctx, "chmod", req.NodeId, err,
+		slog.String("path", req.Path), slog.Uint64("permissions", uint64(req.Permissions)))
 	if err != nil {
 		return &nodefs.ChmodResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -334,7 +539,7 @@ func (s *NodeFSServiceImpl) Hash(
 	ctx context.Context,
 	req *nodefs.HashRequest,
 ) (*nodefs.HashResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "hash"); !allowed {
 		return &nodefs.HashResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -345,6 +550,10 @@ func (s *NodeFSServiceImpl) Hash(
 
 	if node == nil {
 		return &nodefs.HashResponse{Success: false, Error: new("node not found")}, nil
+	}
+
+	if msg := s.checkPaths(ctx, "hash", node, req.Paths...); msg != "" {
+		return &nodefs.HashResponse{Success: false, Error: new(msg)}, nil
 	}
 
 	// Membership check instead of comparing against UNSPECIFIED: any value
@@ -384,7 +593,7 @@ func (s *NodeFSServiceImpl) CreateArchive(
 ) (*nodefs.ArchiveSyncResponse, error) {
 	// Blocking calls never deliver progress callbacks: the guest is parked
 	// inside this host function and cannot be re-entered.
-	operationID, errMsg := s.startCreate(ctx, req, false)
+	operationID, errMsg := s.startCreate(ctx, "create_archive", req, false)
 	if errMsg != "" {
 		return &nodefs.ArchiveSyncResponse{Success: false, Error: new(errMsg)}, nil
 	}
@@ -396,7 +605,7 @@ func (s *NodeFSServiceImpl) ExtractArchive(
 	ctx context.Context,
 	req *nodefs.ExtractArchiveRequest,
 ) (*nodefs.ArchiveSyncResponse, error) {
-	operationID, errMsg := s.startExtract(ctx, req, false)
+	operationID, errMsg := s.startExtract(ctx, "extract_archive", req, false)
 	if errMsg != "" {
 		return &nodefs.ArchiveSyncResponse{Success: false, Error: new(errMsg)}, nil
 	}
@@ -408,7 +617,7 @@ func (s *NodeFSServiceImpl) StartCreateArchive(
 	ctx context.Context,
 	req *nodefs.CreateArchiveRequest,
 ) (*nodefs.StartArchiveResponse, error) {
-	operationID, errMsg := s.startCreate(ctx, req, req.ReportProgress)
+	operationID, errMsg := s.startCreate(ctx, "start_create_archive", req, req.ReportProgress)
 	if errMsg != "" {
 		return &nodefs.StartArchiveResponse{Success: false, Error: new(errMsg)}, nil
 	}
@@ -420,7 +629,7 @@ func (s *NodeFSServiceImpl) StartExtractArchive(
 	ctx context.Context,
 	req *nodefs.ExtractArchiveRequest,
 ) (*nodefs.StartArchiveResponse, error) {
-	operationID, errMsg := s.startExtract(ctx, req, req.ReportProgress)
+	operationID, errMsg := s.startExtract(ctx, "start_extract_archive", req, req.ReportProgress)
 	if errMsg != "" {
 		return &nodefs.StartArchiveResponse{Success: false, Error: new(errMsg)}, nil
 	}
@@ -432,7 +641,7 @@ func (s *NodeFSServiceImpl) CancelArchive(
 	ctx context.Context,
 	req *nodefs.CancelArchiveRequest,
 ) (*nodefs.CancelArchiveResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "cancel_archive"); !allowed {
 		return &nodefs.CancelArchiveResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -452,6 +661,7 @@ func (s *NodeFSServiceImpl) CancelArchive(
 	}
 
 	err = s.archive.Cancel(ctx, node, req.OperationId, req.Reason)
+	s.auditFileOp(ctx, "archive_cancel", snapshot.NodeID, err, slog.String("operation_id", req.OperationId))
 	if err != nil {
 		return &nodefs.CancelArchiveResponse{Success: false, Error: new(err.Error())}, nil
 	}
@@ -463,7 +673,7 @@ func (s *NodeFSServiceImpl) GetArchiveOperation(
 	ctx context.Context,
 	req *nodefs.GetArchiveOperationRequest,
 ) (*nodefs.GetArchiveOperationResponse, error) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, "get_archive_operation"); !allowed {
 		return &nodefs.GetArchiveOperationResponse{Success: false, Error: new(msg)}, nil
 	}
 
@@ -500,10 +710,11 @@ func (s *NodeFSServiceImpl) GetArchiveOperation(
 
 func (s *NodeFSServiceImpl) startCreate(
 	ctx context.Context,
+	export string,
 	req *nodefs.CreateArchiveRequest,
 	reportProgress bool,
 ) (string, string) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, export); !allowed {
 		return "", msg
 	}
 
@@ -514,6 +725,20 @@ func (s *NodeFSServiceImpl) startCreate(
 
 	if node == nil {
 		return "", "node not found"
+	}
+
+	// An empty base_path asks for no rebasing at all; it names no location,
+	// so checking it would resolve to the node work path and be refused by
+	// every restricted mode.
+	paths := []string{req.ArchivePath}
+	if req.BasePath != "" {
+		paths = append(paths, req.BasePath)
+	}
+
+	paths = append(paths, req.Sources...)
+
+	if msg := s.checkPaths(ctx, export, node, paths...); msg != "" {
+		return "", msg
 	}
 
 	operationID, err := s.archive.StartCreate(ctx, node, daemon.CreateArchiveParams{
@@ -530,6 +755,8 @@ func (s *NodeFSServiceImpl) startCreate(
 			Timeout:   time.Duration(req.TimeoutSeconds) * time.Second,
 		},
 	})
+	s.auditFileOp(ctx, "archive_create", req.NodeId, err,
+		slog.String("archive_path", req.ArchivePath), slog.Int("sources", len(req.Sources)))
 	if err != nil {
 		return "", err.Error()
 	}
@@ -541,10 +768,11 @@ func (s *NodeFSServiceImpl) startCreate(
 
 func (s *NodeFSServiceImpl) startExtract(
 	ctx context.Context,
+	export string,
 	req *nodefs.ExtractArchiveRequest,
 	reportProgress bool,
 ) (string, string) {
-	if allowed, msg := s.authorize(ctx); !allowed {
+	if allowed, msg := s.authorize(ctx, export); !allowed {
 		return "", msg
 	}
 
@@ -555,6 +783,10 @@ func (s *NodeFSServiceImpl) startExtract(
 
 	if node == nil {
 		return "", "node not found"
+	}
+
+	if msg := s.checkPaths(ctx, export, node, req.ArchivePath, req.Destination); msg != "" {
+		return "", msg
 	}
 
 	operationID, err := s.archive.StartExtract(ctx, node, daemon.ExtractArchiveParams{
@@ -571,6 +803,8 @@ func (s *NodeFSServiceImpl) startExtract(
 			Timeout:   time.Duration(req.TimeoutSeconds) * time.Second,
 		},
 	})
+	s.auditFileOp(ctx, "archive_extract", req.NodeId, err,
+		slog.String("archive_path", req.ArchivePath), slog.String("destination", req.Destination))
 	if err != nil {
 		return "", err.Error()
 	}
@@ -603,18 +837,7 @@ func (s *NodeFSServiceImpl) waitSync(
 		OperationId: operationID,
 	}
 
-	budget := time.Duration(0)
-	if timeoutSeconds > 0 {
-		budget = time.Duration(timeoutSeconds) * time.Second
-	}
-	if deadline, ok := ctx.Deadline(); ok {
-		remaining := time.Until(deadline) - syncWaitGuestDeadlineGrace
-		if budget <= 0 || remaining < budget {
-			budget = remaining
-		}
-	} else if budget <= 0 {
-		budget = defaultSyncWaitBudget
-	}
+	budget := syncWaitBudget(ctx, time.Duration(timeoutSeconds)*time.Second)
 
 	// A non-positive budget here means the guest call deadline is imminent:
 	// answering now (completed=false) beats being killed mid-wait.
@@ -772,7 +995,8 @@ type NodeFSHostLibraryFactory struct {
 	nodeRepo    repositories.NodeRepository
 	archive     NodeArchiveService
 	events      ArchiveEventRegistrar
-	checker     PluginPermissionChecker
+	guard       *Guard
+	opts        []NodeFSOption
 }
 
 func NewNodeFSHostLibraryFactory(
@@ -780,19 +1004,21 @@ func NewNodeFSHostLibraryFactory(
 	nodeRepo repositories.NodeRepository,
 	archive NodeArchiveService,
 	events ArchiveEventRegistrar,
-	checker PluginPermissionChecker,
+	guard *Guard,
+	opts ...NodeFSOption,
 ) *NodeFSHostLibraryFactory {
 	return &NodeFSHostLibraryFactory{
 		fileService: fileService,
 		nodeRepo:    nodeRepo,
 		archive:     archive,
 		events:      events,
-		checker:     checker,
+		guard:       guard,
+		opts:        opts,
 	}
 }
 
 func (f *NodeFSHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
 	return &NodeFSHostLibrary{
-		impl: NewNodeFSService(pluginID, f.fileService, f.nodeRepo, f.archive, f.events, f.checker),
+		impl: NewNodeFSService(pluginID, f.fileService, f.nodeRepo, f.archive, f.events, f.guard.For(pluginID), f.opts...),
 	}
 }

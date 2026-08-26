@@ -158,8 +158,12 @@ func findAllTasks(t *testing.T, repo *inmemory.DaemonTaskRepository) []domain.Da
 }
 
 func TestServerControlService_PluginEventCancelsOperation(t *testing.T) {
+	t.Parallel()
+
 	for name, op := range allControlOperations() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			settingRepo := inmemory.NewServerSettingRepository()
 			taskRepo := inmemory.NewDaemonTaskRepository()
@@ -192,6 +196,8 @@ func TestServerControlService_PluginEventCancelsOperation(t *testing.T) {
 }
 
 func TestServerControlService_PluginCancelMessageFallback(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE — without CancelMessage the CancelledBy value is used as the message.
 	settingRepo := inmemory.NewServerSettingRepository()
 	taskRepo := inmemory.NewDaemonTaskRepository()
@@ -216,6 +222,8 @@ func TestServerControlService_PluginCancelMessageFallback(t *testing.T) {
 }
 
 func TestServerControlService_PluginEventsDispatched(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		result    *PluginDispatchResult
@@ -238,6 +246,8 @@ func TestServerControlService_PluginEventsDispatched(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			settingRepo := inmemory.NewServerSettingRepository()
 			taskRepo := inmemory.NewDaemonTaskRepository()
@@ -273,7 +283,11 @@ func TestServerControlService_PluginEventsDispatched(t *testing.T) {
 }
 
 func TestServerControlService_TaskDispatcher(t *testing.T) {
+	t.Parallel()
+
 	t.Run("dispatches_task_via_grpc_instead_of_saving", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		settingRepo := inmemory.NewServerSettingRepository()
 		taskRepo := inmemory.NewDaemonTaskRepository()
@@ -301,6 +315,8 @@ func TestServerControlService_TaskDispatcher(t *testing.T) {
 	})
 
 	t.Run("dispatch_error_is_wrapped", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		settingRepo := inmemory.NewServerSettingRepository()
 		taskRepo := inmemory.NewDaemonTaskRepository()
@@ -328,6 +344,8 @@ func TestServerControlService_TaskDispatcher(t *testing.T) {
 }
 
 func TestServerControlService_ReinstallDispatchErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		failOn      domain.DaemonTaskType
@@ -352,6 +370,8 @@ func TestServerControlService_ReinstallDispatchErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			settingRepo := inmemory.NewServerSettingRepository()
 			taskRepo := inmemory.NewDaemonTaskRepository()
@@ -377,7 +397,11 @@ func TestServerControlService_ReinstallDispatchErrors(t *testing.T) {
 }
 
 func TestServerControlService_RepositoryErrors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("task_existence_check_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		settingRepo := inmemory.NewServerSettingRepository()
 		taskRepo := &errorDaemonTaskRepo{
@@ -398,6 +422,8 @@ func TestServerControlService_RepositoryErrors(t *testing.T) {
 	})
 
 	t.Run("autostart_setting_find_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		settingRepo := &errorServerSettingRepo{
 			ServerSettingRepository: inmemory.NewServerSettingRepository(),
@@ -418,6 +444,8 @@ func TestServerControlService_RepositoryErrors(t *testing.T) {
 	})
 
 	t.Run("autostart_current_setting_find_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		settingRepo := &errorServerSettingRepo{
 			ServerSettingRepository: inmemory.NewServerSettingRepository(),
@@ -438,6 +466,8 @@ func TestServerControlService_RepositoryErrors(t *testing.T) {
 	})
 
 	t.Run("autostart_current_setting_save_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		settingRepo := &errorServerSettingRepo{
 			ServerSettingRepository: inmemory.NewServerSettingRepository(),
@@ -459,7 +489,11 @@ func TestServerControlService_RepositoryErrors(t *testing.T) {
 }
 
 func TestServerControlService_AutostartCurrentBranches(t *testing.T) {
+	t.Parallel()
+
 	t.Run("autostart_disabled_skips_autostart_current", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		settingRepo := inmemory.NewServerSettingRepository()
 		require.NoError(t, settingRepo.Save(context.Background(), &domain.ServerSetting{
@@ -485,6 +519,8 @@ func TestServerControlService_AutostartCurrentBranches(t *testing.T) {
 	})
 
 	t.Run("non_boolean_autostart_value_skips_autostart_current", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		settingRepo := inmemory.NewServerSettingRepository()
 		require.NoError(t, settingRepo.Save(context.Background(), &domain.ServerSetting{
@@ -510,6 +546,8 @@ func TestServerControlService_AutostartCurrentBranches(t *testing.T) {
 	})
 
 	t.Run("existing_autostart_current_is_updated", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		settingRepo := inmemory.NewServerSettingRepository()
 		require.NoError(t, settingRepo.Save(context.Background(), &domain.ServerSetting{

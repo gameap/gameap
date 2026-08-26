@@ -2,6 +2,7 @@ package testing
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -170,6 +171,98 @@ func (s *PluginStorageRepositorySuite) TestPluginStorageRepositorySave() {
 		results, err := s.repo.Find(ctx, filter, nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, results, 2)
+	})
+}
+
+// A plugin's storage_set for a key it already holds is a fresh entry (no ID)
+// each time: the second save must land on the same row, for a global key
+// (NULL entity, which no unique index can guard) as much as for a scoped one.
+func (s *PluginStorageRepositorySuite) TestPluginStorageRepositorySaveAgain() {
+	ctx := context.Background()
+
+	s.T().Run("global_key_is_updated_in_place", func(t *testing.T) {
+		pluginID := uint64(900)
+
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{
+			PluginID: pluginID,
+			Key:      "rsp:account",
+			Payload:  []byte(`{"state":"registering"}`),
+		}))
+		second := &domain.PluginStorageEntry{
+			PluginID: pluginID,
+			Key:      "rsp:account",
+			Payload:  []byte(`{"state":"active"}`),
+		}
+		require.NoError(t, s.repo.Save(ctx, second))
+		assert.NotZero(t, second.ID, "the save reports the row it landed on")
+
+		filter := &filters.FindPluginStorage{
+			PluginIDs: []uint64{pluginID},
+			Keys:      []string{"rsp:account"},
+			EntityPairs: []domain.PluginStorageEntityPair{
+				{EntityType: nil, EntityID: nil},
+			},
+		}
+		results, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1, "a second save must not add a second row")
+		assert.Equal(t, []byte(`{"state":"active"}`), results[0].Payload)
+		assert.Equal(t, second.ID, results[0].ID)
+	})
+
+	s.T().Run("scoped_key_is_updated_in_place", func(t *testing.T) {
+		pluginID := uint64(901)
+
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{
+			PluginID:   pluginID,
+			Key:        "rsp:node",
+			EntityType: new("node"),
+			EntityID:   new(uint(1)),
+			Payload:    []byte(`{"cli":"missing"}`),
+		}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{
+			PluginID:   pluginID,
+			Key:        "rsp:node",
+			EntityType: new("node"),
+			EntityID:   new(uint(1)),
+			Payload:    []byte(`{"cli":"installed"}`),
+		}))
+
+		filter := &filters.FindPluginStorage{
+			PluginIDs: []uint64{pluginID},
+			Keys:      []string{"rsp:node"},
+			EntityPairs: []domain.PluginStorageEntityPair{
+				{EntityType: new("node"), EntityID: new(uint(1))},
+			},
+		}
+		results, err := s.repo.Find(ctx, filter, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, []byte(`{"cli":"installed"}`), results[0].Payload)
+	})
+
+	s.T().Run("global_keys_stay_apart", func(t *testing.T) {
+		pluginID := uint64(902)
+
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: pluginID, Key: "a", Payload: []byte(`1`)}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: pluginID, Key: "b", Payload: []byte(`2`)}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: pluginID + 1, Key: "a", Payload: []byte(`3`)}))
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{PluginID: pluginID, Key: "a", Payload: []byte(`4`)}))
+
+		results, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{pluginID}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+		byKey := map[string][]byte{}
+		for _, r := range results {
+			byKey[r.Key] = r.Payload
+		}
+		assert.Equal(t, []byte(`4`), byKey["a"])
+		assert.Equal(t, []byte(`2`), byKey["b"])
+
+		other, err := s.repo.Find(ctx, &filters.FindPluginStorage{PluginIDs: []uint64{pluginID + 1}}, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, other, 1)
+		assert.Equal(t, []byte(`3`), other[0].Payload)
 	})
 }
 
@@ -770,6 +863,111 @@ func (s *PluginStorageRepositorySuite) TestPluginStorageRepositorySorting() {
 
 			gotIDs := []uint64{results[0].ID, results[1].ID, results[2].ID}
 			assert.Equal(t, tt.want(), gotIDs, "entries are in wrong order")
+		})
+	}
+}
+
+func (s *PluginStorageRepositorySuite) TestPluginStorageRepositoryUsageByPlugin() {
+	ctx := context.Background()
+
+	s.T().Run("empty_plugin_reports_zero", func(t *testing.T) {
+		usage, err := s.repo.UsageByPlugin(ctx, 404)
+		require.NoError(t, err)
+		assert.Equal(t, domain.PluginStorageUsage{}, usage)
+	})
+
+	s.T().Run("counts_keys_and_payload_bytes_of_one_plugin_only", func(t *testing.T) {
+		entityType := "server"
+		entityID := uint(7)
+
+		for _, entry := range []*domain.PluginStorageEntry{
+			{PluginID: 21, Key: "a", Payload: []byte("12345")},
+			{PluginID: 21, Key: "b", Payload: []byte("1234567890")},
+			{PluginID: 21, Key: "a", EntityType: &entityType, EntityID: &entityID, Payload: []byte("1")},
+			{PluginID: 22, Key: "a", Payload: []byte("other plugin")},
+		} {
+			require.NoError(t, s.repo.Save(ctx, entry))
+		}
+
+		usage, err := s.repo.UsageByPlugin(ctx, 21)
+		require.NoError(t, err)
+		assert.Equal(t, domain.PluginStorageUsage{Keys: 3, Bytes: 16}, usage)
+
+		// Overwriting a key replaces its payload size instead of adding to it.
+		require.NoError(t, s.repo.Save(ctx, &domain.PluginStorageEntry{
+			PluginID: 21, Key: "b", Payload: []byte("12"),
+		}))
+
+		usage, err = s.repo.UsageByPlugin(ctx, 21)
+		require.NoError(t, err)
+		assert.Equal(t, domain.PluginStorageUsage{Keys: 3, Bytes: 8}, usage)
+	})
+}
+
+func (s *PluginStorageRepositorySuite) TestPluginStorageRepositoryFindByKeyPrefix() {
+	ctx := context.Background()
+
+	for _, entry := range []*domain.PluginStorageEntry{
+		{PluginID: 31, Key: "backup:1", Payload: []byte("a")},
+		{PluginID: 31, Key: "backup:2", Payload: []byte("b")},
+		{PluginID: 31, Key: "backup_list", Payload: []byte("c")},
+		{PluginID: 31, Key: "config", Payload: []byte("d")},
+		{PluginID: 31, Key: "100%:done", Payload: []byte("e")},
+		{PluginID: 32, Key: "backup:9", Payload: []byte("f")},
+	} {
+		require.NoError(s.T(), s.repo.Save(ctx, entry))
+	}
+
+	tests := []struct {
+		name     string
+		prefix   string
+		wantKeys []string
+	}{
+		{
+			name:     "plain_prefix",
+			prefix:   "backup:",
+			wantKeys: []string{"backup:1", "backup:2"},
+		},
+		{
+			name:     "underscore_is_literal_not_wildcard",
+			prefix:   "backup_",
+			wantKeys: []string{"backup_list"},
+		},
+		{
+			name:     "percent_is_literal_not_wildcard",
+			prefix:   "100%",
+			wantKeys: []string{"100%:done"},
+		},
+		{
+			name:     "no_match",
+			prefix:   "zzz",
+			wantKeys: []string{},
+		},
+		{
+			name:     "empty_prefix_matches_everything",
+			prefix:   "",
+			wantKeys: []string{"100%:done", "backup:1", "backup:2", "backup_list", "config"},
+		},
+	}
+
+	for _, tt := range tests {
+		s.T().Run(tt.name, func(t *testing.T) {
+			prefix := tt.prefix
+			results, err := s.repo.Find(ctx, &filters.FindPluginStorage{
+				PluginIDs: []uint64{31},
+				KeyPrefix: &prefix,
+			}, nil, nil)
+			require.NoError(t, err)
+
+			// Sorted here, not by the database: collations order ':' and
+			// '_' differently.
+			keys := make([]string, 0, len(results))
+			for _, entry := range results {
+				keys = append(keys, entry.Key)
+			}
+			slices.Sort(keys)
+
+			assert.Equal(t, tt.wantKeys, keys)
 		})
 	}
 }

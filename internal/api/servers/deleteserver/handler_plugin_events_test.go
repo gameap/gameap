@@ -73,6 +73,7 @@ func savePluginEventsTestServer(t *testing.T, serverRepo *inmemory.ServerReposit
 }
 
 func TestHandler_ServeHTTP_plugin_cancels_deletion(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	savePluginEventsTestServer(t, serverRepo)
 	dispatcher := &fakePluginDispatcher{
@@ -101,6 +102,7 @@ func TestHandler_ServeHTTP_plugin_cancels_deletion(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_dispatches_delete_events(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	savePluginEventsTestServer(t, serverRepo)
 	dispatcher := &fakePluginDispatcher{}

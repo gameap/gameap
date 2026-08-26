@@ -152,6 +152,8 @@ func setupRepo(
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		operationID    string
@@ -232,6 +234,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo := inmemory.NewNodeRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -277,6 +281,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_UserWithoutFilesAbility_Returns403(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: server and node exist, but no files ability is granted.
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -305,6 +311,8 @@ func TestHandler_UserWithoutFilesAbility_Returns403(t *testing.T) {
 }
 
 func TestHandler_NodeNotFound_Returns404(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE: the server references a node that does not exist.
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()
@@ -332,6 +340,8 @@ func TestHandler_NodeNotFound_Returns404(t *testing.T) {
 }
 
 func TestHandler_Audit_SuccessfulCancelIsRecorded(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	serverRepo := inmemory.NewServerRepository()
 	nodeRepo := inmemory.NewNodeRepository()

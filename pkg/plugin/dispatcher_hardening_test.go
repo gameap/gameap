@@ -15,6 +15,7 @@ import (
 )
 
 func TestDispatcher_Dispatch_call_timeout_disables_plugin(t *testing.T) {
+	t.Parallel()
 	manager := newDispatcherTestManager()
 	plugin := &LoadedPlugin{
 		Info:    &proto.PluginInfo{Id: "slowpoke"},
@@ -38,9 +39,14 @@ func TestDispatcher_Dispatch_call_timeout_disables_plugin(t *testing.T) {
 	require.Len(t, result.Errors, 1)
 	assert.Contains(t, result.Errors[0].Error(), "context deadline exceeded")
 	assert.False(t, plugin.IsEnabled(), "plugin must be disabled after a handler timeout")
+
+	reason, ok := plugin.DisabledReason()
+	require.True(t, ok)
+	assert.Equal(t, "event handler timed out (SERVER_POST_START)", reason)
 }
 
 func TestDispatcher_Dispatch_caller_deadline_does_not_disable_plugin(t *testing.T) {
+	t.Parallel()
 	// The outer context expiring (e.g. the shared async delivery budget) is
 	// not the plugin's fault — it must stay enabled.
 	manager := newDispatcherTestManager()
@@ -68,6 +74,7 @@ func TestDispatcher_Dispatch_caller_deadline_does_not_disable_plugin(t *testing.
 }
 
 func TestDispatcher_DispatchServerEventAsync_survives_caller_cancellation(t *testing.T) {
+	t.Parallel()
 	manager := newDispatcherTestManager()
 	received := make(chan *proto.Event, 1)
 	plugin := &LoadedPlugin{
@@ -103,6 +110,7 @@ func TestDispatcher_DispatchServerEventAsync_survives_caller_cancellation(t *tes
 }
 
 func TestDispatcher_DispatchServerEventsAsync_preserves_delivery_order(t *testing.T) {
+	t.Parallel()
 	// Both events are delivered by one background goroutine, so a subscriber
 	// to both must always observe them in the requested order.
 	for i := range 10 {
@@ -151,6 +159,7 @@ func TestDispatcher_DispatchServerEventsAsync_preserves_delivery_order(t *testin
 }
 
 func TestDispatcher_dispatchAsync_overflow_drops_batch_and_logs(t *testing.T) {
+	t.Parallel()
 	manager := newDispatcherTestManager()
 	received := make(chan proto.EventType, 4)
 	plugin := &LoadedPlugin{
@@ -219,6 +228,7 @@ func (b *syncLogBuffer) String() string {
 }
 
 func TestDispatcher_DispatchTaskEventAsync_delivers_payload(t *testing.T) {
+	t.Parallel()
 	manager := newDispatcherTestManager()
 	received := make(chan *proto.Event, 1)
 	plugin := &LoadedPlugin{

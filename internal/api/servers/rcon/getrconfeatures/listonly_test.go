@@ -24,6 +24,7 @@ import (
 // kick or ban command the panel can build, so the features endpoint must advertise listing
 // without moderation — otherwise the UI shows buttons that cannot work.
 func TestHandler_ListOnlyProtocolsAdvertiseNoModeration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		game   *domain.Game
@@ -53,6 +54,7 @@ func TestHandler_ListOnlyProtocolsAdvertiseNoModeration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			rbacRepo := inmemory.NewRBACRepository()

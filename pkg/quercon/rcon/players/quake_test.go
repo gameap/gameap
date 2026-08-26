@@ -9,6 +9,7 @@ import (
 )
 
 func TestQuakePlayerManager_ParsePlayers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -91,6 +92,7 @@ num score ping name            lastmsg address               qport
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mgr := NewQuakePlayers()
 
 			got, err := mgr.ParsePlayers(tt.input)
@@ -103,10 +105,12 @@ num score ping name            lastmsg address               qport
 }
 
 func TestQuakePlayerManager_PlayersCommand(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "status", NewQuakePlayers().PlayersCommand())
 }
 
 func TestQuakePlayerManager_ModerationIsNotSupported(t *testing.T) {
+	t.Parallel()
 	mgr := NewQuakePlayers()
 	player := Player{ID: "0", Name: "Player", UniqID: "0"}
 
@@ -120,6 +124,7 @@ func TestQuakePlayerManager_ModerationIsNotSupported(t *testing.T) {
 }
 
 func TestQuakePlayerManager_DecodesLatin1Nickname(t *testing.T) {
+	t.Parallel()
 	// A nickname sent as raw ISO 8859-1 bytes: "Jos\xe9".
 	input := "  0    15   45 Jos\xe9^7           50 192.0.2.10:27960      12345 25000\n"
 
@@ -131,6 +136,7 @@ func TestQuakePlayerManager_DecodesLatin1Nickname(t *testing.T) {
 }
 
 func TestQuakePlayerManager_KeepsValidUTF8Nickname(t *testing.T) {
+	t.Parallel()
 	input := "  0    15   45 Пётр^7           50 192.0.2.10:27960      12345 25000\n"
 
 	got, err := NewQuakePlayers().ParsePlayers(input)

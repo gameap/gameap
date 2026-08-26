@@ -122,11 +122,28 @@ message MoveResponse {
 message DownloadRequest {
   uint64 node_id = 1;
   string path = 2;
+  // Byte offset to read from; 0 starts at the beginning. An offset at or past
+  // the end of the file is not an error: the answer is empty content with
+  // total_size set, which is how a caller paging through a file learns it is
+  // done.
+  uint64 offset = 3;
+  // Bytes to read; 0 means "as much as the inline limit allows". It is the
+  // window, not the file, that has to fit the limit — a file larger than the
+  // limit is readable one window at a time rather than refused outright.
+  uint64 length = 4;
 }
 
 message DownloadResponse {
   bytes content = 1;
   optional string error = 2;
+  // The offset the content starts at, echoed back.
+  uint64 offset = 3;
+  // Size of the whole file, so a caller paging through one does not need a
+  // separate GetFileInfo. Set whenever the panel had to stat the file — that
+  // is, on every windowed read and on every panel with an inline limit
+  // configured (the default). Zero means it was not measured, which only an
+  // uncapped panel answering a whole-file read can produce.
+  uint64 total_size = 4;
 }
 
 message UploadRequest {

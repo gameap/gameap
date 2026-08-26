@@ -10,6 +10,8 @@ import (
 )
 
 func TestUint64ChannelBuilders(t *testing.T) {
+	t.Parallel()
+
 	const happyID uint64 = 123
 
 	tests := []struct {
@@ -142,6 +144,8 @@ func TestUint64ChannelBuilders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.builder(tt.inputID)
 
 			assert.Equal(t, tt.wantExact, got, "channel string mismatch")
@@ -150,6 +154,8 @@ func TestUint64ChannelBuilders(t *testing.T) {
 }
 
 func TestStringChannelBuilders(t *testing.T) {
+	t.Parallel()
+
 	const happyInput = "abc-123"
 
 	tests := []struct {
@@ -246,6 +252,8 @@ func TestStringChannelBuilders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.builder(tt.input)
 
 			assert.Equal(t, tt.wantExact, got, "channel string mismatch")
@@ -254,6 +262,8 @@ func TestStringChannelBuilders(t *testing.T) {
 }
 
 func TestBuildCacheInvalidateChannel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		entityType string
@@ -288,6 +298,8 @@ func TestBuildCacheInvalidateChannel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := channels.BuildCacheInvalidateChannel(tt.entityType, tt.entityID)
 
 			assert.Equal(t, tt.wantExact, got, "cache invalidate channel string mismatch")
@@ -296,6 +308,8 @@ func TestBuildCacheInvalidateChannel(t *testing.T) {
 }
 
 func TestBuildPluginEventChannel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		input     string
@@ -315,6 +329,8 @@ func TestBuildPluginEventChannel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := channels.BuildPluginEventChannel(tt.input)
 
 			assert.Equal(t, tt.wantExact, got, "plugin event channel string mismatch")
@@ -323,11 +339,17 @@ func TestBuildPluginEventChannel(t *testing.T) {
 }
 
 func TestChannelConstants(t *testing.T) {
+	t.Parallel()
+
 	t.Run("root_prefix_is_gameap_colon", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Equal(t, "gameap:", channels.Prefix)
 	})
 
 	t.Run("group_prefixes_extend_root_prefix", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(
 			t,
 			strings.HasPrefix(channels.CachePrefix, channels.Prefix),
@@ -356,6 +378,8 @@ func TestChannelConstants(t *testing.T) {
 	})
 
 	t.Run("cache_invalidate_constants_descend_from_cache_prefix", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasPrefix(channels.CacheInvalidate, channels.CachePrefix))
 		assert.True(t, strings.HasPrefix(channels.CacheInvalidateGames, channels.CachePrefix))
 		assert.True(t, strings.HasPrefix(channels.CacheInvalidateUsers, channels.CachePrefix))
@@ -365,6 +389,8 @@ func TestChannelConstants(t *testing.T) {
 	})
 
 	t.Run("wildcard_constants_end_with_star", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasSuffix(channels.CacheInvalidateAll, ":*"))
 		assert.True(t, strings.HasSuffix(channels.RealtimeTaskAll, ":*"))
 		assert.True(t, strings.HasSuffix(channels.RealtimeConsoleAll, ":*"))
@@ -383,6 +409,8 @@ func TestChannelConstants(t *testing.T) {
 	})
 
 	t.Run("id_appended_constants_end_with_colon", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasSuffix(channels.RealtimeTaskStatus, ":"))
 		assert.True(t, strings.HasSuffix(channels.RealtimeTaskOutput, ":"))
 		assert.True(t, strings.HasSuffix(channels.RealtimeConsoleOutput, ":"))
@@ -411,12 +439,16 @@ func TestChannelConstants(t *testing.T) {
 	})
 
 	t.Run("plugin_event_constants_descend_from_plugin_prefix", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasPrefix(channels.PluginEvents, channels.PluginPrefix))
 		assert.True(t, strings.HasPrefix(channels.PluginServerEvents, channels.PluginPrefix))
 		assert.True(t, strings.HasPrefix(channels.PluginTaskEvents, channels.PluginPrefix))
 	})
 
 	t.Run("realtime_constants_descend_from_realtime_prefix", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasPrefix(channels.RealtimeServerStatus, channels.RealtimePrefix))
 		assert.True(t, strings.HasPrefix(channels.RealtimeTaskProgress, channels.RealtimePrefix))
 		assert.True(t, strings.HasPrefix(channels.RealtimeNotifications, channels.RealtimePrefix))
@@ -424,11 +456,15 @@ func TestChannelConstants(t *testing.T) {
 	})
 
 	t.Run("system_constants_descend_from_system_prefix", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasPrefix(channels.SystemShutdown, channels.SystemPrefix))
 		assert.True(t, strings.HasPrefix(channels.SystemConfigReload, channels.SystemPrefix))
 	})
 
 	t.Run("daemon_constants_descend_from_daemon_prefix", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasPrefix(channels.DaemonSessionConnected, channels.DaemonPrefix))
 		assert.True(t, strings.HasPrefix(channels.DaemonSessionClosed, channels.DaemonPrefix))
 		assert.True(t, strings.HasPrefix(channels.DaemonTaskDispatch, channels.DaemonPrefix))
@@ -436,11 +472,15 @@ func TestChannelConstants(t *testing.T) {
 	})
 
 	t.Run("metrics_subscribers_descends_from_root_prefix", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasPrefix(channels.MetricsSubscribers, channels.Prefix))
 		assert.True(t, strings.HasPrefix(channels.MetricsSubscribersAll, channels.Prefix))
 	})
 
 	t.Run("server_task_constants_descend_from_their_group_prefix", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(
 			t,
 			strings.HasPrefix(channels.DaemonServerTaskDelta, channels.DaemonPrefix),
@@ -479,12 +519,16 @@ func TestChannelConstants(t *testing.T) {
 	})
 
 	t.Run("server_task_wildcard_constants_end_with_star", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasSuffix(channels.DaemonServerTaskDeltaAll, ":*"))
 		assert.True(t, strings.HasSuffix(channels.DaemonServerTaskResyncAll, ":*"))
 		assert.True(t, strings.HasSuffix(channels.RealtimeServerTaskAll, ":*"))
 	})
 
 	t.Run("server_task_id_appended_constants_end_with_colon", func(t *testing.T) {
+		t.Parallel()
+
 		assert.True(t, strings.HasSuffix(channels.DaemonServerTaskDelta, ":"))
 		assert.True(t, strings.HasSuffix(channels.DaemonServerTaskResync, ":"))
 		assert.True(t, strings.HasSuffix(channels.RealtimeServerTaskExecution, ":"))
@@ -493,6 +537,8 @@ func TestChannelConstants(t *testing.T) {
 }
 
 func TestBuildDaemonServerTaskDeltaChannel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		nodeID    uint64
@@ -517,6 +563,8 @@ func TestBuildDaemonServerTaskDeltaChannel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := channels.BuildDaemonServerTaskDeltaChannel(tt.nodeID)
 
 			assert.Equal(t, tt.wantExact, got, "delta channel string mismatch")
@@ -530,6 +578,8 @@ func TestBuildDaemonServerTaskDeltaChannel(t *testing.T) {
 }
 
 func TestBuildDaemonServerTaskResyncChannel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		nodeID    uint64
@@ -554,6 +604,8 @@ func TestBuildDaemonServerTaskResyncChannel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := channels.BuildDaemonServerTaskResyncChannel(tt.nodeID)
 
 			assert.Equal(t, tt.wantExact, got, "resync channel string mismatch")
@@ -567,6 +619,8 @@ func TestBuildDaemonServerTaskResyncChannel(t *testing.T) {
 }
 
 func TestBuildRealtimeServerTaskExecutionChannel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		taskID    uint64
@@ -591,6 +645,8 @@ func TestBuildRealtimeServerTaskExecutionChannel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := channels.BuildRealtimeServerTaskExecutionChannel(tt.taskID)
 
 			assert.Equal(t, tt.wantExact, got, "execution channel string mismatch")
@@ -604,6 +660,8 @@ func TestBuildRealtimeServerTaskExecutionChannel(t *testing.T) {
 }
 
 func TestBuildRealtimeServerTaskLogChannel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		executionID string
@@ -628,6 +686,8 @@ func TestBuildRealtimeServerTaskLogChannel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := channels.BuildRealtimeServerTaskLogChannel(tt.executionID)
 
 			assert.Equal(t, tt.wantExact, got, "log channel string mismatch")
@@ -641,6 +701,8 @@ func TestBuildRealtimeServerTaskLogChannel(t *testing.T) {
 }
 
 func TestServerTaskWildcardConstants(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		prefix string
@@ -660,12 +722,16 @@ func TestServerTaskWildcardConstants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.prefix+"*", tt.all,
 				"wildcard constant must equal `prefix + \"*\"` to keep psubscribe consistent with builders")
 		})
 	}
 
 	t.Run("realtime_server_task_all_covers_execution_and_log_prefixes", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Equal(t, "gameap:realtime:server_task:*", channels.RealtimeServerTaskAll,
 			"RealtimeServerTaskAll wildcard must stay stable")
 		assert.Equal(t, "gameap:realtime:server_task:execution:", channels.RealtimeServerTaskExecution,

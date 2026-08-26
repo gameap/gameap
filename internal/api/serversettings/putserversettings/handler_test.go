@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gameap/gameap/internal/api/serversettings/putserversettings"
@@ -25,6 +27,8 @@ import (
 )
 
 func TestPutServerSettings(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		serverID         uint
@@ -38,6 +42,9 @@ func TestPutServerSettings(t *testing.T) {
 		expectedStatus   int
 		verifySettings   bool
 		wantFinalVals    map[string]string
+		wantErrorField   string
+		wantUnwritten    []string
+		wantChanged      []string
 	}{
 		{
 			name:     "success updating existing settings",
@@ -124,6 +131,8 @@ func TestPutServerSettings(t *testing.T) {
 				"maxplayers": "32",
 				"hostname":   "Updated Server",
 			},
+			// maxplayers changed, hostname is new, autostart changed; nothing else.
+			wantChanged: []string{"autostart", "hostname", "maxplayers"},
 		},
 		{
 			name:     "success with admin vars when user is admin",
@@ -709,10 +718,153 @@ func TestPutServerSettings(t *testing.T) {
 				"autostart": "true",
 			},
 		},
+		{
+			name:     "typed_values_are_stored_canonically",
+			serverID: 1,
+			userID:   1,
+			gameMod: &domain.GameMod{
+				ID:       1,
+				GameCode: "minecraft",
+				Name:     "Default",
+				Vars: domain.GameModVarList{
+					{
+						Var:     "maxplayers",
+						Default: "20",
+						Info:    "Max players",
+						Type:    domain.GameModVarTypeInt,
+						Rules:   &domain.GameModVarRules{Min: new(1.0), Max: new(64.0)},
+					},
+					{
+						Var:        "pvp",
+						Default:    "on",
+						Info:       "PvP",
+						Type:       domain.GameModVarTypeBool,
+						TrueValue:  new("on"),
+						FalseValue: new("off"),
+					},
+					{
+						Var:  "hostname",
+						Info: "Hostname",
+					},
+				},
+			},
+			inputSettings: []map[string]string{
+				{"name": "maxplayers", "value": "32"},
+				{"name": "pvp", "value": "false"},
+			},
+			abilities: []domain.Ability{
+				{
+					ID:         1,
+					Name:       domain.AbilityNameGameServerCommon,
+					EntityType: lo.ToPtr(domain.EntityTypeServer),
+					EntityID:   new(uint(1)),
+				},
+				{
+					ID:         2,
+					Name:       domain.AbilityNameGameServerSettings,
+					EntityType: lo.ToPtr(domain.EntityTypeServer),
+					EntityID:   new(uint(1)),
+				},
+			},
+			permissions: []domain.Permission{
+				{
+					ID:         1,
+					AbilityID:  1,
+					EntityType: lo.ToPtr(domain.EntityTypeUser),
+					EntityID:   new(uint(1)),
+					Forbidden:  false,
+				},
+				{
+					ID:         2,
+					AbilityID:  2,
+					EntityType: lo.ToPtr(domain.EntityTypeUser),
+					EntityID:   new(uint(1)),
+					Forbidden:  false,
+				},
+			},
+			roles:          []domain.Role{},
+			expectedStatus: http.StatusOK,
+			verifySettings: true,
+			wantFinalVals: map[string]string{
+				"maxplayers": "32",
+				"pvp":        "off",
+			},
+		},
+		{
+			name:     "rule_violation_returns_422_and_writes_nothing",
+			serverID: 1,
+			userID:   1,
+			gameMod: &domain.GameMod{
+				ID:       1,
+				GameCode: "minecraft",
+				Name:     "Default",
+				Vars: domain.GameModVarList{
+					{
+						Var:     "maxplayers",
+						Default: "20",
+						Info:    "Max players",
+						Type:    domain.GameModVarTypeInt,
+						Rules:   &domain.GameModVarRules{Min: new(1.0), Max: new(64.0)},
+					},
+					{
+						Var:        "pvp",
+						Default:    "on",
+						Info:       "PvP",
+						Type:       domain.GameModVarTypeBool,
+						TrueValue:  new("on"),
+						FalseValue: new("off"),
+					},
+					{
+						Var:  "hostname",
+						Info: "Hostname",
+					},
+				},
+			},
+			inputSettings: []map[string]string{
+				{"name": "hostname", "value": "New name"},
+				{"name": "maxplayers", "value": "100"},
+			},
+			abilities: []domain.Ability{
+				{
+					ID:         1,
+					Name:       domain.AbilityNameGameServerCommon,
+					EntityType: lo.ToPtr(domain.EntityTypeServer),
+					EntityID:   new(uint(1)),
+				},
+				{
+					ID:         2,
+					Name:       domain.AbilityNameGameServerSettings,
+					EntityType: lo.ToPtr(domain.EntityTypeServer),
+					EntityID:   new(uint(1)),
+				},
+			},
+			permissions: []domain.Permission{
+				{
+					ID:         1,
+					AbilityID:  1,
+					EntityType: lo.ToPtr(domain.EntityTypeUser),
+					EntityID:   new(uint(1)),
+					Forbidden:  false,
+				},
+				{
+					ID:         2,
+					AbilityID:  2,
+					EntityType: lo.ToPtr(domain.EntityTypeUser),
+					EntityID:   new(uint(1)),
+					Forbidden:  false,
+				},
+			},
+			roles:          []domain.Role{},
+			expectedStatus: http.StatusUnprocessableEntity,
+			wantErrorField: "maxplayers",
+			wantUnwritten:  []string{"hostname", "maxplayers"},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
 
 			serverSettingsRepo := inmemory.NewServerSettingRepository()
@@ -792,11 +944,13 @@ func TestPutServerSettings(t *testing.T) {
 
 			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
 
+			dispatcher := &fakePluginDispatcher{}
 			h := putserversettings.NewHandler(
 				serverSettingsRepo,
 				serversRepo,
 				gameModsRepo,
 				nil,
+				dispatcher,
 				rbacService,
 				api.NewResponder(),
 			)
@@ -834,6 +988,37 @@ func TestPutServerSettings(t *testing.T) {
 				t.Logf("Expected OK but got %d. Response: %s", recorder.Code, recorder.Body.String())
 			}
 
+			if test.wantErrorField != "" {
+				// The client highlights each bad field from this object, so the
+				// shape matters as much as the field name being mentioned.
+				var body struct {
+					Errors map[string][]string `json:"errors"`
+				}
+				require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+				require.Contains(t, body.Errors, test.wantErrorField, "error body should name the field")
+				assert.NotEmpty(t, body.Errors[test.wantErrorField])
+			}
+
+			if len(test.wantUnwritten) > 0 {
+				savedSettings, err := serverSettingsRepo.Find(ctx, &filters.FindServerSetting{
+					ServerIDs: []uint{test.serverID},
+				}, nil, nil)
+				require.NoError(t, err)
+
+				for _, name := range test.wantUnwritten {
+					for _, setting := range savedSettings {
+						assert.NotEqual(t, name, setting.Name, "setting %s must not be written", name)
+					}
+				}
+			}
+
+			if test.expectedStatus != http.StatusOK {
+				assert.Nil(t, dispatcher.changedNames(), "a failed save publishes nothing")
+			} else if test.wantChanged != nil {
+				assert.Equal(t, test.wantChanged, dispatcher.changedNames(), "settings reported to plugins")
+				assert.Equal(t, strings.Join(test.wantChanged, ","), dispatcher.extra["changed_fields"])
+			}
+
 			if test.verifySettings && test.expectedStatus == http.StatusOK {
 				savedSettings, err := serverSettingsRepo.Find(ctx, &filters.FindServerSetting{
 					ServerIDs: []uint{test.serverID},
@@ -849,12 +1034,53 @@ func TestPutServerSettings(t *testing.T) {
 					actualValue, exists := savedSettingsMap[name]
 					require.True(t, exists, "setting %s should exist", name)
 
-					actualValueStr, ok := actualValue.(domain.ServerSettingValue)
+					settingValue, ok := actualValue.(domain.ServerSettingValue)
 					require.True(t, ok, "setting %s has wrong type", name)
 
-					assert.Equal(t, expectedValue, actualValueStr.Any(), "setting %s value mismatch", name)
+					// Raw is what actually lands in servers_settings.value.
+					raw, present := settingValue.Raw()
+					require.True(t, present, "setting %s has no value", name)
+					assert.Equal(t, expectedValue, raw, "setting %s value mismatch", name)
 				}
 			}
 		})
 	}
+}
+
+type fakePluginDispatcher struct {
+	mu      sync.Mutex
+	changed [][]string
+	extra   map[string]string
+}
+
+func (f *fakePluginDispatcher) DispatchServerSettingsEventAsync(
+	_ context.Context, _ uint, settings []domain.ServerSetting, extraData map[string]string,
+) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	names := make([]string, 0, len(settings))
+	for _, setting := range settings {
+		names = append(names, setting.Name)
+	}
+
+	f.changed = append(f.changed, names)
+	f.extra = extraData
+}
+
+// changedNames flattens every dispatch; nil when nothing was published.
+func (f *fakePluginDispatcher) changedNames() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if len(f.changed) == 0 {
+		return nil
+	}
+
+	var names []string
+	for _, batch := range f.changed {
+		names = append(names, batch...)
+	}
+
+	return names
 }

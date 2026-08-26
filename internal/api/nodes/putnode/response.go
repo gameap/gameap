@@ -7,39 +7,40 @@ import (
 )
 
 type nodeResponse struct {
-	ID                  uint       `json:"id"`
-	Enabled             bool       `json:"enabled"`
-	Name                string     `json:"name"`
-	OS                  string     `json:"os"`
-	Location            string     `json:"location"`
-	Provider            *string    `json:"provider"`
-	IPs                 []string   `json:"ip"`
-	RAM                 *string    `json:"ram"`
-	CPU                 *string    `json:"cpu"`
-	WorkPath            string     `json:"work_path"`
-	SteamcmdPath        *string    `json:"steamcmd_path"`
-	GdaemonHost         string     `json:"gdaemon_host"`
-	GdaemonPort         int        `json:"gdaemon_port"`
-	GdaemonServerCert   string     `json:"gdaemon_server_cert"`
-	ClientCertificateID uint       `json:"client_certificate_id"`
-	PreferInstallMethod string     `json:"prefer_install_method"`
-	ScriptInstall       *string    `json:"script_install"`
-	ScriptReinstall     *string    `json:"script_reinstall"`
-	ScriptUpdate        *string    `json:"script_update"`
-	ScriptStart         *string    `json:"script_start"`
-	ScriptPause         *string    `json:"script_pause"`
-	ScriptUnpause       *string    `json:"script_unpause"`
-	ScriptStop          *string    `json:"script_stop"`
-	ScriptKill          *string    `json:"script_kill"`
-	ScriptRestart       *string    `json:"script_restart"`
-	ScriptStatus        *string    `json:"script_status"`
-	ScriptStats         *string    `json:"script_stats"`
-	ScriptGetConsole    *string    `json:"script_get_console"`
-	ScriptSendCommand   *string    `json:"script_send_command"`
-	ScriptDelete        *string    `json:"script_delete"`
-	CreatedAt           *time.Time `json:"created_at"`
-	UpdatedAt           *time.Time `json:"updated_at"`
-	DeletedAt           *time.Time `json:"deleted_at"`
+	ID                  uint            `json:"id"`
+	Enabled             bool            `json:"enabled"`
+	Name                string          `json:"name"`
+	OS                  string          `json:"os"`
+	Location            string          `json:"location"`
+	Provider            *string         `json:"provider"`
+	IPs                 []string        `json:"ip"`
+	RAM                 *string         `json:"ram"`
+	CPU                 *string         `json:"cpu"`
+	WorkPath            string          `json:"work_path"`
+	SteamcmdPath        *string         `json:"steamcmd_path"`
+	GdaemonHost         string          `json:"gdaemon_host"`
+	GdaemonPort         int             `json:"gdaemon_port"`
+	GdaemonServerCert   string          `json:"gdaemon_server_cert"`
+	ClientCertificateID uint            `json:"client_certificate_id"`
+	PreferInstallMethod string          `json:"prefer_install_method"`
+	ScriptInstall       *string         `json:"script_install"`
+	ScriptReinstall     *string         `json:"script_reinstall"`
+	ScriptUpdate        *string         `json:"script_update"`
+	ScriptStart         *string         `json:"script_start"`
+	ScriptPause         *string         `json:"script_pause"`
+	ScriptUnpause       *string         `json:"script_unpause"`
+	ScriptStop          *string         `json:"script_stop"`
+	ScriptKill          *string         `json:"script_kill"`
+	ScriptRestart       *string         `json:"script_restart"`
+	ScriptStatus        *string         `json:"script_status"`
+	ScriptStats         *string         `json:"script_stats"`
+	ScriptGetConsole    *string         `json:"script_get_console"`
+	ScriptSendCommand   *string         `json:"script_send_command"`
+	ScriptDelete        *string         `json:"script_delete"`
+	Metadata            domain.Metadata `json:"metadata"`
+	CreatedAt           *time.Time      `json:"created_at"`
+	UpdatedAt           *time.Time      `json:"updated_at"`
+	DeletedAt           *time.Time      `json:"deleted_at"`
 }
 
 func newNodeResponse(node *domain.Node) nodeResponse {
@@ -74,6 +75,7 @@ func newNodeResponse(node *domain.Node) nodeResponse {
 		ScriptGetConsole:    node.ScriptGetConsole,
 		ScriptSendCommand:   node.ScriptSendCommand,
 		ScriptDelete:        node.ScriptDelete,
+		Metadata:            node.Metadata,
 		CreatedAt:           node.CreatedAt,
 		UpdatedAt:           node.UpdatedAt,
 		DeletedAt:           node.DeletedAt,

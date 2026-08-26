@@ -29,6 +29,7 @@ import (
 var errFindFailed = errors.New("find failed")
 
 func TestGetPlugin(t *testing.T) {
+	t.Parallel()
 	storeResp := pluginstore.PluginDetails{
 		ID:            "hexeditor4jm2",
 		URL:           "https://plugins.gameap.dev/plugins/hexeditor4jm2",
@@ -89,6 +90,7 @@ func TestGetPlugin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tt.statusCode)
@@ -125,6 +127,7 @@ func TestGetPlugin(t *testing.T) {
 }
 
 func TestGetPlugin_cache_hit_avoids_second_upstream_call(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storeResp := pluginstore.PluginDetails{
 		ID:            "hexeditor4jm2",
@@ -170,6 +173,7 @@ func TestGetPlugin_cache_hit_avoids_second_upstream_call(t *testing.T) {
 }
 
 func TestGetPlugin_plugin_repo_find_error_is_swallowed(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storeResp := pluginstore.PluginDetails{
 		ID:            "hexeditor4jm2",
@@ -208,6 +212,7 @@ func TestGetPlugin_plugin_repo_find_error_is_swallowed(t *testing.T) {
 }
 
 func TestGetPlugin_license_validation_error_is_swallowed(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storeResp := pluginstore.PluginDetails{
 		ID:                   "hexeditor4jm2",
@@ -255,6 +260,7 @@ func TestGetPlugin_license_validation_error_is_swallowed(t *testing.T) {
 }
 
 func TestGetPlugin_installed_plugin_response_contains_version(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storeResp := pluginstore.PluginDetails{
 		ID:            "hexeditor4jm2",
@@ -298,6 +304,7 @@ func TestGetPlugin_installed_plugin_response_contains_version(t *testing.T) {
 }
 
 func TestGetPlugin_subscription_info_populated_from_valid_license(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	expiresAt := lo.Must(time.Parse(time.RFC3339, "2027-12-31T23:59:59Z"))
 	storeResp := pluginstore.PluginDetails{
@@ -348,6 +355,7 @@ func TestGetPlugin_subscription_info_populated_from_valid_license(t *testing.T) 
 }
 
 func TestGetPlugin_icon_url_rewritten_to_panel_endpoint(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	storeResp := pluginstore.PluginDetails{
 		ID:            "hexeditor4jm2",

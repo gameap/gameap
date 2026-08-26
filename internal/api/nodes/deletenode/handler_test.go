@@ -69,6 +69,7 @@ func countEvents(events []audit.Event, t audit.EventType) int {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		nodeID         string
@@ -195,10 +196,11 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			nodesRepo := inmemory.NewNodeRepository()
 			serversRepo := inmemory.NewServerRepository()
 			responder := api.NewResponder()
-			handler := NewHandler(nodesRepo, serversRepo, responder, nil)
+			handler := NewHandler(nodesRepo, serversRepo, responder, nil, nil)
 
 			if tt.setupRepos != nil {
 				tt.setupRepos(nodesRepo, serversRepo)
@@ -235,10 +237,11 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_NodeActuallySoftDeleted(t *testing.T) {
+	t.Parallel()
 	nodesRepo := inmemory.NewNodeRepository()
 	serversRepo := inmemory.NewServerRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(nodesRepo, serversRepo, responder, nil)
+	handler := NewHandler(nodesRepo, serversRepo, responder, nil, nil)
 
 	now := time.Now()
 	node := &domain.Node{
@@ -280,11 +283,12 @@ func TestHandler_NodeActuallySoftDeleted(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	nodesRepo := inmemory.NewNodeRepository()
 	serversRepo := inmemory.NewServerRepository()
 	responder := api.NewResponder()
 
-	handler := NewHandler(nodesRepo, serversRepo, responder, nil)
+	handler := NewHandler(nodesRepo, serversRepo, responder, nil, nil)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, nodesRepo, handler.nodesRepo)
@@ -315,6 +319,7 @@ func deleteNodeAuthCtx() context.Context {
 // successful node deletion must emit exactly one node.delete event with
 // outcome success, category node_op, and the deleted node id as the resource.
 func TestHandler_Audit_SuccessfulNodeDeleteIsRecorded(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	nodesRepo := inmemory.NewNodeRepository()
 	serversRepo := inmemory.NewServerRepository()
@@ -330,7 +335,7 @@ func TestHandler_Audit_SuccessfulNodeDeleteIsRecorded(t *testing.T) {
 	}))
 
 	recorder := &auditCapture{}
-	handler := NewHandler(nodesRepo, serversRepo, api.NewResponder(), recorder)
+	handler := NewHandler(nodesRepo, serversRepo, api.NewResponder(), recorder, nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/dedicated_servers/1", nil)
 	req = req.WithContext(deleteNodeAuthCtx())
@@ -364,6 +369,7 @@ func TestHandler_Audit_SuccessfulNodeDeleteIsRecorded(t *testing.T) {
 // NOT emit a node.delete event (the audit trail must not claim a deletion
 // that did not happen).
 func TestHandler_Audit_BlockedNodeDeleteDoesNotEmitNodeDelete(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	nodesRepo := inmemory.NewNodeRepository()
 	serversRepo := inmemory.NewServerRepository()
@@ -392,7 +398,7 @@ func TestHandler_Audit_BlockedNodeDeleteDoesNotEmitNodeDelete(t *testing.T) {
 	}))
 
 	recorder := &auditCapture{}
-	handler := NewHandler(nodesRepo, serversRepo, api.NewResponder(), recorder)
+	handler := NewHandler(nodesRepo, serversRepo, api.NewResponder(), recorder, nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/dedicated_servers/1", nil)
 	req = req.WithContext(deleteNodeAuthCtx())

@@ -42,6 +42,7 @@ func newTestServerForTask(installed domain.ServerInstalledStatus) *domain.Server
 }
 
 func TestHandleTaskStatusUpdate_ServerInstalledStatus(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	serverID := uint(1)
 
@@ -140,6 +141,7 @@ func TestHandleTaskStatusUpdate_ServerInstalledStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			taskRepo := setupDaemonTaskRepo(t, tt.task)
 			serverRepo := inmemory.NewServerRepository()
 
@@ -172,6 +174,7 @@ func TestHandleTaskStatusUpdate_ServerInstalledStatus(t *testing.T) {
 }
 
 func TestReconcileWorkingTasks(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	ctx := context.Background()
 
@@ -315,6 +318,7 @@ func TestReconcileWorkingTasks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			taskRepo := inmemory.NewDaemonTaskRepository()
 			for _, spec := range tt.seed {
 				task := &domain.DaemonTask{
@@ -371,6 +375,7 @@ func TestReconcileWorkingTasks(t *testing.T) {
 }
 
 func TestResolveInstalledStatus(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		taskType   domain.DaemonTaskType
@@ -427,6 +432,7 @@ func TestResolveInstalledStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, ok := resolveInstalledStatus(tt.taskType, tt.taskStatus)
 			assert.Equal(t, tt.wantOK, ok)
 			if ok {
@@ -505,6 +511,7 @@ func (p *capturePublisher) attemptsByType(msgType string) []publishedMessage {
 var errPublisherDown = errors.New("pubsub backend down")
 
 func TestHandleTaskOutput(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	tests := []struct {
@@ -554,6 +561,7 @@ func TestHandleTaskOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			task := &domain.DaemonTask{
 				DedicatedServerID: 1,
@@ -608,6 +616,7 @@ func TestHandleTaskOutput(t *testing.T) {
 // Output arrives as a stream of chunks: each one must be appended to what is
 // already stored, not replace it, and each must be broadcast in order.
 func TestHandleTaskOutput_AppendsChunksInOrder(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Now()
 	task := &domain.DaemonTask{
@@ -654,6 +663,7 @@ func TestHandleTaskOutput_AppendsChunksInOrder(t *testing.T) {
 // Without a publisher wired in, output handling must still persist and must
 // not panic — single-instance deployments run this way.
 func TestHandleTaskOutput_WithoutPublisher(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Now()
 	task := &domain.DaemonTask{
@@ -683,6 +693,7 @@ func TestHandleTaskOutput_WithoutPublisher(t *testing.T) {
 }
 
 func TestGetPendingTasks(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	waitingForNode := &domain.DaemonTask{
@@ -714,6 +725,7 @@ func TestGetPendingTasks(t *testing.T) {
 }
 
 func TestGetPendingTasks_NoWork(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	handler := NewTaskHandler(
 		setupDaemonTaskRepo(t), inmemory.NewServerRepository(), nil, nil, slog.Default(),
@@ -730,6 +742,7 @@ func TestGetPendingTasks_NoWork(t *testing.T) {
 // A terminal status must reach subscribers as both a status update and a
 // completion message, and a broken publisher must never fail the daemon call.
 func TestHandleTaskStatusUpdate_PublishesRealtimeMessages(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		status       proto.DaemonTaskStatus
@@ -761,6 +774,7 @@ func TestHandleTaskStatusUpdate_PublishesRealtimeMessages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			now := time.Now()
 			serverID := uint(1)
@@ -821,6 +835,7 @@ func TestHandleTaskStatusUpdate_PublishesRealtimeMessages(t *testing.T) {
 
 // A non-terminal transition must not announce completion.
 func TestHandleTaskStatusUpdate_NonTerminalDoesNotComplete(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	now := time.Now()
 	task := &domain.DaemonTask{

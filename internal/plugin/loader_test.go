@@ -89,6 +89,7 @@ func (m *mockPluginManager) Shutdown(ctx context.Context) error {
 }
 
 func TestLoader_LoadAll_FromRepository(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -119,6 +120,7 @@ func TestLoader_LoadAll_FromRepository(t *testing.T) {
 }
 
 func TestLoader_LoadAll_WithAutoLoad(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{
 		loadFunc: func(_ context.Context, _ []byte, _ map[string]string, _ uint64) (*pkgplugin.LoadedPlugin, error) {
@@ -152,6 +154,7 @@ func TestLoader_LoadAll_WithAutoLoad(t *testing.T) {
 }
 
 func TestLoader_Load_FileNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -165,6 +168,7 @@ func TestLoader_Load_FileNotFound(t *testing.T) {
 }
 
 func TestLoader_ProcessAutoLoad_AddsToDatabase(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -183,9 +187,14 @@ func TestLoader_ProcessAutoLoad_AddsToDatabase(t *testing.T) {
 	assert.Equal(t, "test-plugin", plugins[0].Name)
 	assert.Equal(t, domain.PluginStatusActive, plugins[0].Status)
 	assert.NotNil(t, plugins[0].InstalledAt)
+	require.NotNil(t, plugins[0].Source)
+	assert.Equal(t, "file://new-plugin.wasm", *plugins[0].Source, "an autoloaded file is a local plugin, not a store one")
+	require.NotNil(t, plugins[0].Checksum)
+	assert.Equal(t, FileChecksum([]byte("wasm-content")), *plugins[0].Checksum)
 }
 
 func TestLoader_ProcessAutoLoad_ActivatesExisting(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -214,6 +223,7 @@ func TestLoader_ProcessAutoLoad_ActivatesExisting(t *testing.T) {
 }
 
 func TestLoader_ProcessAutoLoad_MissingFile(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -227,6 +237,7 @@ func TestLoader_ProcessAutoLoad_MissingFile(t *testing.T) {
 }
 
 func TestLoader_GetPluginManagerID(t *testing.T) {
+	t.Parallel()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
 	pluginRepo := inmemory.NewPluginRepository()
@@ -246,6 +257,7 @@ func TestLoader_GetPluginManagerID(t *testing.T) {
 }
 
 func TestLoader_GetDBPluginID(t *testing.T) {
+	t.Parallel()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
 	pluginRepo := inmemory.NewPluginRepository()
@@ -265,6 +277,7 @@ func TestLoader_GetDBPluginID(t *testing.T) {
 }
 
 func TestLoader_Unload(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	unloadCalled := false
 	manager := &mockPluginManager{
@@ -286,11 +299,13 @@ func TestLoader_Unload(t *testing.T) {
 }
 
 func TestParsePluginID_Numeric(t *testing.T) {
+	t.Parallel()
 	id := pkgplugin.ParsePluginID("12345")
 	assert.Equal(t, domain.Uint64ID(12345), id)
 }
 
 func TestParsePluginID_Base64(t *testing.T) {
+	t.Parallel()
 	var num uint64 = 9876543210
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, num)
@@ -301,6 +316,7 @@ func TestParsePluginID_Base64(t *testing.T) {
 }
 
 func TestParsePluginID_Hash(t *testing.T) {
+	t.Parallel()
 	h := fnv.New64a()
 	_, _ = h.Write([]byte("arbitrary-plugin-id"))
 	expected := domain.Uint64ID(h.Sum64())
@@ -310,6 +326,7 @@ func TestParsePluginID_Hash(t *testing.T) {
 }
 
 func TestLoader_LoadAll_UpdatesLastLoadedAt(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	manager := &mockPluginManager{}
 	fileManager := files.NewInMemoryFileManager()
@@ -340,4 +357,38 @@ func TestLoader_LoadAll_UpdatesLastLoadedAt(t *testing.T) {
 	assert.NotNil(t, plugins[0].LastLoadedAt)
 	assert.True(t, lo.FromPtr(plugins[0].LastLoadedAt).After(beforeLoad) ||
 		lo.FromPtr(plugins[0].LastLoadedAt).Equal(beforeLoad))
+}
+
+func TestLoader_ProcessAutoLoad_GrantsDeclaredPermissions(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	manager := &mockPluginManager{
+		loadFunc: func(context.Context, []byte, map[string]string, uint64) (*pkgplugin.LoadedPlugin, error) {
+			return &pkgplugin.LoadedPlugin{
+				Info: &proto.PluginInfo{
+					Id:                  "declaring-plugin",
+					Name:                "declaring",
+					Version:             "1.0.0",
+					RequiredPermissions: []string{"files", "listen_events", "not-a-permission"},
+				},
+				Enabled: true,
+			}, nil
+		},
+	}
+	fileManager := files.NewInMemoryFileManager()
+	pluginRepo := inmemory.NewPluginRepository()
+
+	_ = fileManager.Write(ctx, "plugins/declaring.wasm", []byte("wasm-content"))
+
+	loader := NewLoader(manager, fileManager, pluginRepo, []string{"declaring.wasm"}, "plugins")
+
+	require.NoError(t, loader.processAutoLoad(ctx))
+
+	plugins, err := pluginRepo.FindAll(ctx, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, plugins, 1)
+
+	declared := []domain.PluginPermission{domain.PluginPermissionFiles, domain.PluginPermissionListenEvents}
+	assert.Equal(t, declared, plugins[0].RequiredPermissions, "unknown names are dropped")
+	assert.Equal(t, declared, plugins[0].AllowedPermissions, "autoload grants what the manifest declares")
 }

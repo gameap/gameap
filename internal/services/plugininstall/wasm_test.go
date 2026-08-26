@@ -14,6 +14,8 @@ import (
 )
 
 func TestValidateWASM(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		data      []byte
@@ -53,6 +55,8 @@ func TestValidateWASM(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := plugininstall.ValidateWASM(tt.data)
 
 			if tt.wantError == "" {
@@ -86,6 +90,8 @@ func createMultipartRequest(t *testing.T, fieldName, filename string, content []
 }
 
 func TestReadWASMFromMultipart(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		setupReq  func(t *testing.T) (*http.Request, *httptest.ResponseRecorder)
@@ -127,6 +133,8 @@ func TestReadWASMFromMultipart(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			req, rw := tt.setupReq(t)
 
 			gotBytes, err := plugininstall.ReadWASMFromMultipart(rw, req)

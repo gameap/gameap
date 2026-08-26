@@ -16,6 +16,7 @@ import (
 )
 
 func TestSource_buildPacket(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		id         int32
@@ -60,6 +61,7 @@ func TestSource_buildPacket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			s := &Source{}
 
 			packet := s.buildPacket(tt.id, tt.packetType, tt.body)
@@ -98,6 +100,7 @@ func TestSource_buildPacket(t *testing.T) {
 }
 
 func TestSource_Open_Authenticate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		handler    func(t *testing.T, conn net.Conn)
@@ -153,6 +156,7 @@ func TestSource_Open_Authenticate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv := newScriptedTCPServer(t, func(c net.Conn) {
 				tt.handler(t, c)
 			})
@@ -184,6 +188,7 @@ func TestSource_Open_Authenticate(t *testing.T) {
 }
 
 func TestSource_Execute(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		handler    func(t *testing.T, conn net.Conn)
@@ -264,6 +269,7 @@ func TestSource_Execute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv := newScriptedTCPServer(t, func(c net.Conn) {
 				tt.handler(t, c)
 			})
@@ -300,6 +306,7 @@ func TestSource_Execute(t *testing.T) {
 }
 
 func TestSource_readPacket_RejectsInvalidSize(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		sizeHeader int32
@@ -320,6 +327,7 @@ func TestSource_readPacket_RejectsInvalidSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			srv := newScriptedTCPServer(t, func(conn net.Conn) {
 				_, _, _, err := readSourcePacket(conn)
 				if err != nil {
@@ -349,6 +357,7 @@ func TestSource_readPacket_RejectsInvalidSize(t *testing.T) {
 }
 
 func TestSource_readPacket_ShortBody(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedTCPServer(t, func(conn net.Conn) {
 		_, _, _, err := readSourcePacket(conn)
 		if err != nil {
@@ -380,6 +389,7 @@ func TestSource_readPacket_ShortBody(t *testing.T) {
 }
 
 func TestNewSource_NoConnection(t *testing.T) {
+	t.Parallel()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	addr := listener.Addr().String()
@@ -400,6 +410,7 @@ func TestNewSource_NoConnection(t *testing.T) {
 }
 
 func TestSource_Close_NilConnection(t *testing.T) {
+	t.Parallel()
 	s, err := NewSource(Config{
 		Address:  "127.0.0.1:0",
 		Password: "secret",
@@ -412,6 +423,7 @@ func TestSource_Close_NilConnection(t *testing.T) {
 }
 
 func TestSource_Close_IsIdempotent_AfterOpen(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedTCPServer(t, func(conn net.Conn) {
 		id, _, _, err := readSourcePacket(conn)
 		if err != nil {
@@ -441,6 +453,7 @@ func TestSource_Close_IsIdempotent_AfterOpen(t *testing.T) {
 }
 
 func TestSource_Execute_RequestIDIncrementsAcrossCalls(t *testing.T) {
+	t.Parallel()
 	var captured []int32
 	var counter atomic.Int32
 

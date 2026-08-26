@@ -1,4 +1,5 @@
 import FileNetworkIcon from './svg/FileNetworkIcon.vue'
+import FileStackIcon from './svg/FileStackIcon.vue'
 import FolderDownloadIcon from './svg/FolderDownloadIcon.vue'
 import MaximizeIcon from './svg/MaximizeIcon.vue'
 import { svgAsset } from './svgAssets.js'
@@ -30,6 +31,7 @@ export const defaultIconMap = {
   "download": "fa-solid fa-download",
   "upload": "fa-solid fa-upload",
   "export": "fa-solid fa-arrow-up-right-from-square",
+  "languages": "fa-solid fa-language",
   "search": "fa-solid fa-magnifying-glass",
   "magnifying-glass": "fa-solid fa-magnifying-glass",
   "view": "fa-solid fa-eye",
@@ -39,6 +41,8 @@ export const defaultIconMap = {
   "eraser": "fa-solid fa-eraser",
   "ban": "fa-solid fa-ban",
   "move": "fa-solid fa-dolly",
+  "history": "fa-solid fa-clock-rotate-left",
+  "clock-rotate-left": "fa-solid fa-clock-rotate-left",
   "maximize": MaximizeIcon,
 
   // ===== Navigation Icons =====
@@ -121,6 +125,7 @@ export const defaultIconMap = {
   "file-audio": "fa-regular fa-file-audio",
   "file-archive": "fa-solid fa-file-zipper",
   "file-zipper": "fa-solid fa-file-zipper",
+  "file-stack": FileStackIcon,
   "box-open": "fa-solid fa-box-open",
   "fingerprint": "fa-solid fa-fingerprint",
   "folder": "fa-regular fa-folder",

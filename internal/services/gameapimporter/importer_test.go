@@ -14,6 +14,8 @@ import (
 )
 
 func TestImporter_Import(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		export       *domain.GameExport
@@ -416,6 +418,8 @@ func TestImporter_Import(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 
@@ -446,6 +450,8 @@ func TestImporter_Import(t *testing.T) {
 }
 
 func TestImporter_Import_WithOptions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		export    *domain.GameExport
@@ -593,6 +599,8 @@ func TestImporter_Import_WithOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 
@@ -620,6 +628,8 @@ func TestImporter_Import_WithOptions(t *testing.T) {
 }
 
 func TestMergeMetadata(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		existing domain.Metadata
@@ -660,6 +670,8 @@ func TestMergeMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := mergeMetadata(tt.existing, tt.updated)
 			assert.Equal(t, tt.expected, result)
 		})

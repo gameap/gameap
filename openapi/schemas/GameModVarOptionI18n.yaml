@@ -1,0 +1,21 @@
+type: object
+minProperties: 1
+description: |
+  Option label translations keyed by lowercase BCP-47 locale.
+  `en` is not allowed: the base label lives in the `label` field.
+propertyNames:
+  # The lookahead excludes the base language; the panel checks that half
+  # separately because Go's RE2 has no lookarounds.
+  pattern: '^(?!en$)[a-z]{2,3}(-[a-z0-9]+)*$'
+additionalProperties:
+  type: object
+  required:
+    - label
+  properties:
+    label:
+      type: string
+      minLength: 1
+      maxLength: 128
+example:
+  ru:
+    label: "Ванильный"

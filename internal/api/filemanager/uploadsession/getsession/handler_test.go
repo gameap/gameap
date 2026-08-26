@@ -17,6 +17,8 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		vars           map[string]string
@@ -150,6 +152,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			resolver := uploadsessiontest.NewResolver(t, tt.grantAccess)
 			handler := getsession.NewHandler(resolver, tt.serviceFactory(t), api.NewResponder())
 

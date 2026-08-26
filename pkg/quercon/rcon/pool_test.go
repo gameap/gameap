@@ -13,6 +13,7 @@ import (
 )
 
 func TestNewPool(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		config  Config
@@ -52,6 +53,7 @@ func TestNewPool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			pool, err := NewPool(tt.config)
 
 			if tt.wantErr {
@@ -68,6 +70,7 @@ func TestNewPool(t *testing.T) {
 }
 
 func TestPool_Close(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		Address:  "127.0.0.1:27015",
 		Password: "test",
@@ -88,6 +91,7 @@ func TestPool_Close(t *testing.T) {
 }
 
 func TestPool_Stat(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		Address:  "127.0.0.1:27015",
 		Password: "test",
@@ -109,6 +113,7 @@ func TestPool_Stat(t *testing.T) {
 }
 
 func TestPooledClient_Open(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		Address:  "127.0.0.1:27015",
 		Password: "test",
@@ -128,6 +133,7 @@ func TestPooledClient_Open(t *testing.T) {
 }
 
 func TestPooledClient_Close(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		client  *PooledClient
@@ -149,6 +155,7 @@ func TestPooledClient_Close(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.client.Close()
 
 			if tt.wantErr {
@@ -161,6 +168,7 @@ func TestPooledClient_Close(t *testing.T) {
 }
 
 func TestPooledClient_Execute_NilResource(t *testing.T) {
+	t.Parallel()
 	client := &PooledClient{r: nil}
 
 	_, err := client.Execute(context.Background(), "status")
@@ -169,6 +177,7 @@ func TestPooledClient_Execute_NilResource(t *testing.T) {
 }
 
 func TestPuddlePanicError(t *testing.T) {
+	t.Parallel()
 	details := "test panic details"
 	err := newPuddlePanicError(details)
 
@@ -183,6 +192,7 @@ func TestPuddlePanicError(t *testing.T) {
 }
 
 func TestPool_Acquire_OpensRealConnectionViaConstructor(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedTCPServer(t, sourceAuthOKThenEcho(t))
 
 	pool, err := NewPool(Config{
@@ -204,6 +214,7 @@ func TestPool_Acquire_OpensRealConnectionViaConstructor(t *testing.T) {
 }
 
 func TestPool_Acquire_PropagatesAuthFailure(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedTCPServer(t, func(conn net.Conn) {
 		_, _, _, err := readSourcePacket(conn)
 		if err != nil {
@@ -228,6 +239,7 @@ func TestPool_Acquire_PropagatesAuthFailure(t *testing.T) {
 }
 
 func TestPool_TryAcquire_ReusesIdleConnection(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedTCPServer(t, sourceAuthOKThenEcho(t))
 
 	pool, err := NewPool(Config{
@@ -254,6 +266,7 @@ func TestPool_TryAcquire_ReusesIdleConnection(t *testing.T) {
 }
 
 func TestPooledClient_Execute_DestroysResourceOnError(t *testing.T) {
+	t.Parallel()
 	var connectCount atomic.Int32
 
 	srv := newScriptedTCPServer(t, func(conn net.Conn) {
@@ -318,6 +331,7 @@ func TestPooledClient_Execute_DestroysResourceOnError(t *testing.T) {
 }
 
 func TestPool_Close_StopsBackgroundCleanupGoroutine(t *testing.T) {
+	t.Parallel()
 	srv := newScriptedTCPServer(t, sourceAuthOKThenEcho(t))
 
 	pool, err := NewPool(Config{
@@ -368,6 +382,7 @@ func sourceAuthOKThenEcho(t *testing.T) func(net.Conn) {
 // fire at least once and verifies that an idle resource whose lastUsedAt has been backdated past
 // maxIdleTime is destroyed. The wait is bounded by cleanupInterval (5s) plus a small slack.
 func TestPool_BackgroundCleanup_DestroysStaleIdleConnections(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("background cleanup test waits for the cleanup ticker (>cleanupInterval); skipped in short mode")
 	}
@@ -418,6 +433,7 @@ func TestPool_BackgroundCleanup_DestroysStaleIdleConnections(t *testing.T) {
 // TestPool_BackgroundCleanup_KeepsRecentlyUsedConnections verifies the dual branch: a fresh idle
 // resource survives a cleanup tick.
 func TestPool_BackgroundCleanup_KeepsRecentlyUsedConnections(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("background cleanup test waits for the cleanup ticker (>cleanupInterval); skipped in short mode")
 	}
@@ -451,6 +467,7 @@ func TestPool_BackgroundCleanup_KeepsRecentlyUsedConnections(t *testing.T) {
 // TestResourceWrapper_LastUsedAccessors round-trips the time through the mutex-guarded accessors.
 // Without this, getLastUsed (only invoked from cleanupIdleConnections) is unreachable in short test runs.
 func TestResourceWrapper_LastUsedAccessors(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	w := &resourceWrapper{lastUsedAt: time.Unix(1, 0)}
 

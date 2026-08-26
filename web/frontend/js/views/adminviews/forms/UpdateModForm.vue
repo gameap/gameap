@@ -234,36 +234,14 @@
             {{ trans('games.vars') }}
           </template>
 
-          <InputManyList
-              name="vars"
-              v-model="form.vars"
-              class="mb-4"
-              :labels="[
-                  trans(('games.var')),
-                  trans(('games.default')),
-                  trans(('games.info')),
-                  trans(('games.admin_var')),
-                ]"
-              :keys="['var', 'default', 'info', 'admin_var']"
-              :input-types="['text', 'text', 'text', 'checkbox']"
-          />
+          <GameModVarsEditor v-model="form.vars" class="mb-4" />
         </n-tab-pane>
 
         <n-tab-pane name="rcon">
           <template #tab>
             {{ trans('games.fast_rcon_commands') }}
           </template>
-          <InputManyList
-              name="vars"
-              v-model="form.fastRcon"
-              class="mb-4"
-              :labels="[
-                  trans(('games.description')),
-                  trans(('games.rcon_command')),
-                ]"
-              :keys="['info', 'command']"
-              :input-types="['text', 'text']"
-          />
+          <GameModFastRconEditor v-model="form.fastRcon" class="mb-4" />
         </n-tab-pane>
       </n-tabs>
     </n-form>
@@ -294,6 +272,8 @@ import {
 import GButton from "../../../components/GButton.vue";
 import GFixedBottomBar from "../../../components/GFixedBottomBar.vue";
 import InputManyList from "../../../components/input/InputManyList.vue";
+import GameModVarsEditor from "../../../components/gamemod/GameModVarsEditor.vue";
+import GameModFastRconEditor from "../../../components/gamemod/GameModFastRconEditor.vue";
 import {metadataKeyGroups} from "../../../parts/metadataKeys";
 
 const formRef = ref({})

@@ -24,6 +24,7 @@ var (
 )
 
 func TestHandler_RejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/1/metrics", nil)
@@ -41,6 +42,7 @@ func TestHandler_RejectsUnauthenticated(t *testing.T) {
 }
 
 func TestHandler_RejectsNonAdmin(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/1/metrics", nil)
@@ -61,6 +63,7 @@ func TestHandler_RejectsNonAdmin(t *testing.T) {
 }
 
 func TestHandler_RBACError_Returns500(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/1/metrics", nil)
@@ -81,6 +84,7 @@ func TestHandler_RBACError_Returns500(t *testing.T) {
 }
 
 func TestHandler_MissingID_Returns400(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/metrics", nil)
@@ -100,6 +104,7 @@ func TestHandler_MissingID_Returns400(t *testing.T) {
 }
 
 func TestHandler_InvalidID_Returns400(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/abc/metrics", nil)
@@ -120,6 +125,7 @@ func TestHandler_InvalidID_Returns400(t *testing.T) {
 }
 
 func TestHandler_UnknownNode_Returns404(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/42/metrics", nil)
@@ -140,6 +146,7 @@ func TestHandler_UnknownNode_Returns404(t *testing.T) {
 }
 
 func TestHandler_NodeRepoError_Returns500(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/1/metrics", nil)
@@ -160,6 +167,7 @@ func TestHandler_NodeRepoError_Returns500(t *testing.T) {
 }
 
 func TestHandler_ValidRequestPassesAuthz_NoErrorResponse(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/1/metrics", nil)
@@ -188,6 +196,7 @@ func TestHandler_ValidRequestPassesAuthz_NoErrorResponse(t *testing.T) {
 }
 
 func TestHandler_VerifyNodeExists_FilterShape(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/ws/nodes/3/metrics", nil)

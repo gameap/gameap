@@ -1,6 +1,10 @@
 package api //nolint:revive,nolintlint
 
-import "net/http"
+import (
+	"net/http"
+	"sort"
+	"strings"
+)
 
 type Error struct {
 	Code    int    `json:"code"`
@@ -36,6 +40,49 @@ func NewValidationError(message string) *Error {
 	}
 
 	return NewError(http.StatusUnprocessableEntity, message)
+}
+
+// FieldValidationError reports validation failures for several named fields at
+// once so the client can highlight each of them instead of showing a single
+// sentence. The field name is whatever the client submitted the value under:
+// for server settings that is the game mod variable name.
+type FieldValidationError struct {
+	fields map[string][]string
+}
+
+func NewFieldValidationError(fields map[string][]string) *FieldValidationError {
+	return &FieldValidationError{fields: fields}
+}
+
+func (e *FieldValidationError) HTTPStatus() int {
+	return http.StatusUnprocessableEntity
+}
+
+// FieldErrors is read by the responder to fill the "errors" object in the body.
+func (e *FieldValidationError) FieldErrors() map[string][]string {
+	return e.fields
+}
+
+func (e *FieldValidationError) Error() string {
+	if len(e.fields) == 0 {
+		return "Validation error"
+	}
+
+	names := make([]string, 0, len(e.fields))
+	for name := range e.fields {
+		names = append(names, name)
+	}
+	// Sorted so the message stays stable across map iterations.
+	sort.Strings(names)
+
+	parts := make([]string, 0, len(e.fields))
+	for _, name := range names {
+		for _, message := range e.fields[name] {
+			parts = append(parts, name+": "+message)
+		}
+	}
+
+	return strings.Join(parts, "; ")
 }
 
 type WrappedError struct {

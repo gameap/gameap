@@ -51,6 +51,8 @@ func setupConsoleLogDispatcher(t *testing.T) *consoleLogDispatcherTestSetup {
 }
 
 func TestConsoleLogDispatcher_DispatchConsoleLog_Success(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupConsoleLogDispatcher(t)
 	const nodeID uint64 = 7
@@ -78,6 +80,8 @@ func TestConsoleLogDispatcher_DispatchConsoleLog_Success(t *testing.T) {
 }
 
 func TestConsoleLogDispatcher_DispatchConsoleLog_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupConsoleLogDispatcher(t)
 	const nodeID uint64 = 8
@@ -97,6 +101,8 @@ func TestConsoleLogDispatcher_DispatchConsoleLog_GatewayError(t *testing.T) {
 }
 
 func TestConsoleLogDispatcher_NotConnected_TimesOut(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupConsoleLogDispatcher(t)
 	const nodeID uint64 = 99
@@ -115,6 +121,8 @@ func TestConsoleLogDispatcher_NotConnected_TimesOut(t *testing.T) {
 }
 
 func TestConsoleLogDispatcher_executeRequest_GatewayError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	s := setupConsoleLogDispatcher(t)
 	d := s.dispatcher.(*consoleLogDispatcher)
@@ -135,6 +143,8 @@ func TestConsoleLogDispatcher_executeRequest_GatewayError(t *testing.T) {
 }
 
 func TestNewConsoleLogDispatcher_NilLoggerUsesDefault(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	gateway := &fakeConsoleLogGateway{}
 	registry := newFakeConnectionChecker()

@@ -19,6 +19,8 @@ var (
 )
 
 func TestNewMessage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		channel   string
@@ -188,6 +190,8 @@ func TestNewMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			before := time.Now()
 
@@ -210,6 +214,8 @@ func TestNewMessage(t *testing.T) {
 }
 
 func TestNewMessage_GeneratesUniqueIDs(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	const iterations = 100
 	seen := make(map[string]struct{}, iterations)
@@ -230,6 +236,8 @@ func TestNewMessage_GeneratesUniqueIDs(t *testing.T) {
 }
 
 func TestParsePayload_Errors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		payload   []byte
@@ -270,6 +278,8 @@ func TestParsePayload_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			msg := &pubsub.Message{Payload: tt.payload}
 
@@ -284,6 +294,8 @@ func TestParsePayload_Errors(t *testing.T) {
 }
 
 func TestParsePayload_NullReturnsZeroValue(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	msg := &pubsub.Message{Payload: []byte("null")}
 
@@ -296,6 +308,8 @@ func TestParsePayload_NullReturnsZeroValue(t *testing.T) {
 }
 
 func TestParsePayload_IgnoresUnknownFields(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	msg := &pubsub.Message{
 		Payload: []byte(`{"entity_type":"games","extra_unknown":"value"}`),
@@ -311,7 +325,11 @@ func TestParsePayload_IgnoresUnknownFields(t *testing.T) {
 }
 
 func TestParsePayload_RoundTrips(t *testing.T) {
+	t.Parallel()
+
 	t.Run("roundtrip_cache_invalidate", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		want := CacheInvalidatePayload{
 			EntityType: "users",
@@ -327,6 +345,8 @@ func TestParsePayload_RoundTrips(t *testing.T) {
 	})
 
 	t.Run("roundtrip_daemon_session_with_time", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		want := DaemonSessionPayload{
 			NodeID:      7,
@@ -347,6 +367,8 @@ func TestParsePayload_RoundTrips(t *testing.T) {
 	})
 
 	t.Run("roundtrip_plugin_event_with_pointers_and_map", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		serverID := uint(11)
 		taskID := uint(22)
@@ -375,6 +397,8 @@ func TestParsePayload_RoundTrips(t *testing.T) {
 	})
 
 	t.Run("roundtrip_byte_slice", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		want := DaemonTaskDispatchPayload{
 			NodeID:    1,
@@ -394,6 +418,8 @@ func TestParsePayload_RoundTrips(t *testing.T) {
 	})
 
 	t.Run("roundtrip_metrics_subscribers", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		want := MetricsSubscribersPayload{
 			InstanceID: "inst-2",
@@ -415,6 +441,8 @@ func TestParsePayload_RoundTrips(t *testing.T) {
 }
 
 func TestTypeConstants(t *testing.T) {
+	t.Parallel()
+
 	all := map[string]string{
 		"TypeCacheInvalidate":             TypeCacheInvalidate,
 		"TypePluginEvent":                 TypePluginEvent,
@@ -458,12 +486,16 @@ func TestTypeConstants(t *testing.T) {
 	}
 
 	t.Run("all_constants_are_non_empty", func(t *testing.T) {
+		t.Parallel()
+
 		for name, value := range all {
 			assert.NotEmpty(t, value, "constant %s must not be empty", name)
 		}
 	})
 
 	t.Run("all_constants_match_subsystem_subtype_shape", func(t *testing.T) {
+		t.Parallel()
+
 		for name, value := range all {
 			assert.Regexp(t, typePattern, value,
 				"constant %s = %q must match shape `^[a-z][a-z_]*(\\.[a-z_]+)*$`", name, value)
@@ -471,6 +503,8 @@ func TestTypeConstants(t *testing.T) {
 	})
 
 	t.Run("all_constants_are_distinct", func(t *testing.T) {
+		t.Parallel()
+
 		seen := make(map[string]string, len(all))
 		for name, value := range all {
 			if other, dup := seen[value]; dup {
@@ -482,6 +516,8 @@ func TestTypeConstants(t *testing.T) {
 	})
 
 	t.Run("known_values_are_stable", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Equal(t, "cache.invalidate", TypeCacheInvalidate)
 		assert.Equal(t, "daemon.connected", TypeDaemonConnected)
 		assert.Equal(t, "daemon.file.transfer.complete", TypeDaemonFileTransferComplete)
@@ -495,6 +531,8 @@ func TestTypeConstants(t *testing.T) {
 }
 
 func TestPayloadStructs_AreJSONRoundTrippable(t *testing.T) {
+	t.Parallel()
+
 	cases := []any{
 		ServerStatusPayload{ServerID: 1, Status: "online", PlayersOnline: 4, MaxPlayers: 32},
 		TaskProgressPayload{TaskID: 1, Status: "running", Progress: 50, Message: "halfway"},
@@ -539,6 +577,8 @@ func TestPayloadStructs_AreJSONRoundTrippable(t *testing.T) {
 
 	for _, want := range cases {
 		t.Run(reflect.TypeOf(want).Name(), func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			data, err := json.Marshal(want)
 			require.NoError(t, err)
@@ -555,6 +595,8 @@ func TestPayloadStructs_AreJSONRoundTrippable(t *testing.T) {
 }
 
 func TestServerTaskExecutionStatusPayload_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want ServerTaskExecutionStatusPayload
@@ -596,6 +638,8 @@ func TestServerTaskExecutionStatusPayload_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE + ACT
 			got := roundTrip[ServerTaskExecutionStatusPayload](t, tt.want)
 
@@ -618,6 +662,8 @@ func TestServerTaskExecutionStatusPayload_RoundTrip(t *testing.T) {
 }
 
 func TestServerTaskExecutionStatusPayload_OmitsNilExitCodeAndErrorMessage(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	payload := ServerTaskExecutionStatusPayload{
 		ExecutionID: "exec-1",
@@ -640,6 +686,8 @@ func TestServerTaskExecutionStatusPayload_OmitsNilExitCodeAndErrorMessage(t *tes
 }
 
 func TestServerTaskExecutionStatusPayload_EncodesExitCodeZero(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	payload := ServerTaskExecutionStatusPayload{
 		ExecutionID: "exec-1",
@@ -660,6 +708,8 @@ func TestServerTaskExecutionStatusPayload_EncodesExitCodeZero(t *testing.T) {
 }
 
 func TestServerTaskExecutionLogPayload_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want ServerTaskExecutionLogPayload
@@ -698,6 +748,8 @@ func TestServerTaskExecutionLogPayload_RoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE + ACT
 			got := roundTrip[ServerTaskExecutionLogPayload](t, tt.want)
 
@@ -713,6 +765,8 @@ func TestServerTaskExecutionLogPayload_RoundTrip(t *testing.T) {
 }
 
 func TestServerTaskExecutionLogPayload_ChunkEncodedAsBase64(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	payload := ServerTaskExecutionLogPayload{
 		ExecutionID: "exec-1",
@@ -736,6 +790,8 @@ func TestServerTaskExecutionLogPayload_ChunkEncodedAsBase64(t *testing.T) {
 }
 
 func TestDaemonServerTaskDeltaPayload_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	want := DaemonServerTaskDeltaPayload{
 		NodeID:    7,
@@ -755,6 +811,8 @@ func TestDaemonServerTaskDeltaPayload_RoundTrip(t *testing.T) {
 }
 
 func TestDaemonServerTaskResyncPayload_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	want := DaemonServerTaskResyncPayload{
 		NodeID:           7,
@@ -769,6 +827,8 @@ func TestDaemonServerTaskResyncPayload_RoundTrip(t *testing.T) {
 }
 
 func TestNewMessage_BuildsServerTaskExecutionStatus(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	channel := "gameap:realtime:server_task:execution:42"
 	payload := ServerTaskExecutionStatusPayload{

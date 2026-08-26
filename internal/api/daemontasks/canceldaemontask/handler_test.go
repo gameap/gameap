@@ -52,6 +52,8 @@ func newWaitingTask() *domain.DaemonTask {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		setupRepo      func(*inmemory.DaemonTaskRepository)
@@ -130,6 +132,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			taskRepo := inmemory.NewDaemonTaskRepository()
 			responder := api.NewResponder()
 			publisher := &capturingPublisher{}
@@ -182,6 +186,8 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_WithoutPublisher(t *testing.T) {
+	t.Parallel()
+
 	taskRepo := inmemory.NewDaemonTaskRepository()
 	responder := api.NewResponder()
 
@@ -208,6 +214,8 @@ func TestHandler_ServeHTTP_WithoutPublisher(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
+
 	taskRepo := inmemory.NewDaemonTaskRepository()
 	responder := api.NewResponder()
 	publisher := &capturingPublisher{}

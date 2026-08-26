@@ -12,6 +12,7 @@ import (
 )
 
 func TestSubscription_Samples_ReturnsBufferedChannel(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	sub := newSubscription(nil, 7, 4)
 
@@ -24,6 +25,7 @@ func TestSubscription_Samples_ReturnsBufferedChannel(t *testing.T) {
 }
 
 func TestSubscription_Deliver_PutsEntryOnChannel(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	sub := newSubscription(nil, 7, 4)
 	entry := &proto.MetricsResponse{
@@ -43,6 +45,7 @@ func TestSubscription_Deliver_PutsEntryOnChannel(t *testing.T) {
 }
 
 func TestSubscription_Deliver_WhenBufferFull_DropsSilently(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	sub := newSubscription(nil, 7, 1)
 	first := &proto.MetricsResponse{Timestamp: timestamppb.Now()}
@@ -69,6 +72,7 @@ func TestSubscription_Deliver_WhenBufferFull_DropsSilently(t *testing.T) {
 }
 
 func TestSubscription_Deliver_AfterCloseChannel_DoesNotPanic(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	sub := newSubscription(nil, 7, 4)
 	sub.closeChannel()
@@ -80,6 +84,7 @@ func TestSubscription_Deliver_AfterCloseChannel_DoesNotPanic(t *testing.T) {
 }
 
 func TestSubscription_Close_idempotent(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	// A bare hub has no registered state for this nodeID, so unsubscribe
 	// takes its state==nil branch and closes the subscription channel. This
@@ -114,6 +119,7 @@ func TestSubscription_Close_idempotent(t *testing.T) {
 }
 
 func TestSubscription_ConcurrentCloseAndDeliver_NoPanic(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	const goroutines = 40
 
@@ -157,6 +163,7 @@ func TestSubscription_ConcurrentCloseAndDeliver_NoPanic(t *testing.T) {
 }
 
 func TestSubscription_CloseChannel_FirstCallClosesUnderlyingChannel(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	// closeChannel is idempotent (guarded by the closed flag); this test pins the
 	// first-call behaviour: the channel closes while buffered entries stay drainable.

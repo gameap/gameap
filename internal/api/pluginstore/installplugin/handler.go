@@ -2,8 +2,6 @@ package installplugin
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -28,6 +26,7 @@ type Handler struct {
 	fileManager   files.FileManager
 	loader        *plugin.Loader
 	subscriptions plugininstall.SubscriptionRefresher
+	sync          plugininstall.SyncNotifier
 	pluginsDir    string
 	responder     base.Responder
 }
@@ -38,6 +37,7 @@ func NewHandler(
 	fileManager files.FileManager,
 	loader *plugin.Loader,
 	subscriptions plugininstall.SubscriptionRefresher,
+	sync plugininstall.SyncNotifier,
 	pluginsDir string,
 	responder base.Responder,
 ) *Handler {
@@ -47,6 +47,7 @@ func NewHandler(
 		fileManager:   fileManager,
 		loader:        loader,
 		subscriptions: subscriptions,
+		sync:          sync,
 		pluginsDir:    pluginsDir,
 		responder:     responder,
 	}
@@ -126,7 +127,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pluginRecord := h.buildPluginRecord(dbID, pluginDetails, selectedVersion, filename, storePluginID)
+	pluginRecord := h.buildPluginRecord(dbID, pluginDetails, selectedVersion, filename, storePluginID, wasmBytes)
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
 		_ = h.fileManager.Delete(ctx, pluginPath)
@@ -135,26 +136,105 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := plugininstall.TryLoadPlugin(ctx, h.loader, h.pluginRepo, pluginRecord, filename); err != nil {
-		wasmHash := sha256.Sum256(wasmBytes)
+	if err := h.loadAndGrant(ctx, pluginRecord, wasmBytes); err != nil {
+		// The row exists (status error): peers still learn about it.
+		plugininstall.Notify(ctx, h.sync, dbID, plugininstall.ActionInstall)
 
-		slog.WarnContext(
-			ctx,
-			"failed to load wasm file",
-			slog.String("wasm_hash", hex.EncodeToString(wasmHash[:])),
-			slog.String("error", err.Error()),
-		)
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.WithMessage(err, "plugin installed but failed to load"),
-			http.StatusUnprocessableEntity,
-		))
+		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}
 
-	plugininstall.RefreshSubscriptions(ctx, h.subscriptions)
+	plugininstall.AfterChange(ctx, h.subscriptions, h.sync, dbID, plugininstall.ActionInstall)
 
 	h.responder.Write(ctx, rw, newInstallResponse(pluginRecord))
+}
+
+// loadAndGrant starts the installed module and records the grants its manifest
+// asks for. Both failures leave the plugin installed but unusable, so the
+// returned error is already HTTP-wrapped for the caller to report.
+func (h *Handler) loadAndGrant(
+	ctx context.Context,
+	pluginRecord *domain.Plugin,
+	wasmBytes []byte,
+) error {
+	loaded, err := plugininstall.TryLoadPlugin(ctx, h.loader, pluginRecord)
+	if err != nil {
+		slog.WarnContext(
+			ctx,
+			"failed to load wasm file",
+			slog.String("wasm_hash", plugin.FileChecksum(wasmBytes)),
+			slog.String("error", err.Error()),
+		)
+
+		return api.WrapHTTPError(
+			errors.WithMessage(err, "plugin installed but failed to load"),
+			http.StatusUnprocessableEntity,
+		)
+	}
+
+	if err := h.recordPermissions(ctx, pluginRecord, loaded); err != nil {
+		h.disableUngrantedPlugin(ctx, pluginRecord, loaded)
+
+		return api.WrapHTTPError(
+			errors.WithMessage(err, "plugin installed but its permissions were not recorded"),
+			http.StatusUnprocessableEntity,
+		)
+	}
+
+	return nil
+}
+
+// recordPermissions persists the grants the module asks for. The store API
+// carries no manifest, so required_permissions is only known once the wasm is
+// loaded — without this step a store-installed plugin holds no grants at all
+// and every gated host module (secrets, files, manage_rbac) denies it.
+// Installing is an admin action, so confirming the install is the grant, same
+// rule as the upload path (plugininstall.BuildPluginRecord).
+func (h *Handler) recordPermissions(
+	ctx context.Context,
+	pluginRecord *domain.Plugin,
+	loaded *pkgplugin.LoadedPlugin,
+) error {
+	if loaded == nil || loaded.Info == nil {
+		return nil
+	}
+
+	permissions := domain.ParsePluginPermissions(loaded.Info.RequiredPermissions)
+	if len(permissions) == 0 {
+		return nil
+	}
+
+	pluginRecord.RequiredPermissions = permissions
+	pluginRecord.AllowedPermissions = permissions
+
+	return h.pluginRepo.Save(ctx, pluginRecord)
+}
+
+// disableUngrantedPlugin stops a module whose grants could not be persisted.
+// Left running it would hit a denial in every gated host library, and the
+// still-active database record would load it that way again after a restart.
+// Both steps are best effort: the install itself is already reported as failed.
+func (h *Handler) disableUngrantedPlugin(
+	ctx context.Context,
+	pluginRecord *domain.Plugin,
+	loaded *pkgplugin.LoadedPlugin,
+) {
+	if h.loader != nil && loaded != nil && loaded.Info != nil {
+		if err := h.loader.Unload(ctx, loaded.Info.Id); err != nil {
+			slog.WarnContext(ctx, "failed to unload plugin without recorded permissions",
+				slog.String("plugin", loaded.Info.Id),
+				slog.String("error", err.Error()))
+		}
+	}
+
+	pluginRecord.MarkError("plugin permissions were not recorded", time.Now())
+
+	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
+		slog.WarnContext(ctx, "failed to mark plugin as errored",
+			slog.Uint64("plugin_id", uint64(pluginRecord.ID)),
+			slog.String("error", err.Error()))
+	}
 }
 
 func (h *Handler) parseInput(r *http.Request) (input, error) {
@@ -273,6 +353,7 @@ func (h *Handler) buildPluginRecord(
 	version *pluginstore.PluginVersion,
 	filename string,
 	storePluginID string,
+	wasmBytes []byte,
 ) *domain.Plugin {
 	source := h.storeService.BaseURL() + "/plugins/" + storePluginID
 
@@ -284,6 +365,7 @@ func (h *Handler) buildPluginRecord(
 		Author:      details.Author.Username,
 		Filename:    new(filename),
 		Source:      new(source),
+		Checksum:    new(plugin.FileChecksum(wasmBytes)),
 		Status:      domain.PluginStatusActive,
 		InstalledAt: new(time.Now()),
 	}

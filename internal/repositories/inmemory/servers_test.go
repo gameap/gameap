@@ -16,6 +16,8 @@ import (
 )
 
 func TestServerRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewServerRepositorySuite(
 		func(_ *testing.T) repositories.ServerRepository {
 			return NewServerRepository()
@@ -24,6 +26,8 @@ func TestServerRepository(t *testing.T) {
 }
 
 func TestServerRepository_DeletedAtFiltering(t *testing.T) {
+	t.Parallel()
+
 	repo := NewServerRepository()
 	now := time.Now()
 	deletedTime := now.Add(-1 * time.Hour)
@@ -58,7 +62,12 @@ func TestServerRepository_DeletedAtFiltering(t *testing.T) {
 	require.NoError(t, repo.Save(context.Background(), server1))
 	require.NoError(t, repo.Save(context.Background(), server2))
 
+	repo.AddUserServer(1, 1)
+	repo.AddUserServer(1, 2)
+
 	t.Run("FindAll_excludes_deleted_servers", func(t *testing.T) {
+		t.Parallel()
+
 		servers, err := repo.FindAll(context.Background(), nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, servers, 1)
@@ -66,6 +75,8 @@ func TestServerRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_without_WithDeleted_excludes_deleted_servers", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServer{}
 		servers, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -74,6 +85,8 @@ func TestServerRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_with_WithDeleted_includes_deleted_servers", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServer{WithDeleted: true}
 		servers, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -81,6 +94,8 @@ func TestServerRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_by_ID_without_WithDeleted_excludes_deleted_servers", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServer{IDs: []uint{1, 2}}
 		servers, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -89,6 +104,8 @@ func TestServerRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("Find_by_ID_with_WithDeleted_includes_deleted_servers", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServer{IDs: []uint{1, 2}, WithDeleted: true}
 		servers, err := repo.Find(context.Background(), filter, nil, nil)
 		require.NoError(t, err)
@@ -96,8 +113,7 @@ func TestServerRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("FindUserServers_excludes_deleted_servers", func(t *testing.T) {
-		repo.AddUserServer(1, 1)
-		repo.AddUserServer(1, 2)
+		t.Parallel()
 
 		servers, err := repo.FindUserServers(context.Background(), 1, nil, nil, nil)
 		require.NoError(t, err)
@@ -106,6 +122,8 @@ func TestServerRepository_DeletedAtFiltering(t *testing.T) {
 	})
 
 	t.Run("FindUserServers_with_WithDeleted_includes_deleted_servers", func(t *testing.T) {
+		t.Parallel()
+
 		filter := &filters.FindServer{WithDeleted: true}
 		servers, err := repo.FindUserServers(context.Background(), 1, filter, nil, nil)
 		require.NoError(t, err)

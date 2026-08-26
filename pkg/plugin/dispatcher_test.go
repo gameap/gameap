@@ -23,7 +23,9 @@ func newDispatcherTestManager() *Manager {
 }
 
 func TestNewDispatcher(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_dispatcher_with_initialized_state", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		logger := discardLogger()
@@ -41,7 +43,10 @@ func TestNewDispatcher(t *testing.T) {
 }
 
 func TestDispatcher_RefreshSubscriptions(t *testing.T) {
+	t.Parallel()
 	t.Run("merges_subscriptions_from_multiple_plugins", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		manager.plugins["plugin-a"] = &LoadedPlugin{
@@ -89,6 +94,7 @@ func TestDispatcher_RefreshSubscriptions(t *testing.T) {
 	})
 
 	t.Run("skips_disabled_plugins", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		var enabledCalled, disabledCalled atomic.Bool
@@ -131,6 +137,8 @@ func TestDispatcher_RefreshSubscriptions(t *testing.T) {
 	})
 
 	t.Run("continues_on_plugin_error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		manager.plugins["broken"] = &LoadedPlugin{
@@ -166,6 +174,7 @@ func TestDispatcher_RefreshSubscriptions(t *testing.T) {
 	})
 
 	t.Run("refresh_replaces_previous_subscriptions", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		dispatcher := NewDispatcher(manager, discardLogger())
@@ -183,6 +192,7 @@ func TestDispatcher_RefreshSubscriptions(t *testing.T) {
 	})
 
 	t.Run("returns_no_subscriptions_when_no_plugins", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		dispatcher := NewDispatcher(manager, discardLogger())
@@ -198,7 +208,10 @@ func TestDispatcher_RefreshSubscriptions(t *testing.T) {
 }
 
 func TestDispatcher_Dispatch(t *testing.T) {
+	t.Parallel()
 	t.Run("returns_empty_result_when_no_subscribers", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		dispatcher := NewDispatcher(newDispatcherTestManager(), discardLogger())
 		event := &proto.Event{Type: proto.EventType_EVENT_TYPE_SERVER_POST_START}
@@ -215,6 +228,7 @@ func TestDispatcher_Dispatch(t *testing.T) {
 	})
 
 	t.Run("dispatches_to_single_subscriber", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		var receivedEventType proto.EventType
@@ -245,6 +259,8 @@ func TestDispatcher_Dispatch(t *testing.T) {
 	})
 
 	t.Run("merges_modified_data_across_plugins", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		pluginA := &LoadedPlugin{
@@ -290,6 +306,7 @@ func TestDispatcher_Dispatch(t *testing.T) {
 	})
 
 	t.Run("cancellable_event_short_circuits_after_cancel", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		var calledA, calledB atomic.Bool
@@ -340,6 +357,8 @@ func TestDispatcher_Dispatch(t *testing.T) {
 	})
 
 	t.Run("non_cancellable_event_continues_even_when_plugin_requests_cancel", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		var calledB atomic.Bool
@@ -385,6 +404,7 @@ func TestDispatcher_Dispatch(t *testing.T) {
 	})
 
 	t.Run("plugin_error_appended_and_loop_continues", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		var calledB atomic.Bool
@@ -429,6 +449,8 @@ func TestDispatcher_Dispatch(t *testing.T) {
 	})
 
 	t.Run("disabled_plugin_in_subscriptions_is_skipped", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		var calledDisabled atomic.Bool
@@ -460,6 +482,7 @@ func TestDispatcher_Dispatch(t *testing.T) {
 	})
 
 	t.Run("event_result_without_handled_does_not_appear_in_handled_by", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		plugin := &LoadedPlugin{
@@ -487,7 +510,9 @@ func TestDispatcher_Dispatch(t *testing.T) {
 }
 
 func TestDispatcher_DispatchServerEvent(t *testing.T) {
+	t.Parallel()
 	t.Run("dispatches_event_with_server_payload", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		var captured *proto.Event
@@ -543,7 +568,10 @@ func TestDispatcher_DispatchServerEvent(t *testing.T) {
 }
 
 func TestDispatcher_DispatchTaskEvent(t *testing.T) {
+	t.Parallel()
 	t.Run("dispatches_task_event_with_payload", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		var captured *proto.Event
@@ -587,6 +615,7 @@ func TestDispatcher_DispatchTaskEvent(t *testing.T) {
 	})
 
 	t.Run("nil_server_id_results_in_nil_payload_field", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		manager := newDispatcherTestManager()
 		var captured *proto.Event
@@ -620,6 +649,7 @@ func TestDispatcher_DispatchTaskEvent(t *testing.T) {
 }
 
 func TestDispatcher_HasSubscribers(t *testing.T) {
+	t.Parallel()
 	manager := newDispatcherTestManager()
 	enabled := &LoadedPlugin{
 		Info:    &proto.PluginInfo{Id: "enabled"},
@@ -660,6 +690,7 @@ func TestDispatcher_HasSubscribers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := dispatcher.HasSubscribers(tt.eventType)
 			assert.Equal(t, tt.want, got)
 		})
@@ -667,6 +698,7 @@ func TestDispatcher_HasSubscribers(t *testing.T) {
 }
 
 func TestIsCancellableEvent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		eventType proto.EventType
@@ -736,6 +768,7 @@ func TestIsCancellableEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := isCancellableEvent(tt.eventType)
 			assert.Equal(t, tt.want, got)
 		})
@@ -743,7 +776,10 @@ func TestIsCancellableEvent(t *testing.T) {
 }
 
 func TestDomainServerToProto(t *testing.T) {
+	t.Parallel()
 	t.Run("nil_server_returns_nil", func(t *testing.T) {
+		t.Parallel()
+
 		// ACT
 		got := domainServerToProto(nil)
 
@@ -752,6 +788,7 @@ func TestDomainServerToProto(t *testing.T) {
 	})
 
 	t.Run("converts_all_fields_correctly", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		uid := uuid.New()
 		queryPort := 27016
@@ -809,6 +846,7 @@ func TestDomainServerToProto(t *testing.T) {
 	})
 
 	t.Run("nil_optional_ports_yield_nil_proto_fields", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		server := &domain.Server{
 			ID:         11,

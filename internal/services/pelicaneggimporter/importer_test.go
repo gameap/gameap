@@ -15,6 +15,8 @@ import (
 )
 
 func TestImporter_Import(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		egg            *gamesimport.PelicanEgg
@@ -95,7 +97,13 @@ func TestImporter_Import(t *testing.T) {
 				require.Len(t, result.GameMod.Vars, 1)
 				assert.Equal(t, "SERVER_NAME", result.GameMod.Vars[0].Var)
 				assert.Equal(t, "My Rage.MP Server", string(result.GameMod.Vars[0].Default))
-				assert.Equal(t, "Name of your server", result.GameMod.Vars[0].Info)
+				assert.Equal(t, "Server Name", result.GameMod.Vars[0].Info)
+				assert.Equal(t, "Name of your server", result.GameMod.Vars[0].Description)
+				assert.Equal(t, domain.GameModVarTypeString, result.GameMod.Vars[0].EffectiveType())
+				require.NotNil(t, result.GameMod.Vars[0].Rules)
+				assert.True(t, result.GameMod.Vars[0].Rules.IsRequired())
+				require.NotNil(t, result.GameMod.Vars[0].Rules.MaxLength)
+				assert.Equal(t, 64, *result.GameMod.Vars[0].Rules.MaxLength)
 				assert.False(t, result.GameMod.Vars[0].AdminVar)
 
 				dockerImage, ok := result.GameMod.Metadata["docker_image"].(string)
@@ -391,7 +399,8 @@ func TestImporter_Import(t *testing.T) {
 				assert.False(t, result.GameMod.Vars[0].AdminVar)
 
 				assert.Equal(t, "VAR_TWO", result.GameMod.Vars[1].Var)
-				assert.Equal(t, "Second variable", result.GameMod.Vars[1].Info)
+				assert.Equal(t, "Var Two", result.GameMod.Vars[1].Info)
+				assert.Equal(t, "Second variable", result.GameMod.Vars[1].Description)
 				assert.True(t, result.GameMod.Vars[1].AdminVar)
 
 				assert.Equal(t, "VAR_THREE", result.GameMod.Vars[2].Var)
@@ -403,6 +412,8 @@ func TestImporter_Import(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 
@@ -433,6 +444,8 @@ func TestImporter_Import(t *testing.T) {
 }
 
 func TestImporter_Import_WithOptions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		egg            *gamesimport.PelicanEgg
@@ -577,6 +590,8 @@ func TestImporter_Import_WithOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 
@@ -604,6 +619,8 @@ func TestImporter_Import_WithOptions(t *testing.T) {
 }
 
 func TestGenerateGameCode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -643,6 +660,8 @@ func TestGenerateGameCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := generateGameCode(tt.input)
 			assert.Equal(t, tt.expected, result)
 			assert.LessOrEqual(t, len(result), 16)
@@ -652,6 +671,8 @@ func TestGenerateGameCode(t *testing.T) {
 }
 
 func TestTransformStartupCommand(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		startup  string
@@ -751,6 +772,8 @@ func TestTransformStartupCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := transformStartupCommand(tt.startup)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -758,6 +781,8 @@ func TestTransformStartupCommand(t *testing.T) {
 }
 
 func TestTransformVariables(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		variables []gamesimport.PelicanEggVariable
@@ -781,10 +806,11 @@ func TestTransformVariables(t *testing.T) {
 			},
 			expected: domain.GameModVarList{
 				{
-					Var:      "SERVER_NAME",
-					Default:  "My Server",
-					Info:     "Name of the server",
-					AdminVar: false,
+					Var:         "SERVER_NAME",
+					Default:     "My Server",
+					Info:        "Server Name",
+					Description: "Name of the server",
+					AdminVar:    false,
 				},
 			},
 		},
@@ -806,6 +832,49 @@ func TestTransformVariables(t *testing.T) {
 					AdminVar: true,
 				},
 			},
+		},
+		{
+			name: "variable_with_empty_name_uses_description",
+			variables: []gamesimport.PelicanEggVariable{
+				{
+					Description:  "Name of the server",
+					EnvVariable:  "SERVER_NAME",
+					DefaultValue: "My Server",
+					UserEditable: true,
+				},
+			},
+			expected: domain.GameModVarList{
+				{
+					Var:         "SERVER_NAME",
+					Default:     "My Server",
+					Info:        "Name of the server",
+					Description: "Name of the server",
+					AdminVar:    false,
+				},
+			},
+		},
+		{
+			name: "variable_without_name_or_description_uses_env_variable",
+			variables: []gamesimport.PelicanEggVariable{
+				{
+					EnvVariable:  "SERVER_NAME",
+					UserEditable: true,
+				},
+			},
+			expected: domain.GameModVarList{
+				{Var: "SERVER_NAME", Info: "SERVER_NAME", AdminVar: false},
+			},
+		},
+		{
+			name: "variable_with_a_name_longer_than_the_limit_is_skipped",
+			variables: []gamesimport.PelicanEggVariable{
+				{
+					Name:         "Too long",
+					EnvVariable:  "A_VERY_LONG_ENVIRONMENT_VARIABLE_NAME",
+					UserEditable: true,
+				},
+			},
+			expected: domain.GameModVarList{},
 		},
 		{
 			name: "variable_with_empty_description_uses_name",
@@ -831,6 +900,8 @@ func TestTransformVariables(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := transformVariables(tt.variables)
 			require.Len(t, result, len(tt.expected))
 
@@ -838,6 +909,7 @@ func TestTransformVariables(t *testing.T) {
 				assert.Equal(t, tt.expected[i].Var, v.Var)
 				assert.Equal(t, tt.expected[i].Default, v.Default)
 				assert.Equal(t, tt.expected[i].Info, v.Info)
+				assert.Equal(t, tt.expected[i].Description, v.Description)
 				assert.Equal(t, tt.expected[i].AdminVar, v.AdminVar)
 			}
 		})
@@ -845,6 +917,8 @@ func TestTransformVariables(t *testing.T) {
 }
 
 func TestParsePelicanEgg(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		jsonData       string
@@ -945,6 +1019,8 @@ func TestParsePelicanEgg(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			egg, err := gamesimport.ParsePelicanEgg([]byte(tt.jsonData))
 
 			if tt.wantErr {

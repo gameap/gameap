@@ -18,6 +18,7 @@ import (
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		requestBody    string
@@ -212,6 +213,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()
@@ -253,6 +255,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_GameModPersistence(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	repo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
@@ -331,6 +334,7 @@ func TestHandler_GameModPersistence(t *testing.T) {
 }
 
 func TestHandler_EmptyRequiredFields(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		requestBody string
@@ -356,6 +360,7 @@ func TestHandler_EmptyRequiredFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			repo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()
@@ -384,6 +389,7 @@ func TestHandler_EmptyRequiredFields(t *testing.T) {
 }
 
 func TestHandler_MinecraftGameModCreation(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
 	handler := NewHandler(repo, responder)

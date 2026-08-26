@@ -6,7 +6,9 @@ import (
 
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/enrollment"
 	"github.com/gameap/gameap/internal/pubsub/messages"
+	"github.com/gameap/gameap/internal/services/pluginssh"
 	"github.com/gameap/gameap/pkg/proto"
 )
 
@@ -27,7 +29,15 @@ type NodeFileService interface {
 	MkDir(ctx context.Context, node *domain.Node, directory string, owner daemon.OwnerOptions) error
 	Copy(ctx context.Context, node *domain.Node, source, destination string) error
 	Move(ctx context.Context, node *domain.Node, source, destination string) error
-	Download(ctx context.Context, node *domain.Node, filePath string) ([]byte, error)
+	// DownloadLimited reads at most limit bytes from the start of the file;
+	// 0 reads the whole file.
+	DownloadLimited(ctx context.Context, node *domain.Node, filePath string, limit uint64) ([]byte, error)
+	// DownloadRange reads at most limit bytes starting at offset; limit 0 reads
+	// to the end of the file. It is what lets a plugin read a file larger than
+	// the inline cap, one window at a time.
+	DownloadRange(
+		ctx context.Context, node *domain.Node, filePath string, offset, limit uint64,
+	) ([]byte, error)
 	Upload(
 		ctx context.Context,
 		node *domain.Node,
@@ -76,4 +86,64 @@ type NodeCommandService interface {
 		command string,
 		opts ...daemon.CommandServiceOption,
 	) (*daemon.CommandResult, error)
+}
+
+// NodeWriter is the node write surface the gameap-nodes host library
+// delegates to; it holds the rules shared with the admin API (validation,
+// the delete guard). Satisfied by *services.NodeService.
+type NodeWriter interface {
+	Patch(ctx context.Context, id uint, patch domain.NodePatch) (*domain.Node, error)
+	SoftDelete(ctx context.Context, id uint) error
+}
+
+// NodeEnrollment is the enrollment-ticket surface the gameap-nodes host
+// library exposes to plugins. Satisfied by *enrollment.TicketStore.
+type NodeEnrollment interface {
+	Create(ctx context.Context, in enrollment.CreateTicketInput) (*enrollment.Ticket, string, error)
+	Get(ctx context.Context, id string) (*enrollment.Ticket, error)
+	Revoke(ctx context.Context, id string) error
+}
+
+// ConnectTargetResolver names the address daemons dial to reach this panel.
+// Satisfied by *enrollment.ConnectResolver.
+type ConnectTargetResolver interface {
+	Resolve(fallbackHost string) (enrollment.ConnectTarget, error)
+}
+
+// SSHSessionOpener hands out the per-plugin SSH session set backing one
+// gameap-ssh module instance. Satisfied by a shim over *pluginssh.Service.
+type SSHSessionOpener interface {
+	NewSessions(pluginID uint64) SSHSessionManager
+}
+
+// SSHSessionManager is the per-plugin SSH surface the gameap-ssh host library
+// delegates to. Satisfied by *pluginssh.Sessions. Called from host functions
+// that may run while the plugin manager lock is held, so implementations must
+// never call back into pkg/plugin.Manager: completion callbacks resolve the
+// plugin at delivery time instead.
+type SSHSessionManager interface {
+	Connect(ctx context.Context, params pluginssh.ConnectParams) (*pluginssh.ConnectResult, error)
+	Disconnect(handle uint64) error
+	StartExec(ctx context.Context, params pluginssh.ExecParams) (string, error)
+	Cancel(operationID, reason string) error
+	Snapshot(operationID string, stdoutOffset, stderrOffset uint64) (pluginssh.ExecSnapshot, bool)
+	WaitCompletion(ctx context.Context, operationID string) error
+	SubscribeCompletion(operationID string) error
+	ConnectionHost(handle uint64) (string, bool)
+	Close()
+}
+
+// PluginGrantsReader reads the whole grant set of a plugin at once, so one
+// database read answers every permission question about it. Satisfied by
+// *RepositoryPermissionChecker.
+type PluginGrantsReader interface {
+	Grants(ctx context.Context, pluginID uint64) ([]domain.PluginPermission, error)
+}
+
+// PermissionCacheInvalidator drops cached grants. Satisfied by
+// *CachedPermissionChecker; the plain repository checker holds no state and
+// does not implement it.
+type PermissionCacheInvalidator interface {
+	Invalidate(pluginID uint64)
+	InvalidateAll()
 }

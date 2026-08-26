@@ -7,6 +7,7 @@ import (
 )
 
 func TestSHA256(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -76,6 +77,7 @@ func TestSHA256(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := SHA256(tt.input)
 			assert.Equal(t, 64, len(result), "SHA256 hash should be 64 characters long")
 
@@ -93,6 +95,7 @@ func TestSHA256(t *testing.T) {
 }
 
 func TestSHA256_Consistency(t *testing.T) {
+	t.Parallel()
 	input := "test string"
 
 	hash1 := SHA256(input)
@@ -102,6 +105,7 @@ func TestSHA256_Consistency(t *testing.T) {
 }
 
 func TestSHA256_Uniqueness(t *testing.T) {
+	t.Parallel()
 	hash1 := SHA256("input1")
 	hash2 := SHA256("input2")
 

@@ -225,6 +225,8 @@ func bodyJSON(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
 // challenge plus a correct recovery code yields a session token and consumes
 // both the challenge (single-use) and the recovery code (single-use).
 func TestVerify_ValidRecoveryCode_IssuesToken(t *testing.T) {
+	t.Parallel()
+
 	f := newVerifyFixture(t)
 
 	w := doVerify(t, f.handler, `{"challenge_token":"`+f.token+`","code":"`+f.plainCode+`"}`)
@@ -243,6 +245,8 @@ func TestVerify_ValidRecoveryCode_IssuesToken(t *testing.T) {
 // TestVerify_ChallengeIsSingleUse covers OWASP API2:2023: once a challenge has
 // produced a token it cannot be reused, even with a still-valid second factor.
 func TestVerify_ChallengeIsSingleUse(t *testing.T) {
+	t.Parallel()
+
 	f := newVerifyFixture(t)
 
 	first := doVerify(t, f.handler, `{"challenge_token":"`+f.token+`","code":"`+f.plainCode+`"}`)
@@ -256,6 +260,8 @@ func TestVerify_ChallengeIsSingleUse(t *testing.T) {
 // TestVerify_RecoveryCodeIsSingleUse covers OWASP API2:2023: a recovery code
 // spent on one challenge must not authenticate a fresh challenge.
 func TestVerify_RecoveryCodeIsSingleUse(t *testing.T) {
+	t.Parallel()
+
 	f := newVerifyFixture(t)
 
 	require.Equal(t, http.StatusOK,
@@ -285,6 +291,8 @@ func TestVerify_RecoveryCodeIsSingleUse(t *testing.T) {
 // after maxVerifyAttempts wrong codes the challenge is destroyed, so even the
 // correct code afterwards cannot complete it.
 func TestVerify_BruteForceExhaustsChallenge(t *testing.T) {
+	t.Parallel()
+
 	f := newVerifyFixture(t)
 
 	for i := range maxVerifyAttempts {
@@ -305,6 +313,8 @@ func TestVerify_BruteForceExhaustsChallenge(t *testing.T) {
 // input, non-challenge-shaped tokens and unknown challenges are all refused
 // without issuing a token.
 func TestVerify_InputAndChallengeRejections(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		body           string
@@ -351,6 +361,8 @@ func TestVerify_InputAndChallengeRejections(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := newVerifyFixture(t)
 
 			w := doVerify(t, f.handler, tt.body)
@@ -367,6 +379,8 @@ func TestVerify_InputAndChallengeRejections(t *testing.T) {
 // for the account after the challenge was issued, the stale challenge must be
 // refused and destroyed rather than minting a session.
 func TestVerify_UserNoLongerEligible(t *testing.T) {
+	t.Parallel()
+
 	f := newVerifyFixture(t)
 
 	users, err := f.userRepo.Find(context.Background(), nil, nil, nil)
@@ -385,6 +399,8 @@ func TestVerify_UserNoLongerEligible(t *testing.T) {
 // second factor (the authenticator code) completes the challenge and records
 // the consumed step so it cannot be replayed.
 func TestVerify_ValidTOTPCode_IssuesToken(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newVerifyFixture(t)
 	code, err := totp.GenerateCode(f.secret, f.now)
@@ -411,6 +427,8 @@ func TestVerify_ValidTOTPCode_IssuesToken(t *testing.T) {
 // TestVerify_TOTPCodeIsSingleUse covers OWASP API2:2023: a TOTP code captured
 // inside its validity window must not authenticate a second challenge.
 func TestVerify_TOTPCodeIsSingleUse(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newVerifyFixture(t)
 	code, err := totp.GenerateCode(f.secret, f.now)
@@ -434,6 +452,8 @@ func TestVerify_TOTPCodeIsSingleUse(t *testing.T) {
 // cache entry that does not decode must never be trusted, and must be dropped
 // rather than left around for another attempt.
 func TestVerify_CorruptChallengeIsRefusedAndDestroyed(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newVerifyFixture(t)
 	key := twofactor.ChallengeCacheKey(f.token)
@@ -455,6 +475,8 @@ func TestVerify_CorruptChallengeIsRefusedAndDestroyed(t *testing.T) {
 // challenge past its deadline must be dropped on the next attempt instead of
 // having its TTL rewritten.
 func TestVerify_ExpiredChallengeIsDestroyedOnWrongCode(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newVerifyFixture(t)
 	expired := twofactor.ChallengeTokenPrefix + "expired-challenge-secret-abcdef9876543210"
@@ -473,6 +495,8 @@ func TestVerify_ExpiredChallengeIsDestroyedOnWrongCode(t *testing.T) {
 // TestVerify_BackendErrors covers OWASP API2:2023: no infrastructure failure
 // may be turned into a session, and none may leak its cause to the client.
 func TestVerify_BackendErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		mutate      func(*verifyFixture) *Handler
@@ -514,6 +538,8 @@ func TestVerify_BackendErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// ARRANGE
 			f := newVerifyFixture(t)
 			handler := tt.mutate(f)
@@ -535,6 +561,8 @@ func TestVerify_BackendErrors(t *testing.T) {
 // "remember me" choice made at password time must survive the 2FA step and
 // govern the lifetime of the issued session, not be silently downgraded.
 func TestVerify_RememberMeCarriesThroughChallenge(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	f := newVerifyFixture(t)
 	rememberToken := twofactor.ChallengeTokenPrefix + "remember-challenge-secret-fedcba9876543210"

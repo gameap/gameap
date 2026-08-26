@@ -14,6 +14,7 @@ import (
 )
 
 func TestParseUserSort(t *testing.T) {
+	t.Parallel()
 	allowed := map[string]string{
 		"id":        "id",
 		"name":      "name",
@@ -45,6 +46,7 @@ func TestParseUserSort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := filters.ParseUserSort(tt.raw, allowed)
 
 			if tt.wantErrorIs != nil {
@@ -71,6 +73,7 @@ func TestParseUserSort(t *testing.T) {
 }
 
 func TestParseUserSort_AllowedAliasMapping(t *testing.T) {
+	t.Parallel()
 	// Map the public field "createdAt" to the physical column "created_at".
 	got, err := filters.ParseUserSort("-createdAt", map[string]string{"createdAt": "created_at"})
 	require.NoError(t, err)
@@ -80,6 +83,7 @@ func TestParseUserSort_AllowedAliasMapping(t *testing.T) {
 }
 
 func TestParseUserSort_EmptyMappedColumnRejected(t *testing.T) {
+	t.Parallel()
 	// A misconfigured allow-list with an empty target column must not be honoured.
 	got, err := filters.ParseUserSort("id", map[string]string{"id": ""})
 	require.Error(t, err)
@@ -89,6 +93,7 @@ func TestParseUserSort_EmptyMappedColumnRejected(t *testing.T) {
 }
 
 func TestSortDirection_String(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		direction filters.SortDirection
@@ -102,6 +107,7 @@ func TestSortDirection_String(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -114,6 +120,7 @@ func TestSortDirection_String(t *testing.T) {
 }
 
 func TestNewSorting(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		field     string
@@ -142,6 +149,7 @@ func TestNewSorting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -154,6 +162,7 @@ func TestNewSorting(t *testing.T) {
 }
 
 func TestSorting_String(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		sorting *filters.Sorting
@@ -167,6 +176,7 @@ func TestSorting_String(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE done in the table above
 
 			// ACT
@@ -179,6 +189,7 @@ func TestSorting_String(t *testing.T) {
 }
 
 func TestSorting_String_ParseUserSortCompatible(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	allowed := map[string]string{"createdAt": "created_at"}
 

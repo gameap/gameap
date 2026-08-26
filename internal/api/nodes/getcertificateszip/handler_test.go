@@ -52,6 +52,7 @@ func setupMockFileManager() *files.MockFileManager {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		expectedStatus int
@@ -66,6 +67,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fileManager := setupMockFileManager()
 			certificatesSvc := certificates.NewService(fileManager)
 			responder := api.NewResponder()
@@ -96,6 +98,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_GenerateCertificatesZip(t *testing.T) {
+	t.Parallel()
 	fileManager := setupMockFileManager()
 	certificatesSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
@@ -127,6 +130,7 @@ func TestHandler_GenerateCertificatesZip(t *testing.T) {
 }
 
 func TestHandler_ZipFileContents(t *testing.T) {
+	t.Parallel()
 	fileManager := setupMockFileManager()
 	certificatesSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
@@ -191,6 +195,7 @@ func TestHandler_ZipFileContents(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	fileManager := &files.MockFileManager{}
 	certificatesSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()
@@ -203,6 +208,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestHandler_MultipleCalls(t *testing.T) {
+	t.Parallel()
 	fileManager := setupMockFileManager()
 	certificatesSvc := certificates.NewService(fileManager)
 	responder := api.NewResponder()

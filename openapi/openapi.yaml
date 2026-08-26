@@ -533,6 +533,10 @@ paths:
     $ref: './paths/games.yaml#/~1api~1games~1{code}'
   /api/games/{code}/mods:
     $ref: './paths/games.yaml#/~1api~1games~1{code}~1mods'
+  /api/games/import/gameap:
+    $ref: './paths/games.yaml#/~1api~1games~1import~1gameap'
+  /api/games/{code}/export:
+    $ref: './paths/games.yaml#/~1api~1games~1{code}~1export'
 
   # Game Mods (Admin)
   /api/game_mods:
@@ -585,6 +589,12 @@ paths:
     $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1loaded'
   /api/admin/plugins/{id}:
     $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1{id}'
+  /api/admin/plugins/{id}/reload:
+    $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1{id}~1reload'
+  /api/admin/plugins/{id}/permissions:
+    $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1{id}~1permissions'
+  /api/admin/plugins/{id}/upload:
+    $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1{id}~1upload'
 
   # Admin Let's Encrypt
   /api/admin/letsencrypt/status:

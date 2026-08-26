@@ -24,6 +24,7 @@ func parseRequest(request string) (method, path string) {
 	return parts[0], parts[1]
 }
 
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_TokenAccess(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -384,6 +385,7 @@ func TestRouterSecurity_TokenAccess(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
 func TestRouterSecurity_UserAccess(t *testing.T) {
 	tests := []struct {
 		name               string

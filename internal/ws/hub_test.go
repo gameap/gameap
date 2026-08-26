@@ -19,6 +19,7 @@ func newOfflineClient(t *testing.T, hub *Hub) *Client {
 }
 
 func TestNewHub(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 
 	require.NotNil(t, hub)
@@ -30,7 +31,9 @@ func TestNewHub(t *testing.T) {
 }
 
 func TestHub_Register(t *testing.T) {
+	t.Parallel()
 	t.Run("without_topics", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 
@@ -41,6 +44,7 @@ func TestHub_Register(t *testing.T) {
 	})
 
 	t.Run("with_single_topic", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 
@@ -51,6 +55,7 @@ func TestHub_Register(t *testing.T) {
 	})
 
 	t.Run("with_multiple_topics", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 
@@ -63,6 +68,7 @@ func TestHub_Register(t *testing.T) {
 	})
 
 	t.Run("multiple_clients_same_topic", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		c1 := newOfflineClient(t, hub)
 		c2 := newOfflineClient(t, hub)
@@ -76,7 +82,9 @@ func TestHub_Register(t *testing.T) {
 }
 
 func TestHub_Subscribe(t *testing.T) {
+	t.Parallel()
 	t.Run("creates_new_topic_bucket", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 		hub.Register(client)
@@ -87,6 +95,7 @@ func TestHub_Subscribe(t *testing.T) {
 	})
 
 	t.Run("adds_to_existing_topic_bucket", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		c1 := newOfflineClient(t, hub)
 		c2 := newOfflineClient(t, hub)
@@ -99,6 +108,7 @@ func TestHub_Subscribe(t *testing.T) {
 	})
 
 	t.Run("re_subscribe_is_no_op", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 		hub.Register(client, "topic")
@@ -110,6 +120,7 @@ func TestHub_Subscribe(t *testing.T) {
 	})
 
 	t.Run("multiple_topics_at_once", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 		hub.Register(client)
@@ -123,7 +134,9 @@ func TestHub_Subscribe(t *testing.T) {
 }
 
 func TestHub_Unregister(t *testing.T) {
+	t.Parallel()
 	t.Run("removes_from_clients_and_topics", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 		hub.Register(client, "topic-a", "topic-b")
@@ -136,6 +149,7 @@ func TestHub_Unregister(t *testing.T) {
 	})
 
 	t.Run("empty_topic_buckets_are_deleted", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 		hub.Register(client, "lonely")
@@ -149,6 +163,7 @@ func TestHub_Unregister(t *testing.T) {
 	})
 
 	t.Run("does_not_affect_other_clients", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		c1 := newOfflineClient(t, hub)
 		c2 := newOfflineClient(t, hub)
@@ -162,6 +177,7 @@ func TestHub_Unregister(t *testing.T) {
 	})
 
 	t.Run("unknown_client_is_safe", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 
@@ -172,7 +188,9 @@ func TestHub_Unregister(t *testing.T) {
 }
 
 func TestHub_Broadcast(t *testing.T) {
+	t.Parallel()
 	t.Run("delivers_to_single_subscriber", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		client := newOfflineClient(t, hub)
 		hub.Register(client, "topic")
@@ -184,6 +202,7 @@ func TestHub_Broadcast(t *testing.T) {
 	})
 
 	t.Run("delivers_to_multiple_subscribers", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		c1 := newOfflineClient(t, hub)
 		c2 := newOfflineClient(t, hub)
@@ -200,6 +219,7 @@ func TestHub_Broadcast(t *testing.T) {
 	})
 
 	t.Run("no_op_for_empty_topic", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 
 		assert.NotPanics(t, func() {
@@ -208,6 +228,7 @@ func TestHub_Broadcast(t *testing.T) {
 	})
 
 	t.Run("non_blocking_when_subscriber_buffer_full", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		slow := newOfflineClient(t, hub)
 		fast := newOfflineClient(t, hub)
@@ -236,6 +257,7 @@ func TestHub_Broadcast(t *testing.T) {
 	})
 
 	t.Run("delivers_only_to_subscribers_of_topic", func(t *testing.T) {
+		t.Parallel()
 		hub := NewHub(nil)
 		c1 := newOfflineClient(t, hub)
 		c2 := newOfflineClient(t, hub)
@@ -250,6 +272,7 @@ func TestHub_Broadcast(t *testing.T) {
 }
 
 func TestHub_TopicSubscriberCount(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 
 	assert.Equal(t, 0, hub.TopicSubscriberCount("missing"))
@@ -266,6 +289,7 @@ func TestHub_TopicSubscriberCount(t *testing.T) {
 }
 
 func TestHub_Close(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 	c1 := newOfflineClient(t, hub)
 	c2 := newOfflineClient(t, hub)
@@ -287,6 +311,7 @@ func TestHub_Close(t *testing.T) {
 }
 
 func TestHub_ConcurrentRegisterUnregisterBroadcast(t *testing.T) {
+	t.Parallel()
 	hub := NewHub(nil)
 
 	const goroutines = 50

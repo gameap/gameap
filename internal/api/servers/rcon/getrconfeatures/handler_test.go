@@ -62,6 +62,7 @@ var testUser2 = domain.User{
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                  string
 		serverID              string
@@ -574,6 +575,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			serverRepo := inmemory.NewServerRepository()
 			gameRepo := inmemory.NewGameRepository()
 			rbacRepo := inmemory.NewRBACRepository()
@@ -619,6 +621,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	serverRepo := inmemory.NewServerRepository()
 	gameRepo := inmemory.NewGameRepository()
 	rbacRepo := inmemory.NewRBACRepository()
@@ -634,6 +637,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestNewFeaturesResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                  string
 		game                  domain.Game
@@ -718,6 +722,7 @@ func TestNewFeaturesResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			response := newFeaturesResponse(testResolver(), tt.game)
 			assert.Equal(t, tt.expectedRcon, response.Rcon)
 			assert.Equal(t, tt.expectedPlayersManage, response.PlayersManage)

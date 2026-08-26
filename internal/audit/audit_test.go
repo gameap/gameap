@@ -91,6 +91,8 @@ func patDerivedShortLivedSessionCtx(id uint, login string, tokenID uint) context
 // request context: user session → session, PAT session → pat, daemon
 // session → daemon, nothing → anonymous.
 func TestActorDerivation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		ctx            context.Context
@@ -123,6 +125,7 @@ func TestActorDerivation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &captureLogger{}
 
@@ -149,6 +152,8 @@ func TestActorDerivation(t *testing.T) {
 // PAT-derived short-lived session is short-lived first, so a leaked URL token
 // is never logged as if it were the long-lived PAT itself.
 func TestActorDerivation_ShortLivedSession(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		ctx            context.Context
@@ -174,6 +179,7 @@ func TestActorDerivation_ShortLivedSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &captureLogger{}
 
@@ -200,7 +206,10 @@ func TestActorDerivation_ShortLivedSession(t *testing.T) {
 // not clobber it (e.g. LoginSuccess carries the freshly-authenticated user
 // before the session exists in context).
 func TestActorDerivation_PresetAuthMethodNotOverwritten(t *testing.T) {
+	t.Parallel()
+
 	t.Run("login_success_keeps_explicit_actor_even_with_no_session", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		recorder := &captureLogger{}
 
@@ -218,6 +227,7 @@ func TestActorDerivation_PresetAuthMethodNotOverwritten(t *testing.T) {
 	})
 
 	t.Run("preset_auth_method_survives_a_conflicting_context_session", func(t *testing.T) {
+		t.Parallel()
 		// ARRANGE
 		recorder := &captureLogger{}
 		// A user session is in context, but LoginSuccess presets the actor.
@@ -239,6 +249,8 @@ func TestActorDerivation_PresetAuthMethodNotOverwritten(t *testing.T) {
 // and unauthenticated. It must be recorded as the attempted_login Extra attr,
 // the actor must stay anonymous, and ActorLogin must remain empty.
 func TestLoginFailureAndBlocked_NeverRecordActorLogin(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		invoke    func(ctx context.Context, l audit.Logger)
@@ -268,6 +280,7 @@ func TestLoginFailureAndBlocked_NeverRecordActorLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &captureLogger{}
 
@@ -294,6 +307,8 @@ func TestLoginFailureAndBlocked_NeverRecordActorLogin(t *testing.T) {
 // Even if a (stale) session lingers in context, a failed login must not be
 // attributed to that principal — it presets AuthMethod=anonymous.
 func TestLoginFailure_DoesNotDeriveActorFromContextSession(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	recorder := &captureLogger{}
 	ctx := userSessionCtx(7, "alice")
@@ -313,6 +328,8 @@ func TestLoginFailure_DoesNotDeriveActorFromContextSession(t *testing.T) {
 // Locks the (type, category, outcome, reason) tuple each thin helper builds
 // so the stable audit contract cannot drift.
 func TestHelpers_EventShape(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		invoke       func(ctx context.Context, l audit.Logger)
@@ -355,6 +372,7 @@ func TestHelpers_EventShape(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// ARRANGE
 			recorder := &captureLogger{}
 
@@ -376,6 +394,8 @@ func TestHelpers_EventShape(t *testing.T) {
 // AccessDenied runs after authentication, so the denied principal must be
 // derived from context and the targeted resource recorded for forensics.
 func TestAccessDenied_DerivesActorAndCarriesResource(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	recorder := &captureLogger{}
 	ctx := userSessionCtx(2, "bob")
@@ -402,6 +422,8 @@ func TestAccessDenied_DerivesActorAndCarriesResource(t *testing.T) {
 // SensitiveOp records the successful execution of a sensitive operation with
 // the acting principal and the targeted resource/action.
 func TestSensitiveOp_RecordsSuccessWithResource(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	recorder := &captureLogger{}
 	ctx := patSessionCtx(7, "alice", 99)
@@ -421,4 +443,62 @@ func TestSensitiveOp_RecordsSuccessWithResource(t *testing.T) {
 	assert.Equal(t, "token", got.ResourceType)
 	assert.Equal(t, "42", got.ResourceID)
 	assert.Equal(t, "create", got.Action)
+}
+
+func TestPluginOp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("actor_is_the_plugin", func(t *testing.T) {
+		t.Parallel()
+
+		logger := &captureLogger{}
+
+		audit.PluginOp(context.Background(), logger, audit.EventPluginNodeCommand, audit.CategoryPluginOp,
+			audit.OutcomeSuccess, audit.PluginActor{ID: 42, Name: "fwgfo26jzwnm4"},
+			"node", "3", "execute", "", slog.Int("exit_code", 0))
+
+		event, ok := logger.last()
+		require.True(t, ok)
+		assert.Equal(t, audit.EventPluginNodeCommand, event.Type)
+		assert.Equal(t, audit.AuthMethodPlugin, event.AuthMethod)
+		assert.Equal(t, uint(42), event.ActorID)
+		assert.Equal(t, "fwgfo26jzwnm4", event.ActorLogin)
+		assert.Equal(t, "node", event.ResourceType)
+		assert.Equal(t, "3", event.ResourceID)
+		assert.Equal(t, "execute", event.Action)
+		assert.Equal(t, audit.OutcomeSuccess, event.Outcome)
+
+		_, hasUser := extraString(event, "on_behalf_of_user_id")
+		assert.False(t, hasUser, "no session in context, no initiator")
+
+		exitCode, ok := extraString(event, "exit_code")
+		require.True(t, ok)
+		assert.Equal(t, "0", exitCode)
+	})
+
+	t.Run("session_in_context_becomes_the_initiator_not_the_actor", func(t *testing.T) {
+		t.Parallel()
+
+		logger := &captureLogger{}
+		ctx := auth.ContextWithSession(context.Background(), &auth.Session{
+			User: &domain.User{ID: 7, Login: "operator"},
+		})
+
+		audit.PluginOp(ctx, logger, audit.EventAccessDenied, audit.CategoryAuthorization,
+			audit.OutcomeDenied, audit.PluginActor{ID: 42, Name: "plugin"},
+			"host_function", "gameap-nodecmd.execute_command", "execute_command", "plugin_permission_missing")
+
+		event, ok := logger.last()
+		require.True(t, ok)
+		assert.Equal(t, audit.AuthMethodPlugin, event.AuthMethod)
+		assert.Equal(t, uint(42), event.ActorID, "the plugin stays the actor")
+
+		userID, ok := extraString(event, "on_behalf_of_user_id")
+		require.True(t, ok)
+		assert.Equal(t, "7", userID)
+
+		login, ok := extraString(event, "on_behalf_of_login")
+		require.True(t, ok)
+		assert.Equal(t, "operator", login)
+	})
 }

@@ -83,6 +83,14 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validating here rather than only inside the importer keeps a malformed file
+	// a 422 instead of the 500 an unwrapped importer error would produce.
+	if err := export.Validate(); err != nil {
+		h.responder.WriteError(ctx, rw, api.NewValidationError(err.Error()))
+
+		return
+	}
+
 	result, err := h.importer.Import(ctx, export, opts)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to import GameAP config"))

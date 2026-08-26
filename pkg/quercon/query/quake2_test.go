@@ -8,6 +8,7 @@ import (
 )
 
 func TestParseQuake2Response(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		input      []byte
@@ -84,6 +85,7 @@ func TestParseQuake2Response(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := &Result{}
 			err := parseQuake2Response(tt.input, result)
 

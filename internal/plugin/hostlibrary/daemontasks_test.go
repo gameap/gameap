@@ -15,6 +15,7 @@ import (
 )
 
 func TestDaemonTasksService_FindDaemonTasks(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		setupRepo func(*inmemory.DaemonTaskRepository)
@@ -160,10 +161,11 @@ func TestDaemonTasksService_FindDaemonTasks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewDaemonTaskRepository()
 			tt.setupRepo(repo)
 
-			svc := NewDaemonTasksService(repo, nil)
+			svc := NewDaemonTasksService(repo, nil, allowAllGuard(testPluginID))
 			resp, err := svc.FindDaemonTasks(context.Background(), tt.request)
 
 			require.NoError(t, err)
@@ -178,6 +180,7 @@ func TestDaemonTasksService_FindDaemonTasks(t *testing.T) {
 }
 
 func TestDaemonTasksService_CreateDaemonTask(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		request     *daemontasks.CreateDaemonTaskRequest
@@ -234,8 +237,9 @@ func TestDaemonTasksService_CreateDaemonTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewDaemonTaskRepository()
-			svc := NewDaemonTasksService(repo, nil)
+			svc := NewDaemonTasksService(repo, nil, allowAllGuard(testPluginID))
 
 			resp, err := svc.CreateDaemonTask(context.Background(), tt.request)
 
@@ -274,6 +278,7 @@ func (f *fakeTaskDispatcher) Dispatch(_ context.Context, task *domain.DaemonTask
 }
 
 func TestDaemonTasksService_CreateDaemonTask_Dispatch(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		dispatcher     *fakeTaskDispatcher
@@ -338,8 +343,9 @@ func TestDaemonTasksService_CreateDaemonTask_Dispatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			repo := inmemory.NewDaemonTaskRepository()
-			svc := NewDaemonTasksService(repo, tt.dispatcher)
+			svc := NewDaemonTasksService(repo, tt.dispatcher, allowAllGuard(testPluginID))
 
 			resp, err := svc.CreateDaemonTask(context.Background(), tt.request)
 
@@ -367,6 +373,7 @@ func TestDaemonTasksService_CreateDaemonTask_Dispatch(t *testing.T) {
 }
 
 func TestStatusConversion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		protoStatus proto.DaemonTaskStatus
@@ -401,6 +408,7 @@ func TestStatusConversion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := convertProtoStatusesToDomain([]proto.DaemonTaskStatus{tt.protoStatus})
 			require.Len(t, result, 1)
 			assert.Equal(t, tt.wantDomain, result[0])
@@ -409,6 +417,7 @@ func TestStatusConversion(t *testing.T) {
 }
 
 func TestTypeConversion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		protoType  proto.DaemonTaskType
@@ -458,6 +467,7 @@ func TestTypeConversion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := convertProtoTypesToDomain([]proto.DaemonTaskType{tt.protoType})
 			require.Len(t, result, 1)
 			assert.Equal(t, tt.wantDomain, result[0])
@@ -466,6 +476,7 @@ func TestTypeConversion(t *testing.T) {
 }
 
 func TestConvertDaemonTaskToProto(t *testing.T) {
+	t.Parallel()
 	task := &domain.DaemonTask{
 		ID:                1,
 		DedicatedServerID: 10,
@@ -494,6 +505,7 @@ func TestConvertDaemonTaskToProto(t *testing.T) {
 }
 
 func TestConvertDaemonTaskToProto_NilOptionalFields(t *testing.T) {
+	t.Parallel()
 	task := &domain.DaemonTask{
 		ID:                1,
 		DedicatedServerID: 10,
@@ -510,10 +522,13 @@ func TestConvertDaemonTaskToProto_NilOptionalFields(t *testing.T) {
 	assert.Nil(t, result.Output)
 }
 
-func TestNewDaemonTasksHostLibrary(t *testing.T) {
+func TestNewDaemonTasksHostLibraryFactory(t *testing.T) {
+	t.Parallel()
 	repo := inmemory.NewDaemonTaskRepository()
-	lib := NewDaemonTasksHostLibrary(repo, nil)
+	factory := NewDaemonTasksHostLibraryFactory(repo, nil, NewGuard(stubPermissionChecker{allowed: true}))
 
-	assert.NotNil(t, lib)
-	assert.NotNil(t, lib.impl)
+	lib, ok := factory.Create(42).(*DaemonTasksHostLibrary)
+	require.True(t, ok)
+	require.NotNil(t, lib.impl)
+	assert.Equal(t, uint64(42), lib.impl.guard.PluginID(), "factory must bind the plugin id")
 }

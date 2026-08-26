@@ -90,6 +90,7 @@ func (m *mockPluginManager) addPlugin(pluginID string) {
 }
 
 func TestUninstall_successful(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
 
@@ -109,6 +110,10 @@ func TestUninstall_successful(t *testing.T) {
 	h := uninstall.NewHandler(
 		pluginRepo,
 		fileManager,
+		nil,
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -135,12 +140,17 @@ func TestUninstall_successful(t *testing.T) {
 }
 
 func TestUninstall_not_installed(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
 
 	h := uninstall.NewHandler(
 		pluginRepo,
 		fileManager,
+		nil,
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -161,6 +171,7 @@ func TestUninstall_not_installed(t *testing.T) {
 }
 
 func TestUninstall_with_manager(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
 	manager := newMockPluginManager()
@@ -190,6 +201,10 @@ func TestUninstall_with_manager(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -210,6 +225,7 @@ func TestUninstall_with_manager(t *testing.T) {
 }
 
 func TestUninstall_manager_unload_error(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
 	manager := newMockPluginManager()
@@ -240,6 +256,10 @@ func TestUninstall_manager_unload_error(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -260,6 +280,7 @@ func TestUninstall_manager_unload_error(t *testing.T) {
 }
 
 func TestUninstall_plugin_not_loaded_in_manager(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
 	manager := newMockPluginManager()
@@ -283,6 +304,10 @@ func TestUninstall_plugin_not_loaded_in_manager(t *testing.T) {
 		pluginRepo,
 		fileManager,
 		manager,
+		nil,
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -321,6 +346,7 @@ func TestUninstall_plugin_not_loaded_in_manager(t *testing.T) {
 // successful plugin uninstall must emit exactly one plugin.uninstall event
 // with outcome success, category plugin_op, and the plugin id as the resource.
 func TestUninstall_Audit_SuccessfulUninstallIsRecorded(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
@@ -337,7 +363,7 @@ func TestUninstall_Audit_SuccessfulUninstallIsRecorded(t *testing.T) {
 
 	recorder := &auditCapture{}
 	h := uninstall.NewHandler(
-		pluginRepo, fileManager, nil, nil, nil, nil, nil, "plugins", api.NewResponder(), recorder,
+		pluginRepo, fileManager, nil, nil, nil, nil, nil, nil, nil, nil, nil, "plugins", api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
 
@@ -368,10 +394,12 @@ func TestUninstall_Audit_SuccessfulUninstallIsRecorded(t *testing.T) {
 // uninstall request for a plugin that is not installed must NOT emit a
 // plugin.uninstall event (nothing was removed).
 func TestUninstall_Audit_NotInstalledIsNotRecorded(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	recorder := &auditCapture{}
 	h := uninstall.NewHandler(
-		inmemory.NewPluginRepository(), files.NewInMemoryFileManager(), nil, nil, nil, nil, nil, "plugins",
+		inmemory.NewPluginRepository(), files.NewInMemoryFileManager(),
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, "plugins",
 		api.NewResponder(), recorder,
 	)
 	w := httptest.NewRecorder()
@@ -411,6 +439,7 @@ func (f *fakeTaskScheduler) snapshot() []domain.Uint64ID {
 }
 
 func TestUninstall_RemovesScheduledTasks(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
@@ -433,6 +462,10 @@ func TestUninstall_RemovesScheduledTasks(t *testing.T) {
 		nil,
 		scheduler,
 		nil,
+		nil,
+		nil,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,
@@ -453,6 +486,7 @@ func TestUninstall_RemovesScheduledTasks(t *testing.T) {
 }
 
 func TestUninstall_SchedulerErrorDoesNotBreakUninstall(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
@@ -474,6 +508,10 @@ func TestUninstall_SchedulerErrorDoesNotBreakUninstall(t *testing.T) {
 		nil,
 		nil,
 		scheduler,
+		nil,
+		nil,
+		nil,
+		nil,
 		nil,
 		"plugins",
 		api.NewResponder(),
@@ -505,6 +543,7 @@ func (f *fakeArchiveEvents) RemovePlugin(pluginID uint64) {
 }
 
 func TestUninstall_removes_archive_event_registrations(t *testing.T) {
+	t.Parallel()
 	pluginRepo := inmemory.NewPluginRepository()
 	fileManager := files.NewInMemoryFileManager()
 
@@ -527,6 +566,10 @@ func TestUninstall_removes_archive_event_registrations(t *testing.T) {
 		nil,
 		nil,
 		archiveEvents,
+		nil,
+		nil,
+		nil,
+		nil,
 		"plugins",
 		api.NewResponder(),
 		nil,

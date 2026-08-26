@@ -30,6 +30,7 @@ func (m *mockGlobalAPIService) Games(_ context.Context) ([]domain.GlobalAPIGame,
 }
 
 func TestHandler_ServeHTTP_Success(t *testing.T) {
+	t.Parallel()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
@@ -161,6 +162,7 @@ func TestHandler_ServeHTTP_Success(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_GlobalAPIError(t *testing.T) {
+	t.Parallel()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
@@ -187,6 +189,7 @@ func TestHandler_ServeHTTP_GlobalAPIError(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_EmptyGamesList(t *testing.T) {
+	t.Parallel()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
@@ -216,6 +219,7 @@ func TestHandler_ServeHTTP_EmptyGamesList(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_UpdateExistingGame(t *testing.T) {
+	t.Parallel()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
@@ -264,6 +268,7 @@ func TestHandler_ServeHTTP_UpdateExistingGame(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_GameWithOptionalFieldsEmpty(t *testing.T) {
+	t.Parallel()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
@@ -306,6 +311,7 @@ func TestHandler_ServeHTTP_GameWithOptionalFieldsEmpty(t *testing.T) {
 }
 
 func TestHandler_ServeHTTP_ModWithOptionalFieldsEmpty(t *testing.T) {
+	t.Parallel()
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()

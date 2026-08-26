@@ -12,6 +12,7 @@ import (
 )
 
 func TestRecoveryInterceptor_Unary_RecoversPanic(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	interceptor := NewRecoveryInterceptor(discardLogger())
 	info := &grpc.UnaryServerInfo{FullMethod: "/gameap.DaemonGateway/Boom"}
@@ -38,6 +39,7 @@ func TestRecoveryInterceptor_Unary_RecoversPanic(t *testing.T) {
 }
 
 func TestRecoveryInterceptor_Unary_NoPanic_PassesThrough(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	interceptor := NewRecoveryInterceptor(discardLogger())
 	info := &grpc.UnaryServerInfo{FullMethod: "/gameap.DaemonGateway/Ok"}
@@ -54,6 +56,7 @@ func TestRecoveryInterceptor_Unary_NoPanic_PassesThrough(t *testing.T) {
 }
 
 func TestRecoveryInterceptor_Stream_RecoversPanic(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	interceptor := NewRecoveryInterceptor(discardLogger())
 	info := &grpc.StreamServerInfo{FullMethod: "/gameap.DaemonGateway/StreamBoom"}
@@ -80,6 +83,7 @@ func TestRecoveryInterceptor_Stream_RecoversPanic(t *testing.T) {
 }
 
 func TestRecoveryInterceptor_Stream_NoPanic_PassesThrough(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	interceptor := NewRecoveryInterceptor(discardLogger())
 	info := &grpc.StreamServerInfo{FullMethod: "/gameap.DaemonGateway/StreamOk"}
@@ -96,6 +100,7 @@ func TestRecoveryInterceptor_Stream_NoPanic_PassesThrough(t *testing.T) {
 }
 
 func TestNewRecoveryInterceptor_NilLoggerUsesDefault(t *testing.T) {
+	t.Parallel()
 	// ARRANGE & ACT
 	interceptor := NewRecoveryInterceptor(nil)
 

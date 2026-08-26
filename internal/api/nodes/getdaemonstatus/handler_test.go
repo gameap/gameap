@@ -60,6 +60,7 @@ func (m *mockDaemonStatusService) ConnectionType(nodeID uint64) string {
 }
 
 func TestHandler_ServeHTTP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                    string
 		nodeID                  string
@@ -369,6 +370,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			nodeRepo := inmemory.NewNodeRepository()
 			mockStatus := &mockDaemonStatusService{
 				statusFunc:         tt.setupStatusFunc,
@@ -417,6 +419,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 }
 
 func TestHandler_NewHandler(t *testing.T) {
+	t.Parallel()
 	nodeRepo := inmemory.NewNodeRepository()
 	mockStatus := &mockDaemonStatusService{}
 	responder := api.NewResponder()
@@ -430,6 +433,7 @@ func TestHandler_NewHandler(t *testing.T) {
 }
 
 func TestNewDaemonStatusResponse(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		node           *domain.Node
@@ -503,6 +507,7 @@ func TestNewDaemonStatusResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := newDaemonStatusResponse(tt.node, tt.status, tt.connectionType)
 			assert.Equal(t, tt.want, got)
 		})

@@ -15,6 +15,7 @@ import (
 var errAssetFetch = errors.New("asset fetch boom")
 
 func TestManager_BuildPluginAssets_PopulatesFilesystems(t *testing.T) {
+	t.Parallel()
 	m := NewManager(ManagerConfig{})
 	mock := &mockPluginService{
 		getAssetsFunc: func(_ context.Context, _ *proto.GetAssetsRequest) (*proto.GetAssetsResponse, error) {
@@ -39,15 +40,19 @@ func TestManager_BuildPluginAssets_PopulatesFilesystems(t *testing.T) {
 }
 
 func TestManager_BuildPluginAssets_NilWhenAbsent(t *testing.T) {
+	t.Parallel()
 	m := NewManager(ManagerConfig{})
 
 	t.Run("empty_response", func(t *testing.T) {
+		t.Parallel()
+
 		i18nFS, frontendFS := m.buildPluginAssets(context.Background(), &mockPluginService{}, "demo")
 		assert.Nil(t, i18nFS)
 		assert.Nil(t, frontendFS)
 	})
 
 	t.Run("error_response", func(t *testing.T) {
+		t.Parallel()
 		mock := &mockPluginService{
 			getAssetsFunc: func(_ context.Context, _ *proto.GetAssetsRequest) (*proto.GetAssetsResponse, error) {
 				return nil, errAssetFetch
@@ -61,6 +66,7 @@ func TestManager_BuildPluginAssets_NilWhenAbsent(t *testing.T) {
 }
 
 func TestBuildAssetFS_ValidFiles(t *testing.T) {
+	t.Parallel()
 	fsys := buildAssetFS("p1", "frontend", []*proto.AssetFile{
 		{Path: "es.json", Content: []byte("es-content")},
 		{Path: "assets/app.js", Content: []byte("app")},
@@ -77,11 +83,13 @@ func TestBuildAssetFS_ValidFiles(t *testing.T) {
 }
 
 func TestBuildAssetFS_ReturnsNilForEmptyInput(t *testing.T) {
+	t.Parallel()
 	assert.Nil(t, buildAssetFS("p1", "i18n", nil))
 	assert.Nil(t, buildAssetFS("p1", "i18n", []*proto.AssetFile{}))
 }
 
 func TestBuildAssetFS_SkipsUnusableEntries(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		asset *proto.AssetFile
@@ -96,6 +104,7 @@ func TestBuildAssetFS_SkipsUnusableEntries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			fsys := buildAssetFS("p1", "i18n", []*proto.AssetFile{
 				tt.asset,
 				{Path: "ok.json", Content: []byte("ok")},
@@ -111,12 +120,14 @@ func TestBuildAssetFS_SkipsUnusableEntries(t *testing.T) {
 }
 
 func TestBuildAssetFS_ReturnsNilWhenAllSkipped(t *testing.T) {
+	t.Parallel()
 	assert.Nil(t, buildAssetFS("p1", "i18n", []*proto.AssetFile{
 		{Path: "../escape.json", Content: []byte("x")},
 	}))
 }
 
 func TestBuildAssetFS_StopsAtTotalSizeLimit(t *testing.T) {
+	t.Parallel()
 	// One shared 8 MiB chunk referenced from many entries keeps the test cheap
 	// while the accumulated size crosses the aggregate cap.
 	chunk := make([]byte, maxAssetFileSize)

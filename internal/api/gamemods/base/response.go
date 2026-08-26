@@ -27,15 +27,33 @@ type GameModResponse struct {
 }
 
 type gameModFastRcon struct {
-	Info    string `json:"info"`
-	Command string `json:"command"`
+	Info    string                     `json:"info"`
+	Command string                     `json:"command"`
+	I18n    domain.GameModFastRconI18n `json:"i18n,omitempty"`
 }
 
 type gameModVar struct {
-	Var      string `json:"var"`
-	Default  string `json:"default"`
-	Info     string `json:"info"`
-	AdminVar bool   `json:"admin_var"`
+	Var         string                  `json:"var"`
+	Default     string                  `json:"default"`
+	Info        string                  `json:"info"`
+	AdminVar    bool                    `json:"admin_var"`
+	Type        domain.GameModVarType   `json:"type,omitempty"`
+	Description string                  `json:"description,omitempty"`
+	Options     []gameModVarOption      `json:"options,omitempty"`
+	AllowCustom bool                    `json:"allow_custom,omitempty"`
+	TrueValue   *string                 `json:"true_value,omitempty"`
+	FalseValue  *string                 `json:"false_value,omitempty"`
+	Rules       *domain.GameModVarRules `json:"rules,omitempty"`
+	I18n        domain.GameModVarI18n   `json:"i18n,omitempty"`
+}
+
+// gameModVarOption is always the object form, even when the stored definition
+// uses the plain-string shorthand: the admin editor then has a single shape to
+// bind to. The shorthand is restored on save.
+type gameModVarOption struct {
+	Value string                      `json:"value"`
+	Label string                      `json:"label"`
+	I18n  domain.GameModVarOptionI18n `json:"i18n,omitempty"`
 }
 
 func NewGameModsResponseFromGameMods(gameMods []domain.GameMod) []GameModResponse {
@@ -79,6 +97,7 @@ func gameModFastRconFromDomain(fastRcon domain.GameModFastRconList) []gameModFas
 		result = append(result, gameModFastRcon{
 			Info:    fr.Info,
 			Command: fr.Command,
+			I18n:    fr.I18n,
 		})
 	}
 
@@ -90,10 +109,36 @@ func gameModVarsFromDomain(vars []domain.GameModVar) []gameModVar {
 
 	for _, v := range vars {
 		result = append(result, gameModVar{
-			Var:      v.Var,
-			Default:  string(v.Default),
-			Info:     v.Info,
-			AdminVar: v.AdminVar,
+			Var:         v.Var,
+			Default:     string(v.Default),
+			Info:        v.Info,
+			AdminVar:    v.AdminVar,
+			Type:        v.Type,
+			Description: v.Description,
+			Options:     gameModVarOptionsFromDomain(v.Options),
+			AllowCustom: v.AllowCustom,
+			TrueValue:   v.TrueValue,
+			FalseValue:  v.FalseValue,
+			Rules:       v.Rules,
+			I18n:        v.I18n,
+		})
+	}
+
+	return result
+}
+
+func gameModVarOptionsFromDomain(options domain.GameModVarOptions) []gameModVarOption {
+	if len(options) == 0 {
+		return nil
+	}
+
+	result := make([]gameModVarOption, 0, len(options))
+
+	for _, o := range options {
+		result = append(result, gameModVarOption{
+			Value: o.Value,
+			Label: o.LabelOrValue(),
+			I18n:  o.I18n,
 		})
 	}
 

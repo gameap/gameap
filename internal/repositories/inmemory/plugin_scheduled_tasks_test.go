@@ -10,6 +10,8 @@ import (
 )
 
 func TestPluginScheduledTaskRepository(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, repotesting.NewPluginScheduledTaskRepositorySuite(
 		func(_ *testing.T) repositories.PluginScheduledTaskRepository {
 			return inmemory.NewPluginScheduledTaskRepository()

@@ -445,6 +445,8 @@ func discardLogger() *slog.Logger {
 }
 
 func TestDispatch_PersistenceErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -465,6 +467,8 @@ func TestDispatch_PersistenceErrorPropagates(t *testing.T) {
 }
 
 func TestHandleTaskStatusUpdate_IgnoresUnknownTaskID(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -484,6 +488,8 @@ func TestHandleTaskStatusUpdate_IgnoresUnknownTaskID(t *testing.T) {
 }
 
 func TestHandleTaskStatusUpdate_WrongNodeIsIgnored(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -507,6 +513,8 @@ func TestHandleTaskStatusUpdate_WrongNodeIsIgnored(t *testing.T) {
 }
 
 func TestHandleTaskOutput_EmptyChunkIsNoop(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -524,6 +532,8 @@ func TestHandleTaskOutput_EmptyChunkIsNoop(t *testing.T) {
 }
 
 func TestDispatch_PersistsTaskWhenSessionDisconnected(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -544,6 +554,8 @@ func TestDispatch_PersistsTaskWhenSessionDisconnected(t *testing.T) {
 }
 
 func TestDispatch_WithConnectedSessionSendsToStream(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -580,6 +592,8 @@ func TestDispatch_WithConnectedSessionSendsToStream(t *testing.T) {
 }
 
 func TestFlushPending_NoSessionReturnsError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -593,6 +607,8 @@ func TestFlushPending_NoSessionReturnsError(t *testing.T) {
 }
 
 func TestFlushPending_SendsWaitingTasksAndFlipsToWorking(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -619,6 +635,8 @@ func TestFlushPending_SendsWaitingTasksAndFlipsToWorking(t *testing.T) {
 }
 
 func TestFlushPending_FilterShape(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -640,6 +658,8 @@ func TestFlushPending_FilterShape(t *testing.T) {
 }
 
 func TestFlushPending_StreamSendErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -662,6 +682,8 @@ func TestFlushPending_StreamSendErrorPropagates(t *testing.T) {
 }
 
 func TestGetPendingTasks_ReturnsProtoTasks(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -682,6 +704,8 @@ func TestGetPendingTasks_ReturnsProtoTasks(t *testing.T) {
 }
 
 func TestGetPendingTasks_RepoErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -698,6 +722,8 @@ func TestGetPendingTasks_RepoErrorPropagates(t *testing.T) {
 }
 
 func TestHandleTaskStatusUpdate_UpdatesStatusAndPublishes(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -745,6 +771,8 @@ func TestHandleTaskStatusUpdate_UpdatesStatusAndPublishes(t *testing.T) {
 }
 
 func TestHandleTaskStatusUpdate_RepoErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -763,6 +791,8 @@ func TestHandleTaskStatusUpdate_RepoErrorPropagates(t *testing.T) {
 }
 
 func TestHandleTaskStatusUpdate_SaveErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -786,6 +816,8 @@ func TestHandleTaskStatusUpdate_SaveErrorPropagates(t *testing.T) {
 }
 
 func TestHandleTaskOutput_AppendsAndPublishes(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -822,6 +854,8 @@ func TestHandleTaskOutput_AppendsAndPublishes(t *testing.T) {
 }
 
 func TestHandleTaskOutput_IsFinalPropagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -849,6 +883,8 @@ func TestHandleTaskOutput_IsFinalPropagates(t *testing.T) {
 }
 
 func TestHandleTaskOutput_AppendErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -867,6 +903,8 @@ func TestHandleTaskOutput_AppendErrorPropagates(t *testing.T) {
 }
 
 func TestCancelTask_MarksCanceledAndSignalsNode(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -908,6 +946,8 @@ func TestCancelTask_MarksCanceledAndSignalsNode(t *testing.T) {
 }
 
 func TestCancelTask_TaskNotFoundReturnsError(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -923,6 +963,8 @@ func TestCancelTask_TaskNotFoundReturnsError(t *testing.T) {
 }
 
 func TestCancelTask_FindErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -938,6 +980,8 @@ func TestCancelTask_FindErrorPropagates(t *testing.T) {
 }
 
 func TestCancelTask_SaveErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -959,6 +1003,8 @@ func TestCancelTask_SaveErrorPropagates(t *testing.T) {
 }
 
 func TestCancelTask_StreamSendFailureDoesNotAbort(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -988,6 +1034,8 @@ func TestCancelTask_StreamSendFailureDoesNotAbort(t *testing.T) {
 }
 
 func TestDispatch_LoadsServerAndSendsConfigUpdate(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -1057,6 +1105,8 @@ func TestDispatch_LoadsServerAndSendsConfigUpdate(t *testing.T) {
 }
 
 func TestDispatch_ServerConfigLookupFilters(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()
@@ -1099,6 +1149,8 @@ func TestDispatch_ServerConfigLookupFilters(t *testing.T) {
 }
 
 func TestPublishTaskStatus_NilPublisher_NoOp(t *testing.T) {
+	t.Parallel()
+
 	// ARRANGE
 	h := newTestDispatcher(t)
 	defer h.cleanup()

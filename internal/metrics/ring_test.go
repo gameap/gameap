@@ -18,6 +18,7 @@ func newEntry(ts time.Time) *proto.MetricsResponse {
 }
 
 func TestRing_Append_BoundsCapacity(t *testing.T) {
+	t.Parallel()
 	r := newRing(3)
 
 	base := time.Now()
@@ -34,6 +35,7 @@ func TestRing_Append_BoundsCapacity(t *testing.T) {
 }
 
 func TestRing_Snapshot_AgeCutoff(t *testing.T) {
+	t.Parallel()
 	r := newRing(10)
 
 	now := time.Now()
@@ -47,6 +49,7 @@ func TestRing_Snapshot_AgeCutoff(t *testing.T) {
 }
 
 func TestRing_Snapshot_AllNewer(t *testing.T) {
+	t.Parallel()
 	r := newRing(10)
 
 	now := time.Now()
@@ -58,6 +61,7 @@ func TestRing_Snapshot_AllNewer(t *testing.T) {
 }
 
 func TestRing_Snapshot_AllOlder_ReturnsNil(t *testing.T) {
+	t.Parallel()
 	r := newRing(10)
 
 	now := time.Now()
@@ -68,6 +72,7 @@ func TestRing_Snapshot_AllOlder_ReturnsNil(t *testing.T) {
 }
 
 func TestRing_Newest(t *testing.T) {
+	t.Parallel()
 	r := newRing(3)
 
 	assert.Nil(t, r.Newest())
@@ -82,6 +87,7 @@ func TestRing_Newest(t *testing.T) {
 }
 
 func TestRing_Empty(t *testing.T) {
+	t.Parallel()
 	r := newRing(5)
 
 	assert.Equal(t, 0, r.Len())
@@ -90,12 +96,14 @@ func TestRing_Empty(t *testing.T) {
 }
 
 func TestRing_AppendNil_NoOp(t *testing.T) {
+	t.Parallel()
 	r := newRing(3)
 	r.Append(nil)
 	assert.Equal(t, 0, r.Len())
 }
 
 func TestRing_ConcurrentReadWrite(t *testing.T) {
+	t.Parallel()
 	r := newRing(50)
 
 	var wg sync.WaitGroup
@@ -125,6 +133,7 @@ func TestRing_ConcurrentReadWrite(t *testing.T) {
 }
 
 func TestRing_MinCapacity(t *testing.T) {
+	t.Parallel()
 	r := newRing(0)
 	assert.Equal(t, 1, r.capacity)
 

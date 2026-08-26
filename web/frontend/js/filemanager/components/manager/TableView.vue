@@ -94,7 +94,7 @@
                             />
                             <GIcon v-else name="folder-solid" class="fm-row-glyph fm-row-glyph--dir" />
                         </span>
-                        <span class="fm-row-name">{{ directory.basename }}</span>
+                        <span class="fm-row-name"><HighlightedName v-bind:text="directory.basename" v-bind:query="highlightQuery" /></span>
                     </td>
                     <td class="fm-cell-muted">—</td>
                     <td>{{ lang.manager.table.folder }}</td>
@@ -130,7 +130,7 @@
                                 class="fm-row-glyph fm-row-glyph--file"
                             />
                         </span>
-                        <span class="fm-row-name">{{ file.basename }}</span>
+                        <span class="fm-row-name"><HighlightedName v-bind:text="file.basename" v-bind:query="highlightQuery" /></span>
                     </td>
                     <td>{{ bytesToHuman(file.size) }}</td>
                     <td class="fm-cell-extension">{{ file.extension || '—' }}</td>
@@ -192,8 +192,9 @@
 
 <script setup>
 /* eslint-disable no-bitwise */
-import { computed, ref, nextTick } from 'vue'
+import { computed, ref, nextTick, watch } from 'vue'
 import { GIcon } from '@gameap/ui'
+import HighlightedName from './HighlightedName.vue'
 import EventBus from '../../emitter.js'
 import { useFileManagerStore } from '../../stores/useFileManagerStore.js'
 import { useSettingsStore } from '../../stores/useSettingsStore.js'
@@ -201,7 +202,7 @@ import { useModalStore } from '../../stores/useModalStore.js'
 import { useManager } from '../../composables/useManager.js'
 import { useTranslate } from '../../composables/useTranslate.js'
 import { useHelper } from '../../composables/useHelper.js'
-import { useFileEditors } from '../../composables/useFileEditors.js'
+import { useFileOpener } from '../../composables/useFileOpener.js'
 
 const props = defineProps({
     manager: { type: String, required: true },
@@ -212,7 +213,7 @@ const settings = useSettingsStore()
 const modal = useModalStore()
 const { lang } = useTranslate()
 const { bytesToHuman, timestampToDate, extensionToIcon } = useHelper()
-const { getDefaultEditor, isFileTooLarge } = useFileEditors()
+const { openFile } = useFileOpener(props.manager)
 
 const {
     selectedDisk,
@@ -264,6 +265,39 @@ function registerRow(el, index) {
         rowEls.delete(index)
     }
 }
+
+const isActiveManager = computed(() => fm.activeManager === props.manager)
+const highlightQuery = computed(() => (isActiveManager.value ? fm.effectiveSearchQuery : ''))
+const currentMatchIndex = computed(() => (isActiveManager.value ? fm.currentSearchMatch : -1))
+
+// The current match is marked with the regular row selection, as if it had been
+// clicked. flush: 'post' so the rows of a fresh listing/query are already
+// rendered and registered in rowEls.
+watch(
+    () => [currentMatchIndex.value, fm.searchScrollTick],
+    () => {
+        const index = currentMatchIndex.value
+        if (index < 0) return
+
+        const item = flatVisible.value[index]
+        if (!item) return
+
+        focusedIndex.value = index
+        fm.changeSelected(props.manager, { type: item.type, path: item.path })
+        rowEls.get(index)?.scrollIntoView({ block: 'nearest' })
+    },
+    { flush: 'post' }
+)
+
+// On close, hand keyboard navigation back to the table, continuing from the match.
+watch(
+    () => fm.searchOpen,
+    (open, wasOpen) => {
+        if (open || !wasOpen || !isActiveManager.value) return
+
+        nextTick(() => tableArea.value?.focus())
+    }
+)
 
 function levelUp() {
     if (selectedDirectory.value) {
@@ -338,42 +372,7 @@ function formatMode(mode) {
 }
 
 function selectAction(file) {
-    const { path, extension } = file
-
-    if (fm.fileCallback) {
-        fm.url({ disk: selectedDisk.value, path }).then((response) => {
-            if (response.data.result.status === 'success') {
-                fm.fileCallback(response.data.url)
-            }
-        })
-
-        return
-    }
-
-    const customEditor = getDefaultEditor(file)
-    if (customEditor && !isFileTooLarge(file)) {
-        modal.openPluginEditor({
-            pluginId: customEditor.pluginId,
-            editor: customEditor.editor,
-            file,
-        })
-
-        return
-    }
-
-    if (!extension) return
-
-    if (settings.imageExtensions.includes(extension.toLowerCase())) {
-        modal.setModalState({ modalName: 'PreviewModal', show: true })
-    } else if (Object.keys(settings.textExtensions).includes(extension.toLowerCase())) {
-        modal.setModalState({ modalName: 'TextEditModal', show: true })
-    } else if (settings.audioExtensions.includes(extension.toLowerCase())) {
-        modal.setModalState({ modalName: 'AudioPlayerModal', show: true })
-    } else if (settings.videoExtensions.includes(extension.toLowerCase())) {
-        modal.setModalState({ modalName: 'VideoPlayerModal', show: true })
-    } else if (extension.toLowerCase() === 'pdf') {
-        fm.openPDF({ disk: selectedDisk.value, path })
-    }
+    openFile(file)
 }
 
 function moveFocus(delta, withShift) {
@@ -474,6 +473,8 @@ function onKeyDown(event) {
     border-collapse: separate;
     border-spacing: 0;
     --fm-accent: var(--gameap-stone-800);
+    --fm-match-bg: var(--gameap-orange-200);
+    --fm-match-text: var(--gameap-orange-900);
 
     thead th {
         @apply text-left bg-surface text-secondary font-medium;
@@ -542,6 +543,9 @@ function onKeyDown(event) {
         cursor: pointer;
         transition: background-color 120ms ease;
         @apply bg-white dark:bg-stone-900;
+        // keep scrolled-to rows clear of the sticky thead
+        scroll-margin-top: 2.75rem;
+        scroll-margin-bottom: 0.25rem;
 
         &.fm-row--zebra {
             @apply bg-stone-50 dark:bg-stone-800;
@@ -570,6 +574,7 @@ function onKeyDown(event) {
             outline: 2px solid var(--gameap-selection-outline);
             outline-offset: -2px;
         }
+
     }
 
     tr.fm-row--up {
@@ -613,6 +618,13 @@ function onKeyDown(event) {
 
     .fm-row-name {
         vertical-align: middle;
+    }
+
+    .fm-name-match {
+        background-color: var(--fm-match-bg);
+        color: var(--fm-match-text);
+        border-radius: 2px;
+        padding: 0 1px;
     }
 
     .fm-cell-muted {
@@ -710,6 +722,8 @@ function onKeyDown(event) {
 
 .dark .fm-table {
     --fm-accent: var(--gameap-stone-200);
+    --fm-match-bg: color-mix(in srgb, var(--gameap-orange-500) 40%, transparent);
+    --fm-match-text: var(--gameap-orange-50);
 }
 
 @keyframes fm-skel-pulse {
