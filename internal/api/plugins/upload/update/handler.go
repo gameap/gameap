@@ -145,7 +145,19 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	filename := plugin.ResolveFilename(pluginRecord)
 	pluginPath := path.Join(h.pluginsDir, filename)
 
+	// The build that runs today, held until the row is saved. The file
+	// manager has no atomic replace, so a failure between overwriting the
+	// file and saving the row would otherwise leave the new bytes under a row
+	// that still describes the old ones — and no one recovers from that on
+	// their own: pluginsync sees a file that does not match the recorded
+	// checksum and refuses to refetch an uploaded plugin, because no instance
+	// has its file. Deleting the file (how the install path undoes its own
+	// write) leads to the same dead end, so the previous bytes are what gets
+	// put back.
+	previous, hadPrevious := h.readInstalledBuild(ctx, pluginPath)
+
 	if err := h.fileManager.Write(ctx, pluginPath, wasmBytes); err != nil {
+		h.restoreInstalledBuild(ctx, pluginPath, previous, hadPrevious)
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save plugin file"))
 
 		return
@@ -154,6 +166,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	updatePluginRecord(pluginRecord, loaded, filename, wasmBytes)
 
 	if err := h.pluginRepo.Save(ctx, pluginRecord); err != nil {
+		h.restoreInstalledBuild(ctx, pluginPath, previous, hadPrevious)
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to update plugin record"))
 
 		return
@@ -168,8 +181,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		slog.String("plugin", loaded.Info.Id),
 		slog.String("version", pluginRecord.Version))
 
-	reloaded, err := plugininstall.TryLoadPlugin(ctx, h.loader, pluginRecord)
-	if err != nil {
+	// A successful load reports the permissions the new build exercises
+	// without holding the grant (Loader.warnMissingPermissions), so the
+	// operator is told what to grant without this handler repeating it.
+	if _, err := plugininstall.TryLoadPlugin(ctx, h.loader, pluginRecord); err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "plugin updated but failed to load"),
 			http.StatusUnprocessableEntity,
@@ -177,8 +192,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-
-	h.warnMissingPermissions(ctx, pluginRecord, reloaded)
 
 	h.responder.Write(ctx, rw, newUpdateResponse(pluginRecord))
 }
@@ -288,22 +301,45 @@ func updatePluginRecord(
 	record.LastErrorAt = nil
 }
 
-// warnMissingPermissions points out the capabilities the new build exercises
-// without holding the grant; those calls are refused until an operator grants
-// them through the permissions dialog.
-func (h *Handler) warnMissingPermissions(
-	ctx context.Context,
-	pluginRecord *domain.Plugin,
-	loaded *pkgplugin.LoadedPlugin,
-) {
-	if loaded == nil {
-		return
+// readInstalledBuild snapshots the file the plugin runs today so a failed
+// replacement can put it back. A row whose file is missing or unreadable
+// reports no previous build: there is nothing to restore, and repairing
+// exactly that is one of the reasons to upload again.
+func (h *Handler) readInstalledBuild(ctx context.Context, pluginPath string) ([]byte, bool) {
+	if !h.fileManager.Exists(ctx, pluginPath) {
+		return nil, false
 	}
 
-	used := plugin.UsedPermissions(loaded.HostImports, loaded.SubscribedEvents)
-	if missing := plugin.MissingPermissions(used, pluginRecord.AllowedPermissions); len(missing) > 0 {
-		slog.WarnContext(ctx, "updated plugin uses permissions it is not granted; those calls will be refused",
-			slog.Uint64("plugin_id", uint64(pluginRecord.ID)),
-			slog.Any("missing_permissions", plugin.PermissionNames(missing)))
+	previous, err := h.fileManager.Read(ctx, pluginPath)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to read the installed plugin file; a failed update will not restore it",
+			slog.String("path", pluginPath),
+			slog.String("error", err.Error()))
+
+		return nil, false
+	}
+
+	return previous, true
+}
+
+// restoreInstalledBuild undoes the file write of an update that could not be
+// completed. Best effort: the request is already reported as failed, and a
+// restore that fails leaves a file that does not match its row — which the
+// operator repairs by uploading again.
+func (h *Handler) restoreInstalledBuild(ctx context.Context, pluginPath string, previous []byte, hadPrevious bool) {
+	var err error
+
+	switch {
+	case hadPrevious:
+		err = h.fileManager.Write(ctx, pluginPath, previous)
+	case h.fileManager.Exists(ctx, pluginPath):
+		err = h.fileManager.Delete(ctx, pluginPath)
+	}
+
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to restore the plugin file after a failed update; "+
+			"the file no longer matches the plugin record, upload the plugin again",
+			slog.String("path", pluginPath),
+			slog.String("error", err.Error()))
 	}
 }

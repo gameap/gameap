@@ -21,6 +21,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/files"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
 	"github.com/gameap/gameap/pkg/api"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
@@ -148,7 +149,7 @@ func managerOf(info *proto.PluginInfo) *mockLoaderManager {
 
 func newTestHandler(
 	manager update.LoaderManager,
-	pluginRepo *inmemory.PluginRepository,
+	pluginRepo repositories.PluginRepository,
 	fileManager files.FileManager,
 	auditLogger audit.Logger,
 ) *update.Handler {
@@ -157,7 +158,7 @@ func newTestHandler(
 	)
 }
 
-func savedPlugin(t *testing.T, repo *inmemory.PluginRepository, id domain.Uint64ID) domain.Plugin {
+func savedPlugin(t *testing.T, repo repositories.PluginRepository, id domain.Uint64ID) domain.Plugin {
 	t.Helper()
 
 	found, err := repo.Find(context.Background(), filters.FindPluginByIDs(id), nil, nil)
@@ -565,4 +566,91 @@ func TestUpdate_Audit_RejectedUpdateIsNotRecorded(t *testing.T) {
 	// ASSERT
 	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
 	assert.Empty(t, auditLogger.snapshot(), "a refused update replaces no code, so it records nothing")
+}
+
+// failingSaveRepository answers every Save with an error, standing in for a
+// database that goes away between the file being written and the row being
+// updated.
+type failingSaveRepository struct {
+	repositories.PluginRepository
+}
+
+func (r *failingSaveRepository) Save(_ context.Context, _ *domain.Plugin) error {
+	return errors.New("database is unreachable")
+}
+
+func TestUpdate_restores_the_previous_build_when_the_row_cannot_be_saved(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		filename      *string
+		writeExisting bool
+		wantFile      []byte
+	}{
+		{
+			name:          "previous_build_is_put_back",
+			filename:      new("testplugin.wasm"),
+			writeExisting: true,
+			wantFile:      validWASMBytes(),
+		},
+		{
+			name:          "nothing_is_left_behind_when_the_row_had_no_file",
+			filename:      new("testplugin.wasm"),
+			writeExisting: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			backing := inmemory.NewPluginRepository()
+			require.NoError(t, backing.Save(context.Background(), &domain.Plugin{
+				ID:       testPluginID(),
+				Name:     "Test Plugin",
+				Version:  "1.0.0",
+				Filename: tt.filename,
+				Source:   new("file://testplugin.wasm"),
+				Checksum: new(checksumOf(validWASMBytes())),
+				Status:   domain.PluginStatusActive,
+			}))
+
+			pluginPath := path.Join(pluginsDir, "testplugin.wasm")
+			fileManager := files.NewInMemoryFileManager()
+			if tt.writeExisting {
+				require.NoError(t, fileManager.Write(context.Background(), pluginPath, validWASMBytes()))
+			}
+
+			h := newTestHandler(managerOf(&proto.PluginInfo{
+				Id:         "testplugin",
+				Name:       "Test Plugin",
+				Version:    "1.1.0",
+				ApiVersion: "v1",
+			}), &failingSaveRepository{PluginRepository: backing}, fileManager, nil)
+
+			recorder := httptest.NewRecorder()
+			h.ServeHTTP(recorder, createMultipartRequest(t, "testplugin", newWASMBytes()))
+
+			// The responder keeps internal failures out of the body, so 500
+			// is all the caller learns.
+			require.Equal(t, http.StatusInternalServerError, recorder.Code, recorder.Body.String())
+
+			saved := savedPlugin(t, backing, testPluginID())
+			assert.Equal(t, "1.0.0", saved.Version, "the row the update could not write must stay as it was")
+
+			if tt.wantFile == nil {
+				assert.False(t, fileManager.Exists(context.Background(), pluginPath),
+					"the file written by the failed update must not outlive it")
+
+				return
+			}
+
+			stored, err := fileManager.Read(context.Background(), pluginPath)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantFile, stored,
+				"the running build is put back: pluginsync cannot refetch an uploaded plugin, "+
+					"so a file that does not match the row would stay broken")
+		})
+	}
 }
