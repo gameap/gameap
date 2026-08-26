@@ -1790,6 +1790,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/games/{code}",
 			Handler:   getgame.NewHandler(c.GameRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method:    http.MethodPost,
@@ -1910,6 +1913,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/game_mods",
 			Handler:   getgamemods.NewHandler(c.GameModRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method:    http.MethodPost,
@@ -1931,6 +1937,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/game_mods/{id}",
 			Handler:   getgamemod.NewHandler(c.GameModRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method: http.MethodPut,

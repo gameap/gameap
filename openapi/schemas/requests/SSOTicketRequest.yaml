@@ -15,10 +15,13 @@ properties:
     type: string
     description: >-
       Optional. Binds the ticket to the IP that will redeem it; the exchange is
-      then rejected from any other address. Only meaningful when the panel sits
-      behind a proxy whose real-client-IP header is configured
-      (`AUDIT_CLIENT_IP_HEADER`) and the caller knows the browser's address —
-      otherwise every client looks like the proxy and the binding does nothing.
+      then rejected from any other address. Must be a literal IPv4 or IPv6
+      address — a hostname, a `host:port` value, or surrounding whitespace is
+      rejected with 400, since it is later compared verbatim against the
+      redeeming address. Only meaningful when the panel sits behind a proxy
+      whose real-client-IP header is configured (`AUDIT_CLIENT_IP_HEADER`) and
+      the caller knows the browser's address — otherwise every client looks
+      like the proxy and the binding does nothing.
     example: "203.0.113.7"
 required:
   - user_id

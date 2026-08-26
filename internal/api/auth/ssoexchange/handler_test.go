@@ -209,6 +209,19 @@ func TestExchange_Rejections(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
+			// A payload with no positive deadline must fail closed rather than
+			// be treated as a ticket that never expires.
+			name: "ticket_without_expiry_is_rejected",
+			ticket: func(t *testing.T, f *exchangeFixture) string {
+				t.Helper()
+
+				return f.storeTicket(t, func(p *auth.SSOTicketPayload) {
+					p.ExpiresAt = 0
+				})
+			},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
 			name: "ip_bound_to_someone_else",
 			ticket: func(t *testing.T, f *exchangeFixture) string {
 				t.Helper()

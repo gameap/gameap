@@ -298,6 +298,50 @@ func TestRouterSecurity_TokenAccess(t *testing.T) {
 			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
 			expectedStatusCode: http.StatusForbidden,
 		},
+		{
+			// game read reaches the handler; a missing game is a 404, which is
+			// what distinguishes "allowed through" from a 403 block.
+			name:               "admin_with_game_read_can_read_single_game",
+			request:            "GET /api/games/somecode",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusNotFound,
+		},
+		{
+			name:               "admin_without_game_read_cannot_read_single_game",
+			request:            "GET /api/games/somecode",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_game_read_can_list_game_mods",
+			request:            "GET /api/game_mods",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_without_game_read_cannot_list_game_mods",
+			request:            "GET /api/game_mods",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_game_read_can_read_single_game_mod",
+			request:            "GET /api/game_mods/1",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusNotFound,
+		},
+		{
+			name:               "admin_without_game_read_cannot_read_single_game_mod",
+			request:            "GET /api/game_mods/1",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
 
 		// "POST /api/auth/sso/tickets" endpoint tests
 		{

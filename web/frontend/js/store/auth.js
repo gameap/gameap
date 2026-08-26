@@ -124,7 +124,13 @@ export const useAuthStore = defineStore('auth', {
                 if (response.data.two_factor_required) {
                     this.twoFactorChallengeToken = response.data.challenge_token
 
-                    return {twoFactorRequired: true}
+                    // Carry the redirect through the challenge so the caller can
+                    // honour it once the second factor is verified — otherwise
+                    // the panel-requested destination is lost across 2FA.
+                    return {
+                        twoFactorRequired: true,
+                        redirectTo: response.data.redirect_to,
+                    }
                 }
 
                 this.applyAuthResponse(response.data)

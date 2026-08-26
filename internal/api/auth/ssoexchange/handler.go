@@ -182,7 +182,10 @@ func (h *Handler) consumeTicket(
 		return auth.SSOTicketPayload{}, false
 	}
 
-	if payload.ExpiresAt > 0 && time.Now().Unix() > payload.ExpiresAt {
+	// A payload without a positive deadline is invalid, not eternal. This
+	// check is the backstop for a cache backend that does not enforce its own
+	// TTL, so a missing or non-positive ExpiresAt must fail closed.
+	if payload.ExpiresAt <= 0 || time.Now().Unix() > payload.ExpiresAt {
 		h.reject(ctx, rw, "sso_ticket_expired")
 
 		return auth.SSOTicketPayload{}, false

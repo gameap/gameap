@@ -1,6 +1,7 @@
 package ssomint
 
 import (
+	"net"
 	"strings"
 	"unicode"
 
@@ -12,7 +13,7 @@ var (
 	errInvalidRedirect = api.NewValidationError(
 		"redirect_to must be a relative path within the panel",
 	)
-	errInvalidClientIP = api.NewValidationError("client_ip contains invalid characters")
+	errInvalidClientIP = api.NewValidationError("client_ip must be a valid IP address")
 )
 
 const maxRedirectLength = 512
@@ -38,7 +39,12 @@ func (in *ticketInput) Validate() error {
 		return errInvalidRedirect
 	}
 
-	if !isPrintableASCII(in.ClientIP) {
+	// The exchange handler compares this value verbatim against the redeeming
+	// address (read back through audit.ClientIP, which does not canonicalise),
+	// so require a literal IP address and store it unchanged. A hostname, a
+	// malformed value or a whitespace-padded one would never match and would
+	// silently mint a ticket that can never be redeemed.
+	if in.ClientIP != "" && net.ParseIP(in.ClientIP) == nil {
 		return errInvalidClientIP
 	}
 
