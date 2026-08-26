@@ -321,26 +321,19 @@ func metricsHandler(c container, token string) http.Handler {
 }
 
 func frontendPluginsHandler(c container) http.Handler {
-	authMiddleware := middlewares.NewAuthMiddleware(
-		c.AuthService(),
-		c.UserService(),
-		c.PersonalAccessTokenRepository(),
-		auth.NewCacheRevocation(c.Cache()),
-		c.Cache(),
-		c.Responder(),
-		c.AuditLogger(),
-	)
-
-	recoveryMiddleware := middlewares.NewRecoveryMiddleware(
-		c.Responder(),
-	)
-
-	handler := getfrontendplugins.NewHandler(c.PluginManager())
-
-	return recoveryMiddleware.Middleware(authMiddleware.Middleware(handler))
+	return frontendAssetChain(c, getfrontendplugins.NewHandler(c.PluginManager()))
 }
 
 func frontendPluginsStylesHandler(c container) http.Handler {
+	return frontendAssetChain(c, getfrontendstyles.NewHandler(c.PluginManager()))
+}
+
+// frontendAssetChain guards the plugin bundles served outside the /api tree.
+// They are mounted on the root mux, so they miss the per-route loop of
+// apiRoutes and need the session-scope guards wired here: neither bundle opted
+// into short-lived tokens or into an MFA-enrollment session, so both are
+// rejected before the handler runs.
+func frontendAssetChain(c container, handler http.Handler) http.Handler {
 	authMiddleware := middlewares.NewAuthMiddleware(
 		c.AuthService(),
 		c.UserService(),
@@ -355,9 +348,21 @@ func frontendPluginsStylesHandler(c container) http.Handler {
 		c.Responder(),
 	)
 
-	handler := getfrontendstyles.NewHandler(c.PluginManager())
+	shortLivedScopeMiddleware := middlewares.NewShortLivedScopeMiddleware(
+		c.Responder(),
+		c.AuditLogger(),
+	)
 
-	return recoveryMiddleware.Middleware(authMiddleware.Middleware(handler))
+	mfaEnrollmentScopeMiddleware := middlewares.NewMFAEnrollmentScopeMiddleware(
+		c.Responder(),
+		c.AuditLogger(),
+		c.Config().Auth.RequireMFAForAdmins,
+	)
+
+	guarded := shortLivedScopeMiddleware.Middleware(handler, false)
+	guarded = mfaEnrollmentScopeMiddleware.Middleware(guarded, false)
+
+	return recoveryMiddleware.Middleware(authMiddleware.Middleware(guarded))
 }
 
 // spaHandler serves the frontend SPA, falling back to index.html for unknown routes.
@@ -669,6 +674,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerList,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -738,6 +746,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.PluginManager(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerList,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -747,6 +758,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerList,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -758,6 +772,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerList,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -877,6 +894,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -888,6 +908,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -899,6 +922,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -911,6 +937,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -924,6 +953,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -933,6 +965,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.UploadSessionService(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPut,
@@ -943,6 +978,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.Config().Files.Upload.ChunkSize.Uint64(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -952,6 +990,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.UploadSessionService(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -961,6 +1002,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.UploadSessionService(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodDelete,
@@ -970,6 +1014,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.UploadSessionService(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -982,6 +1029,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -993,6 +1043,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1009,6 +1062,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				},
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1021,6 +1077,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1033,6 +1092,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1044,6 +1106,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1055,6 +1120,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1066,6 +1134,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1077,6 +1148,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1088,6 +1162,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1100,6 +1177,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1112,6 +1192,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1124,6 +1207,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 
 		// Server Tasks
@@ -1318,6 +1404,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.PluginManager(),
 			),
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerList,
+			},
 		},
 
 		//
@@ -2082,6 +2171,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AllowShortLivedToken: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerFiles,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -2099,6 +2191,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AllowShortLivedToken: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerConsole,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -2114,6 +2209,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AllowShortLivedToken: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerConsole,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -2155,6 +2253,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AllowShortLivedToken: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerList,
+			},
 		},
 	}
 
@@ -2248,8 +2349,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		router,
 		authMiddleware,
 		isAdminMiddleware,
+		tokenAdminGuardMiddleware,
 		corsMiddleware,
 		recoveryMiddleware,
+		shortLivedScopeMiddleware,
+		mfaEnrollmentScopeMiddleware,
 	)
 
 	return router
@@ -2260,8 +2364,11 @@ func registerPluginRoutes(
 	router *mux.Router,
 	authMiddleware *middlewares.AuthMiddleware,
 	isAdminMiddleware *middlewares.IsAdminMiddleware,
+	tokenAdminGuardMiddleware *middlewares.TokenAdminGuardMiddleware,
 	corsMiddleware *middlewares.CORSMiddleware,
 	recoveryMiddleware *middlewares.RecoveryMiddleware,
+	shortLivedScopeMiddleware *middlewares.ShortLivedScopeMiddleware,
+	mfaEnrollmentScopeMiddleware *middlewares.MFAEnrollmentScopeMiddleware,
 ) {
 	if c.Config().Plugins.Disabled {
 		return
@@ -2288,15 +2395,49 @@ func registerPluginRoutes(
 		authMiddleware,
 		isAdminMiddleware,
 		plugin.WithFileRefServer(fileRefServer),
+		plugin.WithAdminTokenGuard(tokenAdminGuardMiddleware),
 	)
 
-	var handler http.Handler = pluginHandler
-	handler = corsMiddleware.Middleware(handler)
-	handler = authMiddleware.OptionalMiddleware(handler)
-	handler = recoveryMiddleware.Middleware(handler)
+	handler := pluginRouteChain(
+		pluginHandler,
+		authMiddleware,
+		corsMiddleware,
+		recoveryMiddleware,
+		shortLivedScopeMiddleware,
+		mfaEnrollmentScopeMiddleware,
+	)
 
 	router.PathPrefix("/api/plugins/{plugin_id}/").Handler(handler)
 	router.Handle("/api/plugins/{plugin_id}", handler)
+}
+
+// pluginRouteChain assembles the outer chain of the plugin catch-all. It
+// mirrors the per-route chain of apiRoutes with one deliberate difference:
+// authentication is optional, because a plugin may declare a public route and
+// decides for itself, through the RequiresAuth/AdminOnly flags of its
+// manifest, what each of its routes needs.
+//
+// The session-scope guards, on the other hand, are unconditional. A plugin
+// route can no more opt into a short-lived token or an MFA-enrollment session
+// than a core route that left the flag unset: the first is minted only for
+// credentials that must travel in a URL (WebSocket upgrades, downloads), and
+// the second belongs to an admin who is still confined to the 2FA setup flow.
+// Both used to reach every plugin route, admin ones included, because this
+// chain was assembled without them.
+func pluginRouteChain(
+	inner http.Handler,
+	authMiddleware *middlewares.AuthMiddleware,
+	corsMiddleware *middlewares.CORSMiddleware,
+	recoveryMiddleware *middlewares.RecoveryMiddleware,
+	shortLivedScopeMiddleware *middlewares.ShortLivedScopeMiddleware,
+	mfaEnrollmentScopeMiddleware *middlewares.MFAEnrollmentScopeMiddleware,
+) http.Handler {
+	handler := corsMiddleware.Middleware(inner)
+	handler = shortLivedScopeMiddleware.Middleware(handler, false)
+	handler = mfaEnrollmentScopeMiddleware.Middleware(handler, false)
+	handler = authMiddleware.OptionalMiddleware(handler)
+
+	return recoveryMiddleware.Middleware(handler)
 }
 
 func nodeEnrollRoutes(c container, router *mux.Router) *mux.Router {

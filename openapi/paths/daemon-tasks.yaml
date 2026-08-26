@@ -41,7 +41,14 @@
     tags:
       - DaemonTasks
     summary: Get daemon task
-    description: Returns a single daemon task by ID (Admin only)
+    description: |
+      Returns a single daemon task by ID.
+
+      Admins may read any task. A regular user may read a task only when all of the
+      following hold: the task is bound to a server (`server_id` is set), the user has
+      access to that server, and the task type is one of `gsstart`, `gsstop`, `gsrest`,
+      `gsupd` or `gsinst` — for which the user holds the matching per-server ability.
+      Any other task type is refused with 403. PAT ability: `admin:gdaemon-task:read`.
     operationId: getDaemonTask
     parameters:
       - $ref: '../parameters/PathDaemonTaskId.yaml'

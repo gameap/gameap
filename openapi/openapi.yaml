@@ -23,6 +23,34 @@ info:
     Authorization: Bearer 42|abc123...xyz
     ```
 
+    A PAT only reaches an endpoint when its ability list contains the ability that
+    endpoint declares. The available abilities are returned by
+    `GET /api/tokens/abilities`:
+
+    | Ability | Grants |
+    | --- | --- |
+    | `server:list` | Read game servers, their status, query results and abilities |
+    | `server:start` | Start a game server |
+    | `server:stop` | Stop a game server |
+    | `server:restart` | Restart a game server |
+    | `server:update` | Update, install and reinstall a game server |
+    | `server:console` | Read and write the game server console (HTTP and WebSocket) |
+    | `server:files` | Game server file manager |
+    | `server:rcon-console` | Game server RCON console |
+    | `server:rcon-players` | Player management over RCON |
+    | `server:tasks-manage` | Manage game server scheduled tasks |
+    | `server:settings-manage` | Manage game server settings |
+    | `admin:server:create` | Create, edit and delete game servers (admin only) |
+    | `admin:gdaemon-task:read` | Read GameAP Daemon tasks (admin only) |
+
+    Administrative endpoints that declare no ability are unreachable by a PAT at all:
+    the token's scope could not be honoured there, so the request fails closed with 403.
+
+    > **Changed in v4:** the file manager and the console/attach WebSockets used to
+    > accept any token, whatever it declared. They now require `server:files` and
+    > `server:console` respectively. A token minted before this change carries neither
+    > and must be re-created to keep that access.
+
     ## Response Format
 
     ### Success Response
@@ -73,6 +101,8 @@ info:
     token — in the URL, so the credential cannot be replayed from proxy
     logs or browser history. Fetch a fresh one before every (re)connection.
     A long-lived Bearer/PAT is still accepted for non-browser clients.
+    When the caller is a PAT (directly or through a short-lived token minted
+    from one), the ability named under each endpoint below is required.
     Outbound frames are JSON
     `{"type": string, "payload": any, "ts": int64}` envelopes.
 
@@ -99,13 +129,16 @@ info:
 
     Per-server stream filtered to envelopes carrying the matching
     `server_id` label, plus machine-level series. Same frame protocol as
-    the per-node endpoint.
+    the per-node endpoint. PAT ability: `server:list`.
 
     ### `/api/ws/tasks/{id}`
 
     Live status stream for a single daemon task. Used by the task
     progress drawer in the panel UI. The server emits frames; the
-    client only sends pings.
+    client only sends pings. Access is granted to admins and to users
+    who may act on the task's server; no PAT ability is required, since
+    this is the completion signal of the control action that minted the
+    task and that action is already scoped.
 
     Outbound frames (server → client):
     - `task.status` — payload describes the current task state. Fields
@@ -122,6 +155,7 @@ info:
 
     Bidirectional console stream for a server. Replays the buffered
     console history on connect, then streams new lines.
+    PAT ability: `server:console`.
 
     Inbound frames (client → server):
     - `console.command` — payload `{ command: string }`. Forwarded to
@@ -146,7 +180,7 @@ info:
     Interactive PTY session for a server (raw shell attach). Used for
     server installation flows and operator debugging. Requires the
     `console` ability on the server (sending input also requires
-    `console.send`).
+    `console.send`). PAT ability: `server:console`.
 
     Inbound frames (client → server):
     - `attach.input` — payload `{ data: bytes }`. Bytes sent to the PTY.
@@ -166,7 +200,8 @@ info:
 
     Live progress stream for daemon-side archive create/extract
     operations of one server, multiplexed over a single socket. Requires
-    the `files` ability on the server. No replay is sent: connect the
+    the `files` ability on the server; PAT ability: `server:files`.
+    No replay is sent: connect the
     socket **before** issuing the `POST .../archive` or `POST
     .../extract` request and correlate frames by the `operation_id`
     returned in the 202 response. The client only sends pings.
@@ -280,7 +315,7 @@ tags:
   - name: ServerSettings
     description: Server settings management
   - name: FileManager
-    description: Server file operations
+    description: Server file operations. Requires the `files` ability on the server; PAT ability - `server:files`
   - name: Users
     description: User management (Admin)
   - name: Nodes
@@ -290,7 +325,7 @@ tags:
   - name: GameMods
     description: Game modification management (Admin)
   - name: DaemonTasks
-    description: Daemon task monitoring (Admin)
+    description: Daemon task monitoring (Admin, except reading a single task)
   - name: ClientCertificates
     description: Client certificate management (Admin)
   - name: PluginStore

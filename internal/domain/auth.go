@@ -20,6 +20,7 @@ const (
 	PATAbilityServerRestart        PATAbility = "server:restart"
 	PATAbilityServerUpdate         PATAbility = "server:update"
 	PATAbilityServerConsole        PATAbility = "server:console"
+	PATAbilityServerFiles          PATAbility = "server:files"
 	PATAbilityServerRconConsole    PATAbility = "server:rcon-console"
 	PATAbilityServerRconPlayers    PATAbility = "server:rcon-players"
 	PATAbilityServerTasksManage    PATAbility = "server:tasks-manage"
@@ -84,6 +85,7 @@ func GetUserAbilities() []PATAbility {
 		PATAbilityServerRestart,
 		PATAbilityServerUpdate,
 		PATAbilityServerConsole,
+		PATAbilityServerFiles,
 		PATAbilityServerRconConsole,
 		PATAbilityServerRconPlayers,
 		PATAbilityServerTasksManage,
@@ -115,6 +117,7 @@ func GetAbilityDescriptions() map[PATAbility]string {
 		PATAbilityServerRestart:        "Restart game server",
 		PATAbilityServerUpdate:         "Update game server",
 		PATAbilityServerConsole:        "Access to read and write into game server console",
+		PATAbilityServerFiles:          "Access to game server file manager",
 		PATAbilityServerRconConsole:    "Access to game server RCON console",
 		PATAbilityServerRconPlayers:    "Access to players management on game server",
 		PATAbilityServerTasksManage:    "Manage game server tasks",
@@ -133,6 +136,7 @@ func GetGroupedAbilities(includeAdmin bool) GroupedAbilities {
 		{PATAbilityServerRestart, descriptions[PATAbilityServerRestart]},
 		{PATAbilityServerUpdate, descriptions[PATAbilityServerUpdate]},
 		{PATAbilityServerConsole, descriptions[PATAbilityServerConsole]},
+		{PATAbilityServerFiles, descriptions[PATAbilityServerFiles]},
 		{PATAbilityServerRconConsole, descriptions[PATAbilityServerRconConsole]},
 		{PATAbilityServerRconPlayers, descriptions[PATAbilityServerRconPlayers]},
 		{PATAbilityServerTasksManage, descriptions[PATAbilityServerTasksManage]},

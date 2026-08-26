@@ -230,12 +230,14 @@ func TestGetUserAbilities(t *testing.T) {
 
 	abilities := GetUserAbilities()
 
-	assert.Len(t, abilities, 10, "should return 10 user abilities")
+	assert.Len(t, abilities, 11, "should return 11 user abilities")
+	assert.Contains(t, abilities, PATAbilityServerList)
 	assert.Contains(t, abilities, PATAbilityServerStart)
 	assert.Contains(t, abilities, PATAbilityServerStop)
 	assert.Contains(t, abilities, PATAbilityServerRestart)
 	assert.Contains(t, abilities, PATAbilityServerUpdate)
 	assert.Contains(t, abilities, PATAbilityServerConsole)
+	assert.Contains(t, abilities, PATAbilityServerFiles)
 	assert.Contains(t, abilities, PATAbilityServerRconConsole)
 	assert.Contains(t, abilities, PATAbilityServerRconPlayers)
 	assert.Contains(t, abilities, PATAbilityServerTasksManage)
@@ -256,6 +258,9 @@ func TestGetAdminAbilities(t *testing.T) {
 
 	assert.NotContains(t, abilities, PATAbilityServerStart)
 	assert.NotContains(t, abilities, PATAbilityServerStop)
+	// The file manager is a plain user capability: it grants nothing beyond the
+	// servers its owner already reaches, so it must never be minted as admin-only.
+	assert.NotContains(t, abilities, PATAbilityServerFiles)
 }
 
 func TestGetAllAbilities(t *testing.T) {
@@ -293,6 +298,7 @@ func TestGetAbilityDescriptions(t *testing.T) {
 
 	assert.Equal(t, "Start game server", descriptions[PATAbilityServerStart])
 	assert.Equal(t, "Stop game server", descriptions[PATAbilityServerStop])
+	assert.Equal(t, "Access to game server file manager", descriptions[PATAbilityServerFiles])
 	assert.Equal(t, "Create game server", descriptions[PATAbilityServerCreate])
 	assert.Equal(t, "Read GameAP Daemon task", descriptions[PATAbilityGDaemonTaskRead])
 }
@@ -309,7 +315,7 @@ func TestGetGroupedAbilities(t *testing.T) {
 		assert.NotContains(t, grouped, PATAbilityGroupGDaemonTask)
 
 		serverAbilities := grouped[PATAbilityGroupServer]
-		assert.Len(t, serverAbilities, 10, "should have 10 server abilities without admin")
+		assert.Len(t, serverAbilities, 11, "should have 11 server abilities without admin")
 
 		var hasServerCreate bool
 		for _, ab := range serverAbilities {
@@ -331,7 +337,7 @@ func TestGetGroupedAbilities(t *testing.T) {
 		require.Contains(t, grouped, PATAbilityGroupGDaemonTask)
 
 		serverAbilities := grouped[PATAbilityGroupServer]
-		assert.Len(t, serverAbilities, 11, "should have 11 server abilities with admin")
+		assert.Len(t, serverAbilities, 12, "should have 12 server abilities with admin")
 
 		var hasServerCreate bool
 		for _, ab := range serverAbilities {
@@ -578,6 +584,7 @@ func TestPATAbilityConstants(t *testing.T) {
 	assert.Equal(t, PATAbility("server:restart"), PATAbilityServerRestart)
 	assert.Equal(t, PATAbility("server:update"), PATAbilityServerUpdate)
 	assert.Equal(t, PATAbility("server:console"), PATAbilityServerConsole)
+	assert.Equal(t, PATAbility("server:files"), PATAbilityServerFiles)
 	assert.Equal(t, PATAbility("server:rcon-console"), PATAbilityServerRconConsole)
 	assert.Equal(t, PATAbility("server:rcon-players"), PATAbilityServerRconPlayers)
 	assert.Equal(t, PATAbility("server:tasks-manage"), PATAbilityServerTasksManage)

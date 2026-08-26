@@ -211,6 +211,60 @@ func TestRouterSecurity_TokenAccess(t *testing.T) {
 			expectedStatusCode: http.StatusForbidden,
 		},
 
+		// "GET /api/file-manager/{server}/content" endpoint tests.
+		// Writing into a game server directory is code execution on the node
+		// under the server's su_user, so it is scoped like every other
+		// server capability rather than riding on the owner's RBAC alone.
+		{
+			// 404 "node not found" is the handler talking: the token scope, the
+			// server lookup and the per-server files ability have all passed,
+			// and only the in-memory container's absent node remains.
+			name:               "token_with_server_files_can_read_file_manager",
+			request:            "GET /api/file-manager/1/content",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerFiles},
+			expectedStatusCode: http.StatusNotFound,
+		},
+		{
+			name:               "token_without_server_files_cannot_read_file_manager",
+			request:            "GET /api/file-manager/1/content",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "token_without_server_files_cannot_delete_files",
+			request:            "POST /api/file-manager/1/delete",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_token_without_server_files_cannot_delete_files",
+			request:            "POST /api/file-manager/1/delete",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+
+		// WebSocket upgrades carry the same scope as their HTTP twins: the
+		// console socket can send commands, so it needs server:console.
+		{
+			name:               "token_without_server_console_cannot_open_console_socket",
+			request:            "GET /api/ws/servers/1/console",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "token_without_server_console_cannot_attach",
+			request:            "GET /api/ws/servers/1/attach",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerFiles},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "token_without_server_files_cannot_watch_archive_operations",
+			request:            "GET /api/ws/servers/1/file-manager/archive-operations",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+
 		// "POST /api/tokens" endpoint tests
 		{
 			// Creating tokens is forbidden even for admin tokens.

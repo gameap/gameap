@@ -23,7 +23,7 @@ attack surface.
 | Application type | Self-hosted REST/JSON API + gRPC daemon control plane (with embedded SPA + WebSocket) |
 | Primary trust boundaries | (a) public Internet → API HTTP/WS server; (b) game daemon → API gRPC bidi; (c) operator → admin endpoints; (d) plugin (WASM) → host runtime |
 | L1 baseline | [`docs/security/ASVS.md`](./ASVS.md) (last reviewed 2026-05-28) |
-| Last reviewed | 2026-05-28 (Sprint 1 + 2 close-out: **C-11 resolved** by `pkg/netutil/ssrf.go` + hardened `internal/plugin/hostlibrary/http.go` (custom `DialContext`, scheme allow-list, response-header allowlist, redirect re-validation, timeout cap); **C-4 resolved** by per-source token allow-list in `internal/api/middlewares/auth.go` (?token= now glst_-only; cookie now rejects PAT); **C-10 resolved** by `pkg/tlsutil/ciphers.go` applied to every TLS listener; **T-8 resolved** by `AUTH_BCRYPT_COST` (default 13) + rehash-on-login + `pkg/auth/dummy.go` timing-oracle dummy; **T-1 residual closed** — `Cache-Control: no-store` on `/api/auth/*`, `/api/profile/*`, `/api/users/*`, `/api/tokens/*` via extended `SecurityHeadersMiddleware`; **T-10 resolved** by `.github/workflows/vuln-scan.yaml` (govulncheck source + binary modes, weekly + push to main); **SECURITY.md** vulnerability-disclosure policy added; **C-8 mitigated** by `internal/api/filemanager/filemanagermime/Checker` + magic-byte sniff in upload handler; **PAT revoke** now writes a `pat:<id>` entry to the revocation denylist and the auth middleware re-checks; **re-auth helper** `internal/api/base/reauth.go` + audit events `auth.reauth.{success,failure}`; **MFA-nudge** scaffolding — config (`AUTH_REQUIRE_MFA_FOR_ADMINS` / `AUTH_MFA_HARD_FAIL_DAYS`) + `internal/services/mfanudge` + audit events `auth.mfa.nudge.{shown,snoozed}` / `auth.mfa.enrollment.{required,completed}`; **idle-timeout** scaffolding — `pkg/auth/idle_tracker.go` + config (`AUTH_SESSION_IDLE_TIMEOUT` / `AUTH_SESSION_IDLE_UPDATE_FREQ`). Prior: 2026-05-28 (C-1 / C-2 closed, C-11 opened). Prior: 2026-05-18 (C-5 / C-7 / C-9, T-4). Prior: 2026-05-16 (C-3 / T-2). |
+| Last reviewed | 2026-08-26 (Authorization audit of the /api tree: **C-12 resolved** — the plugin catch-all and the `/plugins.js` / `/plugins.css` bundles now run the short-lived-token and MFA-enrollment scope guards, and an `AdminOnly` plugin route runs `TokenAdminGuardMiddleware` via `plugin.WithAdminTokenGuard`; **C-13 resolved** — new `server:files` PAT ability and `CheckPATAbilities` declared on the 32 routes that silently ignored a token's scope (23 file-manager, 4 WebSocket, 5 server-read); **C-14 opened** — `HTTPMethodOverrideHandler` + cookie token source as a latent CSRF amplifier, behaviour deliberately unchanged; **route matrix** — `internal/api/router_security_coverage_test.go` classifies all 152 routes, fails the build on an unclassified new one, and drives 361 authorization probes. Prior: 2026-05-28 (Sprint 1 + 2 close-out: **C-11 resolved** by `pkg/netutil/ssrf.go` + hardened `internal/plugin/hostlibrary/http.go` (custom `DialContext`, scheme allow-list, response-header allowlist, redirect re-validation, timeout cap); **C-4 resolved** by per-source token allow-list in `internal/api/middlewares/auth.go` (?token= now glst_-only; cookie now rejects PAT); **C-10 resolved** by `pkg/tlsutil/ciphers.go` applied to every TLS listener; **T-8 resolved** by `AUTH_BCRYPT_COST` (default 13) + rehash-on-login + `pkg/auth/dummy.go` timing-oracle dummy; **T-1 residual closed** — `Cache-Control: no-store` on `/api/auth/*`, `/api/profile/*`, `/api/users/*`, `/api/tokens/*` via extended `SecurityHeadersMiddleware`; **T-10 resolved** by `.github/workflows/vuln-scan.yaml` (govulncheck source + binary modes, weekly + push to main); **SECURITY.md** vulnerability-disclosure policy added; **C-8 mitigated** by `internal/api/filemanager/filemanagermime/Checker` + magic-byte sniff in upload handler; **PAT revoke** now writes a `pat:<id>` entry to the revocation denylist and the auth middleware re-checks; **re-auth helper** `internal/api/base/reauth.go` + audit events `auth.reauth.{success,failure}`; **MFA-nudge** scaffolding — config (`AUTH_REQUIRE_MFA_FOR_ADMINS` / `AUTH_MFA_HARD_FAIL_DAYS`) + `internal/services/mfanudge` + audit events `auth.mfa.nudge.{shown,snoozed}` / `auth.mfa.enrollment.{required,completed}`; **idle-timeout** scaffolding — `pkg/auth/idle_tracker.go` + config (`AUTH_SESSION_IDLE_TIMEOUT` / `AUTH_SESSION_IDLE_UPDATE_FREQ`). Prior: 2026-05-28 (C-1 / C-2 closed, C-11 opened). Prior: 2026-05-18 (C-5 / C-7 / C-9, T-4). Prior: 2026-05-16 (C-3 / T-2).) |
 | Owners | gameap-api maintainers |
 | Audit method | Static review of source + test suite; no penetration testing engagement |
 
@@ -194,6 +194,9 @@ panels lack:
 | T-8 | ~~bcrypt cost stuck at `DefaultCost`=10 (L2 wants ≥13)~~ **Resolved 2026-05-28** — `pkg/auth/password.go` parameterised on `ActiveBcryptCost`; `SetDefaultBcryptCost` validates against `[MinBcryptCost=10, MaxBcryptCost=14]` and panics at boot on misconfiguration; default 13. `HashCost` exposes stored cost; `internal/api/auth/login/handler.go` rehashes-on-login (refuses downgrade). `pkg/auth/dummy.go` adds a constant-time bcrypt verify for the non-existent-user path to defeat the user-enumeration timing oracle. | 2.4.4 | ~~Medium~~ |
 | T-9 | ~~No file-upload MIME / magic-byte verification~~ **Resolved 2026-05-28** — `internal/api/filemanager/filemanagermime/Checker` (default allowlist + `FILES_UPLOAD_ALLOWED_MIMES` / `FILES_UPLOAD_ALLOW_ARCHIVES` / `FILES_UPLOAD_ALLOW_BINARY`); `upload/handler.go` sniffs the first 512 bytes via `bufio.Reader.Peek` + `http.DetectContentType` before any daemon IO; rejections emit `file.upload` audit with `detected_mime` + `reason=mime_not_allowed`. 5 security tests covering HTML-as-PNG, valid PNG, plain-text config, ZIP-default-reject, ZIP-with-flag-accept. | 12.4.1, 12.4.2 | ~~Medium~~ |
 | T-10 | ~~No `govulncheck` / SBOM in CI~~ **Resolved 2026-05-28** — `.github/workflows/vuln-scan.yaml` (pinned `govulncheck@v1.1.4`, source + binary modes, weekly + push to main + manual dispatch, auto-files / auto-closes a GitHub issue per failing mode, input validation on the manual-dispatch version override to defend against workflow injection). SBOM (CycloneDX) still deferred to Sprint 3. | 14.2.2, 14.2.3, 14.2.4 | ~~Medium~~ → Partial |
+| T-12 (C-13) | ~~Personal access token scope ignored by the file manager and the WebSocket routes~~ **Resolved 2026-08-26** — new `server:files` ability plus `CheckPATAbilities` on the 32 routes that declared none, so a token scoped to `server:list` can no longer write into a game server directory or send console commands. Breaking for tokens minted earlier. | 3.5.3, 4.1.3, 13.1.4 | ~~**High**~~ |
+| T-13 (C-12) | ~~Plugin routes assembled outside the per-route loop, skipping the short-lived-token, MFA-enrollment and PAT-on-admin guards~~ **Resolved 2026-08-26** — `pluginRouteChain` / `frontendAssetChain` in `internal/api/router.go` + `plugin.WithAdminTokenGuard`. | 4.1.4, 4.3.2, 3.5.3 | ~~Medium~~ |
+| T-14 (C-14) | `HTTPMethodOverrideHandler` promotes a simple POST to PUT/PATCH/DELETE, and the auth middleware accepts a `token` cookie — no authorization bypass, but a latent CSRF amplifier for any deployment where something sets that cookie. Documented 2026-08-26, behaviour unchanged. | 4.2.2 | Low |
 | T-11 (C-11) | ~~Plugin WASM HTTP host library has no SSRF guard~~ **Resolved 2026-05-28** — `pkg/netutil/ssrf.go` blocklist + rewritten `internal/plugin/hostlibrary/http.go` with custom `Transport.DialContext` (DNS-rebinding safe), `CheckRedirect` re-validation, scheme allow-list, response-header **allow**list, `TimeoutSeconds` cap, `MaxRedirects` cap, operator allow-list. Cloud-metadata IPs never bypassable. 12 SSRF-specific security tests. | 12.6.1, 5.2.8, 1.4.5 | ~~**High**~~ |
 
 ---
@@ -1093,6 +1096,148 @@ Tracked as Sprint 1 follow-up (see §7 item 6.5).
 
 ---
 
+### C-12 · ~~**Medium**~~ · ✅ Resolved · Plugin routes bypassed the session-scope guards
+
+| | |
+| --- | --- |
+| Files | `internal/api/router.go` (`pluginRouteChain`, `registerPluginRoutes`, `frontendAssetChain`); `pkg/plugin/http_handler.go` (`WithAdminTokenGuard`) |
+| CWE | CWE-863 (Incorrect Authorization), CWE-1220 (Insufficient Granularity of Access Control) |
+| ASVS | 4.1.4 (Deny by default), 4.3.2 (Admin functions only accessible to admins), 3.5.3 (Token scope) |
+| Status | ✅ **Resolved 2026-08-26** |
+
+**Finding.** `apiRoutes` builds every core route as
+`recovery → auth → mfaEnrollmentScope → shortLivedScope → [tokenAdminGuard →
+isAdmin] → cors → [personalAccess] → handler`. The plugin catch-all
+`/api/plugins/{plugin_id}/**` was assembled separately and stopped at
+`recovery → auth.OptionalMiddleware → cors → pluginHandler`, so three guards
+never ran on it:
+
+- **MFA-enrollment sessions.** An admin past the hard-fail threshold is
+  confined by `MFAEnrollmentScopeMiddleware` to the 2FA setup routes. Every
+  plugin route, `AdminOnly` ones included, was outside that confinement.
+- **Short-lived tokens.** A `glst_` token exists only so a credential can
+  travel in a URL for a WebSocket upgrade or a download, and no plugin route
+  opted into it. The outer `OptionalMiddleware` nonetheless minted a full
+  session from one, and an `AdminOnly` plugin route that did not also set
+  `RequiresAuth` accepted it.
+- **Personal access tokens on admin routes.** `TokenAdminGuardMiddleware`
+  exists because an admin route without declared PAT abilities cannot honour a
+  token's scope — it would be gated only by the owner's RBAC role. A plugin
+  route never declares abilities, so every `AdminOnly` plugin route was exactly
+  that case, and reachable by any token of an admin.
+
+The two frontend bundles served off the root mux, `/plugins.js` and
+`/plugins.css`, had the same two scope guards missing.
+
+**Resolution.** `pluginRouteChain` now mirrors the core chain, with
+authentication deliberately left optional (a plugin declares per route, in its
+manifest, whether it needs a session) while both scope guards run
+unconditionally with `allow = false`. `plugin.WithAdminTokenGuard` hands the
+handler the same `TokenAdminGuardMiddleware` the core loop uses, applied
+outside the admin check on any `AdminOnly` plugin route. `frontendAssetChain`
+gives the bundles the same treatment and removes the duplicated wiring the two
+handlers carried.
+
+Regression tests: `TestPluginRouteChain_RejectsShortLivedSession`,
+`TestPluginRouteChain_RejectsMFAEnrollmentSession`,
+`TestPluginRouteChain_PassesOrdinarySession`,
+`TestPluginRouteChain_PassesAnonymousCaller`
+(`internal/api/router_security_plugin_routes_test.go`), and
+`TestHTTPHandler_ServeHTTP/admin_token_guard_*` (`pkg/plugin/http_handler_test.go`).
+
+---
+
+### C-13 · ~~**High**~~ · ✅ Resolved · Personal access token scope ignored by the file manager and WebSocket routes
+
+| | |
+| --- | --- |
+| Files | `internal/domain/auth.go` (`PATAbilityServerFiles`); `internal/api/router.go` (`CheckPATAbilities` on 32 routes) |
+| CWE | CWE-863 (Incorrect Authorization), CWE-269 (Improper Privilege Management) |
+| ASVS | 3.5.3 (Token scope enforced), 4.1.3 (Least privilege), 13.1.4 (Authorization of API resources) |
+| Status | ✅ **Resolved 2026-08-26** |
+
+**Finding.** `PersonalAccessMiddleware` is installed only for routes that
+declare `CheckPATAbilities` (`router.go`, route assembly loop). Thirty-two
+routes declared none, so the ability list the user chose when minting the token
+was not consulted at all on them. The user's own RBAC permissions were still
+checked correctly — `serversbase.ServerFinder` and `AbilityChecker` did their
+job — but the boundary that failed is the token's, not the user's.
+
+A token created with `abilities: ["server:list"]`, or with an empty list, could
+therefore:
+
+- upload, overwrite, delete, rename, `chmod`, archive, extract and download
+  files on every server its owner reaches, across all 23
+  `/api/file-manager/{server}/**` routes — in practice code execution on the
+  node under the server's `su_user`;
+- open `/api/ws/servers/{server}/console` and `/attach` and send commands,
+  while the HTTP twins `GET|POST /api/servers/{server}/console` correctly
+  demanded `server:console`.
+
+There was no `server:files` ability to declare: the file manager had simply
+never been given one.
+
+**Resolution.** Added `PATAbilityServerFiles` (`server:files`, "Access to game
+server file manager") to the user ability set, and declared abilities on every
+unscoped route:
+
+| Routes | Ability |
+| --- | --- |
+| all 23 `/api/file-manager/{server}/**`, `GET /api/ws/servers/{server}/file-manager/archive-operations` | `server:files` |
+| `GET /api/ws/servers/{server}/console`, `GET /api/ws/servers/{server}/attach` | `server:console` |
+| `GET /api/servers/summary`, `.../abilities`, `.../status`, `.../query`, `GET /api/user/servers_abilities`, `GET /api/ws/servers/{server}/metrics` | `server:list` |
+
+`GET /api/ws/tasks/{id}` stays unscoped on purpose: it is the completion signal
+of a control action whose own route is already scoped, and the handler
+re-checks access to the task's server. The self-scoped routes
+(`/api/user`, `/api/profile/**`, `/api/tokens/**`, `/api/auth/**`) stay unscoped
+because they only ever touch the caller's own record. Both exemptions are
+recorded, with their justification, in `routeAuthzMatrix` and enforced by
+`TestRouteAuthzMatrix_UnscopedRoutesCarryAJustification`.
+
+**Operator impact — breaking.** Tokens minted before this change do not carry
+`server:files`, so they lose file-manager and console-socket access until they
+are re-created with the ability selected. That is the intended outcome: the
+capability was never part of the scope those tokens declared.
+
+---
+
+### C-14 · **Low** · HTTP method override plus cookie-borne tokens widen CSRF
+
+| | |
+| --- | --- |
+| Files | `internal/api/router.go` (`handlers.HTTPMethodOverrideHandler`); `internal/api/middlewares/auth.go` (`extractToken`, cookie source) |
+| CWE | CWE-352 (CSRF), CWE-436 (Interpretation Conflict) |
+| ASVS | 4.2.2 (CSRF defences for state-changing operations) |
+| Status | 🟡 Open — documented, behaviour deliberately unchanged. |
+
+**Finding.** The whole `/api` tree is wrapped in
+`handlers.HTTPMethodOverrideHandler`, which promotes a `POST` carrying
+`X-HTTP-Method-Override` or `_method` (header, form field **or** query string)
+to `PUT`/`PATCH`/`DELETE` before mux matches. This is **not** an authorization
+bypass: the request lands on the target route with that route's own chain, so
+`AdminOnly` still applies — verified by `TestRouteAuthzMatrix_*`, which drives
+the real methods.
+
+What it does do is turn a state-changing request into one a browser will send
+cross-origin without a preflight. On its own that is harmless, because the
+panel authenticates from the `Authorization` header. But `extractToken` also
+accepts a session token from a `token` cookie, and CORS runs with
+`AllowCredentials: true`. The panel never sets that cookie itself, so there is
+no live exploit; the exposure is latent, and would become real for any
+deployment where something else (a reverse proxy, a subdomain, an operator
+convenience script) starts setting it.
+
+**Recommendation** (not applied — removing the override may break third-party
+API clients that rely on it):
+
+1. Drop `HTTPMethodOverrideHandler` if no client needs it — the frontend does
+   not use `_method` anywhere.
+2. Or refuse the override when the session came from the cookie source, and
+   set `SameSite=Strict` on any cookie the panel itself ever issues.
+
+---
+
 ## 4. Methodology
 
 - **Standard**: OWASP ASVS 4.0.3, requirements flagged for L2.
@@ -1251,13 +1396,13 @@ denominator 16; counts reconciled with rows on 2026-05-18 — no status change).
 | --- | --- | --- | --- |
 | 4.1.1 | Server-side enforcement | ✅ Met | Auth + RBAC middlewares (`internal/api/middlewares/auth.go`); `TestRouterSecurity_API5_BFLA_*`. |
 | 4.1.2 | AC attributes not user-controllable | ✅ Met | `TestRouterSecurity_API3_Escalation_RegularUserCannotEditOtherUsers`, `FuzzPutUserBody_MassAssignment`. |
-| 4.1.3 | Least privilege | ✅ Met | Granular abilities (`internal/domain/rbac.go`); assignment guard `internal/domain/auth.go:157-166`. |
-| 4.1.4 | Deny by default | ✅ Met | Auth middleware 401 on missing token (`auth.go:86-97`); admin middleware 403 on missing ability (`auth.go:399-403`). |
+| 4.1.3 | Least privilege | ✅ Met | Granular abilities (`internal/domain/rbac.go`); assignment guard `internal/domain/auth.go`. Personal access tokens are scoped on every route that is not self-scoped since **C-13**, with the exemptions justified in `routeAuthzMatrix`. |
+| 4.1.4 | Deny by default | ✅ Met | Auth middleware 401 on missing token (`auth.go:86-97`); admin middleware 403 on missing ability (`IsAdminMiddleware`). Since **C-12/C-13** the plugin catch-all and the file-manager/WebSocket groups fail closed too, and `routeAuthzMatrix` (`internal/api/router_security_coverage_test.go`) fails the build for any route registered without a stated audience. |
 | 4.1.5 | AC failures logged, alerts on repeats | 🟡 Partial | AC failures now logged as `access.denied` audit events at the single RBAC choke point + admin gate (`internal/api/servers/base/abilitychecker.go`, `internal/api/middlewares/auth.go` `IsAdminMiddleware`); automated alerting on repeats is still an operator/SIEM concern (depends on 7.2.2). |
 | 4.2.1 | Sensitive data and APIs protected from IDOR | ✅ Met | `serverfinder.go:30-57` + `TestRouterSecurity_API1_BOLA_*` (7 cases) + `FuzzServerIDPathParam_*`, `FuzzFileManagerPath_*`. |
-| 4.2.2 | CSRF defenses for state-changing ops | 🟡 Partial | Authorization header default mitigates; cookie path lacks SameSite. |
+| 4.2.2 | CSRF defenses for state-changing ops | 🟡 Partial | Authorization header default mitigates; cookie path lacks SameSite, and `HTTPMethodOverrideHandler` lets a simple POST select a mutating method — see **C-14**. |
 | 4.3.1 | Admin interfaces use MFA | 🟡 Partial | TOTP 2FA available and enforced at login when an account enables it (**C-9 resolved**), but it is opt-in — no `require_mfa_for_admins` policy, so an admin may still be password-only. Enforcement flag tracked Sprint 4 item 20. |
-| 4.3.2 | Admin functions only accessible to admins | ✅ Met | `IsAdminMiddleware` (`auth.go:375-410`); `TestRouterSecurity_API5_BFLA_*` covers 26 admin endpoints. |
+| 4.3.2 | Admin functions only accessible to admins | ✅ Met | `IsAdminMiddleware` (`auth.go:375-410`); `TestRouterSecurity_API5_BFLA_*` covers 26 admin endpoints, and `TestRouteAuthzMatrix_AdminRoutesRejectRegularUser` / `_RejectsAnonymous` / `_AdminRoutesRejectPersonalAccessToken` now cover **all 77** exhaustively, enumerated from the live router rather than a hand-kept list. Plugin-declared admin routes gained the same token guard (**C-12**). |
 | 4.3.3 | Sensitive admin step-up auth | ❌ Not met | No re-auth before delete-user, change-role, etc. |
 
 **V4 score: 71%** (6 Met / 3 Partial / 1 Not met of 10 L2-applicable).
@@ -1526,7 +1671,16 @@ missing).
 | `router_security_test.go` | API1/API5 token + admin gating | 2 | — |
 | `router_security_password_policy_test.go` | API2 password policy (length + blocklist) | 8 | — |
 | `router_security_auditlog_test.go` | API9 / API10 audit trail | 6 | — |
+| `router_security_coverage_test.go` | API5 BFLA + API3 token scope, **exhaustive** | 6 (361 subtests) | — |
+| `router_security_plugin_routes_test.go` | API5 BFLA on the plugin catch-all (C-12) | 4 | — |
 | `router_security_helpers_test.go` | shared fixtures | — | — |
+
+`router_security_coverage_test.go` is the only file in the suite that lives in
+`package api` rather than `package api_test`: it walks the router that the
+unexported `apiRoutes` fills, so the inventory it checks is the real one and
+cannot drift from a hand-kept copy. `routeAuthzMatrix` inside it is the
+checked-in expectation of who may reach every endpoint, and a route registered
+without an entry fails the build.
 
 ### Middleware-level
 
@@ -1541,6 +1695,9 @@ missing).
 - `internal/api/middlewares/login_ratelimit_test.go` (9 cases)
 - `internal/api/middlewares/security_headers_test.go` (17 funcs — defaults, master switch, HSTS emission / format / max-age=0, CSP report-only, verbatim-policy override, captcha provider matrix, extra-source merging, core directives, downstream override, embedded-FS happy path + missing-file boot failure, inline-script discovery, report-URI, tokenizer error) — **added 2026-05-28, evidence for C-2 / T-1 closure**
 - `internal/api/middlewares/shorttoken_scope_test.go`
+- `internal/api/middlewares/mfa_enrollment_scope_test.go`
+- `internal/api/middlewares/token_admin_guard_test.go`
+- `pkg/plugin/http_handler_test.go` — `admin_token_guard_*` cases (C-12)
 - `internal/grpc/interceptors/auth_test.go` (mTLS + gRPC API-key constant-time compare; evidence for C-5 hash-at-rest)
 
 ### Library-level
@@ -1666,6 +1823,41 @@ classification, anti-automation on write endpoints) and C-6
    GitHub issues with `security` + `asvs-l2` labels.
 
 ### Change log
+
+- **2026-08-26 — Authorization audit of the /api tree.** Re-derived the
+  audience of all 152 routes from `internal/api/router.go` and confirmed that
+  every group meant to be operator-only already carries `AdminOnly`: all 24
+  node / dedicated-server routes, the 8 user routes, 10 games, 6 game mods, 3
+  client certificates, 8 plugin-store, 7 plugin-administration, the daemon-task
+  list / output / cancel, `POST|PUT|DELETE /api/servers`, `GET
+  /api/servers/search` and both node-metrics sockets. Two real gaps came out of
+  the surrounding wiring rather than the flags. **Resolved**:
+  * **C-12** — the plugin catch-all and the `/plugins.js` + `/plugins.css`
+    bundles were assembled outside the per-route loop and so ran without
+    `ShortLivedScopeMiddleware`, `MFAEnrollmentScopeMiddleware` and (for
+    `AdminOnly` plugin routes) `TokenAdminGuardMiddleware`. New
+    `pluginRouteChain` / `frontendAssetChain` in `internal/api/router.go` and
+    `plugin.WithAdminTokenGuard` in `pkg/plugin/http_handler.go`.
+  * **C-13** — 32 routes declared no `CheckPATAbilities`, so a personal access
+    token's declared scope was never consulted on them; the 23 file-manager
+    routes and the console/attach sockets were the sharp end. Added the
+    `server:files` ability (`internal/domain/auth.go`) and declared abilities on
+    all 32. **Breaking for existing tokens** — they must be re-created with
+    `server:files` to keep file-manager and console-socket access.
+  * **C-14** — opened, not fixed: `HTTPMethodOverrideHandler` plus the
+    cookie token source. No authorization bypass; latent CSRF amplifier.
+  * **Tests** — `internal/api/router_security_coverage_test.go` (new,
+    `package api`): `routeAuthzMatrix` classifies all 152 routes, is checked
+    against the live router by `TestRouteAuthzMatrix_CoversEveryRegisteredRoute`
+    so an unclassified new route fails the build, and is enforced by five
+    behavioural suites (361 subtests) covering admin-vs-regular-user,
+    anonymous, guest reachability, token-without-abilities and
+    personal-access-token-on-admin-route. Plus
+    `internal/api/router_security_plugin_routes_test.go`, the
+    `admin_token_guard_*` cases in `pkg/plugin/http_handler_test.go`, and
+    file-manager / WebSocket scope cases in `TestRouterSecurity_TokenAccess`.
+    Router-level admin coverage went from roughly half the admin routes —
+    with plugin management untested entirely — to all 77.
 
 - **2026-05-28 — Sprint 1 + 2 close-out.** Closed the remaining
   open critical/medium findings from the Sprint 1 + 2 roadmap and

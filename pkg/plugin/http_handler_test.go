@@ -262,6 +262,94 @@ func TestHTTPHandler_ServeHTTP(t *testing.T) {
 		assert.True(t, adminMw.called, "admin middleware should be called")
 	})
 
+	t.Run("admin_token_guard_applied_on_admin_only_route", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		manager := NewManager(ManagerConfig{})
+		pluginID := CompactPluginID(ParsePluginID("guarded-admin-plugin"))
+		manager.plugins[pluginID] = &LoadedPlugin{
+			Info:    &proto.PluginInfo{Id: pluginID},
+			Enabled: true,
+			HTTPRoutes: []*proto.HTTPRoute{
+				{Path: "/admin", Methods: []string{"GET"}, AdminOnly: true},
+			},
+			Instance: &mockPluginServiceHTTP{},
+		}
+		guard := &mockMiddleware{}
+		handler := NewHTTPHandler(manager, &mockMiddleware{}, &mockMiddleware{}, WithAdminTokenGuard(guard))
+
+		req := httptest.NewRequest(http.MethodGet, "/api/plugins/"+pluginID+"/admin", nil)
+		req = mux.SetURLVars(req, map[string]string{"plugin_id": pluginID})
+		rr := httptest.NewRecorder()
+
+		// ACT
+		handler.ServeHTTP(rr, req)
+
+		// ASSERT
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.True(t, guard.called,
+			"a plugin route declares no PAT abilities, so an admin one must run the token guard")
+	})
+
+	t.Run("admin_token_guard_not_applied_on_non_admin_route", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		manager := NewManager(ManagerConfig{})
+		pluginID := CompactPluginID(ParsePluginID("guarded-public-plugin"))
+		manager.plugins[pluginID] = &LoadedPlugin{
+			Info:    &proto.PluginInfo{Id: pluginID},
+			Enabled: true,
+			HTTPRoutes: []*proto.HTTPRoute{
+				{Path: "/public", Methods: []string{"GET"}},
+			},
+			Instance: &mockPluginServiceHTTP{},
+		}
+		guard := &mockMiddleware{}
+		handler := NewHTTPHandler(manager, &mockMiddleware{}, &mockMiddleware{}, WithAdminTokenGuard(guard))
+
+		req := httptest.NewRequest(http.MethodGet, "/api/plugins/"+pluginID+"/public", nil)
+		req = mux.SetURLVars(req, map[string]string{"plugin_id": pluginID})
+		rr := httptest.NewRecorder()
+
+		// ACT
+		handler.ServeHTTP(rr, req)
+
+		// ASSERT
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.False(t, guard.called, "a non-admin route must not run the admin token guard")
+	})
+
+	t.Run("admin_route_without_configured_guard_still_serves", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		manager := NewManager(ManagerConfig{})
+		pluginID := CompactPluginID(ParsePluginID("unguarded-admin-plugin"))
+		manager.plugins[pluginID] = &LoadedPlugin{
+			Info:    &proto.PluginInfo{Id: pluginID},
+			Enabled: true,
+			HTTPRoutes: []*proto.HTTPRoute{
+				{Path: "/admin", Methods: []string{"GET"}, AdminOnly: true},
+			},
+			Instance: &mockPluginServiceHTTP{},
+		}
+		adminMw := &mockMiddleware{}
+		handler := NewHTTPHandler(manager, &mockMiddleware{}, adminMw)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/plugins/"+pluginID+"/admin", nil)
+		req = mux.SetURLVars(req, map[string]string{"plugin_id": pluginID})
+		rr := httptest.NewRecorder()
+
+		// ACT
+		handler.ServeHTTP(rr, req)
+
+		// ASSERT
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.True(t, adminMw.called, "the admin gate stays in place when no token guard is configured")
+	})
+
 	t.Run("both_auth_and_admin_middleware_applied", func(t *testing.T) {
 		t.Parallel()
 		// ARRANGE

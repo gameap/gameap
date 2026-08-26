@@ -30,6 +30,7 @@ type HTTPHandler struct {
 	manager         *Manager
 	authMiddleware  Middleware
 	adminMiddleware Middleware
+	adminTokenGuard Middleware
 	timeout         time.Duration
 	maxBody         int64
 	fileRefs        FileRefServer
@@ -43,6 +44,17 @@ type HTTPHandlerOption func(*HTTPHandler)
 func WithFileRefServer(server FileRefServer) HTTPHandlerOption {
 	return func(h *HTTPHandler) {
 		h.fileRefs = server
+	}
+}
+
+// WithAdminTokenGuard installs the guard that runs ahead of the admin check on
+// an AdminOnly plugin route. A plugin route never declares personal-access-token
+// abilities, so without it a narrowly scoped PAT would reach an administrative
+// plugin endpoint gated only by its owner's RBAC role — the same hole the core
+// route table closes with TokenAdminGuardMiddleware.
+func WithAdminTokenGuard(guard Middleware) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.adminTokenGuard = guard
 	}
 }
 
@@ -112,6 +124,10 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if route.AdminOnly {
 		finalHandler = h.adminMiddleware.Middleware(finalHandler)
+
+		if h.adminTokenGuard != nil {
+			finalHandler = h.adminTokenGuard.Middleware(finalHandler)
+		}
 	}
 
 	if route.RequiresAuth {
