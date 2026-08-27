@@ -87,6 +87,10 @@ func (r *errRBAC) SetRolesToUser(_ context.Context, _ uint, _ []string) error {
 	return nil
 }
 
+func (r *errRBAC) AdministrativeRoles(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+
 func (r *errRBAC) AllowUserAbilitiesForEntity(
 	_ context.Context,
 	_ uint,
@@ -157,6 +161,37 @@ func TestServerFinder_FindUserServer(t *testing.T) {
 			},
 			wantServerID:   300,
 			wantServerName: "user-owned",
+		},
+		{
+			// Blocking is how a service gets suspended: the owner must lose
+			// control of the server, not just see a flag on it.
+			name:     "non_admin_user_cannot_access_blocked_server",
+			user:     &domain.User{ID: 42},
+			serverID: 310,
+			setup: func(t *testing.T, repo *inmemory.ServerRepository, _ *inmemory.RBACRepository) {
+				t.Helper()
+				server := newServer(310, "blocked-server")
+				server.Blocked = true
+				saveServer(t, repo, server)
+				repo.AddUserServer(42, 310)
+			},
+			wantError:      "server is blocked",
+			wantStatusCode: http.StatusForbidden,
+		},
+		{
+			name:     "admin_user_can_access_blocked_server",
+			user:     &domain.User{ID: 1},
+			serverID: 320,
+			setup: func(t *testing.T, repo *inmemory.ServerRepository, rbacRepo *inmemory.RBACRepository) {
+				t.Helper()
+				server := newServer(320, "blocked-server")
+				server.Blocked = true
+				saveServer(t, repo, server)
+				adminRole := createAdminRole(t, rbacRepo)
+				assignRoleToUser(t, rbacRepo, 1, adminRole)
+			},
+			wantServerID:   320,
+			wantServerName: "blocked-server",
 		},
 		{
 			name:     "non_admin_user_cannot_access_server_they_do_not_own",

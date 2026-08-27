@@ -1,7 +1,7 @@
 <template>
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
-  <InactiveServer v-if="!loading && !isServerEnabled" :server="server"></InactiveServer>
+  <InactiveServer v-if="!loading && (accessBlocked || !isServerEnabled)" :server="server" :access-blocked="accessBlocked"></InactiveServer>
   <n-tabs
     v-else
     v-model:value="activeTab"
@@ -295,6 +295,7 @@ import {usePluginsStore} from "@/store/plugins"
 import {providePluginContext} from "@/plugins/context"
 import {trans, pageLanguage} from "@/i18n/i18n";
 import InactiveServer from "./InactiveServer.vue";
+import {errorNotification} from "@/parts/dialogs";
 
 const route = useRoute()
 const router = useRouter()
@@ -317,6 +318,7 @@ const pendingPluginTab = ref(initialTabName.startsWith('plugin-') ? initialTabNa
 const {
   serverId,
   server,
+  accessBlocked,
 } = storeToRefs(serverStore)
 
 const {
@@ -346,9 +348,17 @@ onMounted(() => {
     } else {
       setInitialTabFromHash()
     }
+  }).catch((error) => {
+    // The store already resolves the two cases this view expects — a cancelled
+    // request and the 403 of a suspended server, which drives the blocked view.
+    // Anything still thrown is a real failure and has to be shown, or the page
+    // just sits there empty.
+    errorNotification(error)
   })
   serverStore.fetchAbilities().then(() => {
     setInitialTabFromHash()
+  }).catch((error) => {
+    errorNotification(error)
   })
 });
 

@@ -1,0 +1,22 @@
+type: object
+description: A minted single-use SSO login ticket.
+properties:
+  ticket:
+    type: string
+    description: >-
+      The single-use ticket secret (prefixed `glsso_`). Deliver it to the
+      customer's browser in the URL fragment and POST it to
+      `/api/auth/sso/exchange`. It is **not** a bearer token — presenting it in
+      the `Authorization` header, query or cookie is rejected with `401`.
+    example: "glsso_aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9f"
+  expires_in:
+    type: integer
+    description: Ticket lifetime in seconds (hard-capped at 120).
+    example: 60
+  redirect_to:
+    type: string
+    description: The validated redirect target echoed from the request.
+    example: "/servers/6"
+required:
+  - ticket
+  - expires_in

@@ -81,6 +81,10 @@ func (r *UserRepository) Find(
 	case len(filter.Logins) == 1:
 		return r.cachedFind(ctx, r.keyBuilder.BuildKey("login", filter.Logins[0]), load)
 	case len(filter.Emails) == 1:
+		// Hashed verbatim, like the login key above: services.UserService has
+		// already lowercased both. Folding case here instead would let a cache
+		// hit match a spelling that a cache miss — served by an exact-comparing
+		// repository — would not.
 		return r.cachedFind(ctx, r.keyBuilder.BuildKey("email", filter.Emails[0]), load)
 	default:
 		// Fallback: do not cache
@@ -101,6 +105,13 @@ func (r *UserRepository) cachedFind(
 
 // Save creates or updates a user and invalidates cache.
 func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
+	// The login and email keys are derived from the values being written, so
+	// changing either would leave the entry under the previous value behind,
+	// still serving the whole row — password hash included — until its TTL runs
+	// out. Read what this save overwrites first, so both spellings can be
+	// dropped.
+	prev := r.overwrittenUsers(ctx, user)
+
 	err := r.inner.Save(ctx, user)
 	if err != nil {
 		return errors.WithMessage(err, "failed to save user")
@@ -108,19 +119,51 @@ func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 
 	// Write committed; invalidation is best-effort so a cache hiccup does not
 	// report the applied write as failed. Stale entries expire with TTL.
-	if user.ID != 0 {
-		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", user.ID))
-	}
-	if user.Login != "" {
-		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("login", user.Login))
-	}
-	if user.Email != "" {
-		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("email", user.Email))
+	for i := range prev {
+		r.invalidateKeys(ctx, &prev[i])
 	}
 
-	r.wrapper.InvalidatePatternBestEffort(ctx, "user:find*")
+	r.invalidateKeys(ctx, user)
 
 	return nil
+}
+
+// overwrittenUsers returns the rows this save is about to replace, whose cached
+// login and email keys would otherwise survive the write.
+//
+// An ID-less save is not always an insert: the MySQL upsert names no conflict
+// target, so a login or email already in the table updates that row rather than
+// adding one. Both identifiers are looked up because a row can be reached by
+// either, and MySQL picks only one of them when they point at different rows.
+func (r *UserRepository) overwrittenUsers(ctx context.Context, user *domain.User) []domain.User {
+	if user.ID != 0 {
+		return r.findUncached(ctx, filters.FindUserByIDs(user.ID))
+	}
+
+	var found []domain.User
+
+	if user.Login != "" {
+		found = append(found, r.findUncached(ctx, filters.FindUserByLogins(user.Login))...)
+	}
+
+	if user.Email != "" {
+		found = append(found, r.findUncached(ctx, filters.FindUserByEmails(user.Email))...)
+	}
+
+	return found
+}
+
+// findUncached reads through to the wrapped repository: invalidation has to be
+// driven by what is committed, never by what the cache still believes. A failed
+// read yields nothing, leaving the keys to expire with their TTL rather than
+// failing a write that has not happened yet.
+func (r *UserRepository) findUncached(ctx context.Context, filter *filters.FindUser) []domain.User {
+	users, err := r.inner.Find(ctx, filter, nil, nil)
+	if err != nil {
+		return nil
+	}
+
+	return users
 }
 
 // Delete removes a user and invalidates cache.
@@ -136,7 +179,6 @@ func (r *UserRepository) Delete(ctx context.Context, id uint) error {
 
 	r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", id))
 	r.invalidateUserCache(ctx, findErr, users)
-	r.wrapper.InvalidatePatternBestEffort(ctx, "user:find*")
 
 	return nil
 }
@@ -146,13 +188,19 @@ func (r *UserRepository) invalidateUserCache(ctx context.Context, findErr error,
 		return
 	}
 
-	user := users[0]
+	r.invalidateKeys(ctx, &users[0])
+}
+
+// invalidateKeys drops every cache key that resolves to this user.
+func (r *UserRepository) invalidateKeys(ctx context.Context, user *domain.User) {
 	if user.ID != 0 {
 		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", user.ID))
 	}
+
 	if user.Login != "" {
 		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("login", user.Login))
 	}
+
 	if user.Email != "" {
 		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("email", user.Email))
 	}

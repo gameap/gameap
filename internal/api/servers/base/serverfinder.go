@@ -2,6 +2,7 @@ package base
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/domain"
@@ -53,5 +54,17 @@ func (f *ServerFinder) FindUserServer(ctx context.Context, user *domain.User, se
 		return nil, api.NewNotFoundError("server not found")
 	}
 
-	return &servers[0], nil
+	server := &servers[0]
+
+	// A blocked server is closed for its owner but stays reachable for
+	// administrators. The block is what actually suspends a service — an
+	// external biller flips it and expects the customer to lose control of
+	// the server, not merely to see a flag. Forbidden rather than not-found:
+	// the caller already owns the server, so there is nothing to hide, and a
+	// distinct status lets the UI explain why.
+	if server.Blocked && !isAdmin {
+		return nil, api.NewError(http.StatusForbidden, "server is blocked")
+	}
+
+	return server, nil
 }

@@ -3,6 +3,7 @@ package login
 import (
 	"context"
 
+	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/domain"
 )
 
@@ -17,4 +18,10 @@ type captchaVerifier interface {
 // decide whether a user holds the admin ability, which gates the MFA nudge.
 type adminChecker interface {
 	Can(ctx context.Context, userID uint, abilities []domain.AbilityName) (bool, error)
+}
+
+// TwoFactorChallengeStore is the narrow cache surface IssueTwoFactorChallenge
+// needs. Both the password login and the SSO ticket exchange satisfy it.
+type TwoFactorChallengeStore interface {
+	Set(ctx context.Context, key string, value any, options ...cache.Option) error
 }

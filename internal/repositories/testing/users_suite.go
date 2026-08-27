@@ -332,6 +332,11 @@ func (s *UserRepositorySuite) TestUserRepositoryFind() {
 		assert.Contains(t, logins, "testfind3")
 	})
 
+	// Only the canonical (lowercase) spelling is pinned here. Case folding is
+	// services.UserService's job, and the backends genuinely disagree below it:
+	// MySQL's utf8mb4 collation matches case-insensitively while PG and SQLite
+	// compare exactly. See TestUserService_Find for the case-insensitivity
+	// guarantee itself.
 	s.T().Run("find_by_email", func(t *testing.T) {
 		filter := &filters.FindUser{Emails: []string{"testfind1@example.com"}}
 		results, err := s.repo.Find(ctx, filter, nil, nil)

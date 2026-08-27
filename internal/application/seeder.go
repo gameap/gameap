@@ -132,7 +132,10 @@ func seedRoles(ctx context.Context, c *Container) error {
 
 func seedUsers(ctx context.Context, c *Container) error {
 	return c.TransactionManager().Do(ctx, func(ctx context.Context) error {
-		repo := c.UserRepository()
+		// The service, not the repository: ADMIN_EMAIL / ADMIN_LOGIN come straight
+		// from the operator's environment and must be canonicalised like any
+		// other user write.
+		repo := c.UserService()
 
 		users, err := repo.FindAll(ctx, nil, nil)
 		if err != nil {

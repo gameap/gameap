@@ -60,7 +60,9 @@
     "throttle": "Слишком много попыток. Пожалуйста попробуйте через :seconds секунд.",
     "registration_not_allowed": "Регистрация закрыта.",
     "captcha_required": "Пожалуйста, пройдите проверку CAPTCHA.",
-    "captcha_failed": "Проверка CAPTCHA не пройдена. Попробуйте ещё раз."
+    "captcha_failed": "Проверка CAPTCHA не пройдена. Попробуйте ещё раз.",
+    "sso_signing_in": "Выполняется вход\u2026",
+    "sso_failed": "Ссылка для входа больше не действительна. Войдите по паролю."
   },
   "client_certificates": {
     "title_create": "Создать сертификат",

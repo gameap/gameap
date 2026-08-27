@@ -127,7 +127,9 @@ func (f *failingCache) Set(_ context.Context, _ string, _ any, _ ...cache.Option
 }
 
 func (f *failingCache) Delete(_ context.Context, _ string) error { return nil }
-func (f *failingCache) Clear(_ context.Context) error            { return nil }
+
+func (f *failingCache) Pull(_ context.Context, _ string) (any, error) { return nil, cache.ErrNotFound }
+func (f *failingCache) Clear(_ context.Context) error                 { return nil }
 
 var errCacheUnavailable = errors.New("cache unavailable")
 

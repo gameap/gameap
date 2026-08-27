@@ -405,6 +405,10 @@ func (f *fakeRBAC) SetRolesToUser(_ context.Context, _ uint, _ []string) error {
 	return nil
 }
 
+func (f *fakeRBAC) AdministrativeRoles(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+
 func (f *fakeRBAC) AllowUserAbilitiesForEntity(
 	_ context.Context, _ uint, _ uint, _ domain.EntityType, _ []domain.AbilityName,
 ) error {

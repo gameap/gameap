@@ -309,7 +309,10 @@ func (r *NodeRepository) scan(row base.Scanner) (*domain.Node, error) {
 
 func (r *NodeRepository) filterToSq(filter *filters.FindNode) sq.Sqlizer {
 	if filter == nil {
-		return nil
+		// A nil filter still excludes soft-deleted rows: without this the
+		// deleted_at IS NULL guard below is skipped entirely and the callers that
+		// pass nil (the plugin host library's FindNodes) would see deleted nodes.
+		return sq.And{sq.Expr("deleted_at IS NULL")}
 	}
 
 	and := make(sq.And, 0, 6)

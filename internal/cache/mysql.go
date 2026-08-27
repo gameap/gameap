@@ -123,6 +123,75 @@ func (c *MySQL) Get(ctx context.Context, key string) (any, error) {
 	return value, nil
 }
 
+// Pull returns a value and removes it. MySQL has no DELETE ... RETURNING, so it
+// reads the payload and then claims the row with a DELETE: the row's removal is
+// the atomic arbiter — of two concurrent redemptions exactly one sees
+// RowsAffected == 1 and gets the value, the other gets ErrNotFound.
+func (c *MySQL) Pull(ctx context.Context, key string) (any, error) {
+	fullKey := c.buildKey(key)
+
+	selectQuery, selectArgs, err := sq.Select("value", "expires_at").
+		From(kvStoreTable).
+		Where(sq.Eq{"`key`": fullKey}).
+		PlaceholderFormat(sq.Question).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	var valueJSON string
+	var expiresAt sql.NullTime
+
+	err = c.db.QueryRowContext(ctx, selectQuery, selectArgs...).Scan(&valueJSON, &expiresAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("failed to query row: %w", err)
+	}
+
+	// Compare-and-delete on the value just read. MySQL has no DELETE ...
+	// RETURNING (postgres Pull uses one, redis uses GETDEL), so without the value
+	// in the predicate a Set landing between the two statements would have this
+	// call return the old value while deleting the new one.
+	deleteQuery, deleteArgs, err := sq.Delete(kvStoreTable).
+		Where(sq.Eq{"`key`": fullKey, "`value`": valueJSON}).
+		PlaceholderFormat(sq.Question).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	result, err := c.db.ExecContext(ctx, deleteQuery, deleteArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull cache value: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read rows affected: %w", err)
+	}
+
+	// Lost the race: another redemption removed the row, or a Set replaced the
+	// value between the SELECT and the DELETE. Either way this caller removed
+	// nothing and must not hand back what it read.
+	if affected == 0 {
+		return nil, ErrNotFound
+	}
+
+	if expiresAt.Valid && expiresAt.Time.Before(time.Now()) {
+		return nil, ErrNotFound
+	}
+
+	var value any
+	if err := json.Unmarshal([]byte(valueJSON), &value); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal value: %w", err)
+	}
+
+	return value, nil
+}
+
 func (c *MySQL) Set(ctx context.Context, key string, value any, options ...Option) error {
 	opts := ApplyOptions(options...)
 	fullKey := c.buildKey(key)

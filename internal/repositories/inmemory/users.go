@@ -68,6 +68,8 @@ func (r *UserRepository) Find(
 		loginSet[login] = true
 	}
 
+	// Matched exactly, like the SQL backends: emails reach a repository already
+	// canonicalised by services.UserService.
 	emailSet := make(map[string]bool)
 	for _, email := range filter.Emails {
 		emailSet[email] = true

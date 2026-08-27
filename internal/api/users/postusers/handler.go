@@ -125,6 +125,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := base.EnsureRolesAllowedForSession(ctx, h.rbac, input.Roles); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	if err := h.checkUserExistence(ctx, input); err != nil {
 		h.responder.WriteError(ctx, rw, err)
 

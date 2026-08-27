@@ -143,6 +143,41 @@ func TestUserService_Find(t *testing.T) {
 			},
 		},
 		{
+			// The repositories below compare exactly so the unique index stays
+			// usable, which makes this the only layer that folds case.
+			name: "finds_by_email_case_insensitive",
+			setupRepo: func(repo *inmemory.UserRepository) {
+				_ = repo.Save(context.Background(), &domain.User{Login: "alice", Email: "alice@example.com"})
+				_ = repo.Save(context.Background(), &domain.User{Login: "bob", Email: "bob@example.com"})
+			},
+			filter: &filters.FindUser{Emails: []string{"BoB@Example.COM"}},
+			validate: func(t *testing.T, users []domain.User, err error) {
+				t.Helper()
+				require.NoError(t, err)
+				require.Len(t, users, 1)
+				assert.Equal(t, "bob", users[0].Login)
+				assert.Equal(t, "bob@example.com", users[0].Email)
+			},
+		},
+		{
+			name: "finds_by_mixed_case_email_among_multiple",
+			setupRepo: func(repo *inmemory.UserRepository) {
+				_ = repo.Save(context.Background(), &domain.User{Login: "alice", Email: "alice@example.com"})
+				_ = repo.Save(context.Background(), &domain.User{Login: "bob", Email: "bob@example.com"})
+				_ = repo.Save(context.Background(), &domain.User{Login: "carol", Email: "carol@example.com"})
+			},
+			filter: &filters.FindUser{Emails: []string{"ALICE@EXAMPLE.COM", "carol@example.com"}},
+			validate: func(t *testing.T, users []domain.User, err error) {
+				t.Helper()
+				require.NoError(t, err)
+				require.Len(t, users, 2)
+
+				logins := []string{users[0].Login, users[1].Login}
+				assert.Contains(t, logins, "alice")
+				assert.Contains(t, logins, "carol")
+			},
+		},
+		{
 			name: "finds_by_id",
 			setupRepo: func(repo *inmemory.UserRepository) {
 				_ = repo.Save(context.Background(), &domain.User{Login: "alice", Email: "alice@example.com"})
@@ -219,6 +254,24 @@ func TestUserService_Save(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, users, 1)
 				assert.Equal(t, "alice", users[0].Login)
+			},
+		},
+		{
+			// Stored canonically so the exact-comparing repositories, and the
+			// cache keys hashed from these values, all agree on one spelling.
+			name:      "saves_new_user_with_lowercase_email",
+			setupRepo: func(_ *inmemory.UserRepository) {},
+			user:      &domain.User{Login: "alice", Email: "Alice@Example.COM"},
+			validate: func(t *testing.T, repo *inmemory.UserRepository, err error) {
+				t.Helper()
+				require.NoError(t, err)
+
+				users, err := repo.Find(
+					context.Background(), &filters.FindUser{Emails: []string{"alice@example.com"}}, nil, nil,
+				)
+				require.NoError(t, err)
+				require.Len(t, users, 1)
+				assert.Equal(t, "alice@example.com", users[0].Email)
 			},
 		},
 		{

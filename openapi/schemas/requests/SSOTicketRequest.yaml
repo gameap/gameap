@@ -1,0 +1,27 @@
+type: object
+description: Request to mint a single-use SSO login ticket for another user.
+properties:
+  user_id:
+    type: integer
+    description: ID of the user the ticket logs in. Must not be an administrator.
+    example: 42
+  redirect_to:
+    type: string
+    description: >-
+      Optional path inside the panel to send the browser to after redemption.
+      Validated to stay within the panel origin and echoed back in the response.
+    example: "/servers/6"
+  client_ip:
+    type: string
+    description: >-
+      Optional. Binds the ticket to the IP that will redeem it; the exchange is
+      then rejected from any other address. Must be a literal IPv4 or IPv6
+      address — a hostname, a `host:port` value, or surrounding whitespace is
+      rejected with 422, since it is later compared verbatim against the
+      redeeming address. Only meaningful when the panel sits behind a proxy
+      whose real-client-IP header is configured (`AUDIT_CLIENT_IP_HEADER`) and
+      the caller knows the browser's address — otherwise every client looks
+      like the proxy and the binding does nothing.
+    example: "203.0.113.7"
+required:
+  - user_id

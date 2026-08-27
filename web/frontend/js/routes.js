@@ -10,6 +10,7 @@ import Error500View from "./views/errors/Error500View.vue";
 import {requestCancellation} from "./config/requestCancellation";
 
 // Lazy-loaded views
+const SsoView = () => import("./views/SsoView.vue");
 const ServersView = () => import("./views/ServersView.vue");
 const ProfileView = () => import("./views/ProfileView.vue");
 const TokensView = () => import("./views/TokensView.vue");
@@ -53,6 +54,13 @@ const routes = [
         path: '/login',
         name: 'login',
         component: LoginView,
+    },
+    {
+        // Landing point for a single-use sign-in link issued by an external
+        // system. Reachable without a session — that is the whole point.
+        path: '/sso',
+        name: 'sso',
+        component: SsoView,
     },
     {
         path: '/',
@@ -247,7 +255,9 @@ const beforeEachRoute = (to, from) => {
 
     const errorPages = ['error403', 'error404', 'error500']
 
-    if (to.name !== 'login' && !errorPages.includes(to.name) && !authStore.isAuthenticated) {
+    const guestPages = ['login', 'sso']
+
+    if (!guestPages.includes(to.name) && !errorPages.includes(to.name) && !authStore.isAuthenticated) {
         return {name: 'login'}
     }
 

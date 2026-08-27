@@ -113,6 +113,22 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := base.EnsureRolesAllowedForSession(ctx, h.rbac, updateInput.Roles); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
+	if err := base.EnsurePasswordChangeAllowedForSession(
+		ctx, updateInput.Password != nil && *updateInput.Password != "",
+	); err != nil {
+		audit.AccessDenied(ctx, h.audit, "user",
+			strconv.FormatUint(uint64(userID), 10), "token_password_change")
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	users, err := h.usersRepo.Find(ctx, &filters.FindUser{
 		IDs: []uint{userID},
 	}, nil, &filters.Pagination{
@@ -131,6 +147,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	user := &users[0]
+
+	if err := base.EnsureTargetNotAdminForToken(ctx, h.rbac, user.ID); err != nil {
+		if errors.Is(err, base.ErrTokenCannotModifyAdmin) {
+			audit.AccessDenied(ctx, h.audit, "user",
+				strconv.FormatUint(uint64(user.ID), 10), "token_target_is_admin")
+		}
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
 
 	changedFields := updateInput.changedFields(user)
 

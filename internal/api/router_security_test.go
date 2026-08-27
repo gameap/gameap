@@ -11,6 +11,7 @@ import (
 
 	"github.com/gameap/gameap/internal/api"
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/pkg/auth"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/gameap/gameap/pkg/testcontainer"
 	"github.com/stretchr/testify/assert"
@@ -208,6 +209,160 @@ func TestRouterSecurity_TokenAccess(t *testing.T) {
 			name:               "token_without_gdaemon_task_read_cannot_access_gdaemon_task",
 			request:            "GET /api/gdaemon_tasks/1",
 			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+
+		// Provisioning scopes. A billing integration drives these routes with
+		// a token, so each one must be reachable with its ability and closed
+		// without it.
+		{
+			name:               "admin_with_user_read_can_list_users",
+			request:            "GET /api/users",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_without_user_read_cannot_list_users",
+			request:            "GET /api/users",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "regular_user_with_user_read_cannot_list_users",
+			request:            "GET /api/users",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_user_manage_reaches_user_creation",
+			request:            "POST /api/users",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserManage},
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			name:               "admin_with_only_user_read_cannot_create_user",
+			request:            "POST /api/users",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// Account deletion is deliberately left out of the token scopes:
+			// a leaked billing token must not be able to erase accounts.
+			name:    "admin_with_every_provisioning_ability_cannot_delete_user",
+			request: "DELETE /api/users/2",
+			isAdmin: true,
+			tokenAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+				domain.PATAbilityUserManage,
+				domain.PATAbilityNodeRead,
+				domain.PATAbilityGameRead,
+			},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_node_read_can_list_nodes",
+			request:            "GET /api/nodes",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_without_node_read_cannot_list_nodes",
+			request:            "GET /api/nodes",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_node_read_can_read_busy_ports",
+			request:            "GET /api/nodes/1/busy_ports",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_with_game_read_can_list_games",
+			request:            "GET /api/games",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_without_game_read_cannot_list_games",
+			request:            "GET /api/games",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// game read reaches the handler; a missing game is a 404, which is
+			// what distinguishes "allowed through" from a 403 block.
+			name:               "admin_with_game_read_can_read_single_game",
+			request:            "GET /api/games/somecode",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusNotFound,
+		},
+		{
+			name:               "admin_without_game_read_cannot_read_single_game",
+			request:            "GET /api/games/somecode",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_game_read_can_list_game_mods",
+			request:            "GET /api/game_mods",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "admin_without_game_read_cannot_list_game_mods",
+			request:            "GET /api/game_mods",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "admin_with_game_read_can_read_single_game_mod",
+			request:            "GET /api/game_mods/1",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityGameRead},
+			expectedStatusCode: http.StatusNotFound,
+		},
+		{
+			name:               "admin_without_game_read_cannot_read_single_game_mod",
+			request:            "GET /api/game_mods/1",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityNodeRead},
+			expectedStatusCode: http.StatusForbidden,
+		},
+
+		// "POST /api/auth/sso/tickets" endpoint tests
+		{
+			name:               "admin_with_sso_issue_can_reach_ticket_minting",
+			request:            "POST /api/auth/sso/tickets",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilitySSOIssue},
+			expectedStatusCode: http.StatusBadRequest,
+		},
+		{
+			// Managing users must not silently include handing out logins.
+			name:               "admin_with_user_manage_alone_cannot_mint_tickets",
+			request:            "POST /api/auth/sso/tickets",
+			isAdmin:            true,
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityUserManage},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "regular_user_with_sso_issue_cannot_mint_tickets",
+			request:            "POST /api/auth/sso/tickets",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilitySSOIssue},
 			expectedStatusCode: http.StatusForbidden,
 		},
 
@@ -434,6 +589,158 @@ func TestRouterSecurity_UserAccess(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, test.expectedStatusCode, w.Code, "Expected status code %d, got %d", test.expectedStatusCode, w.Code)
+		})
+	}
+}
+
+// An SSO ticket travels in a URL, so it must be worthless as a credential
+// anywhere except the exchange endpoint. The auth middleware does not know its
+// prefix, which is what makes every other presentation a 401.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
+func TestRouterSecurity_SSOTicketIsNotACredential(t *testing.T) {
+	ticket := auth.SSOTicketPrefix + "0123456789abcdef0123456789abcdef0123456789abcdef"
+
+	tests := []struct {
+		name    string
+		prepare func(req *http.Request)
+	}{
+		{
+			name: "as_bearer_header",
+			prepare: func(req *http.Request) {
+				req.Header.Set("Authorization", "Bearer "+ticket)
+			},
+		},
+		{
+			name: "as_query_parameter",
+			prepare: func(req *http.Request) {
+				query := req.URL.Query()
+				query.Set("token", ticket)
+				req.URL.RawQuery = query.Encode()
+			},
+		},
+		{
+			name: "as_cookie",
+			prepare: func(req *http.Request) {
+				req.AddCookie(&http.Cookie{Name: "token", Value: ticket})
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// ARRANGE
+			c, err := testcontainer.LoadInmemoryContainer()
+			require.NoError(t, err)
+
+			_, err = testcontainer.SetupFixtures(context.Background(), c)
+			require.NoError(t, err)
+
+			router := api.CreateRouter(c)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/servers", nil)
+			test.prepare(req)
+
+			w := httptest.NewRecorder()
+
+			// ACT
+			router.ServeHTTP(w, req)
+
+			// ASSERT
+			assert.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+		})
+	}
+}
+
+// TestRouterSecurity_TokenCannotEscalateViaUserUpdate covers OWASP API Top
+// 10:2023 API1 (Broken Object Level Authorization) and API5 (Broken Function
+// Level Authorization): a leaked "manage users" PAT must not be able to take
+// over or de-throne an administrator, nor reset any existing user's password —
+// while the provisioning path a billing integration actually needs keeps working.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
+func TestRouterSecurity_TokenCannotEscalateViaUserUpdate(t *testing.T) {
+	tests := []struct {
+		name               string
+		request            string
+		body               string
+		expectedStatusCode int
+	}{
+		{
+			// K1: resetting an existing user's password through a token is
+			// refused regardless of the target.
+			name:               "token_cannot_change_regular_user_password",
+			request:            "PUT /api/users/2",
+			body:               `{"email":"test@gameap.com","password":"S0me-Str0ng-Pass!"}`,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// K1: the same, targeting an administrator.
+			name:               "token_cannot_change_admin_password",
+			request:            "PUT /api/users/1",
+			body:               `{"email":"admin@yousite.local","password":"S0me-Str0ng-Pass!"}`,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// K1/K2: any edit aimed at an administrator is refused, even a benign one.
+			name:               "token_cannot_edit_administrator",
+			request:            "PUT /api/users/1",
+			body:               `{"email":"admin@yousite.local"}`,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// K2: an omitted/empty roles list clears assignments; against an
+			// administrator that would strip their roles, so it must be refused.
+			name:               "token_cannot_strip_admin_roles",
+			request:            "PUT /api/users/1",
+			body:               `{"email":"admin@yousite.local","roles":[]}`,
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			// The legitimate provisioning path still works: updating a regular
+			// customer with non-administrative roles.
+			name:               "token_can_update_regular_user",
+			request:            "PUT /api/users/2",
+			body:               `{"email":"test@gameap.com","roles":["user"]}`,
+			expectedStatusCode: http.StatusOK,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c, err := testcontainer.LoadInmemoryContainer()
+			require.NoError(t, err)
+
+			ctx := context.Background()
+
+			fixtures, err := testcontainer.SetupFixtures(ctx, c)
+			require.NoError(t, err)
+
+			abilities := []domain.PATAbility{domain.PATAbilityUserManage}
+			tokenString, err := pkgstrings.CryptoRandomString(40)
+			require.NoError(t, err)
+			token := &domain.PersonalAccessToken{
+				TokenableType: domain.EntityTypeUser,
+				TokenableID:   fixtures.AdminUser.ID,
+				Name:          "Billing Token",
+				Token:         pkgstrings.SHA256(tokenString),
+				Abilities:     &abilities,
+			}
+			require.NoError(t, c.PersonalAccessTokenRepository().Save(ctx, token))
+
+			router := api.CreateRouter(c)
+
+			method, path := parseRequest(test.request)
+			req := httptest.NewRequest(method, path, strings.NewReader(test.body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+fmt.Sprintf("%d|%s", token.ID, tokenString))
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			if !assert.Equal(t, test.expectedStatusCode, w.Code) {
+				t.Logf("Response body: %s", w.Body.String())
+			}
 		})
 	}
 }

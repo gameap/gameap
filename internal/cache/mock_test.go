@@ -16,6 +16,7 @@ var (
 	errInjectedSet    = errors.New("injected set failure")
 	errInjectedDelete = errors.New("injected delete failure")
 	errInjectedClear  = errors.New("injected clear failure")
+	errInjectedPull   = errors.New("injected pull failure")
 )
 
 // failingCache is a Cache implementation that returns the configured per-method
@@ -28,11 +29,13 @@ type failingCache struct {
 	setErr    error
 	deleteErr error
 	clearErr  error
+	pullErr   error
 
 	getCalls    atomic.Int64
 	setCalls    atomic.Int64
 	deleteCalls atomic.Int64
 	clearCalls  atomic.Int64
+	pullCalls   atomic.Int64
 }
 
 func (f *failingCache) Get(_ context.Context, _ string) (any, error) {
@@ -51,6 +54,12 @@ func (f *failingCache) Delete(_ context.Context, _ string) error {
 	f.deleteCalls.Add(1)
 
 	return f.deleteErr
+}
+
+func (f *failingCache) Pull(_ context.Context, _ string) (any, error) {
+	f.pullCalls.Add(1)
+
+	return nil, f.pullErr
 }
 
 func (f *failingCache) Clear(_ context.Context) error {
@@ -109,6 +118,17 @@ func TestFailingCache_PropagatesErrors(t *testing.T) {
 			},
 			callCount: func(f *failingCache) int64 { return f.deleteCalls.Load() },
 			wantError: "injected delete failure",
+		},
+		{
+			name: "pull_returns_configured_error",
+			fake: &failingCache{pullErr: errInjectedPull},
+			invoke: func(ctx context.Context, c cache.Cache) error {
+				_, err := c.Pull(ctx, "any_key")
+
+				return err
+			},
+			callCount: func(f *failingCache) int64 { return f.pullCalls.Load() },
+			wantError: "injected pull failure",
 		},
 		{
 			name: "clear_returns_configured_error",

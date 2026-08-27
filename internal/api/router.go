@@ -13,6 +13,8 @@ import (
 	"github.com/gameap/gameap/internal/api/auth/login"
 	"github.com/gameap/gameap/internal/api/auth/logout"
 	"github.com/gameap/gameap/internal/api/auth/shorttoken"
+	"github.com/gameap/gameap/internal/api/auth/ssoexchange"
+	"github.com/gameap/gameap/internal/api/auth/ssomint"
 	"github.com/gameap/gameap/internal/api/auth/twofactorverify"
 	"github.com/gameap/gameap/internal/api/clientcertificates/deleteclientcertificates"
 	"github.com/gameap/gameap/internal/api/clientcertificates/getclientcertificates"
@@ -507,6 +509,55 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 				c.AuditLogger(),
 			),
+		},
+		{
+			// Mints a single-use ticket that logs one specific user into the
+			// panel, for external systems that already own the customer
+			// relationship (a billing panel's "open my game panel" button).
+			// Neither a PAT nor a short-lived token can do this: both are
+			// always issued for their own owner.
+			Method: http.MethodPost,
+			Path:   "/api/auth/sso/tickets",
+			Handler: ssomint.NewHandler(
+				c.UserService(),
+				c.RBAC(),
+				c.Cache(),
+				c.Config().Auth.SSOTicketTTL,
+				c.Responder(),
+				c.AuditLogger(),
+			),
+			AdminOnly:         true,
+			CheckPATAbilities: []domain.PATAbility{domain.PATAbilitySSOIssue},
+		},
+		{
+			// Guest by necessity: the browser arrives with no session. Wrapped
+			// in the same limiter as password login, and the ticket is
+			// consumed before it is validated so replays lose the race.
+			Method: http.MethodPost,
+			Path:   "/api/auth/sso/exchange",
+			Handler: middlewares.NewLoginRateLimitMiddleware(
+				c.Cache(),
+				c.Responder(),
+				middlewares.WithLoginRateLimitAuditLogger(c.AuditLogger()),
+				middlewares.WithLoginRateLimitClientIPHeader(c.Config().Audit.ClientIPHeader),
+				// Own key namespace: a failed ticket exchange must not spend the
+				// customer's /api/auth/login budget. The ticket secret is 48
+				// crypto-random chars — unguessable — so this limiter only guards
+				// against load, and can be looser than password login.
+				middlewares.WithLoginRateLimitKeyPrefix("auth:sso-exchange-fail:"),
+				middlewares.WithLoginRateLimitPerIP(60),
+			).Middleware(
+				ssoexchange.NewHandler(
+					c.AuthService(),
+					c.UserService(),
+					c.RBAC(),
+					c.Cache(),
+					c.Config().Audit.ClientIPHeader,
+					c.Responder(),
+					c.AuditLogger(),
+				),
+			),
+			AllowGuestAccess: true,
 		},
 
 		// User
@@ -1341,6 +1392,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/users",
 			Handler:   getusers.NewHandler(c.UserService(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1354,6 +1408,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserManage,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1364,6 +1421,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+			},
 		},
 		{
 			Method: http.MethodPut,
@@ -1378,6 +1438,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserManage,
+			},
 		},
 		{
 			Method: http.MethodDelete,
@@ -1399,6 +1462,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1411,6 +1477,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserRead,
+			},
 		},
 		{
 			Method: http.MethodPut,
@@ -1423,6 +1492,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserManage,
+			},
 		},
 
 		// Nodes / Dedicated Servers
@@ -1501,6 +1573,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1511,6 +1586,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method:    http.MethodGet,
@@ -1533,6 +1611,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1543,6 +1624,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodPut,
@@ -1604,6 +1688,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1614,6 +1701,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1623,6 +1713,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1633,6 +1726,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.Responder(),
 			),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityNodeRead,
+			},
 		},
 		{
 			Method: http.MethodGet,
@@ -1685,12 +1781,18 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/games",
 			Handler:   getgames.NewHandler(c.GameRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method:    http.MethodGet,
 			Path:      "/api/games/{code}",
 			Handler:   getgame.NewHandler(c.GameRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method:    http.MethodPost,
@@ -1720,6 +1822,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/games/{code}/mods",
 			Handler:   gamesgetgamemods.NewHandler(c.GameModRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method: http.MethodPost,
@@ -1808,6 +1913,9 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/game_mods",
 			Handler:   getgamemods.NewHandler(c.GameModRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method:    http.MethodPost,
@@ -1820,12 +1928,18 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Path:      "/api/game_mods/get_list_for_game/{game}",
 			Handler:   getlistforgame.NewHandler(c.GameModRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method:    http.MethodGet,
 			Path:      "/api/game_mods/{id}",
 			Handler:   getgamemod.NewHandler(c.GameModRepository(), c.Responder()),
 			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityGameRead,
+			},
 		},
 		{
 			Method: http.MethodPut,

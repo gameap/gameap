@@ -78,7 +78,9 @@ func (input *createUserInput) Validate() error {
 		return ErrInvalidEmail
 	}
 
-	input.Email = emailValue
+	// Canonical form, matching what services.UserService stores: a case-only
+	// difference must not read as a change to the address.
+	input.Email = strings.ToLower(emailValue)
 
 	if err := auth.ValidatePassword(input.Password); err != nil {
 		return err

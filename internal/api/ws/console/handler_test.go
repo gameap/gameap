@@ -402,6 +402,10 @@ func (e errorRBAC) GetRoles(_ context.Context, _ uint) ([]string, error) { retur
 
 func (e errorRBAC) SetRolesToUser(_ context.Context, _ uint, _ []string) error { return nil }
 
+func (e errorRBAC) AdministrativeRoles(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+
 func (e errorRBAC) AllowUserAbilitiesForEntity(
 	_ context.Context, _ uint, _ uint, _ domain.EntityType, _ []domain.AbilityName,
 ) error {

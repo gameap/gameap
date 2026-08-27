@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
+	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
@@ -38,7 +39,24 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := h.usersRepo.FindAll(ctx, nil, nil)
+	in, err := readInput(r)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, api.WrapHTTPError(err, http.StatusBadRequest))
+
+		return
+	}
+
+	filter := buildFilter(in)
+	pagination := buildPagination(in)
+
+	var users []domain.User
+
+	if filter == nil {
+		users, err = h.usersRepo.FindAll(ctx, nil, pagination)
+	} else {
+		users, err = h.usersRepo.Find(ctx, filter, nil, pagination)
+	}
+
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to find users"))
 

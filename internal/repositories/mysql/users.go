@@ -230,6 +230,9 @@ func (r *UserRepository) filterToSq(filter *filters.FindUser) sq.Sqlizer {
 	}
 
 	if len(filter.Emails) > 0 {
+		// Compared exactly, so the unique index stays usable. Emails are stored
+		// and filtered in their canonical lowercase form; services.UserService
+		// folds the case before anything reaches a repository.
 		and = append(and, sq.Eq{"email": filter.Emails})
 	}
 

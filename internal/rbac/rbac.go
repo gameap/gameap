@@ -2,6 +2,8 @@ package rbac
 
 import (
 	"context"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
@@ -13,6 +15,17 @@ type RBAC struct {
 	tm    base.TransactionManager
 	repo  Repository
 	cache *permissionCache
+
+	// adminRoles memoises AdministrativeRoles for one cacheTTL. The list is a
+	// security input — it decides which roles a personal access token may not
+	// assign — but it is derived from the same role/permission data the
+	// permission cache already serves with the same staleness, so caching it
+	// keeps the two consistent instead of repeating an N+1 lookup on every
+	// token-driven user create or update.
+	adminRolesMu      sync.Mutex
+	adminRolesNames   []string
+	adminRolesExpires time.Time
+	cacheTTL          time.Duration
 }
 
 func NewRBAC(
@@ -21,9 +34,10 @@ func NewRBAC(
 	cacheTTL time.Duration,
 ) *RBAC {
 	return &RBAC{
-		tm:    tm,
-		repo:  repo,
-		cache: newPermissionCache(cacheTTL),
+		tm:       tm,
+		repo:     repo,
+		cache:    newPermissionCache(cacheTTL),
+		cacheTTL: cacheTTL,
 	}
 }
 
@@ -47,6 +61,10 @@ func (r *RBAC) InvalidateUserCache(userID uint) {
 // everyone holding that role.
 func (r *RBAC) InvalidateCache() {
 	r.cache.Clear()
+
+	r.adminRolesMu.Lock()
+	r.adminRolesNames = nil
+	r.adminRolesMu.Unlock()
 }
 
 // Can checks if the user has all the specified abilities.
@@ -221,6 +239,70 @@ func (r *RBAC) GetRoles(ctx context.Context, userID uint) ([]string, error) {
 	}
 
 	return roleNames, nil
+}
+
+// AdministrativeRoles returns the names of every role that grants the
+// panel-wide administrative ability.
+//
+// It exists so a non-interactive caller — a personal access token driving the
+// panel from a billing system — can be stopped from creating or promoting an
+// administrator. Without that check the narrow "manage users" token scope
+// would be equivalent to full panel access, because assigning the admin role
+// is one request away. Role names are not hardcoded on purpose: an operator
+// may grant the ability through a role of any name.
+//
+// The result is memoised for one cacheTTL (see the struct field): it is read on
+// every token-driven user write, but the underlying roles change rarely, and
+// the staleness window matches the permission cache that already backs Can.
+func (r *RBAC) AdministrativeRoles(ctx context.Context) ([]string, error) {
+	r.adminRolesMu.Lock()
+	defer r.adminRolesMu.Unlock()
+
+	// Cloned on the way out: the mutex guards the field, not the backing array
+	// that a caller would otherwise share with the memoised copy.
+	if r.adminRolesNames != nil && time.Now().Before(r.adminRolesExpires) {
+		return slices.Clone(r.adminRolesNames), nil
+	}
+
+	names, err := r.computeAdministrativeRoles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	r.adminRolesNames = names
+	r.adminRolesExpires = time.Now().Add(r.cacheTTL)
+
+	return slices.Clone(names), nil
+}
+
+func (r *RBAC) computeAdministrativeRoles(ctx context.Context) ([]string, error) {
+	roles, err := r.repo.GetRoles(ctx)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to get roles")
+	}
+
+	names := make([]string, 0, len(roles))
+
+	for _, role := range roles {
+		permissions, err := r.repo.GetPermissions(ctx, role.ID, domain.EntityTypeRole)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to get role permissions")
+		}
+
+		for _, permission := range permissions {
+			if permission.Forbidden || permission.Ability == nil {
+				continue
+			}
+
+			if permission.Ability.Name == domain.AbilityNameAdminRolesPermissions {
+				names = append(names, role.Name)
+
+				break
+			}
+		}
+	}
+
+	return names, nil
 }
 
 func (r *RBAC) SetRolesToUser(ctx context.Context, userID uint, roleNames []string) error {

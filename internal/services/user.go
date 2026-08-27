@@ -37,12 +37,16 @@ func (s *UserService) Find(
 	order []filters.Sorting,
 	pagination *filters.Pagination,
 ) ([]domain.User, error) {
-	if filter != nil && len(filter.Logins) > 0 {
-		// Normalize logins to lowercase. Logins are case-insensitive.
-		// This is important for consistent querying.
-		// Assuming the database stores logins in lowercase.
+	// Logins and emails are case-insensitive, but the repositories below compare
+	// them exactly so the unique indexes stay usable. Canonicalising here keeps
+	// that contract in one place: everything the repository sees is lowercase.
+	if filter != nil {
 		for i := range filter.Logins {
 			filter.Logins[i] = strings.ToLower(filter.Logins[i])
+		}
+
+		for i := range filter.Emails {
+			filter.Emails[i] = strings.ToLower(filter.Emails[i])
 		}
 	}
 
@@ -53,8 +57,10 @@ func (s *UserService) Save(
 	ctx context.Context,
 	user *domain.User,
 ) error {
-	// Normalize login to lowercase. Logins are case-insensitive.
+	// Store the canonical form: see Find for why the repositories never fold case
+	// themselves.
 	user.Login = strings.ToLower(user.Login)
+	user.Email = strings.ToLower(user.Email)
 
 	if user.CreatedAt == nil || user.CreatedAt.IsZero() {
 		user.CreatedAt = new(time.Now())

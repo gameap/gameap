@@ -31,6 +31,15 @@ func (s *NodeRepositorySuite) SetupTest() {
 	s.repo = s.fn(s.T())
 }
 
+func nodeIDs(nodes []domain.Node) []uint {
+	ids := make([]uint, 0, len(nodes))
+	for _, node := range nodes {
+		ids = append(ids, node.ID)
+	}
+
+	return ids
+}
+
 func (s *NodeRepositorySuite) TestNodeRepositorySave() {
 	ctx := context.Background()
 
@@ -540,6 +549,34 @@ func (s *NodeRepositorySuite) TestNodeRepositoryFind() {
 		results, err := s.repo.Find(ctx, nil, nil, nil)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(results), 2)
+	})
+
+	// A nil filter carries no WithDeleted flag, so it must still exclude
+	// soft-deleted rows: callers that pass nil (the plugin host library's
+	// FindNodes) have no other way to ask for the non-deleted set.
+	s.T().Run("find_with_nil_filter_excludes_deleted", func(t *testing.T) {
+		deleted := &domain.Node{
+			Name: "Find Deleted Node", OS: domain.NodeOSLinux, Location: "US",
+			IPs: domain.IPList{"10.1.3.1"}, WorkPath: "/var/gameap",
+			GdaemonHost: "find3", GdaemonPort: 31717,
+			GdaemonAPIKey: "find-key-3", GdaemonServerCert: "cert-3",
+			ClientCertificateID: 3, PreferInstallMethod: domain.NodePreferInstallMethodAuto,
+		}
+		require.NoError(t, s.repo.Save(ctx, deleted))
+
+		// Soft delete goes through Save, like the delete-node handler does;
+		// the repository's Delete removes the row outright.
+		deletedAt := time.Now().UTC()
+		deleted.DeletedAt = &deletedAt
+		require.NoError(t, s.repo.Save(ctx, deleted))
+
+		results, err := s.repo.Find(ctx, nil, nil, nil)
+		require.NoError(t, err)
+		assert.NotContains(t, nodeIDs(results), deleted.ID)
+
+		withDeleted, err := s.repo.Find(ctx, &filters.FindNode{WithDeleted: true}, nil, nil)
+		require.NoError(t, err)
+		assert.Contains(t, nodeIDs(withDeleted), deleted.ID)
 	})
 
 	s.T().Run("find_non_existent", func(t *testing.T) {
