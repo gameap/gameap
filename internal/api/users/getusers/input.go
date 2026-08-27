@@ -40,8 +40,10 @@ func readInput(r *http.Request) (*input, error) {
 	}
 	result.Logins = logins
 
-	// Email matching is case-insensitive — every backend compares on LOWER(...)
-	// — so the stored casing does not matter and a single spelling is enough.
+	// Email matching is case-insensitive because services.UserService lowercases
+	// the filter before a repository sees it, and stores emails lowercased too;
+	// the backends themselves compare exactly. So the spelling asked for here does
+	// not matter, and a single one is enough.
 	emails, err := queryReader.ReadList("filter[email]")
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read filter[email] list")
