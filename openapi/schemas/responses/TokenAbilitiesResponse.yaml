@@ -10,5 +10,14 @@ example:
     "server:list": "List game servers"
     "server:start": "Start game server"
     "server:stop": "Stop game server"
-  gdaemon_task:
-    "gdaemon_task:list": "List daemon tasks"
+    "admin:server:create": "Create game server"
+  gdaemon-task:
+    "admin:gdaemon-task:read": "Read GameAP Daemon task"
+  user:
+    "admin:user:read": "Read users and their server assignments"
+    "admin:user:manage": "Create and update users, assign servers and server permissions"
+    "admin:user:sso": "Issue single sign-on tickets for other users. For an administrator, only for the token's own owner, and an enrolled second factor must still be passed to redeem it"
+  node:
+    "admin:node:read": "Read nodes, their IP addresses and busy ports"
+  game:
+    "admin:game:read": "Read games and game mods"

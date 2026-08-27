@@ -67,10 +67,16 @@ func (r AbilitiesResponse) MarshalJSON() ([]byte, error) {
 }
 
 func newAbilitiesResponse(groupedAbilities domain.GroupedAbilities) AbilitiesResponse {
-	// Define the order of groups
+	// The order groups appear in the response, and — since a group missing from
+	// this list is silently dropped — also which ones appear at all. Every group
+	// GetGroupedAbilities can build has to be listed, or the abilities in it
+	// become impossible to tick in the panel and can only be asked for by hand.
 	groupOrder := []domain.PATAbilityGroup{
 		domain.PATAbilityGroupServer,
 		domain.PATAbilityGroupGDaemonTask,
+		domain.PATAbilityGroupUser,
+		domain.PATAbilityGroupNode,
+		domain.PATAbilityGroupGame,
 	}
 
 	groups := make([]orderedGroup, 0)

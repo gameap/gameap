@@ -117,7 +117,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				_ = rbacRepo.SaveAssignedRole(context.Background(), assignedRole)
 			},
 			wantStatus:      http.StatusOK,
-			wantGroupsCount: 2, // Server and gdaemon-task groups
+			wantGroupsCount: 5, // server, gdaemon-task, user, node, game
 			wantAdminGroup:  true,
 		},
 		{
@@ -190,12 +190,26 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.True(t, exists, "gdaemon-task group should exist for admin")
 				assert.NotEmpty(t, gdaemonAbilities, "gdaemon-task abilities should not be empty")
 
+				// Every admin group has to survive the response builder, not just
+				// the two it was originally written for: an ability that never
+				// reaches this payload cannot be ticked in the panel at all.
+				for _, group := range []string{"user", "node", "game"} {
+					groupAbilities, exists := abilities[group]
+					assert.Truef(t, exists, "%s group should exist for admin", group)
+					assert.NotEmptyf(t, groupAbilities, "%s abilities should not be empty", group)
+				}
+
+				_, hasSSOAbility := abilities["user"][string(domain.PATAbilitySSOIssue)]
+				assert.True(t, hasSSOAbility, "user group should offer the single sign-on ability")
+
 				// Check that server group contains admin abilities
 				_, hasCreateAbility := serverAbilities[string(domain.PATAbilityServerCreate)]
 				assert.True(t, hasCreateAbility, "server group should contain create ability for admin")
 			} else {
-				_, exists := abilities["gdaemon-task"]
-				assert.False(t, exists, "gdaemon-task group should not exist for regular user")
+				for _, group := range []string{"gdaemon-task", "user", "node", "game"} {
+					_, exists := abilities[group]
+					assert.Falsef(t, exists, "%s group should not exist for regular user", group)
+				}
 
 				// Check that server group doesn't contain admin abilities
 				_, hasCreateAbility := serverAbilities[string(domain.PATAbilityServerCreate)]

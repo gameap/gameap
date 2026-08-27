@@ -402,7 +402,12 @@
     tags:
       - Tokens
     summary: Get available token abilities
-    description: Returns all available abilities for personal access tokens
+    description: >-
+      Returns the abilities a personal access token can be granted, grouped by
+      category. The `server` group is offered to everyone; the admin-only
+      abilities — the rest of `server`, plus the `gdaemon-task`, `user`, `node`
+      and `game` groups — appear only when the caller holds the administrator
+      role, since `POST /api/tokens` refuses them otherwise.
     operationId: getTokenAbilities
     responses:
       '200':
