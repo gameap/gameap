@@ -295,6 +295,7 @@ import {usePluginsStore} from "@/store/plugins"
 import {providePluginContext} from "@/plugins/context"
 import {trans, pageLanguage} from "@/i18n/i18n";
 import InactiveServer from "./InactiveServer.vue";
+import {errorNotification} from "@/parts/dialogs";
 
 const route = useRoute()
 const router = useRouter()
@@ -347,10 +348,18 @@ onMounted(() => {
     } else {
       setInitialTabFromHash()
     }
-  }).catch(() => {})
+  }).catch((error) => {
+    // The store already resolves the two cases this view expects — a cancelled
+    // request and the 403 of a suspended server, which drives the blocked view.
+    // Anything still thrown is a real failure and has to be shown, or the page
+    // just sits there empty.
+    errorNotification(error)
+  })
   serverStore.fetchAbilities().then(() => {
     setInitialTabFromHash()
-  }).catch(() => {})
+  }).catch((error) => {
+    errorNotification(error)
+  })
 });
 
 const isServerEnabled = ref(true)

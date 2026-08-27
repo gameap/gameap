@@ -371,6 +371,12 @@
           application/json:
             schema:
               $ref: '../schemas/responses/SSOTicketResponse.yaml'
+      '400':
+        description: Malformed request body
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Missing or invalid token
         content:
@@ -441,6 +447,12 @@
               oneOf:
                 - $ref: '../schemas/responses/SSOExchangeSessionResponse.yaml'
                 - $ref: '../schemas/responses/SSOExchangeChallengeResponse.yaml'
+      '400':
+        description: Malformed request body
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Invalid, expired, already-used, or IP-mismatched ticket
         content:

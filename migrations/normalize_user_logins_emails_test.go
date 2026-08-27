@@ -84,4 +84,27 @@ func TestMigration022NormalizesUserLoginsAndEmails(t *testing.T) {
 
 	_, email = read(4)
 	assert.Equal(t, "dup@example.com", email)
+
+	// What leaving the pair alone costs, stated outright. Before this migration
+	// the LOWER(...) comparison matched both rows and the lowest id won; the
+	// exact comparison the repositories now use reaches only the row that is
+	// already lowercase, so id 3 stops being findable by that address.
+	var matched []int
+
+	rows, err := db.QueryContext(ctx,
+		"SELECT id FROM users WHERE email = ? ORDER BY id", "dup@example.com")
+	require.NoError(t, err)
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int
+		require.NoError(t, rows.Scan(&id))
+
+		matched = append(matched, id)
+	}
+
+	require.NoError(t, rows.Err())
+	assert.Equal(t, []int{4}, matched,
+		"a case-only duplicate resolves to the already-lowercase row, and only that one")
 }

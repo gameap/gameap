@@ -3,6 +3,7 @@ package cached_test
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -146,4 +147,127 @@ func TestUserRepositorySaveKeepsUnrelatedCacheEntries(t *testing.T) {
 	got, err := c.Get(ctx, "sso:ticket:abc")
 	require.NoError(t, err, "saving a user must not flush unrelated cache entries")
 	assert.Equal(t, "payload", got)
+}
+
+// upsertingUserRepo stands in for the MySQL user repository, whose upsert names
+// no conflict target: an ID-less save whose login or email is already taken
+// updates that row instead of inserting one. The in-memory repository always
+// inserts, so it cannot reproduce this.
+type upsertingUserRepo struct {
+	users  []domain.User
+	nextID uint
+}
+
+func (r *upsertingUserRepo) Save(_ context.Context, user *domain.User) error {
+	if idx := r.indexOf(user); idx >= 0 {
+		user.ID = r.users[idx].ID
+		r.users[idx] = *user
+
+		return nil
+	}
+
+	r.nextID++
+	user.ID = r.nextID
+	r.users = append(r.users, *user)
+
+	return nil
+}
+
+func (r *upsertingUserRepo) indexOf(user *domain.User) int {
+	for i, existing := range r.users {
+		if user.ID != 0 {
+			if existing.ID == user.ID {
+				return i
+			}
+
+			continue
+		}
+
+		if existing.Login == user.Login || existing.Email == user.Email {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// Find only has to serve single-field filters, which is all the cached
+// decorator ever builds a key from.
+func (r *upsertingUserRepo) Find(
+	_ context.Context, filter *filters.FindUser, _ []filters.Sorting, _ *filters.Pagination,
+) ([]domain.User, error) {
+	var found []domain.User
+
+	for _, user := range r.users {
+		if slices.Contains(filter.IDs, user.ID) ||
+			slices.Contains(filter.Logins, user.Login) ||
+			slices.Contains(filter.Emails, user.Email) {
+			found = append(found, user)
+		}
+	}
+
+	return found, nil
+}
+
+func (r *upsertingUserRepo) FindAll(
+	_ context.Context, _ []filters.Sorting, _ *filters.Pagination,
+) ([]domain.User, error) {
+	return r.users, nil
+}
+
+func (r *upsertingUserRepo) Delete(_ context.Context, id uint) error {
+	r.users = slices.DeleteFunc(r.users, func(user domain.User) bool { return user.ID == id })
+
+	return nil
+}
+
+func TestUserRepositorySaveDropsKeysOfRowOverwrittenByIDLessSave(t *testing.T) {
+	tests := []struct {
+		name     string
+		save     *domain.User
+		staleKey *filters.FindUser
+		freshKey *filters.FindUser
+	}{
+		{
+			name:     "login_collision_frees_the_old_email",
+			save:     &domain.User{Login: "alice", Email: "new@example.com", Password: "new-hash"},
+			staleKey: &filters.FindUser{Emails: []string{"alice@example.com"}},
+			freshKey: &filters.FindUser{Emails: []string{"new@example.com"}},
+		},
+		{
+			name:     "email_collision_frees_the_old_login",
+			save:     &domain.User{Login: "newlogin", Email: "alice@example.com", Password: "new-hash"},
+			staleKey: &filters.FindUser{Logins: []string{"alice"}},
+			freshKey: &filters.FindUser{Logins: []string{"newlogin"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			repo := cached.NewUserRepository(&upsertingUserRepo{}, cache.NewInMemory(), 5*time.Minute)
+
+			require.NoError(t, repo.Save(ctx, &domain.User{
+				Login: "alice", Email: "alice@example.com", Password: "old-hash",
+			}))
+
+			warm, err := repo.Find(ctx, tt.staleKey, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, warm, 1)
+
+			// No ID on the way in, but an identifier that is already taken: the
+			// row above is updated rather than a new one inserted.
+			require.NoError(t, repo.Save(ctx, tt.save))
+
+			stale, err := repo.Find(ctx, tt.staleKey, nil, nil)
+			require.NoError(t, err)
+			assert.Empty(t, stale,
+				"the identifier this save freed must stop resolving to its previous owner")
+
+			fresh, err := repo.Find(ctx, tt.freshKey, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, fresh, 1)
+			assert.Equal(t, "new-hash", fresh[0].Password)
+		})
+	}
 }

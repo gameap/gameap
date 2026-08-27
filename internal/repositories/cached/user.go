@@ -108,15 +108,9 @@ func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 	// The login and email keys are derived from the values being written, so
 	// changing either would leave the entry under the previous value behind,
 	// still serving the whole row — password hash included — until its TTL runs
-	// out. Read the stored row first so both spellings can be dropped.
-	var prev []domain.User
-
-	if user.ID != 0 {
-		found, findErr := r.inner.Find(ctx, &filters.FindUser{IDs: []uint{user.ID}}, nil, nil)
-		if findErr == nil {
-			prev = found
-		}
-	}
+	// out. Read what this save overwrites first, so both spellings can be
+	// dropped.
+	prev := r.overwrittenUsers(ctx, user)
 
 	err := r.inner.Save(ctx, user)
 	if err != nil {
@@ -125,13 +119,51 @@ func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 
 	// Write committed; invalidation is best-effort so a cache hiccup does not
 	// report the applied write as failed. Stale entries expire with TTL.
-	if len(prev) > 0 {
-		r.invalidateKeys(ctx, &prev[0])
+	for i := range prev {
+		r.invalidateKeys(ctx, &prev[i])
 	}
 
 	r.invalidateKeys(ctx, user)
 
 	return nil
+}
+
+// overwrittenUsers returns the rows this save is about to replace, whose cached
+// login and email keys would otherwise survive the write.
+//
+// An ID-less save is not always an insert: the MySQL upsert names no conflict
+// target, so a login or email already in the table updates that row rather than
+// adding one. Both identifiers are looked up because a row can be reached by
+// either, and MySQL picks only one of them when they point at different rows.
+func (r *UserRepository) overwrittenUsers(ctx context.Context, user *domain.User) []domain.User {
+	if user.ID != 0 {
+		return r.findUncached(ctx, filters.FindUserByIDs(user.ID))
+	}
+
+	var found []domain.User
+
+	if user.Login != "" {
+		found = append(found, r.findUncached(ctx, filters.FindUserByLogins(user.Login))...)
+	}
+
+	if user.Email != "" {
+		found = append(found, r.findUncached(ctx, filters.FindUserByEmails(user.Email))...)
+	}
+
+	return found
+}
+
+// findUncached reads through to the wrapped repository: invalidation has to be
+// driven by what is committed, never by what the cache still believes. A failed
+// read yields nothing, leaving the keys to expire with their TTL rather than
+// failing a write that has not happened yet.
+func (r *UserRepository) findUncached(ctx context.Context, filter *filters.FindUser) []domain.User {
+	users, err := r.inner.Find(ctx, filter, nil, nil)
+	if err != nil {
+		return nil
+	}
+
+	return users
 }
 
 // Delete removes a user and invalidates cache.

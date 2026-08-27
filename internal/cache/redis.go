@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -73,10 +74,29 @@ func (r *Redis) Get(ctx context.Context, key string) (any, error) {
 	return result, nil
 }
 
+// getDelScript stands in for GETDEL on servers predating Redis 6.2, which do
+// not have the command. Redis runs a script atomically, so the single-use
+// guarantee is the same one GETDEL gives.
+var getDelScript = redis.NewScript(`
+local value = redis.call('GET', KEYS[1])
+if value then
+	redis.call('DEL', KEYS[1])
+end
+return value
+`)
+
 // Pull atomically returns a value and deletes it using the single-round-trip
 // GETDEL command, so a replayed request loses the race deterministically.
+// GETDEL arrived in Redis 6.2; an older server rejects it as unknown, and the
+// equivalent script runs instead so redemption still works there.
 func (r *Redis) Pull(ctx context.Context, key string) (any, error) {
-	val, err := r.client.GetDel(ctx, redisKeyPrefix+key).Result()
+	fullKey := redisKeyPrefix + key
+
+	val, err := r.client.GetDel(ctx, fullKey).Result()
+	if isUnknownCommandError(err) {
+		val, err = getDelScript.Run(ctx, r.client, []string{fullKey}).Text()
+	}
+
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, ErrNotFound
@@ -91,6 +111,17 @@ func (r *Redis) Pull(ctx context.Context, key string) (any, error) {
 	}
 
 	return result, nil
+}
+
+// isUnknownCommandError reports whether the server rejected a command it does
+// not implement. Redis answers with a plain ERR reply carrying no distinguishing
+// type, so the message is the only thing left to match on.
+func isUnknownCommandError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(strings.ToUpper(err.Error()), "UNKNOWN COMMAND")
 }
 
 // Set stores a value in cache with optional TTL.

@@ -6,9 +6,14 @@
 --
 -- users_email_unique and users_login_unique are case-sensitive on this backend,
 -- so a pair differing only by case can already be stored. Folding one of those
--- would violate the constraint, so such rows are left as they are: they stay
--- exactly as ambiguous as they are today, and the migration never blocks an
--- upgrade.
+-- would violate the constraint, so such rows are left untouched and the
+-- migration never blocks an upgrade.
+--
+-- Such a pair is already ambiguous today: the LOWER(...) comparison matched
+-- both rows and the lowest id won. Afterwards the exact comparison matches only
+-- the row that is already lowercase, so the other one stops being reachable by
+-- that identifier. Which row that is changes; deciding whose address to rewrite
+-- is an operator's call, not this migration's.
 UPDATE users SET email = LOWER(email)
 WHERE email <> LOWER(email)
   AND NOT EXISTS (
