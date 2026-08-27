@@ -39,6 +39,7 @@ var sqliteMigrationsList = []migration{
 	{version: 1, upFN: sqlite.Up001, downFN: sqlite.Down001},
 	{version: 7, upFN: sqlite.Up007, downFN: sqlite.Down007},
 	{version: 8, upFN: sqlite.Up008, downFN: sqlite.Down008},
+	{version: 22, upFN: sqlite.Up022, downFN: sqlite.Down022},
 }
 
 // SqliteMigrations returns the list of SQLite-specific migrations in Go.
@@ -61,6 +62,7 @@ func SqliteMigrations(_ context.Context, _ container) (goose.Migrations, error) 
 var postgresMigrationsList = []migration{
 	{version: 7, upFN: postgres.Up007, downFN: postgres.Down007},
 	{version: 8, upFN: postgres.Up008, downFN: postgres.Down008},
+	{version: 22, upFN: postgres.Up022, downFN: postgres.Down022},
 }
 
 func PostgresMigrations(_ context.Context, _ container) (goose.Migrations, error) {
@@ -83,6 +85,7 @@ var mysqlMigrationsList = []migration{
 	{version: 1, upFN: mysql.Up001, downFN: mysql.Down001},
 	{version: 7, upFN: mysql.Up007, downFN: mysql.Down007},
 	{version: 8, upFN: mysql.Up008, downFN: mysql.Down008},
+	{version: 22, upFN: mysql.Up022, downFN: mysql.Down022},
 }
 
 func MySQLMigrations(_ context.Context, _ container) (goose.Migrations, error) {

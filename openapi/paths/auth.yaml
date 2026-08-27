@@ -340,10 +340,19 @@
       token fits, as both are always issued for their own owner.
 
       Requires the `admin:user:sso` token ability (or an interactive admin
-      session). A ticket **cannot** be minted for an administrator. The ticket
-      is not a credential elsewhere: presenting it in the `Authorization`
-      header, query or cookie is rejected with `401`. Deliver it to the
-      customer's browser and exchange it at `POST /api/auth/sso/exchange`.
+      session).
+
+      A ticket for an **administrator** is minted only for the account the
+      request is already authenticated as — the token's own owner, or the
+      interactive session's own user — so it never widens what the caller already
+      is. A ticket for any other administrator is refused. Whether the account
+      still owes a second factor does not block minting; the exchange applies the
+      admin-MFA policy instead (see `POST /api/auth/sso/exchange`).
+
+      The ticket is not a credential elsewhere: presenting it in the
+      `Authorization` header, query or cookie is rejected with `401`. Deliver it
+      to the customer's browser and exchange it at
+      `POST /api/auth/sso/exchange`.
 
       Multi-instance note: the ticket lives in the cache, so behind a load
       balancer a shared `CACHE_DRIVER` (redis/postgres) is required — it is
@@ -385,8 +394,8 @@
               $ref: '../schemas/ErrorResponse.yaml'
       '403':
         description: >-
-          The token lacks the `admin:user:sso` ability, or the target user is an
-          administrator.
+          The token lacks the `admin:user:sso` ability, or the target is an
+          administrator other than the account the request is authenticated as.
         content:
           application/json:
             schema:
@@ -420,6 +429,17 @@
       When the target account has two-factor auth enabled the response instead
       carries `two_factor_required: true` and a `challenge_token`: SSO does not
       bypass the second factor. Complete it with `POST /api/auth/2fa/verify`.
+
+      An **administrator** target that has enrolled a second factor therefore
+      always gets the challenge, never a session. One that has not is subject to
+      the same admin-MFA policy a password login applies: while the grace window
+      lasts (`AUTH_MFA_HARD_FAIL_DAYS`) the response is an ordinary session
+      carrying `mfa_nudge`, so the panel asks them to enrol; once it closes the
+      response carries `mfa_enrollment_required: true` and a token scoped to the
+      2FA-enrollment endpoints only.
+
+      The redemption is refused with `401` if the account is an administrator the
+      ticket's issuer is not — including a regular user promoted after minting.
     operationId: exchangeSSOTicket
     security: []
     x-codeSamples:

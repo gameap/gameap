@@ -3,7 +3,20 @@ description: Request to mint a single-use SSO login ticket for another user.
 properties:
   user_id:
     type: integer
-    description: ID of the user the ticket logs in. Must not be an administrator.
+    description: >-
+      ID of the user the ticket logs in. An administrator may only be named here
+      when it is the account the request is authenticated as — the owner of the
+      token, or the interactive session's own user; anything else is rejected
+      with 403.
+
+      What redeeming such a ticket yields depends on the admin-MFA policy, and
+      matches what a password login would give the same account: a second-factor
+      challenge once it has enrolled one; before that, and while the grace window
+      (`AUTH_MFA_HARD_FAIL_DAYS`) lasts, an ordinary session carrying the
+      `mfa_nudge` recommendation to enable two-factor authentication; and once
+      that window closes, a session carrying `mfa_enrollment_required` that is
+      scoped to the 2FA-enrollment endpoints only. See
+      `POST /api/auth/sso/exchange`.
     example: 42
   redirect_to:
     type: string

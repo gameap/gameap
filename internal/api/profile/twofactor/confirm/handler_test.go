@@ -134,6 +134,35 @@ func confirmReq(t *testing.T, body string) *http.Request {
 	return req.WithContext(auth.ContextWithSession(context.Background(), session))
 }
 
+// A personal access token lives in a third-party system. Letting one enrol or
+// replace a second factor would let whoever steals it re-anchor the owner's
+// account to an authenticator they control, so the whole 2FA surface refuses a
+// token session outright. See base.EnsureSecondFactorChangeAllowedForSession.
+func TestConfirm_RefusesTokenSession(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	f := newConfirmFixture(t, true)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/profile/2fa/confirm",
+		bytes.NewBufferString(`{"code":"000000"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+		Login: "alice",
+		User:  &domain.User{ID: 1, Login: "alice"},
+		Token: &domain.PersonalAccessToken{ID: 7},
+	}))
+
+	// ACT
+	w := httptest.NewRecorder()
+	f.handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "cannot manage two-factor authentication")
+	assert.NotContains(t, w.Body.String(), "recovery_codes")
+}
+
 func TestConfirm_ValidCodeActivatesAndReturnsRecoveryCodes(t *testing.T) {
 	t.Parallel()
 

@@ -289,6 +289,41 @@ state, useful for monitoring dashboards and the `gameapctl` polling logic:
 - `AUTH_ALLOW_WEAK_PASSWORDS` - When `true`, disables the embedded common-password blocklist check used at registration / password change (OWASP ASVS §2.1.7). Default: `false`. Enabling this logs a startup warning; length checks (min 12 / max 128) still apply.
 - `AUTH_SSO_TICKET_TTL` - Lifetime of a single-use SSO login ticket minted for another user, exchanged by external systems (a billing panel) for a logged-in customer session. Hard-capped at `120s` by the issuing handler. Default: `60s`. Behind a load balancer this requires a shared `CACHE_DRIVER` (`redis`/`postgres`): the ticket is minted on one instance and redeemed by the browser on another, so the `memory` driver cannot see it.
 
+#### Single sign-on for a customer who administers their own panel
+
+In the common "one panel per customer" deployment the customer *is* the panel's
+administrator, seeded from `ADMIN_LOGIN` / `ADMIN_EMAIL` / `ADMIN_PASSWORD`. To
+offer them the same "open my game panel" button, the external system signs in
+once with that password and calls `POST /api/tokens` to mint a personal access
+token carrying `admin:user:sso`; the password is not needed afterwards. A token
+is always bound to whoever created it, so the token it now holds belongs to that
+administrator.
+
+That ownership is what makes the administrator case safe to allow at all: a
+ticket naming an administrator is minted only when the target is the token's own
+owner, so a stolen token reaches exactly the identity it already spoke for and no
+other. A ticket for any other administrator is refused.
+
+The customer lands in the panel on the first click, before they have set up
+anything. From there the ordinary admin-MFA policy takes over, the same one a
+password login applies:
+
+- while the grace window lasts (`AUTH_MFA_HARD_FAIL_DAYS`, default 30 days) the
+  ticket yields a normal session and the panel asks them to enable two-factor
+  authentication;
+- once the window closes the ticket yields a session scoped to the 2FA-enrollment
+  screens and nothing else, until they enrol;
+- afterwards the ticket only ever yields a second-factor challenge, so the
+  customer's authenticator is needed to get in.
+
+Two consequences worth planning for. Until that second factor exists, a token
+stolen out of the external system is enough to reach an administrative session —
+which is what bounds the exposure to the grace window, and why setting
+`AUTH_REQUIRE_MFA_FOR_ADMINS=false` leaves it open indefinitely. And once it
+exists, **disabling** it or regenerating recovery codes needs the account
+password, which in this deployment only the external system knows: a customer who
+loses their authenticator has to come back through you.
+
 ### RBAC Configuration
 
 - `RBAC_CACHE_TTL` - Role-based access control cache TTL (default: `30s`)

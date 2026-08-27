@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/internal/services/mfanudge"
 )
 
 // exchangeResponse mirrors the login response so the SPA can reuse the same
@@ -14,6 +15,12 @@ type exchangeResponse struct {
 	ExpiresIn  int64    `json:"expires_in"`
 	User       userInfo `json:"user"`
 	RedirectTo string   `json:"redirect_to,omitempty"`
+
+	// MFAEnrollmentRequired and MFANudge carry the admin-MFA policy verdict, in
+	// the same shape the password login uses, so the SPA's enforcement modal
+	// works identically whichever way the session was obtained.
+	MFAEnrollmentRequired bool           `json:"mfa_enrollment_required,omitempty"`
+	MFANudge              *mfanudge.View `json:"mfa_nudge,omitempty"`
 }
 
 type userInfo struct {

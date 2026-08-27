@@ -35,14 +35,19 @@ const (
 
 var (
 	errTargetNotFound = api.NewNotFoundError("user not found")
-	errTargetIsAdmin  = errors.New("cannot issue a login ticket for an administrator")
+
+	errTargetIsOtherAdmin = errors.New("a login ticket for another administrator cannot be issued")
 )
 
 // Handler mints a single-use ticket that logs one specific user into the
 // panel. It exists for external systems that already own the customer
 // relationship — a billing panel offering a "open my game panel" button —
-// which cannot use a personal access token for this: a PAT is always issued
-// for its own owner, and so is the short-lived URL token.
+// which cannot use a personal access token for this: a PAT logs in as its own
+// owner and nobody else, and so does the short-lived URL token.
+//
+// An administrator is the one target this endpoint will not hand to a third
+// party: it may only mint a ticket for the account the request is already
+// authenticated as. See ServeHTTP for what that buys.
 //
 // The ticket is not a credential anywhere else: its prefix is unknown to the
 // auth middleware, so presenting it as a Bearer token fails with 401. Only
@@ -121,11 +126,20 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Refusing administrators is what keeps this endpoint from turning a
-	// scoped integration token into panel takeover: whoever steals the token
-	// out of the billing database can log in as a customer, never as an admin.
-	// The exchange endpoint repeats the check, closing the window between
-	// minting and redeeming.
+	// Constraining administrators is what keeps this endpoint from turning a
+	// scoped integration token into panel takeover. Whoever steals the token out
+	// of the billing database can log in as a customer; as an administrator they
+	// can reach exactly one account — the token's own owner, whose powers the
+	// token already carries. The ticket therefore never widens what the token
+	// already is. The exchange endpoint repeats the check, closing the window
+	// between minting and redeeming.
+	//
+	// Whether that account still needs a second factor is the admin-MFA policy's
+	// business, not this endpoint's: the exchange applies the same nudge and
+	// hard-fail the password login does, so an administrator who has not enrolled
+	// yet gets in and is asked to, and stops getting in once the grace window
+	// closes. Refusing here instead would leave a customer who administers their
+	// own panel with no way in at all.
 	isAdmin, err := h.rbac.Can(ctx, user.ID, []domain.AbilityName{domain.AbilityNameAdminRolesPermissions})
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to check target permissions"))
@@ -133,9 +147,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isAdmin {
-		audit.AccessDenied(ctx, h.audit, "user", idString(user.ID), "sso_target_is_admin")
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(errTargetIsAdmin, http.StatusForbidden))
+	if isAdmin && user.ID != session.User.ID {
+		audit.AccessDenied(ctx, h.audit, "user", idString(user.ID), "sso_target_is_other_admin")
+		h.responder.WriteError(ctx, rw, api.WrapHTTPError(errTargetIsOtherAdmin, http.StatusForbidden))
 
 		return
 	}
@@ -152,6 +166,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		audit.EventSSOTicketIssue, audit.CategoryTokenOp,
 		"user", idString(user.ID), "sso_ticket_issue",
 		slog.Bool("ip_bound", input.ClientIP != ""),
+		// Only true when the issuer minted a ticket for themselves, which for an
+		// administrator is the only shape allowed. Without it "the billing token
+		// logged in as the panel administrator" is indistinguishable in the
+		// journal from "the billing token logged in as a customer".
+		slog.Bool("admin_self", isAdmin),
 	)
 
 	h.responder.Write(ctx, rw, ticketResponse{

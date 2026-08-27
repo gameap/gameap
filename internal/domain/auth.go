@@ -26,6 +26,11 @@ const (
 	// user into the panel. Separate from user management on purpose: handing
 	// out logins is a different power from editing accounts, and an
 	// integration that only provisions servers should not carry it.
+	//
+	// It does not reach another administrator: a ticket for an administrator is
+	// only minted for the token's own owner. Whether that account still owes a
+	// second factor is the admin-MFA policy's business, and the exchange applies
+	// it — an enrolled factor must still be passed to redeem the ticket.
 	PATAbilitySSOIssue PATAbility = "admin:user:sso"
 )
 
@@ -131,13 +136,15 @@ func GetAllAbilities() []PATAbility {
 
 func GetAbilityDescriptions() map[PATAbility]string {
 	return map[PATAbility]string{
-		PATAbilityServerCreate:         "Create game server",
-		PATAbilityGDaemonTaskRead:      "Read GameAP Daemon task",
-		PATAbilityUserRead:             "Read users and their server assignments",
-		PATAbilityUserManage:           "Create and update users, assign servers and server permissions",
-		PATAbilityNodeRead:             "Read nodes, their IP addresses and busy ports",
-		PATAbilityGameRead:             "Read games and game mods",
-		PATAbilitySSOIssue:             "Issue single sign-on tickets for other users",
+		PATAbilityServerCreate:    "Create game server",
+		PATAbilityGDaemonTaskRead: "Read GameAP Daemon task",
+		PATAbilityUserRead:        "Read users and their server assignments",
+		PATAbilityUserManage:      "Create and update users, assign servers and server permissions",
+		PATAbilityNodeRead:        "Read nodes, their IP addresses and busy ports",
+		PATAbilityGameRead:        "Read games and game mods",
+		PATAbilitySSOIssue: "Issue single sign-on tickets for other users. " +
+			"For an administrator, only for the token's own owner, and an enrolled " +
+			"second factor must still be passed to redeem it",
 		PATAbilityServerList:           "List game servers",
 		PATAbilityServerStart:          "Start game server",
 		PATAbilityServerStop:           "Stop game server",

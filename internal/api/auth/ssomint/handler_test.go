@@ -2,8 +2,9 @@
 //
 // OWASP API Security Top 10:2023:
 //   - API1:2023 Broken Object Level Authorization — a ticket must never be
-//     mintable for an administrator, or a scoped integration token becomes a
-//     path to panel takeover.
+//     mintable for an administrator other than the account the request is
+//     already authenticated as, or a scoped integration token becomes a path to
+//     panel takeover.
 //   - API2:2023 Broken Authentication — the ticket must be high-entropy,
 //     short-lived and stored only by hash.
 //   - API3:2023 Broken Object Property Level Authorization — the redirect
@@ -16,13 +17,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/cache"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
@@ -45,11 +49,62 @@ func (s stubAdminChecker) Can(_ context.Context, userID uint, _ []domain.Ability
 	return s.admins[userID], nil
 }
 
+// auditCapture is a concurrency-safe audit.Logger that records every event the
+// handler emits (mirrors internal/api/auth/login/handler_test.go). The refusal
+// reason and the admin_self attribute are only visible in the journal, so the
+// tests have to read them from here.
+type auditCapture struct {
+	mu     sync.Mutex
+	events []audit.Event
+}
+
+func (a *auditCapture) Record(_ context.Context, e audit.Event) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.events = append(a.events, e)
+}
+
+func (a *auditCapture) snapshot() []audit.Event {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return append([]audit.Event(nil), a.events...)
+}
+
+// reasons returns the refusal reasons recorded so far, in order.
+func (a *auditCapture) reasons() []string {
+	var reasons []string
+
+	for _, event := range a.snapshot() {
+		if event.Reason != "" {
+			reasons = append(reasons, event.Reason)
+		}
+	}
+
+	return reasons
+}
+
+// findEvent returns the first recorded event with the given action.
+func (a *auditCapture) findEvent(action string) (audit.Event, bool) {
+	for _, event := range a.snapshot() {
+		if event.Action == action {
+			return event, true
+		}
+	}
+
+	return audit.Event{}, false
+}
+
 type mintFixture struct {
 	handler *Handler
 	cache   cache.Cache
+	audit   *auditCapture
 	client  *domain.User
 	admin   *domain.User
+
+	// adminMFA is an administrator who has already enrolled a second factor, so
+	// the ticket minted for it lands on a challenge at the exchange.
+	adminMFA *domain.User
 }
 
 func newMintFixture(t *testing.T, ttl time.Duration) *mintFixture {
@@ -63,18 +118,29 @@ func newMintFixture(t *testing.T, ttl time.Duration) *mintFixture {
 	admin := &domain.User{Login: "root", Email: "root@example.com"}
 	require.NoError(t, userRepo.Save(context.Background(), admin))
 
+	adminMFA := &domain.User{Login: "owner", Email: "owner@example.com", TwoFactorEnabled: true}
+	require.NoError(t, userRepo.Save(context.Background(), adminMFA))
+
 	c := cache.NewInMemory()
+	auditLog := &auditCapture{}
 
 	handler := NewHandler(
 		userRepo,
-		stubAdminChecker{admins: map[uint]bool{admin.ID: true}},
+		stubAdminChecker{admins: map[uint]bool{admin.ID: true, adminMFA.ID: true}},
 		c,
 		ttl,
 		api.NewResponder(),
-		nil,
+		auditLog,
 	)
 
-	return &mintFixture{handler: handler, cache: c, client: client, admin: admin}
+	return &mintFixture{
+		handler:  handler,
+		cache:    c,
+		audit:    auditLog,
+		client:   client,
+		admin:    admin,
+		adminMFA: adminMFA,
+	}
 }
 
 func (f *mintFixture) request(t *testing.T, body string, session *auth.Session) *httptest.ResponseRecorder {
@@ -93,6 +159,12 @@ func (f *mintFixture) request(t *testing.T, body string, session *auth.Session) 
 
 func adminSession() *auth.Session {
 	return &auth.Session{User: &domain.User{ID: 999, Login: "root"}}
+}
+
+// selfSession authenticates as the fixture's own two-factor administrator, the
+// way a billing integration's token does on a panel deployed for one customer.
+func (f *mintFixture) selfSession() *auth.Session {
+	return &auth.Session{User: f.adminMFA}
 }
 
 func TestMint_IssuesUsableTicketForRegularUser(t *testing.T) {
@@ -133,18 +205,79 @@ func TestMint_IssuesUsableTicketForRegularUser(t *testing.T) {
 	assert.NotContains(t, raw, strings.TrimPrefix(response.Ticket, auth.SSOTicketPrefix))
 }
 
-func TestMint_RefusesAdministratorTarget(t *testing.T) {
+func TestMint_RefusesAnotherAdministratorAsTarget(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	f := newMintFixture(t, 60*time.Second)
+
+	// ACT: the session is user 999, the target is a different administrator.
+	recorder := f.request(t, `{"user_id":`+itoa(f.admin.ID)+`}`, adminSession())
+
+	// ASSERT
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "another administrator")
+	assert.NotContains(t, recorder.Body.String(), auth.SSOTicketPrefix)
+	assert.Equal(t, []string{"sso_target_is_other_admin"}, f.audit.reasons())
+}
+
+// An administrator logging themselves in is the case this endpoint exists for on
+// a panel deployed for a single customer: the customer administers their own
+// panel, so the billing button has to reach an administrative account. The ticket
+// stays worth no more than the token already is — it reaches only the identity
+// the token already carries.
+func TestMint_IssuesTicketForSelfWhenAdministratorHasTwoFactor(t *testing.T) {
 	t.Parallel()
 
 	// ARRANGE
 	f := newMintFixture(t, 60*time.Second)
 
 	// ACT
-	recorder := f.request(t, `{"user_id":`+itoa(f.admin.ID)+`}`, adminSession())
+	recorder := f.request(t, `{"user_id":`+itoa(f.adminMFA.ID)+`}`, f.selfSession())
 
 	// ASSERT
-	assert.Equal(t, http.StatusForbidden, recorder.Code)
-	assert.NotContains(t, recorder.Body.String(), auth.SSOTicketPrefix)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	var response struct {
+		Ticket string `json:"ticket"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.True(t, strings.HasPrefix(response.Ticket, auth.SSOTicketPrefix))
+
+	raw, err := f.cache.Get(context.Background(), auth.SSOTicketCacheKey(response.Ticket))
+	require.NoError(t, err)
+
+	payload, err := auth.UnmarshalSSOTicketPayload(raw)
+	require.NoError(t, err)
+	assert.Equal(t, f.adminMFA.ID, payload.UserID)
+	assert.Equal(t, payload.UserID, payload.IssuerID, "the issuer must be the target itself")
+
+	// Without this attribute "the billing token logged in as the panel
+	// administrator" is indistinguishable in the journal from "as a customer".
+	event, ok := f.audit.findEvent("sso_ticket_issue")
+	require.True(t, ok, "the issue must be recorded")
+	assert.Contains(t, event.Extra, slog.Bool("admin_self", true))
+}
+
+// Whether the target has a second factor is the admin-MFA policy's business, not
+// this endpoint's: a customer who administers their own panel has none on day one
+// and must still be able to get in. The exchange applies the policy.
+func TestMint_IssuesTicketForSelfWithoutTwoFactor(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE: an administrator without a second factor, minting for itself.
+	f := newMintFixture(t, 60*time.Second)
+
+	// ACT
+	recorder := f.request(t, `{"user_id":`+itoa(f.admin.ID)+`}`, &auth.Session{User: f.admin})
+
+	// ASSERT
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	assert.Empty(t, f.audit.reasons())
+
+	event, ok := f.audit.findEvent("sso_ticket_issue")
+	require.True(t, ok)
+	assert.Contains(t, event.Extra, slog.Bool("admin_self", true))
 }
 
 func TestMint_Validation(t *testing.T) {
