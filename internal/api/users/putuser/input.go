@@ -57,7 +57,9 @@ func (input *updateUserInput) Validate() error {
 		return ErrInvalidEmail
 	}
 
-	input.Email = emailValue
+	// Canonical form, matching what services.UserService stores: a case-only
+	// difference must not read as a change to the address.
+	input.Email = strings.ToLower(emailValue)
 
 	if input.Name != nil {
 		nameValue := strings.TrimSpace(*input.Name)

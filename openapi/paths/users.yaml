@@ -28,8 +28,7 @@
         in: query
         required: false
         description: >-
-          Filter by email (case-insensitive — compared on LOWER(...) in every
-          backend). Comma-separated for multiple.
+          Filter by email (case-insensitive). Comma-separated for multiple.
         schema:
           type: string
         example: "customer@example.com"

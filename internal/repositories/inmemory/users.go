@@ -68,11 +68,11 @@ func (r *UserRepository) Find(
 		loginSet[login] = true
 	}
 
-	// Email matching is case-insensitive, matching the SQL backends' LOWER(...)
-	// comparison so every repository behaves the same.
+	// Matched exactly, like the SQL backends: emails reach a repository already
+	// canonicalised by services.UserService.
 	emailSet := make(map[string]bool)
 	for _, email := range filter.Emails {
-		emailSet[strings.ToLower(email)] = true
+		emailSet[email] = true
 	}
 
 	for _, user := range r.users {
@@ -82,7 +82,7 @@ func (r *UserRepository) Find(
 		if len(filter.Logins) > 0 && !loginSet[user.Login] {
 			continue
 		}
-		if len(filter.Emails) > 0 && !emailSet[strings.ToLower(user.Email)] {
+		if len(filter.Emails) > 0 && !emailSet[user.Email] {
 			continue
 		}
 		users = append(users, *user)

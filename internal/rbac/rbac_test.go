@@ -88,8 +88,21 @@ func prepareRBACService(
 ) *RBAC {
 	t.Helper()
 
+	return prepareRBACServiceWithTTL(t, roles, assignedRoles, abilities, permissions, 0)
+}
+
+func prepareRBACServiceWithTTL(
+	t *testing.T,
+	roles []domain.Role,
+	assignedRoles []domain.AssignedRole,
+	abilities []domain.Ability,
+	permissions []domain.Permission,
+	cacheTTL time.Duration,
+) *RBAC {
+	t.Helper()
+
 	repo := inmemory.NewRBACRepository()
-	rbacService := NewRBAC(services.NewNilTransactionManager(), repo, 0)
+	rbacService := NewRBAC(services.NewNilTransactionManager(), repo, cacheTTL)
 	ctx := context.Background()
 
 	for _, ability := range abilities {
@@ -1042,4 +1055,36 @@ func TestRBAC_RevokeOrForbidUserAbilitiesForEntity(t *testing.T) {
 			assert.Equal(t, !tt.verifyCanNot, can)
 		})
 	}
+}
+
+func TestRBAC_AdministrativeRoles_callerCannotMutateMemoisedList(t *testing.T) {
+	t.Parallel()
+
+	// A non-zero TTL, otherwise the memo expires immediately, every call
+	// recomputes a fresh slice and there is no shared array to reach.
+	r := prepareRBACServiceWithTTL(
+		t,
+		lo.MapToSlice(testRoles, func(_ string, role domain.Role) domain.Role { return role }),
+		testAssignedRoles,
+		testAbilities,
+		testPermissions,
+		time.Minute,
+	)
+	ctx := context.Background()
+
+	first, err := r.AdministrativeRoles(ctx)
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	require.Equal(t, "admin", first[0])
+
+	// The list decides which roles a personal access token may not assign, so a
+	// caller reaching the memoised backing array would be rewriting a security
+	// input for everyone else.
+	first[0] = "tampered"
+
+	second, err := r.AdministrativeRoles(ctx)
+	require.NoError(t, err)
+	require.Len(t, second, 1)
+	assert.Equal(t, "admin", second[0])
+	assert.NotContains(t, second, "tampered")
 }

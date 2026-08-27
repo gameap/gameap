@@ -2383,7 +2383,7 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 	return pkgplugin.NewManager(pkgplugin.ManagerConfig{
 		// Read-only modules need no plugin binding.
 		Libraries: []pkgplugin.HostLibrary{
-			hostlibrary.NewUsersHostLibrary(c.UserRepository()),
+			hostlibrary.NewUsersHostLibrary(c.UserService()),
 			hostlibrary.NewGamesHostLibrary(c.GameRepository()),
 			hostlibrary.NewGameModsHostLibrary(c.GameModRepository()),
 			hostlibrary.NewCryptoHostLibrary(),

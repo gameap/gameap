@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -257,8 +258,10 @@ func (r *RBAC) AdministrativeRoles(ctx context.Context) ([]string, error) {
 	r.adminRolesMu.Lock()
 	defer r.adminRolesMu.Unlock()
 
+	// Cloned on the way out: the mutex guards the field, not the backing array
+	// that a caller would otherwise share with the memoised copy.
 	if r.adminRolesNames != nil && time.Now().Before(r.adminRolesExpires) {
-		return r.adminRolesNames, nil
+		return slices.Clone(r.adminRolesNames), nil
 	}
 
 	names, err := r.computeAdministrativeRoles(ctx)
@@ -269,7 +272,7 @@ func (r *RBAC) AdministrativeRoles(ctx context.Context) ([]string, error) {
 	r.adminRolesNames = names
 	r.adminRolesExpires = time.Now().Add(r.cacheTTL)
 
-	return names, nil
+	return slices.Clone(names), nil
 }
 
 func (r *RBAC) computeAdministrativeRoles(ctx context.Context) ([]string, error) {

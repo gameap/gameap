@@ -81,6 +81,10 @@ func (r *UserRepository) Find(
 	case len(filter.Logins) == 1:
 		return r.cachedFind(ctx, r.keyBuilder.BuildKey("login", filter.Logins[0]), load)
 	case len(filter.Emails) == 1:
+		// Hashed verbatim, like the login key above: services.UserService has
+		// already lowercased both. Folding case here instead would let a cache
+		// hit match a spelling that a cache miss — served by an exact-comparing
+		// repository — would not.
 		return r.cachedFind(ctx, r.keyBuilder.BuildKey("email", filter.Emails[0]), load)
 	default:
 		// Fallback: do not cache
@@ -101,6 +105,19 @@ func (r *UserRepository) cachedFind(
 
 // Save creates or updates a user and invalidates cache.
 func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
+	// The login and email keys are derived from the values being written, so
+	// changing either would leave the entry under the previous value behind,
+	// still serving the whole row — password hash included — until its TTL runs
+	// out. Read the stored row first so both spellings can be dropped.
+	var prev []domain.User
+
+	if user.ID != 0 {
+		found, findErr := r.inner.Find(ctx, &filters.FindUser{IDs: []uint{user.ID}}, nil, nil)
+		if findErr == nil {
+			prev = found
+		}
+	}
+
 	err := r.inner.Save(ctx, user)
 	if err != nil {
 		return errors.WithMessage(err, "failed to save user")
@@ -108,17 +125,11 @@ func (r *UserRepository) Save(ctx context.Context, user *domain.User) error {
 
 	// Write committed; invalidation is best-effort so a cache hiccup does not
 	// report the applied write as failed. Stale entries expire with TTL.
-	if user.ID != 0 {
-		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", user.ID))
-	}
-	if user.Login != "" {
-		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("login", user.Login))
-	}
-	if user.Email != "" {
-		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("email", user.Email))
+	if len(prev) > 0 {
+		r.invalidateKeys(ctx, &prev[0])
 	}
 
-	r.wrapper.InvalidatePatternBestEffort(ctx, "user:find*")
+	r.invalidateKeys(ctx, user)
 
 	return nil
 }
@@ -136,7 +147,6 @@ func (r *UserRepository) Delete(ctx context.Context, id uint) error {
 
 	r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", id))
 	r.invalidateUserCache(ctx, findErr, users)
-	r.wrapper.InvalidatePatternBestEffort(ctx, "user:find*")
 
 	return nil
 }
@@ -146,13 +156,19 @@ func (r *UserRepository) invalidateUserCache(ctx context.Context, findErr error,
 		return
 	}
 
-	user := users[0]
+	r.invalidateKeys(ctx, &users[0])
+}
+
+// invalidateKeys drops every cache key that resolves to this user.
+func (r *UserRepository) invalidateKeys(ctx context.Context, user *domain.User) {
 	if user.ID != 0 {
 		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("id", user.ID))
 	}
+
 	if user.Login != "" {
 		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("login", user.Login))
 	}
+
 	if user.Email != "" {
 		r.wrapper.InvalidateBestEffort(ctx, r.keyBuilder.BuildKey("email", user.Email))
 	}

@@ -151,8 +151,12 @@ func (c *MySQL) Pull(ctx context.Context, key string) (any, error) {
 		return nil, fmt.Errorf("failed to query row: %w", err)
 	}
 
+	// Compare-and-delete on the value just read. MySQL has no DELETE ...
+	// RETURNING (postgres Pull uses one, redis uses GETDEL), so without the value
+	// in the predicate a Set landing between the two statements would have this
+	// call return the old value while deleting the new one.
 	deleteQuery, deleteArgs, err := sq.Delete(kvStoreTable).
-		Where(sq.Eq{"`key`": fullKey}).
+		Where(sq.Eq{"`key`": fullKey, "`value`": valueJSON}).
 		PlaceholderFormat(sq.Question).
 		ToSql()
 	if err != nil {
@@ -169,7 +173,9 @@ func (c *MySQL) Pull(ctx context.Context, key string) (any, error) {
 		return nil, fmt.Errorf("failed to read rows affected: %w", err)
 	}
 
-	// Lost the race (another redemption deleted the row first): treat as absent.
+	// Lost the race: another redemption removed the row, or a Set replaced the
+	// value between the SELECT and the DELETE. Either way this caller removed
+	// nothing and must not hand back what it read.
 	if affected == 0 {
 		return nil, ErrNotFound
 	}
