@@ -133,14 +133,16 @@ func planIdentifierFolding(
 				continue
 			}
 
+			// Identified by id, never by value: a login or an email address is
+			// personal data, and the journal is the one place it must not be
+			// copied into. The pair of ids is enough to act on — look the two
+			// rows up and decide what the losing one should be called instead.
 			slog.WarnContext(ctx,
 				"Migration 022 could not fold a user identifier: another account already claims "+
 					"the lowercase spelling, so this one can no longer be used to sign in and an "+
 					"operator has to give the account a different one",
 				slog.String("column", column),
 				slog.Int64("user_id", user.id),
-				slog.String("stored", valueOf(user)),
-				slog.String("canonical", lowered),
 				slog.Int64("kept_by_user_id", keeper.id),
 			)
 		}

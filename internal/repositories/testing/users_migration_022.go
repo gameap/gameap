@@ -170,9 +170,9 @@ func RunNormalizeUserIdentifiersMigrationTest(
 		assertResolvesTo(ctx, t, db, driver, "login", "twin", 9009)
 
 		wantWarnings = []identifierWarning{
-			{Column: "login", UserID: 9008, Stored: "Twin", Canonical: "twin", KeptBy: 9009},
-			{Column: "email", UserID: 9004, Stored: "Dup@Example.com", Canonical: "dup@example.com", KeptBy: 9005},
-			{Column: "email", UserID: 9007, Stored: "BOB@x.com", Canonical: "bob@x.com", KeptBy: 9006},
+			{Column: "login", UserID: 9008, KeptBy: 9009},
+			{Column: "email", UserID: 9004, KeptBy: 9005},
+			{Column: "email", UserID: 9007, KeptBy: 9006},
 		}
 	}
 
@@ -180,6 +180,8 @@ func RunNormalizeUserIdentifiersMigrationTest(
 	// the failure this migration exists to make visible, and a warning about a
 	// row that kept its identifier would train operators to ignore them.
 	assert.Equal(t, wantWarnings, collectIdentifierWarnings(t, logs))
+
+	assertNoIdentifiersLogged(t, logs, seeds)
 }
 
 func seedUserIdentifierRow(
@@ -269,13 +271,28 @@ func driverPlaceholders(driver string) sq.PlaceholderFormat {
 }
 
 // identifierWarning is the payload migration 022 logs for a row it could not
-// fold, reduced to the fields an operator acts on.
+// fold: the column, and the pair of ids an operator needs to act on. Deliberately
+// no login or email — see assertNoIdentifiersLogged.
 type identifierWarning struct {
-	Column    string `json:"column"`
-	UserID    int64  `json:"user_id"`
-	Stored    string `json:"stored"`
-	Canonical string `json:"canonical"`
-	KeptBy    int64  `json:"kept_by_user_id"`
+	Column string `json:"column"`
+	UserID int64  `json:"user_id"`
+	KeptBy int64  `json:"kept_by_user_id"`
+}
+
+// assertNoIdentifiersLogged is the regression guard for the fields this warning
+// deliberately omits. A login or an email address is personal data; the journal
+// is shipped, retained and read far more widely than the users table, so no
+// seeded identifier may appear in it — not even the one that could not be
+// folded, which is the tempting one to include.
+func assertNoIdentifiersLogged(t *testing.T, logs *bytes.Buffer, seeds []userIdentifierSeed) {
+	t.Helper()
+
+	journal := logs.String()
+
+	for _, seed := range seeds {
+		assert.NotContainsf(t, journal, seed.login, "login of %d leaked into the journal", seed.id)
+		assert.NotContainsf(t, journal, seed.email, "email of %d leaked into the journal", seed.id)
+	}
 }
 
 // captureSlogWarnings redirects the default logger, which is where a migration
