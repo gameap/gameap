@@ -201,12 +201,11 @@ func (h *Handler) completeLogin(
 	h.responder.Write(ctx, rw, response)
 }
 
-// evaluateMFANudge computes the admin-MFA recommendation for a freshly
-// authenticated user without 2FA and persists the first-shown timestamp on
-// first contact. It returns nil when no nudge applies (feature off, non-admin)
-// — a best-effort step: an RBAC or persistence error never blocks the login.
+// evaluateMFANudge resolves the caller's admin status and hands off to
+// EvaluateMFANudge. It returns nil when no nudge applies (feature off,
+// non-admin) — a best-effort step: an RBAC error never blocks the login.
 func (h *Handler) evaluateMFANudge(ctx context.Context, user *domain.User) *mfanudge.View {
-	if h.nudge == nil || h.rbac == nil {
+	if h.rbac == nil {
 		return nil
 	}
 
@@ -217,7 +216,33 @@ func (h *Handler) evaluateMFANudge(ctx context.Context, user *domain.User) *mfan
 		return nil
 	}
 
-	rec := h.nudge.Compute(mfanudge.Snapshot{
+	return EvaluateMFANudge(ctx, h.nudge, h.userRepo, user, isAdmin)
+}
+
+// EvaluateMFANudge computes the admin-MFA recommendation for a freshly
+// authenticated user and persists the first-shown timestamp on first contact.
+// It returns nil when no nudge applies.
+//
+// It is shared with the SSO ticket exchange so the two ways into a session
+// cannot drift: an administrator who arrives through a billing link is subject
+// to the same grace window, and the same hard fail at the end of it, as one who
+// typed a password. The caller passes isAdmin because it has usually resolved
+// it already.
+//
+// Persisting the timestamp is best-effort: a save error is logged and the
+// recommendation is still returned, so a database hiccup never costs a login.
+func EvaluateMFANudge(
+	ctx context.Context,
+	service *mfanudge.Service,
+	userRepo MFANudgeSaver,
+	user *domain.User,
+	isAdmin bool,
+) *mfanudge.View {
+	if service == nil || userRepo == nil {
+		return nil
+	}
+
+	rec := service.Compute(mfanudge.Snapshot{
 		IsAdmin:          isAdmin,
 		TwoFactorEnabled: user.TwoFactorEnabled,
 		FirstShownAt:     user.MFAFirstShownAt(),
@@ -226,7 +251,7 @@ func (h *Handler) evaluateMFANudge(ctx context.Context, user *domain.User) *mfan
 
 	if rec.PersistFirstShown {
 		user.SetMFAFirstShownAt(&rec.FirstShownAt)
-		if saveErr := h.userRepo.Save(ctx, user); saveErr != nil {
+		if saveErr := userRepo.Save(ctx, user); saveErr != nil {
 			slog.WarnContext(ctx, "failed to persist MFA first-shown timestamp", "error", saveErr)
 		}
 	}

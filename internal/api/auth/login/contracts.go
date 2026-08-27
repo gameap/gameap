@@ -25,3 +25,9 @@ type adminChecker interface {
 type TwoFactorChallengeStore interface {
 	Set(ctx context.Context, key string, value any, options ...cache.Option) error
 }
+
+// MFANudgeSaver is the narrow repository surface EvaluateMFANudge needs: it
+// only ever writes back the first-shown timestamp it just stamped.
+type MFANudgeSaver interface {
+	Save(ctx context.Context, user *domain.User) error
+}

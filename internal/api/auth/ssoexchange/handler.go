@@ -15,6 +15,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/mfanudge"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/pkg/errors"
@@ -39,6 +40,12 @@ type Handler struct {
 	responder   base.Responder
 	audit       audit.Logger
 
+	// nudge and enrollmentTokenTTL make this path answer to the same admin-MFA
+	// policy the password login does; a nil service disables the nudge, as it
+	// does there.
+	nudge              *mfanudge.Service
+	enrollmentTokenTTL time.Duration
+
 	// clientIPHeader is the operator-trusted proxy header, used to compare the
 	// redeeming address against the one the ticket was bound to.
 	clientIPHeader string
@@ -52,19 +59,23 @@ func NewHandler(
 	clientIPHeader string,
 	responder base.Responder,
 	auditLogger audit.Logger,
+	nudge *mfanudge.Service,
+	enrollmentTokenTTL time.Duration,
 ) *Handler {
 	if auditLogger == nil {
 		auditLogger = audit.NopLogger{}
 	}
 
 	return &Handler{
-		authService:    authService,
-		userRepo:       userRepo,
-		rbac:           rbac,
-		cache:          c,
-		responder:      responder,
-		audit:          auditLogger,
-		clientIPHeader: clientIPHeader,
+		authService:        authService,
+		userRepo:           userRepo,
+		rbac:               rbac,
+		cache:              c,
+		responder:          responder,
+		audit:              auditLogger,
+		nudge:              nudge,
+		enrollmentTokenTTL: enrollmentTokenTTL,
+		clientIPHeader:     clientIPHeader,
 	}
 }
 
@@ -99,7 +110,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Repeated from the minting side: the account may have been promoted in
-	// between, and a ticket must never grant an administrative session.
+	// between, and a ticket must never grant an administrative session to
+	// anyone but the account that minted it.
 	isAdmin, err := h.rbac.Can(ctx, user.ID, []domain.AbilityName{domain.AbilityNameAdminRolesPermissions})
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to check permissions"))
@@ -107,14 +119,37 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isAdmin {
-		h.reject(ctx, rw, "sso_target_is_admin")
+	// Compared against the recorded issuer rather than trusting that minting once
+	// succeeded: a regular user promoted between minting and redeeming carries a
+	// ticket whose issuer is somebody else, and is refused here. A payload with
+	// no issuer fails the same way — a loaded user's id is never zero — so an
+	// unreadable or hand-made payload fails closed.
+	if isAdmin && payload.IssuerID != user.ID {
+		h.reject(ctx, rw, "sso_target_is_other_admin")
 
 		return
 	}
 
 	if user.TwoFactorEnabled {
+		// The ticket buys a challenge and nothing more. That challenge is
+		// finished at /api/auth/2fa/verify, which does not repeat these checks:
+		// the cached challenge records only the user, not where it came from. It
+		// does not have to — a challenge exists only because a password or a
+		// validated ticket already produced one, so this is the last checkpoint.
 		h.issueTwoFactorChallenge(ctx, rw, user, payload)
+
+		return
+	}
+
+	// An administrator without a second factor is not turned away: a customer who
+	// administers their own panel would have no way in at all. Instead the same
+	// admin-MFA policy the password login applies decides how far this session
+	// goes — a full one while the grace window lasts, carrying the nudge that
+	// asks for enrolment, and an enrollment-scoped one once it closes.
+	nudge := login.EvaluateMFANudge(ctx, h.nudge, h.userRepo, user, isAdmin)
+
+	if nudge != nil && nudge.HardFail {
+		h.issueMFAEnrollmentSession(ctx, rw, user, payload, nudge)
 
 		return
 	}
@@ -126,17 +161,52 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.recordRedemption(ctx, user, payload, "sso_ticket_redeem")
+
+	response := newExchangeResponse(user, token, login.DefaultTokenDuration, payload.RedirectTo)
+	response.MFANudge = nudge
+
+	h.responder.Write(ctx, rw, response)
+}
+
+// issueMFAEnrollmentSession mirrors the password login's hard-fail branch: the
+// administrator crossed the grace window without enrolling, so the ticket buys a
+// session scoped to the 2FA-enrollment endpoints and nothing else.
+func (h *Handler) issueMFAEnrollmentSession(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	user *domain.User,
+	payload auth.SSOTicketPayload,
+	nudge *mfanudge.View,
+) {
+	token, err := h.authService.GenerateMFAEnrollmentToken(user, h.enrollmentTokenTTL)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to generate enrollment token"))
+
+		return
+	}
+
+	h.recordRedemption(ctx, user, payload, "sso_ticket_redeem_enrollment")
+
+	response := newExchangeResponse(user, token, h.enrollmentTokenTTL, payload.RedirectTo)
+	response.MFAEnrollmentRequired = true
+	response.MFANudge = nudge
+
+	h.responder.Write(ctx, rw, response)
+}
+
+// recordRedemption writes the pair of events every successful redemption leaves:
+// the login itself, and the SSO-specific one naming who granted it.
+func (h *Handler) recordRedemption(
+	ctx context.Context, user *domain.User, payload auth.SSOTicketPayload, action string,
+) {
 	audit.LoginSuccess(ctx, h.audit, user.ID, user.Login)
 	audit.SensitiveOp(
 		ctx, h.audit,
 		audit.EventSSOTicketRedeem, audit.CategoryAuthentication,
-		"user", strconv.FormatUint(uint64(user.ID), 10), "sso_ticket_redeem",
+		"user", strconv.FormatUint(uint64(user.ID), 10), action,
 		slog.Uint64("issuer_id", uint64(payload.IssuerID)),
 	)
-
-	h.responder.Write(ctx, rw, newExchangeResponse(
-		user, token, login.DefaultTokenDuration, payload.RedirectTo,
-	))
 }
 
 // consumeTicket validates the shape, then atomically pulls the entry (read and

@@ -1,7 +1,8 @@
 type: object
 description: >-
-  Session issued when the target account has no second factor. Mirrors the login
-  response so the SPA can reuse the same "store this token" path.
+  Session issued when the target account has no enrolled second factor. Mirrors
+  the login response so the SPA can reuse the same "store this token" path,
+  including the admin-MFA fields.
 properties:
   token:
     type: string
@@ -31,6 +32,22 @@ properties:
     type: string
     description: The redirect target recorded when the ticket was minted.
     example: "/servers/6"
+  mfa_enrollment_required:
+    type: boolean
+    description: >-
+      Present and true when the administrator crossed the admin-MFA grace window
+      (`AUTH_MFA_HARD_FAIL_DAYS`) without enrolling. The issued token is then
+      scoped to the 2FA-enrollment endpoints only and lives for
+      `AUTH_MFA_ENROLLMENT_TOKEN_TTL`; `expires_in` reflects that shorter
+      lifetime. Omitted otherwise.
+    example: true
+  mfa_nudge:
+    allOf:
+      - $ref: '../MfaNudge.yaml'
+    description: >-
+      The admin-MFA recommendation, present when the target is an administrator
+      without a second factor and `AUTH_REQUIRE_MFA_FOR_ADMINS` is on. Identical
+      in shape and meaning to the field on the login response. Omitted otherwise.
 required:
   - token
   - expires_in

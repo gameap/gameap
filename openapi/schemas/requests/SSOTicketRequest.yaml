@@ -3,7 +3,13 @@ description: Request to mint a single-use SSO login ticket for another user.
 properties:
   user_id:
     type: integer
-    description: ID of the user the ticket logs in. Must not be an administrator.
+    description: >-
+      ID of the user the ticket logs in. An administrator may only be named here
+      when it is the account the request is authenticated as — the owner of the
+      token, or the interactive session's own user; anything else is rejected
+      with 403. What redeeming such a ticket yields depends on the admin-MFA
+      policy: a second-factor challenge once the account has enrolled one, and
+      before that a session carrying the "enable two-factor" recommendation.
     example: 42
   redirect_to:
     type: string

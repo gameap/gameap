@@ -163,6 +163,38 @@ func TestSetup_RejectsWhenAlreadyEnabled(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "already enabled")
 }
 
+// A personal access token lives in a third-party system. Letting one enrol or
+// replace a second factor would let whoever steals it re-anchor the owner's
+// account to an authenticator they control, so the whole 2FA surface refuses a
+// token session outright. See base.EnsureSecondFactorChangeAllowedForSession.
+func TestSetup_RefusesTokenSession(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	handler := NewHandler(seededRepo(t), newManager(t), api.NewResponder())
+
+	req := httptest.NewRequest(http.MethodPost, "/api/profile/2fa/setup", http.NoBody)
+	req = req.WithContext(auth.ContextWithSession(context.Background(), tokenSession()))
+
+	// ACT
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "cannot manage two-factor authentication")
+	assert.NotContains(t, w.Body.String(), stubSecret)
+}
+
+// tokenSession authenticates as a user the way a personal access token does.
+func tokenSession() *auth.Session {
+	return &auth.Session{
+		Login: "alice",
+		User:  &domain.User{ID: 1, Login: "alice"},
+		Token: &domain.PersonalAccessToken{ID: 7},
+	}
+}
+
 func TestSetup_RejectsUnauthenticated(t *testing.T) {
 	t.Parallel()
 

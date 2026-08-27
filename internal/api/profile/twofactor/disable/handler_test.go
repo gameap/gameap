@@ -72,6 +72,34 @@ func disableReq(t *testing.T, body string) *http.Request {
 	return req.WithContext(auth.ContextWithSession(context.Background(), session))
 }
 
+// A personal access token lives in a third-party system. Letting one enrol or
+// replace a second factor would let whoever steals it re-anchor the owner's
+// account to an authenticator they control, so the whole 2FA surface refuses a
+// token session outright. See base.EnsureSecondFactorChangeAllowedForSession.
+func TestDisable_RefusesTokenSession(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	f := newDisableFixture(t, true)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/profile/2fa",
+		bytes.NewBufferString(`{"password":"whatever","code":"000000"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+		Login: "alice",
+		User:  &domain.User{ID: 1, Login: "alice"},
+		Token: &domain.PersonalAccessToken{ID: 7},
+	}))
+
+	// ACT
+	w := httptest.NewRecorder()
+	f.handler.ServeHTTP(w, req)
+
+	// ASSERT
+	require.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "cannot manage two-factor authentication")
+}
+
 func TestDisable_PasswordPlusCodeClearsTwoFactor(t *testing.T) {
 	t.Parallel()
 

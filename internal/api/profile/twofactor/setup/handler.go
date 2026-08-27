@@ -46,6 +46,14 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A second factor may only be moved by someone holding a real session. See
+	// base.EnsureSecondFactorChangeAllowedForSession for why a token must not.
+	if err := base.EnsureSecondFactorChangeAllowedForSession(ctx); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	users, err := h.userRepo.Find(
 		ctx, filters.FindUserByLogins(session.Login), nil, &filters.Pagination{Limit: 1},
 	)

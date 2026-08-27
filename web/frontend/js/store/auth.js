@@ -135,9 +135,17 @@ export const useAuthStore = defineStore('auth', {
 
                 this.applyAuthResponse(response.data)
 
+                // An administrator who has not enrolled a second factor yet is
+                // let in and asked to, exactly as a password login would. Keeping
+                // the nudge here is what raises the enforcement modal over the
+                // panel — and, once the grace window closes, the unclosable one
+                // over an enrollment-scoped session.
+                this.mfaNudge = response.data.mfa_nudge || null
+
                 return {
                     twoFactorRequired: false,
                     redirectTo: response.data.redirect_to,
+                    mfaEnrollmentRequired: !!response.data.mfa_enrollment_required,
                 }
             } finally {
                 this.apiProcesses--

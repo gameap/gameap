@@ -514,8 +514,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			// Mints a single-use ticket that logs one specific user into the
 			// panel, for external systems that already own the customer
 			// relationship (a billing panel's "open my game panel" button).
-			// Neither a PAT nor a short-lived token can do this: both are
-			// always issued for their own owner.
+			// Neither a PAT nor a short-lived token can do this: both log in as
+			// their own owner and nobody else. An administrator is the one
+			// target the ticket will not carry to a third party — see ssomint,
+			// which allows it only for the caller's own account and only behind
+			// that account's second factor.
 			Method: http.MethodPost,
 			Path:   "/api/auth/sso/tickets",
 			Handler: ssomint.NewHandler(
@@ -555,6 +558,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 					c.Config().Audit.ClientIPHeader,
 					c.Responder(),
 					c.AuditLogger(),
+					c.MFANudgeService(),
+					c.Config().Auth.MFAEnrollmentTokenTTL,
 				),
 			),
 			AllowGuestAccess: true,

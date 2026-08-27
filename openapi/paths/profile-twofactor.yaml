@@ -16,6 +16,16 @@
           application/json:
             schema:
               $ref: '../schemas/responses/TwoFactorSetupResponse.yaml'
+      '403':
+        description: >-
+          The request authenticated with a personal access token. A second
+          factor may only be changed by someone holding a real session: a
+          token lives in a third-party system, and letting one move that
+          anchor would hand whoever steals it the account.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
         content:
@@ -52,6 +62,16 @@
           application/json:
             schema:
               $ref: '../schemas/responses/TwoFactorRecoveryCodesResponse.yaml'
+      '403':
+        description: >-
+          The request authenticated with a personal access token. A second
+          factor may only be changed by someone holding a real session: a
+          token lives in a third-party system, and letting one move that
+          anchor would hand whoever steals it the account.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized
         content:
@@ -94,6 +114,16 @@
           application/json:
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
+      '403':
+        description: >-
+          The request authenticated with a personal access token. A second
+          factor may only be changed by someone holding a real session: a
+          token lives in a third-party system, and letting one move that
+          anchor would hand whoever steals it the account.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized, wrong password, or invalid code
         content:
@@ -136,6 +166,16 @@
           application/json:
             schema:
               $ref: '../schemas/responses/TwoFactorRecoveryCodesResponse.yaml'
+      '403':
+        description: >-
+          The request authenticated with a personal access token. A second
+          factor may only be changed by someone holding a real session: a
+          token lives in a third-party system, and letting one move that
+          anchor would hand whoever steals it the account.
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '401':
         description: Unauthorized or wrong password
         content:

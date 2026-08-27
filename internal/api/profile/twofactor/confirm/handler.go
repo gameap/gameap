@@ -1,11 +1,13 @@
 package confirm
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/audit"
+	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/pkg/api"
@@ -54,6 +56,14 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A second factor may only be moved by someone holding a real session. See
+	// base.EnsureSecondFactorChangeAllowedForSession for why a token must not.
+	if err := base.EnsureSecondFactorChangeAllowedForSession(ctx); err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	input := &confirmInput{}
 	if err := json.NewDecoder(r.Body).Decode(input); err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
@@ -70,38 +80,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := h.userRepo.Find(
-		ctx, filters.FindUserByLogins(session.Login), nil, &filters.Pagination{Limit: 1},
-	)
-	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to find user"))
-
-		return
-	}
-
-	if len(users) == 0 {
-		h.responder.WriteError(ctx, rw, api.NewNotFoundError("user not found"))
-
-		return
-	}
-
-	user := &users[0]
-
-	if user.TwoFactorEnabled {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.New("two-factor authentication is already enabled"),
-			http.StatusConflict,
-		))
-
-		return
-	}
-
-	if user.TwoFactorSecret == nil {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.New("no pending two-factor enrollment; call setup first"),
-			http.StatusConflict,
-		))
-
+	user, ok := h.loadPendingEnrollment(ctx, rw, session.Login)
+	if !ok {
 		return
 	}
 
@@ -140,4 +120,48 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		audit.CategoryAuthentication, "two_factor", "", "enable")
 
 	h.responder.Write(ctx, rw, newRecoveryCodesResponse(plainCodes))
+}
+
+// loadPendingEnrollment returns the caller's account only when it is in the one
+// state this endpoint can act on: existing, not already enrolled, and carrying
+// the pending secret that /api/profile/2fa/setup stored.
+func (h *Handler) loadPendingEnrollment(
+	ctx context.Context, rw http.ResponseWriter, login string,
+) (*domain.User, bool) {
+	users, err := h.userRepo.Find(
+		ctx, filters.FindUserByLogins(login), nil, &filters.Pagination{Limit: 1},
+	)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to find user"))
+
+		return nil, false
+	}
+
+	if len(users) == 0 {
+		h.responder.WriteError(ctx, rw, api.NewNotFoundError("user not found"))
+
+		return nil, false
+	}
+
+	user := &users[0]
+
+	if user.TwoFactorEnabled {
+		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
+			errors.New("two-factor authentication is already enabled"),
+			http.StatusConflict,
+		))
+
+		return nil, false
+	}
+
+	if user.TwoFactorSecret == nil {
+		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
+			errors.New("no pending two-factor enrollment; call setup first"),
+			http.StatusConflict,
+		))
+
+		return nil, false
+	}
+
+	return user, true
 }

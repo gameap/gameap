@@ -376,6 +376,40 @@ func TestRouterSecurity_TokenAccess(t *testing.T) {
 			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerCreate, domain.PATAbilityGDaemonTaskRead},
 			expectedStatusCode: http.StatusForbidden,
 		},
+
+		// "/api/profile/2fa/*" endpoint tests.
+		//
+		// These routes are neither AdminOnly nor ability-checked, so the router
+		// wraps them in neither the ability middleware nor the token-admin guard:
+		// a token gets as far as the handler on the strength of being
+		// authenticated. The refusal therefore lives in the handlers, and these
+		// cases are what proves it is actually in the request path — without it a
+		// stolen billing token could anchor its owner's account to an
+		// authenticator the thief controls.
+		{
+			name:               "token_cannot_start_two_factor_enrollment",
+			request:            "POST /api/profile/2fa/setup",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "token_cannot_confirm_two_factor_enrollment",
+			request:            "POST /api/profile/2fa/confirm",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "token_cannot_disable_two_factor",
+			request:            "DELETE /api/profile/2fa",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
+		{
+			name:               "token_cannot_regenerate_recovery_codes",
+			request:            "POST /api/profile/2fa/recovery-codes",
+			tokenAbilities:     []domain.PATAbility{domain.PATAbilityServerList},
+			expectedStatusCode: http.StatusForbidden,
+		},
 	}
 
 	for _, test := range tests {
