@@ -101,7 +101,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	input := &ticketInput{}
 
-	if err := json.NewDecoder(r.Body).Decode(input); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(rw, r.Body, maxBodySize)).Decode(input); err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
 			errors.WithMessage(err, "invalid request"),
 			http.StatusBadRequest,

@@ -18,6 +18,8 @@ var (
 
 const maxRedirectLength = 512
 
+const maxBodySize = 1024
+
 type ticketInput struct {
 	UserID uint `json:"user_id"`
 
