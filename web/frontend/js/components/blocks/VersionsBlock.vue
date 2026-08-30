@@ -1,7 +1,7 @@
 <template>
   <div class="w-full p-3 border border-stone-200 bg-stone-50 rounded-lg sm:p-4 dark:bg-stone-800 dark:border-stone-700">
     <div class="grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-y-0 sm:divide-x divide-stone-200 dark:divide-stone-700">
-      <section class="sm:pr-6">
+      <section class="sm:pr-6 flex flex-col">
         <div class="text-base font-semibold text-stone-900 dark:text-white">GameAP</div>
 
         <GIcon v-if="versionLoading" name="loading" class="mt-3 text-stone-400" />
@@ -17,14 +17,14 @@
             </div>
           </div>
 
-          <div class="mt-3 text-sm font-semibold text-stone-900 dark:text-white">{{ trans('home.version_in_use') }}</div>
+          <div class="mt-auto pt-3 text-sm font-semibold text-stone-900 dark:text-white">{{ trans('home.version_in_use') }}</div>
           <div class="mt-1.5">
             <GStatusBadge :color="panelBadgeColor" :text="panelCurrent" />
           </div>
         </template>
       </section>
 
-      <section class="sm:pl-6">
+      <section class="sm:pl-6 flex flex-col">
         <div class="text-base font-semibold text-stone-900 dark:text-white">GameAP Daemon</div>
 
         <GIcon v-if="versionLoading || summaryLoading" name="loading" class="mt-3 text-stone-400" />
@@ -41,7 +41,7 @@
           </div>
 
           <template v-if="daemonStatus">
-            <div class="mt-3 text-sm font-semibold text-stone-900 dark:text-white">{{ trans('home.version_in_use') }}</div>
+            <div class="mt-auto pt-3 text-sm font-semibold text-stone-900 dark:text-white">{{ trans('home.version_in_use') }}</div>
             <div class="mt-1.5">
               <button
                   v-if="daemonStatusClickable"
