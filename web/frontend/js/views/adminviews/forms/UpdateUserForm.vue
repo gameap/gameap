@@ -112,6 +112,12 @@
           </n-card>
         </div>
       </div>
+
+      <PluginSlot
+          v-if="pluginsStore.isInitialized"
+          name="admin-user-edit-blocks"
+          :context="editContext"
+      />
     </n-form>
 
     <GFixedBottomBar>
@@ -125,7 +131,7 @@
 
 <script setup>
 import { GIcon, Loading } from "@gameap/ui"
-import {ref, defineModel, defineProps, defineEmits} from "vue"
+import {computed, ref, defineModel, defineProps, defineEmits} from "vue"
 import {trans} from "@/i18n/i18n";
 import GButton from "../../../components/GButton.vue";
 import GFixedBottomBar from "../../../components/GFixedBottomBar.vue";
@@ -146,8 +152,11 @@ import {
 } from "@/parts/validators"
 import {useUserStore} from "@/store/user"
 import UserServerPrivileges from "@/components/servers/UserServerPrivileges.vue";
+import PluginSlot from "@/plugins/components/PluginSlot.vue";
+import {usePluginsStore} from "@/store/plugins";
 
 const userStore = useUserStore()
+const pluginsStore = usePluginsStore()
 
 const props = defineProps({
   loading: {
@@ -158,6 +167,20 @@ const props = defineProps({
 
 const formRef = ref({})
 const form = defineModel({})
+
+// Read-only snapshot of the edited values. Password fields are deliberately
+// left out - plugins have no business seeing what is typed there.
+const editContext = computed(() => ({
+  userId: userStore.userId,
+  user: userStore.user,
+  form: {
+    login: form.value.login,
+    email: form.value.email,
+    name: form.value.name,
+    roles: form.value.roles,
+    servers: form.value.servers,
+  },
+}))
 
 const rules = {
   login: {

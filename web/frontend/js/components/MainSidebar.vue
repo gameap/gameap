@@ -57,6 +57,12 @@
           </div>
         </template>
 
+        <PluginSlot
+            v-if="pluginsStore.isInitialized"
+            name="sidebar-sections"
+            :context="{ minimized: true, isAdmin }"
+        />
+
         <div class="w-full px-2 mt-3">
           <div class="flex flex-col items-center w-full mb-3 border-stone-700">
             <a v-on:click="toggleMinimized" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2">
@@ -134,6 +140,12 @@
         </div>
       </template>
 
+      <PluginSlot
+          v-if="pluginsStore.isInitialized"
+          name="sidebar-sections"
+          :context="{ minimized: false, isAdmin }"
+      />
+
       <div class="w-full px-2 mt-3">
         <div class="flex flex-col items-center w-full mb-3 border-stone-700">
           <a v-on:click.prevent="toggleMinimized" class="flex items-center transition transform w-full h-10 px-3 mt-2 bg-chrome-item hover:translate-x-2" href="#">
@@ -158,6 +170,7 @@ import {serversLinks} from "./bars";
 import {useAuthStore} from "@/store/auth";
 import {useUISettingsStore} from "@/store/uiSettings";
 import {usePluginsStore} from "@/store/plugins";
+import PluginSlot from "@/plugins/components/PluginSlot.vue";
 import {useAdminMenuItems} from "@/composables/useAdminMenuItems";
 
 const authStore = useAuthStore()

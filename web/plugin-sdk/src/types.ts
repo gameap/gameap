@@ -145,10 +145,25 @@ export interface PluginSlotComponent {
  */
 export type SlotName =
     | 'server-tabs'
+    | 'server-control-buttons'
+    | 'server-control-blocks'
+    | 'servers-list-actions'
     | 'dashboard-widgets'
     | 'sidebar-sections'
+    | 'navbar-items'
+    | 'global-banners'
     | 'admin-pages'
-    | 'admin-user-info';
+    | 'home-buttons'
+    | 'profile-info-rows'
+    | 'profile-blocks'
+    | 'admin-user-info'
+    | 'admin-user-info-above'
+    | 'admin-user-info-rows'
+    | 'admin-user-edit-blocks'
+    | 'admin-node-edit-blocks'
+    | 'admin-server-edit-blocks'
+    | 'admin-game-edit-blocks'
+    | 'admin-mod-edit-blocks';
 
 /**
  * Server data available to plugins.
@@ -231,6 +246,131 @@ export interface ServerTabProps {
  */
 export interface DashboardWidgetProps {
     isAdmin: boolean;
+    pluginId: string;
+}
+
+/**
+ * Props passed to server control buttons and blocks on the server page.
+ *
+ * Both slots evaluate `checkPermission` / `checkGame`, so a component that
+ * declares them is only rendered when the viewer actually has the abilities.
+ */
+export interface ServerControlProps {
+    serverId: number;
+    server: ServerData;
+    abilities: Record<string, boolean>;
+    pluginId: string;
+}
+
+/**
+ * Props passed to components in the `servers-list-actions` slot, rendered in the
+ * commands column of the server list. `checkPermission` / `checkGame` apply.
+ */
+export interface ServersListActionProps {
+    serverId: number;
+    server: ServerData;
+    pluginId: string;
+}
+
+/**
+ * Props passed to navbar items and global banners.
+ */
+export interface ChromeSlotProps {
+    routeName: string | null;
+    isAdmin: boolean;
+    pluginId: string;
+}
+
+/**
+ * Props passed to sidebar sections. `minimized` tells whether the sidebar is
+ * collapsed to icons.
+ */
+export interface SidebarSectionProps {
+    minimized: boolean;
+    isAdmin: boolean;
+    pluginId: string;
+}
+
+/**
+ * Props passed to the profile slots (`profile-info-rows`, `profile-blocks`).
+ *
+ * A `profile-info-rows` component MUST render a `<tr>` as its root element -
+ * it is placed directly inside the profile table body.
+ */
+export interface ProfileSlotProps {
+    userId: number;
+    user: UserData;
+    pluginId: string;
+}
+
+/**
+ * Props passed to the user slots in the admin user modal
+ * (`admin-user-info-above`, `admin-user-info-rows`, `admin-user-info`).
+ *
+ * An `admin-user-info-rows` component MUST render a `<tr>` as its root element.
+ */
+export interface AdminUserInfoProps {
+    userId: number;
+    user: UserData;
+    pluginId: string;
+}
+
+/**
+ * Editable user fields, as a read-only snapshot. Password fields are never
+ * included.
+ */
+export interface UserEditFormData {
+    login: string;
+    name: string;
+    email: string;
+    roles: string[];
+    servers: Array<{ id: number; name: string }>;
+}
+
+/**
+ * Props passed to components in the `admin-user-edit-blocks` slot. `form`
+ * reflects the unsaved state of the edit form.
+ */
+export interface AdminUserEditBlockProps extends AdminUserInfoProps {
+    form: UserEditFormData;
+}
+
+/**
+ * Props passed to components in the `admin-node-edit-blocks` slot. Daemon
+ * credentials, certificates and control scripts are never included in `form`.
+ */
+export interface AdminNodeEditBlockProps {
+    nodeId: number;
+    form: Record<string, unknown>;
+    pluginId: string;
+}
+
+/**
+ * Props passed to components in the `admin-server-edit-blocks` slot. The RCON
+ * password is never included in `form`.
+ */
+export interface AdminServerEditBlockProps {
+    serverId: number;
+    server: ServerData | null;
+    form: Record<string, unknown>;
+    pluginId: string;
+}
+
+/**
+ * Props passed to components in the `admin-game-edit-blocks` slot.
+ */
+export interface AdminGameEditBlockProps {
+    gameCode: string;
+    form: Record<string, unknown>;
+    pluginId: string;
+}
+
+/**
+ * Props passed to components in the `admin-mod-edit-blocks` slot.
+ */
+export interface AdminModEditBlockProps {
+    modId: number;
+    form: Record<string, unknown>;
     pluginId: string;
 }
 

@@ -1,4 +1,5 @@
 export { loadPlugins } from './loader'
 export { usePluginContext, providePluginContext } from './context'
 export { createPluginEventBus, pluginEmitter } from './events'
+export { matchesPermission, matchesGame, filterSlotComponents } from './permissions'
 export { usePluginsStore } from '../store/plugins'

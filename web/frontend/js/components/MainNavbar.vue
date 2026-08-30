@@ -43,6 +43,12 @@
         </div>
 
         <div class="flex items-center">
+          <PluginSlot
+              v-if="pluginsStore.isInitialized"
+              name="navbar-items"
+              :context="{ isAdmin }"
+          />
+
           <div class="flex items-center md:mr-4 gap-x-1.5 text-white hover:bg-chrome-item px-5 py-2 rounded cursor-pointer" v-on:click="switchTheme()">
             <GIcon v-if="currentTheme === 'dark'" name="sun" />
             <GIcon v-if="currentTheme === 'light'" name="moon" />
@@ -166,6 +172,7 @@ import {useAuthStore} from "@/store/auth";
 import {useAdminMenuItems} from "@/composables/useAdminMenuItems";
 import {useUISettingsStore} from "@/store/uiSettings";
 import {usePluginsStore} from "@/store/plugins";
+import PluginSlot from "@/plugins/components/PluginSlot.vue";
 import {errorNotification} from "@/parts/dialogs";
 
 const authStore = useAuthStore()

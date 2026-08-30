@@ -267,6 +267,12 @@
         </n-card>
       </div>
 
+      <PluginSlot
+          v-if="pluginsStore.isInitialized"
+          name="admin-server-edit-blocks"
+          :context="pluginContext"
+      />
+
       <GFixedBottomBar>
         <GButton color="green" v-on:click="onClickSave">
           <GIcon name="save" />
@@ -292,6 +298,8 @@ import {storeToRefs} from "pinia"
 import { capitalize } from "lodash-es"
 import {errorNotification, notification} from "@/parts/dialogs";
 import {useServerStore} from "@/store/server"
+import {usePluginsStore} from "@/store/plugins"
+import PluginSlot from "@/plugins/components/PluginSlot.vue"
 import {useGameListStore} from "@/store/gameList"
 import {useNodeListStore} from "@/store/nodeList"
 import {useInitialLoad} from "@/composables/useInitialLoad"
@@ -310,6 +318,7 @@ const router = useRouter()
 const gamesStore = useGameListStore()
 const nodeListStore = useNodeListStore()
 const serverStore = useServerStore()
+const pluginsStore = usePluginsStore()
 
 const formRef = ref({})
 const serverForm = ref({
@@ -330,6 +339,28 @@ const gameModStore = useGameModStore()
 const {games} = storeToRefs(gamesStore)
 const {nodes} = storeToRefs(nodeListStore)
 const {server} = storeToRefs(serverStore)
+
+// The RCON password lives in `serverForm.rcon` and is deliberately not exposed.
+const pluginContext = computed(() => ({
+  serverId: Number(route.params.id),
+  server: server.value,
+  form: {
+    name: serverForm.value.name,
+    enabled: serverForm.value.enabled,
+    blocked: serverForm.value.blocked,
+    ip: serverForm.value.ip,
+    serverPort: serverForm.value.serverPort,
+    queryPort: serverForm.value.queryPort,
+    rconPort: serverForm.value.rconPort,
+    dir: serverForm.value.dir,
+    user: serverForm.value.user,
+    startCommand: serverForm.value.startCommand,
+    nodeId: serverForm.value.nodeId,
+    game: serverForm.value.game,
+    gameMod: serverForm.value.gameMod,
+    metadata: serverForm.value.metadata,
+  },
+}))
 const {mod: gameMod} = storeToRefs(gameModStore)
 
 // server.vars overrides the mod defaults, so the keys naming a mod variable are

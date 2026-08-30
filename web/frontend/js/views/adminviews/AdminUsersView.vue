@@ -25,6 +25,12 @@
       :title="trans('users.user')"
       style="width: 600px"
   >
+    <PluginSlot
+        v-if="pluginsStore.isInitialized"
+        name="admin-user-info-above"
+        :context="userInfoContext"
+    />
+
     <GTable>
       <tbody>
         <tr>
@@ -43,13 +49,18 @@
           <td><strong>{{ trans('users.roles') }}:</strong></td>
           <td>{{ userStore.user.roles.join(', ')  }}</td>
         </tr>
+        <PluginSlot
+            v-if="pluginsStore.isInitialized"
+            name="admin-user-info-rows"
+            :context="userInfoContext"
+        />
       </tbody>
     </GTable>
 
     <PluginSlot
         v-if="pluginsStore.isInitialized"
         name="admin-user-info"
-        :context="{ userId: userStore.userId, user: userStore.user }"
+        :context="userInfoContext"
     />
   </GModal>
 
@@ -87,6 +98,11 @@ const breadcrumbs = computed(() => {
     {'route':{name: 'admin.users.index'}, 'text':trans('users.users')},
   ]
 })
+
+const userInfoContext = computed(() => ({
+  userId: userStore.userId,
+  user: userStore.user,
+}))
 
 const createColumns = () => {
   return [

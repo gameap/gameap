@@ -97,6 +97,12 @@
               </n-card>
             </div>
           </div>
+
+          <PluginSlot
+              v-if="pluginsStore.isInitialized"
+              name="admin-node-edit-blocks"
+              :context="pluginContext"
+          />
         </n-tab-pane>
 
         <n-tab-pane name="daemon">
@@ -400,6 +406,9 @@ import {
 import GButton from "../../../components/GButton.vue";
 import GFixedBottomBar from "../../../components/GFixedBottomBar.vue";
 import InputManyList from "../../../components/input/InputManyList.vue";
+import PluginSlot from "@/plugins/components/PluginSlot.vue";
+import {usePluginsStore} from "@/store/plugins";
+import {useRoute} from "vue-router";
 
 const osOptions = [
   {label: 'Linux', value: 'linux'},
@@ -442,6 +451,24 @@ const props = defineProps({
 
 const formRef = ref({})
 const form = defineModel({})
+
+const route = useRoute()
+const pluginsStore = usePluginsStore()
+
+// Daemon credentials, certificates and control scripts stay out of the snapshot.
+const pluginContext = computed(() => ({
+  nodeId: Number(route.params.id),
+  form: {
+    name: form.value.name,
+    enabled: form.value.enabled,
+    os: form.value.os,
+    location: form.value.location,
+    provider: form.value.provider,
+    workPath: form.value.workPath,
+    steamcmdPath: form.value.steamcmdPath,
+    ip: form.value.ip,
+  },
+}))
 
 const rules = {
   name: {

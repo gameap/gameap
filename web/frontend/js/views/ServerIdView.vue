@@ -71,6 +71,13 @@
                   icon="rcon"
                   :text="trans('servers.reinstall')"
               ></ServerControlButton>
+
+              <PluginSlot
+                  v-if="pluginsStore.isInitialized"
+                  name="server-control-buttons"
+                  :context="serverSlotContext"
+                  :check-context="pluginCheckContext"
+              />
             </div>
 
             <div class="ml-auto">
@@ -95,6 +102,13 @@
           </n-card>
         </div>
       </div>
+
+      <PluginSlot
+          v-if="pluginsStore.isInitialized"
+          name="server-control-blocks"
+          :context="serverSlotContext"
+          :check-context="pluginCheckContext"
+      />
 
       <div class="md:flex flex-wrap mt-2" v-if="serverStore.canReadConsole">
         <div class="md:w-full">
@@ -293,6 +307,8 @@ import {useServerRconStore} from "@/store/serverRcon"
 import {useAuthStore} from "@/store/auth"
 import {usePluginsStore} from "@/store/plugins"
 import {providePluginContext} from "@/plugins/context"
+import {filterSlotComponents} from "@/plugins/permissions"
+import PluginSlot from "@/plugins/components/PluginSlot.vue"
 import {trans, pageLanguage} from "@/i18n/i18n";
 import InactiveServer from "./InactiveServer.vue";
 import {errorNotification} from "@/parts/dialogs";
@@ -424,35 +440,20 @@ const isAdmin = computed(() => {
   return authStore.isAdmin
 })
 
-const pluginTabs = computed(() => {
-  const allTabs = pluginsStore.getSlotComponents('server-tabs')
-  return allTabs.filter(tab => {
-    if (!matchesTabGame(tab.checkGame)) {
-      return false
-    }
-    if (!tab.checkPermission) return true
-    if (tab.checkPermission.type === 'hasServerPermissions') {
-      return tab.checkPermission.permissions.every(
-          perm => serverStore.abilities[perm] === true
-      )
-    }
-    return true
-  })
-})
+const serverSlotContext = computed(() => ({
+  serverId: serverId.value,
+  server: server.value,
+  abilities: serverStore.abilities,
+}))
 
-function matchesTabGame(checkGame) {
-  if (!checkGame) return true
-  const game = server.value?.game
-  if (!game) return false
-  const engines = checkGame.engines ?? []
-  const codes = checkGame.codes ?? []
-  if (engines.length === 0 && codes.length === 0) return true
-  const engineMatches = engines.some(
-      engine => String(engine).toLowerCase() === String(game.engine ?? '').toLowerCase()
-  )
-  const codeMatches = codes.includes(game.code)
-  return engineMatches || codeMatches
-}
+const pluginCheckContext = computed(() => ({
+  abilities: serverStore.abilities,
+  game: server.value?.game,
+}))
+
+const pluginTabs = computed(() => {
+  return filterSlotComponents(pluginsStore.getSlotComponents('server-tabs'), pluginCheckContext.value)
+})
 
 function hashToTabName(hash) {
   if (!hash || hash === '#' || hash === '#control') {

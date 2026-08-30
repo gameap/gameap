@@ -29,6 +29,11 @@
         <td><strong>{{ trans('profile.language') }}:</strong></td>
         <td>{{ currentLanguageLabel }}</td>
       </tr>
+      <PluginSlot
+          v-if="pluginsStore.isInitialized"
+          name="profile-info-rows"
+          :context="profileContext"
+      />
       </tbody>
     </GTable>
   </GCard>
@@ -77,6 +82,12 @@
       </div>
     </div>
   </GCard>
+
+  <PluginSlot
+      v-if="pluginsStore.isInitialized"
+      name="profile-blocks"
+      :context="profileContext"
+  />
 
   <GModal
       v-model:show="updateProfileModalEnabled"
@@ -153,12 +164,15 @@ import TwoFactorSetupForm from "./forms/TwoFactorSetupForm.vue";
 import TwoFactorDisableForm from "./forms/TwoFactorDisableForm.vue";
 import {useAuthStore} from "@/store/auth";
 import {useUISettingsStore} from "@/store/uiSettings";
+import {usePluginsStore} from "@/store/plugins";
+import PluginSlot from "@/plugins/components/PluginSlot.vue";
 import GButton from "../components/GButton.vue";
 import {errorNotification, notification} from "@/parts/dialogs";
 import { requiredValidator } from "@/parts/validators";
 
 const authStore = useAuthStore()
 const uiSettingsStore = useUISettingsStore()
+const pluginsStore = usePluginsStore()
 
 const currentLanguageLabel = computed(() => {
   const lang = getCurrentLanguage()
@@ -177,6 +191,11 @@ const breadcrumbs = computed(() => {
 const user = computed(() => {
   return authStore.user
 })
+
+const profileContext = computed(() => ({
+  userId: authStore.user?.id,
+  user: authStore.user,
+}))
 
 const onClickUpdate = () => {
   updateProfileModel.value = {
