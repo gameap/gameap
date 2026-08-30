@@ -58,7 +58,7 @@
       <n-tabs v-model:value="activeTab" type="line" animated>
         <n-tab-pane name="overview" :tab="trans('dedicated_servers.tab_overview')">
           <Loading v-if="!node && loading" />
-          <NodeOverviewTab v-else :node="node" :daemon-info="daemonInfo" />
+          <NodeOverviewTab v-else :node="node" :daemon-info="daemonInfo" :outdated="outdated" />
         </n-tab-pane>
 
         <n-tab-pane name="metrics" :tab="trans('dedicated_servers.tab_metrics')">
@@ -90,6 +90,7 @@ const props = defineProps({
     nodeId: { type: [Number, String], default: null },
     node: { type: Object, default: null },
     online: { type: Boolean, default: false },
+    outdated: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['update:show', 'deleted'])

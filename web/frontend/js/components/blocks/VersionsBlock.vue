@@ -1,22 +1,23 @@
 <template>
   <div class="w-full p-3 border border-stone-200 bg-stone-50 rounded-lg sm:p-4 dark:bg-stone-800 dark:border-stone-700">
-    <div class="md:grid md:grid-cols-5 md:gap-4">
-      <h5 class="col-span-3 text-base inline-block align-middle font-semibold text-stone-900 dark:text-white max-md:mb-2">
-        <GIcon name="info" class="mr-1" />
-        {{ trans('home.versions') }}
-      </h5>
+    <h5 class="text-base font-semibold text-stone-900 dark:text-white mb-3">
+      <GIcon name="info" class="mr-1" />
+      {{ trans('home.versions') }}
+    </h5>
 
-      <div class="col-span-2 text-sm">
-        <div class="flex items-center flex-wrap gap-x-2 py-1">
-          <span class="font-medium text-stone-900 dark:text-white">GameAP</span>
-          <GIcon v-if="loading" name="loading" class="animate-spin" />
+    <div class="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-y-0 sm:divide-x divide-stone-200 dark:divide-stone-700">
+      <section class="sm:pr-6">
+        <div class="text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400">GameAP</div>
+
+        <div class="mt-1 flex items-center flex-wrap gap-x-2">
+          <GIcon v-if="loading" name="loading" class="text-stone-400" />
           <template v-else>
-            <span class="text-stone-600 dark:text-stone-300">{{ panelCurrent }}</span>
+            <span class="font-mono tabular-nums text-lg font-semibold text-stone-900 dark:text-white">{{ panelCurrent }}</span>
 
             <template v-if="panel.update_available">
               <span class="text-stone-400" aria-hidden="true">&rarr;</span>
               <a
-                  class="text-orange-500 font-medium hover:underline"
+                  class="font-mono tabular-nums text-lg font-semibold text-orange-500 hover:underline"
                   :href="panel.latest_stable_url"
                   target="_blank"
               >{{ panel.latest_stable }}</a>
@@ -44,52 +45,68 @@
           </template>
         </div>
 
-        <div v-if="panel.latest_beta" class="py-1 text-xs text-stone-500 dark:text-stone-400">
+        <div v-if="!loading && (panel.update_available || panelIsActual)" class="mt-1 text-xs">
+          <span v-if="panel.update_available" class="text-orange-500">{{ trans('home.update_available') }}</span>
+          <span v-else class="text-lime-600">{{ trans('home.up_to_date') }}</span>
+        </div>
+
+        <div v-if="panel.latest_beta" class="mt-1 text-xs text-stone-500 dark:text-stone-400">
           {{ trans('home.latest_beta') }}:
           <a class="hover:underline" :href="panel.latest_beta_url" target="_blank">{{ panel.latest_beta }}</a>
         </div>
+      </section>
 
-        <div class="flex items-center flex-wrap gap-x-2 py-1 mt-1">
-          <span class="font-medium text-stone-900 dark:text-white">gameap-daemon</span>
-          <span class="text-stone-600 dark:text-stone-300">
-            {{ trans('home.daemons_summary', {count: nodesTotal}) }}
-          </span>
-          <template v-if="daemon.latest_stable">
-            <span class="text-stone-400">&middot;</span>
-            <span class="text-stone-600 dark:text-stone-300">
-              {{ trans('home.latest_stable') }}:
-              <a class="hover:underline" :href="daemon.latest_stable_url" target="_blank">{{ daemon.latest_stable }}</a>
-            </span>
+      <section class="sm:pl-6">
+        <div class="text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400">GameAP Daemon</div>
+
+        <div class="mt-1 flex items-baseline flex-wrap gap-x-2">
+          <GIcon v-if="loading" name="loading" class="text-stone-400" />
+          <template v-else-if="daemon.latest_stable">
+            <a
+                class="font-mono tabular-nums text-lg font-semibold text-stone-900 dark:text-white hover:underline"
+                :href="daemon.latest_stable_url"
+                target="_blank"
+            >{{ daemon.latest_stable }}</a>
+            <span class="text-xs text-stone-500 dark:text-stone-400">{{ trans('home.latest_stable') }}</span>
           </template>
+          <span v-else class="font-mono text-lg font-semibold text-stone-400" aria-hidden="true">&mdash;</span>
         </div>
 
-        <router-link
-            v-for="node in outdatedNodes"
-            :key="node.id"
-            class="flex items-center gap-x-2 py-1 px-1 -mx-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700"
-            :to="{name: 'admin.nodes.index', query: {node: String(node.id)}}"
-        >
-          <GIcon name="warning" class="text-orange-500" />
-          <span class="text-stone-900 dark:text-white">{{ node.name }}</span>
-          <span class="text-stone-500 dark:text-stone-400">{{ node.version }}</span>
-        </router-link>
-
-        <div v-if="outdatedNodes.length" class="py-1 text-xs text-stone-500 dark:text-stone-400">
-          {{ trans('home.daemons_outdated', {count: outdatedNodes.length, total: nodesTotal}) }}
-        </div>
-        <div v-else-if="daemon.latest_stable && nodesTotal" class="py-1 text-xs text-lime-600">
-          <GIcon name="check" class="mr-1" />
-          {{ trans('home.daemons_actual') }}
+        <div v-if="nodesTotal" class="mt-1 text-xs flex items-center flex-wrap gap-x-2 gap-y-0.5">
+          <span class="text-stone-500 dark:text-stone-400">{{ trans('home.daemons_summary', {count: nodesTotal}) }}</span>
+          <span v-if="outdatedNodes.length" class="text-orange-500">
+            {{ trans('home.daemons_outdated', {count: outdatedNodes.length, total: nodesTotal}) }}
+          </span>
+          <span v-else-if="daemon.latest_stable" class="text-lime-600">
+            <GIcon name="check" class="mr-0.5" />{{ trans('home.daemons_actual') }}
+          </span>
+          <span v-if="offlineNodesCount" class="text-stone-500 dark:text-stone-400">
+            {{ trans('home.daemons_unavailable', {count: offlineNodesCount}) }}
+          </span>
         </div>
 
-        <div v-if="offlineNodesCount" class="py-1 text-xs text-stone-500 dark:text-stone-400">
-          {{ trans('home.daemons_unavailable', {count: offlineNodesCount}) }}
+        <div v-if="visibleOutdatedNodes.length" class="mt-2 flex flex-wrap gap-1.5">
+          <router-link
+              v-for="node in visibleOutdatedNodes"
+              :key="node.id"
+              class="inline-flex items-center gap-x-1 px-2 py-0.5 rounded text-xs bg-warning-soft text-warning-soft-text hover:opacity-80"
+              :to="{name: 'admin.nodes.index', query: {node: String(node.id)}}"
+          >
+            <GIcon name="warning" />
+            <span class="font-medium">{{ node.name }}</span>
+            <span class="font-mono tabular-nums">{{ node.version }}</span>
+          </router-link>
+          <router-link
+              v-if="hiddenOutdatedCount"
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-stone-200 text-stone-600 hover:opacity-80 dark:bg-stone-700 dark:text-stone-300"
+              :to="{name: 'admin.nodes.index'}"
+          >+{{ hiddenOutdatedCount }}</router-link>
         </div>
+      </section>
+    </div>
 
-        <div v-if="!updateCheckEnabled && !loading" class="py-1 text-xs text-stone-500 dark:text-stone-400">
-          {{ trans('home.update_check_disabled') }}
-        </div>
-      </div>
+    <div v-if="!updateCheckEnabled && !loading" class="mt-3 text-xs text-stone-500 dark:text-stone-400">
+      {{ trans('home.update_check_disabled') }}
     </div>
   </div>
 </template>
@@ -102,6 +119,8 @@ import {useNodeListStore} from "@/store/nodeList"
 import {useVersionStore} from "@/store/version"
 import {trans} from "@/i18n/i18n"
 import {errorNotification} from "@/parts/dialogs"
+
+const OUTDATED_NODES_LIMIT = 8
 
 const versionStore = useVersionStore()
 const nodeListStore = useNodeListStore()
@@ -116,16 +135,18 @@ const panelCurrent = computed(() => panel.value.current || '—')
 // A dev build is neither actual nor outdated, so the check mark is shown only
 // for a release build the update check managed to compare.
 const panelIsActual = computed(() => {
-  return panel.value.is_release === true && !!panel.value.latest_stable
+  return panel.value.is_release === true && !!panel.value.latest_stable && !panel.value.update_available
 })
 
 const onlineNodes = computed(() => nodeListStore.summary?.onlineNodes || [])
 const offlineNodesCount = computed(() => (nodeListStore.summary?.offlineNodes || []).length)
 const nodesTotal = computed(() => nodeListStore.summary?.total || 0)
 const outdatedNodes = computed(() => onlineNodes.value.filter((node) => node.outdated))
+const visibleOutdatedNodes = computed(() => outdatedNodes.value.slice(0, OUTDATED_NODES_LIMIT))
+const hiddenOutdatedCount = computed(() => Math.max(0, outdatedNodes.value.length - OUTDATED_NODES_LIMIT))
 
 onMounted(() => {
-  versionStore.fetchVersion().catch((error) => {
+  versionStore.ensureFetched().catch((error) => {
     errorNotification(error)
   })
 })

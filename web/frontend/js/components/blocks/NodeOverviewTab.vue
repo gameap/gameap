@@ -9,7 +9,31 @@
           </tr>
           <tr>
             <td><strong>{{ trans('dedicated_servers.gdaemon_version') }}:</strong></td>
-            <td>{{ versionLine }}</td>
+            <td>
+              <span class="inline-flex items-center flex-wrap gap-x-1.5">
+                <span>{{ versionLine }}</span>
+                <template v-if="outdated && latestStable">
+                  <span class="text-stone-400" aria-hidden="true">&rarr;</span>
+                  <a
+                      class="text-orange-500 font-medium hover:underline"
+                      :href="latestStableUrl"
+                      target="_blank"
+                  >{{ latestStable }}</a>
+                  <NTooltip trigger="hover">
+                    <template #trigger>
+                      <GIcon name="warning" class="text-orange-500" />
+                    </template>
+                    {{ trans('dedicated_servers.daemon_update_available') }}
+                  </NTooltip>
+                </template>
+                <NTooltip v-else-if="daemonUpToDate" trigger="hover">
+                  <template #trigger>
+                    <GIcon name="check" class="text-lime-600" />
+                  </template>
+                  {{ trans('dedicated_servers.daemon_up_to_date') }}
+                </NTooltip>
+              </span>
+            </td>
           </tr>
           <tr>
             <td><strong>{{ trans('dedicated_servers.gdaemon_online_servers_count') }}:</strong></td>
@@ -61,12 +85,29 @@
 
 <script setup>
 import { computed } from 'vue'
+import { NTooltip } from 'naive-ui'
 import { GCard, GTable, GIcon } from '@gameap/ui'
+import { useVersionStore } from '@/store/version'
 import { trans } from '@/i18n/i18n'
 
 const props = defineProps({
     node: { type: Object, default: null },
     daemonInfo: { type: Object, default: null },
+    outdated: { type: Boolean, default: false },
+})
+
+const versionStore = useVersionStore()
+
+const latestStable = computed(() => versionStore.daemon.latest_stable || '')
+const latestStableUrl = computed(() => versionStore.daemon.latest_stable_url || '')
+
+// The daemon reports a bare semver and the release feed strips the "v" prefix,
+// so plain equality is enough; a dev daemon build matches nothing and stays
+// unmarked.
+const daemonUpToDate = computed(() => {
+    const current = props.daemonInfo?.version?.version
+
+    return !!current && !!latestStable.value && !props.outdated && current === latestStable.value
 })
 
 const versionLine = computed(() => {

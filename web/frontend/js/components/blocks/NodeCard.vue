@@ -29,6 +29,25 @@
       <span v-if="node.location">{{ node.location }}</span>
       <span v-if="node.provider">· {{ node.provider }}</span>
       <span v-if="primaryIp" class="font-mono">· {{ primaryIp }}</span>
+      <span v-if="daemonVersion" class="inline-flex items-center gap-x-1 whitespace-nowrap">
+        <span v-if="node.location || node.provider || primaryIp">·</span>
+        <span class="font-mono tabular-nums">v{{ daemonVersion }}</span>
+        <template v-if="outdated && latestVersion">
+          <span class="text-stone-400" aria-hidden="true">&rarr;</span>
+          <a
+              class="text-orange-500 font-medium hover:underline"
+              :href="latestUrl"
+              target="_blank"
+              @click.stop
+          >{{ latestVersion }}</a>
+          <NTooltip trigger="hover">
+            <template #trigger>
+              <GIcon name="warning" class="text-orange-500" />
+            </template>
+            {{ trans('dedicated_servers.daemon_update_available') }}
+          </NTooltip>
+        </template>
+      </span>
     </div>
 
     <template v-if="online && hasMetrics">
@@ -83,7 +102,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { NCard, NProgress } from 'naive-ui'
+import { NCard, NProgress, NTooltip } from 'naive-ui'
 import { GIcon, GStatusBadge } from '@gameap/ui'
 import { useThemeVars } from '@/utils/theme'
 import { trans } from '@/i18n/i18n'
@@ -92,6 +111,10 @@ const props = defineProps({
     node: { type: Object, required: true },
     online: { type: Boolean, default: false },
     snapshot: { type: Object, default: null },
+    daemonVersion: { type: String, default: '' },
+    outdated: { type: Boolean, default: false },
+    latestVersion: { type: String, default: '' },
+    latestUrl: { type: String, default: '' },
 })
 
 defineEmits(['open-details'])
