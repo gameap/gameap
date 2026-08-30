@@ -204,7 +204,7 @@
     "versions": "Версии",
     "update_available": "Доступно обновление",
     "up_to_date": "Актуальная версия",
-    "daemons_summary": "нод: :count",
+    "daemons_summary": "выделенных серверов: :count",
     "daemons_outdated": "устарели: :count из :total",
     "daemons_unavailable": "недоступны: :count",
     "daemons_actual": "Все демоны актуальны",

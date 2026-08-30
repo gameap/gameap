@@ -140,3 +140,29 @@ test('an up-to-date panel is not offered an update', async ({ page, request }) =
   await expect(block.getByRole('link', { name: '4.4.2' })).toHaveCount(0);
   await expect(block).not.toContainText('4.5.0-beta.1');
 });
+
+test('an unreachable daemon prevents the all-up-to-date claim', async ({ page, request }) => {
+  test.setTimeout(60_000);
+
+  await openDashboard(page, request, {
+    summary: {
+      total: 2,
+      enabled: 2,
+      disabled: 0,
+      online: 1,
+      offline: 1,
+      onlineNodes: [
+        { id: 1, name: 'node-eu-1', location: 'EU', enabled: true, online: true, version: '4.1.2' },
+      ],
+      offlineNodes: [
+        { id: 2, name: 'node-us-2', location: 'US', enabled: true, online: false },
+      ],
+    },
+  });
+
+  const block = page.locator('div').filter({ hasText: VERSIONS_HEADING }).last();
+  await expect(block).toBeVisible({ timeout: 15_000 });
+
+  await expect(block).toContainText(UNAVAILABLE);
+  await expect(block).not.toContainText(ALL_ACTUAL);
+});

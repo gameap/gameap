@@ -78,7 +78,9 @@
               :text="trans('home.daemons_outdated', {count: outdatedNodes.length, total: nodesTotal})"
           />
         </div>
-        <div v-else-if="daemonLatest && nodesTotal" class="mt-1.5">
+        <!-- Offline daemons have unknown versions, so "all up to date" is
+             claimed only when every node was actually reachable. -->
+        <div v-else-if="daemonLatest && nodesTotal && !offlineNodesCount" class="mt-1.5">
           <GStatusBadge color="green" :text="trans('home.daemons_actual')" />
         </div>
 
