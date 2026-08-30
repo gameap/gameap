@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -1867,7 +1869,40 @@ func (s *ServerRepositorySuite) TestServerRepositoryAttachUserServer() {
 		results, err := s.repo.FindUserServers(ctx, 4102, nil, nil, nil)
 		require.NoError(t, err)
 		require.Len(t, results, 2)
+		assert.ElementsMatch(t, []uint{server1.ID, server2.ID},
+			[]uint{results[0].ID, results[1].ID},
+			"both the old and the new relation must be present")
 	})
+}
+
+func (s *ServerRepositorySuite) TestServerRepositoryAttachUserServerConcurrent() {
+	ctx := context.Background()
+
+	server := &domain.Server{
+		UID:        uuid.New(),
+		UUIDShort:  "attachc",
+		Name:       "Attach Concurrent Server",
+		GameID:     "csgo",
+		DSID:       1,
+		ServerIP:   "192.168.6.5",
+		ServerPort: 27015,
+		Dir:        "/servers/attachc",
+	}
+	require.NoError(s.T(), s.repo.Save(ctx, server))
+
+	var eg errgroup.Group
+	for range 8 {
+		eg.Go(func() error {
+			return s.repo.AttachUserServer(ctx, 4120, server.ID)
+		})
+	}
+	require.NoError(s.T(), eg.Wait())
+
+	results, err := s.repo.FindUserServers(ctx, 4120, nil, nil, nil)
+	require.NoError(s.T(), err)
+	require.Len(s.T(), results, 1,
+		"concurrent attaches of the same pair must keep a single relation")
+	assert.Equal(s.T(), server.ID, results[0].ID)
 }
 
 func (s *ServerRepositorySuite) TestServerRepositoryDetachUserServer() {
@@ -1937,6 +1972,7 @@ func (s *ServerRepositorySuite) TestServerRepositoryDetachUserServer() {
 		otherResults, err := s.repo.FindUserServers(ctx, 4112, nil, nil, nil)
 		require.NoError(t, err)
 		require.Len(t, otherResults, 1, "other users' relations to the same server must survive")
+		assert.Equal(t, server1.ID, otherResults[0].ID)
 	})
 
 	s.T().Run("detach_nonexistent_relation_is_noop", func(t *testing.T) {

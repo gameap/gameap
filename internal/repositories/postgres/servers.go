@@ -575,7 +575,8 @@ func (r *ServerRepository) SetUserServers(ctx context.Context, userID uint, serv
 		if len(serverIDs) > 0 {
 			insertBuilder := sq.Insert("server_user").
 				Columns("user_id", "server_id").
-				PlaceholderFormat(sq.Dollar)
+				PlaceholderFormat(sq.Dollar).
+				Suffix("ON CONFLICT (user_id, server_id) DO NOTHING")
 
 			for _, serverID := range serverIDs {
 				insertBuilder = insertBuilder.Values(userID, serverID)
@@ -596,32 +597,26 @@ func (r *ServerRepository) SetUserServers(ctx context.Context, userID uint, serv
 	})
 }
 
-// AttachUserServer assigns the server to the user. server_user has no
-// unique constraint, so the pair is deleted and re-inserted in one
-// transaction to keep the operation idempotent with a single row.
+// AttachUserServer assigns the server to the user. The unique
+// (user_id, server_id) index makes the insert idempotent: a repeated
+// or concurrent attach keeps a single row.
 func (r *ServerRepository) AttachUserServer(ctx context.Context, userID uint, serverID uint) error {
-	return r.tm.Do(ctx, func(ctx context.Context) error {
-		err := r.DetachUserServer(ctx, userID, serverID)
-		if err != nil {
-			return err
-		}
+	query, args, err := sq.Insert("server_user").
+		Columns("user_id", "server_id").
+		Values(userID, serverID).
+		Suffix("ON CONFLICT (user_id, server_id) DO NOTHING").
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build insert query")
+	}
 
-		insertQuery, insertArgs, err := sq.Insert("server_user").
-			Columns("user_id", "server_id").
-			Values(userID, serverID).
-			PlaceholderFormat(sq.Dollar).
-			ToSql()
-		if err != nil {
-			return errors.WithMessage(err, "failed to build insert query")
-		}
+	_, err = r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to insert relationship")
+	}
 
-		_, err = r.db.ExecContext(ctx, insertQuery, insertArgs...)
-		if err != nil {
-			return errors.WithMessage(err, "failed to insert relationship")
-		}
-
-		return nil
-	})
+	return nil
 }
 
 func (r *ServerRepository) DetachUserServer(ctx context.Context, userID uint, serverID uint) error {
