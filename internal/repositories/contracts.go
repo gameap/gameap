@@ -107,6 +107,10 @@ type ServerRepository interface {
 
 	SetUserServers(ctx context.Context, userID uint, serverIDs []uint) error
 
+	AttachUserServer(ctx context.Context, userID uint, serverID uint) error
+
+	DetachUserServer(ctx context.Context, userID uint, serverID uint) error
+
 	Exists(ctx context.Context, filter *filters.FindServer) (bool, error)
 
 	Search(ctx context.Context, query string) ([]*domain.Server, error)

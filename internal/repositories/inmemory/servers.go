@@ -89,6 +89,20 @@ func (r *ServerRepository) SetUserServers(_ context.Context, userID uint, server
 	return nil
 }
 
+// AttachUserServer assigns the server to the user, keeping a single relation.
+func (r *ServerRepository) AttachUserServer(_ context.Context, userID uint, serverID uint) error {
+	r.AddUserServer(userID, serverID)
+
+	return nil
+}
+
+// DetachUserServer removes the server assignment from the user.
+func (r *ServerRepository) DetachUserServer(_ context.Context, userID uint, serverID uint) error {
+	r.RemoveUserServer(userID, serverID)
+
+	return nil
+}
+
 func (r *ServerRepository) Exists(_ context.Context, filter *filters.FindServer) (bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

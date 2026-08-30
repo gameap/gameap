@@ -262,6 +262,87 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
 
+/api/users/{id}/servers/{server}:
+  put:
+    tags:
+      - Users
+    summary: Attach server to user
+    description: |
+      Assigns the server to the user, granting access to it (Admin only).
+      Idempotent: attaching an already attached server succeeds and keeps
+      a single assignment.
+    operationId: attachUserServer
+    parameters:
+      - $ref: '../parameters/PathUserId.yaml'
+      - name: server
+        in: path
+        required: true
+        description: Server ID
+        schema:
+          type: integer
+    responses:
+      '204':
+        description: Server attached
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+  delete:
+    tags:
+      - Users
+    summary: Detach server from user
+    description: |
+      Removes the server assignment from the user (Admin only). Idempotent:
+      detaching a server that is not attached succeeds, and the server
+      itself is not required to exist, so stale assignments can be cleaned
+      up. Per-server permissions are kept and become effective again if
+      the server is re-attached.
+    operationId: detachUserServer
+    parameters:
+      - $ref: '../parameters/PathUserId.yaml'
+      - name: server
+        in: path
+        required: true
+        description: Server ID
+        schema:
+          type: integer
+    responses:
+      '204':
+        description: Server detached
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
 /api/users/{id}/servers/{server}/permissions:
   get:
     tags:

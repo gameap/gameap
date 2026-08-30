@@ -48,6 +48,8 @@ var adminMutatingEndpoints = []adminEndpoint{
 	{http.MethodGet, "/api/users/2/servers", "", "list other user's servers"},
 	{http.MethodGet, "/api/users/2/servers/1/permissions", "", "read other user's server permissions"},
 	{http.MethodPut, "/api/users/2/servers/1/permissions", `{"abilities":[]}`, "grant server permissions"},
+	{http.MethodPut, "/api/users/2/servers/1", "", "attach server to user"},
+	{http.MethodDelete, "/api/users/2/servers/1", "", "detach server from user"},
 
 	// Games management
 	{http.MethodPost, "/api/games", `{"code":"x","name":"X","engine":"source"}`, "create game"},

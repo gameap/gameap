@@ -1,5 +1,6 @@
 <template>
     <div>
+        <p class="mb-3 text-sm text-stone-500 dark:text-stone-300">{{ trans('users.servers_apply_hint') }}</p>
         <div class="mb-4 overflow-x-auto">
             <GTable>
                 <thead>
@@ -23,7 +24,13 @@
                         <GButton color="blue" size="small" v-on:click="onClickEditPrivileges(server)">
                           <GIcon name="lock" />
                         </GButton>
-                        <GButton color="red" size="small" v-on:click="removeItem(itemIndex)">
+                        <GButton
+                            color="red"
+                            size="small"
+                            :loading="detachingServerId === server.id"
+                            data-testid="user-servers-row-remove"
+                            v-on:click="removeItem(itemIndex)"
+                        >
                             <GIcon name="close" />
                         </GButton>
                       </td>
@@ -34,7 +41,7 @@
 
         <div class="mt-6 mb-3">
           <div class="flex justify-center mt-2">
-            <GButton color="green" size="small" v-on:click="onClickAddServer">
+            <GButton color="green" size="small" data-testid="user-servers-add-open" v-on:click="onClickAddServer">
               <GIcon name="add" />&nbsp;{{ trans('main.add') }}
             </GButton>
           </div>
@@ -49,6 +56,7 @@
     <div class="md:w-full">
       <n-select
           v-model:value="selectedServer"
+          data-testid="user-servers-select"
           filterable
           :placeholder="trans('users.servers_privileges_placeholder')"
           :options="serversListOptions"
@@ -69,7 +77,7 @@
     </div>
 
     <div class="flex justify-center mt-2">
-      <GButton color="green" v-on:click="addItem">
+      <GButton color="green" :loading="attaching" data-testid="user-servers-add-confirm" v-on:click="addItem">
         <GIcon name="add" />&nbsp;{{ trans('main.add') }}
       </GButton>
     </div>
@@ -135,7 +143,7 @@ import GButton from "../GButton.vue";
 import { GIcon, GModal, GTable, GSwitch, GGameIcon } from '@gameap/ui';
 import {trans as systemTrans, trans} from "@/i18n/i18n";
 import {useUserStore} from "@/store/user";
-import {errorNotification, notification} from "@/parts/dialogs";
+import {confirm, errorNotification, notification} from "@/parts/dialogs";
 import {usePluginsStore} from "@/store/plugins";
 
 const locale = window.gameapLang || 'en'
@@ -160,6 +168,8 @@ const selectedServer = ref(null)
 const serverList = ref([])
 const serversListOptions = ref([])
 const loading = ref(false)
+const attaching = ref(false)
+const detachingServerId = ref(null)
 
 function existsItem(id) {
   for (let item of items.value) {
@@ -188,7 +198,26 @@ function removeListsElem(elemId) {
 }
 
 function removeItem(index) {
-  items.value.splice(index, 1);
+  const server = items.value[index];
+  if (!server || detachingServerId.value !== null) {
+    return;
+  }
+
+  confirm(trans('users.confirm_server_detach'), () => {
+    detachingServerId.value = server.id;
+
+    userStore.detachServer(server.id).then(() => {
+      const currentIndex = items.value.findIndex((item) => item.id === server.id);
+      if (currentIndex !== -1) {
+        items.value.splice(currentIndex, 1);
+      }
+      window.$message?.success(trans('users.server_detached_msg'));
+    }).catch((error) => {
+      errorNotification(error);
+    }).finally(() => {
+      detachingServerId.value = null;
+    });
+  });
 }
 
 function addItem() {
@@ -198,8 +227,6 @@ function addItem() {
     return;
   }
 
-  addServerModalEnabled.value = false;
-
   if (existsItem(selectedServer.value)) {
     notification(trans('servers.server_already_added'))
 
@@ -207,13 +234,24 @@ function addItem() {
   }
 
   const newItem = findItem(selectedServer.value);
+  if (!newItem || attaching.value) {
+    return;
+  }
 
-  if (newItem) {
+  attaching.value = true;
+
+  userStore.attachServer(newItem.id).then(() => {
     items.value.push(newItem);
 
     removeListsElem(newItem.id);
     selectedServer.value = null;
-  }
+    addServerModalEnabled.value = false;
+    window.$message?.success(trans('users.server_attached_msg'));
+  }).catch((error) => {
+    errorNotification(error);
+  }).finally(() => {
+    attaching.value = false;
+  });
 }
 
 let timer

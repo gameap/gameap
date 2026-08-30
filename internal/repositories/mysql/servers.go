@@ -421,6 +421,51 @@ func (r *ServerRepository) SetUserServers(ctx context.Context, userID uint, serv
 	})
 }
 
+// AttachUserServer assigns the server to the user. server_user has no
+// unique constraint, so the pair is deleted and re-inserted in one
+// transaction to keep the operation idempotent with a single row.
+func (r *ServerRepository) AttachUserServer(ctx context.Context, userID uint, serverID uint) error {
+	return r.tm.Do(ctx, func(ctx context.Context) error {
+		err := r.DetachUserServer(ctx, userID, serverID)
+		if err != nil {
+			return err
+		}
+
+		insertQuery, insertArgs, err := sq.Insert("server_user").
+			Columns("user_id", "server_id").
+			Values(userID, serverID).
+			PlaceholderFormat(sq.Question).
+			ToSql()
+		if err != nil {
+			return errors.WithMessage(err, "failed to build insert query")
+		}
+
+		_, err = r.db.ExecContext(ctx, insertQuery, insertArgs...)
+		if err != nil {
+			return errors.WithMessage(err, "failed to insert relationship")
+		}
+
+		return nil
+	})
+}
+
+func (r *ServerRepository) DetachUserServer(ctx context.Context, userID uint, serverID uint) error {
+	deleteQuery, deleteArgs, err := sq.Delete("server_user").
+		Where(sq.Eq{"user_id": userID, "server_id": serverID}).
+		PlaceholderFormat(sq.Question).
+		ToSql()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build delete query")
+	}
+
+	_, err = r.db.ExecContext(ctx, deleteQuery, deleteArgs...)
+	if err != nil {
+		return errors.WithMessage(err, "failed to delete relationship")
+	}
+
+	return nil
+}
+
 func (r *ServerRepository) Count(ctx context.Context, filter *filters.FindServer) (int, error) {
 	query, args, err := sq.Select("COUNT(*)").
 		From(base.ServersTable).
