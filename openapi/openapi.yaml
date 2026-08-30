@@ -259,6 +259,8 @@ tags:
     description: Health check and status
   - name: Config
     description: Public configuration
+  - name: Version
+    description: Panel and daemon version information (Admin)
   - name: Auth
     description: Authentication
   - name: User
@@ -329,6 +331,8 @@ paths:
     $ref: './paths/health.yaml#/~1api~1health'
   /api/config/public:
     $ref: './paths/config.yaml#/~1api~1config~1public'
+  /api/version:
+    $ref: './paths/version.yaml#/~1api~1version'
 
   # Auth
   /api/auth/login:

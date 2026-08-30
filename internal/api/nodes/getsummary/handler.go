@@ -12,14 +12,17 @@ import (
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/releases"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
+	versionpkg "github.com/gameap/gameap/pkg/version"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/singleflight"
 )
 
 const (
 	connectTimeout           = 500 * time.Millisecond
+	releasesLookupTimeout    = 3 * time.Second
 	defaultCacheTTL          = 30 * time.Second
 	backgroundRefreshTimeout = 10 * time.Second
 	cacheKey                 = "nodes:summary"
@@ -29,11 +32,18 @@ type statusService interface {
 	Version(ctx context.Context, node *domain.Node) (*daemon.NodeVersion, error)
 }
 
+// releasesService resolves the latest published gameap-daemon release so that
+// nodes running an older daemon can be flagged.
+type releasesService interface {
+	Latest(ctx context.Context, component releases.Component) (releases.Info, error)
+}
+
 type Handler struct {
-	nodeRepo      repositories.NodeRepository
-	statusService statusService
-	responder     base.Responder
-	cache         cache.Cache
+	nodeRepo        repositories.NodeRepository
+	statusService   statusService
+	releasesService releasesService
+	responder       base.Responder
+	cache           cache.Cache
 
 	cacheTTL                 time.Duration
 	backgroundRefreshTimeout time.Duration
@@ -47,12 +57,14 @@ type Handler struct {
 func NewHandler(
 	nodeRepo repositories.NodeRepository,
 	statusService statusService,
+	releasesService releasesService,
 	responder base.Responder,
 	c cache.Cache,
 ) *Handler {
 	return &Handler{
 		nodeRepo:                 nodeRepo,
 		statusService:            statusService,
+		releasesService:          releasesService,
 		responder:                responder,
 		cache:                    c,
 		cacheTTL:                 defaultCacheTTL,
@@ -173,6 +185,26 @@ func (h *Handler) runScheduledRefresh() {
 	}
 }
 
+// latestDaemonVersion resolves the newest stable gameap-daemon release. A
+// failure only costs the outdated marks, so the error is deliberately dropped.
+func (h *Handler) latestDaemonVersion(ctx context.Context) string {
+	if h.releasesService == nil {
+		return ""
+	}
+
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, releasesLookupTimeout)
+	defer cancel()
+
+	info, err := h.releasesService.Latest(ctxWithTimeout, releases.ComponentDaemon)
+	if err != nil {
+		slog.DebugContext(ctx, "failed to resolve latest daemon release", "error", err)
+
+		return ""
+	}
+
+	return info.LatestStable
+}
+
 func (h *Handler) calculateSummary(ctx context.Context, nodes []domain.Node) summaryResponse {
 	total := len(nodes)
 	enabled := 0
@@ -180,6 +212,8 @@ func (h *Handler) calculateSummary(ctx context.Context, nodes []domain.Node) sum
 
 	onlineNodes := make([]nodeSummary, 0)
 	offlineNodes := make([]nodeSummary, 0)
+
+	latestDaemonVersion := h.latestDaemonVersion(ctx)
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -222,6 +256,7 @@ func (h *Handler) calculateSummary(ctx context.Context, nodes []domain.Node) sum
 			summary.Online = true
 			summary.Version = version.Version
 			summary.BuildDate = version.BuildDate
+			summary.Outdated = versionpkg.IsNewer(version.Version, latestDaemonVersion)
 
 			mu.Lock()
 			onlineNodes = append(onlineNodes, summary)

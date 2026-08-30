@@ -8,6 +8,10 @@ type nodeSummary struct {
 	Online    bool   `json:"online"`
 	Version   string `json:"version,omitempty"`
 	BuildDate string `json:"buildDate,omitempty"`
+	// Outdated is set when the daemon runs a version older than the latest
+	// stable gameap-daemon release. It stays absent when the update check is
+	// disabled or the latest release could not be resolved.
+	Outdated bool `json:"outdated,omitempty"`
 }
 
 type summaryResponse struct {

@@ -177,6 +177,8 @@ PublicConfigResponse:
   $ref: './responses/PublicConfigResponse.yaml'
 HealthResponse:
   $ref: './responses/HealthResponse.yaml'
+VersionResponse:
+  $ref: './responses/VersionResponse.yaml'
 ImportPelicanEggResponse:
   $ref: './responses/ImportPelicanEggResponse.yaml'
 ImportGameAPResponse:

@@ -45,6 +45,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/pluginsync"
+	"github.com/gameap/gameap/internal/services/releases"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
@@ -153,6 +154,13 @@ func (c *InmemoryContainer) FileManager() files.FileManager               { retu
 func (c *InmemoryContainer) Cache() cache.Cache                           { return c.cacheService }
 func (c *InmemoryContainer) CertificatesService() *certificates.Service   { return c.certificatesService }
 func (c *InmemoryContainer) GlobalAPIService() *services.GlobalAPIService { return c.globalAPIService }
+
+// ReleasesService keeps the update check disabled so that tests never reach
+// out to the release sources.
+func (c *InmemoryContainer) ReleasesService() *releases.Service {
+	return releases.NewService(releases.Config{Enabled: false}, c.cacheService)
+}
+
 func (c *InmemoryContainer) CaptchaVerifier() *captcha.Service {
 	return captcha.NewService(captcha.Config{})
 }

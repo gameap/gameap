@@ -29,6 +29,13 @@ properties:
     type: string
     description: Daemon build date
     example: "2024-01-15"
+  outdated:
+    type: boolean
+    description: >-
+      True when the daemon version is older than the latest stable
+      gameap-daemon release. Absent when the update check is disabled or the
+      latest release could not be determined.
+    example: false
 required:
   - id
   - name

@@ -1,0 +1,31 @@
+/api/version:
+  get:
+    tags:
+      - Version
+    summary: Get panel and daemon version information
+    description: >-
+      Returns the running panel version and, when the update check is enabled,
+      the latest available GameAP and gameap-daemon releases. Network failures
+      never fail the request: the latest version fields are simply left empty.
+    operationId: getVersion
+    security:
+      - bearerAuth: []
+    responses:
+      '200':
+        description: Version information
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/responses/VersionResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
