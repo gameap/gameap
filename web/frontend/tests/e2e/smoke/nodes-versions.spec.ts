@@ -5,6 +5,8 @@ import { loginViaAPI } from '../fixtures/auth';
 // whether a newer stable gameap-daemon release exists. Everything
 // version-related is route-mocked: no daemon has to run, and the assertions
 // are on what the cards and the details modal render for a given payload.
+// Daemons report tag-style versions ("v3.0.1"), so the mocks carry the prefix
+// to pin that the UI renders the bare version, never "vv3.0.1".
 
 const GDAEMON_VERSION_ROW = /gameap daemon version|версия gameap daemon|dedicated_servers\.gdaemon_version/i;
 
@@ -22,8 +24,8 @@ const SUMMARY = {
   online: 2,
   offline: 0,
   onlineNodes: [
-    { id: 1, name: 'node-outdated', location: 'EU', enabled: true, online: true, version: '3.0.1', buildDate: '2024-01-15', outdated: true },
-    { id: 2, name: 'node-actual', location: 'US', enabled: true, online: true, version: '3.6.0', buildDate: '2026-08-01' },
+    { id: 1, name: 'node-outdated', location: 'EU', enabled: true, online: true, version: 'v3.0.1', buildDate: '2024-01-15', outdated: true },
+    { id: 2, name: 'node-actual', location: 'US', enabled: true, online: true, version: 'v3.6.0', buildDate: '2026-08-01' },
   ],
   offlineNodes: [],
 };
@@ -50,7 +52,7 @@ const DAEMON_INFO: Record<string, unknown> = {
     name: 'node-outdated',
     has_api_key: true,
     connection_type: 'grpc',
-    version: { version: '3.0.1', compile_date: '2024-01-15' },
+    version: { version: 'v3.0.1', compile_date: '2024-01-15' },
     base_info: { uptime: '1d', working_tasks_count: '0', waiting_tasks_count: '0', online_servers_count: '1' },
   },
   '2': {
@@ -58,7 +60,7 @@ const DAEMON_INFO: Record<string, unknown> = {
     name: 'node-actual',
     has_api_key: true,
     connection_type: 'grpc',
-    version: { version: '3.6.0', compile_date: '2026-08-01' },
+    version: { version: 'v3.6.0', compile_date: '2026-08-01' },
     base_info: { uptime: '2d', working_tasks_count: '0', waiting_tasks_count: '0', online_servers_count: '2' },
   },
 };
@@ -93,20 +95,21 @@ test('the node card offers the newer daemon release only for the outdated node',
 
   const outdatedCard = page.locator('.node-card').filter({ hasText: 'node-outdated' });
   await expect(outdatedCard).toBeVisible({ timeout: 15_000 });
-  await expect(outdatedCard).toContainText('v3.0.1');
+  await expect(outdatedCard).toContainText('3.0.1');
+  await expect(outdatedCard).not.toContainText('vv3');
+  await expect(outdatedCard).not.toContainText('v3.0.1');
 
   const latestLink = outdatedCard.getByRole('link', { name: '3.6.0' });
   await expect(latestLink).toBeVisible();
   await expect(latestLink).toHaveAttribute('href', DAEMON_RELEASE_URL);
-  await expect(outdatedCard.locator('i.fa-triangle-exclamation')).toBeVisible();
 
   const actualCard = page.locator('.node-card').filter({ hasText: 'node-actual' });
   await expect(actualCard).toBeVisible();
-  await expect(actualCard).toContainText('v3.6.0');
+  await expect(actualCard).toContainText('3.6.0');
   await expect(actualCard.getByRole('link', { name: '3.6.0' })).toHaveCount(0);
 });
 
-test('the details modal links the newer daemon release for an outdated node', async ({
+test('the details modal warns about the newer daemon release for an outdated node', async ({
   page,
   request,
 }) => {
@@ -117,11 +120,13 @@ test('the details modal links the newer daemon release for an outdated node', as
   const row = page.locator('tr').filter({ hasText: GDAEMON_VERSION_ROW });
   await expect(row).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText('3.0.1 (2024-01-15)');
+  await expect(row.getByRole('link')).toHaveCount(0);
 
-  const latestLink = row.getByRole('link', { name: '3.6.0' });
+  const banner = page.locator('.n-modal .n-alert');
+  await expect(banner).toBeVisible();
+  const latestLink = banner.getByRole('link', { name: '3.6.0' });
   await expect(latestLink).toBeVisible();
   await expect(latestLink).toHaveAttribute('href', DAEMON_RELEASE_URL);
-  await expect(row.locator('i.fa-triangle-exclamation')).toBeVisible();
 });
 
 test('the details modal marks an up-to-date daemon with a quiet check', async ({
@@ -138,4 +143,5 @@ test('the details modal marks an up-to-date daemon with a quiet check', async ({
 
   await expect(row.getByRole('link', { name: '3.6.0' })).toHaveCount(0);
   await expect(row.locator('i.fa-check')).toBeVisible();
+  await expect(page.locator('.n-modal .n-alert')).toHaveCount(0);
 });
