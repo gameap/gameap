@@ -105,7 +105,7 @@
       </section>
     </div>
 
-    <div v-if="!updateCheckEnabled && !loading" class="mt-3 text-xs text-stone-500 dark:text-stone-400">
+    <div v-if="fetched && !updateCheckEnabled" class="mt-3 text-xs text-stone-500 dark:text-stone-400">
       {{ trans('home.update_check_disabled') }}
     </div>
   </div>
@@ -126,6 +126,9 @@ const versionStore = useVersionStore()
 const nodeListStore = useNodeListStore()
 
 const loading = computed(() => versionStore.loading)
+// A failed or still-running request must not read as "update check is
+// disabled" — the note is shown only for a successfully loaded response.
+const fetched = computed(() => versionStore.fetched)
 const panel = computed(() => versionStore.panel)
 const daemon = computed(() => versionStore.daemon)
 const updateCheckEnabled = computed(() => versionStore.updateCheckEnabled)

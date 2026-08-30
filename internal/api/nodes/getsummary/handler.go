@@ -213,7 +213,13 @@ func (h *Handler) calculateSummary(ctx context.Context, nodes []domain.Node) sum
 	onlineNodes := make([]nodeSummary, 0)
 	offlineNodes := make([]nodeSummary, 0)
 
-	latestDaemonVersion := h.latestDaemonVersion(ctx)
+	// The release lookup carries its own 3s bound, so it runs alongside the
+	// daemon probes instead of delaying them; the summary waits for whichever
+	// finishes last.
+	latestVersionCh := make(chan string, 1)
+	go func() {
+		latestVersionCh <- h.latestDaemonVersion(ctx)
+	}()
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -256,7 +262,6 @@ func (h *Handler) calculateSummary(ctx context.Context, nodes []domain.Node) sum
 			summary.Online = true
 			summary.Version = version.Version
 			summary.BuildDate = version.BuildDate
-			summary.Outdated = versionpkg.IsNewer(version.Version, latestDaemonVersion)
 
 			mu.Lock()
 			onlineNodes = append(onlineNodes, summary)
@@ -265,6 +270,11 @@ func (h *Handler) calculateSummary(ctx context.Context, nodes []domain.Node) sum
 	}
 
 	wg.Wait()
+
+	latestDaemonVersion := <-latestVersionCh
+	for i := range onlineNodes {
+		onlineNodes[i].Outdated = versionpkg.IsNewer(onlineNodes[i].Version, latestDaemonVersion)
+	}
 
 	online := len(onlineNodes)
 	offline := total - online

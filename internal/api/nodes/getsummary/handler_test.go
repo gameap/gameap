@@ -77,6 +77,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		expectedStatus   int
 		wantError        string
 		validateResponse func(t *testing.T, resp summaryResponse)
+		validateRawBody  func(t *testing.T, body []byte)
 	}{
 		{
 			name: "successful summary with all nodes online",
@@ -231,6 +232,19 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, "Node 2", offlineNode.Name)
 				assert.Empty(t, offlineNode.Version)
 				assert.Empty(t, offlineNode.BuildDate)
+				assert.False(t, offlineNode.Outdated)
+			},
+			validateRawBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var raw struct {
+					OfflineNodes []map[string]any `json:"offlineNodes"`
+				}
+				require.NoError(t, json.Unmarshal(body, &raw))
+				require.Len(t, raw.OfflineNodes, 1)
+				assert.NotContains(t, raw.OfflineNodes[0], "outdated")
+				assert.NotContains(t, raw.OfflineNodes[0], "version")
+				assert.NotContains(t, raw.OfflineNodes[0], "buildDate")
 			},
 		},
 		{
@@ -455,6 +469,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				var resp summaryResponse
 				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 				tt.validateResponse(t, resp)
+			}
+
+			if tt.validateRawBody != nil {
+				tt.validateRawBody(t, w.Body.Bytes())
 			}
 		})
 	}
