@@ -29,6 +29,14 @@
       <span v-if="node.location">{{ node.location }}</span>
       <span v-if="node.provider">· {{ node.provider }}</span>
       <span v-if="primaryIp" class="font-mono">· {{ primaryIp }}</span>
+      <span v-if="daemonVersion" class="whitespace-nowrap">
+        <span v-if="node.location || node.provider || primaryIp">· </span><span class="font-mono tabular-nums">{{ displayVersion(daemonVersion) }}</span><template v-if="outdated && latestVersion"><span class="text-stone-400 mx-1" aria-hidden="true">&rarr;</span><a
+            class="font-mono tabular-nums text-orange-500 font-medium hover:underline"
+            :href="latestUrl"
+            target="_blank"
+            @click.stop
+        >{{ displayVersion(latestVersion) }}</a></template>
+      </span>
     </div>
 
     <template v-if="online && hasMetrics">
@@ -86,12 +94,17 @@ import { computed } from 'vue'
 import { NCard, NProgress } from 'naive-ui'
 import { GIcon, GStatusBadge } from '@gameap/ui'
 import { useThemeVars } from '@/utils/theme'
+import { displayVersion } from '@/utils/version'
 import { trans } from '@/i18n/i18n'
 
 const props = defineProps({
     node: { type: Object, required: true },
     online: { type: Boolean, default: false },
     snapshot: { type: Object, default: null },
+    daemonVersion: { type: String, default: '' },
+    outdated: { type: Boolean, default: false },
+    latestVersion: { type: String, default: '' },
+    latestUrl: { type: String, default: '' },
 })
 
 defineEmits(['open-details'])

@@ -1,0 +1,74 @@
+type: object
+description: Panel and daemon version information
+properties:
+  panel:
+    type: object
+    description: Version information about the running panel
+    properties:
+      current:
+        type: string
+        description: Version of the running panel build
+        example: "4.4.1"
+      build_date:
+        type: string
+        description: Build date of the running panel build
+        example: "2026-08-06T14:42:13Z"
+      is_release:
+        type: boolean
+        description: >-
+          False for development builds whose version is not a valid semantic
+          version. Such builds are never compared against the latest release.
+        example: true
+      latest_stable:
+        type: string
+        description: Latest stable release. Empty when the update check is disabled or failed
+        example: "4.4.2"
+      latest_stable_url:
+        type: string
+        description: Release page of the latest stable release
+        example: "https://github.com/gameap/gameap/releases/tag/v4.4.2"
+      latest_beta:
+        type: string
+        description: Latest pre-release, present only when it is newer than the latest stable one
+        example: "4.5.0-beta.1"
+      latest_beta_url:
+        type: string
+        description: Release page of the latest pre-release
+        example: "https://github.com/gameap/gameap/releases/tag/v4.5.0-beta.1"
+      update_available:
+        type: boolean
+        description: Whether the latest stable release is newer than the running version
+        example: true
+    required:
+      - current
+      - build_date
+      - is_release
+      - update_available
+  daemon:
+    type: object
+    description: Latest available gameap-daemon releases
+    properties:
+      latest_stable:
+        type: string
+        description: Latest stable gameap-daemon release
+        example: "4.1.2"
+      latest_stable_url:
+        type: string
+        description: Release page of the latest stable gameap-daemon release
+        example: "https://github.com/gameap/daemon/releases/tag/v4.1.2"
+      latest_beta:
+        type: string
+        description: Latest gameap-daemon pre-release, present only when newer than the stable one
+        example: ""
+      latest_beta_url:
+        type: string
+        description: Release page of the latest gameap-daemon pre-release
+        example: ""
+  update_check_enabled:
+    type: boolean
+    description: Whether the panel is allowed to check for new releases
+    example: true
+required:
+  - panel
+  - daemon
+  - update_check_enabled

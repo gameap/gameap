@@ -74,6 +74,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginssh"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/pluginsync"
+	"github.com/gameap/gameap/internal/services/releases"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
@@ -170,6 +171,7 @@ type Container struct {
 	serverTaskDispatcher *servertaskdispatcher.Dispatcher
 	serverConfigPusher   *serverconfigpush.Pusher
 	globalAPIService     *services.GlobalAPIService
+	releasesService      *releases.Service
 	cdnGamesService      *services.CDNGamesService
 	pluginStoreService   *pluginstore.Service
 	captchaVerifier      *captcha.Service
@@ -1782,6 +1784,26 @@ func (c *Container) GlobalAPIService() *services.GlobalAPIService {
 
 func (c *Container) createGlobalAPIService() *services.GlobalAPIService {
 	return services.NewGlobalAPIService(c.Config())
+}
+
+// ReleasesService resolves the latest published GameAP and gameap-daemon
+// releases for the dashboard version block.
+func (c *Container) ReleasesService() *releases.Service {
+	if c.releasesService == nil {
+		c.releasesService = c.createReleasesService()
+	}
+
+	return c.releasesService
+}
+
+func (c *Container) createReleasesService() *releases.Service {
+	cfg := c.Config()
+
+	return releases.NewService(releases.Config{
+		Enabled: cfg.UpdateCheck.Enabled,
+		URLs:    cfg.UpdateCheck.URLs,
+		TTL:     cfg.UpdateCheck.TTL,
+	}, c.Cache())
 }
 
 func (c *Container) CDNGamesService() *services.CDNGamesService {

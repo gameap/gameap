@@ -1,4 +1,13 @@
 <template>
+  <StatusBanner v-if="outdated && latestStable" type="warning" icon="warning">
+    {{ trans('dedicated_servers.daemon_update_available') }}:
+    <a
+        class="font-mono tabular-nums font-medium hover:underline"
+        :href="latestStableUrl"
+        target="_blank"
+    >{{ latestStable }}</a>
+  </StatusBanner>
+
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     <GCard :title="trans('dedicated_servers.title_view')">
       <GTable>
@@ -9,7 +18,17 @@
           </tr>
           <tr>
             <td><strong>{{ trans('dedicated_servers.gdaemon_version') }}:</strong></td>
-            <td>{{ versionLine }}</td>
+            <td>
+              <span class="inline-flex items-center gap-x-1.5">
+                <span>{{ versionLine }}</span>
+                <NTooltip v-if="daemonUpToDate" trigger="hover">
+                  <template #trigger>
+                    <GIcon name="check" class="text-lime-600" />
+                  </template>
+                  {{ trans('dedicated_servers.daemon_up_to_date') }}
+                </NTooltip>
+              </span>
+            </td>
           </tr>
           <tr>
             <td><strong>{{ trans('dedicated_servers.gdaemon_online_servers_count') }}:</strong></td>
@@ -61,18 +80,38 @@
 
 <script setup>
 import { computed } from 'vue'
+import { NTooltip } from 'naive-ui'
 import { GCard, GTable, GIcon } from '@gameap/ui'
+import StatusBanner from '@/components/StatusBanner.vue'
+import { useVersionStore } from '@/store/version'
+import { displayVersion } from '@/utils/version'
 import { trans } from '@/i18n/i18n'
 
 const props = defineProps({
     node: { type: Object, default: null },
     daemonInfo: { type: Object, default: null },
+    outdated: { type: Boolean, default: false },
+})
+
+const versionStore = useVersionStore()
+
+const latestStable = computed(() => displayVersion(versionStore.daemon.latest_stable))
+const latestStableUrl = computed(() => versionStore.daemon.latest_stable_url || '')
+
+// Both sides go through displayVersion, so a daemon reporting "v4.1.2" still
+// matches the release feed's "4.1.2"; a dev daemon build matches nothing and
+// stays unmarked.
+const daemonUpToDate = computed(() => {
+    const current = displayVersion(props.daemonInfo?.version?.version)
+
+    return !!current && !!latestStable.value && !props.outdated && current === latestStable.value
 })
 
 const versionLine = computed(() => {
     const v = props.daemonInfo?.version
-    if (!v?.version) return '—'
-    return v.compile_date ? `${v.version} (${v.compile_date})` : v.version
+    const version = displayVersion(v?.version)
+    if (!version) return '—'
+    return v.compile_date ? `${version} (${v.compile_date})` : version
 })
 
 const osIcon = computed(() => {

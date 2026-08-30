@@ -217,6 +217,18 @@ type Config struct {
 		URL string `env:"GLOBAL_API_URL" envDefault:"https://api.gameap.com"`
 	}
 
+	// UpdateCheck controls the lookup of the latest available GameAP and
+	// gameap-daemon releases shown on the dashboard. Each URL is a template
+	// where {component} is the CDN path segment (gameap, gameap-daemon) and
+	// {repo} the GitHub repository name (gameap, daemon); the sources are tried
+	// in order until one answers. Disabling it stops all outbound requests: the
+	// dashboard then shows the installed versions only.
+	UpdateCheck struct {
+		Enabled bool          `env:"UPDATE_CHECK_ENABLED" envDefault:"true"`
+		URLs    []string      `env:"UPDATE_CHECK_URLS" envSeparator:"," envDefault:"https://cdn.gameap.com/{component}/releases.json,https://cdn.gameap.ru/{component}/releases.json,https://api.github.com/repos/gameap/{repo}/releases"` //nolint:lll // long env default in struct tag cannot be wrapped
+		TTL     time.Duration `env:"UPDATE_CHECK_TTL" envDefault:"6h"`
+	}
+
 	// GamesCDN is the source for the games/mods catalog used when seeding a
 	// fresh installation and when an operator triggers a games upgrade. The
 	// URLs are tried in order until one returns a valid catalog, so the first

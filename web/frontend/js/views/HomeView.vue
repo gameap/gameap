@@ -74,7 +74,12 @@
     </div>
 
 
-  <div class="w-full mt-10 p-3 border border-stone-200 bg-stone-50 rounded-lg sm:p-4 dark:bg-stone-800 dark:border-stone-700">
+  <VersionsBlock v-if="isAdmin" class="mt-10" />
+
+  <div
+      class="w-full p-3 border border-stone-200 bg-stone-50 rounded-lg sm:p-4 dark:bg-stone-800 dark:border-stone-700"
+      :class="isAdmin ? 'mt-5' : 'mt-10'"
+  >
     <div class="md:grid md:grid-cols-5 md:gap-4">
       <h5 class="col-span-3 text-base inline-block align-middle font-semibold text-stone-900 dark:text-white max-md:mb-2">
         <GIcon name="comments" class="mr-1" />
@@ -215,6 +220,7 @@ import {computed, onMounted} from "vue"
 import { GIcon, hasIcon } from "@gameap/ui"
 import GButton from "../components/GButton.vue"
 import PluginSlot from "../plugins/components/PluginSlot.vue"
+import VersionsBlock from "../components/blocks/VersionsBlock.vue"
 import {useAuthStore} from "@/store/auth"
 import {usePluginsStore} from "@/store/plugins"
 import {useNodeListStore} from "@/store/nodeList"

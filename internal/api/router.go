@@ -146,6 +146,7 @@ import (
 	"github.com/gameap/gameap/internal/api/users/postusers"
 	"github.com/gameap/gameap/internal/api/users/putserverperms"
 	"github.com/gameap/gameap/internal/api/users/putuser"
+	"github.com/gameap/gameap/internal/api/version/getversion"
 	wsattach "github.com/gameap/gameap/internal/api/ws/attach"
 	wsconsole "github.com/gameap/gameap/internal/api/ws/console"
 	wsfmarchive "github.com/gameap/gameap/internal/api/ws/fmarchive"
@@ -183,6 +184,7 @@ import (
 	"github.com/gameap/gameap/internal/services/pluginscheduler"
 	"github.com/gameap/gameap/internal/services/pluginstore"
 	"github.com/gameap/gameap/internal/services/pluginsync"
+	"github.com/gameap/gameap/internal/services/releases"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
@@ -231,6 +233,7 @@ type container interface {
 	Cache() cache.Cache
 	CertificatesService() *certificates.Service
 	GlobalAPIService() *services.GlobalAPIService
+	ReleasesService() *releases.Service
 	CaptchaVerifier() *captcha.Service
 	DaemonStatus() *daemon.StatusService
 	DaemonFiles() *daemon.FileService
@@ -424,6 +427,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 	nodesSummaryHandler := nodesgetsummary.NewHandler(
 		c.NodeRepository(),
 		c.DaemonStatus(),
+		c.ReleasesService(),
 		c.Responder(),
 		c.Cache(),
 	)
@@ -450,6 +454,12 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			Handler:                 publicconfig.NewHandler(c.Config(), c.Responder()),
 			AllowGuestAccess:        true,
 			AllowMFAEnrollmentToken: true,
+		},
+		{
+			Method:    http.MethodGet,
+			Path:      "/api/version",
+			Handler:   getversion.NewHandler(c.ReleasesService(), c.Responder()),
+			AdminOnly: true,
 		},
 
 		// Auth

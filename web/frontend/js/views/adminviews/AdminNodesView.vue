@@ -34,7 +34,11 @@
           v-for="node in pagedNodes"
           :key="node.id"
           :node="node"
-          :online="onlineMap.get(String(node.id)) === true"
+          :online="summaryFor(node.id)?.online === true"
+          :daemon-version="summaryFor(node.id)?.version"
+          :outdated="summaryFor(node.id)?.outdated === true"
+          :latest-version="daemonLatestVersion"
+          :latest-url="daemonLatestUrl"
           :snapshot="metricsSnapshotFor(node.id)"
           @open-details="openDetails"
       />
@@ -55,7 +59,8 @@
       :show="modalOpen"
       :node-id="selectedNodeId"
       :node="selectedNode"
-      :online="onlineMap.get(String(selectedNodeId)) === true"
+      :online="summaryFor(selectedNodeId)?.online === true"
+      :outdated="summaryFor(selectedNodeId)?.outdated === true"
       @update:show="onModalShowChange"
       @deleted="onNodeDeleted"
   />
@@ -75,6 +80,7 @@ import NodesFilters from '@/components/blocks/NodesFilters.vue'
 import NodeDetailsModal from '@/components/blocks/NodeDetailsModal.vue'
 
 import { useNodeListStore } from '@/store/nodeList'
+import { useVersionStore } from '@/store/version'
 import { useNodesMetricsWebSocket } from '@/composables/useNodesMetricsWebSocket'
 import { errorNotification } from '@/parts/dialogs'
 import { trans } from '@/i18n/i18n'
@@ -85,6 +91,7 @@ const SUMMARY_POLL_MS = 30_000
 const route = useRoute()
 const router = useRouter()
 const nodeListStore = useNodeListStore()
+const versionStore = useVersionStore()
 const { nodes, loading } = storeToRefs(nodeListStore)
 
 const breadcrumbs = computed(() => [
@@ -98,13 +105,14 @@ const showCreateModal = ref(false)
 
 const { snapshotFor } = useNodesMetricsWebSocket()
 
-const onlineMap = computed(() => {
-    const map = new Map()
-    nodeListStore.summaryById.forEach((v, k) => {
-        map.set(k, !!v.online)
-    })
-    return map
-})
+const summaryById = computed(() => nodeListStore.summaryById)
+
+function summaryFor(id) {
+    return summaryById.value.get(String(id))
+}
+
+const daemonLatestVersion = computed(() => versionStore.daemon.latest_stable || '')
+const daemonLatestUrl = computed(() => versionStore.daemon.latest_stable_url || '')
 
 const filteredNodes = computed(() => {
     const q = filters.value.search.trim().toLowerCase()
@@ -119,7 +127,7 @@ const filteredNodes = computed(() => {
             if (!inName && !inIp) return false
         }
         if (wantStatus !== 'all') {
-            const isOnline = onlineMap.value.get(String(node.id)) === true
+            const isOnline = summaryFor(node.id)?.online === true
             if (wantStatus === 'online' && !isOnline) return false
             if (wantStatus === 'offline' && isOnline) return false
         }
@@ -191,6 +199,7 @@ async function fetchAll() {
 let summaryTimer = null
 
 onMounted(async () => {
+    versionStore.ensureFetched().catch(() => {})
     await fetchAll()
     summaryTimer = setInterval(() => {
         nodeListStore.fetchNodesSummary().catch(() => {})

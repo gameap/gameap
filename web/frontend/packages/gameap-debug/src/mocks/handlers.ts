@@ -573,6 +573,35 @@ export const handlers = [
         return HttpResponse.json({ success: true })
     }),
 
+    // ==================== Version ====================
+    http.get('/api/version', async () => {
+        await delay(debugState.networkDelay)
+        const user = getCurrentUser()
+        if (!user.isAuthenticated) {
+            return new HttpResponse(null, { status: 401 })
+        }
+        if (!user.isAdmin) {
+            return new HttpResponse(null, { status: 403 })
+        }
+        return HttpResponse.json({
+            panel: {
+                current: '4.0.0',
+                build_date: '2026-01-15T10:00:00Z',
+                is_release: true,
+                latest_stable: '4.4.2',
+                latest_stable_url: 'https://github.com/gameap/gameap/releases/tag/v4.4.2',
+                latest_beta: '4.5.0-beta.1',
+                latest_beta_url: 'https://github.com/gameap/gameap/releases/tag/v4.5.0-beta.1',
+                update_available: true,
+            },
+            daemon: {
+                latest_stable: '3.2.0',
+                latest_stable_url: 'https://github.com/gameap/daemon/releases/tag/v3.2.0',
+            },
+            update_check_enabled: true,
+        })
+    }),
+
     // ==================== Nodes (Dedicated Servers) ====================
     http.get('/api/nodes', async () => {
         await delay(debugState.networkDelay)
@@ -583,7 +612,20 @@ export const handlers = [
         await delay(debugState.networkDelay)
         return HttpResponse.json({
             total: mockNodes.length,
+            enabled: mockNodes.length,
+            disabled: 0,
             online: mockNodes.length,
+            offline: 0,
+            onlineNodes: mockNodes.map(n => ({
+                id: n.id,
+                name: n.name,
+                location: n.location,
+                enabled: n.enabled,
+                online: true,
+                version: n.gdaemon_version,
+                outdated: true,
+            })),
+            offlineNodes: [],
         })
     }),
 

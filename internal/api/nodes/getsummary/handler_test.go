@@ -16,6 +16,7 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	"github.com/gameap/gameap/internal/services/releases"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/stretchr/testify/assert"
@@ -76,6 +77,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		expectedStatus   int
 		wantError        string
 		validateResponse func(t *testing.T, resp summaryResponse)
+		validateRawBody  func(t *testing.T, body []byte)
 	}{
 		{
 			name: "successful summary with all nodes online",
@@ -230,6 +232,19 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				assert.Equal(t, "Node 2", offlineNode.Name)
 				assert.Empty(t, offlineNode.Version)
 				assert.Empty(t, offlineNode.BuildDate)
+				assert.False(t, offlineNode.Outdated)
+			},
+			validateRawBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
+				var raw struct {
+					OfflineNodes []map[string]any `json:"offlineNodes"`
+				}
+				require.NoError(t, json.Unmarshal(body, &raw))
+				require.Len(t, raw.OfflineNodes, 1)
+				assert.NotContains(t, raw.OfflineNodes[0], "outdated")
+				assert.NotContains(t, raw.OfflineNodes[0], "version")
+				assert.NotContains(t, raw.OfflineNodes[0], "buildDate")
 			},
 		},
 		{
@@ -420,7 +435,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				versionFunc: tt.setupVersionFunc,
 			}
 			responder := api.NewResponder()
-			handler := NewHandler(nodeRepo, mockStatus, responder, cache.NewInMemory())
+			handler := NewHandler(nodeRepo, mockStatus, nil, responder, cache.NewInMemory())
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(nodeRepo)
@@ -455,6 +470,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 				tt.validateResponse(t, resp)
 			}
+
+			if tt.validateRawBody != nil {
+				tt.validateRawBody(t, w.Body.Bytes())
+			}
 		})
 	}
 }
@@ -466,7 +485,7 @@ func TestHandler_NewHandler(t *testing.T) {
 	responder := api.NewResponder()
 	c := cache.NewInMemory()
 
-	handler := NewHandler(nodeRepo, mockStatus, responder, c)
+	handler := NewHandler(nodeRepo, mockStatus, nil, responder, c)
 
 	require.NotNil(t, handler)
 	assert.Equal(t, nodeRepo, handler.nodeRepo)
@@ -552,7 +571,7 @@ func TestHandler_CalculateSummary(t *testing.T) {
 				versionFunc: tt.setupVersionFunc,
 			}
 			responder := api.NewResponder()
-			handler := NewHandler(nodeRepo, mockStatus, responder, cache.NewInMemory())
+			handler := NewHandler(nodeRepo, mockStatus, nil, responder, cache.NewInMemory())
 
 			got := handler.calculateSummary(context.Background(), tt.nodes)
 
@@ -612,7 +631,7 @@ func TestHandler_CachesFreshResponse(t *testing.T) {
 	saveTwoEnabledNodes(t, nodeRepo)
 
 	mockStatus := &mockStatusService{versionFunc: versionOK}
-	handler := NewHandler(nodeRepo, mockStatus, api.NewResponder(), cache.NewInMemory())
+	handler := NewHandler(nodeRepo, mockStatus, nil, api.NewResponder(), cache.NewInMemory())
 	ctx := newAuthCtx()
 
 	for range 3 {
@@ -635,7 +654,7 @@ func TestHandler_ProactivelyRefreshesBeforeExpiry(t *testing.T) {
 
 	mockStatus := &mockStatusService{versionFunc: versionOK}
 	c := cache.NewInMemory()
-	handler := NewHandler(nodeRepo, mockStatus, api.NewResponder(), c)
+	handler := NewHandler(nodeRepo, mockStatus, nil, api.NewResponder(), c)
 	handler.cacheTTL = 200 * time.Millisecond
 	handler.backgroundRefreshTimeout = 20 * time.Millisecond
 	ctx := newAuthCtx()
@@ -669,7 +688,7 @@ func TestHandler_ConcurrentColdStartCollapses(t *testing.T) {
 			return &daemon.NodeVersion{Version: "3.0.0", BuildDate: "2024-01-15"}, nil
 		},
 	}
-	handler := NewHandler(nodeRepo, mockStatus, api.NewResponder(), cache.NewInMemory())
+	handler := NewHandler(nodeRepo, mockStatus, nil, api.NewResponder(), cache.NewInMemory())
 	ctx := newAuthCtx()
 
 	const concurrency = 10
@@ -702,7 +721,7 @@ func TestHandler_ScheduledRefreshErrorPreservesCache(t *testing.T) {
 
 	mockStatus := &mockStatusService{versionFunc: versionOK}
 	c := cache.NewInMemory()
-	handler := NewHandler(failRepo, mockStatus, api.NewResponder(), c)
+	handler := NewHandler(failRepo, mockStatus, nil, api.NewResponder(), c)
 	ctx := newAuthCtx()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/nodes/summary", nil).WithContext(ctx)
@@ -733,7 +752,7 @@ func TestHandler_NotAuthenticatedDoesNotConsultCache(t *testing.T) {
 		},
 	}
 	c := cache.NewInMemory()
-	handler := NewHandler(nodeRepo, mockStatus, api.NewResponder(), c)
+	handler := NewHandler(nodeRepo, mockStatus, nil, api.NewResponder(), c)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/nodes/summary", nil)
 	w := httptest.NewRecorder()
@@ -746,4 +765,114 @@ func TestHandler_NotAuthenticatedDoesNotConsultCache(t *testing.T) {
 	_, err := c.Get(context.Background(), cacheKey)
 	assert.ErrorIs(t, err, cache.ErrNotFound,
 		"cache must not be populated by an unauthenticated request")
+}
+
+type stubReleasesService struct {
+	info releases.Info
+	err  error
+}
+
+func (s *stubReleasesService) Latest(_ context.Context, _ releases.Component) (releases.Info, error) {
+	if s.err != nil {
+		return releases.Info{}, s.err
+	}
+
+	return s.info, nil
+}
+
+// TestHandler_CalculateSummaryOutdatedFlag pins which daemons the dashboard
+// marks as outdated: only the ones strictly older than the latest stable
+// release, never a node running a newer pre-release build.
+func TestHandler_CalculateSummaryOutdatedFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		latestStable    string
+		releasesErr     error
+		useReleases     bool
+		nodeVersions    map[uint]string
+		wantOutdatedIDs []uint
+	}{
+		{
+			name:            "older_daemons_are_marked",
+			latestStable:    "v4.1.2",
+			useReleases:     true,
+			nodeVersions:    map[uint]string{1: "4.0.8", 2: "4.1.2", 3: "4.1.0"},
+			wantOutdatedIDs: []uint{1, 3},
+		},
+		{
+			name:            "newer_prerelease_daemon_is_not_marked",
+			latestStable:    "v4.1.2",
+			useReleases:     true,
+			nodeVersions:    map[uint]string{1: "4.2.0-rc.1"},
+			wantOutdatedIDs: nil,
+		},
+		{
+			name:            "unparsable_daemon_version_is_not_marked",
+			latestStable:    "v4.1.2",
+			useReleases:     true,
+			nodeVersions:    map[uint]string{1: "unknown"},
+			wantOutdatedIDs: nil,
+		},
+		{
+			name:            "unresolved_latest_release_marks_nothing",
+			useReleases:     true,
+			releasesErr:     errNotImplemented,
+			nodeVersions:    map[uint]string{1: "4.0.8"},
+			wantOutdatedIDs: nil,
+		},
+		{
+			name:            "update_check_not_wired_marks_nothing",
+			useReleases:     false,
+			nodeVersions:    map[uint]string{1: "4.0.8"},
+			wantOutdatedIDs: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			nodes := make([]domain.Node, 0, len(tt.nodeVersions))
+			for id := range tt.nodeVersions {
+				nodes = append(nodes, domain.Node{ID: id, Name: "node", Enabled: true})
+			}
+
+			mockStatus := &mockStatusService{
+				versionFunc: func(_ context.Context, node *domain.Node) (*daemon.NodeVersion, error) {
+					return &daemon.NodeVersion{Version: tt.nodeVersions[node.ID]}, nil
+				},
+			}
+
+			var releasesSvc releasesService
+			if tt.useReleases {
+				releasesSvc = &stubReleasesService{
+					info: releases.Info{LatestStable: tt.latestStable},
+					err:  tt.releasesErr,
+				}
+			}
+
+			handler := NewHandler(
+				inmemory.NewNodeRepository(),
+				mockStatus,
+				releasesSvc,
+				api.NewResponder(),
+				cache.NewInMemory(),
+			)
+
+			got := handler.calculateSummary(context.Background(), nodes)
+
+			require.Len(t, got.OnlineNodes, len(tt.nodeVersions))
+
+			outdated := make([]uint, 0)
+			for _, node := range got.OnlineNodes {
+				if node.Outdated {
+					outdated = append(outdated, node.ID)
+				}
+			}
+
+			assert.ElementsMatch(t, tt.wantOutdatedIDs, outdated)
+		})
+	}
 }
