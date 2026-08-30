@@ -576,6 +576,13 @@ export const handlers = [
     // ==================== Version ====================
     http.get('/api/version', async () => {
         await delay(debugState.networkDelay)
+        const user = getCurrentUser()
+        if (!user.isAuthenticated) {
+            return new HttpResponse(null, { status: 401 })
+        }
+        if (!user.isAdmin) {
+            return new HttpResponse(null, { status: 403 })
+        }
         return HttpResponse.json({
             panel: {
                 current: '4.0.0',
