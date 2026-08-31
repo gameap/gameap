@@ -461,6 +461,8 @@ func (f *fakeServerRepo) SaveBulk(_ context.Context, _ []*domain.Server) error  
 func (f *fakeServerRepo) Delete(_ context.Context, _ uint) error                   { return nil }
 func (f *fakeServerRepo) SoftDelete(_ context.Context, _ uint) error               { return nil }
 func (f *fakeServerRepo) SetUserServers(_ context.Context, _ uint, _ []uint) error { return nil }
+func (f *fakeServerRepo) AttachUserServer(_ context.Context, _ uint, _ uint) error { return nil }
+func (f *fakeServerRepo) DetachUserServer(_ context.Context, _ uint, _ uint) error { return nil }
 func (f *fakeServerRepo) Exists(_ context.Context, _ *filters.FindServer) (bool, error) {
 	return len(f.servers) > 0, f.err
 }

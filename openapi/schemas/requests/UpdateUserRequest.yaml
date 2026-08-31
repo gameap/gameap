@@ -35,3 +35,12 @@ properties:
     items:
       type: string
     example: ["user"]
+  servers:
+    type: array
+    description: |
+      Game server IDs assigned to the user. The list is replaced as a
+      whole on every request: omitting the field or sending an empty
+      array clears all assignments.
+    items:
+      type: integer
+    example: [1, 2]

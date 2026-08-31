@@ -709,6 +709,8 @@ func (f *fakeServerRepo) SaveBulk(_ context.Context, _ []*domain.Server) error  
 func (f *fakeServerRepo) Delete(_ context.Context, _ uint) error                   { return nil }
 func (f *fakeServerRepo) SoftDelete(_ context.Context, _ uint) error               { return nil }
 func (f *fakeServerRepo) SetUserServers(_ context.Context, _ uint, _ []uint) error { return nil }
+func (f *fakeServerRepo) AttachUserServer(_ context.Context, _ uint, _ uint) error { return nil }
+func (f *fakeServerRepo) DetachUserServer(_ context.Context, _ uint, _ uint) error { return nil }
 
 func (f *fakeServerRepo) UpdateServerStatuses(
 	_ context.Context, _ uint, _ []repositories.ServerStatusUpdate,

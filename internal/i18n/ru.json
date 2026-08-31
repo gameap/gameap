@@ -995,6 +995,9 @@
     "update_success_msg": "Пользователь успешно обновлён",
     "delete_success_msg": "Пользователь успешно удалён",
     "privileges_saved_success_msg": "Привилегии успешно сохранены",
+    "server_attached_msg": "Сервер привязан",
+    "server_detached_msg": "Сервер отвязан",
+    "confirm_server_detach": "Отвязать сервер от пользователя?",
     "delete_self_error_msg": "Вы не можете удалить себя"
   },
   "validation": {

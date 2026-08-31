@@ -51,6 +51,14 @@ export const useUserStore = defineStore('user', {
                 this.apiProcesses--
             }
         },
+        // No apiProcesses here: the store-wide loading getter would hide the
+        // whole servers card during these quick inline operations.
+        async attachServer(serverId) {
+            await axios.put('/api/users/'+this.userId+'/servers/'+serverId)
+        },
+        async detachServer(serverId) {
+            await axios.delete('/api/users/'+this.userId+'/servers/'+serverId)
+        },
         async fetchPermissionsForServer(serverId) {
             this.apiProcesses++
             try {
