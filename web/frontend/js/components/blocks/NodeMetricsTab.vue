@@ -111,7 +111,6 @@ import {
     GridComponent,
     TooltipComponent,
     LegendComponent,
-    DataZoomComponent,
 } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { NAlert } from 'naive-ui'
@@ -127,7 +126,6 @@ use([
     GridComponent,
     TooltipComponent,
     LegendComponent,
-    DataZoomComponent,
 ])
 
 const props = defineProps({

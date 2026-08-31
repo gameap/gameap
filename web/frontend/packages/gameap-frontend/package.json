@@ -1,6 +1,6 @@
 {
   "name": "@gameap/frontend",
-  "version": "4.1.0-dev18",
+  "version": "4.5.0",
   "description": "GameAP Frontend Application",
   "type": "module",
   "main": "./dist/index.js",
@@ -25,11 +25,11 @@
     "axios": "^1.12.0"
   },
   "dependencies": {
-    "@gameap/plugin-sdk": "^0.3.1"
+    "@gameap/plugin-sdk": "^0.3.2"
   },
   "devDependencies": {
     "@gameap/ui": "file:../gameap-ui",
-    "@vitejs/plugin-vue": "^6.0.1",
-    "vite": "^7.1.0"
+    "@vitejs/plugin-vue": "^6.0.8",
+    "vite": "^7.3.6"
   }
 }
