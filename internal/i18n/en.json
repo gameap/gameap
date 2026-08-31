@@ -997,7 +997,6 @@
     "server_attached_msg": "Server attached",
     "server_detached_msg": "Server detached",
     "confirm_server_detach": "Detach the server from the user?",
-    "servers_apply_hint": "Changes to server assignments are applied immediately, no Save needed",
     "delete_self_error_msg": "You can not delete yourself"
   },
   "validation": {

@@ -998,7 +998,6 @@
     "server_attached_msg": "Сервер привязан",
     "server_detached_msg": "Сервер отвязан",
     "confirm_server_detach": "Отвязать сервер от пользователя?",
-    "servers_apply_hint": "Изменения привязки серверов применяются сразу, нажимать «Сохранить» не нужно",
     "delete_self_error_msg": "Вы не можете удалить себя"
   },
   "validation": {

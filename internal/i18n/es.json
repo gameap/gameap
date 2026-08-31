@@ -995,7 +995,6 @@
     "server_attached_msg": "Servidor asignado",
     "server_detached_msg": "Servidor desasignado",
     "confirm_server_detach": "¿Desasignar el servidor del usuario?",
-    "servers_apply_hint": "Los cambios en la asignación de servidores se aplican inmediatamente, no es necesario guardar",
     "delete_self_error_msg": "No puedes eliminarte a ti mismo"
   },
   "validation": {

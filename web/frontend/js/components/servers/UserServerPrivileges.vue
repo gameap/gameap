@@ -1,6 +1,5 @@
 <template>
     <div>
-        <p class="mb-3 text-sm text-stone-500 dark:text-stone-300">{{ trans('users.servers_apply_hint') }}</p>
         <div class="mb-4 overflow-x-auto">
             <GTable>
                 <thead>
