@@ -21,6 +21,11 @@ import (
 )
 
 const (
+	// pemPrivateKeyType is the PKCS#8 PEM block type; a typo here yields a
+	// key file that every TLS stack rejects.
+	pemPrivateKeyType = "PRIVATE KEY"
+	certOrganization  = "GameAP"
+
 	RootCACert             = "certs" + string(os.PathSeparator) + "root.crt"
 	RootCAKey              = "certs" + string(os.PathSeparator) + "root.key"
 	ClientCertificatesPath = "certs" + string(os.PathSeparator) + "client"
@@ -213,13 +218,13 @@ func (s *Service) Generate(
 
 	// Encode private key to PEM
 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
+		Type:  pemPrivateKeyType,
 		Bytes: pkcs8,
 	})
 
 	subject := pkix.Name{
-		CommonName:   "GameAP",
-		Organization: []string{"GameAP"},
+		CommonName:   certOrganization,
+		Organization: []string{certOrganization},
 	}
 	applySignOptions(&subject, opts)
 
@@ -338,13 +343,13 @@ func (s *Service) GenerateInMemory(ctx context.Context, opts *SignOptions) (stri
 	}
 
 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
+		Type:  pemPrivateKeyType,
 		Bytes: pkcs8,
 	})
 
 	subject := pkix.Name{
-		CommonName:   "GameAP",
-		Organization: []string{"GameAP"},
+		CommonName:   certOrganization,
+		Organization: []string{certOrganization},
 	}
 	applySignOptions(&subject, opts)
 
@@ -442,7 +447,7 @@ func (s *Service) generateRoot(ctx context.Context) error {
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			CommonName:   "GameAP CA",
-			Organization: []string{"GameAP"},
+			Organization: []string{certOrganization},
 			Country:      []string{"RU"},
 		},
 		NotBefore:             time.Now(),
@@ -478,7 +483,7 @@ func (s *Service) generateRoot(ctx context.Context) error {
 	}
 
 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
+		Type:  pemPrivateKeyType,
 		Bytes: pkcs8,
 	})
 

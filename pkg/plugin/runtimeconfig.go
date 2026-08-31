@@ -41,5 +41,5 @@ func memoryLimitPages(maxBytes uint64) uint32 {
 
 	pages := min(max(maxBytes/wasmPageSize, 1), wasmMaxPages)
 
-	return uint32(pages) //nolint:gosec // bounded by wasmMaxPages above
+	return uint32(pages)
 }

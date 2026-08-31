@@ -23,7 +23,7 @@ linters:
     - gocritic
     - gocyclo
     - godot
-    - gomodguard
+    - gomodguard_v2
     - goprintffuncname
     - gosec
     - govet
@@ -78,6 +78,9 @@ linters:
       lines: 100
       statements: 60
     goconst:
+      # Column, field and wire-protocol names: they are written literally at
+      # every use site by nature, and a shared constant would couple unrelated
+      # queries and protocol parsers to each other.
       ignore-string-values:
         - "localhost"
         - "email"
@@ -87,6 +90,24 @@ linters:
         - "updated_at"
         - "mysql"
         - "status"
+        - "plugin_id"
+        - "entity_id"
+        - "entity_type"
+        - "user_id"
+        - "expires_at"
+        - "scope"
+        - "key"
+        - "enabled"
+        - "processed"
+        - "trigger"
+        - "open"
+        - "stat"
+        - "readdir"
+        - "numplayers"
+        - "maxplayers"
+        - "map"
+        - "'self'"
+        - "blob:"
     loggercheck:
       slog: true
   exclusions:
@@ -100,6 +121,7 @@ linters:
       - path: _test\.go|test
         linters:
           - depguard
+          - goconst
           - dupl
           - funlen
           - gocognit
@@ -109,6 +131,16 @@ linters:
           - lll
           - noctx
           - scopelint
+      # Prometheus label vocabulary ("plugin", "module", "rpc", "result", ...):
+      # label names are written literally at every metric declaration.
+      - path: internal/telemetry/
+        linters:
+          - goconst
+      # The route table spells every path literally; a constant for one of the
+      # repeated ones would hide it among hundreds of neighbours.
+      - path: internal/api/router\.go
+        linters:
+          - goconst
       - path: internal/repositories/(mysql|postgres|sqlite|cached)/
         linters:
           - paralleltest

@@ -81,14 +81,12 @@ func (j *JWTService) GenerateMFAEnrollmentToken(user *domain.User, tokenDuration
 
 func (j *JWTService) generateToken(user *domain.User, tokenDuration time.Duration, scope string) (string, error) {
 	claims := JWTClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        xid.New().String(),
-			Subject:   createSubjectFromLogin(user.Login),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenDuration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "gameap-api",
-		},
-		Scope: scope,
+		ID:        xid.New().String(),
+		Subject:   createSubjectFromLogin(user.Login),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenDuration)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		Issuer:    "gameap-api",
+		Scope:     scope,
 	}
 
 	token := jwt.NewWithClaims(signingMethod, claims)

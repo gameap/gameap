@@ -119,13 +119,11 @@ func TestJWTService_ValidateToken(t *testing.T) {
 		t.Parallel()
 
 		expiredClaims := JWTClaims{
-			RegisteredClaims: jwt.RegisteredClaims{
-				ID:        "test-id",
-				Subject:   "user:login:testuser",
-				ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour)),
-				IssuedAt:  jwt.NewNumericDate(time.Now().Add(-2 * time.Hour)),
-				Issuer:    "gameap-api",
-			},
+			ID:        "test-id",
+			Subject:   "user:login:testuser",
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-2 * time.Hour)),
+			Issuer:    "gameap-api",
 		}
 
 		token := jwt.NewWithClaims(jwt.SigningMethodHS384, expiredClaims)
@@ -170,13 +168,11 @@ func TestJWTService_ValidateToken(t *testing.T) {
 		t.Parallel()
 
 		wrongMethodClaims := JWTClaims{
-			RegisteredClaims: jwt.RegisteredClaims{
-				ID:        "test-id",
-				Subject:   "user:login:testuser",
-				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
-				IssuedAt:  jwt.NewNumericDate(time.Now()),
-				Issuer:    "gameap-api",
-			},
+			ID:        "test-id",
+			Subject:   "user:login:testuser",
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "gameap-api",
 		}
 
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, wrongMethodClaims)
@@ -204,13 +200,11 @@ func TestJWTService_ValidateToken(t *testing.T) {
 		t.Parallel()
 
 		rsaClaims := JWTClaims{
-			RegisteredClaims: jwt.RegisteredClaims{
-				ID:        "rsa-id",
-				Subject:   "user:login:testuser",
-				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
-				IssuedAt:  jwt.NewNumericDate(time.Now()),
-				Issuer:    "gameap-api",
-			},
+			ID:        "rsa-id",
+			Subject:   "user:login:testuser",
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "gameap-api",
 		}
 
 		privKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -234,12 +228,10 @@ func TestJWTService_ValidateToken(t *testing.T) {
 		// should still validate. This pins that behavior so that toggling
 		// jwt.WithExpirationRequired() in production is detected here.
 		noExpClaims := JWTClaims{
-			RegisteredClaims: jwt.RegisteredClaims{
-				ID:       "no-exp-id",
-				Subject:  "user:login:no-exp",
-				IssuedAt: jwt.NewNumericDate(time.Now()),
-				Issuer:   "gameap-api",
-			},
+			ID:       "no-exp-id",
+			Subject:  "user:login:no-exp",
+			IssuedAt: jwt.NewNumericDate(time.Now()),
+			Issuer:   "gameap-api",
 		}
 
 		token := jwt.NewWithClaims(jwt.SigningMethodHS384, noExpClaims)
@@ -464,9 +456,7 @@ func TestJWTClaims_ImplementsClaims(t *testing.T) {
 	t.Parallel()
 
 	claims := &JWTClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Subject: "user:login:testuser",
-		},
+		Subject: "user:login:testuser",
 	}
 
 	// JWTClaims is wrapped via jwtClaimsAdapter to satisfy the local

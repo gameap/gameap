@@ -37,6 +37,9 @@ func ValidateWASM(data []byte) error {
 func ReadWASMFromMultipart(rw http.ResponseWriter, r *http.Request) ([]byte, error) {
 	r.Body = http.MaxBytesReader(rw, r.Body, MaxUploadSize)
 
+	// MaxMemory only decides how much of the form stays in RAM before it
+	// spills to a temp file; the request size is bounded by MaxBytesReader.
+	//nolint:gosec // G120: r.Body is capped by MaxUploadSize above
 	if err := r.ParseMultipartForm(MaxMemory); err != nil {
 		return nil, errors.WithMessage(err, "failed to parse multipart form")
 	}

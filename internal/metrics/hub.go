@@ -639,7 +639,7 @@ func (h *hub) maybeStartOrStopPoll(state *nodeState) {
 			state.stopTimer = nil
 		}
 		// cancel is stored in state.pollCancel; invoked by stopPollIfStillIdle / Stop.
-		pollCtx, cancel := context.WithCancel(h.rootCtx) //nolint:gosec
+		pollCtx, cancel := context.WithCancel(h.rootCtx)
 		state.pollCancel = cancel
 		state.mu.Unlock()
 		go h.pollLoop(pollCtx, state.nodeID)

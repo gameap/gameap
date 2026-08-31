@@ -553,7 +553,6 @@ func (s *Service) runAttempts(
 			slog.String("error", runErr.Error()),
 		)
 
-		//nolint:gosec // G115: MaxRetries is capped by validation far below MaxInt
 		if task.ErrorPolicy != domain.PluginScheduledTaskErrorPolicyRetry || attempt > int(task.MaxRetries) {
 			return
 		}

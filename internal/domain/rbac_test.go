@@ -290,14 +290,12 @@ func TestRestrictedRole_Fields(t *testing.T) {
 	restrictedToType := EntityTypeServer
 
 	restrictedRole := RestrictedRole{
-		Role: Role{
-			ID:        1,
-			Name:      "moderator",
-			Title:     &title,
-			Level:     &level,
-			CreatedAt: &now,
-			UpdatedAt: &now,
-		},
+		ID:               1,
+		Name:             "moderator",
+		Title:            &title,
+		Level:            &level,
+		CreatedAt:        &now,
+		UpdatedAt:        &now,
 		RestrictedToID:   &restrictedToID,
 		RestrictedToType: &restrictedToType,
 	}

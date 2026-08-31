@@ -326,7 +326,7 @@ func clampToInt32(v int) int32 {
 }
 
 func clampToUint32(v uint) uint32 {
-	return uint32(min(v, math.MaxUint32)) //nolint:gosec // value clamped to uint32 range
+	return uint32(min(v, math.MaxUint32))
 }
 
 func DomainServerTaskToProto(task *domain.ServerTask) *proto.ServerTask {

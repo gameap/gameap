@@ -56,7 +56,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	rw.WriteHeader(http.StatusOK)
 
-	//nolint:gosec // G705: yamlData is YAML from database, Content-Type is application/x-yaml
 	if _, err := rw.Write(yamlData); err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to write response"))
 	}

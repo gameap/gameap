@@ -317,11 +317,9 @@ func TestResponder_WriteError_DescriptionStaysOutOfBody(t *testing.T) { //nolint
 	responder := NewResponder()
 	rec := httptest.NewRecorder()
 	err := errors.WithMessage(&statusDescriptionError{
-		descriptionError: descriptionError{
-			msg:         "file not found",
-			description: "stat: lstatat servers/q2/server.cfg: no such file or directory",
-		},
-		status: http.StatusNotFound,
+		msg:         "file not found",
+		description: "stat: lstatat servers/q2/server.cfg: no such file or directory",
+		status:      http.StatusNotFound,
 	}, "failed to get file info")
 
 	responder.WriteError(context.Background(), rec, err)

@@ -196,7 +196,7 @@ func (s *CryptoServiceImpl) Argon2Verify(
 		params.time,
 		params.memory,
 		params.parallelism,
-		uint32(hashLen), //nolint:gosec // hashLen is bounded by min(len, 1024)
+		uint32(hashLen),
 	)
 
 	match := subtle.ConstantTimeCompare(hash, computedHash) == 1
