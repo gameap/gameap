@@ -38,7 +38,7 @@ cd packages/gameap-debug
 npm run dev
 
 # Or run with a custom plugin path
-PLUGIN_PATH=/path/to/my-plugin/frontend/dist npm run dev
+PLUGINS_PATH=/path/to/my-plugin/frontend/dist npm run dev
 ```
 
 The debug harness will start at `http://localhost:5174`
@@ -53,14 +53,14 @@ npm run build
 
 2. **Run the debug harness with your plugin:**
 ```bash
-PLUGIN_PATH=/path/to/my-plugin/frontend/dist npm run dev
+PLUGINS_PATH=/path/to/my-plugin/frontend/dist npm run dev
 ```
 
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PLUGIN_PATH` | Path to your plugin's dist directory (built bundle) | hex-editor-plugin dist |
+| `PLUGINS_PATH` | Path to your plugin's dist directory (built bundle). The former `PLUGIN_PATH` still works and warns. | hex-editor-plugin dist |
 | `LOCALE` | Default locale (en/ru) | `en` |
 
 ## Debug Panel
@@ -140,7 +140,7 @@ debugState.locale = 'ru'
 
 1. **Create your plugin** using the Plugin SDK
 2. **Build your plugin**: `npm run build`
-3. **Run the debug harness**: `PLUGIN_PATH=./dist npm run dev`
+3. **Run the debug harness**: `PLUGINS_PATH=./dist npm run dev`
 4. **Make changes** to your plugin
 5. **Rebuild**: `npm run build`
 6. **Refresh** the debug harness page
@@ -153,7 +153,7 @@ Add a watch script to your plugin's package.json:
 {
   "scripts": {
     "dev:watch": "vite build --watch",
-    "debug": "PLUGIN_PATH=./dist vite --config ../../gameap-api/web/frontend/packages/gameap-debug/vite.config.ts"
+    "debug": "PLUGINS_PATH=./dist vite --config ../../gameap-api/web/frontend/packages/gameap-debug/vite.config.ts"
   }
 }
 ```
@@ -189,7 +189,7 @@ packages/gameap-debug/
 ### "Failed to load plugin bundle"
 
 - Ensure your plugin is built (`npm run build`)
-- Check that `PLUGIN_PATH` points to the `dist` directory
+- Check that `PLUGINS_PATH` points to the `dist` directory
 - Verify the plugin exports a valid `PluginDefinition`
 
 ### MSW not intercepting requests

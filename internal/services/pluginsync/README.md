@@ -23,7 +23,7 @@ database and decides for itself. That is what makes the feature survive the
 transport it runs on: the pub/sub drivers are at most once with no persistence
 and no replay, so a message can be lost, duplicated or delivered out of order
 without changing the result. The worst a lost message costs is one
-`PLUGIN_SYNC_REFRESH_INTERVAL` of staleness (the periodic pass is jittered so
+`PLUGINS_SYNC_REFRESH_INTERVAL` of staleness (the periodic pass is jittered so
 replicas do not hit the database in lockstep).
 
 The same property makes the "who sent it" question irrelevant — an instance
@@ -48,9 +48,9 @@ runtime state:
 | `updating`, or `disabled` and absent | — | nothing: an operator's multi-step operation is in flight elsewhere |
 | `active` | present, enabled, same fingerprint | nothing |
 | `active` | present but a different fingerprint, or disabled at runtime by the supervisor | `ApplyRecord` (replaces the module) |
-| `active` | absent | `ApplyRecord`, retried with backoff (`PLUGIN_SYNC_MIN_BACKOFF` .. `PLUGIN_SYNC_MAX_BACKOFF`); a fingerprint change resets the backoff |
+| `active` | absent | `ApplyRecord`, retried with backoff (`PLUGINS_SYNC_MIN_BACKOFF` .. `PLUGINS_SYNC_MAX_BACKOFF`); a fingerprint change resets the backoff |
 | `error` | present | nothing, unless the fingerprint differs → `ApplyRecord` |
-| `error` | absent | `ApplyRecord` once per fingerprint, or again after the file was repaired — no timed retry (that is the supervisor's `PLUGIN_RECOVERY_*` contract) |
+| `error` | absent | `ApplyRecord` once per fingerprint, or again after the file was repaired — no timed retry (that is the supervisor's `PLUGINS_RECOVERY_*` contract) |
 
 `ApplyRecord` answers `ErrPluginHeld` while an admin handler holds the plugin
 (update, uninstall); that is contention, not a failure:
@@ -139,10 +139,10 @@ would invert that order.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PLUGIN_SYNC_DISABLED` | `false` | Turns the reconciler off entirely; `GET /loaded` then carries no `sync` object |
-| `PLUGIN_SYNC_REFRESH_INTERVAL` | `60s` | Upper bound on staleness after a lost hint |
-| `PLUGIN_SYNC_MIN_BACKOFF` | `15s` | First retry delay after a failed load |
-| `PLUGIN_SYNC_MAX_BACKOFF` | `15m` | Retry delay ceiling |
+| `PLUGINS_SYNC_DISABLED` | `false` | Turns the reconciler off entirely; `GET /loaded` then carries no `sync` object |
+| `PLUGINS_SYNC_REFRESH_INTERVAL` | `60s` | Upper bound on staleness after a lost hint |
+| `PLUGINS_SYNC_MIN_BACKOFF` | `15s` | First retry delay after a failed load |
+| `PLUGINS_SYNC_MAX_BACKOFF` | `15m` | Retry delay ceiling |
 
 Leaving it on with a single instance costs one indexed query per interval when
 nothing has changed.

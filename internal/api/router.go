@@ -2187,7 +2187,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginManager(),
 				c.PluginLoader(),
 				c.PluginRepository(),
-				c.Config().Plugin.Permissions.Enforce,
+				c.Config().Plugins.Permissions.Enforce,
 				c.Responder(),
 				pluginsloaded.WithSyncStatus(c.PluginSync()),
 			),

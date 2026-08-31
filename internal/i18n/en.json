@@ -631,7 +631,7 @@
     "permissions_save": "Save permissions",
     "permissions_saved": "Plugin permissions updated",
     "permission_not_needed": "The plugin neither declares nor uses this permission",
-    "permissions_enforcement_disabled_warning": "Permission checks are disabled on this panel (PLUGIN_PERMISSIONS_ENFORCE=false). The grants below are saved but not applied; enable the variable to enforce them.",
+    "permissions_enforcement_disabled_warning": "Permission checks are disabled on this panel (PLUGINS_PERMISSIONS_ENFORCE=false). The grants below are saved but not applied; enable the variable to enforce them.",
     "permissions_missing_warning": "The plugin uses capabilities it is not granted; those calls are refused until you grant them:",
     "permissions_undeclared_warning": "The plugin uses capabilities it does not declare. Installing grants only the declared ones, so these calls will be refused until you grant them in the plugin's permissions dialog:",
     "required_permissions": "Required permissions",

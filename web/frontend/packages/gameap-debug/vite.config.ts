@@ -6,9 +6,18 @@ import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// Default plugin path - can be overridden via PLUGIN_PATH env variable
+// PLUGIN_PATH was renamed to PLUGINS_PATH; the old name keeps working for one release.
+function readPluginsPath(): string | undefined {
+    if (!process.env.PLUGINS_PATH && process.env.PLUGIN_PATH) {
+        console.warn('PLUGIN_PATH is deprecated and will be removed in a future release, use PLUGINS_PATH')
+    }
+
+    return process.env.PLUGINS_PATH ?? process.env.PLUGIN_PATH
+}
+
+// Default plugin path - can be overridden via PLUGINS_PATH env variable
 function resolvePluginPath(): string {
-    const pluginPath = process.env.PLUGIN_PATH
+    const pluginPath = readPluginsPath()
 
     if (!pluginPath) {
         // Default: no plugin loaded

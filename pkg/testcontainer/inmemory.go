@@ -269,7 +269,7 @@ func (c *InmemoryContainer) PluginGuard() *hostlibrary.Guard {
 // PluginPermissionEnforcer mirrors the application container: the real
 // checker while the config enforces permissions, allow-everything otherwise.
 func (c *InmemoryContainer) PluginPermissionEnforcer() hostlibrary.PluginPermissionChecker {
-	if c.cfg.Plugin.Permissions.Enforce {
+	if c.cfg.Plugins.Permissions.Enforce {
 		return c.PluginPermissionChecker()
 	}
 
@@ -395,7 +395,7 @@ func buildInmemoryTestContainer() *InmemoryContainer {
 	}
 	// Tests exercise today's enforced behavior; the release default is off
 	// only to give plugin developers a migration period.
-	cfg.Plugin.Permissions.Enforce = true
+	cfg.Plugins.Permissions.Enforce = true
 
 	c := &InmemoryContainer{
 		cfg:                     cfg,

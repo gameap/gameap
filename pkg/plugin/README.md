@@ -139,7 +139,7 @@ logger.Log(ctx, &log.LogRequest{
 ### gameap-cache
 
 Provides caching capabilities. Keys are namespaced per plugin and values are
-capped by `PLUGIN_CACHE_MAX_VALUE`; see [Storage and cache
+capped by `PLUGINS_CACHE_MAX_VALUE`; see [Storage and cache
 quotas](#storage-and-cache-quotas) for what the cache does and does not
 guarantee.
 
@@ -272,10 +272,10 @@ Rules the panel enforces:
   ciphertext is bound to the owning plugin and key, so a row copied elsewhere
   in the database no longer decrypts.
 - With no `ENCRYPTION_KEY` configured a write is **refused** rather than stored
-  in plaintext (`PLUGIN_SECRETS_REQUIRE_ENCRYPTION=false` opts out).
+  in plaintext (`PLUGINS_SECRETS_REQUIRE_ENCRYPTION=false` opts out).
 - Keys must match `^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$`.
-- Quotas: `PLUGIN_SECRETS_MAX_KEYS_PER_PLUGIN` (64 by default) and
-  `PLUGIN_SECRETS_MAX_VALUE` (8 KiB by default).
+- Quotas: `PLUGINS_SECRETS_MAX_KEYS_PER_PLUGIN` (64 by default) and
+  `PLUGINS_SECRETS_MAX_VALUE` (8 KiB by default).
 - Secrets are private to the plugin that wrote them and survive a plugin
   reload or update; a `Get` from another plugin answers `found = false`.
   Uninstalling the plugin deletes its secrets together with its
@@ -378,7 +378,7 @@ Scheduling semantics:
   `ERROR_POLICY_TYPE_RETRY` it is retried up to `MaxRetries` times with
   `RetryDelayMs` plus a random jitter up to `MaxJitterMs` between attempts.
 - Interval floor, per-plugin task count, timeout ceilings and retry caps are
-  panel-configured (`PLUGIN_SCHEDULER_*` environment variables).
+  panel-configured (`PLUGINS_SCHEDULER_*` environment variables).
 
 The handler export is optional: plugins compiled without the scheduler module
 keep loading and working unchanged.
@@ -547,7 +547,7 @@ for _, file := range readDirResp.Files {
 }
 
 // Download a file. Without Offset/Length this is the whole file in one
-// message, so the panel caps it (PLUGIN_NODEFS_MAX_INLINE, 32 MiB by default)
+// message, so the panel caps it (PLUGINS_NODEFS_MAX_INLINE, 32 MiB by default)
 // and a larger file answers with an error naming both sizes.
 downloadResp, _ := fs.Download(ctx, &nodefs.DownloadRequest{
     NodeId: 1,
@@ -741,7 +741,7 @@ Opens SSH connections to hosts the plugin names and runs commands there. This
 is the one thing `gameap-nodecmd` cannot do: it works through the daemon, and a
 machine being provisioned does not have one yet.
 
-Requires the `ssh` permission **and** `PLUGIN_SSH_ENABLED=true` on the panel.
+Requires the `ssh` permission **and** `PLUGINS_SSH_ENABLED=true` on the panel.
 The module is not registered at all when the operator leaves the switch off, so
 a plugin that imports it fails to load — check the panel configuration first
 when a load fails with an unknown import.
@@ -829,11 +829,11 @@ Semantics worth knowing:
   never both: the combination is rejected, because `accept_any` would silently
   skip the pins. The observed key is always returned so first contact can pin
   it, and an operator can forbid `accept_any` panel-wide with
-  `PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY=false`.
+  `PLUGINS_SSH_ALLOW_ACCEPT_ANY_HOST_KEY=false`.
 - **Environment variables** go through SSH `env` requests, which most sshd
   configurations accept only for the names in `AcceptEnv`. Use
   `env K=V command` inside the command for anything else.
-- **Output is capped** per stream (`PLUGIN_SSH_MAX_OUTPUT_BYTES`); the head is
+- **Output is capped** per stream (`PLUGINS_SSH_MAX_OUTPUT_BYTES`); the head is
   kept and the stream is flagged truncated, with the produced byte count
   reported separately.
 - **File helpers** (`WriteFile`, `ReadFile`) stream through a remote `cat`, so
@@ -845,7 +845,7 @@ Semantics worth knowing:
 
 Targets go through the same address policy as `gameap-http`: cloud-metadata
 addresses are never reachable, and private addresses are refused unless the
-operator allows them (`PLUGIN_SSH_BLOCK_PRIVATE_IPS`, `PLUGIN_SSH_ALLOWED_HOSTS`).
+operator allows them (`PLUGINS_SSH_BLOCK_PRIVATE_IPS`, `PLUGINS_SSH_ALLOWED_HOSTS`).
 
 ### Repository Services
 
@@ -1166,7 +1166,7 @@ Rules:
   gates reading through `gameap-nodefs`, so a plugin can only stream what it
   could read itself. Without it the panel answers `403` and records an
   `access.denied` audit event. The check happens on every request, at the moment
-  the file is served, and is subject to `PLUGIN_PERMISSIONS_ENFORCE` like every
+  the file is served, and is subject to `PLUGINS_PERMISSIONS_ENFORCE` like every
   other grant check.
 - Only authenticated clients receive files: on a route with `RequiresAuth:
   false` an anonymous request gets `401`, whatever the plugin answered.
@@ -1391,7 +1391,7 @@ func queryError(msg string) *protocol.QueryServerResponse {
 }
 ```
 
-The gameap-net library is gated by `PLUGIN_NET_*` config (enable, per-read size
+The gameap-net library is gated by `PLUGINS_NET_*` config (enable, per-read size
 and timeout caps, per-plugin connection cap, and a private-IP dial policy —
 cloud-metadata IPs are always blocked). See
 `pkg/plugin/examples/protocol-extension/` for a complete example.
@@ -1404,7 +1404,7 @@ cloud-metadata IPs are always blocked). See
   gameap-net for protocol I/O on host-opened connections (plugins never dial).
   The single exception is gameap-ssh, where a plugin does name its own target
   because bootstrapping a machine cannot work otherwise; it is gated on the
-  `ssh` grant and on the operator's `PLUGIN_SSH_ENABLED` switch, and its
+  `ssh` grant and on the operator's `PLUGINS_SSH_ENABLED` switch, and its
   targets go through the same address policy as gameap-http
 - Node metadata is readable by every plugin through gameap-nodes, so it is not
   a place for secrets
@@ -1424,8 +1424,8 @@ Privileged host modules are gated on the plugin's own grants, kept in the
 | `listen_events` | Event subscriptions: a plugin without it is never called for events (its `GetSubscribedEvents` answer is ignored, with a warning in the log) |
 | `manage_rbac` | `gameap-rbac` — creating roles, granting and revoking abilities |
 | `secrets` | `gameap-secrets` — reading, writing, listing and deleting the plugin's encrypted credentials |
-| `ssh` | every `gameap-ssh` operation — connecting to a host the plugin names itself, running commands on it and transferring files, all outside the daemon and the node inventory; key generation included, so a plugin cannot mint credentials without the grant. The grant alone is not enough: the operator must also set `PLUGIN_SSH_ENABLED=true` |
-| `manage_nodes` | `gameap-nodes` — the mutating calls: `UpdateNode`, `DeleteNode` and the enrollment setup keys. Reads stay open to every plugin. The module checks this grant itself rather than through the guard, so it is enforced whatever `PLUGIN_PERMISSIONS_ENFORCE` says and carries no rate limit of its own |
+| `ssh` | every `gameap-ssh` operation — connecting to a host the plugin names itself, running commands on it and transferring files, all outside the daemon and the node inventory; key generation included, so a plugin cannot mint credentials without the grant. The grant alone is not enough: the operator must also set `PLUGINS_SSH_ENABLED=true` |
+| `manage_nodes` | `gameap-nodes` — the mutating calls: `UpdateNode`, `DeleteNode` and the enrollment setup keys. Reads stay open to every plugin. The module checks this grant itself rather than through the guard, so it is enforced whatever `PLUGINS_PERMISSIONS_ENFORCE` says and carries no rate limit of its own |
 
 `manage_games`, `manage_game_mods` and `manage_users` are reserved for write
 operations the repository modules do not expose yet.
@@ -1477,12 +1477,12 @@ operator edits them. The endpoint announces every change over pub/sub
 (`gameap:plugin:subscriptions:refresh`), and each instance drops its cached
 grants for that plugin before rebuilding its subscription map — so a change
 takes effect at once on the instance that made it, and on the others as soon
-as the message arrives. `PLUGIN_PERMISSIONS_CACHE_TTL` (default `30s`) is the
+as the message arrives. `PLUGINS_PERMISSIONS_CACHE_TTL` (default `30s`) is the
 backstop if the broker is unreachable; `0` disables the cache and reads the
 record on every check. A grant set that is empty is never cached, so a plugin
 that has just been installed is never denied by a stale answer.
 
-Enforcement is transitional: `PLUGIN_PERMISSIONS_ENFORCE` (default `false` in
+Enforcement is transitional: `PLUGINS_PERMISSIONS_ENFORCE` (default `false` in
 this release, `true` in a future one) decides whether the grants are applied.
 While it is off every check passes — host calls, event deliveries and file
 refs work without grants — but the grants are still recorded, computed and
@@ -1509,7 +1509,7 @@ with the plugin as the actor; the module stays loaded.
 Every path a plugin hands to `gameap-nodefs`, to `gameap-nodecmd` (`work_dir`)
 or to a `HTTPResponse.file` reference is checked on the panel before it
 reaches the daemon. In every mode a path containing a `..` segment or a NUL
-byte is refused. `PLUGIN_NODEFS_PATH_POLICY` selects what else is allowed:
+byte is refused. `PLUGINS_NODEFS_PATH_POLICY` selects what else is allowed:
 
 | Mode | Allowed paths |
 |---|---|
@@ -1531,7 +1531,7 @@ upload dry-run) has no id yet and gets no directory.
 Put node-side working files there and the strictest mode still works. Put them
 anywhere else under the work path and `server_dirs` refuses them.
 
-`PLUGIN_NODEFS_ALLOWED_PATHS` (comma-separated absolute roots) widens the
+`PLUGINS_NODEFS_ALLOWED_PATHS` (comma-separated absolute roots) widens the
 restricted modes further, e.g. a shared `/opt/steamcmd`. It is a poor fit for
 plugin working directories: the roots are absolute and apply to every node, so
 a fleet with different work paths cannot be covered by one entry. Windows nodes are compared
@@ -1556,7 +1556,7 @@ The expensive host libraries are rate limited per plugin with a token bucket
 | `rbac` | every `gameap-rbac` operation | 10/s, burst 50 |
 | `ssh` | every `gameap-ssh` operation, polling a running command included | 20/s, burst 60 |
 
-`PLUGIN_RATELIMIT_<CLASS>_RPS` / `_BURST` tune them; RPS `0` disables a
+`PLUGINS_RATELIMIT_<CLASS>_RPS` / `_BURST` tune them; RPS `0` disables a
 class. A refused call answers `rate limited: gameap-<module> allows N calls/s
 (burst M)` in the response's `error` field — the plugin is never disabled for
 it — and is counted in the metrics; the audit record
@@ -1590,9 +1590,9 @@ plugin HTTP route — the user travels as `on_behalf_of_user_id` /
 
 ### Storage and cache quotas
 
-`gameap-storage` is bounded per plugin: `PLUGIN_STORAGE_MAX_KEYS_PER_PLUGIN`
-(10000), `PLUGIN_STORAGE_MAX_VALUE` (1 MiB) and
-`PLUGIN_STORAGE_MAX_TOTAL` (64 MiB). A `Set` over a quota answers
+`gameap-storage` is bounded per plugin: `PLUGINS_STORAGE_MAX_KEYS_PER_PLUGIN`
+(10000), `PLUGINS_STORAGE_MAX_VALUE` (1 MiB) and
+`PLUGINS_STORAGE_MAX_TOTAL` (64 MiB). A `Set` over a quota answers
 `success=false` with the reason (`at most N storage entries per plugin`,
 `payload exceeds N bytes`, `storage quota of N bytes exceeded`); replacing a
 key releases its old payload first. `List` accepts an optional `limit` /
@@ -1607,7 +1607,7 @@ cause goes to the panel log. Check `error` before trusting `found`,
 
 `gameap-cache` keys live in a namespace of their own per plugin
 (`plugin:<id>:`), so plugins never see each other's entries, and a value is
-capped by `PLUGIN_CACHE_MAX_VALUE` (1 MiB). The cache is the panel's
+capped by `PLUGINS_CACHE_MAX_VALUE` (1 MiB). The cache is the panel's
 cache backend: entries expire by TTL, are not deleted when the plugin is
 uninstalled, and are only shared between panel instances when the backend
 is (Redis or the database, not memory) — keep state that must survive a
@@ -1678,9 +1678,9 @@ configurable through environment variables (`internal/config`).
   never loaded; `updating` is skipped. The one exception is `PLUGINS_AUTOLOAD`:
   a plugin named there is the operator's explicit instruction and is set back
   to `active` at startup whatever its status (unchanged behaviour).
-- `PLUGINS_CACHE_DIR` persists compiled wasm on local disk (keyed by module
+- `PLUGINS_RUNTIME_CACHE_DIR` persists compiled wasm on local disk (keyed by module
   hash and wazero version) so restarts do not recompile every plugin;
-  `PLUGINS_CACHE_ENABLED=false` turns caching off entirely.
+  `PLUGINS_RUNTIME_CACHE_ENABLED=false` turns caching off entirely.
 
 ### Limits
 
@@ -1688,15 +1688,15 @@ Sizes accept a unit suffix — `512K`, `64M`, `1G`; a plain number is bytes.
 Durations use Go syntax (`30s`, `5m`). The unit lives in the value, not in the
 variable name.
 
-- `PLUGIN_RUNTIME_MAX_MEMORY` (256M) caps the linear memory of every module. A
+- `PLUGINS_RUNTIME_MAX_MEMORY` (256M) caps the linear memory of every module. A
   module that declares a larger maximum is clamped, not rejected; only a
   module whose *initial* memory already exceeds the cap fails to load, with
   an error naming both sizes. Standard Go builds reserve tens of MiB up front
   and grow their heap at runtime — raise the cap if such a plugin traps with
   out-of-memory.
-- `PLUGIN_RUNTIME_MAX_MODULE_SIZE` (128M) rejects larger wasm files before
+- `PLUGINS_RUNTIME_MAX_MODULE_SIZE` (128M) rejects larger wasm files before
   compilation, for uploads, store installs and autoload alike.
-- `PLUGIN_NODEFS_MAX_INLINE` (32 MiB) caps `gameap-nodefs` `Upload` payloads and
+- `PLUGINS_NODEFS_MAX_INLINE` (32 MiB) caps `gameap-nodefs` `Upload` payloads and
   what one `Download` may answer with. A `Download` that names an
   `Offset`/`Length` window is measured by the window, so a larger file stays
   readable one piece at a time.
@@ -1714,13 +1714,13 @@ ends in `proc_exit`). The panel then:
 
 1. records the reason on the plugin (`status=error`, `last_error`,
    `last_error_at`) and writes a `plugin.disabled` audit event;
-2. reloads the plugin after `PLUGIN_RECOVERY_INITIAL_DELAY` (30s), doubling
-   the wait on every further failure up to `PLUGIN_RECOVERY_MAX_DELAY` (10m).
+2. reloads the plugin after `PLUGINS_RECOVERY_INITIAL_DELAY` (30s), doubling
+   the wait on every further failure up to `PLUGINS_RECOVERY_MAX_DELAY` (10m).
    Each outcome is an audit event `plugin.reloaded` (`trigger=auto`). After
-   `PLUGIN_RECOVERY_MAX_ATTEMPTS` (5) consecutive reloads the plugin stays in
+   `PLUGINS_RECOVERY_MAX_ATTEMPTS` (5) consecutive reloads the plugin stays in
    status `error` — `last_error` says so — until an operator reloads it or the
    panel restarts. A plugin that stayed healthy for longer than the maximum
-   delay starts a fresh series. `PLUGIN_RECOVERY_ENABLED=false` keeps the
+   delay starts a fresh series. `PLUGINS_RECOVERY_ENABLED=false` keeps the
    disable permanent, as before — the status, reason and audit event are
    still recorded.
 
@@ -1746,15 +1746,15 @@ The database is the desired state, and every instance reconciles against it:
 an install, update, uninstall, permission change or operator reload
 performed on one instance is picked up by the others — at
 once through the pubsub hint (`gameap:plugin:sync`, carrying only the plugin
-id) and in any case on the periodic pass (`PLUGIN_SYNC_REFRESH_INTERVAL`,
+id) and in any case on the periodic pass (`PLUGINS_SYNC_REFRESH_INTERVAL`,
 60s). A reload is propagated through a `generation` counter on the record,
 so "reload on A" restarts the plugin everywhere; a plugin whose file is
 missing on an instance is re-downloaded from the store and verified against
 the recorded checksum (plugins uploaded from a file need a shared
 `FILES_DRIVER`, e.g. S3). A plugin that fails to load on one instance is
-retried there with backoff (`PLUGIN_SYNC_MIN_BACKOFF` .. `PLUGIN_SYNC_MAX_BACKOFF`)
+retried there with backoff (`PLUGINS_SYNC_MIN_BACKOFF` .. `PLUGINS_SYNC_MAX_BACKOFF`)
 and reported as `sync.state = retrying` / `failed` with the local reason,
-without touching the shared record. `PLUGIN_SYNC_DISABLED=true` restores the
+without touching the shared record. `PLUGINS_SYNC_DISABLED=true` restores the
 previous behaviour (each instance only applies its own changes). Details:
 `internal/services/pluginsync/README.md`.
 

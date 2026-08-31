@@ -1,5 +1,5 @@
 // Empty plugin placeholder
-// This file is used when no PLUGIN_PATH is specified
+// This file is used when no PLUGINS_PATH is specified
 export const emptyPlugin = {
     id: 'empty',
     name: 'No Plugin Loaded',

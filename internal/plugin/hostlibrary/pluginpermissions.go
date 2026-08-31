@@ -20,7 +20,7 @@ type PluginPermissionChecker interface {
 }
 
 // AllowAllPermissionChecker admits every check. It is wired in place of the
-// real checker while PLUGIN_PERMISSIONS_ENFORCE is off, so plugins written
+// real checker while PLUGINS_PERMISSIONS_ENFORCE is off, so plugins written
 // before grants existed keep working while operators record theirs.
 type AllowAllPermissionChecker struct{}
 

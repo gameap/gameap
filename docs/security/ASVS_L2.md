@@ -933,13 +933,13 @@ would re-open the category:
    is blocked the request is refused entirely (rejects multi-IP
    attacks that mix a public + private answer).
 
-3. **Scheme allow-list** (`PLUGIN_HTTP_ALLOWED_SCHEMES`, default
+3. **Scheme allow-list** (`PLUGINS_HTTP_ALLOWED_SCHEMES`, default
    `https`). Rejects `file://`, `ftp://`, `gopher://`, `data:`,
    `ldap://` pre-dial.
 
 4. **Redirect re-validation**. `http.Client.CheckRedirect`
    re-runs `validateURL` on every hop and caps the chain at
-   `PLUGIN_HTTP_MAX_REDIRECTS` (default 5). A public origin
+   `PLUGINS_HTTP_MAX_REDIRECTS` (default 5). A public origin
    that issues `Location: http://10.0.0.1/secret` is refused at
    the redirect — the new dial would have caught it anyway, but
    the early refusal gives the plugin a clean error.
@@ -952,15 +952,15 @@ would re-open the category:
    `Set-Cookie`, `Authorization`, `WWW-Authenticate`,
    `Proxy-Authenticate`, `Clear-Site-Data`, `Server-Timing` will
    NEVER reach a plugin. Operator extras via
-   `PLUGIN_HTTP_RESPONSE_HEADER_ALLOWLIST`. An allowlist (rather
+   `PLUGINS_HTTP_RESPONSE_HEADER_ALLOWLIST`. An allowlist (rather
    than a denylist) means new HTTP headers invented next year
    default to "stripped".
 
-6. **TimeoutSeconds cap** (`PLUGIN_HTTP_MAX_TIMEOUT`,
+6. **TimeoutSeconds cap** (`PLUGINS_HTTP_MAX_TIMEOUT`,
    default 30s). A plugin asking for an hour-long timeout is
    clamped to the operator ceiling.
 
-7. **Operator allow-list** (`PLUGIN_HTTP_ALLOWED_HOSTS`,
+7. **Operator allow-list** (`PLUGINS_HTTP_ALLOWED_HOSTS`,
    comma-separated). Documented escape hatch for internal
    infrastructure (e.g. an in-VPC plugin store mirror). Bypasses
    the private-IP blocklist for matching hostnames; **NEVER**
@@ -1081,7 +1081,7 @@ operator-built plugins.
 5. **Strip dangerous response headers** before returning to the
    plugin: at minimum `Set-Cookie`, `Authorization`,
    `WWW-Authenticate`, `Proxy-Authenticate`.
-6. **Operator allow-list** (`PLUGIN_HTTP_ALLOWED_HOSTS=`) for
+6. **Operator allow-list** (`PLUGINS_HTTP_ALLOWED_HOSTS=`) for
    deployments that need outbound to a specific API.
 7. **Tests** covering each blocked category (loopback, RFC1918,
    metadata IP, redirect-into-loopback, oversized timeout, header
@@ -1677,12 +1677,12 @@ classification, anti-automation on write endpoints) and C-6
     `http.Transport.DialContext` that resolves the host, validates
     every candidate IP against the blocklist, and dials the chosen
     IP verbatim (DNS-rebinding defence); `CheckRedirect` re-validates
-    every hop; scheme allow-list (`PLUGIN_HTTP_ALLOWED_SCHEMES`,
+    every hop; scheme allow-list (`PLUGINS_HTTP_ALLOWED_SCHEMES`,
     default `https`); response-header **allow**list (Set-Cookie,
     Authorization, WWW-Authenticate, Proxy-Authenticate stripped
-    on the way back to the plugin); `PLUGIN_HTTP_MAX_TIMEOUT`
-    cap; `PLUGIN_HTTP_MAX_REDIRECTS` cap; operator allow-list
-    `PLUGIN_HTTP_ALLOWED_HOSTS` that bypasses the private-IP block
+    on the way back to the plugin); `PLUGINS_HTTP_MAX_TIMEOUT`
+    cap; `PLUGINS_HTTP_MAX_REDIRECTS` cap; operator allow-list
+    `PLUGINS_HTTP_ALLOWED_HOSTS` that bypasses the private-IP block
     but never bypasses cloud-metadata IPs. Tests:
     `internal/plugin/hostlibrary/http_ssrf_security_test.go`
     (loopback, RFC1918, cloud-metadata, redirect-to-private,

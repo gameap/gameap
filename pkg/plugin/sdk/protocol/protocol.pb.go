@@ -42,7 +42,7 @@ const (
 	// itself through RconOpen / RconExecute / RconClose, doing I/O over the
 	// host-opened conn_handle with the gameap-net host library.
 	//
-	// This requires that library: with PLUGIN_NET_ENABLED=false the host drops
+	// This requires that library: with PLUGINS_NET_ENABLED=false the host drops
 	// such registrations entirely rather than let an unrunnable protocol shadow
 	// the built-in tables, so games that also have a built-in mapping keep
 	// working while the plugin protocol is simply absent.
@@ -50,7 +50,7 @@ const (
 	// RCON_TRANSPORT_BUILTIN reuses one of the panel's own RCON engines, named
 	// by RconProtocol.builtin_protocol. Purely declarative: no plugin code runs
 	// at execute time, the gameap-net host library is not involved, and the
-	// registration keeps working with PLUGIN_NET_ENABLED=false. Use it to teach
+	// registration keeps working with PLUGINS_NET_ENABLED=false. Use it to teach
 	// the panel about a new game that speaks a protocol it already implements.
 	//
 	// This is the form to prefer: a protocol the panel gains later becomes
@@ -94,11 +94,11 @@ const (
 	// QUERY_TRANSPORT_BUILTIN reuses one of the panel's own query engines,
 	// named by QueryProtocol.builtin_protocol. Purely declarative: no plugin
 	// code runs at query time and the registration works with
-	// PLUGIN_NET_ENABLED=false.
+	// PLUGINS_NET_ENABLED=false.
 	QueryTransport_QUERY_TRANSPORT_BUILTIN QueryTransport = 1
 	// QUERY_TRANSPORT_PLUGIN means the plugin implements the query wire
 	// protocol in QueryServer, over the UDP conn_handle the host opened for the
-	// call. Requires the gameap-net host library; with PLUGIN_NET_ENABLED=false
+	// call. Requires the gameap-net host library; with PLUGINS_NET_ENABLED=false
 	// the host drops such registrations, as for RCON_TRANSPORT_PLUGIN.
 	QueryTransport_QUERY_TRANSPORT_PLUGIN QueryTransport = 2
 )
@@ -532,8 +532,8 @@ type RconOpenRequest struct {
 	// served by a built-in transport.
 	//
 	// The handle belongs to this plugin, expires after
-	// PLUGIN_NET_MAX_TIMEOUT, and counts against the per-plugin open
-	// connection cap (PLUGIN_NET_MAX_CONNECTIONS). The same handle is reused by
+	// PLUGINS_NET_MAX_TIMEOUT, and counts against the per-plugin open
+	// connection cap (PLUGINS_NET_MAX_CONNECTIONS). The same handle is reused by
 	// RconExecute and RconClose until the panel closes the client.
 	ConnHandle uint64 `protobuf:"varint,2,opt,name=conn_handle,json=connHandle,proto3" json:"conn_handle,omitempty"`
 	// password is the server's RCON password from the panel's server record.

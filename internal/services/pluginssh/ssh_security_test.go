@@ -360,7 +360,7 @@ func TestSSH_HostKeyVerification(t *testing.T) {
 	}
 }
 
-// TestSSH_AcceptAnyDisabledByTheOperator: PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY
+// TestSSH_AcceptAnyDisabledByTheOperator: PLUGINS_SSH_ALLOW_ACCEPT_ANY_HOST_KEY
 // is the operator's lever against unverified connections; with it off,
 // accept_any must be refused before anything is dialed while pinned policies
 // keep working (API8:2023 Security Misconfiguration).
