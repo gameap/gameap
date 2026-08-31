@@ -12,7 +12,7 @@ function readPluginsPath(): string | undefined {
         console.warn('PLUGIN_PATH is deprecated and will be removed in a future release, use PLUGINS_PATH')
     }
 
-    return process.env.PLUGINS_PATH ?? process.env.PLUGIN_PATH
+    return process.env.PLUGINS_PATH || process.env.PLUGIN_PATH
 }
 
 // Default plugin path - can be overridden via PLUGINS_PATH env variable

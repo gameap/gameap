@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(__dirname, '..');
 
 // PLUGIN_PATH was renamed to PLUGINS_PATH; the old name keeps working for one release.
-const pluginsPath = process.env.PLUGINS_PATH ?? process.env.PLUGIN_PATH
+const pluginsPath = process.env.PLUGINS_PATH || process.env.PLUGIN_PATH
 
 if (!process.env.PLUGINS_PATH && process.env.PLUGIN_PATH) {
     console.warn('PLUGIN_PATH is deprecated and will be removed in a future release, use PLUGINS_PATH')

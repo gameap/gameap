@@ -370,11 +370,11 @@ type Config struct {
 			// ResponseHeaderAllowlist additively extends the default
 			// allowlist of response headers passed back to the plugin
 			// (the default carries Content-Type / Length / Encoding /
-			// Last-Modified / ETag / Cache-Control / Date / Location /
-			// Expires). Set-Cookie, Authorization, WWW-Authenticate,
-			// Proxy-Authenticate, Clear-Site-Data etc. are never
-			// passed through — a plugin must not learn credentials set
-			// by a reachable origin.
+			// Language, Last-Modified, ETag, Cache-Control, Date,
+			// Location, Expires and Vary). Set-Cookie, Authorization,
+			// WWW-Authenticate, Proxy-Authenticate, Clear-Site-Data
+			// etc. are never passed through — a plugin must not learn
+			// credentials set by a reachable origin.
 			ResponseHeaderAllowlist []string `env:"PLUGINS_HTTP_RESPONSE_HEADER_ALLOWLIST" envSeparator:"," envDefault:""`
 		}
 

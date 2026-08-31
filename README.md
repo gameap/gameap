@@ -482,7 +482,7 @@ private networks or cloud metadata endpoints.
 - `PLUGINS_HTTP_ALLOWED_HOSTS` - Hosts exempt from the private-IP block; empty leaves the blocklist as the only gate
 - `PLUGINS_HTTP_MAX_TIMEOUT` - Ceiling for a plugin's own request timeout (default: `30s`)
 - `PLUGINS_HTTP_MAX_REDIRECTS` - Redirect limit (default: `5`)
-- `PLUGINS_HTTP_RESPONSE_HEADER_ALLOWLIST` - Extra response headers passed back to the plugin on top of the built-in list (`Content-Type`, `Content-Length`, `Content-Encoding`, `Last-Modified`, `ETag`, `Cache-Control`, `Date`, `Location`, `Expires`). Credential-bearing headers such as `Set-Cookie` and `WWW-Authenticate` are never passed through
+- `PLUGINS_HTTP_RESPONSE_HEADER_ALLOWLIST` - Extra response headers passed back to the plugin on top of the built-in list (`Content-Type`, `Content-Length`, `Content-Encoding`, `Content-Language`, `Last-Modified`, `ETag`, `Cache-Control`, `Date`, `Location`, `Expires`, `Vary`). Credential-bearing headers such as `Set-Cookie` and `WWW-Authenticate` are never passed through
 - `PLUGINS_NET_ENABLED` - Enable the plugin socket library used by custom RCON/Query protocols (default: `true`)
 - `PLUGINS_NET_BLOCK_PRIVATE_IPS` - Refuse game-server connections to private addresses (default: `false`; self-hosted servers commonly live on private networks)
 - `PLUGINS_NET_ALLOWED_HOSTS` - Hosts exempt from that block
