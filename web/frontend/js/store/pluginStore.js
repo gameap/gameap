@@ -20,7 +20,7 @@ export const usePluginStoreStore = defineStore('pluginStore', () => {
     const versionsLastPage = ref(1)
 
     const loadedPlugins = ref([])
-    // Whether the panel applies the recorded grants (PLUGIN_PERMISSIONS_ENFORCE);
+    // Whether the panel applies the recorded grants (PLUGINS_PERMISSIONS_ENFORCE);
     // assumed on until the list says otherwise, so no warning flashes by mistake.
     const permissionsEnforced = ref(true)
     const uploadResult = ref(null)

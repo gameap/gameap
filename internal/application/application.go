@@ -99,18 +99,18 @@ func Run(runParams RunParams) {
 	// The node path policy is a security setting: a typo must not silently
 	// fall back to "unrestricted".
 	if _, err := hostlibrary.NewPathPolicy(hostlibrary.PathPolicyConfig{
-		Mode:         hostlibrary.PathPolicyMode(cfg.Plugin.NodeFS.PathPolicy),
-		AllowedPaths: cfg.Plugin.NodeFS.AllowedPaths,
+		Mode:         hostlibrary.PathPolicyMode(cfg.Plugins.NodeFS.PathPolicy),
+		AllowedPaths: cfg.Plugins.NodeFS.AllowedPaths,
 	}, container.ServerRepository()); err != nil {
-		slog.Error("invalid PLUGIN_NODEFS_PATH_POLICY / PLUGIN_NODEFS_ALLOWED_PATHS", slog.String("error", err.Error()))
+		slog.Error("invalid PLUGINS_NODEFS_PATH_POLICY / PLUGINS_NODEFS_ALLOWED_PATHS", slog.String("error", err.Error()))
 		osExit(1)
 
 		return
 	}
 
 	slog.Info("plugin node path policy configured",
-		slog.String("mode", cfg.Plugin.NodeFS.PathPolicy),
-		slog.Int("allowed_paths", len(cfg.Plugin.NodeFS.AllowedPaths)))
+		slog.String("mode", cfg.Plugins.NodeFS.PathPolicy),
+		slog.Int("allowed_paths", len(cfg.Plugins.NodeFS.AllowedPaths)))
 
 	shutdownDone := make(chan struct{})
 	go func() {
@@ -207,7 +207,7 @@ func startPluginServices(ctx context.Context, container *Container) {
 		return
 	}
 
-	if container.config.Plugin.SSH.Enabled {
+	if container.config.Plugins.SSH.Enabled {
 		// Records the lifetime context before any guest Initialize can open a
 		// connection, so completion callbacks outlive the calls that start them.
 		container.PluginSSH().Start(ctx)

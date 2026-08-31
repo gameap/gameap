@@ -40,11 +40,11 @@ func (c *Container) createQuerconResolver() *quercon.Resolver {
 		return quercon.New(cfg)
 	}
 
-	if c.config.Plugin.Net.Enabled {
+	if c.config.Plugins.Net.Enabled {
 		runner := pkgplugin.NewProtocolRunner(manager, c.connRegistry(), pkgplugin.NetDialPolicy{
-			BlockPrivateIPs: c.config.Plugin.Net.BlockPrivateIPs,
-			AllowedHosts:    c.config.Plugin.Net.AllowedHosts,
-			MaxTimeout:      c.config.Plugin.Net.MaxTimeout,
+			BlockPrivateIPs: c.config.Plugins.Net.BlockPrivateIPs,
+			AllowedHosts:    c.config.Plugins.Net.AllowedHosts,
+			MaxTimeout:      c.config.Plugins.Net.MaxTimeout,
 		})
 		cfg.RconExecutor = runner
 		cfg.QueryExecutor = runner

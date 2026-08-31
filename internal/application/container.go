@@ -1844,8 +1844,8 @@ func (c *Container) createCaptchaVerifier() *captcha.Service {
 func (c *Container) PluginStoreService() *pluginstore.Service {
 	if c.pluginStoreService == nil {
 		c.pluginStoreService = pluginstore.NewService(
-			c.config.PluginStore.URL,
-			c.config.PluginStore.LicenseKey,
+			c.config.Plugins.Store.URL,
+			c.config.Plugins.Store.LicenseKey,
 			c.Cache(),
 		)
 	}
@@ -2168,22 +2168,22 @@ func (c *Container) PluginSSH() *pluginssh.Service {
 			c.PluginManager(),
 			c.PluginLoader(),
 			pluginssh.Config{
-				BlockPrivateIPs:          c.config.Plugin.SSH.BlockPrivateIPs,
-				AllowedHosts:             c.config.Plugin.SSH.AllowedHosts,
-				DisallowAcceptAnyHostKey: !c.config.Plugin.SSH.AllowAcceptAnyHostKey,
-				MaxConnections:           c.config.Plugin.SSH.MaxConnections,
-				MaxOperations:            c.config.Plugin.SSH.MaxOperations,
-				ConnectTimeout:           c.config.Plugin.SSH.ConnectTimeout,
-				MaxExecTimeout:           c.config.Plugin.SSH.MaxExecTimeout,
-				IdleTimeout:              c.config.Plugin.SSH.IdleTimeout,
-				MaxOutputBytes:           c.config.Plugin.SSH.MaxOutputBytes,
-				MaxStdinBytes:            c.config.Plugin.SSH.MaxStdinBytes,
-				OperationRetention:       c.config.Plugin.SSH.OperationRetention,
-				MaxRetainedOperations:    c.config.Plugin.SSH.MaxRetainedOperations,
-				KeepaliveInterval:        c.config.Plugin.SSH.KeepaliveInterval,
-				CompletionCallTimeout:    c.config.Plugin.SSH.CompletionCallTimeout,
-				BusyRetryDelay:           c.config.Plugin.SSH.BusyRetryDelay,
-				BusyRetries:              c.config.Plugin.SSH.BusyRetries,
+				BlockPrivateIPs:          c.config.Plugins.SSH.BlockPrivateIPs,
+				AllowedHosts:             c.config.Plugins.SSH.AllowedHosts,
+				DisallowAcceptAnyHostKey: !c.config.Plugins.SSH.AllowAcceptAnyHostKey,
+				MaxConnections:           c.config.Plugins.SSH.MaxConnections,
+				MaxOperations:            c.config.Plugins.SSH.MaxOperations,
+				ConnectTimeout:           c.config.Plugins.SSH.ConnectTimeout,
+				MaxExecTimeout:           c.config.Plugins.SSH.MaxExecTimeout,
+				IdleTimeout:              c.config.Plugins.SSH.IdleTimeout,
+				MaxOutputBytes:           c.config.Plugins.SSH.MaxOutputBytes,
+				MaxStdinBytes:            c.config.Plugins.SSH.MaxStdinBytes,
+				OperationRetention:       c.config.Plugins.SSH.OperationRetention,
+				MaxRetainedOperations:    c.config.Plugins.SSH.MaxRetainedOperations,
+				KeepaliveInterval:        c.config.Plugins.SSH.KeepaliveInterval,
+				CompletionCallTimeout:    c.config.Plugins.SSH.CompletionCallTimeout,
+				BusyRetryDelay:           c.config.Plugins.SSH.BusyRetryDelay,
+				BusyRetries:              c.config.Plugins.SSH.BusyRetries,
 			},
 			slog.Default(),
 		)
@@ -2214,14 +2214,14 @@ func (c *Container) PluginScheduler() *pluginscheduler.Service {
 			c.PluginLoader(),
 			c.SchedulerLocker(),
 			pluginscheduler.Options{
-				MinInterval:        c.config.Plugin.Scheduler.MinInterval,
-				MaxTasksPerPlugin:  c.config.Plugin.Scheduler.MaxTasksPerPlugin,
-				DefaultCallTimeout: c.config.Plugin.Scheduler.CallTimeout,
-				MaxCallTimeout:     c.config.Plugin.Scheduler.MaxCallTimeout,
-				MaxRetries:         c.config.Plugin.Scheduler.MaxRetries,
-				MaxRetryDelay:      c.config.Plugin.Scheduler.MaxRetryDelay,
-				MaxJitter:          c.config.Plugin.Scheduler.MaxJitter,
-				RefreshInterval:    c.config.Plugin.Scheduler.RefreshInterval,
+				MinInterval:        c.config.Plugins.Scheduler.MinInterval,
+				MaxTasksPerPlugin:  c.config.Plugins.Scheduler.MaxTasksPerPlugin,
+				DefaultCallTimeout: c.config.Plugins.Scheduler.CallTimeout,
+				MaxCallTimeout:     c.config.Plugins.Scheduler.MaxCallTimeout,
+				MaxRetries:         c.config.Plugins.Scheduler.MaxRetries,
+				MaxRetryDelay:      c.config.Plugins.Scheduler.MaxRetryDelay,
+				MaxJitter:          c.config.Plugins.Scheduler.MaxJitter,
+				RefreshInterval:    c.config.Plugins.Scheduler.RefreshInterval,
 			},
 			slog.Default(),
 		)
@@ -2233,7 +2233,7 @@ func (c *Container) PluginScheduler() *pluginscheduler.Service {
 // PluginSync returns the multi-instance plugin reconciler, nil when plugins
 // or the sync are disabled (every caller tolerates the nil).
 func (c *Container) PluginSync() *pluginsync.Service {
-	if c.config.Plugins.Disabled || c.config.Plugin.Sync.Disabled {
+	if c.config.Plugins.Disabled || c.config.Plugins.Sync.Disabled {
 		return nil
 	}
 
@@ -2258,9 +2258,9 @@ func (c *Container) PluginSync() *pluginsync.Service {
 				PluginsDir: c.PluginsDir(),
 			},
 			pluginsync.Options{
-				RefreshInterval: c.config.Plugin.Sync.RefreshInterval,
-				MinBackoff:      c.config.Plugin.Sync.MinBackoff,
-				MaxBackoff:      c.config.Plugin.Sync.MaxBackoff,
+				RefreshInterval: c.config.Plugins.Sync.RefreshInterval,
+				MinBackoff:      c.config.Plugins.Sync.MinBackoff,
+				MaxBackoff:      c.config.Plugins.Sync.MaxBackoff,
 			},
 			slog.Default(),
 		)
@@ -2303,7 +2303,7 @@ func (c *Container) createSchedulerLocker() locker.Locker {
 
 func (c *Container) connRegistry() *pkgplugin.ConnRegistry {
 	if c.netConnRegistry == nil {
-		c.netConnRegistry = pkgplugin.NewConnRegistry(c.config.Plugin.Net.MaxConnections)
+		c.netConnRegistry = pkgplugin.NewConnRegistry(c.config.Plugins.Net.MaxConnections)
 	}
 
 	return c.netConnRegistry
@@ -2317,9 +2317,9 @@ func (c *Container) corePluginLibraryFactories(guard *hostlibrary.Guard) []pkgpl
 		hostlibrary.NewStorageHostLibraryFactory(
 			c.PluginStorageRepository(),
 			hostlibrary.WithStorageQuotas(hostlibrary.StorageConfig{
-				MaxKeysPerPlugin: c.config.Plugin.Storage.MaxKeysPerPlugin,
-				MaxValueBytes:    int(c.config.Plugin.Storage.MaxValue.Uint64()), //nolint:gosec
-				MaxTotalBytes:    c.config.Plugin.Storage.MaxTotal.Uint64(),
+				MaxKeysPerPlugin: c.config.Plugins.Storage.MaxKeysPerPlugin,
+				MaxValueBytes:    int(c.config.Plugins.Storage.MaxValue.Uint64()), //nolint:gosec
+				MaxTotalBytes:    c.config.Plugins.Storage.MaxTotal.Uint64(),
 			}),
 		),
 		hostlibrary.NewLogHostLibraryFactory(slog.Default()),
@@ -2334,9 +2334,9 @@ func (c *Container) corePluginLibraryFactories(guard *hostlibrary.Guard) []pkgpl
 			c.SecretCipher(),
 			guard,
 			hostlibrary.SecretsConfig{
-				MaxKeysPerPlugin:  c.config.Plugin.Secrets.MaxKeysPerPlugin,
-				MaxValueBytes:     int(c.config.Plugin.Secrets.MaxValue.Uint64()), //nolint:gosec // a byte cap fits an int
-				RequireEncryption: c.config.Plugin.Secrets.RequireEncryption,
+				MaxKeysPerPlugin:  c.config.Plugins.Secrets.MaxKeysPerPlugin,
+				MaxValueBytes:     int(c.config.Plugins.Secrets.MaxValue.Uint64()), //nolint:gosec // a byte cap fits an int
+				RequireEncryption: c.config.Plugins.Secrets.RequireEncryption,
 			},
 		),
 		// Per-plugin: node writes and enrollment tickets are gated on the
@@ -2358,7 +2358,7 @@ func (c *Container) corePluginLibraryFactories(guard *hostlibrary.Guard) []pkgpl
 			c.DaemonArchive(),
 			&lazyArchiveEvents{container: c},
 			guard,
-			hostlibrary.WithNodeFSMaxInlineBytes(c.config.Plugin.NodeFS.MaxInline.Uint64()),
+			hostlibrary.WithNodeFSMaxInlineBytes(c.config.Plugins.NodeFS.MaxInline.Uint64()),
 			hostlibrary.WithNodeFSPathPolicy(c.PluginPathPolicy()),
 		),
 		// Per-plugin: writes are gated on manage_servers / node_commands,
@@ -2377,16 +2377,16 @@ func (c *Container) corePluginLibraryFactories(guard *hostlibrary.Guard) []pkgpl
 		hostlibrary.NewCacheHostLibraryFactory(
 			c.Cache(),
 			"plugin:",
-			hostlibrary.WithCacheMaxValueBytes(int(c.config.Plugin.Cache.MaxValue.Uint64())), //nolint:gosec
+			hostlibrary.WithCacheMaxValueBytes(int(c.config.Plugins.Cache.MaxValue.Uint64())), //nolint:gosec
 		),
 		// Per-plugin: outbound requests are rate limited per plugin.
 		hostlibrary.NewHTTPHostLibraryFactory(hostlibrary.HTTPConfig{
-			BlockPrivateIPs:         c.config.Plugin.HTTP.BlockPrivateIPs,
-			AllowedSchemes:          c.config.Plugin.HTTP.AllowedSchemes,
-			AllowedHosts:            c.config.Plugin.HTTP.AllowedHosts,
-			MaxTimeout:              c.config.Plugin.HTTP.MaxTimeout,
-			MaxRedirects:            c.config.Plugin.HTTP.MaxRedirects,
-			ResponseHeaderAllowlist: c.config.Plugin.HTTP.ResponseHeaderAllowlist,
+			BlockPrivateIPs:         c.config.Plugins.HTTP.BlockPrivateIPs,
+			AllowedSchemes:          c.config.Plugins.HTTP.AllowedSchemes,
+			AllowedHosts:            c.config.Plugins.HTTP.AllowedHosts,
+			MaxTimeout:              c.config.Plugins.HTTP.MaxTimeout,
+			MaxRedirects:            c.config.Plugins.HTTP.MaxRedirects,
+			ResponseHeaderAllowlist: c.config.Plugins.HTTP.ResponseHeaderAllowlist,
 		}, guard),
 	}
 }
@@ -2413,11 +2413,11 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		},
 		LibraryFactories: factories,
 
-		MaxMemoryBytes: c.config.Plugin.Runtime.MaxMemory.Uint64(),
+		MaxMemoryBytes: c.config.Plugins.Runtime.MaxMemory.Uint64(),
 		//nolint:gosec // a module size cap fits an int
-		MaxModuleBytes:          int(c.config.Plugin.Runtime.MaxModuleSize.Uint64()),
-		CompilationCacheDir:     c.config.Plugins.Cache.Dir,
-		DisableCompilationCache: !c.config.Plugins.Cache.Enabled,
+		MaxModuleBytes:          int(c.config.Plugins.Runtime.MaxModuleSize.Uint64()),
+		CompilationCacheDir:     c.config.Plugins.Runtime.Cache.Dir,
+		DisableCompilationCache: !c.config.Plugins.Runtime.Cache.Enabled,
 		GuestLogger:             slog.Default(),
 		Observer:                metrics,
 		// Resolved at call time: the supervisor is created by PluginLoader(),
@@ -2430,14 +2430,14 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 }
 
 // PluginPathPolicy confines the node paths plugins may name through
-// gameap-nodefs, gameap-nodecmd and file responses (PLUGIN_NODEFS_PATH_POLICY).
+// gameap-nodefs, gameap-nodecmd and file responses (PLUGINS_NODEFS_PATH_POLICY).
 // The configuration is validated at boot (see application.go); a value that
 // slipped past it is a programming error.
 func (c *Container) PluginPathPolicy() *hostlibrary.PathPolicy {
 	if c.pluginPathPolicy == nil {
 		policy, err := hostlibrary.NewPathPolicy(hostlibrary.PathPolicyConfig{
-			Mode:         hostlibrary.PathPolicyMode(c.config.Plugin.NodeFS.PathPolicy),
-			AllowedPaths: c.config.Plugin.NodeFS.AllowedPaths,
+			Mode:         hostlibrary.PathPolicyMode(c.config.Plugins.NodeFS.PathPolicy),
+			AllowedPaths: c.config.Plugins.NodeFS.AllowedPaths,
 		}, c.ServerRepository())
 		if err != nil {
 			panic("invalid plugin path policy: " + err.Error())
@@ -2456,7 +2456,7 @@ func (c *Container) PluginPathPolicy() *hostlibrary.PathPolicy {
 func (c *Container) extraHostLibraryFactories(guard *hostlibrary.Guard) []pkgplugin.HostLibraryFactory {
 	factories := []pkgplugin.HostLibraryFactory{c.hostIntrospectionFactory()}
 
-	if c.config.Plugin.SSH.Enabled {
+	if c.config.Plugins.SSH.Enabled {
 		// Per-plugin: the module is gated on the plugin's own ssh grant, its
 		// calls are rate limited and audited, and its connections are released
 		// when that plugin is unloaded.
@@ -2466,12 +2466,12 @@ func (c *Container) extraHostLibraryFactories(guard *hostlibrary.Guard) []pkgplu
 		))
 	}
 
-	if c.config.Plugin.Net.Enabled {
+	if c.config.Plugins.Net.Enabled {
 		factories = append(factories, hostlibrary.NewNetHostLibraryFactory(
 			c.connRegistry(),
 			hostlibrary.NetConfig{
-				MaxReadBytes: int(c.config.Plugin.Net.ReadBuffer.Uint64()), //nolint:gosec // a buffer size fits an int
-				MaxTimeout:   c.config.Plugin.Net.MaxTimeout,
+				MaxReadBytes: int(c.config.Plugins.Net.ReadBuffer.Uint64()), //nolint:gosec // a buffer size fits an int
+				MaxTimeout:   c.config.Plugins.Net.MaxTimeout,
 			},
 		))
 	}
@@ -2498,7 +2498,7 @@ func (c *Container) hostIntrospectionFactory() pkgplugin.HostLibraryFactory {
 // of the privileged plugin host libraries.
 func (c *Container) PluginGuard() *hostlibrary.Guard {
 	if c.pluginGuard == nil {
-		limits := c.config.Plugin.RateLimit
+		limits := c.config.Plugins.RateLimit
 
 		c.pluginGuard = hostlibrary.NewGuard(
 			c.PluginPermissionEnforcer(),
@@ -2525,7 +2525,7 @@ func (c *Container) PluginPermissionChecker() *hostlibrary.CachedPermissionCheck
 	if c.pluginPermissions == nil {
 		c.pluginPermissions = hostlibrary.NewCachedPermissionChecker(
 			hostlibrary.NewRepositoryPermissionChecker(c.PluginRepository()),
-			c.config.Plugin.Permissions.CacheTTL,
+			c.config.Plugins.Permissions.CacheTTL,
 		)
 	}
 
@@ -2533,16 +2533,16 @@ func (c *Container) PluginPermissionChecker() *hostlibrary.CachedPermissionCheck
 }
 
 // PluginPermissionEnforcer is what the enforcement points consult: the cached
-// grants when PLUGIN_PERMISSIONS_ENFORCE is on, an allow-everything checker
+// grants when PLUGINS_PERMISSIONS_ENFORCE is on, an allow-everything checker
 // while it is off. The cache and its pub/sub invalidation keep running either
 // way, so flipping the switch changes nothing else.
 func (c *Container) PluginPermissionEnforcer() hostlibrary.PluginPermissionChecker {
 	if c.pluginEnforcer == nil {
-		if c.config.Plugin.Permissions.Enforce {
+		if c.config.Plugins.Permissions.Enforce {
 			c.pluginEnforcer = c.PluginPermissionChecker()
 		} else {
 			slog.Warn("plugin permission enforcement is disabled: grants are recorded but not applied; " +
-				"set PLUGIN_PERMISSIONS_ENFORCE=true to apply them")
+				"set PLUGINS_PERMISSIONS_ENFORCE=true to apply them")
 
 			c.pluginEnforcer = hostlibrary.AllowAllPermissionChecker{}
 		}
@@ -2744,7 +2744,7 @@ func (c *Container) PluginDispatcher() *pkgplugin.Dispatcher {
 		// Event subscriptions are gated on the plugin's listen_events grant.
 		// While enforcement is off no gate is installed, so every plugin's
 		// subscriptions are honored.
-		if c.config.Plugin.Permissions.Enforce {
+		if c.config.Plugins.Permissions.Enforce {
 			checker := c.PluginPermissionChecker()
 
 			opts = append(opts, pkgplugin.WithSubscriptionGate(
@@ -2820,7 +2820,7 @@ func (c *Container) PluginLoader() *internalplugin.Loader {
 			internalplugin.WithStrictLoad(c.config.Plugins.StrictLoad),
 			internalplugin.WithSubscriptionRefresher(c.PluginDispatcher()),
 			internalplugin.WithLifecycleEvents(c.PluginDispatcher()),
-			internalplugin.WithPermissionEnforcement(c.config.Plugin.Permissions.Enforce),
+			internalplugin.WithPermissionEnforcement(c.config.Plugins.Permissions.Enforce),
 		)
 
 		// Always present: it records why a plugin was disabled even when
@@ -2830,10 +2830,10 @@ func (c *Container) PluginLoader() *internalplugin.Loader {
 			c.PluginRepository(),
 			c.AuditLogger(),
 			internalplugin.RecoveryOptions{
-				InitialDelay:  c.config.Plugin.Recovery.InitialDelay,
-				MaxDelay:      c.config.Plugin.Recovery.MaxDelay,
-				MaxAttempts:   c.config.Plugin.Recovery.MaxAttempts,
-				DisableReload: !c.config.Plugin.Recovery.Enabled,
+				InitialDelay:  c.config.Plugins.Recovery.InitialDelay,
+				MaxDelay:      c.config.Plugins.Recovery.MaxDelay,
+				MaxAttempts:   c.config.Plugins.Recovery.MaxAttempts,
+				DisableReload: !c.config.Plugins.Recovery.Enabled,
 			},
 			slog.Default(),
 		)
@@ -2843,7 +2843,7 @@ func (c *Container) PluginLoader() *internalplugin.Loader {
 }
 
 // PluginRecovery returns the supervisor that records runtime disables and,
-// unless PLUGIN_RECOVERY_ENABLED is off, reloads the plugins.
+// unless PLUGINS_RECOVERY_ENABLED is off, reloads the plugins.
 func (c *Container) PluginRecovery() *internalplugin.Supervisor {
 	c.PluginLoader()
 

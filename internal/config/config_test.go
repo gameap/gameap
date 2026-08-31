@@ -63,7 +63,7 @@ func TestLoadConfig(t *testing.T) {
 		assert.Equal(t, "local", cfg.Files.Driver)
 		assert.Equal(t, "info", cfg.Logger.Level)
 		assert.False(t, cfg.Logger.LogDBQueries)
-		assert.False(t, cfg.Plugin.Permissions.Enforce,
+		assert.False(t, cfg.Plugins.Permissions.Enforce,
 			"the migration period ships with grants recorded but not applied")
 		assert.Equal(t, "https://api.gameap.com", cfg.GlobalAPI.URL)
 	})
@@ -75,37 +75,37 @@ func TestLoadConfig(t *testing.T) {
 		cfg, err := LoadConfig()
 		require.NoError(t, err)
 
-		assert.True(t, cfg.Plugin.SSH.AllowAcceptAnyHostKey,
+		assert.True(t, cfg.Plugins.SSH.AllowAcceptAnyHostKey,
 			"first contact with a fresh machine needs trust-on-first-use by default")
-		assert.Equal(t, 10*time.Minute, cfg.Plugin.SSH.OperationRetention)
-		assert.Equal(t, 64, cfg.Plugin.SSH.MaxRetainedOperations)
-		assert.Equal(t, 30*time.Second, cfg.Plugin.SSH.KeepaliveInterval)
-		assert.Equal(t, 30*time.Second, cfg.Plugin.SSH.CompletionCallTimeout)
-		assert.Equal(t, 2*time.Second, cfg.Plugin.SSH.BusyRetryDelay)
-		assert.Equal(t, 5, cfg.Plugin.SSH.BusyRetries)
+		assert.Equal(t, 10*time.Minute, cfg.Plugins.SSH.OperationRetention)
+		assert.Equal(t, 64, cfg.Plugins.SSH.MaxRetainedOperations)
+		assert.Equal(t, 30*time.Second, cfg.Plugins.SSH.KeepaliveInterval)
+		assert.Equal(t, 30*time.Second, cfg.Plugins.SSH.CompletionCallTimeout)
+		assert.Equal(t, 2*time.Second, cfg.Plugins.SSH.BusyRetryDelay)
+		assert.Equal(t, 5, cfg.Plugins.SSH.BusyRetries)
 	})
 
 	t.Run("plugin_ssh_overrides", func(t *testing.T) {
 		t.Setenv("DATABASE_URL", "mysql://localhost/test")
 		t.Setenv("AUTH_SECRET", "test-secret")
-		t.Setenv("PLUGIN_SSH_ALLOW_ACCEPT_ANY_HOST_KEY", "false")
-		t.Setenv("PLUGIN_SSH_OPERATION_RETENTION", "2m")
-		t.Setenv("PLUGIN_SSH_MAX_RETAINED_OPERATIONS", "8")
-		t.Setenv("PLUGIN_SSH_KEEPALIVE_INTERVAL", "10s")
-		t.Setenv("PLUGIN_SSH_COMPLETION_CALL_TIMEOUT", "5s")
-		t.Setenv("PLUGIN_SSH_BUSY_RETRY_DELAY", "500ms")
-		t.Setenv("PLUGIN_SSH_BUSY_RETRIES", "2")
+		t.Setenv("PLUGINS_SSH_ALLOW_ACCEPT_ANY_HOST_KEY", "false")
+		t.Setenv("PLUGINS_SSH_OPERATION_RETENTION", "2m")
+		t.Setenv("PLUGINS_SSH_MAX_RETAINED_OPERATIONS", "8")
+		t.Setenv("PLUGINS_SSH_KEEPALIVE_INTERVAL", "10s")
+		t.Setenv("PLUGINS_SSH_COMPLETION_CALL_TIMEOUT", "5s")
+		t.Setenv("PLUGINS_SSH_BUSY_RETRY_DELAY", "500ms")
+		t.Setenv("PLUGINS_SSH_BUSY_RETRIES", "2")
 
 		cfg, err := LoadConfig()
 		require.NoError(t, err)
 
-		assert.False(t, cfg.Plugin.SSH.AllowAcceptAnyHostKey)
-		assert.Equal(t, 2*time.Minute, cfg.Plugin.SSH.OperationRetention)
-		assert.Equal(t, 8, cfg.Plugin.SSH.MaxRetainedOperations)
-		assert.Equal(t, 10*time.Second, cfg.Plugin.SSH.KeepaliveInterval)
-		assert.Equal(t, 5*time.Second, cfg.Plugin.SSH.CompletionCallTimeout)
-		assert.Equal(t, 500*time.Millisecond, cfg.Plugin.SSH.BusyRetryDelay)
-		assert.Equal(t, 2, cfg.Plugin.SSH.BusyRetries)
+		assert.False(t, cfg.Plugins.SSH.AllowAcceptAnyHostKey)
+		assert.Equal(t, 2*time.Minute, cfg.Plugins.SSH.OperationRetention)
+		assert.Equal(t, 8, cfg.Plugins.SSH.MaxRetainedOperations)
+		assert.Equal(t, 10*time.Second, cfg.Plugins.SSH.KeepaliveInterval)
+		assert.Equal(t, 5*time.Second, cfg.Plugins.SSH.CompletionCallTimeout)
+		assert.Equal(t, 500*time.Millisecond, cfg.Plugins.SSH.BusyRetryDelay)
+		assert.Equal(t, 2, cfg.Plugins.SSH.BusyRetries)
 	})
 
 	t.Run("database_connect_timeout_override", func(t *testing.T) {

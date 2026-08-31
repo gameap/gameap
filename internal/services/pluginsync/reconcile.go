@@ -27,7 +27,7 @@ import (
 //     running here stays (a peer's failure is not this instance's); an absent
 //     one is attempted again only when the row changed or the file was just
 //     repaired — timed retries of runtime disables belong to the recovery
-//     supervisor, which honours PLUGIN_RECOVERY_*;
+//     supervisor, which honours PLUGINS_RECOVERY_*;
 //   - "updating" rows are skipped: an operator's update is in flight.
 func (s *Service) ReconcileNow(ctx context.Context) error {
 	s.runMu.Lock()

@@ -155,7 +155,7 @@ func newSSHService(t *testing.T, allowed bool, sessions *mockSSHSessions) *SSHSe
 }
 
 // TestSSHService_EveryMethodRequiresTheGrant: the ssh grant is the plugin-side
-// half of the gate (PLUGIN_SSH_ENABLED is the operator's half), so no entry
+// half of the gate (PLUGINS_SSH_ENABLED is the operator's half), so no entry
 // point may skip it — not even key generation, which leaks entropy budget and
 // signals intent.
 func TestSSHService_EveryMethodRequiresTheGrant(t *testing.T) {

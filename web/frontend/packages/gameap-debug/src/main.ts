@@ -80,7 +80,7 @@ declare global {
 }
 
 
-// Load plugin from dist directory (set via PLUGIN_PATH env var)
+// Load plugin from dist directory (set via PLUGINS_PATH env var)
 // Using glob imports to handle dynamic file names
 const pluginJsFiles = import.meta.glob('@plugin/plugin.js', { query: '?raw', import: 'default', eager: true })
 const pluginCssFiles = import.meta.glob('@plugin/*.css', { query: '?raw', import: 'default', eager: true })

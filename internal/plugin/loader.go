@@ -49,7 +49,7 @@ func WithStrictLoad(strict bool) LoaderOption {
 }
 
 // WithPermissionEnforcement tells the loader whether the panel applies the
-// recorded grants (PLUGIN_PERMISSIONS_ENFORCE), which only changes what the
+// recorded grants (PLUGINS_PERMISSIONS_ENFORCE), which only changes what the
 // missing-permissions warning promises. Off by default, like the variable.
 func WithPermissionEnforcement(enforced bool) LoaderOption {
 	return func(l *Loader) {
@@ -437,7 +437,7 @@ func (l *Loader) warnMissingPermissions(ctx context.Context, plugin *domain.Plug
 	message := "plugin imports host functions it is not granted; those calls will be refused"
 	if !l.enforcePermissions {
 		message = "plugin imports host functions it is not granted; the calls are allowed for now, " +
-			"but will be refused once PLUGIN_PERMISSIONS_ENFORCE is enabled"
+			"but will be refused once PLUGINS_PERMISSIONS_ENFORCE is enabled"
 	}
 
 	slog.WarnContext(ctx, message,

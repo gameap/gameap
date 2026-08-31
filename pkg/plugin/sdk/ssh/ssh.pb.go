@@ -1282,7 +1282,7 @@ func (x *HandleExecCompletedResponse) ProtoReflect() protoreflect.Message {
 //
 // This is a deliberate exception to the gameap-net rule that the host picks
 // the target. It is therefore gated twice: on the plugin's own "ssh"
-// permission and on the operator's PLUGIN_SSH_ENABLED switch. Targets go
+// permission and on the operator's PLUGINS_SSH_ENABLED switch. Targets go
 // through the same address policy as gameap-http, and cloud-metadata
 // addresses are never reachable.
 //
