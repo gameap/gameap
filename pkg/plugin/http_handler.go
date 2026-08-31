@@ -132,7 +132,6 @@ func (h *HTTPHandler) handlePluginRequest(
 
 	protoReq, err := h.buildProtoRequest(r, plugin.Info.Id, pluginPath, pathParams)
 	if err != nil {
-		//nolint:gosec // G706: slog structured logging safely encodes values
 		slog.Error("failed to build proto request",
 			slog.String("plugin_id", plugin.Info.Id),
 			slog.String("error", err.Error()),
@@ -147,7 +146,6 @@ func (h *HTTPHandler) handlePluginRequest(
 
 	resp, err := h.callPlugin(ctx, plugin, protoReq)
 	if err != nil {
-		//nolint:gosec // G706: slog structured logging safely encodes values
 		slog.Error("plugin request failed",
 			slog.String("plugin_id", plugin.Info.Id),
 			slog.String("path", pluginPath),
@@ -219,7 +217,6 @@ func (h *HTTPHandler) serveFileRef(
 
 	status := fileRefErrorStatus(err)
 
-	//nolint:gosec // G706: slog structured logging safely encodes values
 	slog.Error("plugin file response failed",
 		slog.String("plugin_id", plugin.Info.Id),
 		slog.Uint64("node_id", resp.File.NodeId),
@@ -476,7 +473,6 @@ func (h *HTTPHandler) writeResponse(w http.ResponseWriter, resp *proto.HTTPRespo
 		//nolint:gosec // G705: resp.Body is from trusted plugin, Content-Type is set
 		_, err := w.Write(resp.Body)
 		if err != nil {
-			//nolint:gosec // G706: slog structured logging safely encodes values
 			slog.Error("failed to write response body",
 				slog.String("error", err.Error()),
 			)

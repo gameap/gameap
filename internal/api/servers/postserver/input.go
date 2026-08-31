@@ -124,8 +124,8 @@ func (s *serverInput) ToDomain() *domain.Server {
 		Blocked:      false,
 		Name:         s.Name,
 		GameID:       s.GameID,
-		DSID:         uint(s.DSID.Int()),      //nolint:gosec // We check it in Validate
-		GameModID:    uint(s.GameModID.Int()), //nolint:gosec // We check it in Validate
+		DSID:         uint(s.DSID.Int()),
+		GameModID:    uint(s.GameModID.Int()),
 		ServerIP:     s.ServerIP,
 		ServerPort:   s.ServerPort.Int(),
 		QueryPort:    queryPort,

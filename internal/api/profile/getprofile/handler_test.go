@@ -385,9 +385,7 @@ func TestNewProfileResponseFromUser(t *testing.T) {
 	}
 	roles := []domain.RestrictedRole{
 		{
-			Role: domain.Role{
-				Name: "admin",
-			},
+			Name: "admin",
 		},
 	}
 

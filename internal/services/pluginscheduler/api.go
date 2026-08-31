@@ -94,7 +94,6 @@ func (s *Service) validateTask(task *domain.PluginScheduledTask) error {
 }
 
 func (s *Service) validateRetryPolicy(task *domain.PluginScheduledTask) error {
-	//nolint:gosec // G115: MaxRetries is positive after applyDefaults
 	if task.MaxRetries > uint(s.opts.MaxRetries) {
 		return errors.Wrapf(ErrInvalidTask,
 			"max retries %d exceeds the limit %d", task.MaxRetries, s.opts.MaxRetries)

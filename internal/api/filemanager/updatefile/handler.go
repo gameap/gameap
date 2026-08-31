@@ -232,7 +232,6 @@ func (h *Handler) updateFile(
 	defer func(file multipart.File) {
 		err := file.Close()
 		if err != nil {
-			//nolint:gosec // G706: slog structured logging safely encodes values
 			slog.Warn(
 				"failed to close uploaded file",
 				slog.String("error", err.Error()),

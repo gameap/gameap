@@ -97,7 +97,6 @@ func ParseInterval(intervalDefinition string) (time.Duration, error) {
 
 		// Handle different units
 		unit := strings.ToLower(p.unit)
-		//nolint:goconst
 		if p.unit == "µs" {
 			unit = "µs"
 		}

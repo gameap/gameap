@@ -711,7 +711,12 @@ func (c *Container) createHTTPServer() *http.Server {
 	var handler http.Handler = c.Router()
 
 	if c.config.TLSEnabled() && c.config.TLS.ForceHTTPS {
-		handler = middlewares.HTTPSRedirectMiddleware(c.config.HTTPSPort)(handler)
+		var canonicalHosts []string
+		if c.config.ACMEEnabled() {
+			canonicalHosts = c.config.ACME.Domains
+		}
+
+		handler = middlewares.HTTPSRedirectMiddleware(c.config.HTTPSPort, canonicalHosts)(handler)
 	}
 
 	// Wrapped outside HTTPSRedirect so the 301 carries HSTS too. Stays inside

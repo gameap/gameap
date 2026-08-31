@@ -146,8 +146,8 @@ func (in *updateServerInput) Apply(server *domain.Server) error {
 	}
 
 	server.GameID = in.GameID
-	server.DSID = uint(in.DSID.Int())           //nolint:gosec // We check it in Validate
-	server.GameModID = uint(in.GameModID.Int()) //nolint:gosec // We check it in Validate
+	server.DSID = uint(in.DSID.Int())
+	server.GameModID = uint(in.GameModID.Int())
 	server.ServerIP = in.ServerIP
 	server.ServerPort = in.ServerPort.Int()
 

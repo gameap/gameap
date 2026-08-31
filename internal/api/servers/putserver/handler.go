@@ -145,8 +145,8 @@ func (h *Handler) prepareUpdate(
 	currentServer *domain.Server,
 	input *updateServerInput,
 ) error {
-	newDSID := uint(input.DSID.Int())           //nolint:gosec // We check it in Validate
-	newGameModID := uint(input.GameModID.Int()) //nolint:gosec // We check it in Validate
+	newDSID := uint(input.DSID.Int())
+	newGameModID := uint(input.GameModID.Int())
 
 	if newDSID != currentServer.DSID {
 		nodes, err := h.nodeRepo.Find(ctx, &filters.FindNode{IDs: []uint{newDSID}}, nil, nil)

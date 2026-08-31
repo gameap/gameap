@@ -388,7 +388,7 @@ func (in *updateNodeInput) changedFields() []string {
 		// when the request omitted it, and reporting it as changed would tell
 		// every plugin the bag was rewritten on every node update.
 		switch field.Kind() {
-		case reflect.Ptr, reflect.Slice, reflect.Map:
+		case reflect.Pointer, reflect.Slice, reflect.Map:
 			if field.IsNil() {
 				continue
 			}

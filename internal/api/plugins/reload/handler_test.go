@@ -237,8 +237,8 @@ func TestReload_ResolvesDatabaseIDThroughLoader(t *testing.T) {
 	// A store plugin whose wasm declares another ID is registered in the
 	// manager under that ID; the loader maps it back to the database row.
 	reloader := &resolvingReloader{
-		fakeReloader: fakeReloader{plugin: &domain.Plugin{ID: 777, Name: "Mapped", Version: "1.0.0", Status: domain.PluginStatusActive}},
-		mapping:      map[string]domain.Uint64ID{"declaredid": 777},
+		plugin:  &domain.Plugin{ID: 777, Name: "Mapped", Version: "1.0.0", Status: domain.PluginStatusActive},
+		mapping: map[string]domain.Uint64ID{"declaredid": 777},
 	}
 	handler := reload.NewHandler(reloader, nil, api.NewResponder(), nil)
 	w := httptest.NewRecorder()

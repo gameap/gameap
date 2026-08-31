@@ -275,7 +275,7 @@ func (s *Server) stream(
 		expected = served.length
 	}
 
-	declared := int64(min(expected, math.MaxInt64)) //nolint:gosec // G115: clamped to MaxInt64 just before
+	declared := int64(min(expected, math.MaxInt64))
 
 	written, err := io.Copy(w, io.LimitReader(stream, declared))
 	if err != nil {

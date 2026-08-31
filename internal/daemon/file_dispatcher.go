@@ -15,6 +15,16 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Operation values of DaemonFileRequestPayload: the dispatching instance
+// writes them, the instance owning the node switches on them.
+const (
+	opFileRead      = "file_read"
+	opFileWrite     = "file_write"
+	opFileOperation = "file_operation"
+	opUploadTask    = "upload_task"
+	opDownloadTask  = "download_task"
+)
+
 const (
 	fileDispatchTimeout = 30 * time.Second
 	fileTransferTimeout = 10 * time.Minute
@@ -174,7 +184,7 @@ func (d *fileDispatcher) DispatchFileRead(
 		NodeID:     nodeID,
 		RequestID:  idgen.New(),
 		InstanceID: d.instanceID,
-		Operation:  "file_read",
+		Operation:  opFileRead,
 		Data:       reqData,
 	}, fileDispatchTimeout)
 	if err != nil {
@@ -223,7 +233,7 @@ func (d *fileDispatcher) DispatchFileWrite(
 		NodeID:     nodeID,
 		RequestID:  idgen.New(),
 		InstanceID: d.instanceID,
-		Operation:  "file_write",
+		Operation:  opFileWrite,
 		Data:       reqData,
 	}, fileDispatchTimeout)
 
@@ -243,7 +253,7 @@ func (d *fileDispatcher) DispatchFileOperation(
 		NodeID:     nodeID,
 		RequestID:  idgen.New(),
 		InstanceID: d.instanceID,
-		Operation:  "file_operation",
+		Operation:  opFileOperation,
 		Data:       reqData,
 	}
 	if req.Operation == proto.FileOperationType_FILE_OPERATION_TYPE_HASH {
@@ -274,7 +284,7 @@ func (d *fileDispatcher) DispatchUploadTask(
 		NodeID:      nodeID,
 		RequestID:   idgen.New(),
 		InstanceID:  d.instanceID,
-		Operation:   "upload_task",
+		Operation:   opUploadTask,
 		TransferID:  transferID,
 		StoragePath: destPath,
 		OwnerUser:   owner.User,
@@ -293,7 +303,7 @@ func (d *fileDispatcher) DispatchDownloadTask(
 		NodeID:      nodeID,
 		RequestID:   idgen.New(),
 		InstanceID:  d.instanceID,
-		Operation:   "download_task",
+		Operation:   opDownloadTask,
 		TransferID:  transferID,
 		StoragePath: srcPath,
 	}, fileTransferTimeout)
@@ -320,7 +330,7 @@ func (d *fileDispatcher) handleFileRequest(_ context.Context, msg *pubsub.Messag
 
 func (d *fileDispatcher) executeAndRespond(payload messages.DaemonFileRequestPayload) {
 	timeout := fileDispatchTimeout
-	if payload.Operation == "upload_task" || payload.Operation == "download_task" {
+	if payload.Operation == opUploadTask || payload.Operation == opDownloadTask {
 		timeout = fileTransferTimeout
 	}
 	if payload.TimeoutSeconds > 0 {
@@ -364,15 +374,15 @@ func (d *fileDispatcher) executeFileRequest(
 	switch payload.Operation {
 	case "file_list":
 		resp = d.execFileList(ctx, payload)
-	case "file_read":
+	case opFileRead:
 		resp = d.execFileRead(ctx, payload)
-	case "file_write":
+	case opFileWrite:
 		resp = d.execFileWrite(ctx, payload)
-	case "file_operation":
+	case opFileOperation:
 		resp = d.execFileOperation(ctx, payload)
-	case "upload_task":
+	case opUploadTask:
 		resp = d.execUploadTask(ctx, payload)
-	case "download_task":
+	case opDownloadTask:
 		resp = d.execDownloadTask(ctx, payload)
 	default:
 		resp.Error = "unsupported operation: " + payload.Operation

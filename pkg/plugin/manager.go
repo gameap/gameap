@@ -491,7 +491,7 @@ func (m *Manager) initializeRuntime(
 	pluginID uint64,
 	logs *guestLogs,
 ) (*runtimeSetup, error) {
-	r := wazero.NewRuntimeWithConfig(ctx, m.runtimeConfig())
+	r := newWazeroRuntime(ctx, m.runtimeConfig())
 
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
 		closeRuntimeAfterFailure(ctx, r, "WASI instantiation", err)

@@ -109,7 +109,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Type", "text/plain")
 	// The script is served as text/plain, never as HTML, and every value
 	// interpolated into it is shell-escaped by BuildSetupScript.
-	_, _ = rw.Write([]byte(script)) //nolint:gosec // not HTML; interpolated values are shell-escaped
+	_, _ = rw.Write([]byte(script))
 }
 
 func (h *Handler) resolveGRPCHost(r *http.Request) string {

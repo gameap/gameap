@@ -66,7 +66,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if h.storeService.HasLicenseKey() {
 		licenseValidation, err = h.storeService.ValidateLicense(ctx)
 		if err != nil {
-			//nolint:gosec // G706: slog structured logging safely encodes values
 			slog.Warn(
 				"failed to validate license",
 				slog.String("error", err.Error()),

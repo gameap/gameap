@@ -14,6 +14,7 @@ func TestHTTPSRedirectMiddleware(t *testing.T) {
 	tests := []struct {
 		name             string
 		httpsPort        uint16
+		canonicalHosts   []string
 		requestHost      string
 		requestPath      string
 		hasTLS           bool
@@ -93,6 +94,66 @@ func TestHTTPSRedirectMiddleware(t *testing.T) {
 			expectedLocation: "https://192.168.1.1:8443/api",
 		},
 		{
+			name:             "redirects_unknown_host_to_canonical_name",
+			httpsPort:        443,
+			canonicalHosts:   []string{"panel.example.com", "alt.example.com"},
+			requestHost:      "attacker.example.net",
+			requestPath:      "/api/test",
+			hasTLS:           false,
+			expectedStatus:   http.StatusMovedPermanently,
+			expectedLocation: "https://panel.example.com/api/test",
+		},
+		{
+			name:             "keeps_host_listed_among_canonical_names",
+			httpsPort:        443,
+			canonicalHosts:   []string{"panel.example.com", "alt.example.com"},
+			requestHost:      "alt.example.com",
+			requestPath:      "/api/test",
+			hasTLS:           false,
+			expectedStatus:   http.StatusMovedPermanently,
+			expectedLocation: "https://alt.example.com/api/test",
+		},
+		{
+			name:             "matches_canonical_name_case_insensitively",
+			httpsPort:        443,
+			canonicalHosts:   []string{"panel.example.com"},
+			requestHost:      "Panel.Example.COM",
+			requestPath:      "/api/test",
+			hasTLS:           false,
+			expectedStatus:   http.StatusMovedPermanently,
+			expectedLocation: "https://Panel.Example.COM/api/test",
+		},
+		{
+			name:             "redirects_unknown_host_to_first_non_wildcard_canonical_name",
+			httpsPort:        443,
+			canonicalHosts:   []string{"*.example.com", "panel.example.com"},
+			requestHost:      "attacker.example.net",
+			requestPath:      "/api/test",
+			hasTLS:           false,
+			expectedStatus:   http.StatusMovedPermanently,
+			expectedLocation: "https://panel.example.com/api/test",
+		},
+		{
+			name:             "keeps_request_host_when_canonical_names_are_wildcard_only",
+			httpsPort:        443,
+			canonicalHosts:   []string{"*.example.com"},
+			requestHost:      "panel.example.com",
+			requestPath:      "/api/test",
+			hasTLS:           false,
+			expectedStatus:   http.StatusMovedPermanently,
+			expectedLocation: "https://panel.example.com/api/test",
+		},
+		{
+			name:             "keeps_unknown_host_when_canonical_names_are_wildcard_only",
+			httpsPort:        443,
+			canonicalHosts:   []string{"*.example.com"},
+			requestHost:      "attacker.example.net",
+			requestPath:      "/api/test",
+			hasTLS:           false,
+			expectedStatus:   http.StatusMovedPermanently,
+			expectedLocation: "https://attacker.example.net/api/test",
+		},
+		{
 			name:             "passes_through_acme_challenge_over_http",
 			httpsPort:        443,
 			requestHost:      "example.com",
@@ -110,7 +171,7 @@ func TestHTTPSRedirectMiddleware(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			middleware := HTTPSRedirectMiddleware(tt.httpsPort)
+			middleware := HTTPSRedirectMiddleware(tt.httpsPort, tt.canonicalHosts)
 			handler := middleware(nextHandler)
 
 			req := httptest.NewRequest(http.MethodGet, tt.requestPath, nil)
@@ -149,7 +210,7 @@ func TestHTTPSRedirectMiddleware_PreservesRequestMethod(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			middleware := HTTPSRedirectMiddleware(443)
+			middleware := HTTPSRedirectMiddleware(443, nil)
 			handler := middleware(nextHandler)
 
 			req := httptest.NewRequest(method, "/api/test", nil)
@@ -173,7 +234,7 @@ func TestHTTPSRedirectMiddleware_CallsNextHandler_WhenTLS(t *testing.T) {
 		_, _ = w.Write([]byte("success"))
 	})
 
-	middleware := HTTPSRedirectMiddleware(443)
+	middleware := HTTPSRedirectMiddleware(443, nil)
 	handler := middleware(nextHandler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)

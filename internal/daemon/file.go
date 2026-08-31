@@ -179,8 +179,8 @@ func (s *FileService) DownloadRange(
 ) ([]byte, error) {
 	nodeID := uint64(node.ID)
 	relPath := stripWorkPath(node.WorkPath, filePath)
-	length := int64(min(limit, math.MaxInt64)) //nolint:gosec // G115: clamped to MaxInt64 just before
-	start := int64(min(offset, math.MaxInt64)) //nolint:gosec // G115: clamped to MaxInt64 just before
+	length := int64(min(limit, math.MaxInt64))
+	start := int64(min(offset, math.MaxInt64))
 
 	local, err := s.resolveRoute(nodeID)
 	if err != nil {
@@ -265,8 +265,8 @@ func (s *FileService) DownloadStreamRange(
 		return nil, err
 	}
 
-	start := int64(min(offset, math.MaxInt64))     //nolint:gosec // G115: clamped to MaxInt64 just before
-	remaining := int64(min(length, math.MaxInt64)) //nolint:gosec // G115: clamped to MaxInt64 just before
+	start := int64(min(offset, math.MaxInt64))
+	remaining := int64(min(length, math.MaxInt64))
 
 	return s.chunkedRange(ctx, nodeID, relPath, start, remaining, local), nil
 }

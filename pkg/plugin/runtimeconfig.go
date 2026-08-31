@@ -1,6 +1,9 @@
 package plugin
 
 import (
+	"context"
+	"sync"
+
 	"github.com/tetratelabs/wazero"
 )
 
@@ -10,6 +13,19 @@ const (
 	// wazero panics on a larger limit.
 	wasmMaxPages = 65536
 )
+
+// wazero fills its own version cache while the first runtime is built
+// (internal/version.GetWazeroVersion writes an unsynchronised package
+// variable), so two plugins loading at once race on it. Serialising creation
+// costs nothing after the first call and keeps the whole path race-free.
+var runtimeCreateMu sync.Mutex
+
+func newWazeroRuntime(ctx context.Context, cfg wazero.RuntimeConfig) wazero.Runtime {
+	runtimeCreateMu.Lock()
+	defer runtimeCreateMu.Unlock()
+
+	return wazero.NewRuntimeWithConfig(ctx, cfg)
+}
 
 // runtimeConfig builds the wazero configuration shared by every plugin
 // runtime of this manager.
@@ -41,5 +57,5 @@ func memoryLimitPages(maxBytes uint64) uint32 {
 
 	pages := min(max(maxBytes/wasmPageSize, 1), wasmMaxPages)
 
-	return uint32(pages) //nolint:gosec // bounded by wasmMaxPages above
+	return uint32(pages)
 }
