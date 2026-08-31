@@ -198,7 +198,6 @@
     "servers_list": "Servers list",
     "latest_stable": "Latest stable",
     "latest_beta": "Latest beta",
-    "version_in_use": "In use",
     "version_info_unavailable": "Failed to get information",
     "daemon_versions": "GameAP Daemon versions",
     "version_actual": "Up to date",

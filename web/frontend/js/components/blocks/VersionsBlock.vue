@@ -2,59 +2,51 @@
   <div class="w-full p-3 border border-stone-200 bg-stone-50 rounded-lg sm:p-4 dark:bg-stone-800 dark:border-stone-700">
     <div class="grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-y-0 sm:divide-x divide-stone-200 dark:divide-stone-700">
       <section class="sm:pr-6 flex flex-col">
-        <div class="text-base font-semibold text-stone-900 dark:text-white">GameAP</div>
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold text-stone-900 dark:text-white">
+          <span>GameAP</span>
+          <GStatusBadge v-if="!versionLoading" :color="panelBadgeColor" :text="panelCurrent" />
+        </div>
 
         <GIcon v-if="versionLoading" name="loading" class="mt-3 text-stone-400" />
-        <template v-else>
-          <div class="mt-2 space-y-1 text-sm text-stone-900 dark:text-white">
-            <div v-if="panelLatestStable">
-              {{ trans('home.latest_stable') }}:
-              <a class="hover:underline" :href="panel.latest_stable_url" target="_blank">{{ panelLatestStable }}</a>
-            </div>
-            <div v-if="panelLatestBeta">
-              {{ trans('home.latest_beta') }}:
-              <a class="hover:underline" :href="panel.latest_beta_url" target="_blank">{{ panelLatestBeta }}</a>
-            </div>
+        <div v-else class="mt-2 space-y-1 text-sm text-stone-900 dark:text-white">
+          <div v-if="panelLatestStable">
+            {{ trans('home.latest_stable') }}:
+            <a class="hover:underline" :href="panel.latest_stable_url" target="_blank">{{ panelLatestStable }}</a>
           </div>
-
-          <div class="mt-auto pt-3 text-sm font-semibold text-stone-900 dark:text-white">{{ trans('home.version_in_use') }}</div>
-          <div class="mt-1.5">
-            <GStatusBadge :color="panelBadgeColor" :text="panelCurrent" />
+          <div v-if="panelLatestBeta">
+            {{ trans('home.latest_beta') }}:
+            <a class="hover:underline" :href="panel.latest_beta_url" target="_blank">{{ panelLatestBeta }}</a>
           </div>
-        </template>
+        </div>
       </section>
 
       <section class="sm:pl-6 flex flex-col">
-        <div class="text-base font-semibold text-stone-900 dark:text-white">GameAP Daemon</div>
-
-        <GIcon v-if="versionLoading || summaryLoading" name="loading" class="mt-3 text-stone-400" />
-        <template v-else>
-          <div class="mt-2 space-y-1 text-sm text-stone-900 dark:text-white">
-            <div v-if="daemonLatestStable">
-              {{ trans('home.latest_stable') }}:
-              <a class="hover:underline" :href="daemon.latest_stable_url" target="_blank">{{ daemonLatestStable }}</a>
-            </div>
-            <div v-if="daemonLatestBeta">
-              {{ trans('home.latest_beta') }}:
-              <a class="hover:underline" :href="daemon.latest_beta_url" target="_blank">{{ daemonLatestBeta }}</a>
-            </div>
-          </div>
-
-          <template v-if="daemonStatus">
-            <div class="mt-auto pt-3 text-sm font-semibold text-stone-900 dark:text-white">{{ trans('home.version_in_use') }}</div>
-            <div class="mt-1.5">
-              <button
-                  v-if="daemonStatusClickable"
-                  type="button"
-                  class="cursor-pointer hover:opacity-80"
-                  @click="nodesModalShown = true"
-              >
-                <GStatusBadge :color="daemonStatusColor" :text="daemonStatusText" />
-              </button>
-              <GStatusBadge v-else :color="daemonStatusColor" :text="daemonStatusText" />
-            </div>
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-semibold text-stone-900 dark:text-white">
+          <span>GameAP Daemon</span>
+          <template v-if="!daemonLoading && daemonStatus">
+            <button
+                v-if="daemonStatusClickable"
+                type="button"
+                class="cursor-pointer hover:opacity-80"
+                @click="nodesModalShown = true"
+            >
+              <GStatusBadge :color="daemonStatusColor" :text="daemonStatusText" />
+            </button>
+            <GStatusBadge v-else :color="daemonStatusColor" :text="daemonStatusText" />
           </template>
-        </template>
+        </div>
+
+        <GIcon v-if="daemonLoading" name="loading" class="mt-3 text-stone-400" />
+        <div v-else class="mt-2 space-y-1 text-sm text-stone-900 dark:text-white">
+          <div v-if="daemonLatestStable">
+            {{ trans('home.latest_stable') }}:
+            <a class="hover:underline" :href="daemon.latest_stable_url" target="_blank">{{ daemonLatestStable }}</a>
+          </div>
+          <div v-if="daemonLatestBeta">
+            {{ trans('home.latest_beta') }}:
+            <a class="hover:underline" :href="daemon.latest_beta_url" target="_blank">{{ daemonLatestBeta }}</a>
+          </div>
+        </div>
       </section>
     </div>
 
@@ -83,6 +75,7 @@ const nodesModalShown = ref(false)
 
 const versionLoading = computed(() => versionStore.loading)
 const summaryLoading = computed(() => nodeListStore.loading)
+const daemonLoading = computed(() => versionLoading.value || summaryLoading.value)
 // A failed or still-running request must not read as "update check is
 // disabled" — the note is shown only for a successfully loaded response.
 const fetched = computed(() => versionStore.fetched)

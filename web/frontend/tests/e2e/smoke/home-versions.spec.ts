@@ -7,7 +7,6 @@ import { loginViaAPI } from '../fixtures/auth';
 // and the assertions are on what the block renders for a given payload.
 
 const LATEST_STABLE = /latest stable|последняя стабильная/i;
-const IN_USE = /in use|используется/i;
 const OUTDATED_TAG = /2 of 5|2 из 5/i;
 const ALL_ACTUAL = /all up to date|всё в актуальном состоянии/i;
 const INFO_UNAVAILABLE = /failed to get information|не удалось получить информацию/i;
@@ -78,6 +77,12 @@ async function openDashboard(
   await page.goto('/');
 }
 
+// The version in use is a badge on the heading line, right after the product
+// name, so the heading is the first div of a column.
+function heading(section: import('@playwright/test').Locator) {
+  return section.locator('div').first();
+}
+
 function versionSections(page: import('@playwright/test').Page) {
   return {
     panelSection: page.locator('section').filter({ has: page.getByText('GameAP', { exact: true }) }),
@@ -107,11 +112,11 @@ test('the dashboard shows the outdated panel and daemon versions the same way', 
   await expect(daemonSection).toContainText(LATEST_STABLE);
   await expect(daemonSection.getByRole('link', { name: '4.1.2' })).toBeVisible();
 
-  // Under "in use" each column carries exactly one status badge.
-  await expect(panelSection).toContainText(IN_USE);
+  // Each column carries exactly one status badge, worn by its heading.
   await expect(panelSection.locator('.badge-orange')).toHaveText('4.0.0');
-  await expect(daemonSection).toContainText(IN_USE);
+  await expect(heading(panelSection)).toContainText('4.0.0');
   await expect(daemonSection.locator('.badge-orange')).toContainText(OUTDATED_TAG);
+  await expect(heading(daemonSection)).toContainText(OUTDATED_TAG);
 
   // The individual daemons are not listed on the dashboard itself.
   await expect(panelSection.locator('.badge-green')).toHaveCount(0);
@@ -241,6 +246,6 @@ test('a disabled update check leaves only the versions actually in use', async (
 
   await expect(panelSection.locator('.badge-stone')).toHaveText('4.0.0');
   await expect(panelSection).not.toContainText(LATEST_STABLE);
-  await expect(daemonSection).not.toContainText(IN_USE);
+  await expect(daemonSection.locator('[class*="badge-"]')).toHaveCount(0);
   await expect(page.getByText(CHECK_DISABLED)).toBeVisible();
 });

@@ -350,7 +350,6 @@
     "servers_list": "Список серверов",
     "latest_stable": "Последняя стабильная",
     "latest_beta": "Последняя бета",
-    "version_in_use": "Используется",
     "version_info_unavailable": "Не удалось получить информацию",
     "daemon_versions": "Версии GameAP Daemon",
     "version_actual": "Актуальная",

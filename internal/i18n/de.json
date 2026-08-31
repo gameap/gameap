@@ -348,7 +348,6 @@
     "servers_list": "Serverliste",
     "latest_stable": "Neueste stabile",
     "latest_beta": "Neueste Beta",
-    "version_in_use": "Wird verwendet",
     "version_info_unavailable": "Informationen konnten nicht abgerufen werden",
     "daemon_versions": "GameAP-Daemon-Versionen",
     "version_actual": "Aktuell",
