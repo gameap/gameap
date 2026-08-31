@@ -373,12 +373,15 @@ func TestService_RenewalLoop_TriggersRenewalWhenThresholdCrossed(t *testing.T) {
 	}, 2*time.Second, 20*time.Millisecond,
 		"renewal loop must invoke RenewCertificate when cert is past threshold")
 
-	cert, err := svc.GetCertificate(nil)
-	require.NoError(t, err)
-	require.NotNil(t, cert.Leaf)
-	assert.True(t, cert.Leaf.NotAfter.After(time.Now().Add(2*time.Hour)),
-		"served cert NotAfter must be far in the future after renewal, got %v",
-		cert.Leaf.NotAfter)
+	// The renewed certificate is installed after RenewCertificate returns
+	// (save → parse → apply), so the swap lags the call counter.
+	assert.Eventually(t, func() bool {
+		cert, err := svc.GetCertificate(nil)
+
+		return err == nil && cert.Leaf != nil &&
+			cert.Leaf.NotAfter.After(time.Now().Add(2*time.Hour))
+	}, 2*time.Second, 20*time.Millisecond,
+		"served cert NotAfter must be far in the future after renewal")
 }
 
 func TestService_RenewalLoop_SkipsRenewalWhenCertFresh(t *testing.T) {
