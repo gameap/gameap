@@ -320,11 +320,11 @@ export interface AdminUserInfoProps {
  * included.
  */
 export interface UserEditFormData {
-    login: string;
-    name: string;
-    email: string;
-    roles: string[];
-    servers: Array<{ id: number; name: string }>;
+    readonly login: string;
+    readonly name: string;
+    readonly email: string;
+    readonly roles: readonly string[];
+    readonly servers: readonly { readonly id: number; readonly name: string }[];
 }
 
 /**
@@ -346,12 +346,30 @@ export interface AdminNodeEditBlockProps {
 }
 
 /**
+ * Identity and saved state of the edited server. Credentials, the RCON password
+ * included, are never part of it.
+ */
+export interface AdminServerSavedData {
+    id: number;
+    uuid: string;
+    uuid_short: string;
+    name: string;
+    enabled: boolean;
+    installed: boolean;
+    blocked: boolean;
+    online: boolean;
+    ds_id: number;
+    game_id: string;
+    game_mod_id: number;
+}
+
+/**
  * Props passed to components in the `admin-server-edit-blocks` slot. The RCON
- * password is never included in `form`.
+ * password is never included, neither in `form` nor in `server`.
  */
 export interface AdminServerEditBlockProps {
     serverId: number;
-    server: ServerData | null;
+    server: AdminServerSavedData | null;
     form: Record<string, unknown>;
     pluginId: string;
 }

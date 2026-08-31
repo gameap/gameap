@@ -47,6 +47,7 @@ export type {
     UserEditFormData,
     AdminUserEditBlockProps,
     AdminNodeEditBlockProps,
+    AdminServerSavedData,
     AdminServerEditBlockProps,
     AdminGameEditBlockProps,
     AdminModEditBlockProps,

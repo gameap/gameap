@@ -340,10 +340,24 @@ const {games} = storeToRefs(gamesStore)
 const {nodes} = storeToRefs(nodeListStore)
 const {server} = storeToRefs(serverStore)
 
-// The RCON password lives in `serverForm.rcon` and is deliberately not exposed.
+// The saved record carries the RCON password in `server.rcon`, so plugins get an
+// explicit allowlist of it rather than the whole object; `serverForm.rcon` is
+// likewise left out of the form snapshot.
 const pluginContext = computed(() => ({
   serverId: Number(route.params.id),
-  server: server.value,
+  server: server.value ? {
+    id: server.value.id,
+    uuid: server.value.uuid,
+    uuid_short: server.value.uuid_short,
+    name: server.value.name,
+    enabled: server.value.enabled,
+    installed: server.value.installed,
+    blocked: server.value.blocked,
+    online: server.value.online,
+    ds_id: server.value.ds_id,
+    game_id: server.value.game_id,
+    game_mod_id: server.value.game_mod_id,
+  } : null,
   form: {
     name: serverForm.value.name,
     enabled: serverForm.value.enabled,

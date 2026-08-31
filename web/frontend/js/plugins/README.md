@@ -480,7 +480,7 @@ Add blocks to the edit pages of the remaining entities, following the same rules
 | Slot | Identity prop | `form` snapshot |
 |------|---------------|-----------------|
 | `admin-node-edit-blocks` | `nodeId` | `name`, `enabled`, `os`, `location`, `provider`, `workPath`, `steamcmdPath`, `ip` - daemon credentials, certificates and control scripts are never exposed |
-| `admin-server-edit-blocks` | `serverId`, plus the saved `server` object | everything but the RCON password |
+| `admin-server-edit-blocks` | `serverId`, plus a `server` allowlist (`id`, `uuid`, `uuid_short`, `name`, `enabled`, `installed`, `blocked`, `online`, `ds_id`, `game_id`, `game_mod_id`) | everything but the RCON password |
 | `admin-game-edit-blocks` | `gameCode` | the whole form |
 | `admin-mod-edit-blocks` | `modId` | the whole form |
 
