@@ -139,6 +139,7 @@ import (
 	"github.com/gameap/gameap/internal/api/tokens/posttoken"
 	"github.com/gameap/gameap/internal/api/user/getuser"
 	"github.com/gameap/gameap/internal/api/users/deleteuser"
+	"github.com/gameap/gameap/internal/api/users/deleteuserserver"
 	"github.com/gameap/gameap/internal/api/users/getserverperms"
 	usersgetuser "github.com/gameap/gameap/internal/api/users/getuser"
 	"github.com/gameap/gameap/internal/api/users/getusers"
@@ -146,6 +147,7 @@ import (
 	"github.com/gameap/gameap/internal/api/users/postusers"
 	"github.com/gameap/gameap/internal/api/users/putserverperms"
 	"github.com/gameap/gameap/internal/api/users/putuser"
+	"github.com/gameap/gameap/internal/api/users/putuserserver"
 	"github.com/gameap/gameap/internal/api/version/getversion"
 	wsattach "github.com/gameap/gameap/internal/api/ws/attach"
 	wsconsole "github.com/gameap/gameap/internal/api/ws/console"
@@ -1505,6 +1507,38 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.RBAC(),
 				c.Responder(),
 				c.PluginManager(),
+			),
+			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserManage,
+			},
+		},
+		{
+			Method: http.MethodPut,
+			Path:   "/api/users/{id}/servers/{server}",
+			Handler: putuserserver.NewHandler(
+				c.UserRepository(),
+				c.ServerRepository(),
+				c.RBAC(),
+				c.Responder(),
+				c.AuditLogger(),
+				c.PluginDispatcher(),
+			),
+			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityUserManage,
+			},
+		},
+		{
+			Method: http.MethodDelete,
+			Path:   "/api/users/{id}/servers/{server}",
+			Handler: deleteuserserver.NewHandler(
+				c.UserRepository(),
+				c.ServerRepository(),
+				c.RBAC(),
+				c.Responder(),
+				c.AuditLogger(),
+				c.PluginDispatcher(),
 			),
 			AdminOnly: true,
 			CheckPATAbilities: []domain.PATAbility{

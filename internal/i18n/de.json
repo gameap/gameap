@@ -992,6 +992,9 @@
     "update_success_msg": "Benutzer erfolgreich aktualisiert",
     "delete_success_msg": "Benutzer erfolgreich gelöscht",
     "privileges_saved_success_msg": "Berechtigungen erfolgreich gespeichert",
+    "server_attached_msg": "Server zugewiesen",
+    "server_detached_msg": "Server entfernt",
+    "confirm_server_detach": "Server vom Benutzer trennen?",
     "delete_self_error_msg": "Sie können sich nicht selbst löschen"
   },
   "validation": {

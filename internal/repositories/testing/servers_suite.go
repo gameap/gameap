@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -1777,6 +1779,210 @@ func (s *ServerRepositorySuite) TestServerRepositoryRemoveUserServer() {
 
 		// ASSERT
 		results, err := s.repo.FindUserServers(ctx, 99999, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+}
+
+func (s *ServerRepositorySuite) TestServerRepositoryAttachUserServer() {
+	ctx := context.Background()
+
+	s.T().Run("attach_new_relation", func(t *testing.T) {
+		// ARRANGE
+		server := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "attach1",
+			Name:       "Attach Link Server",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "192.168.6.1",
+			ServerPort: 27015,
+			Dir:        "/servers/attach1",
+		}
+		require.NoError(t, s.repo.Save(ctx, server))
+
+		// ACT
+		require.NoError(t, s.repo.AttachUserServer(ctx, 4100, server.ID))
+
+		// ASSERT
+		results, err := s.repo.FindUserServers(ctx, 4100, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, server.ID, results[0].ID)
+	})
+
+	s.T().Run("attach_twice_keeps_single_relation", func(t *testing.T) {
+		// ARRANGE
+		server := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "attach2",
+			Name:       "Attach Twice Server",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "192.168.6.2",
+			ServerPort: 27015,
+			Dir:        "/servers/attach2",
+		}
+		require.NoError(t, s.repo.Save(ctx, server))
+		require.NoError(t, s.repo.AttachUserServer(ctx, 4101, server.ID))
+
+		// ACT
+		require.NoError(t, s.repo.AttachUserServer(ctx, 4101, server.ID))
+
+		// ASSERT
+		results, err := s.repo.FindUserServers(ctx, 4101, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1, "repeated attach must keep a single relation")
+		assert.Equal(t, server.ID, results[0].ID)
+	})
+
+	s.T().Run("attach_keeps_other_relations", func(t *testing.T) {
+		// ARRANGE
+		server1 := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "attach3",
+			Name:       "Attach Keep Server 1",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "192.168.6.3",
+			ServerPort: 27015,
+			Dir:        "/servers/attach3",
+		}
+		server2 := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "attach4",
+			Name:       "Attach Keep Server 2",
+			GameID:     "minecraft",
+			DSID:       1,
+			ServerIP:   "192.168.6.4",
+			ServerPort: 25565,
+			Dir:        "/servers/attach4",
+		}
+		require.NoError(t, s.repo.Save(ctx, server1))
+		require.NoError(t, s.repo.Save(ctx, server2))
+		require.NoError(t, s.repo.AttachUserServer(ctx, 4102, server1.ID))
+
+		// ACT
+		require.NoError(t, s.repo.AttachUserServer(ctx, 4102, server2.ID))
+
+		// ASSERT
+		results, err := s.repo.FindUserServers(ctx, 4102, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+		assert.ElementsMatch(t, []uint{server1.ID, server2.ID},
+			[]uint{results[0].ID, results[1].ID},
+			"both the old and the new relation must be present")
+	})
+}
+
+func (s *ServerRepositorySuite) TestServerRepositoryAttachUserServerConcurrent() {
+	ctx := context.Background()
+
+	server := &domain.Server{
+		UID:        uuid.New(),
+		UUIDShort:  "attachc",
+		Name:       "Attach Concurrent Server",
+		GameID:     "csgo",
+		DSID:       1,
+		ServerIP:   "192.168.6.5",
+		ServerPort: 27015,
+		Dir:        "/servers/attachc",
+	}
+	require.NoError(s.T(), s.repo.Save(ctx, server))
+
+	var eg errgroup.Group
+	for range 8 {
+		eg.Go(func() error {
+			return s.repo.AttachUserServer(ctx, 4120, server.ID)
+		})
+	}
+	require.NoError(s.T(), eg.Wait())
+
+	results, err := s.repo.FindUserServers(ctx, 4120, nil, nil, nil)
+	require.NoError(s.T(), err)
+	require.Len(s.T(), results, 1,
+		"concurrent attaches of the same pair must keep a single relation")
+	assert.Equal(s.T(), server.ID, results[0].ID)
+}
+
+func (s *ServerRepositorySuite) TestServerRepositoryDetachUserServer() {
+	ctx := context.Background()
+
+	s.T().Run("detach_existing_relation", func(t *testing.T) {
+		// ARRANGE
+		server := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "detach1",
+			Name:       "Detach Link Server",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "192.168.7.1",
+			ServerPort: 27015,
+			Dir:        "/servers/detach1",
+		}
+		require.NoError(t, s.repo.Save(ctx, server))
+		require.NoError(t, s.repo.AttachUserServer(ctx, 4110, server.ID))
+
+		// ACT
+		require.NoError(t, s.repo.DetachUserServer(ctx, 4110, server.ID))
+
+		// ASSERT
+		results, err := s.repo.FindUserServers(ctx, 4110, nil, nil, nil)
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+
+	s.T().Run("detach_only_requested_pair", func(t *testing.T) {
+		// ARRANGE
+		server1 := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "detach2",
+			Name:       "Detach Pair Server 1",
+			GameID:     "csgo",
+			DSID:       1,
+			ServerIP:   "192.168.7.2",
+			ServerPort: 27015,
+			Dir:        "/servers/detach2",
+		}
+		server2 := &domain.Server{
+			UID:        uuid.New(),
+			UUIDShort:  "detach3",
+			Name:       "Detach Pair Server 2",
+			GameID:     "minecraft",
+			DSID:       1,
+			ServerIP:   "192.168.7.3",
+			ServerPort: 25565,
+			Dir:        "/servers/detach3",
+		}
+		require.NoError(t, s.repo.Save(ctx, server1))
+		require.NoError(t, s.repo.Save(ctx, server2))
+		require.NoError(t, s.repo.AttachUserServer(ctx, 4111, server1.ID))
+		require.NoError(t, s.repo.AttachUserServer(ctx, 4111, server2.ID))
+		require.NoError(t, s.repo.AttachUserServer(ctx, 4112, server1.ID))
+
+		// ACT
+		require.NoError(t, s.repo.DetachUserServer(ctx, 4111, server1.ID))
+
+		// ASSERT
+		results, err := s.repo.FindUserServers(ctx, 4111, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, server2.ID, results[0].ID, "only the detached pair must disappear")
+
+		otherResults, err := s.repo.FindUserServers(ctx, 4112, nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, otherResults, 1, "other users' relations to the same server must survive")
+		assert.Equal(t, server1.ID, otherResults[0].ID)
+	})
+
+	s.T().Run("detach_nonexistent_relation_is_noop", func(t *testing.T) {
+		// ACT
+		err := s.repo.DetachUserServer(ctx, 4113, 99999)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		results, err := s.repo.FindUserServers(ctx, 4113, nil, nil, nil)
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})

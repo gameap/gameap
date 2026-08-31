@@ -992,6 +992,9 @@
     "update_success_msg": "Usuario actualizado correctamente",
     "delete_success_msg": "Usuario eliminado correctamente",
     "privileges_saved_success_msg": "Privilegios guardados correctamente",
+    "server_attached_msg": "Servidor asignado",
+    "server_detached_msg": "Servidor desasignado",
+    "confirm_server_detach": "¿Desasignar el servidor del usuario?",
     "delete_self_error_msg": "No puedes eliminarte a ti mismo"
   },
   "validation": {

@@ -487,6 +487,8 @@ paths:
     $ref: './paths/users.yaml#/~1api~1users~1{id}'
   /api/users/{id}/servers:
     $ref: './paths/users.yaml#/~1api~1users~1{id}~1servers'
+  /api/users/{id}/servers/{server}:
+    $ref: './paths/users.yaml#/~1api~1users~1{id}~1servers~1{server}'
   /api/users/{id}/servers/{server}/permissions:
     $ref: './paths/users.yaml#/~1api~1users~1{id}~1servers~1{server}~1permissions'
 
