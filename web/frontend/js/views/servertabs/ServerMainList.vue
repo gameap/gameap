@@ -6,6 +6,8 @@
     import {useAuthStore} from "@/store/auth";
     import {useServerFiltersStore} from "@/store/serverFilters";
     import {useServerListStore} from "@/store/serverList";
+    import {usePluginsStore} from "@/store/plugins";
+    import {filterSlotComponents} from "@/plugins/permissions";
 
     import GButton from "@/components/GButton.vue";
 
@@ -22,6 +24,7 @@
     const authStore = useAuthStore();
     const filtersStore = useServerFiltersStore();
     const serverListStore = useServerListStore();
+    const pluginsStore = usePluginsStore();
     const { servers: serversList, currentPage, perPage, total, lastPage } = storeToRefs(serverListStore);
 
     const isSmallScreen = ref(window.innerWidth < 768);
@@ -114,15 +117,19 @@
                 }
 
                 if (row.installed === NOT_INSTALLED && canUpdate(row.id)) {
-                    return h(ServerControlButton,
-                        {
-                            "command": "install",
-                            "button-color": "orange",
-                            "button-size": "small",
-                            "icon": "download",
-                            "text": trans('servers.install'),
-                            "server-id": row.id,
-                        });
+                    return [
+                        h(ServerControlButton,
+                            {
+                                "command": "install",
+                                "button-color": "orange",
+                                "button-size": "small",
+                                "icon": "download",
+                                "text": trans('servers.install'),
+                                "server-id": row.id,
+                            }),
+                        " ",
+                        ...pluginActions(row),
+                    ];
                 }
 
                 let buttons = [];
@@ -189,6 +196,8 @@
                             ]})
                     );
                 }
+
+                buttons.push(...pluginActions(row));
 
                 return buttons;
             }
@@ -365,6 +374,30 @@
 
     function canUpdate(serverId) {
         return authStore.canServerAbility(serverId, 'game-server-update');
+    }
+
+    // The list keeps abilities per server in the auth store rather than as a plain
+    // map, so the plugin permission check reads them through a lazy lookup.
+    function serverAbilities(serverId) {
+        return new Proxy({}, {
+            get: (_target, ability) => authStore.canServerAbility(serverId, ability) === true,
+        });
+    }
+
+    function pluginActions(row) {
+        if (!pluginsStore.isInitialized) {
+            return [];
+        }
+
+        return filterSlotComponents(
+            pluginsStore.getSlotComponents('servers-list-actions'),
+            {abilities: serverAbilities(row.id), game: row.game},
+        ).map(item => h(item.component, {
+            ...item.props,
+            serverId: row.id,
+            server: row,
+            pluginId: item.pluginId,
+        }));
     }
 
 </script>

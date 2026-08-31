@@ -244,6 +244,12 @@
           <GameModFastRconEditor v-model="form.fastRcon" class="mb-4" />
         </n-tab-pane>
       </n-tabs>
+
+      <PluginSlot
+          v-if="pluginsStore.isInitialized"
+          name="admin-mod-edit-blocks"
+          :context="pluginContext"
+      />
     </n-form>
 
     <GFixedBottomBar>
@@ -258,7 +264,7 @@
 
 <script setup>
 import { GIcon } from "@gameap/ui"
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import { requiredValidator } from "@/parts/validators";
 import { trans } from "@/i18n/i18n";
 import {
@@ -272,12 +278,21 @@ import {
 import GButton from "../../../components/GButton.vue";
 import GFixedBottomBar from "../../../components/GFixedBottomBar.vue";
 import InputManyList from "../../../components/input/InputManyList.vue";
+import PluginSlot from "@/plugins/components/PluginSlot.vue";
+import {usePluginsStore} from "@/store/plugins";
 import GameModVarsEditor from "../../../components/gamemod/GameModVarsEditor.vue";
 import GameModFastRconEditor from "../../../components/gamemod/GameModFastRconEditor.vue";
 import {metadataKeyGroups} from "../../../parts/metadataKeys";
 
 const formRef = ref({})
 const form = defineModel({})
+
+const pluginsStore = usePluginsStore()
+
+const pluginContext = computed(() => ({
+  modId: form.value.id,
+  form: {...form.value},
+}))
 
 const rules = {
   name: {

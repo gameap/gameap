@@ -180,6 +180,12 @@
           </div>
         </n-tab-pane>
       </n-tabs>
+
+      <PluginSlot
+          v-if="pluginsStore.isInitialized"
+          name="admin-game-edit-blocks"
+          :context="pluginContext"
+      />
     </n-form>
 
     <GFixedBottomBar>
@@ -193,11 +199,13 @@
 
 <script setup>
 import { GIcon, Loading } from "@gameap/ui"
-import {ref, defineModel, defineProps} from "vue"
+import {computed, ref, defineModel, defineProps} from "vue"
 import {trans} from "@/i18n/i18n";
 import GButton from "@/components/GButton.vue";
 import GFixedBottomBar from "@/components/GFixedBottomBar.vue";
 import InputManyList from "@/components/input/InputManyList.vue";
+import PluginSlot from "@/plugins/components/PluginSlot.vue";
+import {usePluginsStore} from "@/store/plugins";
 import {metadataKeyGroups} from "@/parts/metadataKeys";
 import {
   NCard,
@@ -226,6 +234,13 @@ const form = defineModel({
   remoteRepositoryWindows: '',
   metadata: [],
 })
+
+const pluginsStore = usePluginsStore()
+
+const pluginContext = computed(() => ({
+  gameCode: form.value.code,
+  form: {...form.value},
+}))
 
 const rules = {
   code: {

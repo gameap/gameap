@@ -126,9 +126,38 @@ slots: {
 | Slot Name | Description | Props |
 |-----------|-------------|-------|
 | `server-tabs` | Tabs on server detail pages | `ServerTabProps` |
+| `server-control-buttons` | Buttons in the Start / Stop / Restart row | `ServerControlProps` |
+| `server-control-blocks` | Blocks on the server Control tab, above the console | `ServerControlProps` |
+| `servers-list-actions` | Elements in the commands column of the server list | `ServersListActionProps` |
 | `dashboard-widgets` | Widgets on the dashboard | `DashboardWidgetProps` |
-| `sidebar-sections` | Sections in the sidebar | - |
-| `admin-pages` | Admin page components | - |
+| `home-buttons` | Buttons in the home page button row | see [Home Buttons](#home-buttons) |
+| `navbar-items` | Elements in the top navigation bar | `ChromeSlotProps` |
+| `sidebar-sections` | Sections in the sidebar | `SidebarSectionProps` |
+| `global-banners` | A strip above the content of every page | `ChromeSlotProps` |
+| `admin-pages` | Above the content of `/admin/*` pages, administrators only | `ChromeSlotProps` |
+| `profile-info-rows` | Rows in the profile table (root element must be `<tr>`) | `ProfileSlotProps` |
+| `profile-blocks` | Blocks on the profile page | `ProfileSlotProps` |
+| `admin-user-info-above` | Admin user modal, above the details table | `AdminUserInfoProps` |
+| `admin-user-info-rows` | Rows in the admin user modal table (root element must be `<tr>`) | `AdminUserInfoProps` |
+| `admin-user-info` | Admin user modal, below the details table | `AdminUserInfoProps` |
+| `admin-user-edit-blocks` | User edit page, below the Servers card | `AdminUserEditBlockProps` |
+| `admin-node-edit-blocks` | Node edit page, end of the Main tab | `AdminNodeEditBlockProps` |
+| `admin-server-edit-blocks` | Server edit page, below the last card | `AdminServerEditBlockProps` |
+| `admin-game-edit-blocks` | Game edit page, below the tabs | `AdminGameEditBlockProps` |
+| `admin-mod-edit-blocks` | Mod edit page, below the tabs | `AdminModEditBlockProps` |
+
+`checkPermission` and `checkGame` are honoured by `server-tabs`,
+`server-control-buttons`, `server-control-blocks` and `servers-list-actions` (and by the
+file editors). The other slots render every registered component, so never use those fields
+to hide sensitive content there.
+
+Block slots render components as-is - wrap your content in an `n-card` (or `GCard`) to match
+the surrounding page. Row slots (`*-info-rows`) are rendered inside a `<tbody>`, so the
+component's root element has to be a `<tr>` with two `<td>` cells.
+
+The `form` object handed to the edit-page slots is a read-only snapshot of the **unsaved**
+form and never contains secrets: no user password, no RCON password, no daemon credentials,
+certificates or control scripts. Saving plugin data is up to the plugin's own API calls.
 
 ## Home Buttons
 

@@ -10,11 +10,25 @@ export const usePluginsStore = defineStore('plugins', () => {
     const plugins = ref(new Map())
     const slots = reactive({
         'server-tabs': [],
+        'server-control-buttons': [],
+        'server-control-blocks': [],
+        'servers-list-actions': [],
         'dashboard-widgets': [],
         'sidebar-sections': [],
+        'navbar-items': [],
+        'global-banners': [],
         'admin-pages': [],
         'home-buttons': [],
-        'admin-user-info': []
+        'profile-info-rows': [],
+        'profile-blocks': [],
+        'admin-user-info': [],
+        'admin-user-info-above': [],
+        'admin-user-info-rows': [],
+        'admin-user-edit-blocks': [],
+        'admin-node-edit-blocks': [],
+        'admin-server-edit-blocks': [],
+        'admin-game-edit-blocks': [],
+        'admin-mod-edit-blocks': []
     })
     const pendingRoutes = ref([])
     const registeredRoutes = ref([])
