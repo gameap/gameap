@@ -460,13 +460,20 @@ func TestFileService_DownloadStreamRange_closedReaderStopsTheProducer(t *testing
 	s.registry.setConnected(nodeID, true)
 
 	// The node answers only once the consumer is gone, so the chunk it
-	// returns has nowhere left to be written.
+	// returns has nowhere left to be written. readStarted makes sure that
+	// chunk really is in flight before the reader is taken away.
+	readStarted := make(chan struct{}, 1)
 	readerClosed := make(chan struct{})
 	rec := &rangeRecorder{answers: []rangeAnswer{{windowFill: 'A'}, {windowFill: 'B'}}}
 	scripted := rec.gatewayRead()
 	s.gateway.requestFileRead = func(
 		ctx context.Context, node uint64, path string, offset, length int64,
 	) (*proto.FileReadResponse, error) {
+		select {
+		case readStarted <- struct{}{}:
+		default:
+		}
+
 		<-readerClosed
 
 		return scripted(ctx, node, path, offset, length)
@@ -474,6 +481,12 @@ func TestFileService_DownloadStreamRange_closedReaderStopsTheProducer(t *testing
 
 	rc, err := s.service.DownloadStreamRange(ctx, testNode(74, "/srv"), "/srv/big.bin", 0, 0)
 	require.NoError(t, err)
+
+	select {
+	case <-readStarted:
+	case <-time.After(time.Second):
+		t.Fatal("the producer never requested the first chunk")
+	}
 
 	// ACT
 	require.NoError(t, rc.Close())
