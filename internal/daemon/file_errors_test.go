@@ -216,6 +216,51 @@ func TestDaemonFileError_classification(t *testing.T) {
 	}
 }
 
+// TestDaemonSentinelErrors_HTTPStatus pins the status the API responder
+// answers with for the two node-availability sentinels, wrapping them first
+// because that is how they reach the responder from a service call.
+func TestDaemonSentinelErrors_HTTPStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		wantText   string
+		wantStatus int
+	}{
+		{
+			name:       "daemon_not_connected_is_bad_gateway",
+			err:        ErrDaemonNotConnected,
+			wantText:   "daemon not connected",
+			wantStatus: http.StatusBadGateway,
+		},
+		{
+			name:       "archive_not_supported_is_bad_gateway",
+			err:        ErrArchiveNotSupported,
+			wantText:   "node does not support archive operations",
+			wantStatus: http.StatusBadGateway,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			wrapped := errors.WithMessage(tt.err, "file read")
+
+			// ACT
+			var statusErr interface{ HTTPStatus() int }
+			require.ErrorAs(t, wrapped, &statusErr)
+
+			// ASSERT
+			assert.Equal(t, tt.wantStatus, statusErr.HTTPStatus(), "responder status mismatch")
+			assert.Equal(t, tt.wantText, tt.err.Error(), "client-facing text mismatch")
+			assert.ErrorIs(t, wrapped, tt.err, "wrapping must keep the sentinel comparable")
+		})
+	}
+}
+
 func TestDaemonFileError_falsePositiveGuards(t *testing.T) {
 	t.Parallel()
 

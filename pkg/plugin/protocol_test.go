@@ -10,9 +10,54 @@ import (
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	"github.com/gameap/gameap/pkg/plugin/sdk/protocol"
 	"github.com/gameap/gameap/pkg/quercon/rcon"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var errStubDNS = errors.New("dns: server refused query")
+
+// stubResolver serves a canned LookupNetIP answer and records every hostname it
+// was asked about, so a test can prove that a literal IP never reaches DNS.
+type stubResolver struct {
+	addrs []netip.Addr
+	err   error
+
+	lookups []string
+}
+
+func (s *stubResolver) LookupNetIP(_ context.Context, _, host string) ([]netip.Addr, error) {
+	s.lookups = append(s.lookups, host)
+
+	if s.err != nil {
+		return nil, s.err
+	}
+
+	return s.addrs, nil
+}
+
+// listenTCP starts a listener that accepts and parks connections, so the
+// runner's dial succeeds without a real game server behind it.
+func listenTCP(t *testing.T) net.Addr {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	go func() {
+		for {
+			conn, acceptErr := ln.Accept()
+			if acceptErr != nil {
+				return
+			}
+
+			go func() { _, _ = conn.Read(make([]byte, 1)) }()
+		}
+	}()
+
+	return ln.Addr()
+}
 
 type fakeProtoPlugin struct {
 	protocol.EmptyProtocolService
@@ -288,4 +333,249 @@ func TestRunner_ParsePlayers(t *testing.T) {
 	assert.Equal(t, "bob", parsed[0].Name)
 	assert.Equal(t, "STEAM_1", parsed[0].UniqID)
 	assert.Equal(t, "5", parsed[0].Score)
+}
+
+func TestRunner_ResolveAndCheck(t *testing.T) {
+	t.Parallel()
+
+	const allowedHost = "game.example.com"
+
+	tests := []struct {
+		name         string
+		policy       NetDialPolicy
+		address      string
+		resolved     []string
+		resolveErr   error
+		wantIP       string
+		wantPort     string
+		wantSentinel error
+		wantError    string
+		wantLookups  []string
+	}{
+		{
+			name:      "address_without_port_is_rejected",
+			address:   "example.com",
+			wantError: "invalid address",
+		},
+		{
+			name:     "literal_public_ip_skips_dns",
+			policy:   NetDialPolicy{BlockPrivateIPs: true},
+			address:  "8.8.8.8:27015",
+			resolved: []string{"10.0.0.5"},
+			wantIP:   "8.8.8.8",
+			wantPort: "27015",
+		},
+		{
+			name:         "literal_private_ip_blocked_when_policy_blocks_private",
+			policy:       NetDialPolicy{BlockPrivateIPs: true},
+			address:      "10.0.0.5:27015",
+			wantSentinel: ErrDialBlocked,
+			wantError:    "ip=10.0.0.5 reason=private",
+		},
+		{
+			name:     "literal_private_ip_allowed_when_policy_permits_private",
+			address:  "10.0.0.5:27015",
+			wantIP:   "10.0.0.5",
+			wantPort: "27015",
+		},
+		{
+			name:         "resolver_error_reports_host_not_resolved",
+			address:      allowedHost + ":27015",
+			resolveErr:   errStubDNS,
+			wantSentinel: ErrHostNotResolved,
+			wantError:    "dns: server refused query",
+			wantLookups:  []string{allowedHost},
+		},
+		{
+			name:         "empty_resolution_reports_host_not_resolved",
+			address:      allowedHost + ":27015",
+			wantSentinel: ErrHostNotResolved,
+			wantError:    allowedHost,
+			wantLookups:  []string{allowedHost},
+		},
+		{
+			name:         "every_resolved_ip_is_checked_not_only_the_first",
+			policy:       NetDialPolicy{BlockPrivateIPs: true},
+			address:      allowedHost + ":27015",
+			resolved:     []string{"8.8.8.8", "10.0.0.5"},
+			wantSentinel: ErrDialBlocked,
+			wantError:    "ip=10.0.0.5 reason=private",
+			wantLookups:  []string{allowedHost},
+		},
+		{
+			name:        "first_resolved_address_is_returned",
+			policy:      NetDialPolicy{BlockPrivateIPs: true},
+			address:     allowedHost + ":27015",
+			resolved:    []string{"8.8.8.8", "1.1.1.1"},
+			wantIP:      "8.8.8.8",
+			wantPort:    "27015",
+			wantLookups: []string{allowedHost},
+		},
+		{
+			name:         "dns_answer_with_mapped_metadata_is_blocked",
+			address:      allowedHost + ":27015",
+			resolved:     []string{"::ffff:169.254.169.254"},
+			wantSentinel: ErrDialBlocked,
+			wantError:    "ip=169.254.169.254 reason=cloud_metadata",
+			wantLookups:  []string{allowedHost},
+		},
+		{
+			name: "allowed_host_bypasses_private_block",
+			policy: NetDialPolicy{
+				BlockPrivateIPs: true,
+				AllowedHosts:    []string{"  GAME.Example.COM "},
+			},
+			address:     allowedHost + ":27015",
+			resolved:    []string{"10.0.0.5"},
+			wantIP:      "10.0.0.5",
+			wantPort:    "27015",
+			wantLookups: []string{allowedHost},
+		},
+		{
+			name: "allowlist_match_is_case_insensitive_on_the_requested_host",
+			policy: NetDialPolicy{
+				BlockPrivateIPs: true,
+				AllowedHosts:    []string{allowedHost},
+			},
+			address:     "GAME.Example.COM:27015",
+			resolved:    []string{"10.0.0.5"},
+			wantIP:      "10.0.0.5",
+			wantPort:    "27015",
+			wantLookups: []string{"GAME.Example.COM"},
+		},
+		{
+			name: "allowed_host_never_bypasses_cloud_metadata",
+			policy: NetDialPolicy{
+				BlockPrivateIPs: true,
+				AllowedHosts:    []string{"  GAME.Example.COM "},
+			},
+			address:      allowedHost + ":27015",
+			resolved:     []string{"169.254.169.254"},
+			wantSentinel: ErrDialBlocked,
+			wantError:    "ip=169.254.169.254 reason=cloud_metadata",
+			wantLookups:  []string{allowedHost},
+		},
+		{
+			name: "literal_private_ip_in_allowlist_bypasses_private_block",
+			policy: NetDialPolicy{
+				BlockPrivateIPs: true,
+				AllowedHosts:    []string{"10.0.0.5"},
+			},
+			address:  "10.0.0.5:27015",
+			wantIP:   "10.0.0.5",
+			wantPort: "27015",
+		},
+		{
+			name: "allowlist_matches_the_whole_host_only",
+			policy: NetDialPolicy{
+				BlockPrivateIPs: true,
+				AllowedHosts:    []string{"other.example.com"},
+			},
+			address:      allowedHost + ":27015",
+			resolved:     []string{"10.0.0.5"},
+			wantSentinel: ErrDialBlocked,
+			wantError:    "ip=10.0.0.5 reason=private",
+			wantLookups:  []string{allowedHost},
+		},
+		{
+			name:         "empty_allowlist_bypasses_nothing",
+			policy:       NetDialPolicy{BlockPrivateIPs: true},
+			address:      allowedHost + ":27015",
+			resolved:     []string{"10.0.0.5"},
+			wantSentinel: ErrDialBlocked,
+			wantError:    "ip=10.0.0.5 reason=private",
+			wantLookups:  []string{allowedHost},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			resolver := &stubResolver{err: tt.resolveErr}
+			for _, addr := range tt.resolved {
+				resolver.addrs = append(resolver.addrs, netip.MustParseAddr(addr))
+			}
+
+			runner := NewProtocolRunner(nil, nil, tt.policy)
+			runner.resolver = resolver
+
+			// ACT
+			ip, port, err := runner.resolveAndCheck(context.Background(), tt.address)
+
+			// ASSERT
+			if tt.wantError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantError, "error message mismatch")
+				assert.False(t, ip.IsValid(), "no address is handed back with an error")
+				assert.Empty(t, port, "no port is handed back with an error")
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantIP, ip.String(), "dialled ip")
+				assert.Equal(t, tt.wantPort, port, "dialled port")
+			}
+
+			if tt.wantSentinel != nil {
+				require.ErrorIs(t, err, tt.wantSentinel)
+			}
+
+			assert.Equal(t, tt.wantLookups, resolver.lookups, "hostnames sent to DNS")
+		})
+	}
+}
+
+func TestPluginRconClient_OpenRejectedByPlugin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		openResp  *protocol.RconOpenResponse
+		wantError string
+	}{
+		{
+			name:      "plugin_error_message_is_surfaced",
+			openResp:  &protocol.RconOpenResponse{Error: new("protocol handshake rejected")},
+			wantError: "protocol handshake rejected",
+		},
+		{
+			name:      "missing_error_message_uses_fallback",
+			openResp:  &protocol.RconOpenResponse{},
+			wantError: "plugin rcon open failed",
+		},
+		{
+			name:      "blank_error_message_uses_fallback",
+			openResp:  &protocol.RconOpenResponse{Error: new("")},
+			wantError: "plugin rcon open failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			addr := listenTCP(t)
+			fake := &fakeProtoPlugin{openResp: tt.openResp}
+			registry := NewConnRegistry(8)
+			runner := NewProtocolRunner(
+				managerWithPlugin("plg", fake),
+				registry,
+				NetDialPolicy{MaxTimeout: 2 * time.Second},
+			)
+
+			client, err := runner.RconClient("plg", "myproto", rcon.Config{Address: addr.String(), Password: "pw"})
+			require.NoError(t, err)
+
+			// ACT
+			err = client.Open(context.Background())
+
+			// ASSERT
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError, "error message mismatch")
+			assert.NotErrorIs(t, err, rcon.ErrAuthenticationFailed, "a refused handshake is not an auth failure")
+			assert.Equal(t, 0, registry.Len(), "connection released when the plugin refuses the handshake")
+			assert.NotZero(t, fake.lastHandle, "the plugin was handed a live connection to try")
+		})
+	}
 }

@@ -908,3 +908,75 @@ func scanValue(raw any) ServerSettingValue {
 
 	return value
 }
+
+func TestServerSettingValue_Float(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		value  any
+		want   float64
+		wantOK bool
+	}{
+		{name: "float", value: 3.14, want: 3.14, wantOK: true},
+		{name: "float_zero_is_a_value_not_an_absence", value: 0.0, want: 0, wantOK: true},
+		{name: "negative_float", value: -0.5, want: -0.5, wantOK: true},
+		{name: "int_is_widened", value: 42, want: 42, wantOK: true},
+		{name: "int_zero_is_a_value_not_an_absence", value: 0, want: 0, wantOK: true},
+		{name: "int64_is_widened", value: int64(7), want: 7, wantOK: true},
+		{name: "negative_int_is_widened", value: -3, want: -3, wantOK: true},
+		{name: "numeric_string_is_not_coerced", value: "3.14", want: 0, wantOK: false},
+		{name: "string", value: "high", want: 0, wantOK: false},
+		{name: "bool", value: true, want: 0, wantOK: false},
+		{name: "nil_has_no_value", value: nil, want: 0, wantOK: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			setting := NewServerSettingValue(tt.value)
+
+			// ACT
+			got, ok := setting.Float()
+
+			// ASSERT
+			assert.Equal(t, tt.wantOK, ok, "ok flag for %#v", tt.value)
+			assert.Equal(t, tt.want, got, "float value for %#v", tt.value)
+		})
+	}
+}
+
+func TestServerSettingValue_Float_AfterJSONDecode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		json   string
+		want   float64
+		wantOK bool
+	}{
+		{name: "float_literal", json: `2.5`, want: 2.5, wantOK: true},
+		{name: "int_literal_is_widened", json: `10`, want: 10, wantOK: true},
+		{name: "quoted_number_stays_a_string", json: `"2.5"`, want: 0, wantOK: false},
+		{name: "null", json: `null`, want: 0, wantOK: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			var setting ServerSettingValue
+			require.NoError(t, json.Unmarshal([]byte(tt.json), &setting))
+
+			// ACT
+			got, ok := setting.Float()
+
+			// ASSERT
+			assert.Equal(t, tt.wantOK, ok, "ok flag for %s", tt.json)
+			assert.Equal(t, tt.want, got, "float value for %s", tt.json)
+		})
+	}
+}

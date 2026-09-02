@@ -409,3 +409,103 @@ func TestGameModVar_Normalize(t *testing.T) {
 		})
 	}
 }
+
+func TestGameModVarOption_LabelOrValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		option GameModVarOption
+		want   string
+	}{
+		{
+			name:   "label_is_preferred",
+			option: GameModVarOption{Value: "de_dust2", Label: "Dust II"},
+			want:   "Dust II",
+		},
+		{
+			name:   "empty_label_falls_back_to_value",
+			option: GameModVarOption{Value: "de_dust2"},
+			want:   "de_dust2",
+		},
+		{
+			name:   "translations_alone_do_not_replace_the_label",
+			option: GameModVarOption{Value: "de_nuke", I18n: GameModVarOptionI18n{"ru": {Label: "Нюк"}}},
+			want:   "de_nuke",
+		},
+		{
+			name:   "blank_label_is_a_label",
+			option: GameModVarOption{Value: "de_nuke", Label: " "},
+			want:   " ",
+		},
+		{
+			name:   "both_empty",
+			option: GameModVarOption{},
+			want:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			option := tt.option
+
+			// ACT
+			got := option.LabelOrValue()
+
+			// ASSERT
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGameModVarOptions_LabelFor(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	options := GameModVarOptions{
+		{Value: "de_dust2", Label: "Dust II"},
+		{Value: "de_nuke"},
+		{Value: "", Label: "Not set"},
+	}
+
+	tests := []struct {
+		name    string
+		options GameModVarOptions
+		value   string
+		want    string
+	}{
+		{name: "known_value_with_label", options: options, value: "de_dust2", want: "Dust II"},
+		{name: "known_value_without_label_returns_the_value", options: options, value: "de_nuke", want: "de_nuke"},
+		{name: "empty_value_matches_its_own_option", options: options, value: "", want: "Not set"},
+		{name: "unknown_value_is_returned_unchanged", options: options, value: "cs_office", want: "cs_office"},
+		{name: "empty_list_returns_the_value_unchanged", options: GameModVarOptions{}, value: "de_dust2", want: "de_dust2"},
+		{name: "nil_list_returns_the_value_unchanged", options: nil, value: "de_dust2", want: "de_dust2"},
+		{
+			name:    "lookup_is_case_sensitive",
+			options: options,
+			value:   "DE_DUST2",
+			want:    "DE_DUST2",
+		},
+		{
+			name:    "first_matching_option_wins",
+			options: GameModVarOptions{{Value: "x", Label: "First"}, {Value: "x", Label: "Second"}},
+			value:   "x",
+			want:    "First",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ACT
+			got := tt.options.LabelFor(tt.value)
+
+			// ASSERT
+			assert.Equal(t, tt.want, got, "label for %q", tt.value)
+		})
+	}
+}

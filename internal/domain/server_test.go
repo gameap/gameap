@@ -4,7 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/google/uuid"
+	"github.com/rs/xid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -483,4 +485,82 @@ func TestServer_Fields(t *testing.T) {
 	assert.Equal(t, &now, server.CreatedAt)
 	assert.Equal(t, &now, server.UpdatedAt)
 	assert.Nil(t, server.DeletedAt)
+}
+
+func TestServerInstalledStatus_Valid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		status ServerInstalledStatus
+		want   bool
+	}{
+		{name: "not_installed", status: ServerInstalledStatusNotInstalled, want: true},
+		{name: "installed", status: ServerInstalledStatusInstalled, want: true},
+		{name: "installation_in_progress", status: ServerInstalledStatusInstallationInProg, want: true},
+		{name: "above_the_last_known_status", status: ServerInstalledStatus(3), want: false},
+		{name: "byte_overflow_value", status: ServerInstalledStatus(255), want: false},
+		{name: "negative_value", status: ServerInstalledStatus(-1), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			status := tt.status
+
+			// ACT
+			got := status.Valid()
+
+			// ASSERT
+			assert.Equal(t, tt.want, got, "validity of status %d", int(status))
+		})
+	}
+}
+
+func TestServer_XID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("recovers_the_xid_the_uid_was_built_from", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		want := xid.New()
+		server := &Server{UID: idgen.XIDToUUID(want)}
+
+		// ACT
+		got := server.XID()
+
+		// ASSERT
+		assert.Equal(t, want, got, "XID must round-trip a UID produced by idgen.XIDToUUID")
+	})
+
+	t.Run("matches_the_idgen_conversion_for_a_foreign_uuid", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		server := &Server{UID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")}
+
+		// ACT
+		got := server.XID()
+
+		// ASSERT
+		assert.Equal(t, idgen.UUIDToXID(server.UID), got)
+		assert.Equal(t, got, server.XID(), "conversion must be deterministic")
+	})
+
+	t.Run("zero_uid_maps_to_the_nil_xid", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		server := &Server{}
+
+		// ACT
+		got := server.XID()
+
+		// ASSERT
+		assert.Equal(t, xid.NilID(), got)
+		assert.Equal(t, idgen.UUIDToXID(uuid.Nil), got)
+	})
 }
