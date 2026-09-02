@@ -190,3 +190,176 @@ func metadataWithKeys(count int) Metadata {
 
 	return metadata
 }
+
+func TestNodePatch_Validate_Strings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		patch     NodePatch
+		wantError error
+	}{
+		{
+			name:  "absent_fields_are_left_alone",
+			patch: NodePatch{},
+		},
+		{
+			name: "all_fields_within_limits",
+			patch: NodePatch{
+				Name:         new("node-1"),
+				Location:     new("Frankfurt"),
+				Provider:     new("Hetzner"),
+				WorkPath:     new("/srv/gameap"),
+				SteamcmdPath: new("/srv/gameap/steamcmd"),
+			},
+		},
+
+		{
+			name:      "empty_name",
+			patch:     NodePatch{Name: new("")},
+			wantError: ErrNodeNameRequired,
+		},
+		{
+			name:      "whitespace_only_name_counts_as_empty",
+			patch:     NodePatch{Name: new("   \t\n")},
+			wantError: ErrNodeNameRequired,
+		},
+		{
+			name:  "name_at_the_limit",
+			patch: NodePatch{Name: new(strings.Repeat("n", NodeNameMaxLength))},
+		},
+		{
+			name:      "name_over_the_limit",
+			patch:     NodePatch{Name: new(strings.Repeat("n", NodeNameMaxLength+1))},
+			wantError: ErrNodeNameTooLong,
+		},
+		{
+			// The name is trimmed before it is measured, so padding that pushes
+			// the raw string over the limit is not a rejection.
+			name:  "padded_name_is_trimmed_before_measuring",
+			patch: NodePatch{Name: new("  " + strings.Repeat("n", NodeNameMaxLength) + "  ")},
+		},
+
+		{
+			name:      "empty_location",
+			patch:     NodePatch{Location: new("")},
+			wantError: ErrNodeLocationRequired,
+		},
+		{
+			name:      "whitespace_only_location_counts_as_empty",
+			patch:     NodePatch{Location: new(" ")},
+			wantError: ErrNodeLocationRequired,
+		},
+		{
+			name:  "location_at_the_limit",
+			patch: NodePatch{Location: new(strings.Repeat("l", NodeLocationMaxLength))},
+		},
+		{
+			name:      "location_over_the_limit",
+			patch:     NodePatch{Location: new(strings.Repeat("l", NodeLocationMaxLength+1))},
+			wantError: ErrNodeLocationTooLong,
+		},
+
+		{
+			name:  "empty_provider_is_allowed",
+			patch: NodePatch{Provider: new("")},
+		},
+		{
+			name:  "provider_at_the_limit",
+			patch: NodePatch{Provider: new(strings.Repeat("p", NodeProviderMaxLength))},
+		},
+		{
+			name:      "provider_over_the_limit",
+			patch:     NodePatch{Provider: new(strings.Repeat("p", NodeProviderMaxLength+1))},
+			wantError: ErrNodeProviderTooLong,
+		},
+		{
+			// Unlike the name and the location, the provider is measured raw:
+			// ApplyTo stores it as given, so the column width applies as given.
+			name:      "provider_of_whitespace_over_the_limit",
+			patch:     NodePatch{Provider: new(strings.Repeat(" ", NodeProviderMaxLength+1))},
+			wantError: ErrNodeProviderTooLong,
+		},
+
+		{
+			name:      "empty_work_path",
+			patch:     NodePatch{WorkPath: new("")},
+			wantError: ErrNodeWorkPathRequired,
+		},
+		{
+			name:      "whitespace_only_work_path_counts_as_empty",
+			patch:     NodePatch{WorkPath: new("  ")},
+			wantError: ErrNodeWorkPathRequired,
+		},
+		{
+			name:  "work_path_at_the_limit",
+			patch: NodePatch{WorkPath: new("/" + strings.Repeat("w", NodePathMaxLength-1))},
+		},
+		{
+			name:      "work_path_over_the_limit",
+			patch:     NodePatch{WorkPath: new("/" + strings.Repeat("w", NodePathMaxLength))},
+			wantError: ErrNodePathTooLong,
+		},
+
+		{
+			name:  "empty_steamcmd_path_is_allowed",
+			patch: NodePatch{SteamcmdPath: new("")},
+		},
+		{
+			name:  "steamcmd_path_at_the_limit",
+			patch: NodePatch{SteamcmdPath: new(strings.Repeat("s", NodePathMaxLength))},
+		},
+		{
+			name:      "steamcmd_path_over_the_limit",
+			patch:     NodePatch{SteamcmdPath: new(strings.Repeat("s", NodePathMaxLength+1))},
+			wantError: ErrNodePathTooLong,
+		},
+		{
+			// The steamcmd path is measured raw as well, so trailing padding is
+			// not trimmed away before the length check.
+			name:      "padded_steamcmd_path_is_measured_raw",
+			patch:     NodePatch{SteamcmdPath: new(strings.Repeat("s", NodePathMaxLength) + " ")},
+			wantError: ErrNodePathTooLong,
+		},
+
+		{
+			// Validate reports the first problem, and the fields are checked in
+			// declaration order.
+			name: "name_problem_is_reported_before_a_location_problem",
+			patch: NodePatch{
+				Name:     new(""),
+				Location: new(""),
+			},
+			wantError: ErrNodeNameRequired,
+		},
+		{
+			name: "string_problem_is_reported_before_an_invalid_ip",
+			patch: NodePatch{
+				Name: new(""),
+				IPs:  []string{"not a host!"},
+			},
+			wantError: ErrNodeNameRequired,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			patch := tt.patch
+
+			// ACT
+			err := patch.Validate()
+
+			// ASSERT
+			if tt.wantError == nil {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorIs(t, err, tt.wantError)
+		})
+	}
+}

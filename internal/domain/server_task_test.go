@@ -258,3 +258,67 @@ func TestServerTaskExecution_Fields(t *testing.T) {
 	assert.NotNil(t, exec.ErrorMessage)
 	assert.Equal(t, output, *exec.ErrorMessage)
 }
+
+func TestNewServerTaskOverlapPolicyFromString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  ServerTaskOverlapPolicy
+	}{
+		{name: "skip", input: "skip", want: ServerTaskOverlapPolicySkip},
+		{name: "queue", input: "queue", want: ServerTaskOverlapPolicyQueue},
+		{name: "empty_string_falls_back_to_skip", input: "", want: ServerTaskOverlapPolicySkip},
+		{name: "unknown_value_falls_back_to_skip", input: "parallel", want: ServerTaskOverlapPolicySkip},
+		{name: "uppercase_is_not_recognised", input: "QUEUE", want: ServerTaskOverlapPolicySkip},
+		{name: "padded_value_is_not_recognised", input: " queue ", want: ServerTaskOverlapPolicySkip},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			stored := tt.input
+
+			// ACT
+			got := NewServerTaskOverlapPolicyFromString(stored)
+
+			// ASSERT
+			assert.Equal(t, tt.want, got, "overlap policy for %q", stored)
+		})
+	}
+}
+
+func TestNewServerTaskCatchupPolicyFromString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  ServerTaskCatchupPolicy
+	}{
+		{name: "skip", input: "skip", want: ServerTaskCatchupPolicySkip},
+		{name: "run_once", input: "run_once", want: ServerTaskCatchupPolicyRunOnce},
+		{name: "empty_string_falls_back_to_skip", input: "", want: ServerTaskCatchupPolicySkip},
+		{name: "unknown_value_falls_back_to_skip", input: "run_all", want: ServerTaskCatchupPolicySkip},
+		{name: "uppercase_is_not_recognised", input: "RUN_ONCE", want: ServerTaskCatchupPolicySkip},
+		{name: "hyphenated_variant_is_not_recognised", input: "run-once", want: ServerTaskCatchupPolicySkip},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			stored := tt.input
+
+			// ACT
+			got := NewServerTaskCatchupPolicyFromString(stored)
+
+			// ASSERT
+			assert.Equal(t, tt.want, got, "catchup policy for %q", stored)
+		})
+	}
+}

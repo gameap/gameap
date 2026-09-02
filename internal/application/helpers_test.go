@@ -23,27 +23,18 @@ const wiredEncryptionKey = "0123456789abcdef0123456789abcdef"
 // createTwoFactorManager do not panic in wired containers.
 const wiredAuthSecret = "test-auth-secret-not-for-production"
 
-// newWiredContainer builds a Container backed by a fresh in-memory SQLite
-// shared-cache database with all migrations applied, in-memory cache + pub-sub,
-// a per-test temp filesystem root and valid auth/encryption secrets. It is the
-// shared harness for white-box tests that touch the database, repositories or
-// any wired collaborator. opts allow a test to tweak the config before wiring.
-//
-// It mirrors setupSeederContainer in seeder_test.go but provides the richer
-// config the factory/logic sweeps need; setupSeederContainer is left untouched.
-func newWiredContainer(t *testing.T, opts ...func(*config.Config)) *Container {
+// sqliteWiredConfig builds the config shared by every SQLite-backed test
+// container: a per-test in-memory shared-cache database, in-memory cache and
+// pub-sub, a per-test temp filesystem root, valid auth/encryption secrets and
+// zero ports so nothing binds. The database itself is not opened here — callers
+// either open cfg.DatabaseURL themselves (newWiredContainer, which needs a
+// handle to run migrations against) or let the container's own createDB do it.
+func sqliteWiredConfig(t *testing.T) *config.Config {
 	t.Helper()
-
-	dsn := "file:" + uuid.NewString() + "?mode=memory&cache=shared"
-	db, err := sql.Open("sqlite", dsn)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
 
 	cfg := &config.Config{
 		DatabaseDriver: databaseDriverSQLite,
-		DatabaseURL:    dsn,
+		DatabaseURL:    "file:" + uuid.NewString() + "?mode=memory&cache=shared",
 		EncryptionKey:  wiredEncryptionKey,
 		AuthSecret:     wiredAuthSecret,
 	}
@@ -57,6 +48,31 @@ func newWiredContainer(t *testing.T, opts ...func(*config.Config)) *Container {
 	cfg.GRPC.ExternalPort = 0
 	cfg.HTTPPort = 0
 	cfg.HTTPSPort = 0
+
+	return cfg
+}
+
+// newWiredContainer builds a Container backed by a fresh in-memory SQLite
+// shared-cache database with all migrations applied, in-memory cache + pub-sub,
+// a per-test temp filesystem root and valid auth/encryption secrets. It is the
+// shared harness for white-box tests that touch the database, repositories or
+// any wired collaborator. opts allow a test to tweak the config before wiring.
+//
+// The database handle is injected directly, so the container's own createDB is
+// never reached; container_sqlite_smoke_test.go covers that construction path.
+//
+// It mirrors setupSeederContainer in seeder_test.go but provides the richer
+// config the factory/logic sweeps need; setupSeederContainer is left untouched.
+func newWiredContainer(t *testing.T, opts ...func(*config.Config)) *Container {
+	t.Helper()
+
+	cfg := sqliteWiredConfig(t)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
 
 	for _, opt := range opts {
 		opt(cfg)

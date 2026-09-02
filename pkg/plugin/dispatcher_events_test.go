@@ -249,3 +249,104 @@ func TestDomainUserToProto_carries_identity_only(t *testing.T) {
 	assert.Nil(t, DomainUserToProto(nil))
 	assert.Nil(t, DomainNodeToProto(nil))
 }
+
+func TestDispatcher_DispatchUserEventAsync_delivers_the_user_payload(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	manager := newDispatcherTestManager()
+	plugin, recorder := newRecordingPlugin("watcher", 1, nil, proto.EventType_EVENT_TYPE_USER_UPDATED)
+	manager.plugins["watcher"] = plugin
+
+	dispatcher := NewDispatcher(manager, discardLogger())
+	require.NoError(t, dispatcher.RefreshSubscriptions(context.Background()))
+
+	// ACT
+	dispatcher.DispatchUserEventAsync(context.Background(), proto.EventType_EVENT_TYPE_USER_UPDATED,
+		&domain.User{
+			ID:                     5,
+			Login:                  "alice",
+			Email:                  "alice@example.com",
+			Name:                   new("Alice"),
+			Password:               "$2y$10$hashed-secret",
+			TwoFactorSecret:        new("totp-ciphertext"),
+			TwoFactorRecoveryCodes: new("recovery-codes"),
+		},
+		map[string]string{"source": "profile", "changed_fields": "email"})
+
+	// ASSERT
+	events := waitForEvents(t, recorder, 1)
+	payload := events[0].GetUserEvent()
+	require.NotNil(t, payload)
+	require.NotNil(t, payload.User)
+	assert.Equal(t, uint64(5), payload.User.Id)
+	assert.Equal(t, "alice", payload.User.Login)
+	assert.Equal(t, "alice@example.com", payload.User.Email)
+	assert.Equal(t, "Alice", payload.User.GetName())
+	assert.Equal(t, "profile", payload.ExtraData["source"])
+	assert.Equal(t, "email", payload.ExtraData["changed_fields"])
+	assert.Equal(t, "watcher", events[0].Context.PluginId, "each subscriber sees its own id")
+
+	encoded, err := payload.MarshalVT()
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "hashed-secret", "credentials never reach plugins")
+	assert.NotContains(t, string(encoded), "totp-ciphertext", "2FA material never reaches plugins")
+	assert.NotContains(t, string(encoded), "recovery-codes", "recovery codes never reach plugins")
+}
+
+func TestDispatcher_DispatchUserEventAsync_is_a_noop_on_a_nil_dispatcher(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	var dispatcher *Dispatcher
+
+	// ACT + ASSERT
+	assert.NotPanics(t, func() {
+		dispatcher.DispatchUserEventAsync(context.Background(), proto.EventType_EVENT_TYPE_USER_CREATED,
+			&domain.User{ID: 5, Login: "alice"}, nil)
+	}, "plugins disabled means the event goes nowhere, not a crash")
+}
+
+func TestDispatcher_AsyncBacklog_tracks_in_flight_deliveries(t *testing.T) {
+	t.Parallel()
+
+	// ARRANGE
+	entered := make(chan struct{})
+	release := make(chan struct{})
+
+	manager := newDispatcherTestManager()
+	plugin := &LoadedPlugin{
+		Info:    &proto.PluginInfo{Id: "slow"},
+		Enabled: true,
+		Instance: &mockPluginService{
+			handleEventFunc: func(context.Context, *proto.Event) (*proto.EventResult, error) {
+				close(entered)
+				<-release
+
+				return &proto.EventResult{Handled: true}, nil
+			},
+		},
+	}
+
+	dispatcher := NewDispatcher(manager, discardLogger())
+	dispatcher.subscriptions[proto.EventType_EVENT_TYPE_USER_CREATED] = []*LoadedPlugin{plugin}
+	require.Equal(t, 0, dispatcher.AsyncBacklog(), "an idle dispatcher holds no slots")
+
+	// ACT
+	dispatcher.DispatchUserEventAsync(context.Background(), proto.EventType_EVENT_TYPE_USER_CREATED,
+		&domain.User{ID: 5, Login: "alice"}, nil)
+
+	// ASSERT
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("async delivery never started")
+	}
+
+	assert.Equal(t, 1, dispatcher.AsyncBacklog(), "a delivery in flight occupies one of the bounded slots")
+
+	close(release)
+
+	assert.Eventually(t, func() bool { return dispatcher.AsyncBacklog() == 0 },
+		5*time.Second, 5*time.Millisecond, "the slot is handed back once the delivery finishes")
+}

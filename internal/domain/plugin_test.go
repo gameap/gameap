@@ -6,6 +6,7 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPermissionSatisfied(t *testing.T) {
@@ -74,4 +75,49 @@ func TestPlugin_LoadState(t *testing.T) {
 	assert.Equal(t, "boom", *state.LastError)
 	assert.Equal(t, 4, state.Generation)
 	assert.Equal(t, plugin.LastErrorAt, state.LastErrorAt)
+}
+
+func TestPlugin_MarkActive(t *testing.T) {
+	t.Parallel()
+
+	t.Run("clears_the_previous_failure", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		failedAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
+		loadedAt := time.Date(2026, time.January, 2, 4, 0, 0, 0, time.UTC)
+
+		plugin := &domain.Plugin{Name: "backups", Status: domain.PluginStatusDisabled}
+		plugin.MarkError("wasm module trapped", failedAt)
+
+		// ACT
+		plugin.MarkActive(loadedAt)
+
+		// ASSERT
+		assert.Equal(t, domain.PluginStatusActive, plugin.Status)
+		assert.Nil(t, plugin.LastError, "a successful load must clear the recorded reason")
+		assert.Nil(t, plugin.LastErrorAt, "a successful load must clear the failure timestamp")
+		require.NotNil(t, plugin.LastLoadedAt)
+		assert.Equal(t, loadedAt, *plugin.LastLoadedAt)
+		assert.Equal(t, "backups", plugin.Name, "unrelated fields must be untouched")
+	})
+
+	t.Run("later_load_replaces_the_recorded_load_time", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		first := time.Date(2026, time.January, 2, 3, 0, 0, 0, time.UTC)
+		second := time.Date(2026, time.January, 2, 5, 0, 0, 0, time.UTC)
+
+		plugin := &domain.Plugin{Name: "backups"}
+		plugin.MarkActive(first)
+
+		// ACT
+		plugin.MarkActive(second)
+
+		// ASSERT
+		require.NotNil(t, plugin.LastLoadedAt)
+		assert.Equal(t, second, *plugin.LastLoadedAt)
+		assert.Equal(t, domain.PluginStatusActive, plugin.Status)
+	})
 }

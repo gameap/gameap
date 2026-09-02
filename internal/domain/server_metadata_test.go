@@ -110,3 +110,50 @@ func TestServer_VisibleServerIP(t *testing.T) {
 		})
 	}
 }
+
+func TestIsValidPublicIPMetadata(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		metadata domain.Metadata
+		want     bool
+	}{
+		{name: "nil_bag", metadata: nil, want: true},
+		{name: "key_absent", metadata: domain.Metadata{"docker_image": "gameap/debian"}, want: true},
+		{name: "nil_value", metadata: domain.Metadata{"public_ip": nil}, want: true},
+		{name: "empty_string_clears_the_override", metadata: domain.Metadata{"public_ip": ""}, want: true},
+		{name: "blank_string_clears_the_override", metadata: domain.Metadata{"public_ip": "   "}, want: true},
+		{name: "ipv4", metadata: domain.Metadata{"public_ip": "203.0.113.10"}, want: true},
+		{name: "ipv6", metadata: domain.Metadata{"public_ip": "2001:db8:85a3::8a2e:370:7334"}, want: true},
+		{name: "ipv6_loopback", metadata: domain.Metadata{"public_ip": "::1"}, want: true},
+		{name: "hostname", metadata: domain.Metadata{"public_ip": "play.example.com"}, want: true},
+		{name: "padded_ipv4_is_trimmed_before_the_check", metadata: domain.Metadata{"public_ip": " 203.0.113.10 "}, want: true},
+		{name: "number_value", metadata: domain.Metadata{"public_ip": 12345}, want: false},
+		{name: "bool_value", metadata: domain.Metadata{"public_ip": true}, want: false},
+		{
+			name:     "nested_object_value",
+			metadata: domain.Metadata{"public_ip": map[string]any{"ip": "203.0.113.10"}},
+			want:     false,
+		},
+		{name: "garbage_string", metadata: domain.Metadata{"public_ip": "not a host!"}, want: false},
+		{name: "octet_out_of_range", metadata: domain.Metadata{"public_ip": "203.0.113.999"}, want: false},
+		{name: "address_with_port", metadata: domain.Metadata{"public_ip": "203.0.113.10:27015"}, want: false},
+		{name: "url_instead_of_address", metadata: domain.Metadata{"public_ip": "http://example.com"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			metadata := tt.metadata
+
+			// ACT
+			got := domain.IsValidPublicIPMetadata(metadata)
+
+			// ASSERT
+			assert.Equal(t, tt.want, got, "validity of public_ip %#v", metadata["public_ip"])
+		})
+	}
+}
