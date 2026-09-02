@@ -55,10 +55,63 @@
               "default": "Ragnarok",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                {
+                  "value": "TheIsland",
+                  "label": "The Island"
+                },
+                {
+                  "value": "TheCenter",
+                  "label": "The Center"
+                },
+                {
+                  "value": "ScorchedEarth_P",
+                  "label": "Scorched Earth"
+                },
+                {
+                  "value": "Ragnarok",
+                  "label": "Ragnarok"
+                },
+                {
+                  "value": "Aberration_P",
+                  "label": "Aberration"
+                },
+                {
+                  "value": "Extinction",
+                  "label": "Extinction"
+                },
+                {
+                  "value": "Valguero_P",
+                  "label": "Valguero"
+                },
+                {
+                  "value": "Genesis",
+                  "label": "Genesis: Part 1"
+                },
+                {
+                  "value": "CrystalIsles",
+                  "label": "Crystal Isles"
+                },
+                {
+                  "value": "Gen2",
+                  "label": "Genesis: Part 2"
+                },
+                {
+                  "value": "LostIsland",
+                  "label": "Lost Island"
+                },
+                {
+                  "value": "Fjordur",
+                  "label": "Fjordur"
+                },
+                {
+                  "value": "Aquatica",
+                  "label": "Aquatica"
+                }
+              ],
               "i18n": {
                 "ru": {
                   "info": "Карта по умолчанию"
@@ -237,13 +290,26 @@
           "vars": [
             {
               "var": "default_map",
-              "default": "crossfire",
+              "default": "dm_crossfire",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "dm_boom",
+                "dm_bounce",
+                "dm_chopper",
+                "dm_crossfire",
+                "dm_gasworks",
+                "dm_lambdabunker",
+                "dm_power",
+                "dm_rail",
+                "dm_stack",
+                "dm_stalkyard",
+                "dm_subtransit",
+                "dm_undertow"
+              ],
               "i18n": null
             },
             {
@@ -319,10 +385,37 @@
               "default": "de_dust2",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "as_oilrig",
+                "as_tundra",
+                "cs_747",
+                "cs_assault",
+                "cs_backalley",
+                "cs_estate",
+                "cs_havana",
+                "cs_italy",
+                "cs_militia",
+                "cs_office",
+                "cs_siege",
+                "de_aztec",
+                "de_cbble",
+                "de_chateau",
+                "de_dust",
+                "de_dust2",
+                "de_inferno",
+                "de_nuke",
+                "de_piranesi",
+                "de_prodigy",
+                "de_storm",
+                "de_survivor",
+                "de_torn",
+                "de_train",
+                "de_vegas",
+                "de_vertigo"
+              ],
               "i18n": null
             },
             {
@@ -404,10 +497,28 @@
               "default": "de_dust2",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "ar_baggage",
+                "ar_pool_day",
+                "ar_shoots",
+                "ar_shoots_night",
+                "cs_italy",
+                "cs_office",
+                "de_ancient",
+                "de_ancient_night",
+                "de_anubis",
+                "de_cache",
+                "de_dust2",
+                "de_inferno",
+                "de_mirage",
+                "de_nuke",
+                "de_overpass",
+                "de_train",
+                "de_vertigo"
+              ],
               "i18n": null
             },
             {
@@ -481,10 +592,43 @@
               "default": "de_dust2",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "ar_baggage",
+                "ar_dizzy",
+                "ar_lunacy",
+                "ar_monastery",
+                "ar_shoots",
+                "cs_agency",
+                "cs_assault",
+                "cs_italy",
+                "cs_militia",
+                "cs_office",
+                "de_ancient",
+                "de_anubis",
+                "de_bank",
+                "de_boyard",
+                "de_cache",
+                "de_canals",
+                "de_cbble",
+                "de_chalice",
+                "de_dust2",
+                "de_inferno",
+                "de_lake",
+                "de_mirage",
+                "de_nuke",
+                "de_overpass",
+                "de_safehouse",
+                "de_shortdust",
+                "de_shortnuke",
+                "de_stmarc",
+                "de_sugarcane",
+                "de_train",
+                "de_tuscan",
+                "de_vertigo"
+              ],
               "i18n": null
             },
             {
@@ -558,10 +702,29 @@
               "default": "de_dust2",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "cs_assault",
+                "cs_compound",
+                "cs_havana",
+                "cs_italy",
+                "cs_militia",
+                "cs_office",
+                "de_aztec",
+                "de_cbble",
+                "de_chateau",
+                "de_dust",
+                "de_dust2",
+                "de_inferno",
+                "de_nuke",
+                "de_piranesi",
+                "de_port",
+                "de_prodigy",
+                "de_tides",
+                "de_train"
+              ],
               "i18n": null
             },
             {
@@ -624,10 +787,29 @@
               "default": "de_dust2",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "cs_assault",
+                "cs_compound",
+                "cs_havana",
+                "cs_italy",
+                "cs_militia",
+                "cs_office",
+                "de_aztec",
+                "de_cbble",
+                "de_chateau",
+                "de_dust",
+                "de_dust2",
+                "de_inferno",
+                "de_nuke",
+                "de_piranesi",
+                "de_port",
+                "de_prodigy",
+                "de_tides",
+                "de_train"
+              ],
               "i18n": null
             },
             {
@@ -711,10 +893,36 @@
               "default": "de_dust2",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "as_oilrig",
+                "cs_747",
+                "cs_assault",
+                "cs_backalley",
+                "cs_estate",
+                "cs_havana",
+                "cs_italy",
+                "cs_militia",
+                "cs_office",
+                "cs_siege",
+                "de_airstrip",
+                "de_aztec",
+                "de_cbble",
+                "de_chateau",
+                "de_dust",
+                "de_dust2",
+                "de_inferno",
+                "de_nuke",
+                "de_piranesi",
+                "de_prodigy",
+                "de_storm",
+                "de_survivor",
+                "de_torn",
+                "de_train",
+                "de_vertigo"
+              ],
               "i18n": null
             },
             {
@@ -774,10 +982,36 @@
               "default": "de_dust2",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "as_oilrig",
+                "cs_747",
+                "cs_assault",
+                "cs_backalley",
+                "cs_estate",
+                "cs_havana",
+                "cs_italy",
+                "cs_militia",
+                "cs_office",
+                "cs_siege",
+                "de_airstrip",
+                "de_aztec",
+                "de_cbble",
+                "de_chateau",
+                "de_dust",
+                "de_dust2",
+                "de_inferno",
+                "de_nuke",
+                "de_piranesi",
+                "de_prodigy",
+                "de_storm",
+                "de_survivor",
+                "de_torn",
+                "de_train",
+                "de_vertigo"
+              ],
               "i18n": null
             },
             {
@@ -847,10 +1081,36 @@
               "default": "de_dust2",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "as_oilrig",
+                "cs_747",
+                "cs_assault",
+                "cs_backalley",
+                "cs_estate",
+                "cs_havana",
+                "cs_italy",
+                "cs_militia",
+                "cs_office",
+                "cs_siege",
+                "de_airstrip",
+                "de_aztec",
+                "de_cbble",
+                "de_chateau",
+                "de_dust",
+                "de_dust2",
+                "de_inferno",
+                "de_nuke",
+                "de_piranesi",
+                "de_prodigy",
+                "de_storm",
+                "de_survivor",
+                "de_torn",
+                "de_train",
+                "de_vertigo"
+              ],
               "i18n": null
             },
             {
@@ -921,13 +1181,36 @@
           "vars": [
             {
               "var": "default_map",
-              "default": "de_dust2",
+              "default": "de_dust2_cz",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "cs_downed_cz",
+                "cs_havana_cz",
+                "cs_italy_cz",
+                "cs_militia_cz",
+                "cs_office_cz",
+                "de_airstrip_cz",
+                "de_aztec_cz",
+                "de_cbble_cz",
+                "de_chateau_cz",
+                "de_corruption_cz",
+                "de_dust2_cz",
+                "de_dust_cz",
+                "de_fastline_cz",
+                "de_inferno_cz",
+                "de_piranesi_cz",
+                "de_prodigy_cz",
+                "de_sienna_cz",
+                "de_stadium_cz",
+                "de_tides_cz",
+                "de_torn_cz",
+                "de_truth_cz",
+                "de_vostok_cz"
+              ],
               "i18n": null
             },
             {
@@ -998,13 +1281,21 @@
           "vars": [
             {
               "var": "default_map",
-              "default": "dm1",
+              "default": "dcdm5",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "dcdm5",
+                "dmc_dm2",
+                "dmc_dm3",
+                "dmc_dm4",
+                "dmc_dm6",
+                "dmc_e1m2",
+                "p_se_3"
+              ],
               "i18n": null
             },
             {
@@ -1078,10 +1369,33 @@
               "default": "dod_caen",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "dod_anzio",
+                "dod_avalanche",
+                "dod_caen",
+                "dod_charlie",
+                "dod_chemille",
+                "dod_donner",
+                "dod_escape",
+                "dod_falaise",
+                "dod_flash",
+                "dod_flugplatz",
+                "dod_forest",
+                "dod_glider",
+                "dod_jagd",
+                "dod_kalt",
+                "dod_kraftstoff",
+                "dod_merderet",
+                "dod_northbound",
+                "dod_saints",
+                "dod_sturm",
+                "dod_switch",
+                "dod_vicenza",
+                "dod_zalec"
+              ],
               "i18n": null
             },
             {
@@ -1155,10 +1469,20 @@
               "default": "dod_anzio",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "dod_anzio",
+                "dod_argentan",
+                "dod_avalanche",
+                "dod_colmar",
+                "dod_donner",
+                "dod_flash",
+                "dod_jagd",
+                "dod_kalt",
+                "dod_palermo"
+              ],
               "i18n": null
             },
             {
@@ -1471,10 +1795,13 @@
               "default": "gm_flatgrass",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "gm_construct",
+                "gm_flatgrass"
+              ],
               "i18n": null
             },
             {
@@ -1592,10 +1919,19 @@
               "default": "dm_lockdown",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "dm_lockdown",
+                "dm_overwatch",
+                "dm_powerhouse",
+                "dm_resistance",
+                "dm_runoff",
+                "dm_steamlab",
+                "dm_underpass",
+                "halls3"
+              ],
               "i18n": null
             },
             {
@@ -1745,10 +2081,115 @@
               "default": "l4d_hospital01_apartment",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                {
+                  "value": "l4d_hospital01_apartment",
+                  "label": "No Mercy - l4d_hospital01_apartment"
+                },
+                {
+                  "value": "l4d_hospital02_subway",
+                  "label": "No Mercy - l4d_hospital02_subway"
+                },
+                {
+                  "value": "l4d_hospital03_sewers",
+                  "label": "No Mercy - l4d_hospital03_sewers"
+                },
+                {
+                  "value": "l4d_hospital04_interior",
+                  "label": "No Mercy - l4d_hospital04_interior"
+                },
+                {
+                  "value": "l4d_hospital05_rooftop",
+                  "label": "No Mercy - l4d_hospital05_rooftop"
+                },
+                {
+                  "value": "l4d_garage01_alleys",
+                  "label": "Crash Course - l4d_garage01_alleys"
+                },
+                {
+                  "value": "l4d_garage02_lots",
+                  "label": "Crash Course - l4d_garage02_lots"
+                },
+                {
+                  "value": "l4d_smalltown01_caves",
+                  "label": "Death Toll - l4d_smalltown01_caves"
+                },
+                {
+                  "value": "l4d_smalltown02_drainage",
+                  "label": "Death Toll - l4d_smalltown02_drainage"
+                },
+                {
+                  "value": "l4d_smalltown03_ranchhouse",
+                  "label": "Death Toll - l4d_smalltown03_ranchhouse"
+                },
+                {
+                  "value": "l4d_smalltown04_mainstreet",
+                  "label": "Death Toll - l4d_smalltown04_mainstreet"
+                },
+                {
+                  "value": "l4d_smalltown05_houseboat",
+                  "label": "Death Toll - l4d_smalltown05_houseboat"
+                },
+                {
+                  "value": "l4d_airport01_greenhouse",
+                  "label": "Dead Air - l4d_airport01_greenhouse"
+                },
+                {
+                  "value": "l4d_airport02_offices",
+                  "label": "Dead Air - l4d_airport02_offices"
+                },
+                {
+                  "value": "l4d_airport03_garage",
+                  "label": "Dead Air - l4d_airport03_garage"
+                },
+                {
+                  "value": "l4d_airport04_terminal",
+                  "label": "Dead Air - l4d_airport04_terminal"
+                },
+                {
+                  "value": "l4d_airport05_runway",
+                  "label": "Dead Air - l4d_airport05_runway"
+                },
+                {
+                  "value": "l4d_farm01_hilltop",
+                  "label": "Blood Harvest - l4d_farm01_hilltop"
+                },
+                {
+                  "value": "l4d_farm02_traintunnel",
+                  "label": "Blood Harvest - l4d_farm02_traintunnel"
+                },
+                {
+                  "value": "l4d_farm03_bridge",
+                  "label": "Blood Harvest - l4d_farm03_bridge"
+                },
+                {
+                  "value": "l4d_farm04_barn",
+                  "label": "Blood Harvest - l4d_farm04_barn"
+                },
+                {
+                  "value": "l4d_farm05_cornfield",
+                  "label": "Blood Harvest - l4d_farm05_cornfield"
+                },
+                {
+                  "value": "l4d_river01_docks",
+                  "label": "The Sacrifice - l4d_river01_docks"
+                },
+                {
+                  "value": "l4d_river02_barge",
+                  "label": "The Sacrifice - l4d_river02_barge"
+                },
+                {
+                  "value": "l4d_river03_port",
+                  "label": "The Sacrifice - l4d_river03_port"
+                },
+                {
+                  "value": "l4d_sv_lighthouse",
+                  "label": "The Last Stand - l4d_sv_lighthouse"
+                }
+              ],
               "i18n": null
             }
           ],
@@ -1800,10 +2241,239 @@
               "default": "c2m1_highway",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                {
+                  "value": "c1m1_hotel",
+                  "label": "Dead Center - c1m1_hotel"
+                },
+                {
+                  "value": "c1m2_streets",
+                  "label": "Dead Center - c1m2_streets"
+                },
+                {
+                  "value": "c1m3_mall",
+                  "label": "Dead Center - c1m3_mall"
+                },
+                {
+                  "value": "c1m4_atrium",
+                  "label": "Dead Center - c1m4_atrium"
+                },
+                {
+                  "value": "c2m1_highway",
+                  "label": "Dark Carnival - c2m1_highway"
+                },
+                {
+                  "value": "c2m2_fairgrounds",
+                  "label": "Dark Carnival - c2m2_fairgrounds"
+                },
+                {
+                  "value": "c2m3_coaster",
+                  "label": "Dark Carnival - c2m3_coaster"
+                },
+                {
+                  "value": "c2m4_barns",
+                  "label": "Dark Carnival - c2m4_barns"
+                },
+                {
+                  "value": "c2m5_concert",
+                  "label": "Dark Carnival - c2m5_concert"
+                },
+                {
+                  "value": "c3m1_plankcountry",
+                  "label": "Swamp Fever - c3m1_plankcountry"
+                },
+                {
+                  "value": "c3m2_swamp",
+                  "label": "Swamp Fever - c3m2_swamp"
+                },
+                {
+                  "value": "c3m3_shantytown",
+                  "label": "Swamp Fever - c3m3_shantytown"
+                },
+                {
+                  "value": "c3m4_plantation",
+                  "label": "Swamp Fever - c3m4_plantation"
+                },
+                {
+                  "value": "c4m1_milltown_a",
+                  "label": "Hard Rain - c4m1_milltown_a"
+                },
+                {
+                  "value": "c4m2_sugarmill_a",
+                  "label": "Hard Rain - c4m2_sugarmill_a"
+                },
+                {
+                  "value": "c4m3_sugarmill_b",
+                  "label": "Hard Rain - c4m3_sugarmill_b"
+                },
+                {
+                  "value": "c4m4_milltown_b",
+                  "label": "Hard Rain - c4m4_milltown_b"
+                },
+                {
+                  "value": "c4m5_milltown_escape",
+                  "label": "Hard Rain - c4m5_milltown_escape"
+                },
+                {
+                  "value": "c5m1_waterfront",
+                  "label": "The Parish - c5m1_waterfront"
+                },
+                {
+                  "value": "c5m2_park",
+                  "label": "The Parish - c5m2_park"
+                },
+                {
+                  "value": "c5m3_cemetery",
+                  "label": "The Parish - c5m3_cemetery"
+                },
+                {
+                  "value": "c5m4_quarter",
+                  "label": "The Parish - c5m4_quarter"
+                },
+                {
+                  "value": "c5m5_bridge",
+                  "label": "The Parish - c5m5_bridge"
+                },
+                {
+                  "value": "c6m1_riverbank",
+                  "label": "The Passing - c6m1_riverbank"
+                },
+                {
+                  "value": "c6m2_bedlam",
+                  "label": "The Passing - c6m2_bedlam"
+                },
+                {
+                  "value": "c6m3_port",
+                  "label": "The Passing - c6m3_port"
+                },
+                {
+                  "value": "c7m1_docks",
+                  "label": "The Sacrifice - c7m1_docks"
+                },
+                {
+                  "value": "c7m2_barge",
+                  "label": "The Sacrifice - c7m2_barge"
+                },
+                {
+                  "value": "c7m3_port",
+                  "label": "The Sacrifice - c7m3_port"
+                },
+                {
+                  "value": "c8m1_apartment",
+                  "label": "No Mercy - c8m1_apartment"
+                },
+                {
+                  "value": "c8m2_subway",
+                  "label": "No Mercy - c8m2_subway"
+                },
+                {
+                  "value": "c8m3_sewers",
+                  "label": "No Mercy - c8m3_sewers"
+                },
+                {
+                  "value": "c8m4_interior",
+                  "label": "No Mercy - c8m4_interior"
+                },
+                {
+                  "value": "c8m5_rooftop",
+                  "label": "No Mercy - c8m5_rooftop"
+                },
+                {
+                  "value": "c9m1_alleys",
+                  "label": "Crash Course - c9m1_alleys"
+                },
+                {
+                  "value": "c9m2_lots",
+                  "label": "Crash Course - c9m2_lots"
+                },
+                {
+                  "value": "c10m1_caves",
+                  "label": "Death Toll - c10m1_caves"
+                },
+                {
+                  "value": "c10m2_drainage",
+                  "label": "Death Toll - c10m2_drainage"
+                },
+                {
+                  "value": "c10m3_ranchhouse",
+                  "label": "Death Toll - c10m3_ranchhouse"
+                },
+                {
+                  "value": "c10m4_mainstreet",
+                  "label": "Death Toll - c10m4_mainstreet"
+                },
+                {
+                  "value": "c10m5_houseboat",
+                  "label": "Death Toll - c10m5_houseboat"
+                },
+                {
+                  "value": "c11m1_greenhouse",
+                  "label": "Dead Air - c11m1_greenhouse"
+                },
+                {
+                  "value": "c11m2_offices",
+                  "label": "Dead Air - c11m2_offices"
+                },
+                {
+                  "value": "c11m3_garage",
+                  "label": "Dead Air - c11m3_garage"
+                },
+                {
+                  "value": "c11m4_terminal",
+                  "label": "Dead Air - c11m4_terminal"
+                },
+                {
+                  "value": "c11m5_runway",
+                  "label": "Dead Air - c11m5_runway"
+                },
+                {
+                  "value": "c12m1_hilltop",
+                  "label": "Blood Harvest - c12m1_hilltop"
+                },
+                {
+                  "value": "c12m2_traintunnel",
+                  "label": "Blood Harvest - c12m2_traintunnel"
+                },
+                {
+                  "value": "c12m3_bridge",
+                  "label": "Blood Harvest - c12m3_bridge"
+                },
+                {
+                  "value": "c12m4_barn",
+                  "label": "Blood Harvest - c12m4_barn"
+                },
+                {
+                  "value": "c12m5_cornfield",
+                  "label": "Blood Harvest - c12m5_cornfield"
+                },
+                {
+                  "value": "c13m1_alpinecreek",
+                  "label": "Cold Stream - c13m1_alpinecreek"
+                },
+                {
+                  "value": "c13m2_southpinestream",
+                  "label": "Cold Stream - c13m2_southpinestream"
+                },
+                {
+                  "value": "c13m3_memorialbridge",
+                  "label": "Cold Stream - c13m3_memorialbridge"
+                },
+                {
+                  "value": "c13m4_cutthroatcreek",
+                  "label": "Cold Stream - c13m4_cutthroatcreek"
+                },
+                {
+                  "value": "c14m1_junkyard",
+                  "label": "The Last Stand - c14m1_junkyard"
+                },
+                {
+                  "value": "c14m2_lighthouse",
+                  "label": "The Last Stand - c14m2_lighthouse"
+                }
+              ],
               "i18n": null
             }
           ],
@@ -2159,13 +2829,39 @@
           "vars": [
             {
               "var": "default_map",
-              "default": "crossfire",
+              "default": "op4_bootcamp",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "op4_bootcamp",
+                "op4_datacore",
+                "op4_demise",
+                "op4_disposal",
+                "op4_gasworks",
+                "op4_kbase",
+                "op4_kndyone",
+                "op4_meanie",
+                "op4_outpost",
+                "op4_park",
+                "op4_repent",
+                "op4_rubble",
+                "op4_xendance",
+                "op4cp_park",
+                "op4ctf_biodomes",
+                "op4ctf_chasm",
+                "op4ctf_crash",
+                "op4ctf_dam",
+                "op4ctf_gunyard",
+                "op4ctf_hairball",
+                "op4ctf_mortar",
+                "op4ctf_power",
+                "op4ctf_repent",
+                "op4ctf_wonderland",
+                "op4ctf_xendance"
+              ],
               "i18n": null
             },
             {
@@ -2247,13 +2943,46 @@
             },
             {
               "var": "map",
-              "default": "base1",
+              "default": "q2dm1",
               "info": "Map of the server",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                {
+                  "value": "q2dm1",
+                  "label": "q2dm1 - The Edge"
+                },
+                {
+                  "value": "q2dm2",
+                  "label": "q2dm2 - Tokay's Towers"
+                },
+                {
+                  "value": "q2dm3",
+                  "label": "q2dm3 - The Frag Pipe"
+                },
+                {
+                  "value": "q2dm4",
+                  "label": "q2dm4 - Lost Hallways"
+                },
+                {
+                  "value": "q2dm5",
+                  "label": "q2dm5 - The Pits"
+                },
+                {
+                  "value": "q2dm6",
+                  "label": "q2dm6 - Lava Tomb"
+                },
+                {
+                  "value": "q2dm7",
+                  "label": "q2dm7 - The Slimy Place"
+                },
+                {
+                  "value": "q2dm8",
+                  "label": "q2dm8 - Warehouse"
+                }
+              ],
               "i18n": null
             },
             {
@@ -2349,10 +3078,136 @@
               "default": "q3dm17",
               "info": "Default map of the server",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                {
+                  "value": "q3dm0",
+                  "label": "q3dm0 - Introduction"
+                },
+                {
+                  "value": "q3dm1",
+                  "label": "q3dm1 - Arena Gate"
+                },
+                {
+                  "value": "q3dm2",
+                  "label": "q3dm2 - House of Pain"
+                },
+                {
+                  "value": "q3dm3",
+                  "label": "q3dm3 - Arena of Death"
+                },
+                {
+                  "value": "q3dm4",
+                  "label": "q3dm4 - The Place of Many Deaths"
+                },
+                {
+                  "value": "q3dm5",
+                  "label": "q3dm5 - The Forgotten Place"
+                },
+                {
+                  "value": "q3dm6",
+                  "label": "q3dm6 - The Camping Grounds"
+                },
+                {
+                  "value": "q3dm7",
+                  "label": "q3dm7 - Temple of Retribution"
+                },
+                {
+                  "value": "q3dm8",
+                  "label": "q3dm8 - Brimstone Abbey"
+                },
+                {
+                  "value": "q3dm9",
+                  "label": "q3dm9 - Hero's Keep"
+                },
+                {
+                  "value": "q3dm10",
+                  "label": "q3dm10 - The Nameless Place"
+                },
+                {
+                  "value": "q3dm11",
+                  "label": "q3dm11 - Deva Station"
+                },
+                {
+                  "value": "q3dm12",
+                  "label": "q3dm12 - The Dredwerkz"
+                },
+                {
+                  "value": "q3dm13",
+                  "label": "q3dm13 - Lost World"
+                },
+                {
+                  "value": "q3dm14",
+                  "label": "q3dm14 - Grim Dungeons"
+                },
+                {
+                  "value": "q3dm15",
+                  "label": "q3dm15 - Demon Keep"
+                },
+                {
+                  "value": "q3dm16",
+                  "label": "q3dm16 - The Bouncy Map"
+                },
+                {
+                  "value": "q3dm17",
+                  "label": "q3dm17 - The Longest Yard"
+                },
+                {
+                  "value": "q3dm18",
+                  "label": "q3dm18 - Space Chamber"
+                },
+                {
+                  "value": "q3dm19",
+                  "label": "q3dm19 - Apocalypse Void"
+                },
+                {
+                  "value": "q3tourney1",
+                  "label": "q3tourney1 - Powerstation 0218"
+                },
+                {
+                  "value": "q3tourney2",
+                  "label": "q3tourney2 - The Proving Grounds"
+                },
+                {
+                  "value": "q3tourney3",
+                  "label": "q3tourney3 - Hell's Gate"
+                },
+                {
+                  "value": "q3tourney4",
+                  "label": "q3tourney4 - Vertical Vengeance"
+                },
+                {
+                  "value": "q3tourney5",
+                  "label": "q3tourney5 - Fatal Instinct"
+                },
+                {
+                  "value": "q3tourney6",
+                  "label": "q3tourney6 - The Very End of You"
+                },
+                {
+                  "value": "q3ctf1",
+                  "label": "q3ctf1 - Dueling Keeps"
+                },
+                {
+                  "value": "q3ctf2",
+                  "label": "q3ctf2 - Troubled Waters"
+                },
+                {
+                  "value": "q3ctf3",
+                  "label": "q3ctf3 - The Stronghold"
+                },
+                {
+                  "value": "q3ctf4",
+                  "label": "q3ctf4 - Space CTF"
+                },
+                "q3tourney6_ctf",
+                "pro-q3dm6",
+                "pro-q3dm13",
+                "pro-q3tourney2",
+                "pro-q3tourney4"
+              ],
               "i18n": null
             },
             {
@@ -2423,10 +3278,136 @@
               "default": "q3dm17",
               "info": "Default map of the server",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                {
+                  "value": "q3dm0",
+                  "label": "q3dm0 - Introduction"
+                },
+                {
+                  "value": "q3dm1",
+                  "label": "q3dm1 - Arena Gate"
+                },
+                {
+                  "value": "q3dm2",
+                  "label": "q3dm2 - House of Pain"
+                },
+                {
+                  "value": "q3dm3",
+                  "label": "q3dm3 - Arena of Death"
+                },
+                {
+                  "value": "q3dm4",
+                  "label": "q3dm4 - The Place of Many Deaths"
+                },
+                {
+                  "value": "q3dm5",
+                  "label": "q3dm5 - The Forgotten Place"
+                },
+                {
+                  "value": "q3dm6",
+                  "label": "q3dm6 - The Camping Grounds"
+                },
+                {
+                  "value": "q3dm7",
+                  "label": "q3dm7 - Temple of Retribution"
+                },
+                {
+                  "value": "q3dm8",
+                  "label": "q3dm8 - Brimstone Abbey"
+                },
+                {
+                  "value": "q3dm9",
+                  "label": "q3dm9 - Hero's Keep"
+                },
+                {
+                  "value": "q3dm10",
+                  "label": "q3dm10 - The Nameless Place"
+                },
+                {
+                  "value": "q3dm11",
+                  "label": "q3dm11 - Deva Station"
+                },
+                {
+                  "value": "q3dm12",
+                  "label": "q3dm12 - The Dredwerkz"
+                },
+                {
+                  "value": "q3dm13",
+                  "label": "q3dm13 - Lost World"
+                },
+                {
+                  "value": "q3dm14",
+                  "label": "q3dm14 - Grim Dungeons"
+                },
+                {
+                  "value": "q3dm15",
+                  "label": "q3dm15 - Demon Keep"
+                },
+                {
+                  "value": "q3dm16",
+                  "label": "q3dm16 - The Bouncy Map"
+                },
+                {
+                  "value": "q3dm17",
+                  "label": "q3dm17 - The Longest Yard"
+                },
+                {
+                  "value": "q3dm18",
+                  "label": "q3dm18 - Space Chamber"
+                },
+                {
+                  "value": "q3dm19",
+                  "label": "q3dm19 - Apocalypse Void"
+                },
+                {
+                  "value": "q3tourney1",
+                  "label": "q3tourney1 - Powerstation 0218"
+                },
+                {
+                  "value": "q3tourney2",
+                  "label": "q3tourney2 - The Proving Grounds"
+                },
+                {
+                  "value": "q3tourney3",
+                  "label": "q3tourney3 - Hell's Gate"
+                },
+                {
+                  "value": "q3tourney4",
+                  "label": "q3tourney4 - Vertical Vengeance"
+                },
+                {
+                  "value": "q3tourney5",
+                  "label": "q3tourney5 - Fatal Instinct"
+                },
+                {
+                  "value": "q3tourney6",
+                  "label": "q3tourney6 - The Very End of You"
+                },
+                {
+                  "value": "q3ctf1",
+                  "label": "q3ctf1 - Dueling Keeps"
+                },
+                {
+                  "value": "q3ctf2",
+                  "label": "q3ctf2 - Troubled Waters"
+                },
+                {
+                  "value": "q3ctf3",
+                  "label": "q3ctf3 - The Stronghold"
+                },
+                {
+                  "value": "q3ctf4",
+                  "label": "q3ctf4 - Space CTF"
+                },
+                "q3tourney6_ctf",
+                "pro-q3dm6",
+                "pro-q3dm13",
+                "pro-q3tourney2",
+                "pro-q3tourney4"
+              ],
               "i18n": null
             },
             {
@@ -2500,10 +3481,14 @@
               "default": "rc_arena",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "rc_arena",
+                "rc_deathmatch",
+                "rc_deathmatch2"
+              ],
               "i18n": null
             },
             {
@@ -2845,10 +3830,53 @@
               "default": "svencoop1",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "abandoned",
+                "BlackMesaEPF",
+                "bm_sts",
+                "crystal",
+                "ctf_warforts",
+                "deadsimpleneo2",
+                "desertcircle",
+                "fortified1",
+                "hl_c00",
+                "hl_t00",
+                "hplanet",
+                "incoming",
+                "infested",
+                "intruder",
+                "judgement",
+                "last",
+                "mommamesa",
+                "mustard",
+                "osprey",
+                "polar_rescue",
+                "quarter",
+                "sandstone",
+                "sc_another",
+                "sc_doc",
+                "sc_mazing",
+                "sc_persia",
+                "sc_psyko",
+                "sc_robination_revised",
+                "sc_tetris1",
+                "stadium4",
+                "suspension",
+                "svencoop1",
+                "svencoop2",
+                "th_ep1_00",
+                "th_ep2_00",
+                "th_ep3_00",
+                "th_escape",
+                "toadsnatch",
+                "toonrun1",
+                "turretfortress",
+                "uplink",
+                "yabma"
+              ],
               "i18n": null
             },
             {
@@ -2911,10 +3939,30 @@
               "default": "d1_trainstation_01",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "d1_canals_01",
+                "d1_eli_01",
+                "d1_town_01",
+                "d1_trainstation_01",
+                "d2_coast_01",
+                "d2_prison_01",
+                "d3_breen_01",
+                "d3_c17_01",
+                "d3_citadel_01",
+                "ep1_c17_00",
+                "ep1_citadel_00",
+                "ep2_outland_01",
+                "syn_antlions_way",
+                "syn_canal_escape_part1",
+                "syn_canal_escape_part2",
+                "syn_canal_escape_part3",
+                "syn_oldcanals",
+                "syn_silent_house",
+                "syn_takeover"
+              ],
               "i18n": null
             },
             {
@@ -3032,10 +4080,97 @@
               "default": "pl_goldrush",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "arena_badlands",
+                "arena_byre",
+                "arena_granary",
+                "arena_lumberyard",
+                "arena_nucleus",
+                "arena_offblast_final",
+                "arena_ravine",
+                "arena_sawmill",
+                "arena_watchtower",
+                "arena_well",
+                "cp_5gorge",
+                "cp_badlands",
+                "cp_coldfront",
+                "cp_degrootkeep",
+                "cp_dustbowl",
+                "cp_egypt_final",
+                "cp_fastlane",
+                "cp_foundry",
+                "cp_freight_final1",
+                "cp_gorge",
+                "cp_granary",
+                "cp_gravelpit",
+                "cp_gullywash_final1",
+                "cp_junction_final",
+                "cp_mercenarypark",
+                "cp_metalworks",
+                "cp_mossrock",
+                "cp_mountainlab",
+                "cp_process_final",
+                "cp_snakewater_final1",
+                "cp_standin_final",
+                "cp_steel",
+                "cp_sunshine",
+                "cp_vanguard",
+                "cp_well",
+                "cp_yukon_final",
+                "ctf_2fort",
+                "ctf_doublecross",
+                "ctf_foundry",
+                "ctf_gorge",
+                "ctf_hellfire",
+                "ctf_landfall",
+                "ctf_sawmill",
+                "ctf_thundermountain",
+                "ctf_turbine",
+                "ctf_well",
+                "koth_badlands",
+                "koth_harvest_final",
+                "koth_highpass",
+                "koth_king",
+                "koth_lakeside_final",
+                "koth_lazarus",
+                "koth_nucleus",
+                "koth_probed",
+                "koth_sawmill",
+                "koth_suijin",
+                "koth_viaduct",
+                "mvm_bigrock",
+                "mvm_coaltown",
+                "mvm_decoy",
+                "mvm_ghost_town",
+                "mvm_mannhattan",
+                "mvm_mannworks",
+                "mvm_rottenburg",
+                "pass_brickyard",
+                "pass_district",
+                "pass_timbertown",
+                "pd_watergate",
+                "pl_badwater",
+                "pl_barnblitz",
+                "pl_borneo",
+                "pl_cactuscanyon",
+                "pl_frontier_final",
+                "pl_goldrush",
+                "pl_hoodoo_final",
+                "pl_snowycoast",
+                "pl_swiftwater_final1",
+                "pl_thundermountain",
+                "pl_upward",
+                "plr_bananabay",
+                "plr_hightower",
+                "plr_nightfall_final",
+                "plr_pipeline",
+                "rd_asteroid",
+                "sd_doomsday",
+                "tc_hydro"
+              ],
               "i18n": null
             },
             {
@@ -3109,10 +4244,26 @@
               "default": "2fort",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "2fort",
+                "avanti",
+                "badlands",
+                "casbah",
+                "crossover2",
+                "cz2",
+                "dustbowl",
+                "epicenter",
+                "flagrun",
+                "hunted",
+                "push",
+                "ravelin",
+                "rock2",
+                "warpath",
+                "well"
+              ],
               "i18n": null
             },
             {
@@ -3306,10 +4457,23 @@
               "default": "crossfire",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "boot_camp",
+                "bounce",
+                "crossfire",
+                "datacore",
+                "frenzy",
+                "gasworks",
+                "lambda_bunker",
+                "rapidcore",
+                "snark_pit",
+                "stalkyard",
+                "subtransit",
+                "undertow"
+              ],
               "i18n": null
             },
             {
@@ -3369,10 +4533,23 @@
               "default": "crossfire",
               "info": "Default Map",
               "admin_var": false,
-              "type": "",
+              "type": "select",
               "description": "",
-              "allow_custom": false,
-              "options": null,
+              "allow_custom": true,
+              "options": [
+                "boot_camp",
+                "bounce",
+                "crossfire",
+                "datacore",
+                "frenzy",
+                "gasworks",
+                "lambda_bunker",
+                "rapidcore",
+                "snark_pit",
+                "stalkyard",
+                "subtransit",
+                "undertow"
+              ],
               "i18n": null
             },
             {
