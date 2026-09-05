@@ -31,7 +31,6 @@ require (
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/rs/cors v1.11.1
 	github.com/rs/xid v1.6.0
-	github.com/rumblefrog/go-a2s v1.0.3
 	github.com/samber/lo v1.53.0
 	github.com/soheilhy/cmux v0.1.5
 	github.com/stretchr/testify v1.12.1
