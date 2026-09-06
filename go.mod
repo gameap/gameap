@@ -13,7 +13,7 @@ require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/coder/websocket v1.8.15
 	github.com/go-acme/lego/v4 v4.35.2
-	github.com/go-sql-driver/mysql v1.10.0
+	github.com/go-sql-driver/mysql v1.10.1
 	github.com/goccy/go-yaml v1.19.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
@@ -36,7 +36,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/tetratelabs/wazero v1.12.0
 	go.uber.org/mock v0.6.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/mod v0.40.0
 	golang.org/x/net v0.58.0
 	golang.org/x/sync v0.22.0
@@ -44,7 +44,7 @@ require (
 	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
-	modernc.org/sqlite v1.57.0
+	modernc.org/sqlite v1.58.0
 )
 
 require (
@@ -87,7 +87,7 @@ require (
 	golang.org/x/tools v0.49.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260720211330-0afa2a65878a // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
-	modernc.org/libc v1.74.4 // indirect
+	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.11.0 // indirect
+	modernc.org/memory v1.12.1 // indirect
 )
