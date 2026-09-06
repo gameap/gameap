@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       govulncheck-version:
-        description: 'govulncheck version override (e.g. v1.1.4). Default uses the pin in the workflow.'
+        description: 'govulncheck version override (e.g. v1.7.0). Default uses the pin in the workflow.'
         required: false
         default: ''
         type: string
@@ -33,7 +33,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GOVULNCHECK_VERSION: v1.1.4
+  # govulncheck embeds golang.org/x/tools/go/ssa, so source mode can only analyse
+  # code written in a language version that x/tools release understands. v1.1.4
+  # (x/tools v0.29.0) panicked on the Go 1.27 promoted-field composite literal in
+  # pkg/auth/jwt.go. Bump this pin with every Go major upgrade.
+  GOVULNCHECK_VERSION: v1.7.0
 
 jobs:
   scan:
