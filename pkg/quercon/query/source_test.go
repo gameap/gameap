@@ -485,19 +485,26 @@ func TestQuerySource(t *testing.T) {
 
 	t.Run("cancelled_context_interrupts_blocked_read", func(t *testing.T) {
 		t.Parallel()
-		// ARRANGE — the player query is never answered and the context is cancelled while the read is blocked.
+		// ARRANGE — the player query is never answered and the fake server cancels the context as soon as the
+		// player request reaches it: the info query is answered by then and the client is waiting on the player
+		// reply, so cancellation lands on the blocked read rather than at some point of the query a timer picked.
+		cancelCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
 		port := fakeUDPServer(t, func(request []byte) [][]byte {
-			if len(request) >= 5 && request[4] == 'T' {
+			if len(request) < 5 {
+				return nil
+			}
+
+			switch request[4] {
+			case 'T':
 				return [][]byte{buildA2SInfoResponse("Cancelled", "cs_office", 1, 16)}
+			case 'U':
+				cancel()
 			}
 
 			return nil
 		})
-
-		cancelCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		time.AfterFunc(100*time.Millisecond, cancel)
 
 		// ACT
 		start := time.Now()
