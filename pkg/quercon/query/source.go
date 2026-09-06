@@ -58,8 +58,9 @@ func querySource(ctx context.Context, host string, port int) (*Result, error) {
 	}
 
 	address := net.JoinHostPort(host, strconv.Itoa(port))
+	deadline := a2sDeadline(ctx)
 
-	info, err := queryA2SInfo(ctx, address)
+	info, err := queryA2SInfo(ctx, address, deadline)
 	if err != nil {
 		return result, errors.WithMessage(err, "failed to query info")
 	}
@@ -70,7 +71,7 @@ func querySource(ctx context.Context, host string, port int) (*Result, error) {
 	result.PlayersNum = int(info.players)
 	result.MaxPlayersNum = int(info.maxPlayers)
 
-	players, err := queryA2SPlayers(ctx, address)
+	players, err := queryA2SPlayers(ctx, address, deadline)
 	if err != nil {
 		return result, errors.WithMessage(err, "failed to query players")
 	}
@@ -80,14 +81,12 @@ func querySource(ctx context.Context, host string, port int) (*Result, error) {
 	return result, nil
 }
 
-func queryA2SInfo(ctx context.Context, address string) (a2sServerInfo, error) {
-	conn, err := dialA2S(ctx, address)
+func queryA2SInfo(ctx context.Context, address string, deadline time.Time) (a2sServerInfo, error) {
+	conn, release, err := dialA2S(ctx, address, deadline)
 	if err != nil {
 		return a2sServerInfo{}, err
 	}
-	defer func() {
-		_ = conn.Close()
-	}()
+	defer release()
 
 	packet, err := exchangeA2S(conn, buildA2SInfoRequest, a2sHeaderInfoSource, a2sHeaderInfoGoldSource)
 	if err != nil {
@@ -102,14 +101,12 @@ func queryA2SInfo(ctx context.Context, address string) (a2sServerInfo, error) {
 	return info, nil
 }
 
-func queryA2SPlayers(ctx context.Context, address string) ([]ResultPlayer, error) {
-	conn, err := dialA2S(ctx, address)
+func queryA2SPlayers(ctx context.Context, address string, deadline time.Time) ([]ResultPlayer, error) {
+	conn, release, err := dialA2S(ctx, address, deadline)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = conn.Close()
-	}()
+	defer release()
 
 	packet, err := exchangeA2S(conn, buildA2SPlayerRequest, a2sHeaderPlayers)
 	if err != nil {
@@ -124,26 +121,43 @@ func queryA2SPlayers(ctx context.Context, address string) ([]ResultPlayer, error
 	return players, nil
 }
 
-func dialA2S(ctx context.Context, address string) (net.Conn, error) {
+// a2sDeadline bounds the whole query, both sockets included: the context deadline when there is one, the
+// package default otherwise.
+func a2sDeadline(ctx context.Context) time.Time {
+	if deadline, ok := ctx.Deadline(); ok {
+		return deadline
+	}
+
+	return time.Now().Add(defaultTimeout)
+}
+
+// dialA2S opens a UDP socket to the server with every read and write bounded by deadline. The returned release
+// func closes the socket. Cancelling ctx before that interrupts a blocked read at once instead of leaving it to
+// run into the deadline.
+func dialA2S(ctx context.Context, address string, deadline time.Time) (net.Conn, func(), error) {
 	dialer := &net.Dialer{}
 	conn, err := dialer.DialContext(ctx, "udp", address)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create UDP connection")
-	}
-
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		deadline = time.Now().Add(defaultTimeout)
+		return nil, nil, errors.Wrap(err, "failed to create UDP connection")
 	}
 
 	err = conn.SetDeadline(deadline)
 	if err != nil {
 		_ = conn.Close()
 
-		return nil, errors.Wrap(err, "failed to set deadline")
+		return nil, nil, errors.Wrap(err, "failed to set deadline")
 	}
 
-	return conn, nil
+	stop := context.AfterFunc(ctx, func() {
+		_ = conn.SetDeadline(time.Now())
+	})
+
+	release := func() {
+		stop()
+		_ = conn.Close()
+	}
+
+	return conn, release, nil
 }
 
 // buildA2SInfoRequest builds A2S_INFO; the challenge, once the server hands one out, is appended.
@@ -253,6 +267,12 @@ type a2sSplitFragment struct {
 
 // parseA2SSplitFragment reads the Source split header: -2, id, total, number, fragment size. The two-byte size
 // field is skipped; the payload is whatever follows it.
+//
+// The GoldSource layout (id, then a single byte holding the number and the total in its two nibbles) is
+// deliberately not handled: GoldSource servers split only the rules reply. An info reply is small, and a players
+// reply is at most 32 players of 1 + 32 + 4 + 4 bytes plus a 6-byte header, 1318 bytes, under the 1400-byte split
+// threshold. Were such a fragment still read here, fragment 0 puts the 0xFF of its payload header into the number
+// field and the set fails the range and consistency checks in reassembleA2SSplitPacket instead of yielding data.
 func parseA2SSplitFragment(datagram []byte) (a2sSplitFragment, error) {
 	if len(datagram) < a2sSplitHeaderSize {
 		return a2sSplitFragment{}, errors.New("split fragment too short")

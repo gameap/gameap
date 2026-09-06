@@ -483,6 +483,62 @@ func TestQuerySource(t *testing.T) {
 		assert.Equal(t, "Deadline", result.Name)
 	})
 
+	t.Run("cancelled_context_interrupts_blocked_read", func(t *testing.T) {
+		t.Parallel()
+		// ARRANGE — the player query is never answered and the context is cancelled while the read is blocked.
+		port := fakeUDPServer(t, func(request []byte) [][]byte {
+			if len(request) >= 5 && request[4] == 'T' {
+				return [][]byte{buildA2SInfoResponse("Cancelled", "cs_office", 1, 16)}
+			}
+
+			return nil
+		})
+
+		cancelCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		time.AfterFunc(100*time.Millisecond, cancel)
+
+		// ACT
+		start := time.Now()
+		result, err := querySource(cancelCtx, "127.0.0.1", port)
+		elapsed := time.Since(start)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to query players", "error message mismatch")
+		assert.Less(t, elapsed, defaultTimeout, "cancellation must interrupt the blocked read")
+		assert.True(t, result.Online)
+		assert.Equal(t, "Cancelled", result.Name)
+	})
+
+	t.Run("default_timeout_bounds_the_whole_query", func(t *testing.T) {
+		t.Parallel()
+		// ARRANGE — a slow info reply and a silent player query. The default timeout is shared by both sockets,
+		// so the wait ends about one timeout after the query started, not one timeout after the info reply.
+		port := fakeUDPServer(t, func(request []byte) [][]byte {
+			if len(request) >= 5 && request[4] == 'T' {
+				time.Sleep(600 * time.Millisecond)
+
+				return [][]byte{buildA2SInfoResponse("Slow", "cs_office", 1, 16)}
+			}
+
+			return nil
+		})
+
+		// ACT
+		start := time.Now()
+		result, err := querySource(ctx, "127.0.0.1", port)
+		elapsed := time.Since(start)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to query players", "error message mismatch")
+		assert.Less(t, elapsed, defaultTimeout+400*time.Millisecond, "second socket must not restart the timeout")
+		assert.True(t, result.Online)
+		assert.Equal(t, "Slow", result.Name)
+	})
+
 	t.Run("read_timeout_when_nobody_answers", func(t *testing.T) {
 		t.Parallel()
 		// ARRANGE
