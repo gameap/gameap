@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -204,15 +206,14 @@ func (h *MetricsHandler) filterUntrustedSeries(
 	}
 
 	kept := resp.Series[:0]
+	dropped := 0
+	unknown := make(map[string]struct{})
 	for _, s := range resp.Series {
 		raw, hasLabel := s.GetLabels()["server_id"]
 		if hasLabel {
 			if _, ok := allowed[raw]; !ok {
-				h.logger.Warn("dropping metric series for server not on this node",
-					"node_id", nodeID,
-					"claimed_server_id", raw,
-					"metric", s.GetName(),
-				)
+				dropped++
+				unknown[raw] = struct{}{}
 
 				continue
 			}
@@ -220,6 +221,14 @@ func (h *MetricsHandler) filterUntrustedSeries(
 		kept = append(kept, s)
 	}
 	resp.Series = kept
+
+	if dropped > 0 {
+		h.logger.Warn("dropped metric series for servers not on this node",
+			"node_id", nodeID,
+			"claimed_server_ids", slices.Sorted(maps.Keys(unknown)),
+			"dropped_series", dropped,
+		)
+	}
 
 	return true
 }

@@ -563,7 +563,7 @@ func (s *Service) processMessage(ctx context.Context, sess *session.Session, msg
 
 	case *proto.DaemonMessage_ServerStatuses:
 		if s.serverHandler != nil {
-			s.logger.Info("received server status batch",
+			s.logger.Debug("received server status batch",
 				"node_id", sess.NodeID,
 				"count", len(payload.ServerStatuses.GetStatuses()),
 			)
