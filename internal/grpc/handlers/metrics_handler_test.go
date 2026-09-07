@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"sync"
 	"testing"
@@ -243,15 +245,20 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 			})
 		require.NoError(t, err)
 
-		handler := NewMetricsHandler(ps, serverRepo, slog.Default())
+		var logBuf bytes.Buffer
+		logger := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+		handler := NewMetricsHandler(ps, serverRepo, logger)
 		handler.RegisterPollWaiter(requestID, nodeID)
 
 		resp := &proto.MetricsResponse{
 			Timestamp: timestamppb.Now(),
 			Series: []*proto.MetricSeries{
 				{Name: "gameap_server_cpu", Labels: map[string]string{"server_id": "10"}},
-				{Name: "gameap_server_cpu", Labels: map[string]string{"server_id": "20"}},
 				{Name: "gameap_server_cpu", Labels: map[string]string{"server_id": "99"}},
+				{Name: "gameap_server_cpu", Labels: map[string]string{"server_id": "20"}},
+				{Name: "gameap_server_mem", Labels: map[string]string{"server_id": "99"}},
+				{Name: "gameap_server_cpu", Labels: map[string]string{"server_id": "77"}},
 				{Name: "gameap_node_cpu", Labels: map[string]string{"host": "n1"}},
 			},
 		}
@@ -264,6 +271,23 @@ func TestMetricsHandler_HandleMetricsResponse(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for pubsub delivery")
 		}
+
+		logLines := bytes.Split(bytes.TrimSpace(logBuf.Bytes()), []byte("\n"))
+		require.Len(t, logLines, 1, "expected exactly one consolidated log record, got: %s", logBuf.String())
+
+		var record struct {
+			Level            string   `json:"level"`
+			Msg              string   `json:"msg"`
+			NodeID           uint64   `json:"node_id"`
+			ClaimedServerIDs []string `json:"claimed_server_ids"`
+			DroppedSeries    int      `json:"dropped_series"`
+		}
+		require.NoError(t, json.Unmarshal(logLines[0], &record))
+		assert.Equal(t, "WARN", record.Level)
+		assert.Equal(t, "dropped metric series for servers not on this node", record.Msg)
+		assert.Equal(t, nodeID, record.NodeID)
+		assert.Equal(t, []string{"77", "99"}, record.ClaimedServerIDs)
+		assert.Equal(t, 3, record.DroppedSeries)
 
 		receivedMu.Lock()
 		defer receivedMu.Unlock()
