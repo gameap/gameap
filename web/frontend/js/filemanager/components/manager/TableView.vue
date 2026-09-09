@@ -79,6 +79,7 @@
                         'fm-row--selected': checkSelect('directories', directory.path),
                         'fm-row--focused': focusedIndex === directoryRowIndex(index),
                         'fm-row--locked': acl && directory.acl === 0,
+                        'fm-row--hidden': directory.basename.startsWith('.'),
                     }"
                     tabindex="-1"
                     v-on:click="selectItem('directories', directory.path, $event, directoryRowIndex(index))"
@@ -111,6 +112,7 @@
                         'fm-row--selected': checkSelect('files', file.path),
                         'fm-row--focused': focusedIndex === fileRowIndex(index),
                         'fm-row--locked': acl && file.acl === 0,
+                        'fm-row--hidden': file.basename.startsWith('.'),
                     }"
                     tabindex="-1"
                     v-on:click="selectItem('files', file.path, $event, fileRowIndex(index))"
@@ -579,6 +581,10 @@ function onKeyDown(event) {
 
     tr.fm-row--up {
         @apply text-muted italic;
+    }
+
+    tr.fm-row--hidden {
+        @apply text-secondary;
     }
 
     tr.fm-row--locked {

@@ -29,6 +29,17 @@
                 </template>
             </ol>
 
+            <button
+                type="button"
+                class="fm-crumb-btn fm-hidden-btn"
+                v-bind:class="{ 'fm-crumb-btn--on': hiddenFiles }"
+                v-bind:aria-pressed="hiddenFiles ? 'true' : 'false'"
+                v-bind:title="lang.btn.hidden"
+                v-on:click="settings.toggleHiddenFiles()"
+            >
+                <GIcon v-bind:name="hiddenFiles ? 'eye' : 'eye-slash'" />
+            </button>
+
             <history-popover v-bind:manager="manager" />
         </nav>
     </div>
@@ -39,12 +50,18 @@ import { computed } from 'vue'
 import { GIcon } from '@gameap/ui'
 import HistoryPopover from '../blocks/HistoryPopover.vue'
 import { useManager } from '../../composables/useManager.js'
+import { useTranslate } from '../../composables/useTranslate.js'
+import { useSettingsStore } from '../../stores/useSettingsStore.js'
 
 const props = defineProps({
     manager: { type: String, required: true },
 })
 
 const { selectedDisk, selectedDirectory, breadcrumb, selectDirectory } = useManager(props.manager)
+const settings = useSettingsStore()
+const { lang } = useTranslate()
+
+const hiddenFiles = computed(() => settings.hiddenFiles)
 
 const MAX_VISIBLE = 5
 
@@ -171,5 +188,18 @@ function selectMainDirectory() {
 
 .fm-breadcrumb-ellipsis {
     @apply px-1.5 text-faint select-none;
+}
+
+/* Icon buttons at the right end of the bar (hidden-files toggle, history).
+   `--on` is the pressed / open state. */
+.fm-crumb-btn {
+    @apply inline-flex items-center justify-center px-2 py-0.5 rounded
+        text-secondary hover:bg-white dark:hover:bg-stone-700
+        transition-colors duration-100;
+    flex: 0 0 auto;
+}
+
+.fm-crumb-btn--on {
+    @apply bg-white dark:bg-stone-700 text-body;
 }
 </style>

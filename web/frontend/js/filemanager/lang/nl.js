@@ -31,7 +31,7 @@ const nl = {
         uploadSelect: 'Selecteer bestanden',
         uploadDir: 'Map uploaden',
         downloadDir: 'Downloaden als ZIP',
-        hidden: ' Verborgen bestanden',
+        hidden: 'Verborgen bestanden',
     },
     clipboard: {
         actionType: 'Type',

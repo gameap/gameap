@@ -29,7 +29,7 @@ const pt_BR = {
         uploadSelect: 'Selecionar arquivos',
         uploadDir: 'Enviar pasta',
         downloadDir: 'Baixar como ZIP',
-        hidden: ' Arquivos ocultos',
+        hidden: 'Arquivos ocultos',
     },
     clipboard: {
         actionType: 'Formato',

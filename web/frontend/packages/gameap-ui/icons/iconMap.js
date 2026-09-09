@@ -36,6 +36,7 @@ export const defaultIconMap = {
   "magnifying-glass": "fa-solid fa-magnifying-glass",
   "view": "fa-solid fa-eye",
   "eye": "fa-solid fa-eye",
+  "eye-slash": "fa-solid fa-eye-slash",
   "clear": "fa-solid fa-broom",
   "broom": "fa-solid fa-broom",
   "eraser": "fa-solid fa-eraser",

@@ -29,7 +29,7 @@ const it = {
         uploadSelect: 'Seleziona files',
         uploadDir: 'Carica cartella',
         downloadDir: 'Scarica come ZIP',
-        hidden: ' Files Nascosti',
+        hidden: 'Files Nascosti',
     },
     clipboard: {
         actionType: 'Tipo',

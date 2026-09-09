@@ -30,7 +30,7 @@ const zh_CN = {
         uploadSelect: '选择文件',
         uploadDir: '上传文件夹',
         downloadDir: '下载为 ZIP',
-        hidden: ' 隐藏文件',
+        hidden: '隐藏文件',
     },
     clipboard: {
         actionType: '类型',

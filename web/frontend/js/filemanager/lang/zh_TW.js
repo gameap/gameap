@@ -29,7 +29,7 @@ const zh_TW = {
         uploadSelect: '選擇文件',
         uploadDir: '上傳資料夾',
         downloadDir: '下載為 ZIP',
-        hidden: ' 隱藏文件',
+        hidden: '隱藏文件',
     },
     clipboard: {
         actionType: '類型',

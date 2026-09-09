@@ -29,7 +29,7 @@ const es = {
         uploadSelect: 'Seleccionar archivos',
         uploadDir: 'Subir carpeta',
         downloadDir: 'Descargar como ZIP',
-        hidden: ' Archivos ocultos',
+        hidden: 'Archivos ocultos',
     },
     clipboard: {
         actionType: 'Tipo',

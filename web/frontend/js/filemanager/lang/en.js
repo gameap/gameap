@@ -32,7 +32,7 @@ const en = {
         uploadSelect: 'Select files',
         uploadDir: 'Upload folder',
         downloadDir: 'Download as ZIP',
-        hidden: ' Hidden files',
+        hidden: 'Hidden files',
         up: 'Up',
         selectAll: 'Select all',
         clearSelection: 'Clear selection',

@@ -28,7 +28,7 @@ const fr = {
         uploadSelect: 'Sélectionner fichiers',
         uploadDir: 'Téléverser un dossier',
         downloadDir: 'Télécharger en ZIP',
-        hidden: ' Masquer fichiers',
+        hidden: 'Masquer fichiers',
     },
     clipboard: {
         actionType: 'Type',

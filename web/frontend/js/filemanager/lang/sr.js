@@ -29,7 +29,7 @@ const sr = {
         uploadSelect: 'Izaberi datoteke',
         uploadDir: 'Otpremi folder',
         downloadDir: 'Preuzmi kao ZIP',
-        hidden: ' Skrivene datoteke',
+        hidden: 'Skrivene datoteke',
     },
     clipboard: {
         actionType: 'Tip operacije',

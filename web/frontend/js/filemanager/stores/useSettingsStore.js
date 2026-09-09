@@ -18,6 +18,20 @@ import pt_BR from '../lang/pt_BR.js'
 import zh_TW from '../lang/zh_TW.js'
 import pl from '../lang/pl.js'
 import hu from '../lang/hu.js'
+import { createStorage } from '../history.js'
+
+const SETTINGS_KEY = 'gameap:fm:settings'
+const storage = createStorage()
+
+function loadStored() {
+    try {
+        const parsed = JSON.parse(storage.get(SETTINGS_KEY) ?? 'null')
+
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    } catch {
+        return {}
+    }
+}
 
 export const useSettingsStore = defineStore('fm-settings', () => {
     const acl = ref(null)
@@ -57,7 +71,11 @@ export const useSettingsStore = defineStore('fm-settings', () => {
         hu: Object.freeze(hu),
     })
 
-    const hiddenFiles = ref(false)
+    // Persisted per browser. An explicit choice outranks the boolean the
+    // backend may send in the initialize config.
+    const stored = loadStored()
+    const hiddenFilesChosen = ref(typeof stored.hiddenFiles === 'boolean')
+    const hiddenFiles = ref(hiddenFilesChosen.value ? stored.hiddenFiles : false)
 
     // Each entry is one block of the menu, drawn as its own list with a divider
     // under it. The names are what a plugin file editor points `menuGroup` at,
@@ -499,11 +517,15 @@ export const useSettingsStore = defineStore('fm-settings', () => {
         if (!lang.value) lang.value = data.lang
         if (!windowsConfig.value) windowsConfig.value = data.windowsConfig
         acl.value = data.acl
-        hiddenFiles.value = data.hiddenFiles
+        if (!hiddenFilesChosen.value && typeof data.hiddenFiles === 'boolean') {
+            hiddenFiles.value = data.hiddenFiles
+        }
     }
 
     function toggleHiddenFiles() {
         hiddenFiles.value = !hiddenFiles.value
+        hiddenFilesChosen.value = true
+        storage.set(SETTINGS_KEY, JSON.stringify({ ...loadStored(), hiddenFiles: hiddenFiles.value }))
     }
 
     return {

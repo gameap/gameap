@@ -29,7 +29,7 @@ const fa = {
         uploadSelect: 'انتخاب فایل',
         uploadDir: 'بارگذاری پوشه',
         downloadDir: 'دانلود به صورت ZIP',
-        hidden: ' فایل های مخفی',
+        hidden: 'فایل های مخفی',
     },
     clipboard: {
         actionType: 'نوع',

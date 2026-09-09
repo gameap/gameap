@@ -28,7 +28,7 @@ const tr = {
         uploadSelect: 'Dosyaları seç',
         uploadDir: 'Klasör yükle',
         downloadDir: 'ZIP olarak indir',
-        hidden: ' Gizli dosyalar',
+        hidden: 'Gizli dosyalar',
     },
     clipboard: {
         actionType: 'İşlem türü',

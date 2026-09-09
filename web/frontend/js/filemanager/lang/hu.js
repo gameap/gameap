@@ -29,7 +29,7 @@ const hu = {
         uploadSelect: 'Fájlok kiválasztása',
         uploadDir: 'Mappa feltöltése',
         downloadDir: 'Letöltés ZIP-ként',
-        hidden: ' Rejtett fájlok',
+        hidden: 'Rejtett fájlok',
     },
     clipboard: {
         actionType: 'Típus',

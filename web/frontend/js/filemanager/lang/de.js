@@ -28,7 +28,7 @@ const de = {
         uploadSelect: 'Auswählen',
         uploadDir: 'Ordner hochladen',
         downloadDir: 'Als ZIP herunterladen',
-        hidden: ' Versteckte Dateien',
+        hidden: 'Versteckte Dateien',
     },
     clipboard: {
         actionType: 'Type',

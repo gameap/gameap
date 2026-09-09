@@ -10,8 +10,8 @@
         <template #trigger>
             <button
                 type="button"
-                class="fm-history-btn"
-                v-bind:class="{ 'fm-history-btn--open': show }"
+                class="fm-crumb-btn fm-history-btn"
+                v-bind:class="{ 'fm-crumb-btn--on': show }"
                 v-bind:title="lang.history.title"
                 v-bind:aria-label="lang.history.title"
             >
@@ -194,17 +194,6 @@ async function activateFile(item) {
 </script>
 
 <style lang="scss">
-.fm-history-btn {
-    @apply inline-flex items-center justify-center px-2 py-0.5 rounded
-        text-secondary hover:bg-white dark:hover:bg-stone-700
-        transition-colors duration-100;
-    flex: 0 0 auto;
-}
-
-.fm-history-btn--open {
-    @apply bg-white dark:bg-stone-700 text-body;
-}
-
 .fm-history-pop {
     @apply p-1.5 bg-white dark:bg-stone-900 rounded-lg border shadow-lg text-sm text-body;
     width: min(320px, calc(100vw - 2rem));

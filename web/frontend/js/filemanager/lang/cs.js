@@ -29,7 +29,7 @@ const cs = {
         uploadSelect: 'Vybrat soubory',
         uploadDir: 'Nahrát složku',
         downloadDir: 'Stáhnout jako ZIP',
-        hidden: ' Skryté soubory',
+        hidden: 'Skryté soubory',
     },
     clipboard: {
         actionType: 'Typ',
