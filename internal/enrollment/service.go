@@ -18,11 +18,26 @@ import (
 )
 
 const (
-	apiKeyLength        = 64
-	defaultPort         = 31717
-	defaultWorkPath     = "/srv/gameap"
-	defaultSteamCMDPath = "/srv/gameap/steamcmd"
+	apiKeyLength = 64
+	defaultPort  = 31717
+
+	defaultWorkPath            = "/srv/gameap"
+	defaultSteamCMDPath        = "/srv/gameap/steamcmd"
+	defaultWindowsWorkPath     = `C:\gameap`
+	defaultWindowsSteamCMDPath = `C:\gameap\steamcmd`
 )
+
+// defaultNodePaths are the locations gameapctl and `gameap-daemon enroll` use
+// on each OS. The daemon does not report its paths when it enrolls, and the
+// panel hands these to plugins as the node's own, so a guess for the wrong OS
+// sends every plugin to a directory the daemon does not have.
+func defaultNodePaths(os domain.NodeOS) (workPath, steamCMDPath string) {
+	if os == domain.NodeOSWindows {
+		return defaultWindowsWorkPath, defaultWindowsSteamCMDPath
+	}
+
+	return defaultWorkPath, defaultSteamCMDPath
+}
 
 type EnrollResult struct {
 	NodeID            uint
@@ -152,15 +167,18 @@ func (s *Service) Enroll(ctx context.Context, setupKey string, input *EnrollInpu
 		port = defaultPort
 	}
 
+	nodeOS := domain.ParseNodeOS(input.OS)
+	workPath, steamCMDPath := defaultNodePaths(nodeOS)
+
 	node := &domain.Node{
 		Enabled:             true,
 		Name:                input.Host,
-		OS:                  domain.ParseNodeOS(input.OS),
+		OS:                  nodeOS,
 		Location:            "Unknown",
 		Provider:            new("Unknown"),
 		IPs:                 domain.IPList{input.Host},
-		WorkPath:            defaultWorkPath,
-		SteamcmdPath:        new(defaultSteamCMDPath),
+		WorkPath:            workPath,
+		SteamcmdPath:        new(steamCMDPath),
 		GdaemonHost:         input.Host,
 		GdaemonPort:         port,
 		GdaemonAPIKey:       strings.SHA256(apiKey),

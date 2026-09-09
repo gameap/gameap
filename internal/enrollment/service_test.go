@@ -160,9 +160,9 @@ func TestService_Enroll_creates_node_with_correct_fields(t *testing.T) {
 	assert.Equal(t, 9000, node.GdaemonPort)
 	assert.Equal(t, domain.NodeOSWindows, node.OS)
 	assert.Equal(t, domain.IPList{"gameap.example.com"}, node.IPs)
-	assert.Equal(t, defaultWorkPath, node.WorkPath)
+	assert.Equal(t, defaultWindowsWorkPath, node.WorkPath)
 	require.NotNil(t, node.SteamcmdPath)
-	assert.Equal(t, defaultSteamCMDPath, *node.SteamcmdPath)
+	assert.Equal(t, defaultWindowsSteamCMDPath, *node.SteamcmdPath)
 	assert.Equal(t, domain.NodePreferInstallMethodAuto, node.PreferInstallMethod)
 	assert.Equal(t, pkgstrings.SHA256(result.APIKey), node.GdaemonAPIKey,
 		"stored API key must be the SHA-256 digest of the plaintext returned to the daemon")
@@ -170,6 +170,71 @@ func TestService_Enroll_creates_node_with_correct_fields(t *testing.T) {
 		"plaintext API key must never be persisted at rest")
 	assert.NotNil(t, node.CreatedAt)
 	assert.NotNil(t, node.UpdatedAt)
+}
+
+// The daemon does not report its paths at enrollment, and plugins take the
+// node record for the daemon's layout; a Windows daemon enrolled with the
+// Linux defaults answered every plugin with "executable file not found".
+func TestService_Enroll_default_paths_follow_the_os(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		os               string
+		wantWorkPath     string
+		wantSteamCMDPath string
+	}{
+		{
+			name:             "linux",
+			os:               "linux",
+			wantWorkPath:     "/srv/gameap",
+			wantSteamCMDPath: "/srv/gameap/steamcmd",
+		},
+		{
+			name:             "windows",
+			os:               "windows",
+			wantWorkPath:     `C:\gameap`,
+			wantSteamCMDPath: `C:\gameap\steamcmd`,
+		},
+		{
+			name:             "windows_as_reported_by_older_daemons",
+			os:               "Windows Server",
+			wantWorkPath:     `C:\gameap`,
+			wantSteamCMDPath: `C:\gameap\steamcmd`,
+		},
+		{
+			name:             "unknown_os_keeps_the_linux_layout",
+			os:               "",
+			wantWorkPath:     "/srv/gameap",
+			wantSteamCMDPath: "/srv/gameap/steamcmd",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc, cacheInstance := setupService(t)
+			ctx := context.Background()
+
+			err := cacheInstance.Set(ctx, SetupKeyCacheKey, "test-setup-key-32-chars-long1234")
+			require.NoError(t, err)
+
+			_, err = svc.Enroll(ctx, "test-setup-key-32-chars-long1234", &EnrollInput{
+				Host: "203.0.113.20",
+				Port: 31717,
+				OS:   tt.os,
+			})
+			require.NoError(t, err)
+
+			nodes, err := svc.nodesRepo.FindAll(ctx, nil, nil)
+			require.NoError(t, err)
+			require.Len(t, nodes, 1)
+
+			assert.Equal(t, tt.wantWorkPath, nodes[0].WorkPath)
+			require.NotNil(t, nodes[0].SteamcmdPath)
+			assert.Equal(t, tt.wantSteamCMDPath, *nodes[0].SteamcmdPath)
+		})
+	}
 }
 
 func TestService_Enroll_with_env_setup_key(t *testing.T) {
