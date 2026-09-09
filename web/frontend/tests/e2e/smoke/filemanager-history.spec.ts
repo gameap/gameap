@@ -202,8 +202,14 @@ test('transit directories are skipped; dwell and file-open credit visits', async
   test.setTimeout(120_000);
   await openFileManager(page, request);
 
-  // Empty history — no button at all.
-  await expect(historyButton(page)).toHaveCount(0);
+  // Empty history — the button stays and the popover says how to fill it.
+  await expect(historyButton(page)).toHaveCount(1);
+  await historyButton(page).click();
+  await expect(popover(page)).toBeVisible();
+  await expect(popover(page).locator('.fm-history-empty')).toContainText('No history yet');
+  await expect(popover(page).locator('.fm-history-item')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(popover(page)).toHaveCount(0);
 
   // Freeze the virtual clock so the walk provably takes zero dwell time.
   await page.clock.pauseAt(new Date(T0MS + MINUTE));
@@ -218,11 +224,12 @@ test('transit directories are skipped; dwell and file-open credit visits', async
   await expect(fileRow(page, 'amxx.cfg')).toBeVisible();
 
   // The whole walk happened at one instant — nothing recorded yet.
-  await expect(historyButton(page)).toHaveCount(0);
+  const untouched = await readStorage(page);
+  expect(Object.keys(untouched?.entries?.dir ?? {})).toEqual([]);
+  expect(Object.keys(untouched?.entries?.file ?? {})).toEqual([]);
 
   // 5 virtual seconds in the final directory credit it — and only it.
   await page.clock.fastForward(5000);
-  await expect(historyButton(page)).toHaveCount(1);
   let stored = await readStorage(page);
   expect(Object.keys(stored.entries.dir)).toEqual([CONFIGS]);
   expect(Object.keys(stored.entries.file)).toEqual([]);

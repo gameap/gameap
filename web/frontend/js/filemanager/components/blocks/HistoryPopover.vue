@@ -1,6 +1,5 @@
 <template>
     <n-popover
-        v-if="history.hasAnyEntries"
         v-model:show="show"
         trigger="click"
         placement="bottom-end"

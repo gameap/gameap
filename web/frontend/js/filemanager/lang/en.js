@@ -300,8 +300,8 @@ const en = {
         tabFrequent: 'Frequent',
         directories: 'Folders',
         files: 'Files',
-        empty: 'Nothing here yet',
-        emptyHint: 'Open folders and files — they will show up here.',
+        empty: 'No history yet',
+        emptyHint: 'Folders you work in for a few seconds and files you open will show up here.',
         staleRemoved: 'Item no longer exists — removed from history',
         time: {
             justNow: 'just now',

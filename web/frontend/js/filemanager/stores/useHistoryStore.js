@@ -165,12 +165,6 @@ export const useHistoryStore = defineStore('fm-history', () => {
         persist()
     }
 
-    // Controls the history button: no entries at all — no button.
-    const hasAnyEntries = computed(
-        () => Object.keys(state.value.entries.dir).length > 0
-            || Object.keys(state.value.entries.file).length > 0
-    )
-
     const recentDirs = computed(() => topEntries(state.value, 'dir', 'recent', nowTick.value))
     const recentFiles = computed(() => topEntries(state.value, 'file', 'recent', nowTick.value))
     const hasRecent = computed(() => recentDirs.value.length > 0 || recentFiles.value.length > 0)
@@ -185,7 +179,6 @@ export const useHistoryStore = defineStore('fm-history', () => {
     return {
         state,
         nowTick,
-        hasAnyEntries,
         hasRecent,
         effectiveView,
         dirsTop,
