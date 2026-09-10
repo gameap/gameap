@@ -754,7 +754,7 @@ func TestDomainServerSettingsToProto(t *testing.T) {
 		assert.Empty(t, got)
 	})
 
-	t.Run("string_int_bool_values_serialised_via_String", func(t *testing.T) {
+	t.Run("string_int_bool_values_serialised_via_Raw", func(t *testing.T) {
 		t.Parallel()
 		// ARRANGE
 		settings := []domain.ServerSetting{
@@ -775,6 +775,32 @@ func TestDomainServerSettingsToProto(t *testing.T) {
 
 		assert.Equal(t, "128", got[1].Value, "int values must be stringified")
 		assert.Equal(t, "true", got[2].Value, "bool values must be stringified")
+	})
+
+	t.Run("scanned_text_is_sent_verbatim", func(t *testing.T) {
+		t.Parallel()
+		// ARRANGE
+		// Scan guesses a type from the stored text ("007" becomes the int 7,
+		// "0x10" becomes 16). The daemon substitutes the text into {var}, so it
+		// must receive the stored text, not the guess rendered back.
+		stored := []string{"007", "0x10", "1_000", "+5", "1.50", "true", ""}
+
+		settings := make([]domain.ServerSetting, 0, len(stored))
+		for _, text := range stored {
+			var value domain.ServerSettingValue
+			require.NoError(t, value.Scan([]byte(text)))
+
+			settings = append(settings, domain.ServerSetting{ServerID: 10, Name: "var", Value: value})
+		}
+
+		// ACT
+		got := DomainServerSettingsToProto(settings)
+
+		// ASSERT
+		require.Len(t, got, len(stored))
+		for i, text := range stored {
+			assert.Equal(t, text, got[i].Value)
+		}
 	})
 }
 

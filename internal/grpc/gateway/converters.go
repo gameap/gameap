@@ -309,7 +309,7 @@ func ProtoTaskStatusToDomain(status proto.DaemonTaskStatus) domain.DaemonTaskSta
 func DomainServerSettingsToProto(settings []domain.ServerSetting) []*proto.ServerSetting {
 	result := make([]*proto.ServerSetting, 0, len(settings))
 	for _, s := range settings {
-		valueStr, _ := s.Value.String()
+		valueStr, _ := s.Value.Raw()
 		result = append(result, &proto.ServerSetting{
 			Id:       uint64(s.ID),
 			ServerId: uint64(s.ServerID),

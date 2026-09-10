@@ -218,6 +218,12 @@ func TestServerSettingsService_SaveServerSetting_CreatesDuplicate(t *testing.T) 
 
 func TestConvertServerSettingsToProto(t *testing.T) {
 	t.Parallel()
+
+	// A value read from the database is type-guessed by Scan ("007" becomes
+	// the int 7); plugins must still see the stored text.
+	var scanned domain.ServerSettingValue
+	require.NoError(t, scanned.Scan([]byte("007")))
+
 	settings := []domain.ServerSetting{
 		{
 			ID:       1,
@@ -231,11 +237,17 @@ func TestConvertServerSettingsToProto(t *testing.T) {
 			Name:     "hostname",
 			Value:    domain.NewServerSettingValue("Test Server"),
 		},
+		{
+			ID:       3,
+			ServerID: 10,
+			Name:     "code",
+			Value:    scanned,
+		},
 	}
 
 	result := convertServerSettingsToProto(settings)
 
-	require.Len(t, result, 2)
+	require.Len(t, result, 3)
 	assert.Equal(t, uint64(1), result[0].Id)
 	assert.Equal(t, uint64(10), result[0].ServerId)
 	assert.Equal(t, "maxplayers", result[0].Name)
@@ -245,6 +257,9 @@ func TestConvertServerSettingsToProto(t *testing.T) {
 	assert.Equal(t, uint64(10), result[1].ServerId)
 	assert.Equal(t, "hostname", result[1].Name)
 	assert.Equal(t, "Test Server", result[1].Value)
+
+	assert.Equal(t, "code", result[2].Name)
+	assert.Equal(t, "007", result[2].Value, "scanned text must not be re-rendered from the guessed type")
 }
 
 func TestNewServerSettingsHostLibraryFactory(t *testing.T) {

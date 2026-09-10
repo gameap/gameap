@@ -83,7 +83,7 @@ func (s *ServerSettingsServiceImpl) SaveServerSetting(
 
 func convertServerSettingsToProto(settings []domain.ServerSetting) []*proto.ServerSetting {
 	return lo.Map(settings, func(s domain.ServerSetting, _ int) *proto.ServerSetting {
-		value, _ := s.Value.String()
+		value, _ := s.Value.Raw()
 
 		return &proto.ServerSetting{
 			Id:       uint64(s.ID),

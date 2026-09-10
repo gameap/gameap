@@ -102,7 +102,7 @@ func DomainNodeToProto(n *domain.Node) *domainproto.Node {
 
 // DomainServerSettingToProto converts a server setting for plugins.
 func DomainServerSettingToProto(s domain.ServerSetting) *domainproto.ServerSetting {
-	value, _ := s.Value.String()
+	value, _ := s.Value.Raw()
 
 	return &domainproto.ServerSetting{
 		Id:       uint64(s.ID),
