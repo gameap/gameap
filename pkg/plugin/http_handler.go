@@ -4,14 +4,20 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin/proto"
 	gameapProto "github.com/gameap/gameap/pkg/proto"
+	"github.com/gameap/gameap/pkg/ratelimit"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 )
@@ -19,7 +25,34 @@ import (
 const (
 	DefaultTimeout     = 30 * time.Second
 	DefaultMaxBodySize = 1 << 20 // 1MB
+	// DefaultQueueTimeout bounds the wait for the plugin's call gate; a
+	// request that waited this long answers 503 and never reaches the guest.
+	DefaultQueueTimeout = 10 * time.Second
+	// DefaultMinCallBudget is what must remain of the request timeout once
+	// the call wins the gate; with less the request answers 503 rather than
+	// starting a guest call the deadline would cut short.
+	DefaultMinCallBudget = 5 * time.Second
+	// DefaultMaxQuerySize caps the raw query string handed to the guest.
+	DefaultMaxQuerySize = 64 << 10
+	// DefaultMaxQueue caps the requests of one plugin inside the handler on
+	// one panel instance, waiting for the gate or executing.
+	DefaultMaxQueue = 32
+	// DefaultMaxInFlight caps plugin requests inside the handler across all
+	// plugins on one panel instance.
+	DefaultMaxInFlight = 256
+
+	// retryAfterBusy is the Retry-After of a 503 for a busy plugin or a full
+	// queue: the condition clears with the next guest call.
+	retryAfterBusy = "1"
+	// rateLimitAuditInterval spaces out the audit records for one client and
+	// plugin; the metric still counts every refusal.
+	rateLimitAuditInterval = time.Minute
+	// rateLimitAuditKeys bounds the audit throttle table, so a flood spread
+	// over many clients cannot grow it without bound.
+	rateLimitAuditKeys = 4096
 )
+
+var errBodyTooLarge = errors.New("request body too large")
 
 type Middleware interface {
 	Middleware(next http.Handler) http.Handler
@@ -31,8 +64,32 @@ type HTTPHandler struct {
 	authMiddleware  Middleware
 	adminMiddleware Middleware
 	timeout         time.Duration
+	queueTimeout    time.Duration
+	minCallBudget   time.Duration
 	maxBody         int64
+	maxQuery        int64
+	maxQueue        int32
+	anonymousRoutes bool
+	clientIPHeader  string
 	fileRefs        FileRefServer
+	observer        Observer
+	audit           audit.Logger
+
+	// inflight caps the requests inside the handler on this instance; nil
+	// leaves them uncapped.
+	inflight chan struct{}
+	// queued counts, per plugin id, the requests waiting for the call gate
+	// or executing; the counters outlive a reload of the plugin.
+	queued sync.Map
+
+	anonLimiter   *ratelimit.KeyedLimiter
+	userLimiter   *ratelimit.KeyedLimiter
+	auditThrottle *throttle[rateLimitAuditKey]
+}
+
+type rateLimitAuditKey struct {
+	pluginID uint64
+	client   string
 }
 
 // HTTPHandlerOption configures a handler created by NewHTTPHandler.
@@ -43,6 +100,126 @@ type HTTPHandlerOption func(*HTTPHandler)
 func WithFileRefServer(server FileRefServer) HTTPHandlerOption {
 	return func(h *HTTPHandler) {
 		h.fileRefs = server
+	}
+}
+
+// WithRequestTimeout bounds one request end to end: the wait for the
+// plugin's call gate plus the guest call. Non-positive keeps the default.
+func WithRequestTimeout(timeout time.Duration) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		if timeout > 0 {
+			h.timeout = timeout
+		}
+	}
+}
+
+// WithQueueTimeout bounds the wait for the call gate alone; a request that
+// waited this long answers 503 without touching the guest. Non-positive
+// waits up to the request timeout.
+func WithQueueTimeout(timeout time.Duration) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.queueTimeout = max(timeout, 0)
+	}
+}
+
+// WithGuestBudget sets what must remain of the request timeout once the
+// call wins the gate (see DefaultMinCallBudget). Non-positive keeps the
+// default.
+func WithGuestBudget(budget time.Duration) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		if budget > 0 {
+			h.minCallBudget = budget
+		}
+	}
+}
+
+// WithMaxBody caps the request body handed to the guest; larger requests
+// answer 413. Non-positive keeps the default.
+func WithMaxBody(limit int64) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		if limit > 0 {
+			h.maxBody = limit
+		}
+	}
+}
+
+// WithMaxQuery caps the raw query string; longer ones answer 414.
+// Non-positive removes the cap.
+func WithMaxQuery(limit int64) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.maxQuery = max(limit, 0)
+	}
+}
+
+// WithMaxQueue caps the requests of one plugin inside the handler, waiting
+// for the gate or executing; further ones answer 503. Non-positive removes
+// the cap.
+func WithMaxQueue(limit int) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.maxQueue = int32(max(limit, 0)) //nolint:gosec // a queue cap fits an int32
+	}
+}
+
+// WithMaxInFlight caps plugin requests inside the handler across all plugins;
+// further ones answer 503. Non-positive removes the cap.
+func WithMaxInFlight(limit int) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		if limit <= 0 {
+			h.inflight = nil
+
+			return
+		}
+
+		h.inflight = make(chan struct{}, limit)
+	}
+}
+
+// WithAnonymousRoutes decides whether routes a plugin declares without
+// requires_auth are served to clients without a session. Off, every plugin
+// route goes through the auth middleware, whatever the plugin declared.
+func WithAnonymousRoutes(allowed bool) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.anonymousRoutes = allowed
+	}
+}
+
+// WithClientRateLimits installs per-client token buckets: anonymous clients
+// are keyed by IP, authenticated ones by user. A disabled limit (RPS 0)
+// leaves its class unlimited.
+func WithClientRateLimits(anonymous, user ratelimit.Limit) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.anonLimiter, h.userLimiter = nil, nil
+
+		if anonymous.Enabled() {
+			h.anonLimiter = ratelimit.NewKeyed(anonymous)
+		}
+
+		if user.Enabled() {
+			h.userLimiter = ratelimit.NewKeyed(user)
+		}
+	}
+}
+
+// WithClientIPHeader names the trusted reverse-proxy header the client IP
+// is read from (empty: the connection's remote address).
+func WithClientIPHeader(header string) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.clientIPHeader = header
+	}
+}
+
+// WithObserver reports the outcome of every request (HTTPResult* values).
+func WithObserver(observer Observer) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.observer = observerOrNop(observer)
+	}
+}
+
+// WithAuditLogger records rate-limited requests in the audit log, throttled
+// per client and plugin.
+func WithAuditLogger(logger audit.Logger) HTTPHandlerOption {
+	return func(h *HTTPHandler) {
+		h.audit = logger
 	}
 }
 
@@ -58,7 +235,15 @@ func NewHTTPHandler(
 		authMiddleware:  authMiddleware,
 		adminMiddleware: adminMiddleware,
 		timeout:         DefaultTimeout,
+		queueTimeout:    DefaultQueueTimeout,
+		minCallBudget:   DefaultMinCallBudget,
 		maxBody:         DefaultMaxBodySize,
+		maxQuery:        DefaultMaxQuerySize,
+		maxQueue:        DefaultMaxQueue,
+		anonymousRoutes: true,
+		observer:        NopObserver{},
+		inflight:        make(chan struct{}, DefaultMaxInFlight),
+		auditThrottle:   newThrottle[rateLimitAuditKey](rateLimitAuditInterval, rateLimitAuditKeys),
 	}
 
 	for _, opt := range opts {
@@ -104,6 +289,10 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.admitClient(w, r, plugin, pluginPath) {
+		return
+	}
+
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.handlePluginRequest(w, r, plugin, pluginPath, pathParams)
 	})
@@ -114,11 +303,53 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		finalHandler = h.adminMiddleware.Middleware(finalHandler)
 	}
 
-	if route.RequiresAuth {
+	// A route declared without requires_auth is anonymous only while the
+	// operator allows anonymous plugin routes.
+	if route.RequiresAuth || !h.anonymousRoutes {
 		finalHandler = h.authMiddleware.Middleware(finalHandler)
 	}
 
 	finalHandler.ServeHTTP(w, r)
+}
+
+// admitClient applies the per-client rate limit: authenticated clients are
+// keyed by user, anonymous ones by IP. A refused request is answered here
+// (429 with Retry-After) and reported as false.
+func (h *HTTPHandler) admitClient(
+	w http.ResponseWriter,
+	r *http.Request,
+	plugin *LoadedPlugin,
+	pluginPath string,
+) bool {
+	limiter, client := h.clientLimiter(r)
+
+	allowed, retryAfter := limiter.Allow(client)
+	if allowed {
+		return true
+	}
+
+	h.observe(plugin, HTTPResultRateLimited)
+
+	if h.auditThrottle.admit(rateLimitAuditKey{pluginID: plugin.DBID, client: client}) {
+		audit.PluginHTTPRateLimited(r.Context(), h.audit, plugin.DBID, plugin.Info.Id, client, r.Method, pluginPath)
+	}
+
+	w.Header().Set("Retry-After", retryAfterSeconds(retryAfter))
+	w.Header().Set("Cache-Control", "no-store")
+	http.Error(w, "too many requests", http.StatusTooManyRequests)
+
+	return false
+}
+
+// clientLimiter picks the bucket set and key for the request's client. The
+// session, if any, was resolved by the optional auth middleware in front of
+// the handler, before the route's own auth requirement is applied.
+func (h *HTTPHandler) clientLimiter(r *http.Request) (*ratelimit.KeyedLimiter, string) {
+	if session := auth.SessionFromContext(r.Context()); session.IsAuthenticated() {
+		return h.userLimiter, "user:" + strconv.FormatUint(uint64(session.User.ID), 10)
+	}
+
+	return h.anonLimiter, "ip:" + audit.ClientIP(r, h.clientIPHeader)
 }
 
 func (h *HTTPHandler) handlePluginRequest(
@@ -128,53 +359,62 @@ func (h *HTTPHandler) handlePluginRequest(
 	pluginPath string,
 	pathParams map[string]string,
 ) {
-	ctx := r.Context()
+	release, ok := h.acquireInFlight()
+	if !ok {
+		h.rejectBusy(w, plugin, HTTPResultInFlightFull, "too many plugin requests in flight")
 
-	protoReq, err := h.buildProtoRequest(r, plugin.Info.Id, pluginPath, pathParams)
+		return
+	}
+	defer release()
+
+	releaseSlot, ok := h.acquireQueueSlot(plugin)
+	if !ok {
+		h.rejectBusy(w, plugin, HTTPResultQueueFull, "plugin request queue is full")
+
+		return
+	}
+	defer releaseSlot()
+
+	if h.maxQuery > 0 && int64(len(r.URL.RawQuery)) > h.maxQuery {
+		h.observe(plugin, HTTPResultTooLarge)
+		http.Error(w, "query string too long", http.StatusRequestURITooLong)
+
+		return
+	}
+
+	protoReq, err := h.buildProtoRequest(w, r, plugin.Info.Id, pluginPath, pathParams)
 	if err != nil {
+		if errors.Is(err, errBodyTooLarge) {
+			h.observe(plugin, HTTPResultTooLarge)
+			http.Error(w, errBodyTooLarge.Error(), http.StatusRequestEntityTooLarge)
+
+			return
+		}
+
 		slog.Error("failed to build proto request",
 			slog.String("plugin_id", plugin.Info.Id),
 			slog.String("error", err.Error()),
 		)
+		h.observe(plugin, HTTPResultError)
 		http.Error(w, "failed to process request", http.StatusBadRequest)
 
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, h.timeout)
+	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
+
+	ctx = WithCallQueueTimeout(ctx, h.queueTimeout)
+	ctx = WithCallMinBudget(ctx, h.minCallBudget)
 
 	resp, err := h.callPlugin(ctx, plugin, protoReq)
 	if err != nil {
-		slog.Error("plugin request failed",
-			slog.String("plugin_id", plugin.Info.Id),
-			slog.String("path", pluginPath),
-			slog.String("error", err.Error()),
-		)
-
-		if errors.Is(err, ErrPluginBusy) {
-			// The guest was never invoked; the plugin stays enabled.
-			http.Error(w, "plugin is busy", http.StatusServiceUnavailable)
-
-			return
-		}
-
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
-			// The runtime closed the module on deadline; stop routing to it.
-			plugin.DisableWithReason(DisableReasonHTTPTimeout + " (" + r.Method + " " + pluginPath + ")")
-
-			slog.Error("plugin HTTP handler timed out, plugin disabled until reload",
-				slog.String("plugin_id", plugin.Info.Id),
-			)
-			http.Error(w, "request timeout", http.StatusGatewayTimeout)
-
-			return
-		}
-
-		http.Error(w, "plugin error", http.StatusInternalServerError)
+		h.handleCallError(ctx, w, r, plugin, pluginPath, err)
 
 		return
 	}
+
+	h.observe(plugin, HTTPResultOK)
 
 	if resp.File != nil {
 		// The file is streamed on the request's own context, not the guest
@@ -185,6 +425,111 @@ func (h *HTTPHandler) handlePluginRequest(
 	}
 
 	h.writeResponse(w, resp)
+}
+
+// handleCallError answers a failed guest call; ctx is the call context, whose
+// deadline tells a timeout apart from a plugin error.
+func (h *HTTPHandler) handleCallError(
+	ctx context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+	plugin *LoadedPlugin,
+	pluginPath string,
+	err error,
+) {
+	slog.Error("plugin request failed",
+		slog.String("plugin_id", plugin.Info.Id),
+		slog.String("path", pluginPath),
+		slog.String("error", err.Error()),
+	)
+
+	if errors.Is(err, ErrPluginBusy) {
+		// The guest was never invoked; the plugin stays enabled.
+		h.rejectBusy(w, plugin, HTTPResultBusy, "plugin is busy")
+
+		return
+	}
+
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+		// The runtime closed the module on deadline; stop routing to it.
+		plugin.DisableWithReason(DisableReasonHTTPTimeout + " (" + r.Method + " " + pluginPath + ")")
+
+		slog.Error("plugin HTTP handler timed out, plugin disabled until reload",
+			slog.String("plugin_id", plugin.Info.Id),
+		)
+		h.observe(plugin, HTTPResultTimeout)
+		http.Error(w, "request timeout", http.StatusGatewayTimeout)
+
+		return
+	}
+
+	h.observe(plugin, HTTPResultError)
+	http.Error(w, "plugin error", http.StatusInternalServerError)
+}
+
+// rejectBusy answers a request the handler will not run now: the plugin's
+// gate is taken, or a request cap is reached. Nothing was sent to the guest.
+func (h *HTTPHandler) rejectBusy(w http.ResponseWriter, plugin *LoadedPlugin, result, message string) {
+	h.observe(plugin, result)
+
+	w.Header().Set("Retry-After", retryAfterBusy)
+	w.Header().Set("Cache-Control", "no-store")
+	http.Error(w, message, http.StatusServiceUnavailable)
+}
+
+// acquireInFlight takes a slot of the per-instance request cap without
+// waiting; the returned func releases it.
+func (h *HTTPHandler) acquireInFlight() (func(), bool) {
+	if h.inflight == nil {
+		return func() {}, true
+	}
+
+	select {
+	case h.inflight <- struct{}{}:
+		return func() { <-h.inflight }, true
+	default:
+		return nil, false
+	}
+}
+
+// acquireQueueSlot counts the request against the plugin's cap; the returned
+// func releases it.
+func (h *HTTPHandler) acquireQueueSlot(plugin *LoadedPlugin) (func(), bool) {
+	if h.maxQueue <= 0 {
+		return func() {}, true
+	}
+
+	value, _ := h.queued.LoadOrStore(plugin.Info.Id, new(atomic.Int32))
+	counter, _ := value.(*atomic.Int32)
+
+	if counter.Add(1) > h.maxQueue {
+		counter.Add(-1)
+
+		return nil, false
+	}
+
+	return func() { counter.Add(-1) }, true
+}
+
+// QueuedRequests reports the requests of the plugin inside the handler on
+// this instance, waiting for the call gate or executing.
+func (h *HTTPHandler) QueuedRequests(pluginID string) int {
+	value, ok := h.queued.Load(pluginID)
+	if !ok {
+		return 0
+	}
+
+	counter, _ := value.(*atomic.Int32)
+
+	return int(counter.Load())
+}
+
+func (h *HTTPHandler) observe(plugin *LoadedPlugin, result string) {
+	observerOrNop(h.observer).HTTPRequest(plugin.DBID, result)
+}
+
+func retryAfterSeconds(wait time.Duration) string {
+	return strconv.Itoa(max(1, int(math.Ceil(wait.Seconds()))))
 }
 
 // serveFileRef hands a file response to the FileRefServer. The plugin's
@@ -315,12 +660,13 @@ func matchPath(pattern, path string) (map[string]string, bool) {
 }
 
 func (h *HTTPHandler) buildProtoRequest(
+	w http.ResponseWriter,
 	r *http.Request,
 	pluginID string,
 	pluginPath string,
 	pathParams map[string]string,
 ) (*proto.HTTPRequest, error) {
-	body, err := h.readBody(r)
+	body, err := h.readBody(w, r)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to read request body")
 	}
@@ -362,19 +708,22 @@ func (h *HTTPHandler) buildProtoRequest(
 	}, nil
 }
 
-func (h *HTTPHandler) readBody(r *http.Request) ([]byte, error) {
+// readBody reads at most maxBody bytes. http.MaxBytesReader stops reading
+// at the cap and tells the server to close the connection afterwards, so an
+// oversized upload is not drained into memory before it is refused.
+func (h *HTTPHandler) readBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 	if r.Body == nil {
 		return nil, nil
 	}
 
-	limitedReader := io.LimitReader(r.Body, h.maxBody+1)
-	body, err := io.ReadAll(limitedReader)
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, h.maxBody))
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read body")
-	}
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return nil, errBodyTooLarge
+		}
 
-	if int64(len(body)) > h.maxBody {
-		return nil, errors.New("request body too large")
+		return nil, errors.Wrap(err, "failed to read body")
 	}
 
 	return body, nil

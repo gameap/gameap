@@ -686,6 +686,61 @@ type Config struct {
 				Burst int     `env:"PLUGINS_RATELIMIT_SSH_BURST" envDefault:"60"`
 			}
 		}
+
+		// Routes bounds the HTTP routes plugins register under
+		// /api/plugins/{plugin}/... (inbound; PLUGINS_HTTP_* is the outbound
+		// gameap-http library). Calls into one plugin are serialised, so
+		// these caps keep a flood on one route from holding goroutines,
+		// memory and the plugin's call gate for everyone else.
+		Routes struct {
+			// Timeout bounds one request end to end: the wait for the
+			// plugin's call gate plus the guest call.
+			Timeout time.Duration `env:"PLUGINS_ROUTES_TIMEOUT" envDefault:"30s"`
+
+			// QueueTimeout bounds the wait for the call gate alone; a request
+			// that waited this long answers 503 without touching the guest
+			// (0 = wait up to Timeout).
+			QueueTimeout time.Duration `env:"PLUGINS_ROUTES_QUEUE_TIMEOUT" envDefault:"10s"`
+
+			// MaxQueue caps the requests of one plugin inside the handler on
+			// this instance, waiting or executing; further ones answer 503
+			// (0 = unlimited).
+			MaxQueue int `env:"PLUGINS_ROUTES_MAX_QUEUE" envDefault:"32"`
+
+			// MaxInFlight caps plugin requests inside the handler across all
+			// plugins on this instance (0 = unlimited).
+			MaxInFlight int `env:"PLUGINS_ROUTES_MAX_INFLIGHT" envDefault:"256"`
+
+			// MaxBody caps the request body handed to the guest; larger
+			// requests answer 413.
+			MaxBody ByteSize `env:"PLUGINS_ROUTES_MAX_BODY" envDefault:"1M"`
+
+			// MaxQuery caps the raw query string; longer ones answer 414
+			// (0 = unlimited).
+			MaxQuery ByteSize `env:"PLUGINS_ROUTES_MAX_QUERY" envDefault:"64K"`
+
+			// Anonymous serves the routes a plugin declares without
+			// requires_auth to clients without a session. Off, every plugin
+			// route needs a session, whatever the plugin declared.
+			Anonymous bool `env:"PLUGINS_ROUTES_ANONYMOUS" envDefault:"true"`
+
+			// RateLimit is the per-client token bucket on plugin routes, per
+			// panel instance: anonymous clients are keyed by IP
+			// (AUDIT_CLIENT_IP_HEADER is honoured), authenticated ones by
+			// user. A refused request answers 429 with Retry-After. RPS 0 =
+			// no limit for that class.
+			RateLimit struct {
+				Anonymous struct {
+					RPS   float64 `env:"PLUGINS_ROUTES_RATELIMIT_ANON_RPS" envDefault:"10"`
+					Burst int     `env:"PLUGINS_ROUTES_RATELIMIT_ANON_BURST" envDefault:"50"`
+				}
+
+				User struct {
+					RPS   float64 `env:"PLUGINS_ROUTES_RATELIMIT_USER_RPS" envDefault:"50"`
+					Burst int     `env:"PLUGINS_ROUTES_RATELIMIT_USER_BURST" envDefault:"200"`
+				}
+			}
+		}
 	}
 
 	// Metrics exposes the Prometheus endpoint.

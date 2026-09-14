@@ -297,6 +297,8 @@ tags:
     description: Client certificate management (Admin)
   - name: PluginStore
     description: Plugin store (Admin)
+  - name: Plugins
+    description: Routes registered by installed plugins
   - name: DaemonSetup
     description: Daemon node setup
   - name: DaemonAPI
@@ -605,6 +607,10 @@ paths:
     $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1{id}~1permissions'
   /api/admin/plugins/{id}/upload:
     $ref: './paths/admin-plugins.yaml#/~1api~1admin~1plugins~1{id}~1upload'
+
+  # Plugin routes (registered by installed plugins)
+  /api/plugins/{plugin_id}/{path}:
+    $ref: './paths/plugin-routes.yaml#/~1api~1plugins~1{plugin_id}~1{path}'
 
   # Admin Let's Encrypt
   /api/admin/letsencrypt/status:

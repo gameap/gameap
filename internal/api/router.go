@@ -197,6 +197,7 @@ import (
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin"
+	"github.com/gameap/gameap/pkg/ratelimit"
 	"github.com/gameap/gameap/pkg/secret"
 	"github.com/gameap/gameap/pkg/twofactor"
 	"github.com/gorilla/handlers"
@@ -256,6 +257,7 @@ type container interface {
 	PluginPathPolicy() *hostlibrary.PathPolicy
 	PluginSync() *pluginsync.Service
 	Telemetry() *telemetry.Registry
+	PluginMetrics() *telemetry.PluginMetrics
 	PluginScheduler() *pluginscheduler.Service
 	PluginArchiveEvents() *pluginarchive.Service
 	PluginSubscriptionsNotifier() *pubsubintegration.PluginSubscriptionsNotifier
@@ -2446,11 +2448,29 @@ func registerPluginRoutes(
 		pluginfileref.WithPathPolicy(c.PluginPathPolicy()),
 	)
 
+	routes := c.Config().Plugins.Routes
+
 	pluginHandler := plugin.NewHTTPHandler(
 		pluginManager,
 		authMiddleware,
 		isAdminMiddleware,
 		plugin.WithFileRefServer(fileRefServer),
+		plugin.WithRequestTimeout(routes.Timeout),
+		plugin.WithQueueTimeout(routes.QueueTimeout),
+		//nolint:gosec // body and query caps fit an int64
+		plugin.WithMaxBody(int64(routes.MaxBody.Uint64())),
+		//nolint:gosec // body and query caps fit an int64
+		plugin.WithMaxQuery(int64(routes.MaxQuery.Uint64())),
+		plugin.WithMaxQueue(routes.MaxQueue),
+		plugin.WithMaxInFlight(routes.MaxInFlight),
+		plugin.WithAnonymousRoutes(routes.Anonymous),
+		plugin.WithClientRateLimits(
+			ratelimit.Limit{RPS: routes.RateLimit.Anonymous.RPS, Burst: routes.RateLimit.Anonymous.Burst},
+			ratelimit.Limit{RPS: routes.RateLimit.User.RPS, Burst: routes.RateLimit.User.Burst},
+		),
+		plugin.WithClientIPHeader(c.Config().Audit.ClientIPHeader),
+		plugin.WithObserver(c.PluginMetrics()),
+		plugin.WithAuditLogger(c.AuditLogger()),
 	)
 
 	var handler http.Handler = pluginHandler

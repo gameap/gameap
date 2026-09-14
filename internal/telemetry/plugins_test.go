@@ -30,11 +30,15 @@ func TestPluginMetrics_counts_signals(t *testing.T) {
 	metrics.GuestCall(42, "plugin_service_handle_event", time.Second, "timeout")
 	metrics.EventDispatched(proto.EventType_EVENT_TYPE_SERVER_POST_START, "handled")
 	metrics.OnPluginDisabled("plugin", 42, "event handler timed out (SERVER_POST_START)")
+	metrics.HTTPRequest(42, "rate_limited")
+	metrics.HTTPRequest(42, "rate_limited")
+	metrics.HTTPRequest(42, "ok")
 
 	// Transient loads are not labelled.
 	metrics.HostCall(0, "gameap-log", "log", time.Millisecond, false)
 	metrics.GuestCall(0, "plugin_service_get_info", time.Millisecond, "ok")
 	metrics.OnPluginDisabled("transient", 0, "guest module exited")
+	metrics.HTTPRequest(0, "ok")
 
 	plugin := PluginLabel(42)
 
@@ -47,6 +51,9 @@ func TestPluginMetrics_counts_signals(t *testing.T) {
 	assert.InDelta(t, 1, testutil.ToFloat64(metrics.disabled.WithLabelValues(plugin, "event handler timed out")), 0,
 		"the reason label keeps only the stable prefix")
 	assert.InDelta(t, 3, testutil.ToFloat64(metrics.backlog), 0)
+	assert.InDelta(t, 2, testutil.ToFloat64(metrics.httpRequests.WithLabelValues(plugin, "rate_limited")), 0)
+	assert.InDelta(t, 1, testutil.ToFloat64(metrics.httpRequests.WithLabelValues(plugin, "ok")), 0)
+	assert.InDelta(t, 0, testutil.ToFloat64(metrics.httpRequests.WithLabelValues("0", "ok")), 0)
 
 	assert.InDelta(t, 0, testutil.ToFloat64(metrics.hostCalls.WithLabelValues("0", "log", "log", "ok")), 0)
 
@@ -60,7 +67,7 @@ func TestPluginMetrics_counts_signals(t *testing.T) {
 		"gameap_plugin_host_calls_total", "gameap_plugin_host_call_duration_seconds",
 		"gameap_plugin_host_calls_denied_total", "gameap_plugin_guest_calls_total",
 		"gameap_plugin_guest_call_duration_seconds", "gameap_plugin_events_dispatched_total",
-		"gameap_plugin_disabled_total", "gameap_plugin_async_backlog",
+		"gameap_plugin_disabled_total", "gameap_plugin_async_backlog", "gameap_plugin_http_requests_total",
 		"go_goroutines", "process_cpu_seconds_total",
 	} {
 		assert.Truef(t, strings.Contains(body, name), "exposition must contain %s", name)

@@ -530,7 +530,7 @@ func TestReadBody(t *testing.T) {
 			}
 
 			// ACT
-			body, err := handler.readBody(req)
+			body, err := handler.readBody(httptest.NewRecorder(), req)
 
 			// ASSERT
 			if tt.wantError != "" {
@@ -698,7 +698,7 @@ func TestBuildProtoRequest(t *testing.T) {
 			req := tt.setupReq()
 
 			// ACT
-			protoReq, err := handler.buildProtoRequest(req, tt.pluginID, tt.pluginPath, tt.pathParams)
+			protoReq, err := handler.buildProtoRequest(httptest.NewRecorder(), req, tt.pluginID, tt.pluginPath, tt.pathParams)
 
 			// ASSERT
 			if tt.wantError != "" {
@@ -1214,7 +1214,7 @@ func TestHandlePluginRequest(t *testing.T) {
 			expectedBody:   `{"result":"success"}`,
 		},
 		{
-			name: "build_request_error",
+			name: "body_too_large",
 			setupPlugin: func() *LoadedPlugin {
 				return &LoadedPlugin{
 					Info:     &proto.PluginInfo{Id: "test-plugin"},
@@ -1223,8 +1223,8 @@ func TestHandlePluginRequest(t *testing.T) {
 			},
 			requestBody:    strings.Repeat("x", 100),
 			maxBody:        10,
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   "failed to process request",
+			expectedStatus: http.StatusRequestEntityTooLarge,
+			expectedBody:   "request body too large",
 		},
 		{
 			name: "plugin_error",
