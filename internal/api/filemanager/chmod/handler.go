@@ -134,6 +134,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.responder.Write(ctx, rw, newChmodResponse())
 }
 
+// validateRequest checks every item before any of them reaches the daemon, so
+// an invalid item cannot leave the batch partially applied.
 func (h *Handler) validateRequest(req *chmodRequest) error {
 	if req.Disk != "server" {
 		return errors.Errorf("unsupported disk: %s, only 'server' disk is supported", req.Disk)
@@ -145,6 +147,16 @@ func (h *Handler) validateRequest(req *chmodRequest) error {
 
 	if req.Mode < 0 || req.Mode > maxMode {
 		return errors.Errorf("invalid mode: %d, must be between 0 and 0o777", req.Mode)
+	}
+
+	for _, item := range req.Items {
+		if err := filemanagerpath.ValidatePath(item.Path); err != nil {
+			return err
+		}
+
+		if filemanagerpath.IsRoot(item.Path) {
+			return filemanagerpath.ErrPathIsRoot
+		}
 	}
 
 	return nil
@@ -176,10 +188,6 @@ func (h *Handler) processItems(
 	perm := uint32(req.Mode) //nolint:gosec // validateRequest guarantees 0..0o777 range
 
 	for _, item := range req.Items {
-		if err := filemanagerpath.ValidatePath(item.Path); err != nil {
-			return api.WrapHTTPError(err, http.StatusBadRequest)
-		}
-
 		fullPath := filepath.Join(node.WorkPath, serverDir, item.Path)
 
 		err := h.daemonFiles.Chmod(ctx, node, fullPath, perm)

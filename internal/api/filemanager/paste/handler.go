@@ -263,6 +263,10 @@ func planPasteItem(
 		return pasteOperation{}, false, api.WrapHTTPError(err, http.StatusBadRequest)
 	}
 
+	if filemanagerpath.IsRoot(itemPath) {
+		return pasteOperation{}, false, api.WrapHTTPError(filemanagerpath.ErrPathIsRoot, http.StatusBadRequest)
+	}
+
 	sourcePath := filepath.Join(sourceBase, itemPath)
 
 	if isDir && pathIsInside(destinationBase, sourcePath) {

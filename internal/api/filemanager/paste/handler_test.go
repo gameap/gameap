@@ -2083,3 +2083,74 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		})
 	}
 }
+
+// TestHandler_ServeHTTP_rejectsServerRootSource guards paste against using the
+// server root as a copy/move source. A clipboard entry ("", "/", ".", "\\"),
+// supplied as either a file or a directory, must be refused with 400 before any
+// daemon Copy/Move runs. The directory case was only incidentally blocked
+// before; the file case was an outright gap.
+func TestHandler_ServeHTTP_rejectsServerRootSource(t *testing.T) {
+	t.Parallel()
+
+	rootCases := []struct {
+		name  string
+		path  string
+		isDir bool
+	}{
+		{name: "empty_file", path: "", isDir: false},
+		{name: "slash_file", path: "/", isDir: false},
+		{name: "dot_file", path: ".", isDir: false},
+		{name: "backslash_file", path: "\\", isDir: false},
+		{name: "empty_dir", path: "", isDir: true},
+		{name: "slash_dir", path: "/", isDir: true},
+	}
+
+	for _, rc := range rootCases {
+		t.Run(rc.name, func(t *testing.T) {
+			t.Parallel()
+
+			serverRepo := inmemory.NewServerRepository()
+			nodeRepo := inmemory.NewNodeRepository()
+			rbacRepo := inmemory.NewRBACRepository()
+			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+			setupServer1WithNode(t, serverRepo, nodeRepo, rbacRepo)
+
+			fileService := &mockFileService{}
+			handler := NewHandler(serverRepo, nodeRepo, rbacService, fileService, api.NewResponder())
+
+			cb := clipboard{Type: "copy", Disk: "server", Directories: []string{}, Files: []string{}}
+			if rc.isDir {
+				cb.Directories = []string{rc.path}
+			} else {
+				cb.Files = []string{rc.path}
+			}
+
+			body, err := json.Marshal(pasteRequest{
+				Disk:      "server",
+				Path:      "new",
+				Clipboard: cb,
+			})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/file-manager/1/paste", bytes.NewReader(body))
+			req = req.WithContext(testUser1Session())
+			req = mux.SetURLVars(req, map[string]string{"server": "1"})
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code,
+				"a server-root source must be rejected; body=%s", w.Body.String())
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, "error", response["status"])
+			errorMsg, ok := response["error"].(string)
+			require.True(t, ok)
+			assert.Contains(t, errorMsg, "path refers to the server root")
+
+			assert.Zero(t, fileService.copyCalls, "no Copy must be dispatched for a root source")
+			assert.Zero(t, fileService.moveCalls, "no Move must be dispatched for a root source")
+		})
+	}
+}

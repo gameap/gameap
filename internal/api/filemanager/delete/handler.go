@@ -139,6 +139,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.responder.Write(ctx, rw, newDeleteResponse())
 }
 
+// validateRequest checks every item before any of them reaches the daemon, so
+// an invalid item cannot leave the batch partially applied.
 func (h *Handler) validateRequest(req *deleteRequest) error {
 	if req.Disk != "server" {
 		return errors.Errorf("unsupported disk: %s, only 'server' disk is supported", req.Disk)
@@ -146,6 +148,16 @@ func (h *Handler) validateRequest(req *deleteRequest) error {
 
 	if len(req.Items) == 0 {
 		return errors.New("items array is empty")
+	}
+
+	for _, item := range req.Items {
+		if err := filemanagerpath.ValidatePath(item.Path); err != nil {
+			return err
+		}
+
+		if filemanagerpath.IsRoot(item.Path) {
+			return filemanagerpath.ErrPathIsRoot
+		}
 	}
 
 	return nil
@@ -175,10 +187,6 @@ func (h *Handler) processItems(
 	items []deleteItem,
 ) error {
 	for _, item := range items {
-		if err := filemanagerpath.ValidatePath(item.Path); err != nil {
-			return api.WrapHTTPError(err, http.StatusBadRequest)
-		}
-
 		fullPath := filepath.Join(node.WorkPath, serverDir, item.Path)
 		recursive := item.Type == "dir"
 

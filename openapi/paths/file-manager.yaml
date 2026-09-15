@@ -199,7 +199,11 @@
     tags:
       - FileManager
     summary: Delete files/directories
-    description: Deletes files or directories
+    description: |
+      Deletes files or directories.
+      All item paths are validated before anything is deleted: an invalid
+      path or a path referring to the server root rejects the whole batch
+      with 400 and no item is deleted.
     operationId: deleteFiles
     parameters:
       - name: server
@@ -230,7 +234,7 @@
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
       '400':
-        description: Bad request (invalid path, unsupported disk, or empty items list)
+        description: Bad request (invalid path, path referring to the server root, unsupported disk, or empty items list)
         content:
           application/json:
             schema:
@@ -716,8 +720,11 @@
       bits (setuid, setgid, sticky) are not supported and will be masked
       off. Operates on the specified path only — directories are not
       modified recursively.
-      Items are processed sequentially; the first failing item aborts the
-      batch (fail-fast behavior, consistent with `delete` endpoint).
+      All item paths are validated before any permissions change: an invalid
+      path or a path referring to the server root rejects the whole batch
+      with 400. Items are then processed sequentially; the first failing
+      item aborts the batch (fail-fast behavior, consistent with `delete`
+      endpoint).
     operationId: chmodFiles
     parameters:
       - name: server
@@ -767,7 +774,7 @@
             schema:
               $ref: '../schemas/SuccessResponse.yaml'
       '400':
-        description: Bad request (invalid path, mode out of range, unsupported disk)
+        description: Bad request (invalid path, path referring to the server root, mode out of range, unsupported disk)
         content:
           application/json:
             schema:

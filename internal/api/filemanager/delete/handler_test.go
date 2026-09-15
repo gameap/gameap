@@ -1232,3 +1232,195 @@ func TestHandler_Audit_DeniedDeleteDoesNotEmitFileDelete(t *testing.T) {
 	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventFileDelete),
 		"a refused deletion must not be recorded as a successful file.delete")
 }
+
+// TestHandler_ServeHTTP_rejectsServerRoot is the regression guard for the
+// recursive server-directory wipe. A delete item whose path resolves to the
+// server root ("", "/", ".", "\\") must be refused with 400 before any daemon
+// Remove is dispatched. Without the IsRoot guard such a path joins to the
+// server directory itself and, with type "dir", recursively deletes everything.
+func TestHandler_ServeHTTP_rejectsServerRoot(t *testing.T) {
+	t.Parallel()
+
+	rootCases := []struct {
+		name string
+		path string
+	}{
+		{name: "empty", path: ""},
+		{name: "slash", path: "/"},
+		{name: "dot", path: "."},
+		{name: "backslash", path: "\\"},
+	}
+
+	for _, rc := range rootCases {
+		t.Run(rc.name, func(t *testing.T) {
+			t.Parallel()
+
+			serverRepo := inmemory.NewServerRepository()
+			nodeRepo := inmemory.NewNodeRepository()
+			rbacRepo := inmemory.NewRBACRepository()
+			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+			now := time.Now()
+			require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{
+				ID:        1,
+				UID:       uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+				UUIDShort: "short1",
+				Enabled:   true,
+				Installed: 1,
+				Name:      "Test Server 1",
+				GameID:    "cs",
+				DSID:      1,
+				GameModID: 1,
+				ServerIP:  "127.0.0.1",
+				Dir:       "servers/test1",
+				CreatedAt: &now,
+				UpdatedAt: &now,
+			}))
+			serverRepo.AddUserServer(1, 1)
+			allowUserFilesAbility(t, rbacRepo, 1, 1)
+			node := testNode
+			require.NoError(t, nodeRepo.Save(context.Background(), &node))
+
+			fileService := &mockFileService{
+				removeFunc: func(_ context.Context, _ *domain.Node, path string, _ bool) error {
+					assert.Fail(t, "daemon Remove must not be called for a server-root path",
+						"path=%q", path)
+
+					return nil
+				},
+			}
+			handler := NewHandler(serverRepo, nodeRepo, rbacService, fileService, api.NewResponder(), nil)
+
+			body, err := json.Marshal(deleteRequest{
+				Disk:  "server",
+				Items: []deleteItem{{Path: rc.path, Type: "dir"}},
+			})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/file-manager/1/delete", bytes.NewReader(body))
+			req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+				Login: "testuser",
+				Email: "test@example.com",
+				User:  &testUser1,
+			}))
+			req = mux.SetURLVars(req, map[string]string{"server": "1"})
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code,
+				"a server-root path must be rejected; body=%s", w.Body.String())
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, "error", response["status"])
+			errorMsg, ok := response["error"].(string)
+			require.True(t, ok)
+			assert.Contains(t, errorMsg, "path refers to the server root")
+		})
+	}
+}
+
+// TestHandler_ServeHTTP_validatesAllItemsBeforeRemove guards against a partially
+// applied batch. Every item path is validated before the first daemon Remove, so
+// an invalid or server-root item anywhere in the batch rejects the whole request
+// and the valid items preceding it are left untouched.
+func TestHandler_ServeHTTP_validatesAllItemsBeforeRemove(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		items     []deleteItem
+		wantError string
+	}{
+		{
+			name: "empty_path_after_valid_item",
+			items: []deleteItem{
+				{Path: "keep.txt", Type: "file"},
+				{Path: "", Type: "dir"},
+			},
+			wantError: "path refers to the server root",
+		},
+		{
+			name: "dot_path_after_valid_item",
+			items: []deleteItem{
+				{Path: "keep.txt", Type: "file"},
+				{Path: ".", Type: "dir"},
+			},
+			wantError: "path refers to the server root",
+		},
+		{
+			name: "traversal_path_after_valid_item",
+			items: []deleteItem{
+				{Path: "keep.txt", Type: "file"},
+				{Path: "../test2", Type: "dir"},
+			},
+			wantError: "path contains invalid directory traversal",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			serverRepo := inmemory.NewServerRepository()
+			nodeRepo := inmemory.NewNodeRepository()
+			rbacRepo := inmemory.NewRBACRepository()
+			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+			now := time.Now()
+			require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{
+				ID:        1,
+				UID:       uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+				UUIDShort: "short1",
+				Enabled:   true,
+				Installed: 1,
+				Name:      "Test Server 1",
+				GameID:    "cs",
+				DSID:      1,
+				GameModID: 1,
+				ServerIP:  "127.0.0.1",
+				Dir:       "servers/test1",
+				CreatedAt: &now,
+				UpdatedAt: &now,
+			}))
+			serverRepo.AddUserServer(1, 1)
+			allowUserFilesAbility(t, rbacRepo, 1, 1)
+			node := testNode
+			require.NoError(t, nodeRepo.Save(context.Background(), &node))
+
+			fileService := &mockFileService{
+				removeFunc: func(_ context.Context, _ *domain.Node, path string, _ bool) error {
+					assert.Fail(t, "daemon Remove must not be called when any batch item is invalid",
+						"path=%q", path)
+
+					return nil
+				},
+			}
+			handler := NewHandler(serverRepo, nodeRepo, rbacService, fileService, api.NewResponder(), nil)
+
+			body, err := json.Marshal(deleteRequest{Disk: "server", Items: tt.items})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/file-manager/1/delete", bytes.NewReader(body))
+			req = req.WithContext(auth.ContextWithSession(context.Background(), &auth.Session{
+				Login: "testuser",
+				Email: "test@example.com",
+				User:  &testUser1,
+			}))
+			req = mux.SetURLVars(req, map[string]string{"server": "1"})
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, "error", response["status"])
+			errorMsg, ok := response["error"].(string)
+			require.True(t, ok)
+			assert.Contains(t, errorMsg, tt.wantError)
+		})
+	}
+}
