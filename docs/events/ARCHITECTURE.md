@@ -87,9 +87,9 @@ graph TB
     BRIDGE -->|"Broadcast(topic, msg)"| HUB
     HUB -->|"send to subscribed clients"| CLIENT
 
-    %% Console command flow (Browser -> Daemon)
-    CLIENT -->|"console.command"| CONSOLE_WS
-    CONSOLE_WS -->|"SendCommand"| REGISTRY
+    %% Console WS is read-only: inbound frames are dropped, input goes through
+    %% /api/ws/servers/{id}/attach (attach.input) or POST /api/servers/{id}/console
+    %% Command dispatch (Registry -> Daemon)
     REGISTRY -->|"local session"| SESSION
     REGISTRY -->|"remote dispatch<br/>daemon:command:dispatch:{nodeID}"| PS_IFACE
 
@@ -124,52 +124,35 @@ graph TB
     class TASK_REPO,SERVER_REPO,NODE_REPO,CACHE_INV domain
 ```
 
-## Data Flow: Console Command (Full Cycle)
+## Data Flow: Server Console (Read-Only)
+
+`/api/ws/servers/{id}/console` only streams output. It installs no inbound message handler, so client
+frames (including the removed `console.command`) are dropped by the read pump. Input is sent through
+`/api/ws/servers/{id}/attach` (`attach.input`) or `POST /api/servers/{id}/console`, both of which
+require `AbilityNameGameServerConsoleSend` and deliver it to the game process rather than executing
+it as a host command.
 
 ```mermaid
 sequenceDiagram
     participant B as Browser
-    participant WS as WebSocket Client
-    participant Hub as WS Hub
     participant CH as Console Handler
-    participant Reg as SessionRegistry
-    participant S as gRPC Session
-    participant D as Daemon
-    participant CmdH as CommandHandler
-    participant PS as PubSub
+    participant Hub as WS Hub
     participant Bridge as WS Bridge
+    participant PS as PubSub
 
-    B->>WS: {"type":"console.command", "payload":{"command":"say hello"}}
-    WS->>CH: readPump -> MessageHandler
-    CH->>CH: check AbilityNameGameServerConsoleSend
-    CH->>Reg: SendCommand(nodeID, CommandRequest)
+    B->>CH: GET /api/ws/servers/{id}/console (upgrade)
+    CH->>CH: check AbilityNameGameServerConsoleView
+    CH->>Hub: Register(client, "realtime:console:output:{serverID}")
+    CH->>B: {"type":"console.history", "payload":{"output":"..."}}
 
-    alt Daemon connected locally
-        Reg->>S: Stream.Send(GatewayMessage)
-        S->>D: gRPC bidirectional stream
-    else Daemon on another instance
-        Reg->>PS: publish daemon:command:dispatch:{nodeID}
-        PS-->>Reg: (other instance) handleCommandDispatch
-        Reg->>S: Stream.Send(GatewayMessage)
-        S->>D: gRPC bidirectional stream
-    end
-
-    D->>D: Execute command
-    D->>S: DaemonMessage(CommandOutput)
-    S->>CmdH: HandleCommandOutput()
-    CmdH->>PS: publish realtime:console:output:{serverID}
     PS->>Bridge: handler (subscribed to realtime:console:*)
     Bridge->>Hub: Broadcast("realtime:console:output:{serverID}", msg)
-    Hub->>WS: send to subscribed clients
-    WS->>B: {"type":"console.output", "payload":{"chunk":"..."}}
+    Hub->>B: {"type":"console.output", "payload":{"chunk":"..."}}
 
-    D->>S: DaemonMessage(CommandResult)
-    S->>CmdH: HandleCommandResult()
-    CmdH->>PS: publish realtime:console:result:{serverID}
-    PS->>Bridge: handler
-    Bridge->>Hub: Broadcast
-    Hub->>WS: send
-    WS->>B: {"type":"console.result", "payload":{"exitCode":0}}
+    B-->>CH: any inbound frame
+    Note over CH: dropped, no inbound handler
+
+    Note over B,Hub: The RCON password is replaced with ****** in every outbound frame
 ```
 
 ## Data Flow: Task Execution

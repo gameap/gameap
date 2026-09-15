@@ -48,7 +48,7 @@ launch command line.
 ## Endpoints
 
 - `GET /api/ws/tasks/{id}?token=<bearer>` - Real-time task status and output
-- `GET /api/ws/servers/{server}/console?token=<bearer>` - Bidirectional server console
+- `GET /api/ws/servers/{server}/console?token=<bearer>` - Read-only server console (`console.history` on connect, then `console.output`); inbound frames are ignored, send input via `attach.input` or `POST /api/servers/{server}/console`
 - `GET /api/ws/servers/{server}/attach?token=<bearer>` - Interactive PTY session
 - `GET /api/ws/servers/{server}/file-manager/archive-operations?token=<bearer>` - Archive create/extract progress (`archive.progress` / `archive.complete` frames)
 
