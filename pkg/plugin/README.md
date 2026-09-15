@@ -1143,7 +1143,9 @@ func (p MyPlugin) HandleHTTPRequest(ctx context.Context, req *proto.HTTPRequest)
 
 Every request to `/api/plugins/{plugin}/…` is bounded on the panel before and
 after it reaches the guest; the limits are per panel instance and configured
-through `PLUGINS_ROUTES_*` (`0` removes a cap):
+through `PLUGINS_ROUTES_*` (`0` removes a cap, except for
+`PLUGINS_ROUTES_TIMEOUT` and `PLUGINS_ROUTES_MAX_BODY`, where `0` keeps the
+default):
 
 | Limit | Default | Answer when exceeded |
 |---|---|---|

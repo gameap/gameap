@@ -694,7 +694,7 @@ type Config struct {
 		// memory and the plugin's call gate for everyone else.
 		Routes struct {
 			// Timeout bounds one request end to end: the wait for the
-			// plugin's call gate plus the guest call.
+			// plugin's call gate plus the guest call (0 keeps the default).
 			Timeout time.Duration `env:"PLUGINS_ROUTES_TIMEOUT" envDefault:"30s"`
 
 			// QueueTimeout bounds the wait for the call gate alone; a request
@@ -712,7 +712,7 @@ type Config struct {
 			MaxInFlight int `env:"PLUGINS_ROUTES_MAX_INFLIGHT" envDefault:"256"`
 
 			// MaxBody caps the request body handed to the guest; larger
-			// requests answer 413.
+			// requests answer 413 (0 keeps the default).
 			MaxBody ByteSize `env:"PLUGINS_ROUTES_MAX_BODY" envDefault:"1M"`
 
 			// MaxQuery caps the raw query string; longer ones answer 414

@@ -437,14 +437,14 @@ func (h *HTTPHandler) handleCallError(
 	pluginPath string,
 	err error,
 ) {
-	slog.Error("plugin request failed",
-		slog.String("plugin_id", plugin.Info.Id),
-		slog.String("path", pluginPath),
-		slog.String("error", err.Error()),
-	)
-
 	if errors.Is(err, ErrPluginBusy) {
-		// The guest was never invoked; the plugin stays enabled.
+		// The guest was never invoked and the plugin stays enabled: expected
+		// under load, so it is not reported as a failure of the plugin.
+		slog.Debug("plugin request refused, plugin is busy",
+			slog.String("plugin_id", plugin.Info.Id),
+			slog.String("path", pluginPath),
+			slog.String("error", err.Error()),
+		)
 		h.rejectBusy(w, plugin, HTTPResultBusy, "plugin is busy")
 
 		return
@@ -456,6 +456,8 @@ func (h *HTTPHandler) handleCallError(
 
 		slog.Error("plugin HTTP handler timed out, plugin disabled until reload",
 			slog.String("plugin_id", plugin.Info.Id),
+			slog.String("path", pluginPath),
+			slog.String("error", err.Error()),
 		)
 		h.observe(plugin, HTTPResultTimeout)
 		http.Error(w, "request timeout", http.StatusGatewayTimeout)
@@ -463,6 +465,11 @@ func (h *HTTPHandler) handleCallError(
 		return
 	}
 
+	slog.Error("plugin request failed",
+		slog.String("plugin_id", plugin.Info.Id),
+		slog.String("path", pluginPath),
+		slog.String("error", err.Error()),
+	)
 	h.observe(plugin, HTTPResultError)
 	http.Error(w, "plugin error", http.StatusInternalServerError)
 }

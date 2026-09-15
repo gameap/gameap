@@ -29,8 +29,12 @@
     timeout, the wait for the plugin's call gate, the requests one plugin and
     one panel instance hold at a time, the body and query sizes, and a
     per-client rate limit (anonymous clients by IP, authenticated ones by
-    user). Refusals are answered by the panel with a plain-text body; a
-    `Retry-After` header names the seconds to wait.
+    user). Refusals are answered by the panel with a plain-text body; the
+    `429` and `503` refusals carry a `Retry-After` header naming the seconds
+    to wait.
+
+    A plugin answers with whatever status it chooses; only `200` is listed
+    explicitly, every other plugin-chosen status is the `default` response.
   get:
     tags:
       - Plugins
@@ -55,6 +59,8 @@
         $ref: '#/components/responses/PluginRouteUnavailable'
       '504':
         $ref: '#/components/responses/PluginRouteTimeout'
+      default:
+        $ref: '#/components/responses/PluginRouteResponse'
   post:
     tags:
       - Plugins
@@ -86,6 +92,8 @@
         $ref: '#/components/responses/PluginRouteUnavailable'
       '504':
         $ref: '#/components/responses/PluginRouteTimeout'
+      default:
+        $ref: '#/components/responses/PluginRouteResponse'
 
 components:
   headers:
@@ -98,7 +106,8 @@ components:
     PluginRouteResponse:
       description: |
         The plugin's response: status, headers and body as the plugin
-        answered them (`Content-Type` defaults to `application/json`).
+        answered them (`Content-Type` defaults to `application/json`). The
+        status is the plugin's own; any code it chooses is passed through.
       content:
         '*/*':
           schema:
