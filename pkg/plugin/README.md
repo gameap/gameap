@@ -1137,6 +1137,15 @@ func (p MyPlugin) HandleHTTPRequest(ctx context.Context, req *proto.HTTPRequest)
 }
 ```
 
+What the request carries: `Headers` holds the client's request headers (the
+first value of each) plus one the panel sets itself — `X-Gameap-Client-Ip`, the
+client address as the panel resolved it (the `AUDIT_CLIENT_IP_HEADER` header
+when the operator configured one, the connection's remote address otherwise;
+the same value the audit log records). An inbound header of that name is
+dropped before the panel's own is set, so a plugin can rely on it where
+`X-Forwarded-For` travels verbatim and unverified. Panels up to 4.5.2 do not
+send it; a plugin should treat its absence as "unknown".
+
 #### Serving node files
 
 A route can hand the client a file that lives on a node without the bytes

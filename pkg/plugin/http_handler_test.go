@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -673,6 +674,60 @@ func TestBuildProtoRequest(t *testing.T) {
 				assert.Equal(t, uint64(1), req.Session.User.Id)
 				assert.Equal(t, "testuser", req.Session.User.Login)
 				assert.Equal(t, "test@example.com", req.Session.User.Email)
+			},
+		},
+		{
+			name: "client_ip_from_request_context",
+			setupReq: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
+				ctx := audit.ContextWithRequestInfo(req.Context(), &audit.RequestInfo{IP: "203.0.113.5"})
+
+				return req.WithContext(ctx)
+			},
+			pluginID:   "test-plugin",
+			pluginPath: "/users",
+			pathParams: map[string]string{},
+			maxBody:    DefaultMaxBodySize,
+			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
+				t.Helper()
+				assert.Equal(t, "203.0.113.5", req.Headers[ClientIPHeader])
+			},
+		},
+		{
+			name: "spoofed_client_ip_header_is_replaced_by_the_context_value",
+			setupReq: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
+				req.Header.Set(ClientIPHeader, "198.51.100.9")
+				req.Header.Set("X-Forwarded-For", "198.51.100.9")
+				ctx := audit.ContextWithRequestInfo(req.Context(), &audit.RequestInfo{IP: "203.0.113.5"})
+
+				return req.WithContext(ctx)
+			},
+			pluginID:   "test-plugin",
+			pluginPath: "/users",
+			pathParams: map[string]string{},
+			maxBody:    DefaultMaxBodySize,
+			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
+				t.Helper()
+				assert.Equal(t, "203.0.113.5", req.Headers[ClientIPHeader])
+				assert.Equal(t, "198.51.100.9", req.Headers["X-Forwarded-For"], "other headers still travel verbatim")
+			},
+		},
+		{
+			name: "no_client_ip_header_without_request_info",
+			setupReq: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
+				req.Header.Set(ClientIPHeader, "198.51.100.9")
+
+				return req
+			},
+			pluginID:   "test-plugin",
+			pluginPath: "/users",
+			pathParams: map[string]string{},
+			maxBody:    DefaultMaxBodySize,
+			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
+				t.Helper()
+				assert.NotContains(t, req.Headers, ClientIPHeader)
 			},
 		},
 		{

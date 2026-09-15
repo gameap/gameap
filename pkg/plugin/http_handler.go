@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -19,6 +20,14 @@ import (
 const (
 	DefaultTimeout     = 30 * time.Second
 	DefaultMaxBodySize = 1 << 20 // 1MB
+
+	// ClientIPHeader carries the client address the panel resolved for the
+	// request (RequestContextMiddleware: AUDIT_CLIENT_IP_HEADER when configured,
+	// the connection's remote address otherwise — the value the audit log
+	// records) to the plugin, which never sees the socket. Set by the panel
+	// only: an inbound header of that name is dropped, so a plugin can rely on
+	// it where X-Forwarded-For travels verbatim.
+	ClientIPHeader = "X-Gameap-Client-Ip"
 )
 
 type Middleware interface {
@@ -330,6 +339,12 @@ func (h *HTTPHandler) buildProtoRequest(
 		if len(values) > 0 {
 			headers[key] = values[0]
 		}
+	}
+
+	// The panel's own verdict on the client address, never the caller's.
+	delete(headers, ClientIPHeader)
+	if info := audit.RequestInfoFromContext(r.Context()); info != nil && info.IP != "" {
+		headers[ClientIPHeader] = info.IP
 	}
 
 	queryParams := make(map[string]*proto.QueryParamValues)

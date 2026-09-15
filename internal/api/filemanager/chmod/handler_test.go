@@ -1053,3 +1053,80 @@ func TestHandler_ServeHTTP_rejectsServerRoot(t *testing.T) {
 		})
 	}
 }
+
+// TestHandler_ServeHTTP_validatesAllItemsBeforeChmod guards against a partially
+// applied batch. Every item path is validated before the first daemon Chmod, so
+// an invalid or server-root item anywhere in the batch rejects the whole request
+// and the valid items preceding it keep their permissions.
+func TestHandler_ServeHTTP_validatesAllItemsBeforeChmod(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		items     []chmodItem
+		wantError string
+	}{
+		{
+			name:      "empty_path_after_valid_item",
+			items:     []chmodItem{{Path: "server.cfg"}, {Path: ""}},
+			wantError: "path refers to the server root",
+		},
+		{
+			name:      "dot_path_after_valid_item",
+			items:     []chmodItem{{Path: "server.cfg"}, {Path: "."}},
+			wantError: "path refers to the server root",
+		},
+		{
+			name:      "traversal_path_after_valid_item",
+			items:     []chmodItem{{Path: "server.cfg"}, {Path: "../test2/server.cfg"}},
+			wantError: "path contains invalid directory traversal",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			serverRepo := inmemory.NewServerRepository()
+			nodeRepo := inmemory.NewNodeRepository()
+			rbacRepo := inmemory.NewRBACRepository()
+			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+			server := newTestServer(1, "servers/test1")
+			require.NoError(t, serverRepo.Save(context.Background(), server))
+			serverRepo.AddUserServer(1, 1)
+			allowUserFilesAbility(t, rbacRepo, 1, 1)
+			node := testNode
+			require.NoError(t, nodeRepo.Save(context.Background(), &node))
+
+			fileService := &mockFileService{
+				chmodFunc: func(_ context.Context, _ *domain.Node, path string, _ uint32) error {
+					assert.Fail(t, "daemon Chmod must not be called when any batch item is invalid",
+						"path=%q", path)
+
+					return nil
+				},
+			}
+			handler := NewHandler(serverRepo, nodeRepo, rbacService, fileService, api.NewResponder(), nil)
+
+			body, err := json.Marshal(chmodRequest{Disk: "server", Mode: 0o644, Items: tt.items})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/file-manager/1/chmod", bytes.NewReader(body))
+			req = req.WithContext(authenticatedSession(&testUser1))
+			req = mux.SetURLVars(req, map[string]string{"server": "1"})
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, "error", response["status"])
+			errorMsg, ok := response["error"].(string)
+			require.True(t, ok)
+			assert.Contains(t, errorMsg, tt.wantError)
+		})
+	}
+}
