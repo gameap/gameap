@@ -547,14 +547,15 @@ func TestReadBody(t *testing.T) {
 func TestBuildProtoRequest(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		setupReq    func() *http.Request
-		pluginID    string
-		pluginPath  string
-		pathParams  map[string]string
-		maxBody     int64
-		checkResult func(*testing.T, *proto.HTTPRequest)
-		wantError   string
+		name           string
+		setupReq       func() *http.Request
+		pluginID       string
+		pluginPath     string
+		pathParams     map[string]string
+		maxBody        int64
+		clientIPHeader string
+		checkResult    func(*testing.T, *proto.HTTPRequest)
+		wantError      string
 	}{
 		{
 			name: "basic_request",
@@ -676,6 +677,59 @@ func TestBuildProtoRequest(t *testing.T) {
 			},
 		},
 		{
+			// httptest.NewRequest connects from 192.0.2.1.
+			name: "client_ip_from_the_remote_address",
+			setupReq: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
+			},
+			pluginID:   "test-plugin",
+			pluginPath: "/users",
+			pathParams: map[string]string{},
+			maxBody:    DefaultMaxBodySize,
+			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
+				t.Helper()
+				assert.Equal(t, "192.0.2.1", req.Headers[ClientIPHeader])
+			},
+		},
+		{
+			name: "client_ip_from_the_trusted_proxy_header",
+			setupReq: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
+				req.Header.Set("X-Real-IP", "203.0.113.5")
+
+				return req
+			},
+			pluginID:       "test-plugin",
+			pluginPath:     "/users",
+			pathParams:     map[string]string{},
+			maxBody:        DefaultMaxBodySize,
+			clientIPHeader: "X-Real-IP",
+			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
+				t.Helper()
+				assert.Equal(t, "203.0.113.5", req.Headers[ClientIPHeader])
+			},
+		},
+		{
+			name: "spoofed_client_ip_header_is_replaced",
+			setupReq: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
+				req.Header.Set(ClientIPHeader, "198.51.100.9")
+				// Not the trusted header here, so it is just another header.
+				req.Header.Set("X-Forwarded-For", "198.51.100.9")
+
+				return req
+			},
+			pluginID:   "test-plugin",
+			pluginPath: "/users",
+			pathParams: map[string]string{},
+			maxBody:    DefaultMaxBodySize,
+			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
+				t.Helper()
+				assert.Equal(t, "192.0.2.1", req.Headers[ClientIPHeader])
+				assert.Equal(t, "198.51.100.9", req.Headers["X-Forwarded-For"], "other headers still travel verbatim")
+			},
+		},
+		{
 			name: "body_too_large",
 			setupReq: func() *http.Request {
 				body := strings.Repeat("x", 100)
@@ -694,7 +748,7 @@ func TestBuildProtoRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// ARRANGE
-			handler := &HTTPHandler{maxBody: tt.maxBody}
+			handler := &HTTPHandler{maxBody: tt.maxBody, clientIPHeader: tt.clientIPHeader}
 			req := tt.setupReq()
 
 			// ACT

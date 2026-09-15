@@ -20,7 +20,10 @@
     set, whether a session is required (`requires_auth`) and whether the
     caller must be an administrator (`admin_only`); the request body, headers,
     query and path parameters are handed to the plugin, and its response is
-    returned as is.
+    returned as is. The headers gain one the panel sets itself,
+    `X-Gameap-Client-Ip` — the client address as the panel resolved it
+    (`AUDIT_CLIENT_IP_HEADER` behind a proxy, the remote address otherwise);
+    an inbound header of that name is replaced.
 
     Routes declared without `requires_auth` are served to anonymous clients
     only while `PLUGINS_ROUTES_ANONYMOUS=true`.

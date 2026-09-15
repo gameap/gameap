@@ -50,6 +50,14 @@ const (
 	// rateLimitAuditKeys bounds the audit throttle table, so a flood spread
 	// over many clients cannot grow it without bound.
 	rateLimitAuditKeys = 4096
+
+	// ClientIPHeader carries the client address to the guest, which never sees
+	// the connection: the address the handler itself resolved (the trusted
+	// proxy header when the operator named one, the remote address otherwise —
+	// the same value the rate limiter keys on). Set by the panel only: an
+	// inbound header of that name is dropped, so a plugin can rely on it where
+	// X-Forwarded-For travels verbatim and unverified.
+	ClientIPHeader = "X-Gameap-Client-Ip"
 )
 
 var errBodyTooLarge = errors.New("request body too large")
@@ -683,6 +691,13 @@ func (h *HTTPHandler) buildProtoRequest(
 		if len(values) > 0 {
 			headers[key] = values[0]
 		}
+	}
+
+	// The panel's own verdict on the client address, never the caller's.
+	delete(headers, ClientIPHeader)
+
+	if client := audit.ClientIP(r, h.clientIPHeader); client != "" {
+		headers[ClientIPHeader] = client
 	}
 
 	queryParams := make(map[string]*proto.QueryParamValues)
