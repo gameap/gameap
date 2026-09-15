@@ -120,13 +120,13 @@ info:
 
     ### `/api/ws/servers/{server}/console`
 
-    Bidirectional console stream for a server. Replays the buffered
-    console history on connect, then streams new lines.
-
-    Inbound frames (client → server):
-    - `console.command` — payload `{ command: string }`. Forwarded to
-      the daemon to execute against the server's interactive shell.
-      Requires the `console` ability on the server.
+    Read-only console stream for a server. Replays the buffered console
+    history on connect, then streams new lines. Requires the `console`
+    ability on the server to connect. The endpoint accepts no inbound
+    command frames: to send input to a server use
+    `/api/ws/servers/{server}/attach` (`attach.input`) or
+    `POST /api/servers/{server}/console`, both of which deliver it to the
+    game process rather than executing it as a host command.
 
     Outbound frames (server → client):
     - `console.history` — sent once at connect time. Payload

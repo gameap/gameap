@@ -12,7 +12,6 @@ import (
 	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
-	"github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
 	"github.com/gameap/gameap/internal/pubsub/channels"
 	"github.com/gameap/gameap/internal/repositories"
@@ -25,7 +24,6 @@ import (
 
 const (
 	typeConsoleHistory = "console.history"
-	typeConsoleCommand = "console.command"
 )
 
 type daemonCommands interface {
@@ -48,7 +46,6 @@ type Handler struct {
 	hub               *ws.Hub
 	originPatterns    []string
 	registry          *session.Registry
-	commandHandler    *handlers.CommandHandler
 	daemonCommands    daemonCommands
 	consoleLogService consoleLogService
 	responder         base.Responder
@@ -62,7 +59,6 @@ func NewHandler(
 	hub *ws.Hub,
 	originPatterns []string,
 	registry *session.Registry,
-	commandHandler *handlers.CommandHandler,
 	daemonCommands daemonCommands,
 	cls consoleLogService,
 	responder base.Responder,
@@ -74,7 +70,6 @@ func NewHandler(
 		hub:               hub,
 		originPatterns:    originPatterns,
 		registry:          registry,
-		commandHandler:    commandHandler,
 		daemonCommands:    daemonCommands,
 		consoleLogService: cls,
 		responder:         responder,
@@ -149,9 +144,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	consoleTopic := ws.ChannelToTopic(channels.BuildRealtimeConsoleOutputChannel(uint64(serverID)))
 
-	canSend := h.canSendCommands(ctx, s.User, server)
-
-	h.runGRPCMode(ctx, conn, server, node, consoleTopic, s.User, canSend)
+	h.runGRPCMode(ctx, conn, server, node, consoleTopic)
 }
 
 func (h *Handler) runGRPCMode(
@@ -160,19 +153,17 @@ func (h *Handler) runGRPCMode(
 	server *domain.Server,
 	node *domain.Node,
 	consoleTopic string,
-	user *domain.User,
-	canSend bool,
 ) {
+	// Read-only stream: no inbound message handler is installed, so client frames
+	// (including console.command) are dropped by the read pump. Sending input to a server
+	// is done through the attach endpoint and POST /api/servers/{server}/console, which
+	// deliver it to the game process rather than executing it as a host command.
 	client := ws.NewClient(ctx, conn, h.hub, nil, h.logger)
-	msgHandler, cleanup := h.newGRPCMessageHandler(ctx, client, server, node, user, canSend)
-	client.SetMessageHandler(msgHandler)
 
 	// The game server start command embeds the RCON password, so it shows up in the console
 	// stream. Installed before Register so no broadcast can reach the peer unfiltered.
 	masker := secretmask.New(server.RconPassword())
 	client.SetOutboundFilter(wsbase.NewOutboundMaskFilter(masker))
-
-	defer cleanup()
 
 	h.hub.Register(client, consoleTopic)
 
@@ -249,21 +240,6 @@ func (h *Handler) findNode(ctx context.Context, nodeID uint) (*domain.Node, erro
 	return &nodes[0], nil
 }
 
-func (h *Handler) canSendCommands(ctx context.Context, user *domain.User, server *domain.Server) bool {
-	err := h.abilityChecker.CheckOrError(
-		ctx,
-		user.ID,
-		server.ID,
-		[]domain.AbilityName{domain.AbilityNameGameServerConsoleSend},
-	)
-
-	return err == nil
-}
-
 type consoleHistoryPayload struct {
 	Output string `json:"output"`
-}
-
-type consoleCommandPayload struct {
-	Command string `json:"command"`
 }

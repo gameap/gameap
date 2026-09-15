@@ -2,6 +2,7 @@ package console
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/gameap/gameap/internal/daemon"
@@ -70,24 +71,43 @@ func newTestNode(script *string) *domain.Node {
 	}
 }
 
-// fakeRegistryStream satisfies session.Stream with no-op behaviour. Used to
-// register a fake session against the registry so IsConnected returns true.
-type fakeRegistryStream struct {
+// recordingRegistryStream satisfies session.Stream and records every command
+// pushed toward the daemon, so a test can assert the read-only console endpoint
+// never dispatches one.
+type recordingRegistryStream struct {
 	ctx context.Context //nolint:containedctx // test stub for the session.Stream interface
+
+	mu       sync.Mutex
+	commands []*proto.CommandRequest
 }
 
-func newFakeRegistryStream() *fakeRegistryStream {
-	return &fakeRegistryStream{ctx: context.Background()}
+func newRecordingRegistryStream() *recordingRegistryStream {
+	return &recordingRegistryStream{ctx: context.Background()}
 }
 
-func (s *fakeRegistryStream) Send(_ *proto.GatewayMessage) error { return nil }
+func (s *recordingRegistryStream) Send(msg *proto.GatewayMessage) error {
+	if cmd := msg.GetCommand(); cmd != nil {
+		s.mu.Lock()
+		s.commands = append(s.commands, cmd)
+		s.mu.Unlock()
+	}
 
-func (s *fakeRegistryStream) Recv() (*proto.DaemonMessage, error) {
+	return nil
+}
+
+func (s *recordingRegistryStream) Recv() (*proto.DaemonMessage, error) {
 	<-s.ctx.Done()
 
 	return nil, s.ctx.Err()
 }
 
-func (s *fakeRegistryStream) Context() context.Context { return s.ctx }
+func (s *recordingRegistryStream) Context() context.Context { return s.ctx }
 
-var _ session.Stream = (*fakeRegistryStream)(nil)
+func (s *recordingRegistryStream) commandCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.commands)
+}
+
+var _ session.Stream = (*recordingRegistryStream)(nil)

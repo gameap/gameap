@@ -120,7 +120,6 @@ func newServeHTTPHandler(
 		hub,
 		nil, // originPatterns: not exercised by validation tests
 		registry,
-		nil, // commandHandler
 		nil, // daemonCommands
 		nil, // consoleLogService
 		responder,
@@ -356,7 +355,6 @@ func TestNewHandler_assemblesAllDependencies(t *testing.T) {
 		hub,
 		[]string{"https://example.org"},
 		registry,
-		nil,
 		dc,
 		cls,
 		responder,
@@ -648,48 +646,6 @@ func TestHandler_getConsoleLog(t *testing.T) {
 				assert.Equal(t, "echo 127.0.0.1:27015", tt.dc.lastCmd,
 					"shortcodes must be replaced with the server's host and port before dispatch")
 			}
-		})
-	}
-}
-
-// ---------- canSendCommands ----------
-
-func TestHandler_canSendCommands(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		rbac base.RBAC
-		want bool
-	}{
-		{
-			name: "returns_true_when_RBAC_grants_send",
-			rbac: allowAllRBAC{},
-			want: true,
-		},
-		{
-			name: "returns_false_when_RBAC_denies_send",
-			rbac: denyAllRBAC{},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			// ARRANGE
-			h := &Handler{
-				abilityChecker: newAbilityCheckerWithRBAC(tt.rbac),
-				logger:         silentLogger(),
-			}
-			user := &domain.User{ID: 1}
-			server := newTestServer()
-
-			// ACT
-			got := h.canSendCommands(context.Background(), user, server)
-
-			// ASSERT
-			assert.Equal(t, tt.want, got,
-				"canSendCommands must echo the RBAC decision for the send ability")
 		})
 	}
 }

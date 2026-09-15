@@ -2256,7 +2256,6 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.WSHub(),
 				wsOriginPatterns(c.Config()),
 				c.SessionRegistry(),
-				c.CommandHandler(),
 				c.DaemonCommands(),
 				c.ConsoleLogService(),
 				c.Responder(),

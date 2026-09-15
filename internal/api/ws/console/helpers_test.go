@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/gameap/gameap/internal/api/base"
-	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/domain"
 )
 
@@ -89,10 +88,3 @@ var (
 	_ base.RBAC = allowAllRBAC{}
 	_ base.RBAC = denyAllRBAC{}
 )
-
-// newAbilityCheckerWithRBAC constructs the project's real AbilityChecker
-// against an arbitrary RBAC stub. Tests use it to wire up a Handler whose
-// ability gate returns a known answer.
-func newAbilityCheckerWithRBAC(r base.RBAC) *serversbase.AbilityChecker {
-	return serversbase.NewAbilityChecker(r)
-}

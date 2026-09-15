@@ -121,17 +121,3 @@ func expectNoConsoleFrame(t *testing.T, c *websocket.Conn, timeout time.Duration
 		t.Fatalf("expected no frame, got type=%q payload=%q", extra.Type, string(extra.Payload))
 	}
 }
-
-// callMessageHandler invokes the raw inbound dispatch path so the handler
-// closure runs as if a frame arrived. Tests use it to drive the handler
-// without bouncing through the network read pump.
-func callMessageHandler(t *testing.T, handler ws.MessageHandler, msgType string, payload any) {
-	t.Helper()
-
-	raw, err := json.Marshal(payload)
-	require.NoError(t, err, "test payload must be JSON-marshallable")
-	handler(context.Background(), &ws.InboundMessage{
-		Type:    msgType,
-		Payload: raw,
-	})
-}
