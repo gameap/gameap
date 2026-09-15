@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
@@ -31,12 +30,9 @@ const (
 )
 
 var (
-	errUserNotAuthenticated          = errors.New("user not authenticated")
-	errNoFileUploaded                = errors.New("no file uploaded")
-	errInvalidFileSize               = errors.New("invalid file size")
-	errFilenameEmpty                 = errors.New("filename is empty")
-	errFilenameContainsTraversal     = errors.New("filename contains invalid directory traversal")
-	errFilenameContainsPathSeparator = errors.New("filename contains path separators")
+	errUserNotAuthenticated = errors.New("user not authenticated")
+	errNoFileUploaded       = errors.New("no file uploaded")
+	errInvalidFileSize      = errors.New("invalid file size")
 )
 
 type fileService interface {
@@ -191,7 +187,7 @@ func (h *Handler) parseFormData(r *http.Request) (*multipart.FileHeader, string,
 		return nil, "", errors.Errorf("file exceeds maximum size of %d bytes", maxUploadSize)
 	}
 
-	if err := validateFilename(fileHeader.Filename); err != nil {
+	if err := filemanagerpath.ValidateFilename(fileHeader.Filename); err != nil {
 		return nil, "", err
 	}
 
@@ -264,20 +260,4 @@ func (h *Handler) updateFile(
 	}
 
 	return newUpdateFileResponse(fileInfo, relativePath), nil
-}
-
-func validateFilename(filename string) error {
-	if filename == "" {
-		return errFilenameEmpty
-	}
-
-	if strings.Contains(filename, "..") {
-		return errFilenameContainsTraversal
-	}
-
-	if strings.ContainsAny(filename, "/\\") {
-		return errFilenameContainsPathSeparator
-	}
-
-	return nil
 }

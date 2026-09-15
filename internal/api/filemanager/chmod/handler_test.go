@@ -984,3 +984,72 @@ func TestHandler_Audit_DeniedChmodDoesNotEmitFileChmod(t *testing.T) {
 	assert.Equal(t, 0, countEvents(recorder.snapshot(), audit.EventFileChmod),
 		"a refused chmod must not be recorded as a successful file.chmod")
 }
+
+// TestHandler_ServeHTTP_rejectsServerRoot guards against a chmod targeting the
+// server root itself. A chmod item whose path resolves to the server root
+// ("", "/", ".", "\\") must be refused with 400 before any daemon Chmod runs.
+func TestHandler_ServeHTTP_rejectsServerRoot(t *testing.T) {
+	t.Parallel()
+
+	rootCases := []struct {
+		name string
+		path string
+	}{
+		{name: "empty", path: ""},
+		{name: "slash", path: "/"},
+		{name: "dot", path: "."},
+		{name: "backslash", path: "\\"},
+	}
+
+	for _, rc := range rootCases {
+		t.Run(rc.name, func(t *testing.T) {
+			t.Parallel()
+
+			serverRepo := inmemory.NewServerRepository()
+			nodeRepo := inmemory.NewNodeRepository()
+			rbacRepo := inmemory.NewRBACRepository()
+			rbacService := rbac.NewRBAC(services.NewNilTransactionManager(), rbacRepo, 0)
+
+			server := newTestServer(1, "servers/test1")
+			require.NoError(t, serverRepo.Save(context.Background(), server))
+			serverRepo.AddUserServer(1, 1)
+			allowUserFilesAbility(t, rbacRepo, 1, 1)
+			node := testNode
+			require.NoError(t, nodeRepo.Save(context.Background(), &node))
+
+			fileService := &mockFileService{
+				chmodFunc: func(_ context.Context, _ *domain.Node, path string, _ uint32) error {
+					assert.Fail(t, "daemon Chmod must not be called for a server-root path",
+						"path=%q", path)
+
+					return nil
+				},
+			}
+			handler := NewHandler(serverRepo, nodeRepo, rbacService, fileService, api.NewResponder(), nil)
+
+			body, err := json.Marshal(chmodRequest{
+				Disk:  "server",
+				Mode:  0o644,
+				Items: []chmodItem{{Path: rc.path}},
+			})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/file-manager/1/chmod", bytes.NewReader(body))
+			req = req.WithContext(authenticatedSession(&testUser1))
+			req = mux.SetURLVars(req, map[string]string{"server": "1"})
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code,
+				"a server-root path must be rejected; body=%s", w.Body.String())
+
+			var response map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, "error", response["status"])
+			errorMsg, ok := response["error"].(string)
+			require.True(t, ok)
+			assert.Contains(t, errorMsg, "path refers to the server root")
+		})
+	}
+}

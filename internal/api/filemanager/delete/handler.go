@@ -179,6 +179,10 @@ func (h *Handler) processItems(
 			return api.WrapHTTPError(err, http.StatusBadRequest)
 		}
 
+		if filemanagerpath.IsRoot(item.Path) {
+			return api.WrapHTTPError(filemanagerpath.ErrPathIsRoot, http.StatusBadRequest)
+		}
+
 		fullPath := filepath.Join(node.WorkPath, serverDir, item.Path)
 		recursive := item.Type == "dir"
 
