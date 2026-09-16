@@ -71,7 +71,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				return db
 			},
 			expectWriteError: true,
-			expectWrite:      true,
+			expectWrite:      false,
 		},
 	}
 

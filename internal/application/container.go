@@ -2407,6 +2407,11 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 	metrics := c.PluginMetrics()
 	recovery := &lazyPluginRecovery{container: c}
 
+	if cache := c.config.Plugins.Runtime.Cache; cache.Enabled && cache.Dir == "" {
+		slog.Info("plugin compilation cache is in memory only, every panel start compiles all plugins again; " +
+			"set PLUGINS_RUNTIME_CACHE_DIR to a local directory to keep compiled plugins")
+	}
+
 	return pkgplugin.NewManager(pkgplugin.ManagerConfig{
 		// Read-only modules need no plugin binding.
 		Libraries: []pkgplugin.HostLibrary{
@@ -2423,6 +2428,7 @@ func (c *Container) createPluginManager() *pkgplugin.Manager {
 		MaxModuleBytes:          int(c.config.Plugins.Runtime.MaxModuleSize.Uint64()),
 		CompilationCacheDir:     c.config.Plugins.Runtime.Cache.Dir,
 		DisableCompilationCache: !c.config.Plugins.Runtime.Cache.Enabled,
+		CompileWorkers:          c.config.Plugins.Runtime.CompileWorkers,
 		GuestLogger:             slog.Default(),
 		Observer:                metrics,
 		// Resolved at call time: the supervisor is created by PluginLoader(),

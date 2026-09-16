@@ -31,6 +31,8 @@ func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	err := h.db.PingContext(ctx)
 	if err != nil {
 		h.responder.WriteError(ctx, writer, err)
+
+		return
 	}
 
 	h.responder.Write(ctx, writer, base.Success)

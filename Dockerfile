@@ -58,14 +58,19 @@ USER gameap
 
 WORKDIR /var/lib/gameap
 
+# The compiled plugin cache lives in the data volume: the user cache directory
+# (/home/gameap/.cache) would be lost with the container on every image update.
 ENV DATABASE_DRIVER=sqlite \
     DATABASE_URL=file:/db.sqlite \
     HTTP_HOST=0.0.0.0 \
-    HTTP_PORT=8025
+    HTTP_PORT=8025 \
+    PLUGINS_RUNTIME_CACHE_DIR=/var/lib/gameap/cache/plugins
 
 EXPOSE 8025
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+# The panel answers only after every plugin has loaded; the first start after
+# an update may compile them all, which takes minutes on a small host.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5m --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8025/api/health || exit 1
 
 ENTRYPOINT ["/usr/bin/gameap"]

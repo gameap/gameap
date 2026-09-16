@@ -223,7 +223,14 @@ func startPluginServices(ctx context.Context, container *Container) {
 		slog.ErrorContext(ctx, "Failed to load plugins", slog.String("error", err.Error()))
 
 		osExit(1)
+
+		return
 	}
+
+	// Every plugin that runs has used its compiled code by now, so pruning
+	// only deletes what nobody needs; deleting takes disk time the startup
+	// does not wait for.
+	go container.PluginManager().PruneCompilationCache()
 }
 
 // startPluginSync runs the first reconcile pass (synchronously, so the

@@ -2,9 +2,11 @@ package plugin
 
 import (
 	"context"
+	"runtime"
 	"sync"
 
 	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/experimental"
 )
 
 const (
@@ -14,10 +16,11 @@ const (
 	wasmMaxPages = 65536
 )
 
-// wazero fills its own version cache while the first runtime is built
-// (internal/version.GetWazeroVersion writes an unsynchronised package
-// variable), so two plugins loading at once race on it. Serialising creation
-// costs nothing after the first call and keeps the whole path race-free.
+// wazero fills its own version cache while the first runtime or directory
+// cache is built (internal/version.GetWazeroVersion writes an unsynchronised
+// package variable), so two plugins loading at once race on it. Serialising
+// creation costs nothing after the first call and keeps the whole path
+// race-free.
 var runtimeCreateMu sync.Mutex
 
 func newWazeroRuntime(ctx context.Context, cfg wazero.RuntimeConfig) wazero.Runtime {
@@ -27,15 +30,22 @@ func newWazeroRuntime(ctx context.Context, cfg wazero.RuntimeConfig) wazero.Runt
 	return wazero.NewRuntimeWithConfig(ctx, cfg)
 }
 
-// runtimeConfig builds the wazero configuration shared by every plugin
-// runtime of this manager.
-func (m *Manager) runtimeConfig() wazero.RuntimeConfig {
+func newWazeroDirCache(dir string) (wazero.CompilationCache, error) {
+	runtimeCreateMu.Lock()
+	defer runtimeCreateMu.Unlock()
+
+	return wazero.NewCompilationCacheWithDir(dir)
+}
+
+// runtimeConfig builds the wazero configuration of a plugin runtime; cache is
+// the compilation cache its module is compiled with (nil: none).
+func (m *Manager) runtimeConfig(cache wazero.CompilationCache) wazero.RuntimeConfig {
 	// CloseOnContextDone lets call deadlines interrupt guest execution;
 	// without it a runaway plugin blocks its caller forever.
 	cfg := wazero.NewRuntimeConfig().WithCloseOnContextDone(true)
 
-	if m.cache != nil {
-		cfg = cfg.WithCompilationCache(m.cache)
+	if cache != nil {
+		cfg = cfg.WithCompilationCache(cache)
 	}
 
 	if pages := memoryLimitPages(m.config.MaxMemoryBytes); pages > 0 {
@@ -58,4 +68,16 @@ func memoryLimitPages(maxBytes uint64) uint32 {
 	pages := min(max(maxBytes/wasmPageSize, 1), wasmMaxPages)
 
 	return uint32(pages)
+}
+
+// compileContext sets how many goroutines compile the functions of one module:
+// ManagerConfig.CompileWorkers, or one per usable CPU when it is not positive.
+// A large module (a Go plugin is ~25 MB) otherwise compiles on a single core.
+func (m *Manager) compileContext(ctx context.Context) context.Context {
+	workers := m.config.CompileWorkers
+	if workers <= 0 {
+		workers = runtime.GOMAXPROCS(0)
+	}
+
+	return experimental.WithCompilationWorkers(ctx, workers)
 }

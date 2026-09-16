@@ -28,6 +28,7 @@ var varsBornWithCurrentName = []string{
 	"PLUGINS_ROUTES_RATELIMIT_ANON_BURST",
 	"PLUGINS_ROUTES_RATELIMIT_USER_RPS",
 	"PLUGINS_ROUTES_RATELIMIT_USER_BURST",
+	"PLUGINS_RUNTIME_COMPILE_WORKERS",
 }
 
 // declaredEnvNames collects every env tag the Config struct declares, so the

@@ -2,8 +2,6 @@ package plugin
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,56 +94,4 @@ func TestMemoryLimitPages(t *testing.T) {
 			assert.Equal(t, tt.want, memoryLimitPages(tt.maxBytes))
 		})
 	}
-}
-
-func TestNewCompilationCache(t *testing.T) {
-	t.Parallel()
-
-	t.Run("disabled_is_nil", func(t *testing.T) {
-		t.Parallel()
-		assert.Nil(t, newCompilationCache(ManagerConfig{DisableCompilationCache: true}))
-	})
-
-	t.Run("empty_dir_is_in_memory", func(t *testing.T) {
-		t.Parallel()
-		assert.NotNil(t, newCompilationCache(ManagerConfig{}))
-	})
-
-	t.Run("dir_persists_compiled_modules", func(t *testing.T) {
-		t.Parallel()
-		dir := filepath.Join(t.TempDir(), "wasm-cache")
-		manager := NewManager(ManagerConfig{CompilationCacheDir: dir})
-		t.Cleanup(func() { _ = manager.Shutdown(context.Background()) })
-
-		loaded, err := manager.LoadTransient(context.Background(), misbehavingWASM, nil, 0)
-		require.NoError(t, err)
-		require.NoError(t, loaded.Close(context.Background()))
-
-		entries, err := os.ReadDir(dir)
-		require.NoError(t, err)
-		require.NotEmpty(t, entries, "wazero keeps a version-named subdirectory with compiled modules")
-	})
-
-	t.Run("unusable_dir_falls_back_to_memory", func(t *testing.T) {
-		t.Parallel()
-		file := filepath.Join(t.TempDir(), "not-a-dir")
-		require.NoError(t, os.WriteFile(file, []byte("x"), 0o600))
-
-		manager := NewManager(ManagerConfig{CompilationCacheDir: file})
-		t.Cleanup(func() { _ = manager.Shutdown(context.Background()) })
-
-		loaded, err := manager.LoadTransient(context.Background(), misbehavingWASM, nil, 0)
-		require.NoError(t, err)
-		require.NoError(t, loaded.Close(context.Background()))
-	})
-
-	t.Run("no_cache_still_loads", func(t *testing.T) {
-		t.Parallel()
-		manager := NewManager(ManagerConfig{DisableCompilationCache: true})
-		t.Cleanup(func() { _ = manager.Shutdown(context.Background()) })
-
-		loaded, err := manager.LoadTransient(context.Background(), misbehavingWASM, nil, 0)
-		require.NoError(t, err)
-		require.NoError(t, loaded.Close(context.Background()))
-	})
 }

@@ -156,6 +156,8 @@ func NewLoader(
 // and skipped; only in strict mode does LoadAll report the failures, which
 // makes the panel refuse to start. A database failure is always reported.
 func (l *Loader) LoadAll(ctx context.Context) error {
+	started := time.Now()
+
 	var failures []error
 
 	if err := l.processAutoLoad(ctx); err != nil {
@@ -169,11 +171,21 @@ func (l *Loader) LoadAll(ctx context.Context) error {
 		return errors.WithMessage(err, "failed to get enabled plugins")
 	}
 
+	failed := 0
+
 	for i := range plugins {
 		if err := l.loadRecord(ctx, &plugins[i]); err != nil {
+			failed++
 			failures = append(failures, errors.WithMessagef(err, "failed to load plugin %s", plugins[i].Name))
 		}
 	}
+
+	// The panel accepts connections only after this pass, so its duration is
+	// what an operator (or an updater waiting for the panel) sees as startup.
+	slog.InfoContext(ctx, "plugins loaded at startup",
+		slog.Int("loaded", len(plugins)-failed),
+		slog.Int("failed", failed),
+		slog.Duration("duration", time.Since(started)))
 
 	if len(failures) == 0 {
 		return nil
@@ -357,8 +369,6 @@ func (l *Loader) apply(
 	l.recordAttempt(plugin.ID, fingerprint)
 
 	if err != nil {
-		l.logLoadFailure(ctx, plugin, err)
-
 		// A cancelled load (panel shutting down) is not the plugin's
 		// failure; the row keeps its previous state. A load that ran out
 		// of time is one, and is recorded on a fresh context: the expired
@@ -397,28 +407,38 @@ func (l *Loader) apply(
 	return loaded, true, nil
 }
 
-// loadModule reads the wasm file and builds the module for the row.
+// loadModule reads the wasm file, builds the module for the row and logs the
+// outcome with the time it took: reading, compiling and initializing, which
+// is where a slow panel start goes.
 func (l *Loader) loadModule(ctx context.Context, plugin *domain.Plugin) (*pkgplugin.LoadedPlugin, error) {
+	started := time.Now()
+
 	wasmBytes, err := l.readPluginFile(ctx, ResolveFilename(plugin))
 	if err != nil {
+		logLoadFailure(ctx, plugin, err, time.Since(started))
+
 		return nil, err
 	}
 
 	loaded, err := l.manager.Load(ctx, wasmBytes, nil, uint64(plugin.ID))
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to load plugin")
+		err = errors.WithMessage(err, "failed to load plugin")
+		logLoadFailure(ctx, plugin, err, time.Since(started))
+
+		return nil, err
 	}
 
-	logLoaded(ctx, loaded, wasmBytes)
+	logLoaded(ctx, loaded, wasmBytes, time.Since(started))
 
 	return loaded, nil
 }
 
-func (l *Loader) logLoadFailure(ctx context.Context, plugin *domain.Plugin, err error) {
+func logLoadFailure(ctx context.Context, plugin *domain.Plugin, err error, duration time.Duration) {
 	slog.ErrorContext(ctx, "failed to load plugin",
 		slog.Uint64("plugin_id", uint64(plugin.ID)),
 		slog.String("name", plugin.Name),
 		slog.String("filename", ResolveFilename(plugin)),
+		slog.Duration("duration", duration),
 		slog.String("error", err.Error()))
 }
 
@@ -449,6 +469,8 @@ func (l *Loader) warnMissingPermissions(ctx context.Context, plugin *domain.Plug
 // Load loads a wasm file that has no database record (no grants); kept for
 // callers that inspect a module by file name.
 func (l *Loader) Load(ctx context.Context, filename string) (*pkgplugin.LoadedPlugin, error) {
+	started := time.Now()
+
 	wasmBytes, err := l.readPluginFile(ctx, filename)
 	if err != nil {
 		return nil, err
@@ -459,7 +481,7 @@ func (l *Loader) Load(ctx context.Context, filename string) (*pkgplugin.LoadedPl
 		return nil, errors.WithMessage(err, "failed to load plugin")
 	}
 
-	logLoaded(ctx, loaded, wasmBytes)
+	logLoaded(ctx, loaded, wasmBytes, time.Since(started))
 
 	return loaded, nil
 }
@@ -479,11 +501,12 @@ func (l *Loader) readPluginFile(ctx context.Context, filename string) ([]byte, e
 	return wasmBytes, nil
 }
 
-func logLoaded(ctx context.Context, loaded *pkgplugin.LoadedPlugin, wasmBytes []byte) {
+func logLoaded(ctx context.Context, loaded *pkgplugin.LoadedPlugin, wasmBytes []byte, duration time.Duration) {
 	attr := []slog.Attr{
 		{Key: "id", Value: slog.StringValue(loaded.Info.Id)},
 		{Key: "name", Value: slog.StringValue(loaded.Info.Name)},
 		{Key: "version", Value: slog.StringValue(loaded.Info.Version)},
+		{Key: "duration", Value: slog.DurationValue(duration)},
 		{Key: "wasm_hash", Value: slog.StringValue(FileChecksum(wasmBytes))},
 		{Key: "description", Value: slog.StringValue(loaded.Info.Description)},
 		{Key: "author", Value: slog.StringValue(loaded.Info.Author)},

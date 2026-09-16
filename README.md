@@ -411,7 +411,8 @@ removed in a future release.
 - `PLUGINS_AUTOLOAD` - Comma-separated wasm files from the plugins directory to register at startup
 - `PLUGINS_STRICT_LOAD` - Refuse to start when any plugin fails to load (default: `false`; a broken plugin is marked with status `error` and skipped)
 - `PLUGINS_RUNTIME_CACHE_ENABLED` - Cache compiled wasm between loads (default: `true`)
-- `PLUGINS_RUNTIME_CACHE_DIR` - Local directory for the compilation cache so panel restarts do not recompile every plugin (default: in-memory only)
+- `PLUGINS_RUNTIME_CACHE_DIR` - Local directory for the compilation cache so panel restarts do not recompile every plugin (default: `gameap/plugins` in the user cache directory, e.g. `/var/lib/gameap/.cache/gameap/plugins` for the `gameap` user gameapctl creates; in-memory only when the user has no cache directory). The directory must be writable by the panel user alone, otherwise the cache stays in memory. Compiled code no load used for a week is deleted at startup
+- `PLUGINS_RUNTIME_COMPILE_WORKERS` - Goroutines compiling one plugin module (default: `0`, one per CPU the panel may use)
 - `PLUGINS_RUNTIME_MAX_MEMORY` - Linear memory cap per plugin module (default: `256M`, `0` = wazero default of 4 GiB)
 - `PLUGINS_RUNTIME_MAX_MODULE_SIZE` - Maximum wasm file size accepted for install and load (default: `128M`, `0` = unlimited)
 - `PLUGINS_PERMISSIONS_ENFORCE` - Apply the recorded plugin permission grants (default: `false`; a future release will default it to `true`). While off, grants are recorded, shown and editable but every check passes, giving plugin developers time to declare theirs. Set it identically on every panel instance; `GET /api/admin/plugins/loaded` reports the answering instance's value as `permissions_enforced`

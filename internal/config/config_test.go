@@ -10,6 +10,8 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -914,5 +916,75 @@ func TestLoadConfig_PluginRoutes(t *testing.T) {
 		assert.Equal(t, 0, routes.RateLimit.Anonymous.Burst)
 		assert.InDelta(t, 2.5, routes.RateLimit.User.RPS, 0)
 		assert.Equal(t, 10, routes.RateLimit.User.Burst)
+	})
+}
+
+func TestLoadConfig_PluginRuntime(t *testing.T) {
+	t.Run("cache_dir_defaults_to_the_user_cache_dir", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CACHE_HOME", home)
+		t.Setenv("LocalAppData", home)
+		unsetForTest(t, "PLUGINS_RUNTIME_CACHE_DIR")
+		unsetForTest(t, "PLUGINS_CACHE_DIR")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		userCacheDir, err := os.UserCacheDir()
+		require.NoError(t, err)
+
+		dir := cfg.Plugins.Runtime.Cache.Dir
+		assert.Equal(t, filepath.Join(userCacheDir, "gameap", "plugins"), dir)
+		assert.True(t, strings.HasPrefix(dir, home), "%s is not under the test home %s", dir, home)
+		assert.True(t, cfg.Plugins.Runtime.Cache.Enabled)
+		assert.Equal(t, 0, cfg.Plugins.Runtime.CompileWorkers)
+	})
+
+	t.Run("no_user_cache_dir_keeps_the_cache_in_memory", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("the windows cache directory does not depend on HOME")
+		}
+
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+		unsetForTest(t, "HOME")
+		unsetForTest(t, "XDG_CACHE_HOME")
+		unsetForTest(t, "PLUGINS_RUNTIME_CACHE_DIR")
+		unsetForTest(t, "PLUGINS_CACHE_DIR")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.Empty(t, cfg.Plugins.Runtime.Cache.Dir)
+	})
+
+	t.Run("explicit_values_are_kept", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+		t.Setenv("PLUGINS_RUNTIME_CACHE_DIR", "/var/lib/gameap/cache/plugins")
+		t.Setenv("PLUGINS_RUNTIME_COMPILE_WORKERS", "2")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.Equal(t, "/var/lib/gameap/cache/plugins", cfg.Plugins.Runtime.Cache.Dir)
+		assert.Equal(t, 2, cfg.Plugins.Runtime.CompileWorkers)
+	})
+
+	t.Run("disabled_cache_gets_no_dir", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+		t.Setenv("PLUGINS_RUNTIME_CACHE_ENABLED", "false")
+		unsetForTest(t, "PLUGINS_RUNTIME_CACHE_DIR")
+		unsetForTest(t, "PLUGINS_CACHE_DIR")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.False(t, cfg.Plugins.Runtime.Cache.Enabled)
+		assert.Empty(t, cfg.Plugins.Runtime.Cache.Dir)
 	})
 }

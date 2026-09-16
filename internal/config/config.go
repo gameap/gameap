@@ -2,6 +2,8 @@ package config
 
 import (
 	"crypto/tls"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -548,12 +550,18 @@ type Config struct {
 			// (0 = unlimited).
 			MaxModuleSize ByteSize `env:"PLUGINS_RUNTIME_MAX_MODULE_SIZE" envDefault:"128M"`
 
-			// Cache keeps compiled wasm between loads; with Dir set the
-			// compiled code also survives panel restarts (local path).
+			// Cache keeps compiled wasm between loads; in Dir (a local path)
+			// the compiled code also survives panel restarts. An unset Dir
+			// defaults to the gameap/plugins directory in the user cache
+			// directory; when there is none, compiled code stays in memory.
 			Cache struct {
 				Enabled bool   `env:"PLUGINS_RUNTIME_CACHE_ENABLED" envDefault:"true"`
 				Dir     string `env:"PLUGINS_RUNTIME_CACHE_DIR" envDefault:""`
 			}
+
+			// CompileWorkers is how many goroutines compile one module
+			// (0 = one per CPU the panel may use).
+			CompileWorkers int `env:"PLUGINS_RUNTIME_COMPILE_WORKERS" envDefault:"0"`
 		}
 
 		// Permissions tunes the in-process cache of plugin grants, consulted
@@ -821,6 +829,24 @@ func setDefaultConfigValues(cfg *Config) {
 	if cfg.ACME.DirectoryURL == "" {
 		cfg.ACME.DirectoryURL = LetsEncryptProductionDirectoryURL
 	}
+
+	if cfg.Plugins.Runtime.Cache.Enabled && cfg.Plugins.Runtime.Cache.Dir == "" {
+		cfg.Plugins.Runtime.Cache.Dir = defaultPluginCompilationCacheDir()
+	}
+}
+
+// defaultPluginCompilationCacheDir keeps compiled plugins where the user the
+// panel runs as keeps caches: for the gameap user gameapctl creates, whose home
+// is the data directory, that is /var/lib/gameap/.cache/gameap/plugins. Empty
+// when the user has no cache directory (no $HOME), which keeps compiled code in
+// memory.
+func defaultPluginCompilationCacheDir() string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+
+	return filepath.Join(dir, "gameap", "plugins")
 }
 
 func normalizeConfigValues(cfg *Config) {

@@ -176,11 +176,14 @@ type ManagerConfig struct {
 	// 0 disables the check.
 	MaxModuleBytes int
 
-	// CompilationCacheDir persists compiled code across panel restarts;
-	// empty keeps the in-memory cache. DisableCompilationCache turns
-	// caching off entirely.
+	// CompilationCacheDir persists compiled code across panel restarts, one
+	// subdirectory per module; empty keeps the in-memory cache.
+	// DisableCompilationCache turns caching off entirely.
 	CompilationCacheDir     string
 	DisableCompilationCache bool
+	// CompileWorkers is how many goroutines compile one module; 0 or less
+	// uses every CPU the process may run on.
+	CompileWorkers int
 
 	// GuestLogger receives the guests' stdout (debug) and stderr (warn);
 	// nil means slog.Default().
@@ -200,14 +203,13 @@ type Manager struct {
 	mu      sync.RWMutex
 	plugins map[string]*LoadedPlugin
 	config  ManagerConfig
-	// cache shares compiled code between runtimes for the manager's
+	// caches share compiled code between runtimes for the manager's
 	// lifetime, so validating and then installing the same wasm (or
-	// reloading it) compiles it only once. In-memory or directory-backed
-	// (see newCompilationCache; the directory is written at compile time).
-	// Deliberately never closed: Close tears down the shared engines while
-	// transient modules handed to callers may still be alive; nil when
-	// caching is disabled.
-	cache  wazero.CompilationCache
+	// reloading it) compiles it only once. In memory or on disk, one
+	// directory per module (see compilationCaches). Deliberately never
+	// closed: Close tears down the shared engines while transient modules
+	// handed to callers may still be alive.
+	caches *compilationCaches
 	closed bool
 
 	// byDBID indexes registered plugins by database id from the moment a
@@ -223,7 +225,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 	return &Manager{
 		plugins: make(map[string]*LoadedPlugin),
 		config:  cfg,
-		cache:   newCompilationCache(cfg),
+		caches:  newCompilationCaches(cfg),
 		byDBID:  make(map[uint64]*LoadedPlugin),
 	}
 }
@@ -482,8 +484,54 @@ type runtimeSetup struct {
 	closers []HostLibraryCloser
 }
 
-// initializeRuntime builds the runtime, registers WASI and every host library,
-// compiles and starts the module. Besides the module it returns the host
+// compile builds the runtime a module will run in and compiles the module
+// into it. With a cache directory the compiled code comes from, or goes to,
+// the module's own subdirectory; wazero fails the compilation outright when
+// that cache holds an entry it cannot read or cannot store a new one (a full
+// disk), so the directory is dropped and the module compiled once more in
+// memory. A module that is simply invalid fails both attempts alike.
+func (m *Manager) compile(ctx context.Context, wasmBytes []byte) (wazero.Runtime, wazero.CompiledModule, error) {
+	hash := moduleHash(wasmBytes)
+	compileCtx := m.compileContext(ctx)
+
+	cache, onDisk := m.caches.forModule(hash)
+
+	r := newWazeroRuntime(ctx, m.runtimeConfig(cache))
+
+	code, err := r.CompileModule(compileCtx, wasmBytes)
+	if err == nil {
+		return r, code, nil
+	}
+
+	closeRuntimeAfterFailure(ctx, r, "WASM module compilation", err)
+
+	if !onDisk {
+		return nil, nil, errors.Wrap(err, "failed to compile WASM module")
+	}
+
+	m.caches.drop(hash)
+
+	r = newWazeroRuntime(ctx, m.runtimeConfig(m.caches.shared))
+
+	code, retryErr := r.CompileModule(compileCtx, wasmBytes)
+	if retryErr != nil {
+		closeRuntimeAfterFailure(ctx, r, "WASM module compilation", retryErr)
+
+		return nil, nil, errors.Wrap(retryErr, "failed to compile WASM module")
+	}
+
+	slog.Warn("plugin compilation cache entry is unusable, the module was compiled without it",
+		slog.String("module_sha256", hash),
+		slog.String("error", err.Error()),
+	)
+
+	return r, code, nil
+}
+
+// initializeRuntime compiles the module, registers WASI and every host
+// library, and starts the module. Compilation comes first: imports are only
+// resolved at instantiation, and a module that does not compile never
+// allocates per-plugin host libraries. Besides the module it returns the host
 // functions the module imports (see LoadedPlugin.HostImports).
 func (m *Manager) initializeRuntime(
 	ctx context.Context,
@@ -491,7 +539,10 @@ func (m *Manager) initializeRuntime(
 	pluginID uint64,
 	logs *guestLogs,
 ) (*runtimeSetup, error) {
-	r := newWazeroRuntime(ctx, m.runtimeConfig())
+	r, code, err := m.compile(ctx, wasmBytes)
+	if err != nil {
+		return nil, err
+	}
 
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, r); err != nil {
 		closeRuntimeAfterFailure(ctx, r, "WASI instantiation", err)
@@ -525,14 +576,6 @@ func (m *Manager) initializeRuntime(
 		closeRuntimeAfterFailure(ctx, r, "host library instantiation", err)
 
 		return nil, err
-	}
-
-	code, err := r.CompileModule(ctx, wasmBytes)
-	if err != nil {
-		closeRuntimeAfterFailure(ctx, r, "WASM module compilation", err)
-		closeHostLibraries(ctx, closers)
-
-		return nil, errors.Wrap(err, "failed to compile WASM module")
 	}
 
 	imports := hostImports(code)

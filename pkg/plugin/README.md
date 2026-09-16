@@ -1734,9 +1734,27 @@ configurable through environment variables (`internal/config`).
   never loaded; `updating` is skipped. The one exception is `PLUGINS_AUTOLOAD`:
   a plugin named there is the operator's explicit instruction and is set back
   to `active` at startup whatever its status (unchanged behaviour).
-- `PLUGINS_RUNTIME_CACHE_DIR` persists compiled wasm on local disk (keyed by module
-  hash and wazero version) so restarts do not recompile every plugin;
-  `PLUGINS_RUNTIME_CACHE_ENABLED=false` turns caching off entirely.
+- The panel accepts connections only after every plugin has loaded, and a Go
+  plugin (~25 MB of wasm) takes seconds to compile on a small server. Compiled
+  code is therefore kept on local disk, in `PLUGINS_RUNTIME_CACHE_DIR` (default:
+  `gameap/plugins` in the user cache directory), so restarts do not recompile
+  every plugin; `PLUGINS_RUNTIME_CACHE_ENABLED=false` turns caching off entirely.
+  - Each module gets a subdirectory named by the sha256 of its wasm file, with
+    wazero's per-version directory inside.
+  - wazero fails a compilation when its cache holds an entry it cannot read, or
+    cannot store a new one (a full disk). The manager then deletes the module's
+    subdirectory and compiles the module once more in memory, so a broken cache
+    never keeps a plugin from loading.
+  - Compiled code runs as native code of the panel: a cache directory writable by
+    group or others is not used (the cache stays in memory), and neither is a
+    module subdirectory that is a symbolic link.
+  - Once the startup loads are done, subdirectories no load used for a week are
+    deleted (disabled plugins, previous versions, validated uploads), together
+    with the code of other wazero versions.
+- One module compiles on `PLUGINS_RUNTIME_COMPILE_WORKERS` goroutines (default:
+  one per CPU the panel may use).
+- `plugin loaded` and `failed to load plugin` log how long the load took
+  (`duration`); `plugins loaded at startup` logs the whole startup pass.
 
 ### Limits
 
