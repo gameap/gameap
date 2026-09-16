@@ -48,13 +48,15 @@ async function loadPluginStyles() {
     }
 }
 
-// Plugins are loaded once per page. app.js loads them for a restored session,
-// and SsoView loads them again after redeeming a ticket — which also runs
-// while that restored session is still active. The store appends every menu
-// item, slot component and editor it is given, so a second pass rendered each
-// of them twice and re-ran every onInit. The bundle is the same for every
-// account, so later callers share the first load. A load that registered
-// nothing is not remembered, which lets the next caller retry it.
+// app.js loads plugins for a restored session, and SsoView loads them again
+// after redeeming a ticket — which also runs while that restored session is
+// still active. The store appends every menu item, slot component and editor
+// it is given, so a second pass rendered each of them twice and re-ran every
+// onInit. The bundle is the same for every account, so later callers share
+// the first load. Only a load that could not fetch or evaluate the bundle is
+// forgotten and retried by the next caller: a definition that fails to
+// register would fail the same way again and could repeat what it registered
+// before throwing.
 let pluginsLoad = null
 
 export function loadPlugins(router) {
