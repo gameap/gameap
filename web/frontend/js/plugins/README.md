@@ -573,7 +573,8 @@ The check itself lives in `plugins/permissions.js` (`matchesPermission`, `matche
 
 ### Component Lifecycle
 
-1. **Plugin Loading:** `loadPlugins()` fetches and evaluates `plugins.js`
+1. **Plugin Loading:** `loadPlugins()` fetches and evaluates `plugins.js` once per page load; repeated calls
+   (session restore in `app.js`, the login and SSO views) share that load
 2. **Registration:** `registerPluginDefinition()` processes each plugin's `slots` config
 3. **Store Update:** Components are added to `slots[slotName]` array via `registerSlotComponent()`
 4. **Rendering:** Views use `PluginSlot` component or direct iteration over `getSlotComponents()`

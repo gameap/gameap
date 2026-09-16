@@ -6,7 +6,7 @@
   >
     <n-dialog-provider>
       <n-message-provider>
-        <div v-if="user">
+        <div v-if="panelLayout">
           <main-navbar></main-navbar>
           <status-notifier />
           <mfa-enforcement-modal />
@@ -69,6 +69,7 @@ import ContentView from "./components/ContentView.vue"
 import StatusNotifier from "./components/StatusNotifier.vue"
 import MfaEnforcementModal from "./components/blocks/MfaEnforcementModal.vue"
 import {pageLanguage} from "./i18n/i18n"
+import {guestPages} from "./routes"
 
 import {useRoute, useRouter} from "vue-router"
 
@@ -98,8 +99,13 @@ const gameStore = useGameStore()
 const serverStore = useServerStore()
 const userStore = useUserStore()
 
-const user = computed(() => {
-  return authStore.user
+// Sign-in pages keep the guest layout until they navigate away. They receive
+// the session before they are done (profile fetch, redirect), and swapping
+// layouts under them would remount the view: the SSO view mounted again has
+// no ticket left and reports the link as invalid, the login form renders again
+// inside the panel.
+const panelLayout = computed(() => {
+  return !!authStore.user && !guestPages.includes(route.name)
 })
 
 // naive-ui is CSS-in-JS and cannot consume the --gameap-* CSS variables

@@ -245,6 +245,9 @@ const routes = [
     },
 ]
 
+// Sign-in pages, reachable without a session.
+const guestPages = ['login', 'sso']
+
 const beforeEachRoute = (to, from) => {
     const authStore = useAuthStore()
 
@@ -254,8 +257,6 @@ const beforeEachRoute = (to, from) => {
     }
 
     const errorPages = ['error403', 'error404', 'error500']
-
-    const guestPages = ['login', 'sso']
 
     if (!guestPages.includes(to.name) && !errorPages.includes(to.name) && !authStore.isAuthenticated) {
         return {name: 'login'}
@@ -271,4 +272,4 @@ const beforeEachRoute = (to, from) => {
 }
 
 
-export {routes, beforeEachRoute}
+export {routes, beforeEachRoute, guestPages}
