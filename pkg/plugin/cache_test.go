@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -283,6 +285,28 @@ func TestManagerCompilationCacheOnDisk(t *testing.T) {
 		assert.Empty(t, entries)
 	})
 
+	t.Run("concurrent_loads_share_one_entry", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		manager := newDiskManager(t, dir)
+
+		var wg sync.WaitGroup
+
+		for range 8 {
+			wg.Go(func() {
+				loaded, err := manager.LoadTransient(context.Background(), misbehavingWASM, nil, 0)
+				if assert.NoError(t, err) {
+					assert.NoError(t, loaded.Close(context.Background()))
+				}
+			})
+		}
+
+		wg.Wait()
+
+		require.Len(t, cacheEntries(t, dir, misbehavingWASM), 1)
+	})
+
 	t.Run("invalid_module_reports_the_compile_error", func(t *testing.T) {
 		t.Parallel()
 
@@ -435,6 +459,59 @@ func TestIsModuleHash(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.want, isModuleHash(tt.in))
+		})
+	}
+}
+
+func TestWazeroCacheDirNameFor(t *testing.T) {
+	t.Parallel()
+
+	platform := "-" + runtime.GOARCH + "-" + runtime.GOOS
+
+	tests := []struct {
+		name string
+		info *debug.BuildInfo
+		ok   bool
+		want string
+	}{
+		{
+			name: "pinned_dependency",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Version: "(devel)"},
+				Deps: []*debug.Module{{Path: wazeroModulePath, Version: "v1.12.0"}},
+			},
+			ok:   true,
+			want: "wazero-v1.12.0" + platform,
+		},
+		{
+			name: "devel_dependency_falls_back_to_the_main_module",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Version: "v1.13.0"},
+				Deps: []*debug.Module{{Path: wazeroModulePath, Version: "(devel)"}},
+			},
+			ok:   true,
+			want: "wazero-v1.13.0" + platform,
+		},
+		{
+			name: "no_version_anywhere_is_dev",
+			info: &debug.BuildInfo{
+				Main: debug.Module{Version: "(devel)"},
+				Deps: []*debug.Module{{Path: "github.com/other/module", Version: "v9.9.9"}},
+			},
+			ok:   true,
+			want: "wazero-dev" + platform,
+		},
+		{
+			name: "no_build_info_is_dev",
+			want: "wazero-dev" + platform,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, wazeroCacheDirNameFor(tt.info, tt.ok))
 		})
 	}
 }

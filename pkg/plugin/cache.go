@@ -30,6 +30,9 @@ const (
 	// wazeroCacheDirPrefix starts the per-version directory wazero creates
 	// inside a cache directory.
 	wazeroCacheDirPrefix = "wazero-"
+	// wazeroDevVersion is the version wazero names its directory after when
+	// the build carries no version of it.
+	wazeroDevVersion = "dev"
 	// cacheDirPerm keeps compiled code readable and writable by the panel
 	// user alone.
 	cacheDirPerm fs.FileMode = 0o700
@@ -236,10 +239,6 @@ func (c *compilationCaches) prune(now time.Time, maxAge time.Duration) (pruneRes
 // of the running version is there: should wazero name it differently, pruning
 // must not take it for a stale one.
 func (r *pruneResult) removeStaleVersions(moduleDir, current string, failures []error) []error {
-	if current == "" {
-		return failures
-	}
-
 	if info, err := os.Lstat(filepath.Join(moduleDir, current)); err != nil || !info.IsDir() {
 		return failures
 	}
@@ -406,25 +405,36 @@ func isModuleHash(name string) bool {
 
 // wazeroCacheDirName is the directory the running wazero keeps compiled code
 // in inside a cache directory, named after its version and platform the way
-// wazero's NewCompilationCacheWithDir and internal/version do; empty when the
-// version is unknown.
+// wazero's NewCompilationCacheWithDir does.
 func wazeroCacheDirName() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return ""
-	}
+	return wazeroCacheDirNameFor(debug.ReadBuildInfo())
+}
 
+// wazeroCacheDirNameFor resolves the version as wazero's internal/version
+// does: the wazero dependency's version, else the main module's (wazero's own
+// CLI), else "dev".
+func wazeroCacheDirNameFor(info *debug.BuildInfo, ok bool) string {
 	var version string
 
-	for _, dep := range info.Deps {
-		if strings.Contains(dep.Path, wazeroModulePath) {
-			version = dep.Version
+	if ok {
+		for _, dep := range info.Deps {
+			if strings.Contains(dep.Path, wazeroModulePath) {
+				version = dep.Version
+			}
+		}
+
+		if wazeroVersionMissing(version) {
+			version = info.Main.Version
 		}
 	}
 
-	if version == "" || version == "(devel)" {
-		return ""
+	if wazeroVersionMissing(version) {
+		version = wazeroDevVersion
 	}
 
 	return wazeroCacheDirPrefix + version + "-" + runtime.GOARCH + "-" + runtime.GOOS
+}
+
+func wazeroVersionMissing(version string) bool {
+	return version == "" || version == "(devel)"
 }

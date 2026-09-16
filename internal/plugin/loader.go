@@ -171,20 +171,24 @@ func (l *Loader) LoadAll(ctx context.Context) error {
 		return errors.WithMessage(err, "failed to get enabled plugins")
 	}
 
-	failed := 0
+	loaded := 0
 
 	for i := range plugins {
 		if err := l.loadRecord(ctx, &plugins[i]); err != nil {
-			failed++
 			failures = append(failures, errors.WithMessagef(err, "failed to load plugin %s", plugins[i].Name))
+
+			continue
 		}
+
+		loaded++
 	}
 
 	// The panel accepts connections only after this pass, so its duration is
 	// what an operator (or an updater waiting for the panel) sees as startup.
+	// Failed counts what the warning below reports, autoload included.
 	slog.InfoContext(ctx, "plugins loaded at startup",
-		slog.Int("loaded", len(plugins)-failed),
-		slog.Int("failed", failed),
+		slog.Int("loaded", loaded),
+		slog.Int("failed", len(failures)),
 		slog.Duration("duration", time.Since(started)))
 
 	if len(failures) == 0 {
