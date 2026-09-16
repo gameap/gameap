@@ -67,24 +67,43 @@ func (p *pluginServiceWrapper) callFunction(
 	request vtMarshaler,
 ) ([]byte, error) {
 	start := time.Now()
+	budget := callBudgetFrom(ctx)
 
-	// The wait honors the caller's full context (deadline and cancellation):
-	// the guest has not been invoked yet, so giving up here is always safe.
+	// The wait honors the caller's full context (deadline and cancellation)
+	// and the queue timeout on top of it: the guest has not been invoked
+	// yet, so giving up here is always safe.
+	waitCtx := ctx
+	if budget.queueTimeout > 0 {
+		var cancelWait context.CancelFunc
+		waitCtx, cancelWait = context.WithTimeout(ctx, budget.queueTimeout)
+		defer cancelWait()
+	}
+
 	select {
 	case p.gate <- struct{}{}:
-	case <-ctx.Done():
+	case <-waitCtx.Done():
 		p.observeGuestCall(fn, start, GuestCallResultBusy)
 
-		return nil, errors.Wrapf(ErrPluginBusy, "%s", ctx.Err())
+		return nil, errors.Wrapf(ErrPluginBusy, "%s", waitCtx.Err())
 	}
 	defer func() { <-p.gate }()
 	defer p.guestLogs.Flush()
 
 	// select picks randomly when both cases are ready.
-	if ctx.Err() != nil {
+	if waitCtx.Err() != nil {
 		p.observeGuestCall(fn, start, GuestCallResultBusy)
 
-		return nil, errors.Wrapf(ErrPluginBusy, "%s", ctx.Err())
+		return nil, errors.Wrapf(ErrPluginBusy, "%s", waitCtx.Err())
+	}
+
+	// A call that spent most of its deadline in the queue must not reach
+	// the guest: the runtime closes the module when the deadline passes,
+	// and a module closed over a queueing delay would disable the plugin
+	// for nothing. The caller gets the same answer as an abandoned wait.
+	if err := budget.check(ctx); err != nil {
+		p.observeGuestCall(fn, start, GuestCallResultBusy)
+
+		return nil, err
 	}
 
 	// The runtime closes the module when the call context is done

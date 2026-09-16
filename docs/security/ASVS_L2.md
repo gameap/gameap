@@ -1410,7 +1410,7 @@ denominator 3; counts reconciled with rows on 2026-05-18 — no status change).
 | 11.1.1 | Sequence of business steps valid | ✅ Met | Setup-key flow validated (`internal/api/nodes/enrollsetup/handler_test.go`, `internal/enrollment/service_test.go`) and now one-time-use — invalidated on first successful enroll (**C-7 resolved**, `internal/enrollment/service.go:121`). |
 | 11.1.2 | Business logic limits use to expected actors | ✅ Met | RBAC + per-server scoping (`internal/rbac/`, `serverfinder.go`). |
 | 11.1.3 | Trustworthy time stamps | ✅ Met | `time.Now()` server-side; operator NTP. |
-| 11.1.4 | Anti-automation on critical flows | 🟡 Partial | Login rate-limited (`login_ratelimit.go`) **and** captcha-gated (`internal/services/captcha/`), 2FA-verify has a per-challenge 5-attempt budget; other write flows still uncapped. |
+| 11.1.4 | Anti-automation on critical flows | 🟡 Partial | Login rate-limited (`login_ratelimit.go`) **and** captcha-gated (`internal/services/captcha/`), 2FA-verify has a per-challenge 5-attempt budget; plugin HTTP routes rate-limited per client and capped per plugin / per instance (`pkg/plugin/http_handler.go`); other write flows still uncapped. |
 | 11.1.5 | Limits per user (e.g., spending limits) | ➖ N/A | No financial flows. |
 | 11.1.6 | No race conditions | 🟡 Partial | Transactions via `avito-tech/go-transaction-manager`; some critical flows (RBAC cache) eventually consistent. |
 | 11.1.7 | Monitoring of unusual activity | ❌ Not met | No anomaly detection. |

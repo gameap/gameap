@@ -509,12 +509,13 @@ func (m *Manager) initializeRuntime(
 
 	// Host libraries register through the recording runtime (so the plugin
 	// can be told which modules it has) and, for registered plugins, through
-	// the observed one so every host function they export is counted.
+	// the intercepting one so every host function they export runs with the
+	// deadline margin and is counted.
 	recorder := recordHostModules(r)
 
 	var libraryRuntime wazero.Runtime = recorder
 	if pluginID != 0 {
-		libraryRuntime = observeHostCalls(recorder, m.config.Observer, pluginID)
+		libraryRuntime = interceptHostCalls(recorder, m.config.Observer, pluginID)
 	}
 
 	// instantiateLibraries releases what it built itself when a later factory

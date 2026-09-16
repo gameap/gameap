@@ -211,6 +211,10 @@ func TestMisbehavingPlugin_call_deadline_is_left_to_the_caller(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
+	// The budget floor would refuse such a short deadline before the guest
+	// runs; lower it so the guest is entered and overruns.
+	ctx = WithCallMinBudget(ctx, time.Millisecond)
+
 	_, err := loaded.Instance.HandleHTTPRequest(ctx, &proto.HTTPRequest{Method: "GET", Path: "/"})
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 

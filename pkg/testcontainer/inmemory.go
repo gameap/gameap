@@ -66,6 +66,7 @@ import (
 type InmemoryContainer struct {
 	cfg                     *config.Config
 	telemetry               *telemetry.Registry
+	pluginMetrics           *telemetry.PluginMetrics
 	responder               *pkgapi.Responder
 	gameRepo                repositories.GameRepository
 	gameModRepo             repositories.GameModRepository
@@ -229,6 +230,16 @@ func (c *InmemoryContainer) Telemetry() *telemetry.Registry {
 	}
 
 	return c.telemetry
+}
+
+// PluginMetrics is cached so the plugin collectors register on the registry
+// once; the per-plugin gauges have no sources here.
+func (c *InmemoryContainer) PluginMetrics() *telemetry.PluginMetrics {
+	if c.pluginMetrics == nil {
+		c.pluginMetrics = telemetry.NewPluginMetrics(c.Telemetry(), nil, nil)
+	}
+
+	return c.pluginMetrics
 }
 
 // PluginScheduler is cached so every caller shares one task store: a handler

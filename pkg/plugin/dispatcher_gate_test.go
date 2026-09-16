@@ -170,14 +170,14 @@ func TestHTTPHandler_buildProtoRequest_carries_the_user(t *testing.T) {
 	handler := NewHTTPHandler(NewManager(ManagerConfig{}), &mockMiddleware{}, &mockMiddleware{})
 
 	anonymous := httptest.NewRequest(http.MethodGet, "/api/plugins/p/status", nil)
-	req, err := handler.buildProtoRequest(anonymous, "p", "/status", nil)
+	req, err := handler.buildProtoRequest(httptest.NewRecorder(), anonymous, "p", "/status", nil)
 	require.NoError(t, err)
 	assert.Nil(t, req.Context.UserId)
 	assert.Nil(t, req.Session)
 
 	ctx := auth.ContextWithSession(context.Background(), &auth.Session{User: &domain.User{ID: 9, Login: "user"}})
 	authenticated := httptest.NewRequest(http.MethodGet, "/api/plugins/p/status", nil).WithContext(ctx)
-	req, err = handler.buildProtoRequest(authenticated, "p", "/status", nil)
+	req, err = handler.buildProtoRequest(httptest.NewRecorder(), authenticated, "p", "/status", nil)
 	require.NoError(t, err)
 	require.NotNil(t, req.Context.UserId)
 	assert.Equal(t, uint64(9), *req.Context.UserId)

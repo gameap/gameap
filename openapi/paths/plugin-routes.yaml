@@ -1,0 +1,185 @@
+/api/plugins/{plugin_id}/{path}:
+  parameters:
+    - name: plugin_id
+      in: path
+      required: true
+      description: |
+        Compact plugin id, as shown by `GET /api/admin/plugins/loaded`.
+      schema:
+        type: string
+    - name: path
+      in: path
+      required: true
+      description: |
+        Route path as declared by the plugin in `GetHTTPRoutes` (may contain
+        several segments).
+      schema:
+        type: string
+  description: |
+    Routes registered by installed plugins. The plugin declares the method
+    set, whether a session is required (`requires_auth`) and whether the
+    caller must be an administrator (`admin_only`); the request body, headers,
+    query and path parameters are handed to the plugin, and its response is
+    returned as is. The headers gain one the panel sets itself,
+    `X-Gameap-Client-Ip` — the client address as the panel resolved it
+    (`AUDIT_CLIENT_IP_HEADER` behind a proxy, the remote address otherwise);
+    an inbound header of that name is replaced.
+
+    Routes declared without `requires_auth` are served to anonymous clients
+    only while `PLUGINS_ROUTES_ANONYMOUS=true`.
+
+    Every request is bounded by the panel (`PLUGINS_ROUTES_*`): the request
+    timeout, the wait for the plugin's call gate, the requests one plugin and
+    one panel instance hold at a time, the body and query sizes, and a
+    per-client rate limit (anonymous clients by IP, authenticated ones by
+    user). Refusals are answered by the panel with a plain-text body; the
+    `429` and `503` refusals carry a `Retry-After` header naming the seconds
+    to wait.
+
+    A plugin answers with whatever status it chooses; only `200` is listed
+    explicitly, every other plugin-chosen status is the `default` response.
+  get:
+    tags:
+      - Plugins
+    summary: Plugin route
+    operationId: pluginRouteGet
+    responses:
+      '200':
+        $ref: '#/components/responses/PluginRouteResponse'
+      '401':
+        $ref: '#/components/responses/PluginRouteUnauthorized'
+      '403':
+        $ref: '#/components/responses/PluginRouteForbidden'
+      '404':
+        $ref: '#/components/responses/PluginRouteNotFound'
+      '413':
+        $ref: '#/components/responses/PluginRouteBodyTooLarge'
+      '414':
+        $ref: '#/components/responses/PluginRouteQueryTooLong'
+      '429':
+        $ref: '#/components/responses/PluginRouteRateLimited'
+      '503':
+        $ref: '#/components/responses/PluginRouteUnavailable'
+      '504':
+        $ref: '#/components/responses/PluginRouteTimeout'
+      default:
+        $ref: '#/components/responses/PluginRouteResponse'
+  post:
+    tags:
+      - Plugins
+    summary: Plugin route
+    operationId: pluginRoutePost
+    requestBody:
+      description: Passed to the plugin as is; at most `PLUGINS_ROUTES_MAX_BODY` (1 MiB by default).
+      content:
+        '*/*':
+          schema:
+            type: string
+            format: binary
+    responses:
+      '200':
+        $ref: '#/components/responses/PluginRouteResponse'
+      '401':
+        $ref: '#/components/responses/PluginRouteUnauthorized'
+      '403':
+        $ref: '#/components/responses/PluginRouteForbidden'
+      '404':
+        $ref: '#/components/responses/PluginRouteNotFound'
+      '413':
+        $ref: '#/components/responses/PluginRouteBodyTooLarge'
+      '414':
+        $ref: '#/components/responses/PluginRouteQueryTooLong'
+      '429':
+        $ref: '#/components/responses/PluginRouteRateLimited'
+      '503':
+        $ref: '#/components/responses/PluginRouteUnavailable'
+      '504':
+        $ref: '#/components/responses/PluginRouteTimeout'
+      default:
+        $ref: '#/components/responses/PluginRouteResponse'
+
+components:
+  headers:
+    RetryAfter:
+      description: Seconds to wait before trying again.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    PluginRouteResponse:
+      description: |
+        The plugin's response: status, headers and body as the plugin
+        answered them (`Content-Type` defaults to `application/json`). The
+        status is the plugin's own; any code it chooses is passed through.
+      content:
+        '*/*':
+          schema:
+            type: string
+            format: binary
+    PluginRouteUnauthorized:
+      description: The route requires a session, or anonymous plugin routes are disabled.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ErrorResponse.yaml'
+    PluginRouteForbidden:
+      description: The route is `admin_only` and the caller is not an administrator.
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/ErrorResponse.yaml'
+    PluginRouteNotFound:
+      description: No such plugin, or the plugin declares no route for the method and path.
+      content:
+        text/plain:
+          schema:
+            type: string
+    PluginRouteBodyTooLarge:
+      description: The request body exceeds `PLUGINS_ROUTES_MAX_BODY`.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: request body too large
+    PluginRouteQueryTooLong:
+      description: The query string exceeds `PLUGINS_ROUTES_MAX_QUERY`.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: query string too long
+    PluginRouteRateLimited:
+      description: |
+        The client exhausted its token bucket (`PLUGINS_ROUTES_RATELIMIT_*`).
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: too many requests
+    PluginRouteUnavailable:
+      description: |
+        The plugin is disabled, or the request was refused without reaching
+        the plugin: the wait for the plugin's call gate ran out
+        (`plugin is busy`), the plugin's request cap (`plugin request queue is
+        full`) or the instance's cap (`too many plugin requests in flight`) is
+        reached. Retry after `Retry-After` seconds.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: plugin is busy
+    PluginRouteTimeout:
+      description: |
+        The plugin did not answer within `PLUGINS_ROUTES_TIMEOUT`; its module
+        was closed and the plugin is disabled until it is reloaded.
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: request timeout

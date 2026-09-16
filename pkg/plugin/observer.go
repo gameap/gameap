@@ -14,6 +14,23 @@ const (
 	GuestCallResultBusy    = "busy"
 )
 
+// HTTP route request outcomes reported to the Observer.
+const (
+	HTTPResultOK = "ok"
+	// HTTPResultBusy: the request gave up waiting for the plugin's call gate
+	// (or would have entered the guest with too little budget left).
+	HTTPResultBusy = "busy"
+	// HTTPResultQueueFull: the per-plugin request cap was reached.
+	HTTPResultQueueFull = "queue_full"
+	// HTTPResultInFlightFull: the per-instance request cap was reached.
+	HTTPResultInFlightFull = "inflight_full"
+	HTTPResultRateLimited  = "rate_limited"
+	HTTPResultTimeout      = "timeout"
+	HTTPResultError        = "error"
+	// HTTPResultTooLarge: the request body or query string exceeded its cap.
+	HTTPResultTooLarge = "too_large"
+)
+
 // Event dispatch results reported to the Observer.
 const (
 	EventResultHandled   = "handled"
@@ -40,6 +57,9 @@ type Observer interface {
 	// EventDispatched reports the outcome of delivering one event to one
 	// subscriber, or a drop when the async backlog is full.
 	EventDispatched(eventType proto.EventType, result string)
+	// HTTPRequest reports the outcome of one request to a plugin HTTP route.
+	// result is one of the HTTPResult* values.
+	HTTPRequest(pluginID uint64, result string)
 }
 
 // NopObserver ignores every signal.
@@ -48,6 +68,7 @@ type NopObserver struct{}
 func (NopObserver) GuestCall(uint64, string, time.Duration, string)      {}
 func (NopObserver) HostCall(uint64, string, string, time.Duration, bool) {}
 func (NopObserver) EventDispatched(proto.EventType, string)              {}
+func (NopObserver) HTTPRequest(uint64, string)                           {}
 
 // observerOrNop keeps call sites free of nil checks.
 func observerOrNop(o Observer) Observer {

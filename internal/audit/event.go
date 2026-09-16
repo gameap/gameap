@@ -132,6 +132,10 @@ const (
 	// rate limiter. Throttled per plugin and limiter class so a plugin
 	// looping on a refused call cannot flood the audit stream.
 	EventPluginHostCallRateLimited EventType = "plugin.hostcall.ratelimited"
+	// EventPluginHTTPRateLimited: a request to a plugin HTTP route refused by
+	// the per-client rate limiter. Throttled per plugin and client so a flood
+	// does not flood the audit stream; the metric counts every refusal.
+	EventPluginHTTPRateLimited EventType = "plugin.http.ratelimited"
 )
 
 // AuthMethod describes how the actor authenticated for the audited request.

@@ -2,10 +2,12 @@ package plugin
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gameap/gameap/pkg/plugin/proto"
+	"github.com/gameap/gameap/pkg/plugin/sdk/nodecmd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero"
@@ -24,20 +26,22 @@ func newObservedRuntime(t *testing.T, observer Observer) wazero.Runtime {
 	runtime := newWazeroRuntime(ctx, wazero.NewRuntimeConfig())
 	t.Cleanup(func() { _ = runtime.Close(ctx) })
 
-	return observeHostCalls(runtime, observer, observedPluginDBID)
+	return interceptHostCalls(runtime, observer, observedPluginDBID)
 }
 
-func TestObserveHostCalls_wraps_only_a_reporting_observer(t *testing.T) {
+// TestInterceptHostCalls_decorates_for_every_observer: the deadline margin
+// needs the seam whether or not there is something to report to, so even a
+// nil observer gets the intercepting runtime.
+func TestInterceptHostCalls_decorates_for_every_observer(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
 		observer Observer
-		wantWrap bool
 	}{
-		{name: "nil_observer_keeps_the_plain_runtime"},
-		{name: "nop_observer_keeps_the_plain_runtime", observer: NopObserver{}},
-		{name: "reporting_observer_gets_a_decorated_runtime", observer: &observerRecorder{}, wantWrap: true},
+		{name: "nil_observer"},
+		{name: "nop_observer", observer: NopObserver{}},
+		{name: "reporting_observer", observer: &observerRecorder{}},
 	}
 
 	for _, tt := range tests {
@@ -50,18 +54,66 @@ func TestObserveHostCalls_wraps_only_a_reporting_observer(t *testing.T) {
 			t.Cleanup(func() { _ = runtime.Close(ctx) })
 
 			// ACT
-			got := observeHostCalls(runtime, tt.observer, observedPluginDBID)
+			got := interceptHostCalls(runtime, tt.observer, observedPluginDBID)
 
 			// ASSERT
-			if tt.wantWrap {
-				assert.NotSame(t, runtime, got, "host calls must be routed through the interceptor")
-
-				return
-			}
-
-			assert.Same(t, runtime, got, "nothing to report to, so no per-call bookkeeping")
+			assert.NotSame(t, runtime, got, "host calls must be routed through the interceptor")
 		})
 	}
+}
+
+func TestHostCallContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("keeps_the_margin_back_from_the_guest_deadline", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		deadline := time.Now().Add(10 * time.Second)
+		ctx, cancel := context.WithDeadline(context.Background(), deadline)
+		defer cancel()
+
+		// ACT
+		got, cancelGot := hostCallContext(ctx)
+		defer cancelGot()
+
+		// ASSERT
+		gotDeadline, ok := got.Deadline()
+		require.True(t, ok)
+		assert.Equal(t, deadline.Add(-hostCallDeadlineMargin), gotDeadline)
+	})
+
+	t.Run("passes_a_context_without_deadline_through", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		ctx := context.Background()
+
+		// ACT
+		got, cancelGot := hostCallContext(ctx)
+		defer cancelGot()
+
+		// ASSERT
+		_, ok := got.Deadline()
+		assert.False(t, ok)
+		assert.Equal(t, ctx, got)
+	})
+
+	t.Run("expires_at_once_when_less_than_the_margin_is_left", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		ctx, cancel := context.WithTimeout(context.Background(), hostCallDeadlineMargin/2)
+		defer cancel()
+
+		// ACT
+		got, cancelGot := hostCallContext(ctx)
+		defer cancelGot()
+
+		// ASSERT
+		require.ErrorIs(t, got.Err(), context.DeadlineExceeded,
+			"a host call that cannot finish in time must not start")
+	})
 }
 
 // TestObservedFunctionBuilder_options_keep_the_chain guards the decorator's
@@ -229,5 +281,106 @@ func TestNopObserver_ignores_every_signal(t *testing.T) {
 		observer.GuestCall(1, "handle_event", time.Millisecond, GuestCallResultOK)
 		observer.HostCall(1, "gameap-log", "log", time.Millisecond, true)
 		observer.EventDispatched(proto.EventType_EVENT_TYPE_SERVER_POST_START, EventResultHandled)
+		observer.HTTPRequest(1, HTTPResultOK)
+	})
+}
+
+// deadlineRecordingNodeCmd keeps the deadline of the context the host call
+// ran with.
+type deadlineRecordingNodeCmd struct {
+	mu          sync.Mutex
+	deadline    time.Time
+	hasDeadline bool
+}
+
+func (s *deadlineRecordingNodeCmd) ExecuteCommand(
+	ctx context.Context,
+	_ *nodecmd.ExecuteCommandRequest,
+) (*nodecmd.ExecuteCommandResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.deadline, s.hasDeadline = ctx.Deadline()
+
+	return &nodecmd.ExecuteCommandResponse{Output: "ok"}, nil
+}
+
+func (s *deadlineRecordingNodeCmd) recorded() (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.deadline, s.hasDeadline
+}
+
+// TestInterceptedRuntime_host_calls_run_with_the_deadline_margin drives a
+// real guest (importing.wasm calls gameap-nodecmd from its event handler)
+// and checks the host function saw the guest deadline less the margin, so a
+// blocking host operation returns before the runtime closes the module.
+func TestInterceptedRuntime_host_calls_run_with_the_deadline_margin(t *testing.T) {
+	t.Parallel()
+
+	load := func(t *testing.T, cmd *deadlineRecordingNodeCmd) *LoadedPlugin {
+		t.Helper()
+
+		recording := hostStubLibrary{func(ctx context.Context, r wazero.Runtime) error {
+			return nodecmd.Instantiate(ctx, r, cmd)
+		}}
+
+		manager := NewManager(ManagerConfig{
+			Libraries: append([]HostLibrary{recording}, importingLibraries(&stubNodeCmd{})[1:]...),
+		})
+
+		loaded, err := manager.Load(context.Background(), importingWASM, nil, 42)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = manager.Shutdown(context.Background()) })
+
+		return loaded
+	}
+
+	t.Run("caller_deadline_less_the_margin", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		cmd := &deadlineRecordingNodeCmd{}
+		loaded := load(t, cmd)
+
+		deadline := time.Now().Add(10 * time.Second)
+		ctx, cancel := context.WithDeadline(context.Background(), deadline)
+		defer cancel()
+
+		// ACT
+		_, err := loaded.Instance.HandleEvent(ctx, &proto.Event{
+			Type: proto.EventType_EVENT_TYPE_SERVER_POST_START,
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+
+		got, ok := cmd.recorded()
+		require.True(t, ok, "the host call must carry a deadline")
+		assert.WithinDuration(t, deadline.Add(-hostCallDeadlineMargin), got, time.Millisecond)
+	})
+
+	t.Run("default_call_timeout_less_the_margin", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		cmd := &deadlineRecordingNodeCmd{}
+		loaded := load(t, cmd)
+
+		// ACT
+		before := time.Now()
+		_, err := loaded.Instance.HandleEvent(context.Background(), &proto.Event{
+			Type: proto.EventType_EVENT_TYPE_SERVER_POST_START,
+		})
+		after := time.Now()
+
+		// ASSERT
+		require.NoError(t, err)
+
+		got, ok := cmd.recorded()
+		require.True(t, ok, "a call without a deadline gets the default call timeout")
+		assert.False(t, got.Before(before.Add(defaultCallTimeout-hostCallDeadlineMargin)))
+		assert.False(t, got.After(after.Add(defaultCallTimeout-hostCallDeadlineMargin)))
 	})
 }

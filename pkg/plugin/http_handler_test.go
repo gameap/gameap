@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gameap/gameap/internal/audit"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/gameap/gameap/pkg/plugin/proto"
@@ -531,7 +530,7 @@ func TestReadBody(t *testing.T) {
 			}
 
 			// ACT
-			body, err := handler.readBody(req)
+			body, err := handler.readBody(httptest.NewRecorder(), req)
 
 			// ASSERT
 			if tt.wantError != "" {
@@ -548,14 +547,15 @@ func TestReadBody(t *testing.T) {
 func TestBuildProtoRequest(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		setupReq    func() *http.Request
-		pluginID    string
-		pluginPath  string
-		pathParams  map[string]string
-		maxBody     int64
-		checkResult func(*testing.T, *proto.HTTPRequest)
-		wantError   string
+		name           string
+		setupReq       func() *http.Request
+		pluginID       string
+		pluginPath     string
+		pathParams     map[string]string
+		maxBody        int64
+		clientIPHeader string
+		checkResult    func(*testing.T, *proto.HTTPRequest)
+		wantError      string
 	}{
 		{
 			name: "basic_request",
@@ -677,12 +677,10 @@ func TestBuildProtoRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "client_ip_from_request_context",
+			// httptest.NewRequest connects from 192.0.2.1.
+			name: "client_ip_from_the_remote_address",
 			setupReq: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
-				ctx := audit.ContextWithRequestInfo(req.Context(), &audit.RequestInfo{IP: "203.0.113.5"})
-
-				return req.WithContext(ctx)
+				return httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
 			},
 			pluginID:   "test-plugin",
 			pluginPath: "/users",
@@ -690,34 +688,34 @@ func TestBuildProtoRequest(t *testing.T) {
 			maxBody:    DefaultMaxBodySize,
 			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
 				t.Helper()
+				assert.Equal(t, "192.0.2.1", req.Headers[ClientIPHeader])
+			},
+		},
+		{
+			name: "client_ip_from_the_trusted_proxy_header",
+			setupReq: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
+				req.Header.Set("X-Real-IP", "203.0.113.5")
+
+				return req
+			},
+			pluginID:       "test-plugin",
+			pluginPath:     "/users",
+			pathParams:     map[string]string{},
+			maxBody:        DefaultMaxBodySize,
+			clientIPHeader: "X-Real-IP",
+			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
+				t.Helper()
 				assert.Equal(t, "203.0.113.5", req.Headers[ClientIPHeader])
 			},
 		},
 		{
-			name: "spoofed_client_ip_header_is_replaced_by_the_context_value",
+			name: "spoofed_client_ip_header_is_replaced",
 			setupReq: func() *http.Request {
 				req := httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
 				req.Header.Set(ClientIPHeader, "198.51.100.9")
+				// Not the trusted header here, so it is just another header.
 				req.Header.Set("X-Forwarded-For", "198.51.100.9")
-				ctx := audit.ContextWithRequestInfo(req.Context(), &audit.RequestInfo{IP: "203.0.113.5"})
-
-				return req.WithContext(ctx)
-			},
-			pluginID:   "test-plugin",
-			pluginPath: "/users",
-			pathParams: map[string]string{},
-			maxBody:    DefaultMaxBodySize,
-			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
-				t.Helper()
-				assert.Equal(t, "203.0.113.5", req.Headers[ClientIPHeader])
-				assert.Equal(t, "198.51.100.9", req.Headers["X-Forwarded-For"], "other headers still travel verbatim")
-			},
-		},
-		{
-			name: "no_client_ip_header_without_request_info",
-			setupReq: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/api/plugins/test/users", nil)
-				req.Header.Set(ClientIPHeader, "198.51.100.9")
 
 				return req
 			},
@@ -727,7 +725,8 @@ func TestBuildProtoRequest(t *testing.T) {
 			maxBody:    DefaultMaxBodySize,
 			checkResult: func(t *testing.T, req *proto.HTTPRequest) {
 				t.Helper()
-				assert.NotContains(t, req.Headers, ClientIPHeader)
+				assert.Equal(t, "192.0.2.1", req.Headers[ClientIPHeader])
+				assert.Equal(t, "198.51.100.9", req.Headers["X-Forwarded-For"], "other headers still travel verbatim")
 			},
 		},
 		{
@@ -749,11 +748,11 @@ func TestBuildProtoRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// ARRANGE
-			handler := &HTTPHandler{maxBody: tt.maxBody}
+			handler := &HTTPHandler{maxBody: tt.maxBody, clientIPHeader: tt.clientIPHeader}
 			req := tt.setupReq()
 
 			// ACT
-			protoReq, err := handler.buildProtoRequest(req, tt.pluginID, tt.pluginPath, tt.pathParams)
+			protoReq, err := handler.buildProtoRequest(httptest.NewRecorder(), req, tt.pluginID, tt.pluginPath, tt.pathParams)
 
 			// ASSERT
 			if tt.wantError != "" {
@@ -1269,7 +1268,7 @@ func TestHandlePluginRequest(t *testing.T) {
 			expectedBody:   `{"result":"success"}`,
 		},
 		{
-			name: "build_request_error",
+			name: "body_too_large",
 			setupPlugin: func() *LoadedPlugin {
 				return &LoadedPlugin{
 					Info:     &proto.PluginInfo{Id: "test-plugin"},
@@ -1278,8 +1277,8 @@ func TestHandlePluginRequest(t *testing.T) {
 			},
 			requestBody:    strings.Repeat("x", 100),
 			maxBody:        10,
-			expectedStatus: http.StatusBadRequest,
-			expectedBody:   "failed to process request",
+			expectedStatus: http.StatusRequestEntityTooLarge,
+			expectedBody:   "request body too large",
 		},
 		{
 			name: "plugin_error",

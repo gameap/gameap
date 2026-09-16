@@ -58,7 +58,7 @@ chapters. Use it as the entry point when a new finding needs to be slotted.
 | API1 — Broken Object Level Authorization | V4 (Access Control) | `internal/api/router_security_idor_test.go`, `router_security_idor_fuzz_test.go` |
 | API2 — Broken Authentication | V2 (Authentication), V3 (Session) | `router_security_auth_test.go`, `router_security_auth_fuzz_test.go`; gRPC daemon auth covered by `internal/grpc/interceptors/auth_test.go` |
 | API3 — Broken Object Property Level Authorization | V4 (Access Control) | `router_security_escalation_test.go`, `router_security_escalation_fuzz_test.go` |
-| API4 — Unrestricted Resource Consumption | V11 (Business Logic), V12 (Files) | partially: `internal/api/filemanager/upload/handler_test.go` (size cap) |
+| API4 — Unrestricted Resource Consumption | V11 (Business Logic), V12 (Files) | partially: `internal/api/filemanager/upload/handler_test.go` (size cap); plugin HTTP routes: `pkg/plugin/http_handler_hardening_test.go`, `pkg/plugin/callbudget_test.go`, `pkg/ratelimit/keyed_test.go` (per-client rate limit, per-plugin / per-instance request caps, body and query caps, call budget floor) |
 | API5 — Broken Function Level Authorization | V4 (Access Control) | `router_security_escalation_test.go` |
 | API6 — Unrestricted Access to Sensitive Business Flows | V11 (Business Logic) | _gap — see §6_ |
 | API7 — Server-Side Request Forgery | V12 (Files), V13 (API) | ✅ Application-level outbound URLs config-derived. **Plugin WASM host library** (`internal/plugin/hostlibrary/http.go`) hardened 2026-05-28: `pkg/netutil/ssrf.go` blocklist + custom DialContext (DNS-rebinding safe) + scheme allowlist + response-header allowlist + `CheckRedirect` re-validation + `TimeoutSeconds` cap + cloud-metadata never bypassable. 12 SSRF-specific tests in `internal/plugin/hostlibrary/http_ssrf_security_test.go`. |
@@ -223,7 +223,7 @@ required at this level.
 | --- | --- | --- | --- |
 | 11.1.1 | Business logic enforces a sequence of valid steps | 🟡 Partial | Setup-key / enrollment flow validated: `TestRouterSecurity_API8_EnrollmentSetupKeyValidation`. |
 | 11.1.2 | Business logic limits use to expected actors | ✅ Met | RBAC + per-server access control: `internal/rbac/rbac.go`, `internal/api/servers/base/serverfinder.go`. |
-| 11.1.4 | Anti-automation on critical flows | ✅ Met | Login is rate-limited (see 2.2.1). Other write-heavy flows are still uncapped — tracked separately on the roadmap. |
+| 11.1.4 | Anti-automation on critical flows | ✅ Met | Login is rate-limited (see 2.2.1); plugin HTTP routes (`/api/plugins/{plugin}/…`) are rate-limited per client and capped per plugin and per instance (`pkg/plugin/http_handler.go`, `PLUGINS_ROUTES_*`). Other write-heavy flows are still uncapped — tracked separately on the roadmap. |
 
 ### V12 Files and Resources
 

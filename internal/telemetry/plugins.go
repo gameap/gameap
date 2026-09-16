@@ -39,8 +39,9 @@ type PluginMetrics struct {
 	guestCalls        *prometheus.CounterVec
 	guestCallDuration *prometheus.HistogramVec
 
-	events   *prometheus.CounterVec
-	disabled *prometheus.CounterVec
+	events       *prometheus.CounterVec
+	disabled     *prometheus.CounterVec
+	httpRequests *prometheus.CounterVec
 
 	backlog     prometheus.GaugeFunc
 	memoryDesc  *prometheus.Desc
@@ -89,6 +90,11 @@ func NewPluginMetrics(registry *Registry, plugins PluginLister, backlog BacklogR
 			Namespace: Namespace, Subsystem: pluginSubsystem, Name: "disabled_total",
 			Help: "Plugins disabled at runtime by reason.",
 		}, []string{"plugin", "reason"}),
+		httpRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: Namespace, Subsystem: pluginSubsystem, Name: "http_requests_total",
+			Help: "Requests to plugin HTTP routes by outcome: ok, busy, queue_full, inflight_full, " +
+				"rate_limited, timeout, error, too_large.",
+		}, []string{"plugin", "result"}),
 		memoryDesc: prometheus.NewDesc(
 			prometheus.BuildFQName(Namespace, pluginSubsystem, "memory_bytes"),
 			"Linear memory of the plugin module on this instance (last observed value while a call is in flight).",
@@ -117,7 +123,7 @@ func NewPluginMetrics(registry *Registry, plugins PluginLister, backlog BacklogR
 	registry.MustRegister(
 		m.hostCalls, m.hostCallDuration, m.hostCallsDenied,
 		m.guestCalls, m.guestCallDuration,
-		m.events, m.disabled, m.backlog, m,
+		m.events, m.disabled, m.httpRequests, m.backlog, m,
 	)
 
 	return m
@@ -167,6 +173,15 @@ func (m *PluginMetrics) EventDispatched(eventType proto.EventType, result string
 	}
 
 	m.events.WithLabelValues(strings.TrimPrefix(name, "EVENT_TYPE_"), result).Inc()
+}
+
+// HTTPRequest implements pkgplugin.Observer.
+func (m *PluginMetrics) HTTPRequest(pluginID uint64, result string) {
+	if pluginID == 0 {
+		return
+	}
+
+	m.httpRequests.WithLabelValues(PluginLabel(pluginID), result).Inc()
 }
 
 // HostCallDenied implements the host libraries' HostCallObserver.

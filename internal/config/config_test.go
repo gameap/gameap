@@ -861,3 +861,58 @@ func generateTestCertificate(t *testing.T) (certPEM []byte, keyPEM []byte) {
 
 	return certPEM, keyPEM
 }
+
+func TestLoadConfig_PluginRoutes(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		routes := cfg.Plugins.Routes
+		assert.Equal(t, 30*time.Second, routes.Timeout)
+		assert.Equal(t, 10*time.Second, routes.QueueTimeout)
+		assert.Equal(t, 32, routes.MaxQueue)
+		assert.Equal(t, 256, routes.MaxInFlight)
+		assert.Equal(t, uint64(1<<20), routes.MaxBody.Uint64())
+		assert.Equal(t, uint64(64<<10), routes.MaxQuery.Uint64())
+		assert.True(t, routes.Anonymous)
+		assert.InDelta(t, 10, routes.RateLimit.Anonymous.RPS, 0)
+		assert.Equal(t, 50, routes.RateLimit.Anonymous.Burst)
+		assert.InDelta(t, 50, routes.RateLimit.User.RPS, 0)
+		assert.Equal(t, 200, routes.RateLimit.User.Burst)
+	})
+
+	t.Run("overrides", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+		t.Setenv("PLUGINS_ROUTES_TIMEOUT", "45s")
+		t.Setenv("PLUGINS_ROUTES_QUEUE_TIMEOUT", "0")
+		t.Setenv("PLUGINS_ROUTES_MAX_QUEUE", "8")
+		t.Setenv("PLUGINS_ROUTES_MAX_INFLIGHT", "0")
+		t.Setenv("PLUGINS_ROUTES_MAX_BODY", "256K")
+		t.Setenv("PLUGINS_ROUTES_MAX_QUERY", "0")
+		t.Setenv("PLUGINS_ROUTES_ANONYMOUS", "false")
+		t.Setenv("PLUGINS_ROUTES_RATELIMIT_ANON_RPS", "0")
+		t.Setenv("PLUGINS_ROUTES_RATELIMIT_ANON_BURST", "0")
+		t.Setenv("PLUGINS_ROUTES_RATELIMIT_USER_RPS", "2.5")
+		t.Setenv("PLUGINS_ROUTES_RATELIMIT_USER_BURST", "10")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		routes := cfg.Plugins.Routes
+		assert.Equal(t, 45*time.Second, routes.Timeout)
+		assert.Equal(t, time.Duration(0), routes.QueueTimeout)
+		assert.Equal(t, 8, routes.MaxQueue)
+		assert.Equal(t, 0, routes.MaxInFlight)
+		assert.Equal(t, uint64(256<<10), routes.MaxBody.Uint64())
+		assert.Equal(t, uint64(0), routes.MaxQuery.Uint64())
+		assert.False(t, routes.Anonymous)
+		assert.InDelta(t, 0, routes.RateLimit.Anonymous.RPS, 0)
+		assert.Equal(t, 0, routes.RateLimit.Anonymous.Burst)
+		assert.InDelta(t, 2.5, routes.RateLimit.User.RPS, 0)
+		assert.Equal(t, 10, routes.RateLimit.User.Burst)
+	})
+}

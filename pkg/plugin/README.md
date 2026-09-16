@@ -103,7 +103,9 @@ Delivery semantics:
   the panel records the reason and reloads the plugin on its own). Calls into one
   plugin are serialized; a caller queued behind an in-flight call gives up at its
   own deadline with a "plugin is busy" error (the plugin stays enabled — its module
-  was never touched).
+  was never touched). A caller that wins the gate with less than 2s of its
+  deadline left is answered the same way: a queueing delay must never end in a
+  deadline close of the module.
 - **Async** events are dispatched in a background goroutine (detached from the
   request, 60s total budget) — plugins cannot delay the caller, and delivery errors
   are only logged. Several async events emitted by one operation
@@ -1146,6 +1148,45 @@ dropped before the panel's own is set, so a plugin can rely on it where
 `X-Forwarded-For` travels verbatim and unverified. Panels up to 4.5.2 do not
 send it; a plugin should treat its absence as "unknown".
 
+#### Request limits
+
+Every request to `/api/plugins/{plugin}/…` is bounded on the panel before and
+after it reaches the guest; the limits are per panel instance and configured
+through `PLUGINS_ROUTES_*` (`0` removes a cap, except for
+`PLUGINS_ROUTES_TIMEOUT` and `PLUGINS_ROUTES_MAX_BODY`, where `0` keeps the
+default):
+
+| Limit | Default | Answer when exceeded |
+|---|---|---|
+| `PLUGINS_ROUTES_TIMEOUT` — the whole request: the wait for the plugin's call gate plus the guest call | `30s` | `504`, and the plugin is disabled until reload (the runtime closed its module) |
+| `PLUGINS_ROUTES_QUEUE_TIMEOUT` — the wait for the call gate alone | `10s` | `503 plugin is busy` with `Retry-After`; the guest was never invoked |
+| Budget floor — what must remain of the timeout once the call wins the gate | `5s` | `503 plugin is busy`; a request that queued for most of its timeout is refused rather than started |
+| `PLUGINS_ROUTES_MAX_QUEUE` — requests of one plugin inside the handler, waiting or executing | `32` | `503 plugin request queue is full` with `Retry-After` |
+| `PLUGINS_ROUTES_MAX_INFLIGHT` — plugin requests inside the handler across all plugins | `256` | `503 too many plugin requests in flight` with `Retry-After` |
+| `PLUGINS_ROUTES_MAX_BODY` — request body | `1M` | `413` |
+| `PLUGINS_ROUTES_MAX_QUERY` — raw query string | `64K` | `414` |
+| `PLUGINS_ROUTES_RATELIMIT_ANON_RPS` / `_BURST` — token bucket per anonymous client, keyed by IP (`AUDIT_CLIENT_IP_HEADER` is honoured behind a proxy) | `10` / `50` | `429 too many requests` with `Retry-After` |
+| `PLUGINS_ROUTES_RATELIMIT_USER_RPS` / `_BURST` — token bucket per authenticated client, keyed by user | `50` / `200` | `429 too many requests` with `Retry-After` |
+
+Calls into one plugin are serialized, so a plugin's throughput is one request
+per guest call duration whatever the concurrency; the caps above keep a flood
+on one route from holding goroutines, request bodies and the call gate for
+everyone else (events, scheduled tasks and RCON/Query protocols share the
+gate). A route with `RequiresAuth: false` is served to anonymous clients only
+while `PLUGINS_ROUTES_ANONYMOUS=true` (the default); with `false` every plugin
+route goes through the panel's authentication, whatever the plugin declared.
+
+Rate-limited requests are counted in the metrics
+(`gameap_plugin_http_requests_total{result="rate_limited"}`) and recorded in
+the audit log as `plugin.http.ratelimited`, one record per client and plugin
+per minute. Rate limits are per panel instance: with N instances the
+cluster-wide budget is N times the limit.
+
+Host library calls made from a route handler run with a deadline one second
+short of the request's, so a slow upstream (`gameap-http`, a node command, a
+daemon file operation) answers the guest with an error in time for the
+handler to return instead of running the module into its deadline.
+
 #### Serving node files
 
 A route can hand the client a file that lives on a node without the bytes
@@ -1153,7 +1194,7 @@ passing through the plugin: answer with `File` instead of `Body` and the
 panel streams it from the daemon itself, so neither the guest memory nor the
 guest call deadline bounds the size — the transfer runs after the call returns
 and does not hold the plugin's call gate. (The 1 MB cap is on the *request*
-body, `DefaultMaxBodySize`; a plugin's own response body is bounded only by
+body, `PLUGINS_ROUTES_MAX_BODY`; a plugin's own response body is bounded only by
 guest memory.)
 
 ```go
@@ -1587,7 +1628,10 @@ install/reinstall), `plugin.server.save` / `plugin.server.delete`,
 its stdin), `plugin.ssh.file` (path and connection — never the content), and
 `plugin.rbac.role` / `plugin.rbac.grant` / `plugin.rbac.revoke`. Refusals
 are `access.denied` with the plugin as the actor (reason
-`plugin_permission_missing` or `plugin_path_policy`). Operator actions on a plugin are recorded with the
+`plugin_permission_missing` or `plugin_path_policy`). A client refused by the
+rate limiter of the plugin's HTTP routes is `plugin.http.ratelimited` with the
+client as the actor (its session, or anonymous) and the plugin as the
+resource, throttled to one record per client and plugin per minute. Operator actions on a plugin are recorded with the
 operator as the actor: `plugin.install`, `plugin.update` (an installed plugin
 replaced by an uploaded build), `plugin.uninstall`,
 `plugin.permissions.update` and `plugin.reloaded` with `trigger` = `manual`,
@@ -1639,6 +1683,9 @@ With `METRICS_TOKEN` set, `GET /metrics` (bearer token) exposes, per plugin
   | `cancelled` | `error` | `dropped` | `denied` — the plugin lost
   `listen_events`) and `gameap_plugin_async_backlog` (fire-and-forget
   *batches* in flight or queued, not individual events);
+- `gameap_plugin_http_requests_total{plugin,result}` — requests to the
+  plugin's HTTP routes (`ok` | `busy` | `queue_full` | `inflight_full` |
+  `rate_limited` | `timeout` | `error` | `too_large`);
 - `gameap_plugin_disabled_total{plugin,reason}`,
   `gameap_plugin_memory_bytes{plugin}`, `gameap_plugin_enabled{plugin}`.
 
@@ -1713,6 +1760,15 @@ variable name.
   warn level (attributes `plugin_id`, `stream`, `line`), so a Go/Rust panic
   message is visible. Lines are cut at 4 KiB and each stream is limited to
   200 lines per 10 seconds; drops are counted and reported.
+- `PLUGINS_ROUTES_*` bound the plugin HTTP routes: the request timeout, the
+  wait for the call gate, the requests one plugin and one instance hold at a
+  time, the body and query sizes, and the per-client rate limits (see
+  [Request limits](#request-limits)).
+- Every guest call is refused with "plugin is busy" when it wins the call gate
+  with less than 2s of its deadline left (5s for HTTP routes), and every host
+  library call runs with a deadline one second short of the guest call's, so
+  neither a queueing delay nor a slow host operation ends in the runtime
+  closing the module.
 
 ### Disabled plugins and automatic recovery
 

@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"log/slog"
+	"strconv"
 
 	"github.com/gameap/gameap/pkg/auth"
 )
@@ -101,6 +102,33 @@ func LoginBlocked(ctx context.Context, l Logger, login, reason string) {
 		AuthMethod: AuthMethodAnonymous,
 		Reason:     reason,
 		Extra:      []slog.Attr{slog.String("attempted_login", login)},
+	})
+}
+
+// PluginHTTPRateLimited records a request to a plugin HTTP route refused by
+// the per-client rate limiter. The actor is the client (its session, or
+// anonymous); the plugin is the resource. client is the limiter key
+// ("user:<id>" or "ip:<addr>").
+func PluginHTTPRateLimited(
+	ctx context.Context,
+	l Logger,
+	pluginID uint64,
+	pluginName, client, method, path string,
+) {
+	emit(ctx, l, Event{
+		Type:         EventPluginHTTPRateLimited,
+		Category:     CategoryRateLimit,
+		Outcome:      OutcomeBlocked,
+		ResourceType: "plugin",
+		ResourceID:   strconv.FormatUint(pluginID, 10),
+		Action:       "http_request",
+		Reason:       "rate_limited",
+		Extra: []slog.Attr{
+			slog.String("plugin", pluginName),
+			slog.String("client", client),
+			slog.String("method", method),
+			slog.String("path", path),
+		},
 	})
 }
 

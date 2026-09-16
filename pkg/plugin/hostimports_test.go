@@ -67,6 +67,7 @@ type observerRecorder struct {
 	guest  []string
 	host   []string
 	events []string
+	http   []string
 }
 
 func (o *observerRecorder) GuestCall(pluginID uint64, export string, _ time.Duration, result string) {
@@ -91,6 +92,19 @@ func (o *observerRecorder) EventDispatched(eventType proto.EventType, result str
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.events = append(o.events, proto.EventType_name[int32(eventType)]+":"+result)
+}
+
+func (o *observerRecorder) HTTPRequest(pluginID uint64, result string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.http = append(o.http, label(pluginID)+":"+result)
+}
+
+func (o *observerRecorder) httpResults() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	return append([]string(nil), o.http...)
 }
 
 func (o *observerRecorder) snapshot() (guest, host, events []string) {
