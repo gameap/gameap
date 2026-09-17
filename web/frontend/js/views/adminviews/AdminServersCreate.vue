@@ -39,6 +39,14 @@
               v-model:game="serverForm.game"
               v-model:game-mod="serverForm.gameMod"
           ></GameModSelector>
+
+          <button
+              type="button"
+              class="bg-transparent border-0 p-0 text-xs text-muted underline decoration-dotted cursor-pointer hover:text-body"
+              @click="hubModalEnabled = true"
+          >
+            {{ trans('hub.missing_game') }}
+          </button>
         </n-card>
       </div>
 
@@ -143,6 +151,8 @@
       </GFixedBottomBar>
     </div>
   </n-form>
+
+  <HubModal v-model:show="hubModalEnabled" />
 </template>
 
 <script setup>
@@ -165,6 +175,7 @@ import SmartPortSelector from "@/components/servers/SmartPortSelector.vue";
 import GameModSelector from "@/components/servers/GameModSelector.vue";
 import GFixedBottomBar from "@/components/GFixedBottomBar.vue";
 import VarFormItem from "@/components/input/VarFormItem.vue";
+import HubModal from "@/components/hub/HubModal.vue";
 import {coerceValue, isBlankValue, normalizeVarDefinition, serializeValue} from "@/parts/gameModVars";
 
 const router = useRouter()
@@ -188,6 +199,7 @@ const serverForm = ref({
   settings: {},
 })
 const showAdditionSettings = ref(false)
+const hubModalEnabled = ref(false)
 
 const breadcrumbs = computed(() => {
   return [

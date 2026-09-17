@@ -374,6 +374,20 @@
     "nodes_is_not_available": "Algunos servidores dedicados no están disponibles. No se pudo conectar a los siguientes servidores dedicados: :nodes",
     "not_writable_directories": "Los siguientes directorios no tienen permisos de escritura: :paths"
   },
+  "hub": {
+    "title": "GameAP Hub",
+    "missing_game": "¿Falta un juego o mod?",
+    "description": "Configuraciones de juegos y mods listas para importar, de la comunidad de GameAP.",
+    "step_find": "Busca un juego o mod en :host",
+    "step_download": "Descarga el archivo .gameap.yaml",
+    "step_import": "Impórtalo en GameAP",
+    "moderation": "Los moderadores revisan cada configuración antes de publicarla.",
+    "publish": "¿Tienes tu propia configuración? Publícala para la comunidad.",
+    "open": "Abrir GameAP Hub",
+    "hint_import": "Explora las configuraciones de juegos de la comunidad en :host",
+    "hint_game": "Configuraciones de juegos listas de la comunidad en :host",
+    "hint_mod": "Configuraciones de mods listas de la comunidad en :host"
+  },
   "labels": {
     "name": "Nombre",
     "key": "Clave",

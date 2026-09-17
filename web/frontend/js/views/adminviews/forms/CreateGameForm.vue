@@ -1,5 +1,7 @@
 <template>
   <div>
+    <HubHint :text="trans('hub.hint_game')" class="mb-4" />
+
     <n-form
         label-placement="top"
         label-width="auto"
@@ -68,6 +70,7 @@ import { GIcon } from "@gameap/ui"
 import {ref, defineModel} from "vue"
 import {trans} from "@/i18n/i18n";
 import GButton from "@/components/GButton.vue";
+import HubHint from "@/components/hub/HubHint.vue";
 import {
   NForm,
   NFormItem,

@@ -376,6 +376,20 @@
     "nodes_is_not_available": "Some dedicated servers are not available. Failed to connect to the following dedicated servers: :nodes",
     "not_writable_directories": "The following directories are not writable: :paths"
   },
+  "hub": {
+    "title": "GameAP Hub",
+    "missing_game": "Missing a game or mod?",
+    "description": "Ready-to-import game and mod configurations from the GameAP community.",
+    "step_find": "Find a game or mod on :host",
+    "step_download": "Download the .gameap.yaml file",
+    "step_import": "Import it into GameAP",
+    "moderation": "Moderators review every configuration before it is published.",
+    "publish": "Have your own configuration? Publish it for the community.",
+    "open": "Open GameAP Hub",
+    "hint_import": "Browse community game configurations on :host",
+    "hint_game": "Ready-made game configurations from the community on :host",
+    "hint_mod": "Ready-made mod configurations from the community on :host"
+  },
   "labels": {
     "name": "Name",
     "key": "Key",

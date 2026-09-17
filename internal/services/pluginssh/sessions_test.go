@@ -456,6 +456,19 @@ func TestSessions_Limits(t *testing.T) {
 		_, err = sessions.StartExec(context.Background(), ExecParams{Handle: handle, Command: "echo hi"})
 		assert.ErrorIs(t, err, ErrTooManyOperations)
 	})
+
+	// A plugin running commands one after another waits for each to complete;
+	// the completed command must no longer count against the limit by then.
+	t.Run("completed_operation_frees_its_slot", func(t *testing.T) {
+		t.Parallel()
+		sessions := newTestSessions(t, Config{MaxOperations: 1})
+		handle := connectToTestServer(t, sessions, server)
+
+		runToCompletion(t, sessions, ExecParams{Handle: handle, Command: "echo 1"})
+
+		_, err := sessions.StartExec(context.Background(), ExecParams{Handle: handle, Command: "echo 2"})
+		assert.NoError(t, err)
+	})
 }
 
 func TestSessions_RetentionAndEviction(t *testing.T) {

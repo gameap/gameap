@@ -296,12 +296,15 @@ func connectionLostMessage(cause error) string {
 }
 
 // finishOperation publishes the outcome, retires the record and fires the
-// completion callback if the plugin asked for one.
+// completion callback if the plugin asked for one. The outcome is published
+// under the set's lock together with the bookkeeping: a caller woken by
+// WaitCompletion goes straight on to Snapshot or its next StartExec, and must
+// find the slot released and older output already evicted.
 func (p *Sessions) finishOperation(op *operation, outcome execOutcome) {
-	notify := op.finish(outcome)
 	id := op.id
 
 	p.mu.Lock()
+	notify := op.finish(outcome)
 	if p.closed {
 		p.mu.Unlock()
 
@@ -322,12 +325,10 @@ func (p *Sessions) finishOperation(op *operation, outcome execOutcome) {
 	// The timer closure holds the id only: holding op would keep the captured
 	// output reachable for the whole retention window even after eviction.
 	p.timers[id] = time.AfterFunc(p.svc.cfg.OperationRetention, func() { p.dropOperation(id) })
-	evicted := p.evictOldFinishedLocked()
-	p.mu.Unlock()
-
-	for _, evictedID := range evicted {
-		p.dropOperation(evictedID)
+	for _, evictedID := range p.evictOldFinishedLocked() {
+		p.dropOperationLocked(evictedID)
 	}
+	p.mu.Unlock()
 
 	p.svc.logger.Debug("plugin ssh command finished",
 		slog.Uint64("plugin_id", p.pluginID),
@@ -362,6 +363,10 @@ func (p *Sessions) dropOperation(operationID string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	p.dropOperationLocked(operationID)
+}
+
+func (p *Sessions) dropOperationLocked(operationID string) {
 	if timer, ok := p.timers[operationID]; ok {
 		timer.Stop()
 		delete(p.timers, operationID)

@@ -1,8 +1,9 @@
 <template>
   <div>
-    <p class="mb-4 text-stone-600 dark:text-stone-400">
+    <p class="mb-2 text-stone-600 dark:text-stone-400">
       {{ trans('games.import_gameap_description') }}
     </p>
+    <HubHint :text="trans('hub.hint_import')" class="mb-4" />
 
     <n-form
         label-placement="top"
@@ -84,6 +85,7 @@ import { ref } from "vue"
 import { trans } from "@/i18n/i18n"
 import GButton from "@/components/GButton.vue"
 import GFixedBottomBar from "@/components/GFixedBottomBar.vue"
+import HubHint from "@/components/hub/HubHint.vue"
 import {
   NForm,
   NFormItem,

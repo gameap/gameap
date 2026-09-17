@@ -34,7 +34,8 @@
             <a
                 v-else-if="item.link"
                 :href="item.link"
-                @click="onMenuButtonClick"
+                target="_blank"
+                @click="onLinkClick(item, close)"
                 :class="[active
                   ? 'bg-stone-100 text-stone-900 dark:bg-stone-950 dark:text-stone-300'
                   : 'text-stone-700 dark:text-stone-200',

@@ -374,6 +374,20 @@
     "nodes_is_not_available": "Einige dedizierte Server sind nicht verfügbar. Verbindung zu folgenden dedizierten Servern fehlgeschlagen: :nodes",
     "not_writable_directories": "Die folgenden Verzeichnisse sind nicht beschreibbar: :paths"
   },
+  "hub": {
+    "title": "GameAP Hub",
+    "missing_game": "Spiel oder Mod fehlt?",
+    "description": "Importfertige Spiel- und Mod-Konfigurationen aus der GameAP-Community.",
+    "step_find": "Suchen Sie ein Spiel oder eine Mod auf :host",
+    "step_download": "Laden Sie die Datei .gameap.yaml herunter",
+    "step_import": "Importieren Sie sie in GameAP",
+    "moderation": "Jede Konfiguration wird vor der Veröffentlichung von Moderatoren geprüft.",
+    "publish": "Eigene Konfiguration? Veröffentlichen Sie sie für die Community.",
+    "open": "GameAP Hub öffnen",
+    "hint_import": "Spielkonfigurationen der Community finden Sie auf :host",
+    "hint_game": "Fertige Spielkonfigurationen der Community auf :host",
+    "hint_mod": "Fertige Mod-Konfigurationen der Community auf :host"
+  },
   "labels": {
     "name": "Name",
     "key": "Schlüssel",

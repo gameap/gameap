@@ -58,20 +58,7 @@
               class="md:mr-4"
               :button-text="trans('navbar.help')"
               button-icon="help"
-              :items="[
-                  [
-                      {
-                        icon: 'book',
-                        label: trans('navbar.documentation'),
-                        link: pageLanguage === 'ru' ? 'https://docs.gameap.com/ru/' : 'https://docs.gameap.com/en/',
-                      },
-                      {
-                        icon: 'admin-panel',
-                        label: trans('navbar.api_documentation'),
-                        link: 'https://openapi.gameap.io/',
-                      }
-                  ],
-                ]"
+              :items="helpItems"
           ></MainNavbarDropdown>
 
           <MainNavbarDropdown
@@ -174,6 +161,7 @@ import {useUISettingsStore} from "@/store/uiSettings";
 import {usePluginsStore} from "@/store/plugins";
 import PluginSlot from "@/plugins/components/PluginSlot.vue";
 import {errorNotification} from "@/parts/dialogs";
+import {hubUrl} from "@/parts/hub";
 
 const authStore = useAuthStore()
 const uiSettingsStore = useUISettingsStore()
@@ -190,6 +178,32 @@ const currentTheme = computed(() => {
 const showMobileMenu = ref(false)
 
 const isAdmin = computed(() => authStore.isAdmin)
+
+const helpItems = computed(() => {
+    const items = [
+        {
+            icon: 'book',
+            label: trans('navbar.documentation'),
+            link: pageLanguage() === 'ru' ? 'https://docs.gameap.com/ru/' : 'https://docs.gameap.com/en/',
+        },
+    ]
+
+    if (isAdmin.value) {
+        items.push({
+            icon: 'box-open',
+            label: trans('hub.title'),
+            link: hubUrl(),
+        })
+    }
+
+    items.push({
+        icon: 'admin-panel',
+        label: trans('navbar.api_documentation'),
+        link: 'https://openapi.gameap.io/',
+    })
+
+    return [items]
+})
 
 const pluginServersMenuItems = computed(() => pluginsStore.getMenuItems('servers'))
 
