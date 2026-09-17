@@ -11,7 +11,7 @@
         <span class="flex items-center justify-center shrink-0 w-6 h-6 rounded-full bg-stone-100 dark:bg-stone-700">
           {{ index + 1 }}
         </span>
-        <span>{{ step }}</span>
+        <HubText :text="step" />
       </li>
     </ol>
 
@@ -45,14 +45,15 @@
 import {GIcon, GModal} from "@gameap/ui"
 import {trans} from "@/i18n/i18n"
 import GButton from "@/components/GButton.vue"
-import {hubHost, hubUrl} from "@/parts/hub"
+import {hubUrl} from "@/parts/hub"
+import HubText from "./HubText.vue"
 
 const show = defineModel('show', {type: Boolean, default: false})
 
 const url = hubUrl()
 
 const steps = [
-  trans('hub.step_find', {host: hubHost()}),
+  trans('hub.step_find'),
   trans('hub.step_download'),
   trans('hub.step_import'),
 ]
