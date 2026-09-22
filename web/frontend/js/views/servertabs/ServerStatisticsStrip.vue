@@ -131,10 +131,11 @@ const hasMemBar = computed(() => memPercent.value !== null && memPercent.value !
 
 // CPU is a percentage of one core, so only a limit gives the bar a full scale:
 // without one, 250% on a multi-core host is not a saturated server.
-const hasCpuBar = computed(() => Number.isFinite(props.cpuLimitPercent) && props.cpuLimitPercent > 0)
+const hasCpuBar = computed(() => Number.isFinite(props.cpuLimitPercent) && props.cpuLimitPercent > 0
+    && Number.isFinite(cpuPercent.value))
 
 const cpuOfLimit = computed(() => {
-    if (!hasCpuBar.value || cpuPercent.value === null || cpuPercent.value === undefined) return null
+    if (!hasCpuBar.value) return null
 
     return cpuPercent.value / props.cpuLimitPercent * 100
 })
