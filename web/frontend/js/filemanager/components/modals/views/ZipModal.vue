@@ -181,6 +181,7 @@ async function submit() {
 
 defineExpose({
     footerButtons: computed(() => [
+        { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
         {
             label: lang.value.btn.submit,
             color: 'green',
@@ -188,7 +189,6 @@ defineExpose({
             action: submit,
             disabled: submitDisabled.value,
         },
-        { label: lang.value.btn.cancel, color: 'black', icon: 'close', action: hideModal },
     ]),
 })
 </script>

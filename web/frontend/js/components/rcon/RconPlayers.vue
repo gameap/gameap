@@ -74,9 +74,16 @@
             </div>
 
             <template #footer>
-                <button type="button" class="inline-block align-middle text-center select-none border font-normal whitespace-nowrap rounded py-2 px-3 leading-normal no-underline bg-info text-white hover:bg-info-hover me-1" v-on:click="send">{{ trans('main.send') }}</button>
-                <button type="button" class="inline-block align-middle text-center select-none border font-normal whitespace-nowrap rounded py-2 px-3 leading-normal no-underline bg-stone-600 text-white hover:bg-stone-700" v-on:click="hideModal">{{ trans('main.close') }}</button>
-
+                <div class="flex justify-end gap-2">
+                    <GButton color="black" v-on:click="hideModal">
+                        <GIcon name="close" class="mr-1" />
+                        {{ trans('main.close') }}
+                    </GButton>
+                    <GButton color="blue" v-on:click="send">
+                        <GIcon :name="dialogIcon" class="mr-1" />
+                        {{ trans('main.send') }}
+                    </GButton>
+                </div>
             </template>
         </GModal>
     </div>
@@ -263,6 +270,16 @@
                         return this.trans('rcon.modal_title_kick', {player: this.dialogPlayerName});
                     case 'message':
                         return this.trans('rcon.modal_title_msg', {player: this.dialogPlayerName});
+                }
+            },
+            dialogIcon() {
+                switch (this.dialogAction) {
+                    case 'ban':
+                        return 'ban';
+                    case 'kick':
+                        return 'kick';
+                    default:
+                        return 'comments';
                 }
             },
             ipRow() {
