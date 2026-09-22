@@ -23,14 +23,6 @@
                 :segmented="{ content: true, footer: 'soft' }"
                 data-testid="server-stats-cpu-chart"
             >
-                <template v-if="cpuCurrent !== null" #header-extra>
-                    <span class="text-sm font-mono tabular-nums whitespace-nowrap" data-testid="server-stats-cpu-current">
-                        {{ formatPercent(cpuCurrent) }}<span
-                            v-if="cpuLimitPercent !== null"
-                            class="text-stone-400 dark:text-stone-500"
-                        > / {{ formatLimit(cpuLimitPercent) }}</span>
-                    </span>
-                </template>
                 <v-chart class="h-72 w-full" :option="cpuOption" :update-options="updateOptions" autoresize />
             </n-card>
 
@@ -124,7 +116,6 @@ const hasAnyData = computed(() => {
     )
 })
 
-const cpuCurrent = computed(() => lastVal(cpuSeries.value))
 
 function lastVal(list) {
     for (const s of list) {
@@ -151,10 +142,6 @@ function formatBytes(v) {
 function formatPercent(v) {
     if (v == null || Number.isNaN(v)) return ''
     return `${Number(v).toFixed(1)}%`
-}
-
-function formatLimit(v) {
-    return Number.isFinite(v) ? `${Number(v.toFixed(1))}%` : '∞'
 }
 
 function formatBitrate(v) {

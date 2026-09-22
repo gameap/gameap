@@ -4,8 +4,8 @@ import { loginViaAPI } from '../fixtures/auth';
 // Server CPU comes from the daemon as a percentage of one core, the way
 // `docker stats` reports it, so a multi-core server goes past 100%. The chart
 // axis has to follow such values instead of clipping them at 100%, the strip
-// bar is measured against the CPU limit, and the limit is shown the way
-// Pterodactyl and Pelican show it: "250.0% / 400%", or "/ ∞" when none is set.
+// bar is measured against the CPU limit, and only the current usage is shown
+// as text: "250.0%", never "250.0% / ∞".
 //
 // The server API and the metrics WebSocket are mocked, so no daemon is needed.
 
@@ -131,7 +131,6 @@ interface CpuCase {
   values: number[];
   stripText: string;
   barMaxWidth: string | null;
-  headerText: string;
   axis: [number, number];
 }
 
@@ -140,18 +139,16 @@ const CPU_CASES: CpuCase[] = [
     name: 'admin without a CPU limit sees usage past one core on an axis that follows it',
     cpuLimit: null,
     values: [130, 200, 250],
-    stripText: '250.0% / ∞',
+    stripText: '250.0%',
     barMaxWidth: null,
-    headerText: '250.0% / ∞',
     axis: [0, 250],
   },
   {
     name: 'admin with a CPU limit sees the bar and the axis measured against the limit',
     cpuLimit: 4000,
     values: [130, 200, 250],
-    stripText: '250.0% / 400%',
+    stripText: '250.0%',
     barMaxWidth: '62.5%',
-    headerText: '250.0% / 400%',
     axis: [0, 400],
   },
   {
@@ -160,16 +157,14 @@ const CPU_CASES: CpuCase[] = [
     values: [130, 200, 250],
     stripText: '250.0%',
     barMaxWidth: null,
-    headerText: '250.0%',
     axis: [0, 250],
   },
   {
     name: 'idle server keeps the one-core scale',
     cpuLimit: null,
     values: [2, 3],
-    stripText: '3.0% / ∞',
+    stripText: '3.0%',
     barMaxWidth: null,
-    headerText: '3.0% / ∞',
     axis: [0, 100],
   },
 ];
@@ -185,9 +180,7 @@ for (const c of CPU_CASES) {
 
     const strip = page.getByTestId('server-stats-cpu');
     await expect(strip).toContainText(c.stripText, { timeout: 20_000 });
-    if (c.cpuLimit === undefined) {
-      await expect(strip).not.toContainText('/');
-    }
+    await expect(strip).not.toContainText('/');
 
     const bar = strip.locator('.n-progress-graph-line-fill');
     if (c.barMaxWidth === null) {
@@ -201,9 +194,9 @@ for (const c of CPU_CASES) {
 
     await strip.click();
 
-    await expect(page.getByTestId('server-stats-cpu-current')).toHaveText(c.headerText, {
-      timeout: 20_000,
-    });
+    const cpuCard = page.getByTestId('server-stats-cpu-chart');
+    await expect(cpuCard).toBeVisible({ timeout: 20_000 });
+    await expect(cpuCard.locator('.n-card-header__extra')).toHaveCount(0);
     await expect.poll(() => cpuAxisExtent(page), { timeout: 20_000 }).toEqual(c.axis);
   });
 }

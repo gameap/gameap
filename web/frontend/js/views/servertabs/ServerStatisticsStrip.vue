@@ -36,10 +36,7 @@
         <span
             class="text-xs font-mono tabular-nums text-right whitespace-nowrap"
             :class="hasCpuBar ? 'min-w-16' : 'flex-1'"
-        >{{ formatPercent(cpuPercent) }}<span
-            v-if="cpuLimitPercent !== null"
-            class="text-stone-400 dark:text-stone-500"
-        > / {{ formatLimit(cpuLimitPercent) }}</span></span>
+        >{{ formatPercent(cpuPercent) }}</span>
       </div>
 
       <div class="flex items-center gap-2 xl:flex-1 xl:px-4" :title="memTitle">
@@ -174,10 +171,6 @@ function formatPercent(v) {
     if (v === null || v === undefined || Number.isNaN(v)) return '—'
 
     return `${Number(v).toFixed(1)}%`
-}
-
-function formatLimit(v) {
-    return Number.isFinite(v) ? `${Number(v.toFixed(1))}%` : '∞'
 }
 
 function formatBytes(v) {
