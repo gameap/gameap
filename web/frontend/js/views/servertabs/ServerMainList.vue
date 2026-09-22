@@ -1,5 +1,5 @@
 <script setup>
-    import { Loading, GIcon, GDataTable, GEmpty, GGameIcon } from "@gameap/ui";
+    import { Loading, GIcon, GDataTable, GEmpty, GGameIcon, GStatusBadge } from "@gameap/ui";
     import {h, ref, reactive, onMounted, onUnmounted, computed, watch} from 'vue'
     import {storeToRefs} from 'pinia'
     import {trans} from "@/i18n/i18n";
@@ -66,32 +66,32 @@
             title: trans('servers.status'),
             key: "status",
             render(row) {
-                let badgeClass;
+                let badgeColor;
                 let circleClass;
                 let statusText;
 
                 if (row.blocked) {
-                    badgeClass = "badge-stone";
+                    badgeColor = "stone";
                     circleClass = "badge-circle-stone";
                     statusText = trans('servers.blocked');
                 } else if (!row.enabled) {
-                    badgeClass = "badge-stone";
+                    badgeColor = "stone";
                     circleClass = "badge-circle-stone";
                     statusText = trans('servers.disabled');
                 } else if (!row.installed) {
-                    badgeClass = "badge-stone";
+                    badgeColor = "stone";
                     circleClass = "badge-circle-stone";
                     statusText = trans('servers.not_installed');
                 } else if (row.installed === INSTALLATION_PROCESS) {
-                    badgeClass = "badge-orange";
+                    badgeColor = "orange";
                     circleClass = "badge-circle-orange";
                     statusText = trans('servers.installation');
                 } else if (row.online) {
-                    badgeClass = "badge-green";
+                    badgeColor = "green";
                     circleClass = "badge-circle-green";
                     statusText = trans('servers.online');
                 } else {
-                    badgeClass = "badge-red";
+                    badgeColor = "red";
                     circleClass = "badge-circle-red";
                     statusText = trans('servers.offline');
                 }
@@ -105,7 +105,7 @@
                     });
                 }
 
-                return h('span', {class: badgeClass}, statusText);
+                return h(GStatusBadge, {color: badgeColor, text: statusText});
             }
         });
 

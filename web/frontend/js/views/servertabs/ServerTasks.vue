@@ -1,7 +1,7 @@
 <script setup>
 import { computed, h, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { GDataTable, GEmpty, GIcon, Loading } from '@gameap/ui'
+import { GDataTable, GEmpty, GIcon, GStatusBadge, Loading } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
 import { useServerStore } from '@/store/server'
 import { useServerTasksStore } from '@/store/serverTasks'
@@ -152,12 +152,11 @@ function renderRepeatCell(row) {
 
 function renderStatusCell(row) {
     const enabled = row.enabled !== false
-    const badgeClass = enabled ? 'badge-green' : 'badge-stone'
-    const label = enabled
-        ? trans('servers_tasks.active')
-        : trans('servers_tasks.paused')
 
-    return h('span', { class: badgeClass }, label)
+    return h(GStatusBadge, {
+        color: enabled ? 'green' : 'stone',
+        text: enabled ? trans('servers_tasks.active') : trans('servers_tasks.paused'),
+    })
 }
 
 function renderActionButton(color, iconName, label, onClick, extraClass = '') {

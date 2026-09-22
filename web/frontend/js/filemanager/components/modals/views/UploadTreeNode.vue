@@ -12,12 +12,8 @@
                 <GIcon :name="dir.expanded ? 'chevron-down' : 'chevron-right'" class="text-xs text-muted w-3" />
                 <GIcon :name="dir.expanded ? 'folder-open' : 'folder'" class="text-muted" />
                 <span class="font-medium truncate flex-1" :title="dir.name">{{ dir.name }}</span>
-                <n-tag v-if="dir.conflict === 'merge'" size="tiny" type="warning" round>
-                    {{ lang.modal.upload.review.merge }}
-                </n-tag>
-                <n-tag v-else-if="dir.conflict === 'file-vs-dir'" size="tiny" type="error" round>
-                    {{ lang.modal.upload.errors.dir_vs_file }}
-                </n-tag>
+                <GStatusBadge v-if="dir.conflict === 'merge'" color="orange" :text="lang.modal.upload.review.merge" />
+                <GStatusBadge v-else-if="dir.conflict === 'file-vs-dir'" color="red" :text="lang.modal.upload.errors.dir_vs_file" />
                 <span class="text-xs text-muted shrink-0">
                     {{ dir.completed }}/{{ dir.files }}
                 </span>
@@ -51,7 +47,7 @@
                     />
                 </template>
                 <template v-else-if="isReview && file.conflict === 'dir-vs-file'">
-                    <n-tag type="error" size="small" round>{{ lang.modal.upload.errors.dir_vs_file }}</n-tag>
+                    <GStatusBadge color="red" :text="lang.modal.upload.errors.dir_vs_file" />
                 </template>
                 <template v-else-if="!isReview">
                     <n-progress
@@ -66,9 +62,12 @@
                 </template>
             </div>
             <div class="col-span-3 sm:col-span-2 flex items-center justify-end gap-1">
-                <n-tag v-if="phaseLabel(file)" :type="phaseTagType(file)" size="tiny" round :title="errorTitle(file)">
-                    {{ phaseLabel(file) }}
-                </n-tag>
+                <GStatusBadge
+                    v-if="phaseLabel(file)"
+                    :color="phaseBadgeColor(file)"
+                    :text="phaseLabel(file)"
+                    :title="errorTitle(file)"
+                />
             </div>
         </div>
     </div>
@@ -76,8 +75,8 @@
 
 <script setup>
 import { computed } from 'vue'
-import { GIcon } from '@gameap/ui'
-import { NTag, NProgress, NSelect } from 'naive-ui'
+import { GIcon, GStatusBadge } from '@gameap/ui'
+import { NProgress, NSelect } from 'naive-ui'
 import { useMessagesStore } from '../../../stores/useMessagesStore.js'
 import { useTranslate } from '../../../composables/useTranslate.js'
 import { useHelper } from '../../../composables/useHelper.js'
@@ -177,12 +176,11 @@ function phaseIconClass(file) {
     return 'text-muted'
 }
 
-function phaseTagType(file) {
-    if (file.phase === 'error') return 'error'
-    if (file.phase === 'done') return 'success'
-    if (file.phase === 'skipped') return 'default'
+function phaseBadgeColor(file) {
+    if (file.phase === 'error') return 'red'
+    if (file.phase === 'done') return 'green'
 
-    return 'default'
+    return 'light'
 }
 
 function progressStatus(file) {

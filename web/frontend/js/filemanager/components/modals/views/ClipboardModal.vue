@@ -3,12 +3,9 @@
         <template v-if="clipboard.type">
             <div class="flex justify-between items-center mb-3">
                 <div class="truncate">
-                    <n-tag>
-                        <template #icon>
-                            <GIcon name="hard-drive" />
-                        </template>
-                        {{ clipboard.disk }}
-                    </n-tag>
+                    <GStatusBadge color="light">
+                        <GIcon name="hard-drive" class="mr-1" />{{ clipboard.disk }}
+                    </GStatusBadge>
                 </div>
                 <div class="text-muted">
                     <span :title="`${lang.clipboard.actionType} - ${lang.clipboard[clipboard.type]}`">
@@ -67,7 +64,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { GIcon, GDivider } from '@gameap/ui'
+import { GIcon, GDivider, GStatusBadge } from '@gameap/ui'
 import { useFileManagerStore } from '../../../stores/useFileManagerStore.js'
 import { useTranslate } from '../../../composables/useTranslate.js'
 import { useHelper } from '../../../composables/useHelper.js'

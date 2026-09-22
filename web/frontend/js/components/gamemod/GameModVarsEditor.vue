@@ -19,7 +19,7 @@
         <template #header>
           <span class="flex items-center gap-2 text-sm">
             <span class="font-mono">{{ entry.item.var || '—' }}</span>
-            <n-tag size="tiny" round>{{ typeLabel(entry.item.type) }}</n-tag>
+            <GStatusBadge color="light" :text="typeLabel(entry.item.type)" />
             <span class="text-stone-500 dark:text-stone-400 truncate">{{ entry.item.info }}</span>
             <!-- Marks a variable carrying options, rules or translations, so
                  nothing nested is invisible from the collapsed list. -->
@@ -206,7 +206,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { NButton, NCollapse, NCollapseItem, NDivider, NFormItem, NInput, NSelect, NSwitch, NTag } from 'naive-ui'
+import { NButton, NCollapse, NCollapseItem, NDivider, NFormItem, NInput, NSelect, NSwitch } from 'naive-ui'
 import { GIcon } from '@gameap/ui'
 import { trans } from '@/i18n/i18n'
 import {

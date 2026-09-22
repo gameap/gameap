@@ -87,11 +87,13 @@
           :placeholder="trans('games.var_rule_pattern_test')"
           class="max-w-xs"
         />
-        <n-tag v-if="patternSample" size="small" :type="patternMatches ? 'success' : 'error'">
-          {{ patternMatches
+        <GStatusBadge
+          v-if="patternSample"
+          :color="patternMatches ? 'green' : 'red'"
+          :text="patternMatches
             ? trans('games.var_rule_pattern_match')
-            : trans('games.var_rule_pattern_no_match') }}
-        </n-tag>
+            : trans('games.var_rule_pattern_no_match')"
+        />
       </div>
     </template>
   </div>
@@ -99,7 +101,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { NFormItem, NInput, NInputNumber, NSwitch, NTag } from 'naive-ui'
+import { NFormItem, NInput, NInputNumber, NSwitch } from 'naive-ui'
 import { trans } from '@/i18n/i18n'
 import {
   NUMERIC_TYPES,

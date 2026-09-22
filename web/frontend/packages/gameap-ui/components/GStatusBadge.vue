@@ -1,5 +1,5 @@
 <template>
-  <span :class="spanClass">{{ statusText }}</span>
+  <span :class="spanClass"><slot>{{ statusText }}</slot></span>
 </template>
 
 <script setup>

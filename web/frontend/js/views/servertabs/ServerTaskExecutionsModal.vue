@@ -2,7 +2,7 @@
 import { computed, h, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { NSelect, NTooltip } from 'naive-ui'
-import { GDataTable, GEmpty, GIcon, GModal, Loading } from '@gameap/ui'
+import { GDataTable, GEmpty, GIcon, GModal, GStatusBadge, Loading } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
 import { useServerTasksStore } from '@/store/serverTasks'
 import { useAuthStore } from '@/store/auth'
@@ -23,12 +23,12 @@ const { executions, executionsLoading } = storeToRefs(tasksStore)
 const statusFilter = ref(null)
 
 const STATUS_BADGE = {
-    running: 'badge-blue',
-    success: 'badge-green',
-    failed: 'badge-red',
-    canceled: 'badge-stone',
-    skipped: 'badge-light',
-    timed_out: 'badge-orange',
+    running: 'blue',
+    success: 'green',
+    failed: 'red',
+    canceled: 'stone',
+    skipped: 'light',
+    timed_out: 'orange',
 }
 
 const statusOptions = computed(() => [
@@ -70,9 +70,10 @@ function formatDuration(ms) {
 }
 
 function renderStatus(row) {
-    const badgeClass = STATUS_BADGE[row.status] || 'badge-light'
-
-    return h('span', { class: badgeClass }, statusLabel(row.status))
+    return h(GStatusBadge, {
+        color: STATUS_BADGE[row.status] || 'light',
+        text: statusLabel(row.status),
+    })
 }
 
 function renderDuration(row) {

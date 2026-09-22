@@ -14,12 +14,10 @@
       <div class="flex items-center gap-3 flex-wrap">
         <GIcon name="metrics" class="text-xl" />
         <span class="font-semibold">{{ serverName || ('#' + serverId) }}</span>
-        <n-tag v-if="online" type="success" size="small" round :bordered="false">
-          {{ trans('servers.active') }}
-        </n-tag>
-        <n-tag v-else type="error" size="small" round :bordered="false">
-          {{ trans('servers.inactive') }}
-        </n-tag>
+        <GStatusBadge
+            :status="online ? 'success' : 'error'"
+            :text="online ? trans('servers.active') : trans('servers.inactive')"
+        />
       </div>
     </template>
 
@@ -31,8 +29,8 @@
 
 <script setup>
 import { defineAsyncComponent } from 'vue'
-import { NModal, NTag } from 'naive-ui'
-import { GIcon } from '@gameap/ui'
+import { NModal } from 'naive-ui'
+import { GIcon, GStatusBadge } from '@gameap/ui'
 import { trans } from '@/i18n/i18n'
 
 const ServerStatistics = defineAsyncComponent(() =>
