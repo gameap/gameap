@@ -7,7 +7,7 @@
           <GStatusBadge v-if="!versionLoading" :color="panelBadgeColor" :text="panelCurrent" />
         </div>
 
-        <GIcon v-if="versionLoading" name="loading" class="mt-3 text-stone-400" />
+        <GIcon v-if="versionLoading" name="loading" class="mt-3 self-start text-stone-400" />
         <div v-else class="mt-2 space-y-1 text-sm text-stone-900 dark:text-white">
           <div v-if="panelLatestStable">
             {{ trans('home.latest_stable') }}:
@@ -36,7 +36,7 @@
           </template>
         </div>
 
-        <GIcon v-if="daemonLoading" name="loading" class="mt-3 text-stone-400" />
+        <GIcon v-if="daemonLoading" name="loading" class="mt-3 self-start text-stone-400" />
         <div v-else class="mt-2 space-y-1 text-sm text-stone-900 dark:text-white">
           <div v-if="daemonLatestStable">
             {{ trans('home.latest_stable') }}:
