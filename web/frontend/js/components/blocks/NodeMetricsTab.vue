@@ -268,6 +268,7 @@ function baseOption({ yMax = null, yFormatter, palette, showLegend = false }) {
         legend: showLegend ? { type: 'scroll', top: 0 } : { show: false },
         xAxis: {
             type: 'time',
+            axisLabel: { hideOverlap: true },
         },
         yAxis: {
             type: 'value',

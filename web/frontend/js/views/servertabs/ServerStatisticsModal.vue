@@ -22,7 +22,7 @@
     </template>
 
     <div class="overflow-y-auto pr-1 max-h-[75vh]">
-      <ServerStatistics v-if="show" :server-id="serverId" />
+      <ServerStatistics v-if="show" :server-id="serverId" :cpu-limit-percent="cpuLimitPercent" />
     </div>
   </n-modal>
 </template>
@@ -42,6 +42,7 @@ defineProps({
     serverId: { type: Number, default: null },
     serverName: { type: String, default: '' },
     online: { type: Boolean, default: false },
+    cpuLimitPercent: { type: Number, default: null },
 })
 
 defineEmits(['update:show'])

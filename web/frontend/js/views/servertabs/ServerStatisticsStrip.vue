@@ -15,13 +15,16 @@
       {{ errorMessage }}
     </div>
 
+    <!-- One row needs ~1000px of strip, which the page leaves only from xl on;
+         narrower screens get two cells per row, phones one. -->
     <div
-        class="flex flex-col md:flex-row md:items-center gap-3 md:gap-0
-               md:divide-x divide-stone-200 dark:divide-stone-700"
+        class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3
+               xl:flex xl:items-center xl:gap-0 xl:divide-x divide-stone-200 dark:divide-stone-700"
     >
-      <div class="flex items-center gap-2 md:flex-1 md:px-4">
-        <span class="text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400 w-10">CPU</span>
+      <div class="flex items-center gap-2 xl:flex-1 xl:px-4" data-testid="server-stats-cpu">
+        <span class="shrink-0 text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400 w-10">CPU</span>
         <n-progress
+            v-if="hasCpuBar"
             type="line"
             :percentage="cpuWidth"
             :color="cpuColor"
@@ -30,11 +33,17 @@
             :show-indicator="false"
             class="flex-1"
         />
-        <span class="text-xs font-mono tabular-nums w-16 text-right">{{ formatPercent(cpuPercent) }}</span>
+        <span
+            class="text-xs font-mono tabular-nums text-right whitespace-nowrap"
+            :class="hasCpuBar ? 'min-w-16' : 'flex-1'"
+        >{{ formatPercent(cpuPercent) }}<span
+            v-if="cpuLimitPercent !== null"
+            class="text-stone-400 dark:text-stone-500"
+        > / {{ formatLimit(cpuLimitPercent) }}</span></span>
       </div>
 
-      <div class="flex items-center gap-2 md:flex-1 md:px-4" :title="memTitle">
-        <span class="text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400 w-10">MEM</span>
+      <div class="flex items-center gap-2 xl:flex-1 xl:px-4" :title="memTitle">
+        <span class="shrink-0 text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400 w-10">MEM</span>
         <template v-if="hasMemBar">
           <n-progress
               type="line"
@@ -47,26 +56,28 @@
           />
           <span class="text-xs font-mono tabular-nums w-16 text-right">{{ formatPercent(memPercent) }}</span>
         </template>
-        <span v-else class="flex-1 text-xs font-mono tabular-nums text-right">{{ formatBytes(memBytes) }}</span>
+        <span v-else class="flex-1 text-xs font-mono tabular-nums text-right whitespace-nowrap">{{ formatBytes(memBytes) }}</span>
       </div>
 
-      <div class="flex items-center justify-between gap-2 md:flex-1 md:px-4">
-        <span class="text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400">NET</span>
-        <span class="text-xs font-mono tabular-nums">
-          <span class="text-chart-7">↑</span> {{ formatBitrate(netIn) }}
-          <span class="text-chart-3 ml-2">↓</span> {{ formatBitrate(netOut) }}
+      <!-- The card sets word-break: break-word, so a squeezed cell would split
+           words; each direction stays whole and the pair wraps between them. -->
+      <div class="flex items-center justify-between gap-2 xl:flex-1 xl:px-4">
+        <span class="shrink-0 text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400">NET</span>
+        <span class="flex flex-wrap justify-end gap-x-2 text-xs font-mono tabular-nums">
+          <span class="whitespace-nowrap"><span class="text-chart-7">↑</span> {{ formatBitrate(netIn) }}</span>
+          <span class="whitespace-nowrap"><span class="text-chart-3">↓</span> {{ formatBitrate(netOut) }}</span>
         </span>
       </div>
 
-      <div class="flex items-center justify-between gap-2 md:flex-1 md:px-4">
-        <span class="text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400">DISK</span>
-        <span class="text-xs font-mono tabular-nums">
-          <span class="text-stone-400">R</span> {{ formatBitrate(diskRead) }}
-          <span class="text-stone-400 ml-2">W</span> {{ formatBitrate(diskWrite) }}
+      <div class="flex items-center justify-between gap-2 xl:flex-1 xl:px-4">
+        <span class="shrink-0 text-xs uppercase tracking-wide text-stone-500 dark:text-stone-400">DISK</span>
+        <span class="flex flex-wrap justify-end gap-x-2 text-xs font-mono tabular-nums">
+          <span class="whitespace-nowrap"><span class="text-stone-400">R</span> {{ formatBitrate(diskRead) }}</span>
+          <span class="whitespace-nowrap"><span class="text-stone-400">W</span> {{ formatBitrate(diskWrite) }}</span>
         </span>
       </div>
 
-      <div class="hidden md:flex items-center justify-center md:pl-4 text-stone-400 dark:text-stone-500">
+      <div class="hidden xl:flex items-center justify-center xl:pl-4 text-stone-400 dark:text-stone-500">
         <GIcon name="metrics" class="text-lg" />
       </div>
     </div>
@@ -83,6 +94,7 @@ import { trans } from '@/i18n/i18n'
 
 const props = defineProps({
     serverId: { type: Number, required: true },
+    cpuLimitPercent: { type: Number, default: null },
 })
 
 defineEmits(['open'])
@@ -120,10 +132,20 @@ const diskWrite = computed(() => lastVal(diskWriteSeries.value))
 
 const hasMemBar = computed(() => memPercent.value !== null && memPercent.value !== undefined)
 
-const cpuWidth = computed(() => clamp(cpuPercent.value, 0, 100))
+// CPU is a percentage of one core, so only a limit gives the bar a full scale:
+// without one, 250% on a multi-core host is not a saturated server.
+const hasCpuBar = computed(() => Number.isFinite(props.cpuLimitPercent) && props.cpuLimitPercent > 0)
+
+const cpuOfLimit = computed(() => {
+    if (!hasCpuBar.value || cpuPercent.value === null || cpuPercent.value === undefined) return null
+
+    return cpuPercent.value / props.cpuLimitPercent * 100
+})
+
+const cpuWidth = computed(() => clamp(cpuOfLimit.value, 0, 100))
 const memWidth = computed(() => clamp(memPercent.value, 0, 100))
 
-const cpuColor = computed(() => paletteFor(cpuPercent.value))
+const cpuColor = computed(() => paletteFor(cpuOfLimit.value))
 const memColor = computed(() => paletteFor(memPercent.value))
 
 const memTitle = computed(() => {
@@ -152,6 +174,10 @@ function formatPercent(v) {
     if (v === null || v === undefined || Number.isNaN(v)) return '—'
 
     return `${Number(v).toFixed(1)}%`
+}
+
+function formatLimit(v) {
+    return Number.isFinite(v) ? `${Number(v.toFixed(1))}%` : '∞'
 }
 
 function formatBytes(v) {

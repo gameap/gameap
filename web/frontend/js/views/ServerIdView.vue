@@ -91,7 +91,11 @@
       </div>
 
       <div v-if="canShowStats" class="mt-2">
-        <ServerStatisticsStrip :server-id="serverId" @open="statsModalShow = true" />
+        <ServerStatisticsStrip
+            :server-id="serverId"
+            :cpu-limit-percent="cpuLimitPercent"
+            @open="statsModalShow = true"
+        />
       </div>
 
       <div class="md:flex md:flex-wrap mt-2" v-show="serverQueryOnline">
@@ -258,6 +262,7 @@
       :server-id="serverId"
       :server-name="server?.name"
       :online="serverOnline"
+      :cpu-limit-percent="cpuLimitPercent"
   />
 </template>
 
@@ -396,6 +401,19 @@ const serverOnline = computed(() => {
 
 const canShowStats = computed(() => {
   return serverStore.abilities['game-server-common'] && serverStore.canViewMetrics && serverOnline.value
+})
+
+// cpu_limit is in millicores, while metrics report CPU as a percentage of one
+// core, so 1000 millicores = 100%. Only the admin view of a server carries the
+// key: null means the viewer cannot see the limit, Infinity means none is set.
+const cpuLimitPercent = computed(() => {
+  if (server.value?.cpu_limit === undefined) {
+    return null
+  }
+
+  const millicores = Number(server.value.cpu_limit)
+
+  return millicores > 0 ? millicores / 10 : Infinity
 })
 
 const serverQueryOnline = computed(() => {
