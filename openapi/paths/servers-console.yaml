@@ -322,6 +322,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:

@@ -70,6 +70,8 @@
     summary: Create user
     description: Creates a new user (Admin only)
     operationId: createUser
+    parameters:
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -157,6 +159,7 @@
     operationId: updateUser
     parameters:
       - $ref: '../parameters/PathUserId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -203,6 +206,7 @@
     operationId: deleteUser
     parameters:
       - $ref: '../parameters/PathUserId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '204':
         description: User deleted (no content)
@@ -280,6 +284,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '204':
         description: Server attached
@@ -321,6 +326,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '204':
         description: Server detached
@@ -407,6 +413,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:

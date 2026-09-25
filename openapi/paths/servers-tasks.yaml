@@ -47,6 +47,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -99,6 +100,7 @@
         description: Task ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -150,6 +152,7 @@
         description: Task ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '204':
         description: Task deleted (no content)

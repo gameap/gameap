@@ -184,6 +184,8 @@
     summary: Create server
     description: Creates a new game server (Admin only)
     operationId: createServer
+    parameters:
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -191,7 +193,7 @@
           schema:
             $ref: '../schemas/requests/CreateServerRequest.yaml'
     responses:
-      '200':
+      '201':
         description: Server created
         content:
           application/json:
@@ -435,6 +437,7 @@
     operationId: updateServer
     parameters:
       - $ref: '../parameters/PathServerId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -481,6 +484,7 @@
     operationId: deleteServer
     parameters:
       - $ref: '../parameters/PathServerId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '204':
         description: Server deleted (no content)

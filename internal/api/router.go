@@ -166,6 +166,7 @@ import (
 	"github.com/gameap/gameap/internal/files"
 	grpchandlers "github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
+	"github.com/gameap/gameap/internal/idempotency"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
 	"github.com/gameap/gameap/internal/plugin/hostlibrary"
@@ -283,6 +284,7 @@ type container interface {
 	FileUploadMIMEChecker() *filemanagermime.Checker
 	I18nFS() fs.FS
 	FrontendFS() fs.FS
+	IdempotencyMiddleware() *idempotency.Middleware
 }
 
 func CreateRouter(c container) *http.ServeMux {
@@ -445,6 +447,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		AllowShortLivedToken    bool
 		AllowMFAEnrollmentToken bool
 		CheckPATAbilities       []domain.PATAbility
+		// AllowIdempotencyKey stores the response of a request sent with an
+		// Idempotency-Key header and replays it to retries. Never set it on
+		// a route whose response carries secrets or personal data (tokens,
+		// RCON output): the response is stored.
+		AllowIdempotencyKey bool
 	}{
 		{
 			Method:           http.MethodGet,
@@ -730,6 +737,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerCreate,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -780,6 +788,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerCreate,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPut,
@@ -798,6 +807,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerCreate,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -905,6 +915,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerRconConsole,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -936,6 +947,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerConsole,
 			},
+			AllowIdempotencyKey: true,
 		},
 
 		// File Manager
@@ -1223,6 +1235,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerTasksManage,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPut,
@@ -1237,6 +1250,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerTasksManage,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodDelete,
@@ -1251,6 +1265,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerTasksManage,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1297,6 +1312,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerSettingsManage,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPost,
@@ -1310,6 +1326,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerStart,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPost,
@@ -1323,6 +1340,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerStop,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPost,
@@ -1336,6 +1354,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerRestart,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPost,
@@ -1349,6 +1368,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerUpdate,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPost,
@@ -1362,6 +1382,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerUpdate,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPost,
@@ -1375,6 +1396,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityServerUpdate,
 			},
+			AllowIdempotencyKey: true,
 		},
 
 		// Server Abilities
@@ -1430,6 +1452,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityUserManage,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1460,6 +1483,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityUserManage,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodDelete,
@@ -1469,7 +1493,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PluginDispatcher(),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1514,6 +1539,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityUserManage,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPut,
@@ -1530,6 +1556,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityUserManage,
 			},
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodDelete,
@@ -1546,6 +1573,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			CheckPATAbilities: []domain.PATAbility{
 				domain.PATAbilityUserManage,
 			},
+			AllowIdempotencyKey: true,
 		},
 
 		// Nodes / Dedicated Servers
@@ -1690,7 +1718,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.AuditLogger(),
 				c.PluginDispatcher(),
 			),
-			AdminOnly: true,
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPut,
@@ -1704,7 +1733,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.AuditLogger(),
 				c.PluginDispatcher(),
 			),
-			AdminOnly: true,
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodDelete,
@@ -1716,7 +1746,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.AuditLogger(),
 				c.PluginDispatcher(),
 			),
-			AdminOnly: true,
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodDelete,
@@ -1729,7 +1760,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.AuditLogger(),
 				c.PluginDispatcher(),
 			),
-			AdminOnly: true,
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1846,10 +1878,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			},
 		},
 		{
-			Method:    http.MethodPost,
-			Path:      "/api/games",
-			Handler:   postgames.NewHandler(c.GameRepository(), c.Responder()),
-			AdminOnly: true,
+			Method:              http.MethodPost,
+			Path:                "/api/games",
+			Handler:             postgames.NewHandler(c.GameRepository(), c.Responder()),
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method: http.MethodPut,
@@ -1860,13 +1893,15 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerConfigPusher(),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
-			Method:    http.MethodDelete,
-			Path:      "/api/games/{code}",
-			Handler:   deletegame.NewHandler(c.GameRepository(), c.ServerRepository(), c.Responder()),
-			AdminOnly: true,
+			Method:              http.MethodDelete,
+			Path:                "/api/games/{code}",
+			Handler:             deletegame.NewHandler(c.GameRepository(), c.ServerRepository(), c.Responder()),
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method:    http.MethodGet,
@@ -1955,7 +1990,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.PubSub(),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 
 		// Game Mods
@@ -1969,10 +2005,11 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 			},
 		},
 		{
-			Method:    http.MethodPost,
-			Path:      "/api/game_mods",
-			Handler:   postgamemod.NewHandler(c.GameModRepository(), c.Responder()),
-			AdminOnly: true,
+			Method:              http.MethodPost,
+			Path:                "/api/game_mods",
+			Handler:             postgamemod.NewHandler(c.GameModRepository(), c.Responder()),
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
 			Method:    http.MethodGet,
@@ -2001,13 +2038,15 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.ServerConfigPusher(),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 		{
-			Method:    http.MethodDelete,
-			Path:      "/api/game_mods/{id}",
-			Handler:   deletegamemod.NewHandler(c.GameModRepository(), c.ServerRepository(), c.Responder()),
-			AdminOnly: true,
+			Method:              http.MethodDelete,
+			Path:                "/api/game_mods/{id}",
+			Handler:             deletegamemod.NewHandler(c.GameModRepository(), c.ServerRepository(), c.Responder()),
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 
 		// Client Certificates
@@ -2039,7 +2078,8 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.FileManager(),
 				c.Responder(),
 			),
-			AdminOnly: true,
+			AdminOnly:           true,
+			AllowIdempotencyKey: true,
 		},
 
 		// Plugin Store
@@ -2365,8 +2405,21 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 		c.Config().Auth.RequireMFAForAdmins,
 	)
 
+	idempotencyMiddleware := c.IdempotencyMiddleware()
+
 	for _, r := range routes {
 		handler := r.Handler
+
+		// Handler-level authorization is rechecked through ReplayAuthorizer;
+		// authentication, PAT abilities and admin checks wrap the middleware.
+		if r.AllowIdempotencyKey {
+			if !r.AdminOnly {
+				if _, ok := handler.(idempotency.ReplayAuthorizer); !ok {
+					panic("idempotent route must authorize replay: " + r.Method + " " + r.Path)
+				}
+			}
+			handler = idempotencyMiddleware.Middleware(handler)
+		}
 
 		if len(r.CheckPATAbilities) > 0 {
 			handler = patMiddleware.Middleware(handler, r.CheckPATAbilities)

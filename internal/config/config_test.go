@@ -988,3 +988,41 @@ func TestLoadConfig_PluginRuntime(t *testing.T) {
 		assert.Empty(t, cfg.Plugins.Runtime.Cache.Dir)
 	})
 }
+
+func TestLoadConfig_Idempotency(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.Equal(t, "database", cfg.Idempotency.Driver)
+		assert.Equal(t, 24*time.Hour, cfg.Idempotency.KeyTTL)
+		assert.Equal(t, time.Hour, cfg.Idempotency.JanitorInterval)
+		assert.Empty(t, cfg.Idempotency.Redis.Addr)
+		assert.Empty(t, cfg.Idempotency.Redis.Password)
+		assert.Equal(t, 2, cfg.Idempotency.Redis.DB)
+	})
+
+	t.Run("overrides_with_normalized_driver", func(t *testing.T) {
+		t.Setenv("DATABASE_URL", "mysql://localhost/test")
+		t.Setenv("AUTH_SECRET", "test-secret")
+		t.Setenv("IDEMPOTENCY_DRIVER", " Redis ")
+		t.Setenv("IDEMPOTENCY_KEY_TTL", "48h")
+		t.Setenv("IDEMPOTENCY_JANITOR_INTERVAL", "15m")
+		t.Setenv("IDEMPOTENCY_REDIS_ADDR", "redis.internal:6379")
+		t.Setenv("IDEMPOTENCY_REDIS_PASSWORD", "secret")
+		t.Setenv("IDEMPOTENCY_REDIS_DB", "5")
+
+		cfg, err := LoadConfig()
+		require.NoError(t, err)
+
+		assert.Equal(t, "redis", cfg.Idempotency.Driver)
+		assert.Equal(t, 48*time.Hour, cfg.Idempotency.KeyTTL)
+		assert.Equal(t, 15*time.Minute, cfg.Idempotency.JanitorInterval)
+		assert.Equal(t, "redis.internal:6379", cfg.Idempotency.Redis.Addr)
+		assert.Equal(t, "secret", cfg.Idempotency.Redis.Password)
+		assert.Equal(t, 5, cfg.Idempotency.Redis.DB)
+	})
+}

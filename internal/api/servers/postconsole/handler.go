@@ -35,6 +35,8 @@ type fileService interface {
 	) error
 }
 
+var requiredAbilities = []domain.AbilityName{domain.AbilityNameGameServerConsoleSend}
+
 type Handler struct {
 	serverFinder   *serversbase.ServerFinder
 	abilityChecker *serversbase.AbilityChecker
@@ -98,7 +100,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		ctx,
 		session.User.ID,
 		server.ID,
-		[]domain.AbilityName{domain.AbilityNameGameServerConsoleSend},
+		requiredAbilities,
 	); err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -178,4 +180,8 @@ func (h *Handler) uploadInputFile(
 	}
 
 	return nil
+}
+
+func (h *Handler) AuthorizeIdempotencyReplay(r *http.Request) error {
+	return serversbase.AuthorizeIdempotencyReplay(r, h.serverFinder, h.abilityChecker, requiredAbilities)
 }

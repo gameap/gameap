@@ -22,6 +22,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var requiredAbilities = []domain.AbilityName{domain.AbilityNameGameServerRconPlayers}
+
 type Handler struct {
 	serverFinder   *serversbase.ServerFinder
 	abilityChecker *serversbase.AbilityChecker
@@ -99,7 +101,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = h.abilityChecker.CheckOrError(
-		ctx, session.User.ID, server.ID, []domain.AbilityName{domain.AbilityNameGameServerRconPlayers},
+		ctx, session.User.ID, server.ID, requiredAbilities,
 	); err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -349,4 +351,8 @@ func getRconPort(server *domain.Server) int {
 	}
 
 	return server.ServerPort
+}
+
+func (h *Handler) AuthorizeIdempotencyReplay(r *http.Request) error {
+	return serversbase.AuthorizeIdempotencyReplay(r, h.serverFinder, h.abilityChecker, requiredAbilities)
 }

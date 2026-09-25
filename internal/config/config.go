@@ -783,6 +783,27 @@ type Config struct {
 		}
 	}
 
+	// Idempotency configures the Idempotency-Key support of mutating API
+	// routes. Driver "database" keeps outcomes in the idempotency_keys table,
+	// "redis" in a dedicated Redis database (it must not evict keys before
+	// they expire), "none" switches the header off entirely.
+	Idempotency struct {
+		Driver          string        `env:"IDEMPOTENCY_DRIVER" envDefault:"database"`
+		KeyTTL          time.Duration `env:"IDEMPOTENCY_KEY_TTL" envDefault:"24h"`
+		JanitorInterval time.Duration `env:"IDEMPOTENCY_JANITOR_INTERVAL" envDefault:"1h"`
+
+		// Redis falls back to the CACHE_REDIS_* address and password when
+		// empty. The database number differs from the cache's on purpose:
+		// clearing the Redis cache flushes its whole database. Production
+		// setups need a Redis of their own: the noeviction policy the stored
+		// outcomes rely on applies to the whole instance.
+		Redis struct {
+			Addr     string `env:"IDEMPOTENCY_REDIS_ADDR" envDefault:""`
+			Password string `env:"IDEMPOTENCY_REDIS_PASSWORD" envDefault:""`
+			DB       int    `env:"IDEMPOTENCY_REDIS_DB" envDefault:"2"`
+		}
+	}
+
 	GRPC struct {
 		TLSEnabled           bool   `env:"GRPC_TLS_ENABLED" envDefault:"true"`
 		Port                 uint16 `env:"GRPC_PORT" envDefault:"31718"`
@@ -866,6 +887,8 @@ func normalizeConfigValues(cfg *Config) {
 	cfg.UI.DefaultLanguage = strings.ToLower(cfg.UI.DefaultLanguage)
 
 	cfg.Plugins.NodeFS.PathPolicy = strings.ToLower(strings.TrimSpace(cfg.Plugins.NodeFS.PathPolicy))
+
+	cfg.Idempotency.Driver = strings.ToLower(strings.TrimSpace(cfg.Idempotency.Driver))
 
 	cfg.PubSub.Driver = strings.ToLower(cfg.PubSub.Driver)
 	switch cfg.PubSub.Driver {

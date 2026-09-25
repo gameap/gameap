@@ -21,6 +21,8 @@ type Dispatcher interface {
 	DispatchUpsert(ctx context.Context, task *domain.ServerTask) error
 }
 
+var requiredAbilities = []domain.AbilityName{domain.AbilityNameGameServerTasks}
+
 type Handler struct {
 	serverTasksRepo repositories.ServerTaskRepository
 	serverFinder    *serversbase.ServerFinder
@@ -81,7 +83,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		ctx,
 		session.User.ID,
 		server.ID,
-		[]domain.AbilityName{domain.AbilityNameGameServerTasks},
+		requiredAbilities,
 	)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
@@ -142,4 +144,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	rw.WriteHeader(http.StatusCreated)
 	h.responder.Write(ctx, rw, response)
+}
+
+func (h *Handler) AuthorizeIdempotencyReplay(r *http.Request) error {
+	return serversbase.AuthorizeIdempotencyReplay(r, h.serverFinder, h.abilityChecker, requiredAbilities)
 }

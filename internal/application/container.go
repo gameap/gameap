@@ -41,6 +41,7 @@ import (
 	"github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
 	"github.com/gameap/gameap/internal/i18n"
+	"github.com/gameap/gameap/internal/idempotency"
 	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
@@ -94,6 +95,7 @@ import (
 	"github.com/gameap/gameap/pkg/twofactor"
 	webstatic "github.com/gameap/gameap/web/static"
 	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 )
 
@@ -120,6 +122,12 @@ const (
 
 const (
 	filesDriverLocal = "local"
+)
+
+const (
+	idempotencyDriverDatabase = "database"
+	idempotencyDriverRedis    = "redis"
+	idempotencyDriverNone     = "none"
 )
 
 const (
@@ -211,6 +219,11 @@ type Container struct {
 	// Upload sessions
 	uploadSessionService *upload.Service
 	uploadJanitor        *upload.Janitor
+
+	// Idempotency-Key support
+	idempotencyKeyRepository repositories.IdempotencyKeyRepository
+	idempotencyMiddleware    *idempotency.Middleware
+	idempotencyJanitor       *idempotency.Janitor
 
 	fileManagerArchiver     *archiver.Archiver
 	fileManagerArchiveGuard *archiver.InMemoryConcurrencyGuard
@@ -1995,6 +2008,155 @@ func (c *Container) UploadJanitor() *upload.Janitor {
 	return c.uploadJanitor
 }
 
+func (c *Container) IdempotencyKeyRepository() repositories.IdempotencyKeyRepository {
+	if c.idempotencyKeyRepository == nil {
+		c.idempotencyKeyRepository = c.createIdempotencyKeyRepository()
+	}
+
+	return c.idempotencyKeyRepository
+}
+
+func (c *Container) createIdempotencyKeyRepository() repositories.IdempotencyKeyRepository {
+	switch c.config.DatabaseDriver {
+	case databaseDriverMySQL:
+		return mysql.NewIdempotencyKeyRepository(c.TransactionalDB())
+	case databaseDriverPostgres, databaseDriverPGX:
+		return postgres.NewIdempotencyKeyRepository(c.TransactionalDB())
+	case databaseDriverSQLite:
+		return sqlite.NewIdempotencyKeyRepository(c.TransactionalDB())
+	case databaseDriverInMemory:
+		return inmemory.NewIdempotencyKeyRepository()
+	default:
+		return inmemory.NewIdempotencyKeyRepository()
+	}
+}
+
+// IdempotencyMiddleware serves the Idempotency-Key header on the routes that
+// accept it; with IDEMPOTENCY_DRIVER=none it leaves them untouched.
+func (c *Container) IdempotencyMiddleware() *idempotency.Middleware {
+	if c.idempotencyMiddleware == nil {
+		c.idempotencyMiddleware = c.createIdempotencyMiddleware()
+	}
+
+	return c.idempotencyMiddleware
+}
+
+func (c *Container) createIdempotencyMiddleware() *idempotency.Middleware {
+	var (
+		store idempotency.Store
+		locks locker.Locker
+	)
+
+	switch c.config.Idempotency.Driver {
+	case idempotencyDriverNone:
+		slog.Warn("Idempotency is disabled: the Idempotency-Key header is ignored, " +
+			"retried requests may be executed twice")
+
+		return idempotency.Disabled()
+
+	case idempotencyDriverRedis:
+		client := c.createIdempotencyRedisClient()
+
+		// The records and their lock live in one Redis, apart from the
+		// cache database that a cache clear flushes.
+		store = idempotency.NewRedisStore(client, "gameap:idempotency:")
+		locks = locker.NewRedisLocker(client, "gameap:lock:")
+
+	case idempotencyDriverDatabase, "":
+		store = c.IdempotencyKeyRepository()
+		locks = c.createDatabaseLocker()
+
+	default:
+		panic("invalid idempotency driver: " + c.config.Idempotency.Driver)
+	}
+
+	return idempotency.NewMiddleware(
+		store,
+		locks,
+		c.Responder(),
+		[]byte(c.config.AuthSecret),
+		idempotency.WithKeyTTL(c.config.Idempotency.KeyTTL),
+		idempotency.WithRecovery(middlewares.NewRecoveryMiddleware(c.Responder()).Middleware),
+	)
+}
+
+func (c *Container) createIdempotencyRedisClient() *redis.Client {
+	cfg := c.config.Idempotency.Redis
+
+	addr := cfg.Addr
+	if addr == "" {
+		addr = c.config.Cache.Redis.Addr
+	}
+
+	password := cfg.Password
+	if password == "" {
+		password = c.config.Cache.Redis.Password
+	}
+
+	client := redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: password,
+		DB:       cfg.DB,
+	})
+
+	c.appendLateShutdownFunc(client.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		panic(errors.WithMessage(err, "failed to connect to idempotency Redis"))
+	}
+
+	c.ensureIdempotencyRedisApartFromCache(ctx, client)
+
+	idempotency.WarnIfEvictable(ctx, client, slog.Default())
+
+	return client
+}
+
+// ensureIdempotencyRedisApartFromCache refuses the Redis cache's database: a
+// cache clear is FLUSHDB and would drop every stored outcome and every active
+// lock. Redis itself is asked, since different addresses may name one server.
+func (c *Container) ensureIdempotencyRedisApartFromCache(ctx context.Context, client *redis.Client) {
+	if c.config.Cache.Driver != cacheDriverRedis {
+		return
+	}
+
+	redisCache, ok := c.Cache().(*cache.Redis)
+	if !ok {
+		return
+	}
+
+	shared, err := idempotency.SharesDatabase(ctx, client, redisCache.Client())
+	if err != nil {
+		panic(errors.WithMessage(err, "failed to compare the idempotency and cache Redis databases"))
+	}
+
+	if shared {
+		panic("the idempotency Redis database is the cache's, and clearing the cache flushes it: " +
+			"set another IDEMPOTENCY_REDIS_DB or IDEMPOTENCY_REDIS_ADDR")
+	}
+}
+
+// IdempotencyJanitor deletes expired outcomes of the database driver. It is
+// nil for the other drivers: Redis expires its keys itself.
+func (c *Container) IdempotencyJanitor() *idempotency.Janitor {
+	if c.config.Idempotency.Driver != idempotencyDriverDatabase && c.config.Idempotency.Driver != "" {
+		return nil
+	}
+
+	if c.idempotencyJanitor == nil {
+		c.idempotencyJanitor = idempotency.NewJanitor(
+			c.IdempotencyKeyRepository(),
+			c.config.Idempotency.JanitorInterval,
+			slog.Default(),
+		)
+	}
+
+	return c.idempotencyJanitor
+}
+
 func (c *Container) FileManagerArchiver() *archiver.Archiver {
 	if c.fileManagerArchiver == nil {
 		c.fileManagerArchiver = archiver.NewArchiver(
@@ -2292,6 +2454,10 @@ func (c *Container) createSchedulerLocker() locker.Locker {
 		}
 	}
 
+	return c.createDatabaseLocker()
+}
+
+func (c *Container) createDatabaseLocker() locker.Locker {
 	switch c.config.DatabaseDriver {
 	case databaseDriverMySQL:
 		return locker.NewDBLocker(c.TransactionalDB(), locker.DBDialectMySQL)
