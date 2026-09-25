@@ -825,7 +825,7 @@
     "installing": "Installing",
     "reinstalling": "Reinstalling",
     "command_progress_waiting": "Waiting task starting",
-    "command_progress_executed": "Task is being execuded",
+    "command_progress_executed": "Executing task...",
     "command_progress_waiting_status": "Waiting server status",
     "empty_list": "No game servers available",
     "filters": "Filters",
