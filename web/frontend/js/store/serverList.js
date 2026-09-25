@@ -84,15 +84,10 @@ export const useServerListStore = defineStore('serverList', () => {
         }
     }
 
-    async function create(server) {
+    async function create(server, config = {}) {
         apiProcesses.value++
         try {
-            await axios.post('/api/servers', server)
-        } catch (error) {
-            if (error.__CANCEL__) {
-                return
-            }
-            throw error
+            await axios.post('/api/servers', server, config)
         } finally {
             apiProcesses.value--
         }

@@ -271,6 +271,7 @@
     operationId: updateNode
     parameters:
       - $ref: '../parameters/PathNodeId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -317,6 +318,7 @@
     operationId: deleteNode
     parameters:
       - $ref: '../parameters/PathNodeId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '204':
         description: Node deleted (no content)
@@ -382,6 +384,7 @@
     operationId: updateDedicatedServer
     parameters:
       - $ref: '../parameters/PathNodeId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -416,6 +419,7 @@
     operationId: deleteDedicatedServer
     parameters:
       - $ref: '../parameters/PathNodeId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '204':
         description: Node deleted (no content)

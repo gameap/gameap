@@ -97,26 +97,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// read last part from uri
-	parsedURI, err := url.ParseRequestURI(r.RequestURI)
+	command, err := h.readCommand(r)
 	if err != nil {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.WithMessage(err, "invalid command"),
-			http.StatusBadRequest,
-		))
-
-		return
-	}
-
-	parts := strings.Split(parsedURI.Path, "/")
-	command := parts[len(parts)-1]
-
-	fn, exists := h.commandMap[command]
-	if !exists {
-		h.responder.WriteError(ctx, rw, api.WrapHTTPError(
-			errors.New("invalid command"),
-			http.StatusNotFound,
-		))
+		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}
@@ -134,7 +117,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	daemonTaskID, err := fn(ctx, server)
+	daemonTaskID, err := h.commandMap[command](ctx, server)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to execute command"))
 
@@ -142,4 +125,28 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	h.responder.Write(ctx, rw, newCommandResponse(daemonTaskID))
+}
+
+func (h *Handler) AuthorizeIdempotencyReplay(r *http.Request) error {
+	command, err := h.readCommand(r)
+	if err != nil {
+		return err
+	}
+
+	return serversbase.AuthorizeIdempotencyReplay(r, h.serverFinder, h.abilityChecker, h.abilitiesMap[command])
+}
+
+func (h *Handler) readCommand(r *http.Request) (string, error) {
+	parsedURI, err := url.ParseRequestURI(r.RequestURI)
+	if err != nil {
+		return "", api.WrapHTTPError(errors.WithMessage(err, "invalid command"), http.StatusBadRequest)
+	}
+
+	parts := strings.Split(parsedURI.Path, "/")
+	command := parts[len(parts)-1]
+	if _, exists := h.commandMap[command]; !exists {
+		return "", api.WrapHTTPError(errors.New("invalid command"), http.StatusNotFound)
+	}
+
+	return command, nil
 }

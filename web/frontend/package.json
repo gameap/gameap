@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "dev": "vite",
+    "test:unit": "node --test tests/unit/*.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "sync:vendor": "npm run build --workspace=@gameap/frontend && cp packages/gameap-frontend/dist/frontend.css packages/gameap-debug/vendor/frontend.css"

@@ -349,6 +349,32 @@ Used when `CACHE_DRIVER` is set to `redis`.
 - `CACHE_TTL_PERSONAL_TOKENS` - Cache TTL for personal tokens (default: `24h`)
 - `CACHE_TTL_SERVER_SETTINGS` - Cache TTL for server settings (default: `12h`)
 
+### Idempotency Configuration
+
+Mutating API requests sent with an `Idempotency-Key` header can be retried safely: the first response is stored and
+replayed to every retry with the same key, so a billing integration retrying a timed-out `POST /api/servers` does not
+create a second server. The contract is described in the "Idempotent requests" section of the OpenAPI spec.
+
+- `IDEMPOTENCY_DRIVER` - Where stored responses live (options: `database`, `redis`, `none`, default: `database`).
+  `database` uses the `idempotency_keys` table and database locks, independently of the cache driver, and works
+  across panel instances sharing a SQL database. `none` switches the feature off: the header is ignored and
+  retried requests may run twice.
+- `IDEMPOTENCY_KEY_TTL` - How long a stored response is replayed (default: `24h`)
+- `IDEMPOTENCY_JANITOR_INTERVAL` - How often expired rows are deleted from `idempotency_keys` (default: `1h`)
+
+#### Redis Idempotency Store
+
+Used when `IDEMPOTENCY_DRIVER` is set to `redis`. The Redis instance must keep keys until they expire:
+`maxmemory-policy noeviction` (a `volatile-*` policy evicts exactly these keys) and AOF persistence are recommended.
+The panel logs a warning at startup when the policy may evict them. The policy applies to the whole instance, not to
+a database, so give idempotency a Redis instance of its own: switching the cache's instance to `noeviction` stops the
+cache from evicting, and a full instance then rejects writes.
+
+- `IDEMPOTENCY_REDIS_ADDR` - Redis server address (default: `CACHE_REDIS_ADDR`)
+- `IDEMPOTENCY_REDIS_PASSWORD` - Redis password (default: `CACHE_REDIS_PASSWORD`)
+- `IDEMPOTENCY_REDIS_DB` - Redis database number (default: `2`). With `CACHE_DRIVER=redis` on the same address it must
+  differ from `CACHE_REDIS_DB`, otherwise the panel refuses to start: clearing the cache flushes its whole database.
+
 ### File Storage Configuration
 
 - `FILES_DRIVER` - File storage driver (options: `local`, `s3`)

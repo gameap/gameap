@@ -63,6 +63,56 @@ info:
     server-side structured audit log, so a client can quote it when
     reporting an issue.
 
+    ## Idempotent requests
+
+    Mutating operations that list the `Idempotency-Key` header parameter can
+    be retried safely: create, update and delete of servers, users, nodes,
+    games, game mods and server tasks, server commands
+    (`start`/`stop`/`restart`/`update`/`install`/`reinstall`), server
+    settings, console commands and RCON player commands (kick, ban, rename).
+    Arbitrary RCON commands (`POST /api/servers/{server}/rcon`) ignore the
+    header: their output is never stored. Send a unique key (a UUID) with the
+    request and the same key with every retry of it:
+    ```
+    Idempotency-Key: 8e03978e-40d5-43e8-bc93-6894a57f9324
+    ```
+    - The first request runs normally and its response is stored for 24 hours
+      (`IDEMPOTENCY_KEY_TTL`). A retry with the same key and the same request
+      gets the stored status and body back, marked with
+      `Idempotent-Replayed: true`, and nothing runs a second time. After the
+      stored response expires the key is new again.
+    - Keys belong to the user: another user's key never returns your response.
+      Rotating the token between an attempt and its retry is fine.
+    - A retry is authorized again: when access to the server has been revoked
+      since the first request, it gets `403`/`404` instead of the stored
+      response.
+    - The key is a bare token or a quoted Structured Field string, 1–255
+      printable ASCII characters. A malformed key or a repeated header is
+      answered with `400`; an empty value counts as no key.
+    - `409` + `Retry-After`: a request with this key is still running. Retry
+      later and you get its response.
+    - `422`: the key was already used for a different request (another body,
+      path, query or method). The body must be byte-for-byte identical,
+      including JSON field order and whitespace. Keep the serialized request
+      with its key for retries. Use a new key for a new request.
+    - `413`: a request carrying a key may not have a body over 1 MiB.
+    - `503` + `Retry-After`: the panel cannot reach its idempotency store or
+      check access to the stored response right now; the request was not
+      executed. Retry with the same key.
+    - Every response the operation produced is stored, errors included: a `500`
+      means the outcome is unknown (the change may have been made), and
+      retrying it with the same key returns the same `500`. Check the state
+      (for example `GET /api/servers`) and use a new key if it was not applied.
+      A gateway `502` or `504` can also arrive while the panel is still
+      executing the request; retry with the same key and body.
+    - A request with a key runs to completion even if the client disconnects,
+      so the retry finds its outcome. If the panel process dies at the moment
+      between making the change and storing the response, a retry about a
+      minute later runs the request again.
+    - The operator can switch the mechanism off with `IDEMPOTENCY_DRIVER=none`.
+      The header is then ignored and responses never carry
+      `Idempotent-Replayed`.
+
     ## WebSocket endpoints
 
     OpenAPI does not natively model WebSocket flows; this section documents

@@ -7,6 +7,8 @@
   import { GIcon } from '@gameap/ui';
   import GButton from "@/components/GButton.vue";
   import { useTaskWebSocket } from '@/composables/useTaskWebSocket'
+  import { createIdempotentRequest } from '@/utils/idempotency'
+  import IdempotencyNotice from '@/components/IdempotencyNotice.vue'
 
   const authStore = useAuthStore();
 
@@ -68,6 +70,9 @@
   const progressDetails = ref('');
   const currentTaskId = ref(null);
   const currentCommand = ref(null);
+  const submitting = ref(false);
+  const showUncertain = ref(false);
+  const uncertainCommand = ref(null);
 
   const props = defineProps([
       'button',
@@ -130,18 +135,59 @@
   }
 
   function run(command) {
+      if (submitting.value) {
+          return
+      }
+
+      // The unanswered attempt keeps its key until the user retries it or
+      // starts a new operation; a plain click must not resend it silently.
+      if (uncertainCommand.value === command) {
+          showUncertain.value = true
+          return
+      }
+
       confirm(trans('main.confirm_message'), () => runCommand(command));
   }
 
+  const commandRequests = {}
+
+  function commandRequest(command) {
+      commandRequests[command] ??= createIdempotentRequest()
+
+      return commandRequests[command]
+  }
+
+  function resetRequest() {
+      commandRequest(uncertainCommand.value).reset()
+      uncertainCommand.value = null
+      showUncertain.value = false
+  }
+
+  function retryRequest() {
+      showUncertain.value = false
+      runCommand(uncertainCommand.value)
+  }
+
   function runCommand(command) {
+      if (submitting.value) {
+          return
+      }
+
       progress.value = PROGRESS_PERCENT_NULL
 
       if (authStore.isAdmin) {
           detailedError = true;
       }
 
-      axios.post('/api/servers/' + props.serverId + '/' + command)
+      const pending = commandRequest(command)
+      const request = pending.prepare()
+      submitting.value = true
+
+      axios.post('/api/servers/' + props.serverId + '/' + command, request.data, {headers: request.headers})
           .then(function (response) {
+              pending.settle()
+              uncertainCommand.value = null
+
               const taskId = response.data.gdaemonTaskId;
 
               showProgressbar.value = true
@@ -153,10 +199,17 @@
               currentCommand.value = command
               currentTaskId.value = taskId
           }).catch(function (error) {
-            errorNotification(error.response.data.message, function() {
-                location.reload();
-            });
-      });
+            pending.settle(error)
+            if (pending.pending) {
+                uncertainCommand.value = command
+            }
+
+            errorNotification(error, () => {
+                showUncertain.value = pending.pending
+            })
+          }).finally(() => {
+              submitting.value = false
+          });
   }
 
   function checkLongWaiting() {
@@ -283,6 +336,13 @@
 </script>
 
 <template>
+    <n-modal v-model:show="showUncertain" preset="card" :style="bodyStyle" :title="text">
+      <IdempotencyNotice :check-url="'/servers/' + serverId" @reset="resetRequest" />
+      <GButton color="green" class="mt-3" data-testid="server-command-retry" @click="retryRequest">
+        {{ trans('servers.request_retry') }}
+      </GButton>
+    </n-modal>
+
     <n-modal
             v-model:show="showProgressbar"
             class="custom-card"
@@ -311,7 +371,7 @@
         </div>
   </n-modal>
 
-  <g-button :class="button" :color="buttonColor" :size="buttonSize" @click="run(command)">
+  <g-button :class="button" :color="buttonColor" :size="buttonSize" :loading="submitting" @click="run(command)">
     <GIcon :name="icon" />
     <span class="hidden lg:inline">&nbsp;{{ text }}</span>
   </g-button>

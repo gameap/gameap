@@ -1,0 +1,11 @@
+name: Idempotency-Key
+in: header
+required: false
+description: |
+  Reuse the same key and exact serialized body when retrying a request.
+  See "Idempotent requests" in the API description for expiry and failure handling.
+schema:
+  type: string
+  minLength: 1
+  maxLength: 255
+example: 8e03978e-40d5-43e8-bc93-6894a57f9324

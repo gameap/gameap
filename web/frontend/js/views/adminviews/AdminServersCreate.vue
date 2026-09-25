@@ -1,12 +1,20 @@
 <template>
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
+  <IdempotencyNotice
+      v-if="uncertain && !submitting"
+      check-url="/admin/servers"
+      @reset="resetRequest"
+  />
+
   <n-form
       label-placement="top"
       label-width="auto"
       ref="formRef"
       :model="serverForm"
       :rules="rules"
+      :disabled="submitting || uncertain"
+      :inert="submitting || uncertain"
   >
     <div class="flex flex-wrap mt-2">
       <div class="md:w-1/2 pr-8">
@@ -25,6 +33,7 @@
               <n-input
                   v-model:value="serverForm.name"
                   type="text"
+                  data-testid="server-create-name"
               />
               <n-button @click="generateRandomName">
                 <GIcon name="dice" />
@@ -143,14 +152,15 @@
         </n-card>
       </div>
 
-      <GFixedBottomBar>
-        <GButton color="green" v-on:click="onClickCreate">
-          <GIcon name="add-square" class="mr-0.5" />
-          <span class="inline">{{ trans('main.create') }}</span>
-        </GButton>
-      </GFixedBottomBar>
     </div>
   </n-form>
+
+  <GFixedBottomBar>
+    <GButton color="green" :loading="submitting" data-testid="server-create-submit" v-on:click="onClickCreate">
+      <GIcon name="add-square" class="mr-0.5" />
+      <span class="inline">{{ trans(uncertain ? 'servers.request_retry' : 'main.create') }}</span>
+    </GButton>
+  </GFixedBottomBar>
 
   <HubModal v-model:show="hubModalEnabled" />
 </template>
@@ -177,6 +187,8 @@ import GFixedBottomBar from "@/components/GFixedBottomBar.vue";
 import VarFormItem from "@/components/input/VarFormItem.vue";
 import HubModal from "@/components/hub/HubModal.vue";
 import {coerceValue, isBlankValue, normalizeVarDefinition, serializeValue} from "@/parts/gameModVars";
+import {createIdempotentRequest} from "@/utils/idempotency";
+import IdempotencyNotice from "@/components/IdempotencyNotice.vue";
 
 const router = useRouter()
 
@@ -190,6 +202,14 @@ const {nodes} = storeToRefs(nodeListStore)
 const {mod: gameMod} = storeToRefs(gameModStore)
 
 const formRef = ref({})
+const submitting = ref(false)
+const uncertain = ref(false)
+const createRequest = createIdempotentRequest()
+
+const resetRequest = () => {
+  createRequest.reset()
+  uncertain.value = false
+}
 const serverForm = ref({
   serverPort: 27015,
   queryPort: 27015,
@@ -363,6 +383,11 @@ const rules = {
 }
 
 const onClickCreate = () => {
+  if (uncertain.value) {
+    createServer()
+    return
+  }
+
   formRef.value?.validate((errors, { warnings }) => {
     if (errors) {
       // The variables live inside a collapsed block that stays mounted, so an
@@ -380,6 +405,10 @@ const onClickCreate = () => {
 }
 
 const createServer = () => {
+  if (submitting.value) {
+    return
+  }
+
   // A switch always carries a value; everything else is only sent when filled in,
   // so an untouched field falls back to the mod default.
   const settings = gameModVars.value
@@ -390,7 +419,9 @@ const createServer = () => {
       value: serializeValue(definition, value),
     }))
 
-  serverListStore.create({
+  submitting.value = true
+
+  const request = createRequest.prepare({
     name: serverForm.value.name,
     game_id: serverForm.value.game,
     game_mod_id: serverForm.value.gameMod,
@@ -404,8 +435,12 @@ const createServer = () => {
     rcon_port: serverForm.value.rconPort,
     dir: serverForm.value.dir,
     settings: settings.length > 0 ? settings : undefined,
-  }).
+  })
+
+  serverListStore.create(request.data, {headers: request.headers}).
   then(() => {
+    createRequest.settle()
+    uncertain.value = false
     notification({
       content: trans('servers.create_success_msg'),
       type: "success",
@@ -413,7 +448,11 @@ const createServer = () => {
       router.push({name: 'admin.servers.index'})
     })
   }).catch((error) => {
+    createRequest.settle(error)
+    uncertain.value = createRequest.pending
     errorNotification(error)
+  }).finally(() => {
+    submitting.value = false
   })
 }
 </script>

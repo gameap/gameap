@@ -435,3 +435,19 @@ type DLQRepository interface {
 	Delete(ctx context.Context, id string) error
 	Purge(ctx context.Context) error
 }
+
+type IdempotencyKeyRepository interface {
+	// Find returns the user's record for the key hash, or nil when there is
+	// none or it has expired at now.
+	Find(ctx context.Context, userID uint, keyHash string, now time.Time) (*domain.IdempotencyKey, error)
+
+	// Save inserts the record, replacing a row with the same (user_id,
+	// key_hash) only when that row has expired at record.CreatedAt. It reports
+	// false when a live row already holds the key. The surrogate row ID is
+	// written back to record.ID.
+	Save(ctx context.Context, record *domain.IdempotencyKey) (bool, error)
+
+	// DeleteExpired removes the records expired at now and returns how many
+	// were removed.
+	DeleteExpired(ctx context.Context, now time.Time) (int, error)
+}

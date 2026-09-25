@@ -735,6 +735,10 @@
     "message_msg_success": "Mensaje enviado"
   },
   "servers": {
+    "request_pending": "Se desconoce el resultado de la solicitud anterior. Al reintentar se envía la solicitud original; la edición permanece bloqueada hasta conocer el resultado. Compruebe el estado del servidor en una pestaña nueva. Inicie una operación nueva solo después de verificar que la anterior no se ejecutó.",
+    "request_check_state": "Comprobar el estado del servidor",
+    "request_start_new": "Resultado comprobado — nueva operación",
+    "request_retry": "Reintentar la solicitud original",
     "settings_admin_var": "Solo administradores",
     "settings_check_form": "Compruebe los campos resaltados.",
     "title_servers_list": "Lista de servidores de juego",

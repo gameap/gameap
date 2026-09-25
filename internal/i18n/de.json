@@ -735,6 +735,10 @@
     "message_msg_success": "Nachricht gesendet"
   },
   "servers": {
+    "request_pending": "Das Ergebnis der vorherigen Anfrage ist unbekannt. Beim Wiederholen wird die ursprüngliche Anfrage gesendet; Änderungen bleiben bis zur Klärung gesperrt. Prüfen Sie den Serverzustand in einem neuen Tab. Starten Sie erst dann einen neuen Vorgang, wenn Sie sich vergewissert haben, dass der vorherige nicht ausgeführt wurde.",
+    "request_check_state": "Serverzustand prüfen",
+    "request_start_new": "Ergebnis geprüft — neuen Vorgang starten",
+    "request_retry": "Ursprüngliche Anfrage wiederholen",
     "settings_admin_var": "Nur für Administratoren",
     "settings_check_form": "Bitte prüfen Sie die markierten Felder.",
     "title_servers_list": "Liste der Gameserver",

@@ -139,15 +139,10 @@ export const useServerStore = defineStore('server', () => {
         }
     }
 
-    async function save(serverData) {
+    async function save(serverData, config = {}) {
         apiProcesses.value++
         try {
-            await axios.put('/api/servers/' + serverId.value, serverData)
-        } catch (error) {
-            if (error.__CANCEL__) {
-                return
-            }
-            throw error
+            await axios.put('/api/servers/' + serverId.value, serverData, config)
         } finally {
             apiProcesses.value--
         }

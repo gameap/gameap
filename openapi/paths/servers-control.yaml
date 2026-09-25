@@ -145,6 +145,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '200':
         description: Start command sent
@@ -317,6 +318,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '200':
         description: Stop command sent
@@ -488,6 +490,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '200':
         description: Restart command sent
@@ -526,6 +529,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '200':
         description: Update command sent
@@ -564,6 +568,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '200':
         description: Install command sent
@@ -602,6 +607,7 @@
         description: Server ID
         schema:
           type: integer
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '200':
         description: Reinstall command sent

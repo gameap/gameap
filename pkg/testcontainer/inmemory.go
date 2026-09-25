@@ -9,6 +9,7 @@ import (
 
 	"github.com/gameap/gameap/internal/acme"
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagermime"
+	"github.com/gameap/gameap/internal/api/middlewares"
 	getqueryapi "github.com/gameap/gameap/internal/api/servers/getquery"
 	rconbase "github.com/gameap/gameap/internal/api/servers/rcon/base"
 	"github.com/gameap/gameap/internal/audit"
@@ -22,6 +23,7 @@ import (
 	grpchandlers "github.com/gameap/gameap/internal/grpc/handlers"
 	"github.com/gameap/gameap/internal/grpc/session"
 	"github.com/gameap/gameap/internal/i18n"
+	"github.com/gameap/gameap/internal/idempotency"
 	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/metrics"
 	internalplugin "github.com/gameap/gameap/internal/plugin"
@@ -103,6 +105,7 @@ type InmemoryContainer struct {
 	pluginGuard             *hostlibrary.Guard
 	pluginPermissions       *hostlibrary.CachedPermissionChecker
 	pluginRepo              repositories.PluginRepository
+	idempotencyMiddleware   *idempotency.Middleware
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -186,6 +189,22 @@ func (c *InmemoryContainer) QuerconResolver() *quercon.Resolver {
 func (c *InmemoryContainer) PluginDispatcher() *plugin.Dispatcher { return nil }
 
 func (c *InmemoryContainer) I18nFS() fs.FS { return i18n.GetFS() }
+
+// IdempotencyMiddleware is cached so a retry finds the outcome its first
+// attempt stored, whichever router serves it.
+func (c *InmemoryContainer) IdempotencyMiddleware() *idempotency.Middleware {
+	if c.idempotencyMiddleware == nil {
+		c.idempotencyMiddleware = idempotency.NewMiddleware(
+			inmemory.NewIdempotencyKeyRepository(),
+			locker.NewInMemoryLocker(),
+			c.responder,
+			[]byte(c.cfg.AuthSecret),
+			idempotency.WithRecovery(middlewares.NewRecoveryMiddleware(c.responder).Middleware),
+		)
+	}
+
+	return c.idempotencyMiddleware
+}
 
 func (c *InmemoryContainer) FrontendFS() fs.FS {
 	fsys, err := webstatic.GetFS()

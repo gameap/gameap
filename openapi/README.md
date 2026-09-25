@@ -57,7 +57,7 @@ Reusable data models:
 
 ### `/parameters/`
 
-Reusable parameter definitions for path and query parameters.
+Reusable parameter definitions for path, query and header parameters.
 
 ## API Groups
 

@@ -92,3 +92,8 @@ One credential a plugin stored through the gameap-secrets host module. The value
 
 ### PluginScheduledTask (`plugin_scheduled_task.go`)
 Definition of a periodic task registered by a plugin via the gameap-scheduler host module: interval, error policy (ignore/retry with delay and jitter) and per-run timeout. Run state is not persisted; panel instances coordinate runs through distributed locks.
+
+## API Requests
+
+### IdempotencyKey (`idempotency_key.go`)
+Stored outcome of a mutating request sent with an `Idempotency-Key` header: status, a whitelist of response headers and the body, replayed to a retry with the same key instead of running the handler again. Scoped to the user; the client key and the request fingerprint are kept only as keyed hashes (`KeyHash`, `RequestFingerprint`), because a request body may carry a password. `ExpiresAt` bounds the replay window (`IDEMPOTENCY_KEY_TTL`); an expired record frees its key. Semantics live in `internal/idempotency/README.md`.

@@ -156,6 +156,9 @@ func TestContainerLazySingletonSweep(t *testing.T) {
 		{"UploadJanitor", func(c *Container) any { return c.UploadJanitor() }},
 		{"FileManagerArchiver", func(c *Container) any { return c.FileManagerArchiver() }},
 		{"FileManagerArchiveGuard", func(c *Container) any { return c.FileManagerArchiveGuard() }},
+		{"IdempotencyKeyRepository", func(c *Container) any { return c.IdempotencyKeyRepository() }},
+		{"IdempotencyMiddleware", func(c *Container) any { return c.IdempotencyMiddleware() }},
+		{"IdempotencyJanitor", func(c *Container) any { return c.IdempotencyJanitor() }},
 
 		// WebSocket + gRPC session graph
 		{"WSHub", func(c *Container) any { return c.WSHub() }},

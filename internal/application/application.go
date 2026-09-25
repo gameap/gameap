@@ -181,6 +181,8 @@ func Run(runParams RunParams) {
 
 	startUploadJanitor(ctx, container)
 
+	startIdempotencyJanitor(ctx, container)
+
 	runWithGRPC(ctx, cfg, container)
 
 	<-shutdownDone
@@ -417,6 +419,21 @@ func startUploadJanitor(ctx context.Context, container *Container) {
 		slog.InfoContext(ctx, "Starting upload session janitor",
 			slog.Duration("interval", container.Config().Files.Upload.JanitorInterval),
 			slog.Duration("session_ttl", container.Config().Files.Upload.SessionTTL),
+		)
+		janitor.Run(ctx)
+	}()
+}
+
+func startIdempotencyJanitor(ctx context.Context, container *Container) {
+	janitor := container.IdempotencyJanitor()
+	if janitor == nil {
+		return
+	}
+
+	go func() {
+		slog.InfoContext(ctx, "Starting idempotency key janitor",
+			slog.Duration("interval", container.Config().Idempotency.JanitorInterval),
+			slog.Duration("key_ttl", container.Config().Idempotency.KeyTTL),
 		)
 		janitor.Run(ctx)
 	}()

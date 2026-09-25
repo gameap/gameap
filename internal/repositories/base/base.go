@@ -26,6 +26,7 @@ const PluginsTable = "plugins"
 const PluginScheduledTasksTable = "plugin_scheduled_tasks"
 const PluginSecretsTable = "plugin_secrets"
 const DLQTable = "pubsub_dlq"
+const IdempotencyKeysTable = "idempotency_keys"
 
 var (
 	GameFields                = allFields(domain.Game{})
@@ -46,6 +47,7 @@ var (
 	PluginStorageFields       = allFields(domain.PluginStorageEntry{})
 	PluginScheduledTaskFields = allFields(domain.PluginScheduledTask{})
 	PluginSecretFields        = allFields(domain.PluginSecret{})
+	IdempotencyKeyFields      = allFields(domain.IdempotencyKey{})
 )
 
 // LikeEscapeChar is the escape character every dialect accepts in a LIKE

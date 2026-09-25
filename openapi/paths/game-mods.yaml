@@ -33,6 +33,8 @@
     summary: Create game mod
     description: Creates a new game mod (Admin only)
     operationId: createGameMod
+    parameters:
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -144,6 +146,7 @@
     operationId: updateGameMod
     parameters:
       - $ref: '../parameters/PathGameModId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
@@ -190,6 +193,7 @@
     operationId: deleteGameMod
     parameters:
       - $ref: '../parameters/PathGameModId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '200':
         description: Game mod deleted

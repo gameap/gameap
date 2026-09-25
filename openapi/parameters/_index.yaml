@@ -37,3 +37,7 @@ QueryGameName:
   $ref: './QueryGameName.yaml'
 QueryGameCode:
   $ref: './QueryGameCode.yaml'
+
+# Header parameters
+HeaderIdempotencyKey:
+  $ref: './HeaderIdempotencyKey.yaml'

@@ -99,6 +99,7 @@
     operationId: deleteClientCertificate
     parameters:
       - $ref: '../parameters/PathCertificateId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '204':
         description: Certificate deleted (no content)

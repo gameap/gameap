@@ -1,12 +1,20 @@
 <template>
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
+  <IdempotencyNotice
+      v-if="uncertain && !submitting"
+      :check-url="'/servers/' + route.params.id"
+      @reset="resetRequest"
+  />
+
   <n-form
       label-placement="top"
       label-width="auto"
       ref="formRef"
       :model="serverForm"
       :rules="rules"
+      :disabled="submitting || uncertain"
+      :inert="submitting || uncertain"
   >
     <div class="flex flex-wrap mt-2">
       <div class="md:w-1/2 pr-8">
@@ -273,14 +281,15 @@
           :context="pluginContext"
       />
 
-      <GFixedBottomBar>
-        <GButton color="green" v-on:click="onClickSave">
-          <GIcon name="save" />
-          <span class="inline">{{ trans('main.save') }}</span>
-        </GButton>
-      </GFixedBottomBar>
     </div>
   </n-form>
+
+  <GFixedBottomBar>
+    <GButton color="green" :loading="submitting" data-testid="server-edit-submit" v-on:click="onClickSave">
+      <GIcon name="save" />
+      <span class="inline">{{ trans(uncertain ? 'servers.request_retry' : 'main.save') }}</span>
+    </GButton>
+  </GFixedBottomBar>
 </template>
 
 <script setup>
@@ -311,6 +320,8 @@ import DsIpSelector from "@/components/servers/DsIpSelector.vue";
 import GameModSelector from "@/components/servers/GameModSelector.vue";
 import ServerVarsEditor from "@/components/servers/ServerVarsEditor.vue";
 import {useGameModStore} from "@/store/gameMod"
+import {createIdempotentRequest} from "@/utils/idempotency"
+import IdempotencyNotice from "@/components/IdempotencyNotice.vue"
 
 const route = useRoute()
 const router = useRouter()
@@ -321,6 +332,14 @@ const serverStore = useServerStore()
 const pluginsStore = usePluginsStore()
 
 const formRef = ref({})
+const submitting = ref(false)
+const uncertain = ref(false)
+const saveRequest = createIdempotentRequest()
+
+const resetRequest = () => {
+  saveRequest.reset()
+  uncertain.value = false
+}
 const serverForm = ref({
   serverPort: 27015,
   queryPort: 27015,
@@ -544,6 +563,11 @@ const rules = {
 }
 
 const onClickSave = () => {
+  if (uncertain.value) {
+    saveServer()
+    return
+  }
+
   formRef.value?.validate((errors, { warnings }) => {
     if (errors) {
       console.log(errors)
@@ -558,6 +582,10 @@ const onClickSave = () => {
 }
 
 const saveServer = () => {
+  if (submitting.value) {
+    return
+  }
+
   const metadataObj = {}
   for (const {key, value} of serverForm.value.metadata || []) {
     if (key) {
@@ -572,7 +600,9 @@ const saveServer = () => {
     }
   }
 
-  serverStore.save({
+  submitting.value = true
+
+  const request = saveRequest.prepare({
     name: serverForm.value.name,
     game_id: serverForm.value.game,
     game_mod_id: serverForm.value.gameMod,
@@ -592,8 +622,12 @@ const saveServer = () => {
     ram_limit: ramLimit.value,
     vars: varsObj,
     metadata: metadataObj,
-  }).
+  })
+
+  serverStore.save(request.data, {headers: request.headers}).
   then(() => {
+    saveRequest.settle()
+    uncertain.value = false
     notification({
       content: trans('servers.update_success_msg'),
       type: "success",
@@ -601,7 +635,11 @@ const saveServer = () => {
       router.push({name: 'admin.servers.index'})
     })
   }).catch((error) => {
+    saveRequest.settle(error)
+    uncertain.value = saveRequest.pending
     errorNotification(error)
+  }).finally(() => {
+    submitting.value = false
   })
 }
 </script>

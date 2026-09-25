@@ -121,6 +121,7 @@
     operationId: cancelDaemonTask
     parameters:
       - $ref: '../parameters/PathDaemonTaskId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     responses:
       '200':
         description: Task canceled

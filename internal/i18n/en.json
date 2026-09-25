@@ -737,6 +737,10 @@
     "message_msg_success": "Message sent"
   },
   "servers": {
+    "request_pending": "The outcome of the previous request is unknown. Retry sends the original request; editing is locked until its outcome is known. Check the server state in a new tab. Start a new operation only after verifying that the previous one was not applied.",
+    "request_check_state": "Check server state",
+    "request_start_new": "State checked — start a new operation",
+    "request_retry": "Retry original request",
     "settings_admin_var": "Admin only",
     "settings_check_form": "Please check the highlighted fields.",
     "title_servers_list": "Game Servers List",

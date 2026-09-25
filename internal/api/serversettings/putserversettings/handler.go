@@ -30,6 +30,8 @@ type PluginDispatcher interface {
 	)
 }
 
+var requiredAbilities = []domain.AbilityName{domain.AbilityNameGameServerCommon, domain.AbilityNameGameServerSettings}
+
 type Handler struct {
 	serverSettingsRepo repositories.ServerSettingRepository
 	serverFinder       *serversbase.ServerFinder
@@ -105,7 +107,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		ctx,
 		session.User.ID,
 		server.ID,
-		[]domain.AbilityName{domain.AbilityNameGameServerCommon, domain.AbilityNameGameServerSettings},
+		requiredAbilities,
 	)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
@@ -263,4 +265,8 @@ func sameSettingValue(a, b domain.ServerSettingValue) bool {
 	right, rightPresent := b.Raw()
 
 	return leftPresent == rightPresent && left == right
+}
+
+func (h *Handler) AuthorizeIdempotencyReplay(r *http.Request) error {
+	return serversbase.AuthorizeIdempotencyReplay(r, h.serverFinder, h.abilityChecker, requiredAbilities)
 }

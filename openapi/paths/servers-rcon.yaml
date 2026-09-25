@@ -221,6 +221,7 @@
             - kick
             - ban
             - chname
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
     requestBody:
       required: true
       content:
