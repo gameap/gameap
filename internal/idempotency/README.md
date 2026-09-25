@@ -75,8 +75,11 @@ streaming routes are excluded because of their body and response sizes.
   `IDEMPOTENCY_JANITOR_INTERVAL`.
 - `redis`: `RedisStore`, atomic `SET NX` with absolute millisecond expiry in its own database
   (`IDEMPOTENCY_REDIS_DB`, default 2). The lock is on the same client.
-  `cache.Redis.Clear()` is `FLUSHDB`, so the container refuses to start when
-  the database is the cache's (`CACHE_DRIVER=redis`, same address and number).
+  `cache.Redis.Clear()` is `FLUSHDB`, so with `CACHE_DRIVER=redis` the
+  container refuses to start when the database is the cache's.
+  `SharesDatabase` decides it by a probe key written through one client and
+  looked up through the other: addresses cannot tell, since `localhost`,
+  `127.0.0.1` and a DNS alias may name one server.
   Redis must not evict keys before they expire (`maxmemory-policy noeviction`);
   `WarnIfEvictable` logs a warning at startup otherwise. The policy is
   instance-wide, so the store needs a Redis instance of its own, not the

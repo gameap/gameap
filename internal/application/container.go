@@ -2088,14 +2088,6 @@ func (c *Container) createIdempotencyRedisClient() *redis.Client {
 		addr = c.config.Cache.Redis.Addr
 	}
 
-	// A cache clear is FLUSHDB: it would drop every stored outcome and every
-	// active lock sharing the cache's database.
-	sharesCacheRedis := c.config.Cache.Driver == cacheDriverRedis && addr == c.config.Cache.Redis.Addr
-	if sharesCacheRedis && cfg.DB == c.config.Cache.Redis.DB {
-		panic("IDEMPOTENCY_REDIS_DB must differ from CACHE_REDIS_DB on the cache's Redis: " +
-			"clearing the cache flushes its whole database")
-	}
-
 	password := cfg.Password
 	if password == "" {
 		password = c.config.Cache.Redis.Password
@@ -2107,6 +2099,8 @@ func (c *Container) createIdempotencyRedisClient() *redis.Client {
 		DB:       cfg.DB,
 	})
 
+	c.appendLateShutdownFunc(client.Close)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -2114,11 +2108,35 @@ func (c *Container) createIdempotencyRedisClient() *redis.Client {
 		panic(errors.WithMessage(err, "failed to connect to idempotency Redis"))
 	}
 
+	c.ensureIdempotencyRedisApartFromCache(ctx, client)
+
 	idempotency.WarnIfEvictable(ctx, client, slog.Default())
 
-	c.appendLateShutdownFunc(client.Close)
-
 	return client
+}
+
+// ensureIdempotencyRedisApartFromCache refuses the Redis cache's database: a
+// cache clear is FLUSHDB and would drop every stored outcome and every active
+// lock. Redis itself is asked, since different addresses may name one server.
+func (c *Container) ensureIdempotencyRedisApartFromCache(ctx context.Context, client *redis.Client) {
+	if c.config.Cache.Driver != cacheDriverRedis {
+		return
+	}
+
+	redisCache, ok := c.Cache().(*cache.Redis)
+	if !ok {
+		return
+	}
+
+	shared, err := idempotency.SharesDatabase(ctx, client, redisCache.Client())
+	if err != nil {
+		panic(errors.WithMessage(err, "failed to compare the idempotency and cache Redis databases"))
+	}
+
+	if shared {
+		panic("the idempotency Redis database is the cache's, and clearing the cache flushes it: " +
+			"set another IDEMPOTENCY_REDIS_DB or IDEMPOTENCY_REDIS_ADDR")
+	}
 }
 
 // IdempotencyJanitor deletes expired outcomes of the database driver. It is

@@ -372,8 +372,9 @@ cache from evicting, and a full instance then rejects writes.
 
 - `IDEMPOTENCY_REDIS_ADDR` - Redis server address (default: `CACHE_REDIS_ADDR`)
 - `IDEMPOTENCY_REDIS_PASSWORD` - Redis password (default: `CACHE_REDIS_PASSWORD`)
-- `IDEMPOTENCY_REDIS_DB` - Redis database number (default: `2`). With `CACHE_DRIVER=redis` on the same address it must
-  differ from `CACHE_REDIS_DB`, otherwise the panel refuses to start: clearing the cache flushes its whole database.
+- `IDEMPOTENCY_REDIS_DB` - Redis database number (default: `2`). With `CACHE_DRIVER=redis` the panel refuses to start
+  when this database turns out to be the cache's, whatever the address is spelled like (`localhost`, an IP or a DNS
+  alias): clearing the cache flushes its whole database.
 
 ### File Storage Configuration
 

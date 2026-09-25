@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -134,12 +135,9 @@ func TestIdempotencyMiddleware_none_driver_ignores_the_header(t *testing.T) {
 func TestIdempotencyMiddleware_rejects_invalid_configuration(t *testing.T) {
 	t.Parallel()
 
-	const sharedDB = 3
-
 	tests := []struct {
 		name      string
 		driver    string
-		configure func(cfg *config.Config)
 		wantPanic string
 	}{
 		{
@@ -152,39 +150,6 @@ func TestIdempotencyMiddleware_rejects_invalid_configuration(t *testing.T) {
 			driver:    idempotencyDriverRedis,
 			wantPanic: "failed to connect to idempotency Redis",
 		},
-		{
-			name:   "redis_database_shared_with_cache",
-			driver: idempotencyDriverRedis,
-			configure: func(cfg *config.Config) {
-				cfg.Cache.Driver = cacheDriverRedis
-				cfg.Cache.Redis.Addr = unreachableRedisAddr
-				cfg.Cache.Redis.DB = sharedDB
-				cfg.Idempotency.Redis.DB = sharedDB
-			},
-			wantPanic: "IDEMPOTENCY_REDIS_DB must differ from CACHE_REDIS_DB",
-		},
-		{
-			name:   "same_database_number_on_another_redis",
-			driver: idempotencyDriverRedis,
-			configure: func(cfg *config.Config) {
-				cfg.Cache.Driver = cacheDriverRedis
-				cfg.Cache.Redis.Addr = "cache.internal:6379"
-				cfg.Cache.Redis.DB = sharedDB
-				cfg.Idempotency.Redis.DB = sharedDB
-			},
-			wantPanic: "failed to connect to idempotency Redis",
-		},
-		{
-			name:   "cache_not_on_redis",
-			driver: idempotencyDriverRedis,
-			configure: func(cfg *config.Config) {
-				cfg.Cache.Driver = cacheDriverMemory
-				cfg.Cache.Redis.Addr = unreachableRedisAddr
-				cfg.Cache.Redis.DB = sharedDB
-				cfg.Idempotency.Redis.DB = sharedDB
-			},
-			wantPanic: "failed to connect to idempotency Redis",
-		},
 	}
 
 	for _, tt := range tests {
@@ -194,10 +159,6 @@ func TestIdempotencyMiddleware_rejects_invalid_configuration(t *testing.T) {
 			c := newMinimalContainer(&config.Config{})
 			c.config.Idempotency.Driver = tt.driver
 			c.config.Idempotency.Redis.Addr = unreachableRedisAddr
-
-			if tt.configure != nil {
-				tt.configure(c.config)
-			}
 
 			panicValue := func() (value any) {
 				defer func() {
@@ -270,6 +231,105 @@ func TestIdempotencyMiddleware_redis_driver_uses_its_own_database(t *testing.T) 
 	cacheKeys, err := cacheClient.Keys(context.Background(), "gameap:idempotency:*").Result()
 	require.NoError(t, err)
 	assert.Empty(t, cacheKeys, "the cache database must not hold idempotency keys")
+}
+
+//nolint:paralleltest // cache.NewRedis writes the process-global go-redis logger (redis.SetLogger)
+func TestIdempotencyMiddleware_redis_driver_refuses_the_cache_database(t *testing.T) {
+	addr := os.Getenv("TEST_REDIS_ADDR")
+	if addr == "" {
+		t.Skip("Skipping Redis idempotency tests because TEST_REDIS_ADDR is not set")
+	}
+
+	const cacheDB = 3
+
+	tests := []struct {
+		name string
+		// alias reaches the cache's Redis under another address; otherwise
+		// the address is left empty and falls back to the cache's.
+		alias     bool
+		db        int
+		wantPanic string
+	}{
+		{
+			name:      "cache_database",
+			db:        cacheDB,
+			wantPanic: "the idempotency Redis database is the cache's",
+		},
+		{
+			name:      "cache_database_under_another_address",
+			alias:     true,
+			db:        cacheDB,
+			wantPanic: "the idempotency Redis database is the cache's",
+		},
+		{
+			name: "another_database_of_the_cache_redis",
+			db:   cacheDB + 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var idempotencyAddr string
+			if tt.alias {
+				idempotencyAddr = loopbackAlias(addr)
+				if idempotencyAddr == "" {
+					t.Skipf("TEST_REDIS_ADDR %s has no loopback alias", addr)
+				}
+			}
+
+			c := newMinimalContainer(&config.Config{})
+			c.config.Cache.Driver = cacheDriverRedis
+			c.config.Cache.Redis.Addr = addr
+			c.config.Cache.Redis.Password = os.Getenv("TEST_REDIS_PASSWORD")
+			c.config.Cache.Redis.DB = cacheDB
+			c.config.Idempotency.Driver = idempotencyDriverRedis
+			c.config.Idempotency.Redis.Addr = idempotencyAddr
+			c.config.Idempotency.Redis.DB = tt.db
+
+			t.Cleanup(func() {
+				for _, fn := range c.lateShutdownFuncs {
+					_ = fn()
+				}
+			})
+
+			panicValue := func() (value any) {
+				defer func() {
+					value = recover()
+				}()
+
+				c.IdempotencyMiddleware()
+
+				return nil
+			}()
+
+			if tt.wantPanic == "" {
+				assert.Nil(t, panicValue)
+
+				return
+			}
+
+			require.NotNil(t, panicValue)
+			assert.Contains(t, panicMessage(panicValue), tt.wantPanic)
+		})
+	}
+}
+
+// loopbackAlias names a loopback Redis address differently, or returns "" when
+// addr is not on the loopback interface.
+func loopbackAlias(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return ""
+	}
+
+	switch host {
+	case "127.0.0.1":
+		return net.JoinHostPort("localhost", port)
+	case "localhost":
+		return net.JoinHostPort("127.0.0.1", port)
+	default:
+		return ""
+	}
 }
 
 func panicMessage(value any) string {

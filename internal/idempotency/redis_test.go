@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"net"
 	"os"
 	"strconv"
 	"testing"
@@ -232,6 +233,80 @@ func TestRedisStore_rejects_record_expiring_before_creation(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "idempotency record expires before it is created")
 	assert.False(t, saved)
+}
+
+// loopbackAlias names a loopback Redis address differently, or returns "" when
+// addr is not on the loopback interface.
+func loopbackAlias(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return ""
+	}
+
+	switch host {
+	case "127.0.0.1":
+		return net.JoinHostPort("localhost", port)
+	case "localhost":
+		return net.JoinHostPort("127.0.0.1", port)
+	default:
+		return ""
+	}
+}
+
+func TestSharesDatabase(t *testing.T) {
+	t.Parallel()
+
+	client := newTestRedisClient(t)
+	addr := client.Options().Addr
+
+	tests := []struct {
+		name string
+		addr string
+		db   int
+		want bool
+	}{
+		{
+			name: "same_database",
+			addr: addr,
+			want: true,
+		},
+		{
+			name: "same_database_under_loopback_alias",
+			addr: loopbackAlias(addr),
+			want: true,
+		},
+		{
+			name: "another_database_of_the_same_redis",
+			addr: addr,
+			db:   1,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tt.addr == "" {
+				t.Skipf("TEST_REDIS_ADDR %s has no loopback alias", addr)
+			}
+
+			other := redis.NewClient(&redis.Options{
+				Addr:     tt.addr,
+				Password: os.Getenv("TEST_REDIS_PASSWORD"),
+				DB:       tt.db,
+			})
+
+			t.Cleanup(func() {
+				_ = other.Close()
+			})
+
+			shared, err := idempotency.SharesDatabase(t.Context(), client, other)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, shared)
+		})
+	}
 }
 
 //nolint:paralleltest // changes the server-wide maxmemory settings of the test Redis

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gameap/gameap/internal/domain"
+	"github.com/gameap/gameap/pkg/idgen"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 )
@@ -124,6 +125,36 @@ func (s *RedisStore) Save(ctx context.Context, record *domain.IdempotencyKey) (b
 
 func (s *RedisStore) key(userID uint, keyHash string) string {
 	return s.prefix + strconv.FormatUint(uint64(userID), 10) + ":" + keyHash
+}
+
+// SharesDatabase reports whether two clients reach the same Redis database: a
+// probe key written through one is visible through the other. Addresses cannot
+// tell, since "localhost", "127.0.0.1" and a DNS alias may all name one server.
+func SharesDatabase(ctx context.Context, client, other *redis.Client) (bool, error) {
+	probe := "gameap:idempotency-probe:" + idgen.New()
+
+	if err := client.Set(ctx, probe, "1", time.Minute).Err(); err != nil {
+		return false, errors.Wrap(err, "failed to write the probe key")
+	}
+
+	defer func() {
+		err := client.Del(ctx, probe).Err()
+		if err != nil {
+			slog.ErrorContext(
+				ctx,
+				"failed to delete the probe key",
+				slog.String("key", probe),
+				slog.String("error", err.Error()),
+			)
+		}
+	}()
+
+	found, err := other.Exists(ctx, probe).Result()
+	if err != nil {
+		return false, errors.Wrap(err, "failed to look up the probe key")
+	}
+
+	return found == 1, nil
 }
 
 // WarnIfEvictable logs a warning when Redis may evict stored outcomes before
