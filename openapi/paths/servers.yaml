@@ -182,7 +182,17 @@
     tags:
       - Servers
     summary: Create server
-    description: Creates a new game server (Admin only)
+    description: |
+      Creates a new game server (Admin only).
+
+      Ports are unique per node: a port is taken when another server on the same
+      node uses it as its server, query or RCON port on the same address
+      (`0.0.0.0` and `::` overlap every address). A taken port is rejected with
+      422 and the field is named in `errors`.
+
+      `server_ip` and `server_port` may be omitted: the panel then picks them from
+      the node's IP addresses and its `port_range` metadata and returns the
+      result, together with the query and RCON ports, in the response.
     operationId: createServer
     parameters:
       - $ref: '../parameters/HeaderIdempotencyKey.yaml'
@@ -212,7 +222,15 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '422':
-        description: Validation error
+        description: >-
+          Validation error, a port already taken on the node, or nothing left to
+          pick from (no IP address, no `port_range`, no free port in it)
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '503':
+        description: Another request is assigning ports on the node; retry later
         content:
           application/json:
             schema:
@@ -433,7 +451,11 @@
     tags:
       - Servers
     summary: Update server
-    description: Updates a server (Admin only)
+    description: |
+      Updates a server (Admin only).
+
+      A port the server does not use yet on its node and address must be free
+      there, as on create; a taken one is rejected with 422.
     operationId: updateServer
     parameters:
       - $ref: '../parameters/PathServerId.yaml'
@@ -470,7 +492,13 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
       '422':
-        description: Validation error
+        description: Validation error or a port already taken on the node
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '503':
+        description: Another request is assigning ports on the node; retry later
         content:
           application/json:
             schema:

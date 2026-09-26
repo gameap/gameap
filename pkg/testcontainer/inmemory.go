@@ -50,6 +50,7 @@ import (
 	"github.com/gameap/gameap/internal/services/releases"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
+	"github.com/gameap/gameap/internal/services/serverports"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	"github.com/gameap/gameap/internal/telemetry"
@@ -106,6 +107,7 @@ type InmemoryContainer struct {
 	pluginPermissions       *hostlibrary.CachedPermissionChecker
 	pluginRepo              repositories.PluginRepository
 	idempotencyMiddleware   *idempotency.Middleware
+	serverPorts             *serverports.Service
 }
 
 func (c *InmemoryContainer) Config() *config.Config                            { return c.cfg }
@@ -204,6 +206,15 @@ func (c *InmemoryContainer) IdempotencyMiddleware() *idempotency.Middleware {
 	}
 
 	return c.idempotencyMiddleware
+}
+
+// ServerPorts is cached so the create and update handlers queue on one lock.
+func (c *InmemoryContainer) ServerPorts() *serverports.Service {
+	if c.serverPorts == nil {
+		c.serverPorts = serverports.NewService(c.serverRepo, locker.NewInMemoryLocker())
+	}
+
+	return c.serverPorts
 }
 
 func (c *InmemoryContainer) FrontendFS() fs.FS {

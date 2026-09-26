@@ -1101,6 +1101,16 @@ func TestHandler_MetadataLimits(t *testing.T) {
 			metadata:  domain.Metadata{" ": "v"},
 			wantError: "metadata key must not be empty",
 		},
+		{
+			name:      "unparsable_port_range",
+			metadata:  domain.Metadata{"port_range": "27015-"},
+			wantError: `metadata: invalid entry \"27015-\": port range must list ports and ranges within 1-65535`,
+		},
+		{
+			name:      "port_range_not_a_string",
+			metadata:  domain.Metadata{"port_range": 27015},
+			wantError: "metadata: port range must list ports and ranges within 1-65535",
+		},
 	}
 
 	for _, tt := range tests {

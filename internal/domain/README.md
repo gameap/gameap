@@ -8,10 +8,10 @@ This directory contains the core domain models for the GameAP API. These models 
 Represents system users who can manage game servers and access the GameAP platform.
 
 ### Server (`server.go`)
-Represents a game server instance with its configuration, network settings, resource limits, and lifecycle commands.
+Represents a game server instance with its configuration, network settings, resource limits, and lifecycle commands. `Ports()` lists the ports it occupies on its address (server, query, RCON); two servers of one node must not share any of them on the same address — `internal/services/serverports` enforces it on create and update.
 
 ### Node (`node.go`)
-Represents a dedicated server (physical or virtual machine) that hosts game servers. Contains connection settings for GameAP Daemon and server management scripts. `Metadata` is a free-form JSON bag (`metadata` column) that plugins use to tag the nodes they provision — for example to correlate a node with the cloud instance it runs on. It is readable by every plugin, so it must never hold secrets. Partial updates from outside the admin API go through `NodePatch` (`node_patch.go`), which structurally cannot express daemon credentials, certificates or the management scripts.
+Represents a dedicated server (physical or virtual machine) that hosts game servers. Contains connection settings for GameAP Daemon and server management scripts. `Metadata` is a free-form JSON bag (`metadata` column) that plugins use to tag the nodes they provision — for example to correlate a node with the cloud instance it runs on. It is readable by every plugin, so it must never hold secrets. Partial updates from outside the admin API go through `NodePatch` (`node_patch.go`), which structurally cannot express daemon credentials, certificates or the management scripts. One key is read by the panel itself: `port_range` (`PortRange()`, `port_range.go`), the pool of ports such as `"27015-27100, 28000"` handed out to servers created without ports; both write paths reject a value it cannot parse.
 
 > **Security — `ScriptSendCommand` quoting.** The user-supplied `{command}`
 > placeholder is now shell-escaped (wrapped in single quotes via

@@ -78,6 +78,7 @@ import (
 	"github.com/gameap/gameap/internal/services/releases"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
+	"github.com/gameap/gameap/internal/services/serverports"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskreaper"
@@ -178,6 +179,7 @@ type Container struct {
 	taskDispatcher       *taskdispatcher.Dispatcher
 	serverTaskDispatcher *servertaskdispatcher.Dispatcher
 	serverConfigPusher   *serverconfigpush.Pusher
+	serverPorts          *serverports.Service
 	globalAPIService     *services.GlobalAPIService
 	releasesService      *releases.Service
 	cdnGamesService      *services.CDNGamesService
@@ -1040,6 +1042,16 @@ func (c *Container) ServerTaskDispatcher() *servertaskdispatcher.Dispatcher {
 	}
 
 	return c.serverTaskDispatcher
+}
+
+// ServerPorts coordinates port checks through the shared locker, so every
+// panel instance creating or updating servers of a node queues on one lock.
+func (c *Container) ServerPorts() *serverports.Service {
+	if c.serverPorts == nil {
+		c.serverPorts = serverports.NewService(c.ServerRepository(), c.SchedulerLocker())
+	}
+
+	return c.serverPorts
 }
 
 func (c *Container) ServerConfigPusher() *serverconfigpush.Pusher {

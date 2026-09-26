@@ -564,3 +564,94 @@ func TestServer_XID(t *testing.T) {
 		assert.Equal(t, idgen.UUIDToXID(uuid.Nil), got)
 	})
 }
+
+func TestServer_Ports(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		server Server
+		want   []int
+	}{
+		{
+			name:   "server_port_only",
+			server: Server{ServerPort: 27015},
+			want:   []int{27015},
+		},
+		{
+			name:   "distinct_query_and_rcon_ports",
+			server: Server{ServerPort: 27015, QueryPort: new(27016), RconPort: new(27017)},
+			want:   []int{27015, 27016, 27017},
+		},
+		{
+			name:   "repeated_ports_listed_once",
+			server: Server{ServerPort: 27015, QueryPort: new(27015), RconPort: new(27015)},
+			want:   []int{27015},
+		},
+		{
+			name:   "rcon_repeats_query",
+			server: Server{ServerPort: 25565, QueryPort: new(25566), RconPort: new(25566)},
+			want:   []int{25565, 25566},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, tt.server.Ports())
+		})
+	}
+}
+
+func TestServer_StartCommandUses(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		startCommand *string
+		shortcode    string
+		want         bool
+	}{
+		{
+			name:         "no_start_command",
+			startCommand: nil,
+			shortcode:    "rcon_port",
+			want:         false,
+		},
+		{
+			name:         "lower_case_placeholder",
+			startCommand: new("./run.sh --port={port} --rcon-port={rcon_port}"),
+			shortcode:    "rcon_port",
+			want:         true,
+		},
+		{
+			name:         "upper_case_placeholder",
+			startCommand: new("./run.sh --query-port={QUERY_PORT}"),
+			shortcode:    "query_port",
+			want:         true,
+		},
+		{
+			name:         "only_the_server_port",
+			startCommand: new("./hlds_run -game cstrike +ip {ip} +port {port}"),
+			shortcode:    "query_port",
+			want:         false,
+		},
+		{
+			name:         "name_without_braces_does_not_count",
+			startCommand: new("./run.sh rcon_port"),
+			shortcode:    "rcon_port",
+			want:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := Server{StartCommand: tt.startCommand}
+
+			assert.Equal(t, tt.want, server.StartCommandUses(tt.shortcode))
+		})
+	}
+}
