@@ -53,6 +53,7 @@ func TestHandler_ServeHTTP_dispatches_server_updated_event(t *testing.T) {
 		inmemory.NewNodeRepository(),
 		inmemory.NewGameRepository(),
 		inmemory.NewGameModRepository(),
+		newServerPorts(serverRepo),
 		nil,
 		dispatcher,
 		nil,

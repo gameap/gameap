@@ -38,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, defineModel } from 'vue';
+import { ref, computed, watch, onMounted, defineModel } from 'vue';
 import { storeToRefs } from 'pinia'
 import { useNodeStore } from '@/store/node'
 import { useGameStore } from '@/store/game'
@@ -48,6 +48,7 @@ import {
   NInputNumber
 } from 'naive-ui';
 import { trans } from '@/i18n/i18n';
+import { PORT_RANGE_KEY, findFreePort, inPortRange, parsePortRange } from '@/parts/portRange';
 
 const DEFAULT_PORTS = {
   'ark': 7777,
@@ -110,7 +111,7 @@ const emit = defineEmits(['update:serverPort', 'update:rconPort', 'update:queryP
 const nodeStore = useNodeStore()
 const gameStore = useGameStore()
 const serverStore = useServerStore()
-const { nodeId: dsId, busyPorts } = storeToRefs(nodeStore)
+const { nodeId: dsId, busyPorts, node } = storeToRefs(nodeStore)
 const { gameCode } = storeToRefs(gameStore)
 const { formIp: selectedIp } = storeToRefs(serverStore)
 
@@ -120,9 +121,17 @@ const rconPort = defineModel('rconPort')
 
 const serverPortWarning = ref('')
 
-function setPorts() {
-  const gameCode = getExistsPortGameCode();
+// The node store is shared with the node pages, so a node another view left
+// there must not lend its pool to this form.
+const portRanges = computed(() => {
+  if (Number(node.value?.id) !== Number(dsId.value)) {
+    return []
+  }
 
+  return parsePortRange(node.value?.metadata?.[PORT_RANGE_KEY]) ?? []
+})
+
+function setPorts() {
   if (props.initialServerIp === selectedIp.value) {
     serverPort.value = parseInt(props.initialServerPort) || 27015;
 
@@ -133,12 +142,32 @@ function setPorts() {
     return
   }
 
-  let portCorrect = -1;
+  const start = DEFAULT_PORTS[getExistsPortGameCode()];
+  const [queryDiff, rconDiff] = getPortDiff();
+  const portsOf = (port) => [port, port + queryDiff, port + rconDiff];
+  const isFree = (port) => portsOf(port).every((p) => p <= 65535 && !isBusy(selectedIp.value, p));
+  const pool = portRanges.value;
 
-  do {
-    portCorrect++;
-    serverPort.value = DEFAULT_PORTS[gameCode] + portCorrect;
-  } while (isBusy(selectedIp.value, DEFAULT_PORTS[gameCode] + portCorrect));
+  // A full pool falls back to counting up from the game's default port: the
+  // API accepts a port outside the pool and still refuses a taken one.
+  const pooled = pool.length > 0
+      ? findFreePort(pool, start, (port) => isFree(port) && portsOf(port).every((p) => inPortRange(pool, p)))
+      : null;
+
+  serverPort.value = pooled ?? findFreePort([], start, isFree) ?? start;
+
+  // The serverPort watcher skips a port that did not change, yet another game
+  // may still need other query and RCON offsets.
+  correctPorts();
+}
+
+function fetchNodeDetails() {
+  nodeStore.fetchBusyPorts(checkPorts)
+
+  // Only the pool is read from the node; without it the form picks as before.
+  if (dsId.value > 0) {
+    nodeStore.fetchNode().catch(() => {})
+  }
 }
 
 function correctPorts() {
@@ -177,11 +206,19 @@ function checkPorts() {
 }
 
 onMounted(() => {
-  nodeStore.fetchBusyPorts(checkPorts)
+  fetchNodeDetails()
 });
 
 watch(dsId, () => {
-  nodeStore.fetchBusyPorts(checkPorts)
+  fetchNodeDetails()
+});
+
+// Picking needs the busy ports and the node's pool, which may arrive after the
+// address is chosen; pick again once either lands.
+watch([busyPorts, portRanges], () => {
+  if (selectedIp.value) {
+    setPorts();
+  }
 });
 
 watch(serverPort, (newVal, oldVal) => {

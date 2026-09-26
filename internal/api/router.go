@@ -190,6 +190,7 @@ import (
 	"github.com/gameap/gameap/internal/services/releases"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
+	"github.com/gameap/gameap/internal/services/serverports"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	"github.com/gameap/gameap/internal/telemetry"
@@ -268,6 +269,7 @@ type container interface {
 	TaskDispatcher() *taskdispatcher.Dispatcher
 	ServerTaskDispatcher() *servertaskdispatcher.Dispatcher
 	ServerConfigPusher() *serverconfigpush.Pusher
+	ServerPorts() *serverports.Service
 	EnrollmentService() *enrollment.Service
 	GRPCPort() uint16
 	GRPCExternalHost() string
@@ -729,6 +731,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.GameModRepository(),
 				c.DaemonTaskRepository(),
 				c.ServerSettingRepository(),
+				c.ServerPorts(),
 				c.TaskDispatcher(),
 				plugin.NewServerControlAdapter(c.PluginDispatcher()),
 				c.Responder(),
@@ -798,6 +801,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.NodeRepository(),
 				c.GameRepository(),
 				c.GameModRepository(),
+				c.ServerPorts(),
 				c.ServerConfigPusher(),
 				plugin.NewServerControlAdapter(c.PluginDispatcher()),
 				c.RBAC(),

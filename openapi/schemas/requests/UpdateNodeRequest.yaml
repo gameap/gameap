@@ -102,5 +102,8 @@ properties:
       metadata; sending an object replaces it entirely, and an empty object clears
       it. `null` is not accepted: send `{}` to drop every key. At most 512 keys,
       each key up to 255 characters and each value up to 16 KiB once serialized.
+      `port_range`, when present, must be a string of comma-separated ports and
+      inclusive ranges within 1-65535, e.g. `27015-27100, 28000`.
     example:
       hetzner.server_id: "123456"
+      port_range: "27015-27100, 28000"

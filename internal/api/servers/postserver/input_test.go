@@ -23,7 +23,7 @@ func validInput() serverInput {
 		DSID:       flexible.Int(1),
 		GameModID:  flexible.Int(1),
 		ServerIP:   "192.168.1.100",
-		ServerPort: flexible.Int(27015),
+		ServerPort: ptrFI(27015),
 	}
 }
 
@@ -46,7 +46,7 @@ func TestServerInput_Validate(t *testing.T) {
 				DSID:       flexible.Int(1),
 				GameModID:  flexible.Int(1),
 				ServerIP:   "192.168.1.100",
-				ServerPort: flexible.Int(27015),
+				ServerPort: ptrFI(27015),
 				QueryPort:  ptrFI(27016),
 				RconPort:   ptrFI(27017),
 				Dir:        new("servers/cs"),
@@ -132,14 +132,22 @@ func TestServerInput_Validate(t *testing.T) {
 			wantError: ErrGameModIDRequired.Error(),
 		},
 		{
-			name: "server_ip_required_empty",
+			name: "server_ip_omitted_is_left_to_the_panel",
 			input: func() serverInput {
 				in := validInput()
 				in.ServerIP = ""
 
 				return in
 			}(),
-			wantError: ErrServerIPRequired.Error(),
+		},
+		{
+			name: "server_port_omitted_is_left_to_the_panel",
+			input: func() serverInput {
+				in := validInput()
+				in.ServerPort = nil
+
+				return in
+			}(),
 		},
 		{
 			name: "server_ip_invalid_format",
@@ -165,7 +173,7 @@ func TestServerInput_Validate(t *testing.T) {
 			name: "server_port_below_min",
 			input: func() serverInput {
 				in := validInput()
-				in.ServerPort = flexible.Int(0)
+				in.ServerPort = ptrFI(0)
 
 				return in
 			}(),
@@ -175,7 +183,7 @@ func TestServerInput_Validate(t *testing.T) {
 			name: "server_port_negative",
 			input: func() serverInput {
 				in := validInput()
-				in.ServerPort = flexible.Int(-1)
+				in.ServerPort = ptrFI(-1)
 
 				return in
 			}(),
@@ -185,7 +193,7 @@ func TestServerInput_Validate(t *testing.T) {
 			name: "server_port_above_max",
 			input: func() serverInput {
 				in := validInput()
-				in.ServerPort = flexible.Int(65536)
+				in.ServerPort = ptrFI(65536)
 
 				return in
 			}(),

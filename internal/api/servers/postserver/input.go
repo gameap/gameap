@@ -21,7 +21,6 @@ var (
 	ErrGameIDIsRequired    = api.NewValidationError("game_id is required")
 	ErrDSIDIsRequired      = api.NewValidationError("ds_id is required")
 	ErrGameModIDRequired   = api.NewValidationError("game_mod_id is required")
-	ErrServerIPRequired    = api.NewValidationError("server_ip is required")
 	ErrNameTooLong         = api.NewValidationError("name must not exceed 128 characters")
 	ErrInvalidServerIP     = api.NewValidationError("server_ip is not a valid IP address or hostname")
 	ErrInvalidServerPort   = api.NewValidationError("server_port must be between 1 and 65535")
@@ -38,7 +37,7 @@ type serverInput struct {
 	GameID       string                      `json:"game_id"`
 	GameModID    flexible.Int                `json:"game_mod_id"`
 	ServerIP     string                      `json:"server_ip"`
-	ServerPort   flexible.Int                `json:"server_port"`
+	ServerPort   *flexible.Int               `json:"server_port,omitempty"`
 	QueryPort    *flexible.Int               `json:"query_port,omitempty"`
 	RconPort     *flexible.Int               `json:"rcon_port,omitempty"`
 	Rcon         *string                     `json:"rcon,omitempty"`
@@ -69,15 +68,12 @@ func (s *serverInput) Validate() error {
 		return ErrGameModIDRequired
 	}
 
-	if s.ServerIP == "" {
-		return ErrServerIPRequired
-	}
-
-	if !validation.IsValidIPOrHostname(s.ServerIP) {
+	// An omitted address or server port is picked by the panel from the node.
+	if s.ServerIP != "" && !validation.IsValidIPOrHostname(s.ServerIP) {
 		return ErrInvalidServerIP
 	}
 
-	if s.ServerPort.Int() < minPort || s.ServerPort.Int() > maxPort {
+	if s.ServerPort != nil && (s.ServerPort.Int() < minPort || s.ServerPort.Int() > maxPort) {
 		return ErrInvalidServerPort
 	}
 
@@ -105,6 +101,11 @@ func (s *serverInput) Validate() error {
 func (s *serverInput) ToDomain() *domain.Server {
 	uid := idgen.XIDToUUID(xid.New())
 
+	var serverPort int
+	if s.ServerPort != nil {
+		serverPort = s.ServerPort.Int()
+	}
+
 	var queryPort *int
 	if s.QueryPort != nil {
 		qp := s.QueryPort.Int()
@@ -127,7 +128,7 @@ func (s *serverInput) ToDomain() *domain.Server {
 		DSID:         uint(s.DSID.Int()),
 		GameModID:    uint(s.GameModID.Int()),
 		ServerIP:     s.ServerIP,
-		ServerPort:   s.ServerPort.Int(),
+		ServerPort:   serverPort,
 		QueryPort:    queryPort,
 		RconPort:     rconPort,
 		Rcon:         s.Rcon,

@@ -76,15 +76,7 @@ func (h *Handler) collectBusyPorts(servers []domain.Server) map[string][]int {
 			result[server.ServerIP] = make([]int, 0, len(servers)*3)
 		}
 
-		result[server.ServerIP] = append(result[server.ServerIP], server.ServerPort)
-
-		if server.QueryPort != nil {
-			result[server.ServerIP] = append(result[server.ServerIP], *server.QueryPort)
-		}
-
-		if server.RconPort != nil {
-			result[server.ServerIP] = append(result[server.ServerIP], *server.RconPort)
-		}
+		result[server.ServerIP] = append(result[server.ServerIP], server.Ports()...)
 	}
 
 	for ip := range result {

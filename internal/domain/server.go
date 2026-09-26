@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -94,6 +95,31 @@ func (s *Server) RconPassword() string {
 	}
 
 	return *s.Rcon
+}
+
+// Ports returns the ports the server occupies on its address: the server port
+// plus the query and RCON ports when they are set, each listed once.
+func (s *Server) Ports() []int {
+	ports := []int{s.ServerPort}
+
+	for _, port := range []*int{s.QueryPort, s.RconPort} {
+		if port != nil && !slices.Contains(ports, *port) {
+			ports = append(ports, *port)
+		}
+	}
+
+	return ports
+}
+
+// StartCommandUses reports whether the start command passes the {shortcode}
+// placeholder, in either letter case ReplaceServerShortcodes substitutes.
+func (s *Server) StartCommandUses(shortcode string) bool {
+	if s.StartCommand == nil {
+		return false
+	}
+
+	return strings.Contains(*s.StartCommand, "{"+strings.ToLower(shortcode)+"}") ||
+		strings.Contains(*s.StartCommand, "{"+strings.ToUpper(shortcode)+"}")
 }
 
 // ReplaceServerShortcodes replaces shortcode placeholders in a command string with server-specific values.

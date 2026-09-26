@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/services/servercontrol"
+	"github.com/gameap/gameap/internal/services/serverports"
 	"github.com/gameap/gameap/pkg/api"
 	pkgstrings "github.com/gameap/gameap/pkg/strings"
 	"github.com/pkg/errors"
@@ -39,6 +40,7 @@ type Handler struct {
 	gameModRepo        repositories.GameModRepository
 	daemonTaskRepo     repositories.DaemonTaskRepository
 	serverSettingsRepo repositories.ServerSettingRepository
+	serverPorts        *serverports.Service
 	taskDispatcher     TaskDispatcher
 	pluginDispatcher   PluginDispatcher
 	responder          base.Responder
@@ -51,6 +53,7 @@ func NewHandler(
 	gameModRepo repositories.GameModRepository,
 	daemonTaskRepo repositories.DaemonTaskRepository,
 	serverSettingsRepo repositories.ServerSettingRepository,
+	serverPorts *serverports.Service,
 	taskDispatcher TaskDispatcher,
 	pluginDispatcher PluginDispatcher,
 	responder base.Responder,
@@ -62,6 +65,7 @@ func NewHandler(
 		gameModRepo:        gameModRepo,
 		daemonTaskRepo:     daemonTaskRepo,
 		serverSettingsRepo: serverSettingsRepo,
+		serverPorts:        serverPorts,
 		taskDispatcher:     taskDispatcher,
 		pluginDispatcher:   pluginDispatcher,
 		responder:          responder,
@@ -96,7 +100,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	server := input.ToDomain()
 
-	gameMod, err := h.prepareServer(ctx, server, input)
+	node, gameMod, err := h.prepareServer(ctx, server, input)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)
 
@@ -113,9 +117,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.serverRepo.Save(ctx, server)
+	err = h.serverPorts.Allocate(ctx, node, server, portsToPick(server), func(ctx context.Context) error {
+		return errors.WithMessage(h.serverRepo.Save(ctx, server), "failed to save server")
+	})
 	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save server"))
+		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}
@@ -147,8 +153,12 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	response := createServerResponse{
 		Message: "success",
 		Result: createServerResult{
-			TaskID:   taskID,
-			ServerID: server.ID,
+			TaskID:     taskID,
+			ServerID:   server.ID,
+			ServerIP:   server.ServerIP,
+			ServerPort: server.ServerPort,
+			QueryPort:  server.QueryPort,
+			RconPort:   server.RconPort,
 		},
 	}
 	rw.WriteHeader(http.StatusCreated)
@@ -159,48 +169,48 @@ func (h *Handler) prepareServer(
 	ctx context.Context,
 	server *domain.Server,
 	input *serverInput,
-) (*domain.GameMod, error) {
+) (*domain.Node, *domain.GameMod, error) {
 	if server.Rcon == nil || *server.Rcon == "" {
 		rconPassword, err := pkgstrings.CryptoRandomString(defaultRconPasswordLength)
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to generate rcon password")
+			return nil, nil, errors.WithMessage(err, "failed to generate rcon password")
 		}
 		server.Rcon = &rconPassword
 	}
 
 	nodes, err := h.nodeRepo.Find(ctx, &filters.FindNode{IDs: []uint{server.DSID}}, nil, nil)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to find node")
+		return nil, nil, errors.WithMessage(err, "failed to find node")
 	}
 
 	if len(nodes) == 0 {
-		return nil, errors.New("node not found")
+		return nil, nil, errors.New("node not found")
 	}
 
 	node := &nodes[0]
 
 	games, err := h.gameRepo.Find(ctx, &filters.FindGame{Codes: []string{input.GameID}}, nil, nil)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to find game")
+		return nil, nil, errors.WithMessage(err, "failed to find game")
 	}
 
 	if len(games) == 0 {
-		return nil, errors.New("game not found")
+		return nil, nil, errors.New("game not found")
 	}
 
 	gameMods, err := h.gameModRepo.Find(ctx, &filters.FindGameMod{IDs: []uint{server.GameModID}}, nil, nil)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to find game mod")
+		return nil, nil, errors.WithMessage(err, "failed to find game mod")
 	}
 
 	if len(gameMods) == 0 {
-		return nil, errors.New("game mod not found")
+		return nil, nil, errors.New("game mod not found")
 	}
 
 	gameMod := &gameMods[0]
 
 	if gameMod.GameCode != input.GameID {
-		return nil, api.NewValidationError("game mod does not belong to the specified game")
+		return nil, nil, api.NewValidationError("game mod does not belong to the specified game")
 	}
 
 	if server.StartCommand == nil || *server.StartCommand == "" {
@@ -220,7 +230,19 @@ func (h *Handler) prepareServer(
 		server.Installed = domain.ServerInstalledStatusNotInstalled
 	}
 
-	return gameMod, nil
+	return node, gameMod, nil
+}
+
+// portsToPick lists what the request left to the panel. A query or RCON port
+// is only needed when the start command passes it; otherwise it stays unset
+// and means the server port, which is how GoldSrc and Source servers answer.
+func portsToPick(server *domain.Server) serverports.Pick {
+	return serverports.Pick{
+		IP:         server.ServerIP == "",
+		ServerPort: server.ServerPort == 0,
+		QueryPort:  server.QueryPort == nil && server.StartCommandUses("query_port"),
+		RconPort:   server.RconPort == nil && server.StartCommandUses("rcon_port"),
+	}
 }
 
 func (h *Handler) createInstallTask(ctx context.Context, server *domain.Server) (uint, error) {

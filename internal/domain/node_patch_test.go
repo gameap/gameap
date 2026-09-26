@@ -82,6 +82,24 @@ func TestNodePatch_ValidateMetadata(t *testing.T) {
 			patch:     NodePatch{RemoveMetadataKeys: []string{""}},
 			wantError: "metadata key must not be empty",
 		},
+		{
+			name:  "valid_port_range",
+			patch: NodePatch{Metadata: Metadata{"port_range": "27015-27100, 28000"}},
+		},
+		{
+			name:  "null_port_range",
+			patch: NodePatch{Metadata: Metadata{"port_range": nil}},
+		},
+		{
+			name:      "unparsable_port_range",
+			patch:     NodePatch{Metadata: Metadata{"port_range": "27100-27015"}},
+			wantError: `invalid entry "27100-27015"`,
+		},
+		{
+			name:      "non_string_port_range",
+			patch:     NodePatch{Metadata: Metadata{"port_range": 27015}},
+			wantError: "port range must list ports and ranges within 1-65535",
+		},
 	}
 
 	for _, tt := range tests {
