@@ -4,12 +4,15 @@
         <n-input-number
             name="server_port"
             id="server_port"
-            :min="1024"
-            :max="65535"
+            :min="MIN_PORT"
+            :max="MAX_PORT"
             v-model:value="serverPort"
         />
         <template #feedback>
           <span v-if="serverPortWarning" class="help-block"><strong>{{ serverPortWarning }}</strong></span>
+          <span v-else-if="poolExhausted && serverPort == null" class="help-block">
+            <strong>{{ trans('dedicated_servers.port_range_exhausted') }}</strong>
+          </span>
         </template>
       </n-form-item>
 
@@ -18,8 +21,8 @@
             name="query_port"
             type="number"
             id="server_port"
-            :min="1024"
-            :max="65535"
+            :min="MIN_PORT"
+            :max="MAX_PORT"
             v-model:value="queryPort"
         />
       </n-form-item>
@@ -29,8 +32,8 @@
             name="rcon_port"
             type="number"
             id="server_port"
-            :min="1024"
-            :max="65535"
+            :min="MIN_PORT"
+            :max="MAX_PORT"
             v-model:value="rconPort"
         />
       </n-form-item>
@@ -49,6 +52,12 @@ import {
 } from 'naive-ui';
 import { trans } from '@/i18n/i18n';
 import { PORT_RANGE_KEY, findFreePort, inPortRange, parsePortRange } from '@/parts/portRange';
+
+const MIN_PORT = 1024;
+const MAX_PORT = 65535;
+
+// An unspecified address overlaps every other one, as the API sees it.
+const WILDCARD_IPS = ['0.0.0.0', '::'];
 
 const DEFAULT_PORTS = {
   'ark': 7777,
@@ -120,6 +129,11 @@ const queryPort = defineModel('queryPort')
 const rconPort = defineModel('rconPort')
 
 const serverPortWarning = ref('')
+const poolExhausted = ref(false)
+
+// The last port the form set itself (its initial value, then each pick); any
+// other value was typed by the admin.
+let pickedPort = serverPort.value
 
 // The node store is shared with the node pages, so a node another view left
 // there must not lend its pool to this form.
@@ -138,6 +152,8 @@ function setPorts() {
     const portDiff = getPortDiff();
     queryPort.value = parseInt(props.initialQueryPort) || serverPort.value + portDiff[0];
     rconPort.value = parseInt(props.initialRconPort) || serverPort.value + portDiff[1];
+    poolExhausted.value = false;
+    pickedPort = serverPort.value;
 
     return
   }
@@ -145,16 +161,18 @@ function setPorts() {
   const start = DEFAULT_PORTS[getExistsPortGameCode()];
   const [queryDiff, rconDiff] = getPortDiff();
   const portsOf = (port) => [port, port + queryDiff, port + rconDiff];
-  const isFree = (port) => portsOf(port).every((p) => p <= 65535 && !isBusy(selectedIp.value, p));
+  const isFree = (port) => portsOf(port).every((p) => p >= MIN_PORT && p <= MAX_PORT && !isBusy(selectedIp.value, p));
   const pool = portRanges.value;
 
-  // A full pool falls back to counting up from the game's default port: the
-  // API accepts a port outside the pool and still refuses a taken one.
-  const pooled = pool.length > 0
+  // A full pool leaves the port to the admin instead of picking one outside
+  // it: the pool is often the only range the firewall forwards.
+  const port = pool.length > 0
       ? findFreePort(pool, start, (port) => isFree(port) && portsOf(port).every((p) => inPortRange(pool, p)))
-      : null;
+      : findFreePort([], start, isFree) ?? start;
 
-  serverPort.value = pooled ?? findFreePort([], start, isFree) ?? start;
+  poolExhausted.value = port === null;
+  serverPort.value = port;
+  pickedPort = port;
 
   // The serverPort watcher skips a port that did not change, yet another game
   // may still need other query and RCON offsets.
@@ -172,9 +190,10 @@ function fetchNodeDetails() {
 
 function correctPorts() {
   const portDiff = getPortDiff();
+  const port = serverPort.value;
 
-  queryPort.value = serverPort.value + portDiff[0];
-  rconPort.value = serverPort.value + portDiff[1];
+  queryPort.value = port == null ? null : port + portDiff[0];
+  rconPort.value = port == null ? null : port + portDiff[1];
 }
 
 function getExistsPortGameCode() {
@@ -190,7 +209,11 @@ function isBusy(serverIp, serverPort) {
     return false;
   }
 
-  return busyPorts.value.hasOwnProperty(serverIp) && busyPorts.value[serverIp].indexOf(serverPort) !== -1;
+  const ips = WILDCARD_IPS.includes(serverIp)
+      ? Object.keys(busyPorts.value)
+      : [serverIp, ...WILDCARD_IPS];
+
+  return ips.some((ip) => Object.hasOwn(busyPorts.value, ip) && busyPorts.value[ip].includes(serverPort));
 }
 
 function checkPorts() {
@@ -214,15 +237,18 @@ watch(dsId, () => {
 });
 
 // Picking needs the busy ports and the node's pool, which may arrive after the
-// address is chosen; pick again once either lands.
+// address is chosen; pick again once either lands, unless the admin has typed
+// a port meanwhile.
 watch([busyPorts, portRanges], () => {
-  if (selectedIp.value) {
+  if (selectedIp.value && serverPort.value === pickedPort) {
     setPorts();
   }
 });
 
 watch(serverPort, (newVal, oldVal) => {
-  serverPort.value = Number(serverPort.value);
+  if (serverPort.value != null) {
+    serverPort.value = Number(serverPort.value);
+  }
   correctPorts();
   checkPorts();
   emit('update:serverPort', serverPort.value);

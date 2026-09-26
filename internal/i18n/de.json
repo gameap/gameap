@@ -122,6 +122,7 @@
     "port_range": "Ports für Spielserver",
     "d_port_range": "Ports und Bereiche, aus denen das Panel Ports für neue Server auswählt, z. B. 27015-27100, 28000. Leer lassen, um Ports manuell anzugeben.",
     "port_range_invalid": "Ports und Bereiche von 1 bis 65535 durch Kommas getrennt angeben, z. B. 27015-27100, 28000",
+    "port_range_exhausted": "Im Portbereich des dedizierten Servers ist kein Port mehr frei. Port manuell angeben.",
     "gdaemon_api_key": "GDaemon-API-Schlüssel",
     "gdaemon_version": "GameAP-Daemon-Version",
     "daemon_update_available": "Neue GameAP-Daemon-Version verfügbar",

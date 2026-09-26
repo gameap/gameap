@@ -131,35 +131,57 @@ test('clearing the field drops the pool from metadata', async ({ page }) => {
   await dismissTopDialog(page);
 });
 
-test('create form picks the first free server port of the node pool', async ({ page }) => {
-  test.setTimeout(60_000);
+interface CreateFormMocks {
+  game?: { code: string; name: string };
+  pool: string;
+  busy: Record<string, number[]>;
+  busyDelayMs?: number;
+}
 
+// mockCreateForm serves the create form one game, one node with the address
+// 10.0.0.1 and the given pool; the busy ports may answer late.
+async function mockCreateForm(page: Page, { game = GAME, pool, busy, busyDelayMs = 0 }: CreateFormMocks) {
   await page.route('**/api/games', (route) =>
-    route.fulfill({ json: [{ ...GAME, engine: 'source', engine_version: '1', enabled: 1 }] }),
+    route.fulfill({ json: [{ ...game, engine: 'source', engine_version: '1', enabled: 1 }] }),
   );
-  await page.route(`**/api/game_mods/get_list_for_game/${GAME.code}`, (route) =>
-    route.fulfill({ json: [{ id: GAME_MOD_ID, game_code: GAME.code, name: 'Default' }] }),
+  await page.route(`**/api/game_mods/get_list_for_game/${game.code}`, (route) =>
+    route.fulfill({ json: [{ id: GAME_MOD_ID, game_code: game.code, name: 'Default' }] }),
   );
   await page.route(`**/api/game_mods/${GAME_MOD_ID}`, (route) =>
-    route.fulfill({ json: { id: GAME_MOD_ID, game_code: GAME.code, name: 'Default', vars: [] } }),
+    route.fulfill({ json: { id: GAME_MOD_ID, game_code: game.code, name: 'Default', vars: [] } }),
   );
   await page.route('**/api/nodes', (route) =>
     route.fulfill({ json: [{ id: NODE_ID, name: 'E2E Ports Node', enabled: true, os: 'linux', ip: ['10.0.0.1'] }] }),
   );
   await page.route(`**/api/nodes/${NODE_ID}/ip_list`, (route) => route.fulfill({ json: ['10.0.0.1'] }));
-  // The busy ports land after the address and the pool, so the port picked
-  // without them has to be picked again.
   await page.route(`**/api/nodes/${NODE_ID}/busy_ports`, async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await route.fulfill({ json: { '10.0.0.1': [30000, 30002] } });
+    await new Promise((resolve) => setTimeout(resolve, busyDelayMs));
+    await route.fulfill({ json: busy });
   });
-  await mockNode(page, { ...NODE, metadata: { port_range: '30000-30010' } });
+  await mockNode(page, { ...NODE, metadata: { port_range: pool } });
+}
+
+const serverPortInput = (page: Page) => page.locator('[name="server_port"] input');
+const queryPortInput = (page: Page) => page.locator('[name="query_port"] input');
+const rconPortInput = (page: Page) => page.locator('[name="rcon_port"] input');
+
+test('create form picks the first free server port of the node pool', async ({ page }) => {
+  test.setTimeout(60_000);
+
+  // The busy ports land after the address and the pool, so the port picked
+  // without them has to be picked again. 30001 is taken on the unspecified
+  // address, which overlaps 10.0.0.1.
+  await mockCreateForm(page, {
+    pool: '30000-30010',
+    busy: { '10.0.0.1': [30000, 30002], '0.0.0.0': [30001] },
+    busyDelayMs: 500,
+  });
 
   await page.goto('/admin/servers/create');
   await page.getByTestId('server-create-name').locator('input').fill(`${GAME.name} server`);
 
-  // 30000 and 30002 are taken; the game's default port lies outside the pool.
-  await expect(page.locator('[name="server_port"] input')).toHaveValue('30001');
+  // The game's default port lies outside the pool.
+  await expect(serverPortInput(page)).toHaveValue('30003');
 });
 
 test('create form applies the port offsets of the game chosen after the address', async ({ page }) => {
@@ -167,36 +189,66 @@ test('create form applies the port offsets of the game chosen after the address'
 
   // Rust runs RCON on the port after the server port.
   const rust = { code: 'rust', name: 'E2E Rust' };
-  await page.route('**/api/games', (route) =>
-    route.fulfill({ json: [{ ...rust, engine: 'rust', engine_version: '1', enabled: 1 }] }),
-  );
-  await page.route(`**/api/game_mods/get_list_for_game/${rust.code}`, (route) =>
-    route.fulfill({ json: [{ id: GAME_MOD_ID, game_code: rust.code, name: 'Vanilla' }] }),
-  );
-  await page.route(`**/api/game_mods/${GAME_MOD_ID}`, (route) =>
-    route.fulfill({ json: { id: GAME_MOD_ID, game_code: rust.code, name: 'Vanilla', vars: [] } }),
-  );
-  await page.route('**/api/nodes', (route) =>
-    route.fulfill({ json: [{ id: NODE_ID, name: 'E2E Ports Node', enabled: true, os: 'linux', ip: ['10.0.0.1'] }] }),
-  );
-  await page.route(`**/api/nodes/${NODE_ID}/ip_list`, (route) => route.fulfill({ json: ['10.0.0.1'] }));
-  await page.route(`**/api/nodes/${NODE_ID}/busy_ports`, (route) =>
-    route.fulfill({ json: { '10.0.0.1': [30000] } }),
-  );
-  await mockNode(page, { ...NODE, metadata: { port_range: '30000-30010' } });
+  await mockCreateForm(page, { game: rust, pool: '30000-30010', busy: { '10.0.0.1': [30000] } });
 
   await page.goto('/admin/servers/create');
 
   // Picked for the address before any game is chosen: every offset is zero.
-  const serverPort = page.locator('[name="server_port"] input');
-  const rconPort = page.locator('[name="rcon_port"] input');
-  await expect(serverPort).toHaveValue('30001');
-  await expect(rconPort).toHaveValue('30001');
+  await expect(serverPortInput(page)).toHaveValue('30001');
+  await expect(rconPortInput(page)).toHaveValue('30001');
 
   // Rust keeps 30001, the lowest free port of the pool, so only the RCON
   // port has to follow the game.
   await page.getByTestId('server-create-name').locator('input').fill(`${rust.name} server`);
-  await expect(page.locator('[name="query_port"] input')).toHaveValue('30001');
-  await expect(rconPort).toHaveValue('30002');
-  await expect(serverPort).toHaveValue('30001');
+  await expect(queryPortInput(page)).toHaveValue('30001');
+  await expect(rconPortInput(page)).toHaveValue('30002');
+  await expect(serverPortInput(page)).toHaveValue('30001');
+});
+
+test('create form keeps a port typed before the busy ports arrive', async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await mockCreateForm(page, { pool: '30000-30010', busy: { '10.0.0.1': [30000] }, busyDelayMs: 1500 });
+
+  await page.goto('/admin/servers/create');
+  await expect(serverPortInput(page)).toHaveValue('30000');
+
+  const busyPorts = page.waitForResponse((r) => r.url().endsWith(`/api/nodes/${NODE_ID}/busy_ports`));
+  await serverPortInput(page).fill('30007');
+  await serverPortInput(page).blur();
+  await busyPorts;
+
+  // A late re-pick would have moved the port to 30001.
+  await expect(serverPortInput(page)).toHaveValue('30007');
+  await expect(rconPortInput(page)).toHaveValue('30007');
+});
+
+test('create form leaves the port to the admin when the pool is full', async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await mockCreateForm(page, { pool: '30000-30001', busy: { '10.0.0.1': [30000, 30001] } });
+
+  await page.goto('/admin/servers/create');
+
+  const exhausted = page.getByText(/no free port left in the port range|dedicated_servers\.port_range_exhausted/i);
+  await expect(exhausted).toBeVisible();
+  await expect(serverPortInput(page)).toHaveValue('');
+  await expect(rconPortInput(page)).toHaveValue('');
+
+  await serverPortInput(page).fill('31000');
+  await serverPortInput(page).blur();
+
+  await expect(exhausted).toBeHidden();
+  await expect(queryPortInput(page)).toHaveValue('31000');
+  await expect(rconPortInput(page)).toHaveValue('31000');
+});
+
+test('create form never picks a port below the field minimum', async ({ page }) => {
+  test.setTimeout(60_000);
+
+  await mockCreateForm(page, { pool: '1000-1030', busy: { '10.0.0.1': [1024] } });
+
+  await page.goto('/admin/servers/create');
+
+  await expect(serverPortInput(page)).toHaveValue('1025');
 });
