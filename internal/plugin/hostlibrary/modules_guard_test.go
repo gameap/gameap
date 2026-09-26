@@ -207,7 +207,7 @@ func TestDaemonTasksService_CreateDaemonTask_grants(t *testing.T) {
 
 			recorder := &auditRecorder{}
 			guard := NewGuard(tt.grants, WithGuardAudit(recorder)).For(testPluginID)
-			svc := NewDaemonTasksService(inmemory.NewDaemonTaskRepository(), nil, guard)
+			svc := NewDaemonTasksService(inmemory.NewDaemonTaskRepository(), inmemory.NewServerRepository(), nil, guard)
 
 			resp, err := svc.CreateDaemonTask(context.Background(), &daemontasks.CreateDaemonTaskRequest{
 				NodeId:   1,

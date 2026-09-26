@@ -2,6 +2,7 @@ package servercontrol
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/base"
+	"github.com/gameap/gameap/pkg/api"
 	"github.com/pkg/errors"
 )
 
@@ -22,6 +24,12 @@ var (
 	ErrEmptyServerStartCommand       = errors.New("empty server start command")
 	ErrServerUpdateInstallInProgress = errors.New("server update/install task is already in progress")
 	ErrCancelledByPlugin             = errors.New("operation cancelled by plugin")
+
+	// ErrServerBlocked refuses whatever would run a suspended server again, to
+	// everyone: a suspension is what a billing system relies on, so an
+	// administrator or a token does not get around it either. Forbidden rather
+	// than conflict: 409 already tells an Idempotency-Key client to retry.
+	ErrServerBlocked = api.NewError(http.StatusForbidden, "server is blocked")
 )
 
 // PluginEventType represents the type of plugin event.
@@ -190,6 +198,10 @@ func (s *Service) dispatchPostEvent(
 // Start creates a server start task.
 // If the server has autostart enabled, it will also enable autostart_current.
 func (s *Service) Start(ctx context.Context, server *domain.Server) (uint, error) {
+	if server.IsSuspended() {
+		return 0, ErrServerBlocked
+	}
+
 	if err := s.dispatchPreEvent(ctx, PluginEventServerPreStart, server); err != nil {
 		return 0, err
 	}
@@ -236,6 +248,10 @@ func (s *Service) Stop(ctx context.Context, server *domain.Server) (uint, error)
 // Restart creates a server restart task.
 // If the server has autostart enabled, it will also enable autostart_current.
 func (s *Service) Restart(ctx context.Context, server *domain.Server) (uint, error) {
+	if server.IsSuspended() {
+		return 0, ErrServerBlocked
+	}
+
 	if err := s.dispatchPreEvent(ctx, PluginEventServerPreRestart, server); err != nil {
 		return 0, err
 	}
@@ -258,6 +274,10 @@ func (s *Service) Restart(ctx context.Context, server *domain.Server) (uint, err
 
 // Update creates a server update task.
 func (s *Service) Update(ctx context.Context, server *domain.Server) (uint, error) {
+	if server.IsSuspended() {
+		return 0, ErrServerBlocked
+	}
+
 	if err := s.dispatchPreEvent(ctx, PluginEventServerPreUpdate, server); err != nil {
 		return 0, err
 	}
@@ -274,6 +294,10 @@ func (s *Service) Update(ctx context.Context, server *domain.Server) (uint, erro
 
 // Install creates a server install task.
 func (s *Service) Install(ctx context.Context, server *domain.Server) (uint, error) {
+	if server.IsSuspended() {
+		return 0, ErrServerBlocked
+	}
+
 	if err := s.dispatchPreEvent(ctx, PluginEventServerPreInstall, server); err != nil {
 		return 0, err
 	}
@@ -291,6 +315,10 @@ func (s *Service) Install(ctx context.Context, server *domain.Server) (uint, err
 // Reinstall creates a server reinstall task.
 // This is a combination of stop, delete, and install tasks.
 func (s *Service) Reinstall(ctx context.Context, server *domain.Server) (uint, error) {
+	if server.IsSuspended() {
+		return 0, ErrServerBlocked
+	}
+
 	if err := s.dispatchPreEvent(ctx, PluginEventServerPreReinstall, server); err != nil {
 		return 0, err
 	}

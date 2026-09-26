@@ -3,6 +3,7 @@ package putserver
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/flexible"
@@ -490,7 +491,7 @@ func TestUpdateServerInput_Apply(t *testing.T) {
 		server := &domain.Server{}
 
 		// ACT
-		require.NoError(t, in.Apply(server))
+		require.NoError(t, in.Apply(server, time.Now()))
 
 		// ASSERT
 		require.NotNil(t, server.RAMLimit, "ram_limit pointer must be set when input provides it")
@@ -506,7 +507,7 @@ func TestUpdateServerInput_Apply(t *testing.T) {
 		server := &domain.Server{}
 
 		// ACT
-		require.NoError(t, in.Apply(server))
+		require.NoError(t, in.Apply(server, time.Now()))
 
 		// ASSERT
 		assert.Nil(t, server.RAMLimit, "absent ram_limit must not allocate a pointer")

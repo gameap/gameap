@@ -29,6 +29,7 @@ export const useServerStore = defineStore('server', () => {
         enabled: false,
         installed: false,
         blocked: false,
+        suspension: null,
         name: '',
         ds_id: 0,
         game_id: 0,

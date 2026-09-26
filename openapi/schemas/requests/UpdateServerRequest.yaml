@@ -16,8 +16,17 @@ properties:
     oneOf:
       - type: boolean
       - type: string
-    description: Block/unblock server
+    description: >-
+      Suspend (`true`) or unsuspend (`false`) the server. Suspending stops it; see
+      "Suspended servers" in the API description. Omit the field to keep the current state.
     example: false
+  suspend_reason:
+    type: string
+    description: >-
+      Reason for the suspension, kept while the server stays suspended. Ignored for a server
+      that is not suspended; an empty string clears it.
+    maxLength: 255
+    example: "Invoice #1042 is overdue"
   ds_id:
     oneOf:
       - type: integer
@@ -98,7 +107,9 @@ properties:
     type:
       - object
       - "null"
-    description: Server metadata (arbitrary key-value pairs). Omit the field to keep the stored metadata
+    description: >-
+      Server metadata (arbitrary key-value pairs), replaced as a whole. Omit the field to keep
+      the stored metadata. The panel's own `suspension` key cannot be set here and is kept.
     additionalProperties: true
     example:
       docker_image: "gameap/srcds:latest"

@@ -535,6 +535,114 @@
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
 
+/api/servers/{id}/suspend:
+  post:
+    tags:
+      - Servers
+    summary: Suspend server
+    description: |
+      Suspends a server (Admin only): blocks it and queues a stop task. See
+      "Suspended servers" in the API description for what a suspension refuses.
+
+      Suspending a suspended server keeps the original date, replaces the reason
+      when one is given, and stops the server again if it is known to be running.
+    operationId: suspendServer
+    x-codeSamples:
+      - lang: cURL
+        label: CLI
+        source: |
+          curl -s -X POST "https://demo.gameap.com/api/servers/6/suspend" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer YOUR_API_KEY" \
+            -d '{"reason": "Invoice #1042 is overdue"}' \
+            -w "\nHTTP Status: %{http_code}\n"
+    parameters:
+      - $ref: '../parameters/PathServerId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/requests/SuspendServerRequest.yaml'
+    responses:
+      '200':
+        description: Server suspended
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/responses/SuspendServerResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '422':
+        description: Validation error
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
+/api/servers/{id}/unsuspend:
+  post:
+    tags:
+      - Servers
+    summary: Unsuspend server
+    description: |
+      Lifts the suspension of a server (Admin only). Nothing is started: call
+      `start` when the server should run again. Unsuspending a server that is
+      not suspended changes nothing.
+    operationId: unsuspendServer
+    x-codeSamples:
+      - lang: cURL
+        label: CLI
+        source: |
+          curl -s -X POST "https://demo.gameap.com/api/servers/6/unsuspend" \
+            -H "Authorization: Bearer YOUR_API_KEY" \
+            -w "\nHTTP Status: %{http_code}\n"
+    parameters:
+      - $ref: '../parameters/PathServerId.yaml'
+      - $ref: '../parameters/HeaderIdempotencyKey.yaml'
+    responses:
+      '200':
+        description: Suspension lifted
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/SuccessResponse.yaml'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: Forbidden
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '404':
+        description: Server not found
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+
 /api/servers/{server}/status:
   get:
     tags:

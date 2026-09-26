@@ -2,6 +2,9 @@ package putserver
 
 import (
 	"fmt"
+	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/pkg/api"
@@ -41,28 +44,32 @@ var (
 	ErrInvalidPublicIP = api.NewValidationError(
 		"metadata.public_ip is not a valid IP address or hostname",
 	)
+	ErrSuspendReasonTooLong = api.NewValidationError(
+		fmt.Sprintf("suspend_reason must not exceed %d characters", domain.MaxSuspendReasonLength),
+	)
 )
 
 type updateServerInput struct {
-	Enabled      *flexible.Bool    `json:"enabled,omitempty"`
-	Installed    *flexible.Int     `json:"installed,omitempty"`
-	Blocked      *flexible.Bool    `json:"blocked,omitempty"`
-	Name         string            `json:"name"`
-	GameID       string            `json:"game_id"`
-	DSID         flexible.Int      `json:"ds_id"`
-	GameModID    flexible.Int      `json:"game_mod_id"`
-	ServerIP     string            `json:"server_ip"`
-	ServerPort   flexible.Int      `json:"server_port"`
-	QueryPort    *flexible.Int     `json:"query_port,omitempty"`
-	RconPort     *flexible.Int     `json:"rcon_port,omitempty"`
-	Rcon         *string           `json:"rcon,omitempty"`
-	StartCommand *string           `json:"start_command,omitempty"`
-	Dir          *string           `json:"dir,omitempty"`
-	SuUser       *string           `json:"su_user,omitempty"`
-	Vars         map[string]string `json:"vars,omitempty"`
-	Metadata     domain.Metadata   `json:"metadata,omitempty"`
-	CPULimit     *flexible.Int     `json:"cpu_limit,omitempty"`
-	RAMLimit     *flexible.Int     `json:"ram_limit,omitempty"`
+	Enabled       *flexible.Bool    `json:"enabled,omitempty"`
+	Installed     *flexible.Int     `json:"installed,omitempty"`
+	Blocked       *flexible.Bool    `json:"blocked,omitempty"`
+	SuspendReason *string           `json:"suspend_reason,omitempty"`
+	Name          string            `json:"name"`
+	GameID        string            `json:"game_id"`
+	DSID          flexible.Int      `json:"ds_id"`
+	GameModID     flexible.Int      `json:"game_mod_id"`
+	ServerIP      string            `json:"server_ip"`
+	ServerPort    flexible.Int      `json:"server_port"`
+	QueryPort     *flexible.Int     `json:"query_port,omitempty"`
+	RconPort      *flexible.Int     `json:"rcon_port,omitempty"`
+	Rcon          *string           `json:"rcon,omitempty"`
+	StartCommand  *string           `json:"start_command,omitempty"`
+	Dir           *string           `json:"dir,omitempty"`
+	SuUser        *string           `json:"su_user,omitempty"`
+	Vars          map[string]string `json:"vars,omitempty"`
+	Metadata      domain.Metadata   `json:"metadata,omitempty"`
+	CPULimit      *flexible.Int     `json:"cpu_limit,omitempty"`
+	RAMLimit      *flexible.Int     `json:"ram_limit,omitempty"`
 }
 
 func (in *updateServerInput) Validate() error {
@@ -127,10 +134,24 @@ func (in *updateServerInput) Validate() error {
 		return ErrInvalidPublicIP
 	}
 
+	if reason := in.suspendReason(); reason != nil && utf8.RuneCountInString(*reason) > domain.MaxSuspendReasonLength {
+		return ErrSuspendReasonTooLong
+	}
+
 	return nil
 }
 
-func (in *updateServerInput) Apply(server *domain.Server) error {
+func (in *updateServerInput) suspendReason() *string {
+	if in.SuspendReason == nil {
+		return nil
+	}
+
+	return new(strings.TrimSpace(*in.SuspendReason))
+}
+
+// Apply copies the input onto the server. now dates a suspension the update
+// starts.
+func (in *updateServerInput) Apply(server *domain.Server, now time.Time) error {
 	server.Name = in.Name
 
 	if in.Enabled != nil {
@@ -139,10 +160,6 @@ func (in *updateServerInput) Apply(server *domain.Server) error {
 
 	if in.Installed != nil {
 		server.Installed = domain.ServerInstalledStatus(in.Installed.Int())
-	}
-
-	if in.Blocked != nil {
-		server.Blocked = in.Blocked.Bool()
 	}
 
 	server.GameID = in.GameID
@@ -182,7 +199,7 @@ func (in *updateServerInput) Apply(server *domain.Server) error {
 	}
 
 	if in.Metadata != nil {
-		server.Metadata = in.Metadata
+		server.ReplaceMetadata(in.Metadata)
 	}
 
 	if in.CPULimit != nil {
@@ -195,5 +212,21 @@ func (in *updateServerInput) Apply(server *domain.Server) error {
 		server.RAMLimit = &ramLimit
 	}
 
+	in.applySuspension(server, now)
+
 	return nil
+}
+
+// applySuspension goes through the domain rather than setting Blocked, so that
+// the suspension gets its record. A reason alone updates a suspended server
+// and means nothing for one that is not.
+func (in *updateServerInput) applySuspension(server *domain.Server, now time.Time) {
+	switch {
+	case in.Blocked != nil && in.Blocked.Bool():
+		server.Suspend(now, in.suspendReason())
+	case in.Blocked != nil:
+		server.Unsuspend()
+	case in.SuspendReason != nil && server.IsSuspended():
+		server.Suspend(now, in.suspendReason())
+	}
 }

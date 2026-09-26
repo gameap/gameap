@@ -25,6 +25,8 @@ PaginatedResponse:
 # Domain models
 Server:
   $ref: './Server.yaml'
+ServerSuspension:
+  $ref: './ServerSuspension.yaml'
 User:
   $ref: './User.yaml'
 Profile:
@@ -97,6 +99,8 @@ CreateServerRequest:
   $ref: './requests/CreateServerRequest.yaml'
 UpdateServerRequest:
   $ref: './requests/UpdateServerRequest.yaml'
+SuspendServerRequest:
+  $ref: './requests/SuspendServerRequest.yaml'
 CreateUserRequest:
   $ref: './requests/CreateUserRequest.yaml'
 UpdateUserRequest:
@@ -151,6 +155,8 @@ TwoFactorRecoveryCodesResponse:
   $ref: './responses/TwoFactorRecoveryCodesResponse.yaml'
 CreateServerResponse:
   $ref: './responses/CreateServerResponse.yaml'
+SuspendServerResponse:
+  $ref: './responses/SuspendServerResponse.yaml'
 ServerStatusResponse:
   $ref: './responses/ServerStatusResponse.yaml'
 ServerQueryResponse:

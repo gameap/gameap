@@ -79,6 +79,7 @@ import (
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/serverports"
+	"github.com/gameap/gameap/internal/services/serversuspension"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskreaper"
@@ -180,6 +181,7 @@ type Container struct {
 	serverTaskDispatcher *servertaskdispatcher.Dispatcher
 	serverConfigPusher   *serverconfigpush.Pusher
 	serverPorts          *serverports.Service
+	serverSuspension     *serversuspension.Service
 	globalAPIService     *services.GlobalAPIService
 	releasesService      *releases.Service
 	cdnGamesService      *services.CDNGamesService
@@ -1052,6 +1054,21 @@ func (c *Container) ServerPorts() *serverports.Service {
 	}
 
 	return c.serverPorts
+}
+
+func (c *Container) ServerSuspension() *serversuspension.Service {
+	if c.serverSuspension == nil {
+		c.serverSuspension = serversuspension.NewService(
+			c.ServerRepository(),
+			c.DaemonTaskRepository(),
+			c.ServerControlService(),
+			c.ServerConfigPusher(),
+			c.AuditLogger(),
+			slog.Default(),
+		)
+	}
+
+	return c.serverSuspension
 }
 
 func (c *Container) ServerConfigPusher() *serverconfigpush.Pusher {
@@ -2547,7 +2564,9 @@ func (c *Container) corePluginLibraryFactories(guard *hostlibrary.Guard) []pkgpl
 		// Per-plugin: writes are gated on manage_servers / node_commands,
 		// rate limited and audited with the plugin as the actor.
 		hostlibrary.NewServersHostLibraryFactory(c.ServerRepository(), guard),
-		hostlibrary.NewDaemonTasksHostLibraryFactory(c.DaemonTaskRepository(), c.TaskDispatcher(), guard),
+		hostlibrary.NewDaemonTasksHostLibraryFactory(
+			c.DaemonTaskRepository(), c.ServerRepository(), c.TaskDispatcher(), guard,
+		),
 		hostlibrary.NewServerSettingsHostLibraryFactory(c.ServerSettingRepository(), guard),
 		hostlibrary.NewServerControlHostLibraryFactory(
 			c.ServerRepository(),

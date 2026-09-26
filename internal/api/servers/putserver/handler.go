@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gameap/gameap/internal/api/base"
 	settingsbase "github.com/gameap/gameap/internal/api/serversettings/base"
@@ -34,6 +35,7 @@ type Handler struct {
 	gameModRepo      repositories.GameModRepository
 	serverPorts      *serverports.Service
 	configPusher     *serverconfigpush.Pusher
+	suspension       suspensionCompleter
 	pluginDispatcher PluginDispatcher
 	rbac             base.RBAC
 	responder        base.Responder
@@ -46,6 +48,7 @@ func NewHandler(
 	gameModRepo repositories.GameModRepository,
 	serverPorts *serverports.Service,
 	configPusher *serverconfigpush.Pusher,
+	suspension suspensionCompleter,
 	pluginDispatcher PluginDispatcher,
 	rbac base.RBAC,
 	responder base.Responder,
@@ -57,6 +60,7 @@ func NewHandler(
 		gameModRepo:      gameModRepo,
 		serverPorts:      serverPorts,
 		configPusher:     configPusher,
+		suspension:       suspension,
 		pluginDispatcher: pluginDispatcher,
 		rbac:             rbac,
 		responder:        responder,
@@ -93,6 +97,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	server := &servers[0]
+	wasSuspended := server.IsSuspended()
 
 	input := &updateServerInput{}
 	err = json.NewDecoder(r.Body).Decode(&input)
@@ -119,7 +124,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = input.Apply(server)
+	err = input.Apply(server, time.Now())
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to apply input"))
 
@@ -141,6 +146,14 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if h.configPusher != nil {
 		h.configPusher.PushServerConfig(ctx, server.ID)
+	}
+
+	// Integrations suspend servers through this update, so it stops a newly
+	// suspended server just as the suspend operation does. A stop that cannot
+	// be queued does not fail the update: the suspension is saved and the
+	// daemon refuses starts either way.
+	if h.suspension != nil {
+		h.suspension.AfterUpdate(ctx, server, wasSuspended)
 	}
 
 	h.responder.Write(ctx, rw, base.Success)

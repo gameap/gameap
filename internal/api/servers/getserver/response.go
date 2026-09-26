@@ -3,8 +3,13 @@ package getserver
 import (
 	"time"
 
+	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/domain"
 )
+
+// suspension keeps the field type short enough not to realign the structs
+// around it.
+type suspension = serversbase.SuspensionResponse
 
 type adminGameResponse struct {
 	Code                    string  `json:"code"`
@@ -33,6 +38,7 @@ type adminServerResponse struct {
 	Enabled          bool               `json:"enabled"`
 	Installed        int                `json:"installed"`
 	Blocked          bool               `json:"blocked"`
+	Suspension       *suspension        `json:"suspension"`
 	Name             string             `json:"name"`
 	GameID           string             `json:"game_id"`
 	DSID             uint               `json:"ds_id"`
@@ -176,6 +182,7 @@ func newAdminServerResponseFromServer(
 		Enabled:          s.Enabled,
 		Installed:        int(s.Installed),
 		Blocked:          s.Blocked,
+		Suspension:       serversbase.NewSuspensionResponse(s),
 		Name:             s.Name,
 		GameID:           s.GameID,
 		DSID:             s.DSID,
@@ -202,7 +209,7 @@ func newAdminServerResponseFromServer(
 		ProcessActive:    s.ProcessActive,
 		Aliases:          buildAliases(s, gameMod, settings),
 		Vars:             s.Vars,
-		Metadata:         s.Metadata,
+		Metadata:         s.PublicMetadata(),
 		CreatedAt:        s.CreatedAt,
 		UpdatedAt:        s.UpdatedAt,
 	}
@@ -220,6 +227,7 @@ type userServerResponse struct {
 	Enabled          bool              `json:"enabled"`
 	Installed        int               `json:"installed"`
 	Blocked          bool              `json:"blocked"`
+	Suspension       *suspension       `json:"suspension"`
 	Name             string            `json:"name"`
 	GameID           string            `json:"game_id"`
 	GameModID        uint              `json:"game_mod_id"`
@@ -240,6 +248,7 @@ func newUserServerResponseFromServer(s *domain.Server, game *domain.Game) userSe
 		Enabled:          s.Enabled,
 		Installed:        int(s.Installed),
 		Blocked:          s.Blocked,
+		Suspension:       serversbase.NewSuspensionResponse(s),
 		Name:             s.Name,
 		GameID:           s.GameID,
 		GameModID:        s.GameModID,

@@ -8,9 +8,11 @@ import (
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/servercontrol"
 	pkgplugin "github.com/gameap/gameap/pkg/plugin"
 	"github.com/gameap/gameap/pkg/plugin/sdk/daemontasks"
 	"github.com/gameap/gameap/pkg/proto"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/tetratelabs/wazero"
 )
@@ -62,17 +64,20 @@ type TaskDispatcher interface {
 // arbitrary command on the node), rate limited and audited.
 type DaemonTasksServiceImpl struct {
 	daemonTaskRepo repositories.DaemonTaskRepository
+	serverRepo     repositories.ServerRepository
 	taskDispatcher TaskDispatcher
 	guard          *PluginGuard
 }
 
 func NewDaemonTasksService(
 	daemonTaskRepo repositories.DaemonTaskRepository,
+	serverRepo repositories.ServerRepository,
 	taskDispatcher TaskDispatcher,
 	guard *PluginGuard,
 ) *DaemonTasksServiceImpl {
 	return &DaemonTasksServiceImpl{
 		daemonTaskRepo: daemonTaskRepo,
+		serverRepo:     serverRepo,
 		taskDispatcher: taskDispatcher,
 		guard:          guard,
 	}
@@ -160,10 +165,16 @@ func (s *DaemonTasksServiceImpl) CreateDaemonTask(
 	}
 
 	var err error
-	if s.taskDispatcher != nil {
-		err = s.taskDispatcher.Dispatch(ctx, task)
-	} else {
-		err = s.daemonTaskRepo.Save(ctx, task)
+	if task.ServerID != nil && taskType.RefusedWhileSuspended() {
+		err = s.checkNotSuspended(ctx, *task.ServerID)
+	}
+
+	if err == nil {
+		if s.taskDispatcher != nil {
+			err = s.taskDispatcher.Dispatch(ctx, task)
+		} else {
+			err = s.daemonTaskRepo.Save(ctx, task)
+		}
 	}
 
 	attrs := []slog.Attr{slog.String("task_type", string(taskType))}
@@ -187,6 +198,22 @@ func (s *DaemonTasksServiceImpl) CreateDaemonTask(
 		Success: true,
 		TaskId:  uint64(task.ID),
 	}, nil
+}
+
+// checkNotSuspended refuses a raw task that would run a suspended server, as
+// the server control operations do. A server the panel does not know is left
+// to the daemon, as before.
+func (s *DaemonTasksServiceImpl) checkNotSuspended(ctx context.Context, serverID uint) error {
+	servers, err := s.serverRepo.Find(ctx, filters.FindServerByIDs(serverID), nil, nil)
+	if err != nil {
+		return errors.WithMessage(err, "failed to find server")
+	}
+
+	if len(servers) > 0 && servers[0].IsSuspended() {
+		return servercontrol.ErrServerBlocked
+	}
+
+	return nil
 }
 
 func convertProtoStatusesToDomain(statuses []proto.DaemonTaskStatus) []domain.DaemonTaskStatus {
@@ -244,17 +271,20 @@ func (l *DaemonTasksHostLibrary) Instantiate(ctx context.Context, r wazero.Runti
 // to the plugin's guard.
 type DaemonTasksHostLibraryFactory struct {
 	daemonTaskRepo repositories.DaemonTaskRepository
+	serverRepo     repositories.ServerRepository
 	taskDispatcher TaskDispatcher
 	guard          *Guard
 }
 
 func NewDaemonTasksHostLibraryFactory(
 	daemonTaskRepo repositories.DaemonTaskRepository,
+	serverRepo repositories.ServerRepository,
 	taskDispatcher TaskDispatcher,
 	guard *Guard,
 ) *DaemonTasksHostLibraryFactory {
 	return &DaemonTasksHostLibraryFactory{
 		daemonTaskRepo: daemonTaskRepo,
+		serverRepo:     serverRepo,
 		taskDispatcher: taskDispatcher,
 		guard:          guard,
 	}
@@ -262,6 +292,6 @@ func NewDaemonTasksHostLibraryFactory(
 
 func (f *DaemonTasksHostLibraryFactory) Create(pluginID uint64) pkgplugin.HostLibrary {
 	return &DaemonTasksHostLibrary{
-		impl: NewDaemonTasksService(f.daemonTaskRepo, f.taskDispatcher, f.guard.For(pluginID)),
+		impl: NewDaemonTasksService(f.daemonTaskRepo, f.serverRepo, f.taskDispatcher, f.guard.For(pluginID)),
 	}
 }

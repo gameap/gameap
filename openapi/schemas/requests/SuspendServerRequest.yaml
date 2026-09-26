@@ -1,0 +1,11 @@
+type: object
+description: Suspend server request. The body may be omitted.
+properties:
+  reason:
+    type: string
+    description: >-
+      Why the server is suspended, shown to administrators and to the server's owner.
+      Omit it to keep the reason of a server that is already suspended; an empty string
+      clears it.
+    maxLength: 255
+    example: "Invoice #1042 is overdue"

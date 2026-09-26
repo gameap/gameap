@@ -60,7 +60,7 @@
               exit(1);
           }
 
-          echo "Task ID: {$result['task_id']}\n";
+          echo "Task ID: {$result['gdaemonTaskId']}\n";
 
       - lang: Go
         source: |
@@ -114,7 +114,7 @@
                   log.Fatalf("Failed to parse JSON: %v", err)
               }
 
-              fmt.Printf("Task ID: %.0f\n", result["task_id"])
+              fmt.Printf("Task ID: %.0f\n", result["gdaemonTaskId"])
           }
 
       - lang: NodeJS
@@ -137,7 +137,7 @@
           }
 
           const result = await response.json();
-          console.log('Task ID:', result.task_id);
+          console.log('Task ID:', result.gdaemonTaskId);
     parameters:
       - name: server
         in: path
@@ -154,7 +154,7 @@
             schema:
               type: object
               properties:
-                task_id:
+                gdaemonTaskId:
                   type: integer
                   description: Daemon task ID
                   example: 1
@@ -233,7 +233,7 @@
               exit(1);
           }
 
-          echo "Task ID: {$result['task_id']}\n";
+          echo "Task ID: {$result['gdaemonTaskId']}\n";
 
       - lang: Go
         source: |
@@ -287,7 +287,7 @@
                   log.Fatalf("Failed to parse JSON: %v", err)
               }
 
-              fmt.Printf("Task ID: %.0f\n", result["task_id"])
+              fmt.Printf("Task ID: %.0f\n", result["gdaemonTaskId"])
           }
 
       - lang: NodeJS
@@ -310,7 +310,7 @@
           }
 
           const result = await response.json();
-          console.log('Task ID:', result.task_id);
+          console.log('Task ID:', result.gdaemonTaskId);
     parameters:
       - name: server
         in: path
@@ -327,7 +327,7 @@
             schema:
               type: object
               properties:
-                task_id:
+                gdaemonTaskId:
                   type: integer
                   description: Daemon task ID
       '401':
@@ -405,7 +405,7 @@
               exit(1);
           }
 
-          echo "Task ID: {$result['task_id']}\n";
+          echo "Task ID: {$result['gdaemonTaskId']}\n";
 
       - lang: Go
         source: |
@@ -459,7 +459,7 @@
                   log.Fatalf("Failed to parse JSON: %v", err)
               }
 
-              fmt.Printf("Task ID: %.0f\n", result["task_id"])
+              fmt.Printf("Task ID: %.0f\n", result["gdaemonTaskId"])
           }
 
       - lang: NodeJS
@@ -482,7 +482,7 @@
           }
 
           const result = await response.json();
-          console.log('Task ID:', result.task_id);
+          console.log('Task ID:', result.gdaemonTaskId);
     parameters:
       - name: server
         in: path
@@ -499,7 +499,7 @@
             schema:
               type: object
               properties:
-                task_id:
+                gdaemonTaskId:
                   type: integer
                   description: Daemon task ID
       '401':
@@ -538,7 +538,7 @@
             schema:
               type: object
               properties:
-                task_id:
+                gdaemonTaskId:
                   type: integer
                   description: Daemon task ID
       '401':
@@ -577,7 +577,7 @@
             schema:
               type: object
               properties:
-                task_id:
+                gdaemonTaskId:
                   type: integer
                   description: Daemon task ID
       '401':
@@ -616,7 +616,7 @@
             schema:
               type: object
               properties:
-                task_id:
+                gdaemonTaskId:
                   type: integer
                   description: Daemon task ID
       '401':

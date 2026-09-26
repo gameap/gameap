@@ -4,7 +4,7 @@
   import {trans} from "@/i18n/i18n";
   import {useAuthStore} from "@/store/auth";
   import axios from "@/config/axios";
-  import { GIcon } from '@gameap/ui';
+  import { GIcon, GModal } from '@gameap/ui';
   import GButton from "@/components/GButton.vue";
   import { useTaskWebSocket } from '@/composables/useTaskWebSocket'
   import { createIdempotentRequest } from '@/utils/idempotency'
@@ -61,7 +61,21 @@
       reinstall: {
           title: trans('servers.reinstalling'),
           checkServerStatusAfterTask: false,
-      }
+      },
+      // Suspending stops the server, so it is followed like a stop. The answer
+      // has no task when there was nothing to stop.
+      suspend: {
+          title: trans('servers.suspending'),
+          checkServerStatusAfterTask: true,
+          expectedStatus: false,
+          successMessage: trans('servers.suspend_success_msg'),
+          failMessage: trans('servers.stop_fail_msg'),
+          withReason: true,
+      },
+      unsuspend: {
+          confirmMessage: trans('servers.unsuspend_confirm'),
+          successMessage: trans('servers.unsuspend_success_msg'),
+      },
   }
 
   const showProgressbar = ref(false);
@@ -73,6 +87,8 @@
   const submitting = ref(false);
   const showUncertain = ref(false);
   const uncertainCommand = ref(null);
+  const showReasonPrompt = ref(false);
+  const reason = ref('');
 
   const props = defineProps([
       'button',
@@ -146,7 +162,20 @@
           return
       }
 
-      confirm(trans('main.confirm_message'), () => runCommand(command));
+      if (commandConfiguration[command]?.withReason) {
+          reason.value = ''
+          showReasonPrompt.value = true
+          return
+      }
+
+      confirm(commandConfiguration[command]?.confirmMessage ?? trans('main.confirm_message'), () => runCommand(command));
+  }
+
+  function submitReason() {
+      showReasonPrompt.value = false
+
+      const trimmed = reason.value.trim()
+      runCommand(props.command, trimmed ? {reason: trimmed} : undefined)
   }
 
   const commandRequests = {}
@@ -168,7 +197,7 @@
       runCommand(uncertainCommand.value)
   }
 
-  function runCommand(command) {
+  function runCommand(command, data) {
       if (submitting.value) {
           return
       }
@@ -180,7 +209,7 @@
       }
 
       const pending = commandRequest(command)
-      const request = pending.prepare()
+      const request = pending.prepare(data)
       submitting.value = true
 
       axios.post('/api/servers/' + props.serverId + '/' + command, request.data, {headers: request.headers})
@@ -189,6 +218,11 @@
               uncertainCommand.value = null
 
               const taskId = response.data.gdaemonTaskId;
+
+              if (!taskId) {
+                  taskSuccess(commandConfiguration[command]?.successMessage)
+                  return
+              }
 
               showProgressbar.value = true
               progressModalTitle.value = commandConfiguration[command].title
@@ -218,8 +252,13 @@
       }
   }
 
+  // The block lives in the progress modal, which a command answered without a
+  // task never opens.
   function showAdditionalInfo(text) {
       const additionalInfo = document.querySelector('#additional-info');
+      if (!additionalInfo) {
+          return;
+      }
 
       additionalInfo.innerHTML = text;
       additionalInfo.style.display = 'block';
@@ -227,6 +266,10 @@
 
   function hideAdditionalInfo() {
       const additionalInfo = document.querySelector('#additional-info');
+      if (!additionalInfo) {
+          return;
+      }
+
       additionalInfo.style.display = 'none';
   }
 
@@ -336,6 +379,30 @@
 </script>
 
 <template>
+    <GModal v-model:show="showReasonPrompt" :style="bodyStyle" :title="text">
+      <p class="mb-3">{{ trans('servers.suspend_confirm') }}</p>
+      <n-form-item :label="trans('servers.suspend_reason')" :show-feedback="false">
+        <n-input
+            v-model:value="reason"
+            type="text"
+            :maxlength="255"
+            show-count
+            :placeholder="trans('servers.suspend_reason_placeholder')"
+            data-testid="server-suspend-reason"
+        />
+      </n-form-item>
+
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <GButton color="white" @click="showReasonPrompt = false">{{ trans('main.close') }}</GButton>
+          <GButton color="red" data-testid="server-suspend-submit" @click="submitReason">
+            <GIcon :name="icon" class="mr-1" />
+            {{ text }}
+          </GButton>
+        </div>
+      </template>
+    </GModal>
+
     <n-modal v-model:show="showUncertain" preset="card" :style="bodyStyle" :title="text">
       <IdempotencyNotice :check-url="'/servers/' + serverId" @reset="resetRequest" />
       <GButton color="green" class="mt-3" data-testid="server-command-retry" @click="retryRequest">

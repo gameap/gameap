@@ -26,8 +26,12 @@ properties:
     $ref: './common/ServerInstalledStatus.yaml'
   blocked:
     type: boolean
-    description: Whether server is blocked
+    description: >-
+      Whether the server is suspended: stopped, and refused start, restart, update, install
+      and reinstall. See "Suspended servers" in the API description.
     example: false
+  suspension:
+    $ref: './ServerSuspension.yaml'
   name:
     type: string
     description: Server name
@@ -169,7 +173,9 @@ properties:
       - object
       - "null"
     additionalProperties: true
-    description: Server metadata (arbitrary key-value pairs)
+    description: >-
+      Server metadata (arbitrary key-value pairs). The panel's own `suspension` key is
+      returned as the `suspension` field instead.
     example:
       docker_image: "gameap/srcds:latest"
   created_at:

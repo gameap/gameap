@@ -1,9 +1,20 @@
 <template>
   <GBreadcrumbs :items="breadcrumbs"></GBreadcrumbs>
 
-  <InactiveServer v-if="!loading && (accessBlocked || !isServerEnabled)" :server="server" :access-blocked="accessBlocked"></InactiveServer>
+  <InactiveServer
+      v-if="!loading && (accessBlocked || !isServerEnabled)"
+      :server="server"
+      :access-blocked="accessBlocked"
+      :suspension="suspension"
+      :server-id="isAdmin ? serverId : null"
+  ></InactiveServer>
+  <ServerSuspendedAlert
+      v-if="!loading && !accessBlocked && isServerEnabled && server.blocked"
+      :suspension="suspension"
+      :server-id="serverId"
+  ></ServerSuspendedAlert>
   <n-tabs
-    v-else
+    v-if="loading || (!accessBlocked && isServerEnabled)"
     v-model:value="activeTab"
     type="line"
     :class="(!isServerEnabled) ? 'hidden': ''"
@@ -24,7 +35,7 @@
             <div id="serverControl" class="flex flex-wrap items-center">
               <ServerControlButton
                   command="start"
-                  v-if="serverStore.canStart && !serverOnline"
+                  v-if="serverStore.canStart && !serverOnline && !server.blocked"
                   :server-id="serverId"
                   button="m-1"
                   button-color="green"
@@ -44,7 +55,7 @@
 
               <ServerControlButton
                   command="restart"
-                  v-if="serverStore.canRestart"
+                  v-if="serverStore.canRestart && !server.blocked"
                   :server-id="serverId"
                   button="m-1"
                   button-color="orange"
@@ -54,7 +65,7 @@
 
               <ServerControlButton
                   command="update"
-                  v-if="serverStore.canUpdate"
+                  v-if="serverStore.canUpdate && !server.blocked"
                   :server-id="serverId"
                   button="m-1"
                   button-color="black"
@@ -64,12 +75,22 @@
 
               <ServerControlButton
                   command="reinstall"
-                  v-if="serverStore.canUpdate"
+                  v-if="serverStore.canUpdate && !server.blocked"
                   :server-id="serverId"
                   button="m-1"
                   button-color="black"
                   icon="rcon"
                   :text="trans('servers.reinstall')"
+              ></ServerControlButton>
+
+              <ServerControlButton
+                  command="suspend"
+                  v-if="isAdmin && !server.blocked"
+                  :server-id="serverId"
+                  button="m-1"
+                  button-color="black"
+                  icon="lock"
+                  :text="trans('servers.suspend')"
               ></ServerControlButton>
 
               <PluginSlot
@@ -316,11 +337,14 @@ import {filterSlotComponents} from "@/plugins/permissions"
 import PluginSlot from "@/plugins/components/PluginSlot.vue"
 import {trans, pageLanguage} from "@/i18n/i18n";
 import InactiveServer from "./InactiveServer.vue";
+import ServerSuspendedAlert from "@/components/servers/ServerSuspendedAlert.vue";
+import {useServerListStore} from "@/store/serverList"
 import {errorNotification} from "@/parts/dialogs";
 
 const route = useRoute()
 const router = useRouter()
 const serverStore = useServerStore()
+const serverListStore = useServerListStore()
 const serverRconStore = useServerRconStore()
 const authStore = useAuthStore()
 const pluginsStore = usePluginsStore()
@@ -358,8 +382,10 @@ onMounted(() => {
       document.title = server.value.name
     }
 
+    // An administrator keeps the whole page of a suspended server: only what
+    // would run it again is refused.
     isServerEnabled.value = server.value?.enabled
-        && !server.value?.blocked
+        && (!server.value?.blocked || isAdmin.value)
         && server.value?.installed === 1
 
     if (isServerEnabled.value) {
@@ -397,6 +423,16 @@ const privileges = computed(() => {
 
 const serverOnline = computed(() => {
   return Boolean(server.value?.online)
+})
+
+// The owner of a suspended server gets no server card (403), but the servers
+// list they came from carries when and why.
+const suspension = computed(() => {
+  if (!accessBlocked.value) {
+    return server.value?.suspension ?? null
+  }
+
+  return serverListStore.servers.find((item) => item.id === serverId.value)?.suspension ?? null
 })
 
 const canShowStats = computed(() => {

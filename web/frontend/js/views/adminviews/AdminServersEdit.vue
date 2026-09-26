@@ -49,6 +49,24 @@
                 <GSwitch
                     v-model:value="serverForm.blocked"
                     :rail-style="({checked}) => { return checked ? {background: readThemeVar('--gameap-red-700', '#b91c1c')} : {}}"
+                    data-testid="server-blocked-switch"
+                />
+              </n-form-item>
+            </div>
+
+            <div v-if="serverForm.blocked" data-testid="server-suspension-fields">
+              <p class="text-xs text-stone-500 dark:text-stone-400 mb-2">
+                <span v-for="line in suspensionLines" :key="line" class="block">{{ line }}</span>
+                <span class="block">{{ trans('servers.d_blocked') }}</span>
+              </p>
+              <n-form-item :label="trans('servers.suspend_reason')" path="suspendReason">
+                <n-input
+                    v-model:value="serverForm.suspendReason"
+                    type="text"
+                    :maxlength="255"
+                    show-count
+                    :placeholder="trans('servers.suspend_reason_placeholder')"
+                    data-testid="server-suspend-reason"
                 />
               </n-form-item>
             </div>
@@ -305,7 +323,8 @@ import CpuInput from "@/components/input/CpuInput.vue"
 import {useRoute, useRouter} from "vue-router"
 import {storeToRefs} from "pinia"
 import { capitalize } from "lodash-es"
-import {errorNotification, notification} from "@/parts/dialogs";
+import {confirm, errorNotification, notification} from "@/parts/dialogs";
+import {suspensionDetails} from "@/parts/suspension";
 import {useServerStore} from "@/store/server"
 import {usePluginsStore} from "@/store/plugins"
 import PluginSlot from "@/plugins/components/PluginSlot.vue"
@@ -446,6 +465,7 @@ const loading = useInitialLoad(async () => {
   serverForm.value.status = server.value.installed
   serverForm.value.enabled = server.value.enabled
   serverForm.value.blocked = server.value.blocked
+  serverForm.value.suspendReason = server.value.suspension?.reason ?? ''
 
   serverForm.value.rcon = server.value.rcon
   serverForm.value.dir = server.value.dir
@@ -562,6 +582,14 @@ const rules = {
   },
 }
 
+// Only what was known when the form was opened is shown: a date the form
+// itself is about to set would be misleading.
+const suspensionLines = computed(() => {
+  return server.value?.blocked ? suspensionDetails({since: server.value.suspension?.since}) : []
+})
+
+const suspending = computed(() => serverForm.value.blocked && !server.value?.blocked)
+
 const onClickSave = () => {
   if (uncertain.value) {
     saveServer()
@@ -575,10 +603,33 @@ const onClickSave = () => {
         content: "Please check the form.",
         type: "error",
       })
+    } else if (suspending.value) {
+      confirm(trans('servers.suspend_confirm'), saveServer)
     } else {
       saveServer()
     }
   });
+}
+
+// The suspension goes into the update only when it was changed in the form. A
+// form opened before a billing system suspended the server would otherwise lift
+// that suspension on save.
+const suspensionChanges = () => {
+  const blockedChanged = serverForm.value.blocked !== server.value.blocked
+  const reason = (serverForm.value.suspendReason ?? '').trim()
+  const reasonChanged = reason !== (server.value.suspension?.reason ?? '')
+
+  const changes = {}
+
+  if (blockedChanged) {
+    changes.blocked = serverForm.value.blocked
+  }
+
+  if (serverForm.value.blocked && (blockedChanged || reasonChanged)) {
+    changes.suspend_reason = reason
+  }
+
+  return changes
 }
 
 const saveServer = () => {
@@ -607,7 +658,7 @@ const saveServer = () => {
     game_id: serverForm.value.game,
     game_mod_id: serverForm.value.gameMod,
     enabled: serverForm.value.enabled,
-    blocked: serverForm.value.blocked,
+    ...suspensionChanges(),
     installed: serverForm.value.status,
     rcon: serverForm.value.rcon,
     ds_id: server.value.ds_id,

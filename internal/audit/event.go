@@ -67,6 +67,8 @@ const (
 	EventUserRolesAssign      EventType = "user.roles.assign"
 	EventUserServerAttach     EventType = "user.server.attach"
 	EventUserServerDetach     EventType = "user.server.detach"
+	EventServerSuspend        EventType = "server.suspend"
+	EventServerUnsuspend      EventType = "server.unsuspend"
 	EventPATCreate            EventType = "token.pat.create"
 	EventPATRevoke            EventType = "token.pat.revoke"
 	EventDaemonTokenIssue     EventType = "token.daemon.issue"

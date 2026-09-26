@@ -1197,7 +1197,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, nil, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(serverRepo, nodeRepo, gameRepo, gameModRepo)
@@ -1241,7 +1241,7 @@ func TestHandler_ServerUpdatePersistence(t *testing.T) {
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, nil, responder)
 
 	require.NoError(t, nodeRepo.Save(context.Background(), &domain.Node{ID: 2, Name: "node2"}))
 	require.NoError(t, gameRepo.Save(context.Background(), &domain.Game{Code: "valve"}))
@@ -1330,7 +1330,7 @@ func TestHandler_ServerUpdatePersistence_WithVarsAndLimits(t *testing.T) {
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, nil, responder)
 
 	require.NoError(t, gameRepo.Save(context.Background(), &domain.Game{Code: "valve"}))
 	require.NoError(t, gameModRepo.Save(context.Background(), &domain.GameMod{ID: 2, GameCode: "valve"}))
@@ -1430,7 +1430,7 @@ func TestHandler_ServerUpdatePersistence_WithMetadata(t *testing.T) {
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, nil, responder)
 
 			require.NoError(t, gameRepo.Save(context.Background(), &domain.Game{Code: "cstrike"}))
 			require.NoError(t, gameModRepo.Save(context.Background(), &domain.GameMod{ID: 1, GameCode: "cstrike"}))
@@ -1493,7 +1493,7 @@ func TestHandler_InvalidServerID(t *testing.T) {
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, nil, responder)
 
 	requestBody := `{
 		"name": "Test Server",
@@ -1594,7 +1594,7 @@ func TestHandler_PrepareUpdateRepoErrors(t *testing.T) {
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo, gameRepo, gameModRepo := tt.buildRepos()
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, nil, responder)
 
 			require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{
 				ID:         1,
@@ -1763,7 +1763,7 @@ func TestHandler_PortConflicts(t *testing.T) {
 			serverRepo := inmemory.NewServerRepository()
 			handler := NewHandler(
 				serverRepo, inmemory.NewNodeRepository(), inmemory.NewGameRepository(), inmemory.NewGameModRepository(),
-				newServerPorts(serverRepo), nil, nil, nil, api.NewResponder(),
+				newServerPorts(serverRepo), nil, nil, nil, nil, api.NewResponder(),
 			)
 
 			require.NoError(t, serverRepo.Save(ctx, &domain.Server{

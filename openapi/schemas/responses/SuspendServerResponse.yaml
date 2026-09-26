@@ -1,0 +1,14 @@
+type: object
+description: Suspend server response
+properties:
+  gdaemonTaskId:
+    type:
+      - integer
+      - "null"
+    description: >-
+      ID of the stop task to wait for. `null` when no stop was queued: the server is not
+      installed or is known to be stopped, or a plugin cancelled the stop. The suspension
+      itself is in force either way.
+    example: 1
+required:
+  - gdaemonTaskId

@@ -1,0 +1,24 @@
+type:
+  - object
+  - "null"
+description: >-
+  When and why the server was suspended; `null` while it is not. See "Suspended servers"
+  in the API description.
+properties:
+  since:
+    type:
+      - string
+      - "null"
+    format: date-time
+    description: >-
+      When the server was suspended. `null` for a server blocked before the panel
+      recorded the date.
+    example: "2026-09-26T10:15:00Z"
+  reason:
+    type: string
+    description: Reason given when suspending; empty when none was given
+    maxLength: 255
+    example: "Invoice #1042 is overdue"
+required:
+  - since
+  - reason

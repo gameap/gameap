@@ -51,6 +51,7 @@ import (
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/serverports"
+	"github.com/gameap/gameap/internal/services/serversuspension"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	"github.com/gameap/gameap/internal/telemetry"
@@ -89,6 +90,7 @@ type InmemoryContainer struct {
 	clientCertificateRepo   repositories.ClientCertificateRepository
 	rbacService             *rbac.RBAC
 	serverControlService    *servercontrol.Service
+	serverSuspension        *serversuspension.Service
 	gameUpgradeService      *services.GameUpgradeService
 	fileManager             files.FileManager
 	cacheService            cache.Cache
@@ -131,6 +133,18 @@ func (c *InmemoryContainer) MFANudgeService() *mfanudge.Service {
 }
 func (c *InmemoryContainer) ServerControlService() *servercontrol.Service {
 	return c.serverControlService
+}
+
+// ServerSuspension is built on first use so that it records to a logger set
+// with SetAuditLogger. There is no daemon to push the config to.
+func (c *InmemoryContainer) ServerSuspension() *serversuspension.Service {
+	if c.serverSuspension == nil {
+		c.serverSuspension = serversuspension.NewService(
+			c.serverRepo, c.daemonTaskRepo, c.serverControlService, nil, c.AuditLogger(), nil,
+		)
+	}
+
+	return c.serverSuspension
 }
 func (c *InmemoryContainer) GameUpgradeService() *services.GameUpgradeService {
 	return c.gameUpgradeService

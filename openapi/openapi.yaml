@@ -113,6 +113,34 @@ info:
       The header is then ignored and responses never carry
       `Idempotent-Replayed`.
 
+    ## Suspended servers
+
+    A server with `blocked: true` is suspended: this is the operation a billing
+    system uses to cut off an unpaid service. Suspend a server with
+    `POST /api/servers/{id}/suspend` or `PUT /api/servers/{id}` with
+    `blocked: true`, and lift the suspension with
+    `POST /api/servers/{id}/unsuspend` or `blocked: false`. Both are
+    administrator operations; a personal access token needs
+    `admin:server:create`.
+    - Suspending stops the server. The panel queues a stop task, and `suspend`
+      returns its ID as `gdaemonTaskId`. The ID is `null` when the server is not
+      installed or is known to be stopped. A stop that is already queued or
+      running is reused.
+    - While a server is suspended, `start`, `restart`, `update`, `install` and
+      `reinstall` are refused with `403` and the message `server is blocked`,
+      for administrators and tokens too. `stop` and deleting the server still
+      work. The owner, unless an administrator, gets the same `403` from every
+      endpoint of the server.
+    - Daemons released with GameAP 4.6 also refuse to start a suspended server
+      however the start is requested: a scheduled task, a restart, the start
+      after an update. They stop a suspended server they find running. Older
+      daemons only skip the autostart.
+    - Unsuspending starts nothing. Call `start` when the server should run
+      again.
+    - `suspension` in the server object records when the server was suspended
+      and why: `reason`, set with `suspend` or with `suspend_reason` on update.
+      It is `null` while the server is not suspended.
+
     ## WebSocket endpoints
 
     OpenAPI does not natively model WebSocket flows; this section documents
@@ -433,6 +461,10 @@ paths:
     $ref: './paths/servers.yaml#/~1api~1servers~1search'
   /api/servers/{id}:
     $ref: './paths/servers.yaml#/~1api~1servers~1{id}'
+  /api/servers/{id}/suspend:
+    $ref: './paths/servers.yaml#/~1api~1servers~1{id}~1suspend'
+  /api/servers/{id}/unsuspend:
+    $ref: './paths/servers.yaml#/~1api~1servers~1{id}~1unsuspend'
   /api/servers/{server}/abilities:
     $ref: './paths/servers-abilities.yaml#/~1api~1servers~1{server}~1abilities'
   /api/servers/{server}/status:

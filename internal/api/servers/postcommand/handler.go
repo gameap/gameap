@@ -10,6 +10,7 @@ import (
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/repositories"
+	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/pkg/errors"
@@ -118,6 +119,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	daemonTaskID, err := h.commandMap[command](ctx, server)
+	if errors.Is(err, servercontrol.ErrServerBlocked) {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to execute command"))
 

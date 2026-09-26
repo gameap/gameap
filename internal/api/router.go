@@ -119,6 +119,8 @@ import (
 	"github.com/gameap/gameap/internal/api/servers/postcommand"
 	"github.com/gameap/gameap/internal/api/servers/postconsole"
 	"github.com/gameap/gameap/internal/api/servers/postserver"
+	"github.com/gameap/gameap/internal/api/servers/postsuspend"
+	"github.com/gameap/gameap/internal/api/servers/postunsuspend"
 	"github.com/gameap/gameap/internal/api/servers/putserver"
 	"github.com/gameap/gameap/internal/api/servers/rcon/getfastrcon"
 	rcongetplayers "github.com/gameap/gameap/internal/api/servers/rcon/getplayers"
@@ -191,6 +193,7 @@ import (
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
 	"github.com/gameap/gameap/internal/services/serverports"
+	"github.com/gameap/gameap/internal/services/serversuspension"
 	"github.com/gameap/gameap/internal/services/servertaskdispatcher"
 	"github.com/gameap/gameap/internal/services/taskdispatcher"
 	"github.com/gameap/gameap/internal/telemetry"
@@ -270,6 +273,7 @@ type container interface {
 	ServerTaskDispatcher() *servertaskdispatcher.Dispatcher
 	ServerConfigPusher() *serverconfigpush.Pusher
 	ServerPorts() *serverports.Service
+	ServerSuspension() *serversuspension.Service
 	EnrollmentService() *enrollment.Service
 	GRPCPort() uint16
 	GRPCExternalHost() string
@@ -803,8 +807,39 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.GameModRepository(),
 				c.ServerPorts(),
 				c.ServerConfigPusher(),
+				c.ServerSuspension(),
 				plugin.NewServerControlAdapter(c.PluginDispatcher()),
 				c.RBAC(),
+				c.Responder(),
+			),
+			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerCreate,
+			},
+			AllowIdempotencyKey: true,
+		},
+		// Suspension is part of updating a server, so it takes the same token
+		// ability as PUT: an integration that already flips blocked keeps working.
+		{
+			Method: http.MethodPost,
+			Path:   "/api/servers/{id}/suspend",
+			Handler: postsuspend.NewHandler(
+				c.ServerRepository(),
+				c.ServerSuspension(),
+				c.Responder(),
+			),
+			AdminOnly: true,
+			CheckPATAbilities: []domain.PATAbility{
+				domain.PATAbilityServerCreate,
+			},
+			AllowIdempotencyKey: true,
+		},
+		{
+			Method: http.MethodPost,
+			Path:   "/api/servers/{id}/unsuspend",
+			Handler: postunsuspend.NewHandler(
+				c.ServerRepository(),
+				c.ServerSuspension(),
 				c.Responder(),
 			),
 			AdminOnly: true,

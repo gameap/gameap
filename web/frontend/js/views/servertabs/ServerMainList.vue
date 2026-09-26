@@ -14,6 +14,7 @@
     import ServerControlButton  from "./ServerControlButton.vue";
 
     import {errorNotification} from "@/parts/dialogs";
+    import {suspensionDetails} from "@/parts/suspension";
     import {NTooltip} from "naive-ui";
 
     // Installed statuses
@@ -69,11 +70,13 @@
                 let badgeColor;
                 let circleClass;
                 let statusText;
+                let details = [];
 
                 if (row.blocked) {
                     badgeColor = "stone";
                     circleClass = "badge-circle-stone";
                     statusText = trans('servers.blocked');
+                    details = suspensionDetails(row.suspension);
                 } else if (!row.enabled) {
                     badgeColor = "stone";
                     circleClass = "badge-circle-stone";
@@ -101,11 +104,22 @@
                         trigger: 'hover',
                     }, {
                         trigger: () => h('span', {class: circleClass}),
-                        default: () => statusText
+                        default: () => [statusText, ...details].map((line) => h('div', line))
                     });
                 }
 
-                return h(GStatusBadge, {color: badgeColor, text: statusText});
+                const badge = h(GStatusBadge, {color: badgeColor, text: statusText});
+
+                if (details.length === 0) {
+                    return badge;
+                }
+
+                return h(NTooltip, {
+                    trigger: 'hover',
+                }, {
+                    trigger: () => h('span', {'data-testid': 'server-suspension-badge'}, [badge]),
+                    default: () => details.map((line) => h('div', line))
+                });
             }
         });
 

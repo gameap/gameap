@@ -534,3 +534,18 @@ func TestServerResponseWithMissingGameAndGameMod(t *testing.T) {
 	assert.Nil(t, response.Game)
 	assert.Nil(t, response.GameMod)
 }
+
+func TestNewServerResponseFromServer_Suspension(t *testing.T) {
+	t.Parallel()
+
+	server := &domain.Server{ID: 1, Name: "Suspended"}
+	server.Suspend(time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC), new("unpaid"))
+
+	response := newServerResponseFromServer(server, nil, nil)
+
+	require.NotNil(t, response.Suspension)
+	assert.Equal(t, new(time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)), response.Suspension.Since)
+	assert.Equal(t, "unpaid", response.Suspension.Reason)
+
+	assert.Nil(t, newServerResponseFromServer(&domain.Server{ID: 2}, nil, nil).Suspension)
+}

@@ -165,7 +165,7 @@ func TestDaemonTasksService_FindDaemonTasks(t *testing.T) {
 			repo := inmemory.NewDaemonTaskRepository()
 			tt.setupRepo(repo)
 
-			svc := NewDaemonTasksService(repo, nil, allowAllGuard(testPluginID))
+			svc := NewDaemonTasksService(repo, inmemory.NewServerRepository(), nil, allowAllGuard(testPluginID))
 			resp, err := svc.FindDaemonTasks(context.Background(), tt.request)
 
 			require.NoError(t, err)
@@ -239,7 +239,7 @@ func TestDaemonTasksService_CreateDaemonTask(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			repo := inmemory.NewDaemonTaskRepository()
-			svc := NewDaemonTasksService(repo, nil, allowAllGuard(testPluginID))
+			svc := NewDaemonTasksService(repo, inmemory.NewServerRepository(), nil, allowAllGuard(testPluginID))
 
 			resp, err := svc.CreateDaemonTask(context.Background(), tt.request)
 
@@ -345,7 +345,7 @@ func TestDaemonTasksService_CreateDaemonTask_Dispatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			repo := inmemory.NewDaemonTaskRepository()
-			svc := NewDaemonTasksService(repo, tt.dispatcher, allowAllGuard(testPluginID))
+			svc := NewDaemonTasksService(repo, inmemory.NewServerRepository(), tt.dispatcher, allowAllGuard(testPluginID))
 
 			resp, err := svc.CreateDaemonTask(context.Background(), tt.request)
 
@@ -525,10 +525,64 @@ func TestConvertDaemonTaskToProto_NilOptionalFields(t *testing.T) {
 func TestNewDaemonTasksHostLibraryFactory(t *testing.T) {
 	t.Parallel()
 	repo := inmemory.NewDaemonTaskRepository()
-	factory := NewDaemonTasksHostLibraryFactory(repo, nil, NewGuard(stubPermissionChecker{allowed: true}))
+	factory := NewDaemonTasksHostLibraryFactory(repo, inmemory.NewServerRepository(), nil, NewGuard(stubPermissionChecker{allowed: true}))
 
 	lib, ok := factory.Create(42).(*DaemonTasksHostLibrary)
 	require.True(t, ok)
 	require.NotNil(t, lib.impl)
 	assert.Equal(t, uint64(42), lib.impl.guard.PluginID(), "factory must bind the plugin id")
+}
+
+func TestDaemonTasksService_CreateDaemonTask_SuspendedServer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		suspended   bool
+		taskType    proto.DaemonTaskType
+		wantRefused bool
+	}{
+		{name: "start_is_refused", suspended: true, taskType: proto.DaemonTaskType_DAEMON_TASK_TYPE_SERVER_START, wantRefused: true},
+		{name: "restart_is_refused", suspended: true, taskType: proto.DaemonTaskType_DAEMON_TASK_TYPE_SERVER_RESTART, wantRefused: true},
+		{name: "update_is_refused", suspended: true, taskType: proto.DaemonTaskType_DAEMON_TASK_TYPE_SERVER_UPDATE, wantRefused: true},
+		{name: "install_is_refused", suspended: true, taskType: proto.DaemonTaskType_DAEMON_TASK_TYPE_SERVER_INSTALL, wantRefused: true},
+		{name: "stop_is_allowed", suspended: true, taskType: proto.DaemonTaskType_DAEMON_TASK_TYPE_SERVER_STOP},
+		{name: "delete_is_allowed", suspended: true, taskType: proto.DaemonTaskType_DAEMON_TASK_TYPE_SERVER_DELETE},
+		{name: "start_of_a_server_that_is_not_suspended", taskType: proto.DaemonTaskType_DAEMON_TASK_TYPE_SERVER_START},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ARRANGE
+			serverRepo := inmemory.NewServerRepository()
+			require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{ID: 42, Blocked: tt.suspended}))
+			dispatcher := &fakeTaskDispatcher{}
+			svc := NewDaemonTasksService(inmemory.NewDaemonTaskRepository(), serverRepo, dispatcher, allowAllGuard(testPluginID))
+
+			// ACT
+			resp, err := svc.CreateDaemonTask(context.Background(), &daemontasks.CreateDaemonTaskRequest{
+				NodeId:   1,
+				ServerId: new(uint64(42)),
+				TaskType: tt.taskType,
+			})
+
+			// ASSERT
+			require.NoError(t, err)
+
+			if tt.wantRefused {
+				assert.False(t, resp.Success)
+				require.NotNil(t, resp.Error)
+				assert.Equal(t, "server is blocked", *resp.Error)
+				assert.Empty(t, dispatcher.dispatched, "a refused task must not reach the daemon")
+
+				return
+			}
+
+			assert.True(t, resp.Success)
+			assert.Nil(t, resp.Error)
+			require.Len(t, dispatcher.dispatched, 1)
+		})
+	}
 }
