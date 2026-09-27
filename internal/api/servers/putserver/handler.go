@@ -12,6 +12,7 @@ import (
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/services/serverconfigpush"
 	"github.com/gameap/gameap/internal/services/servercontrol"
+	"github.com/gameap/gameap/internal/services/serverports"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/pkg/errors"
 )
@@ -31,6 +32,7 @@ type Handler struct {
 	nodeRepo         repositories.NodeRepository
 	gameRepo         repositories.GameRepository
 	gameModRepo      repositories.GameModRepository
+	serverPorts      *serverports.Service
 	configPusher     *serverconfigpush.Pusher
 	pluginDispatcher PluginDispatcher
 	rbac             base.RBAC
@@ -42,6 +44,7 @@ func NewHandler(
 	nodeRepo repositories.NodeRepository,
 	gameRepo repositories.GameRepository,
 	gameModRepo repositories.GameModRepository,
+	serverPorts *serverports.Service,
 	configPusher *serverconfigpush.Pusher,
 	pluginDispatcher PluginDispatcher,
 	rbac base.RBAC,
@@ -52,6 +55,7 @@ func NewHandler(
 		nodeRepo:         nodeRepo,
 		gameRepo:         gameRepo,
 		gameModRepo:      gameModRepo,
+		serverPorts:      serverPorts,
 		configPusher:     configPusher,
 		pluginDispatcher: pluginDispatcher,
 		rbac:             rbac,
@@ -122,9 +126,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.serverRepo.Save(ctx, server)
+	err = h.serverPorts.Check(ctx, server, func(ctx context.Context) error {
+		return errors.WithMessage(h.serverRepo.Save(ctx, server), "failed to save server")
+	})
 	if err != nil {
-		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "failed to save server"))
+		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}

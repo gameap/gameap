@@ -11,8 +11,10 @@ import (
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	"github.com/gameap/gameap/internal/services/serverports"
 	"github.com/gameap/gameap/pkg/api"
 	pkgerrors "github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -215,7 +217,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:      "game_mod_id is required",
 		},
 		{
-			name: "missing server_ip",
+			name: "missing_server_ip_on_node_without_ips",
 			requestBody: `{
 				"name": "My Server",
 				"game_id": "cstrike",
@@ -224,10 +226,10 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"server_port": 27015
 			}`,
 			expectedStatus: http.StatusUnprocessableEntity,
-			wantError:      "server_ip is required",
+			wantError:      "server_ip: the node has no IP address to pick from",
 		},
 		{
-			name: "empty server_ip",
+			name: "empty_server_ip_on_node_without_ips",
 			requestBody: `{
 				"name": "My Server",
 				"game_id": "cstrike",
@@ -237,7 +239,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"server_port": 27015
 			}`,
 			expectedStatus: http.StatusUnprocessableEntity,
-			wantError:      "server_ip is required",
+			wantError:      "server_ip: the node has no IP address to pick from",
 		},
 		{
 			name: "invalid server_ip",
@@ -266,7 +268,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:      "server_ip is not a valid IP address or hostname",
 		},
 		{
-			name: "missing server_port",
+			name: "missing_server_port_on_node_without_port_range",
 			requestBody: `{
 				"name": "My Server",
 				"game_id": "cstrike",
@@ -275,7 +277,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				"server_ip": "192.168.1.100"
 			}`,
 			expectedStatus: http.StatusUnprocessableEntity,
-			wantError:      "server_port must be between 1 and 65535",
+			wantError:      "server_port: the node has no port_range to pick a port from",
 		},
 		{
 			name: "invalid server_port (zero)",
@@ -552,7 +554,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			_ = gameRepo.Save(context.Background(), &domain.Game{Code: "cstrike"})
 			_ = gameModRepo.Save(context.Background(), &domain.GameMod{ID: 1, GameCode: "cstrike"})
 
-			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 			body := []byte(tt.requestBody)
 			req := httptest.NewRequest(http.MethodPost, "/api/servers", bytes.NewBuffer(body))
@@ -608,7 +610,7 @@ func TestHandler_ServerPersistence(t *testing.T) {
 	_ = gameRepo.Save(context.Background(), &domain.Game{Code: "cstrike"})
 	_ = gameModRepo.Save(context.Background(), &domain.GameMod{ID: 1, GameCode: "cstrike"})
 
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 	serverData := map[string]any{
 		"install":     true,
@@ -684,7 +686,7 @@ func TestHandler_MultipleServers(t *testing.T) {
 	_ = gameModRepo.Save(context.Background(), &domain.GameMod{ID: 1, GameCode: "cstrike"})
 	_ = gameModRepo.Save(context.Background(), &domain.GameMod{ID: 2, GameCode: "valve"})
 
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 	servers := []map[string]any{
 		{
@@ -753,7 +755,7 @@ func TestHandler_ServerWithSettings(t *testing.T) {
 		},
 	})
 
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 	serverData := map[string]any{
 		"name":        "Server with settings",
@@ -833,7 +835,7 @@ func TestHandler_SettingKeepsLargeIntegerPrecision(t *testing.T) {
 	})
 
 	handler := NewHandler(
-		serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder,
+		serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder,
 	)
 
 	// 2^53+1 is the first integer a float64 cannot represent.
@@ -877,7 +879,7 @@ func TestHandler_ServerWithoutSettings_BackwardCompatibility(t *testing.T) {
 	_ = gameRepo.Save(context.Background(), &domain.Game{Code: "cstrike"})
 	_ = gameModRepo.Save(context.Background(), &domain.GameMod{ID: 1, GameCode: "cstrike"})
 
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 	serverData := map[string]any{
 		"name":        "Server without settings",
@@ -925,7 +927,7 @@ func TestHandler_SettingEmptyName_ValidationError(t *testing.T) {
 	_ = gameRepo.Save(context.Background(), &domain.Game{Code: "cstrike"})
 	_ = gameModRepo.Save(context.Background(), &domain.GameMod{ID: 1, GameCode: "cstrike"})
 
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 	serverData := map[string]any{
 		"name":        "Server with invalid setting",
@@ -979,7 +981,7 @@ func TestHandler_DisallowedSettings_Ignored(t *testing.T) {
 		},
 	})
 
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 	serverData := map[string]any{
 		"name":        "Server with disallowed settings",
@@ -1121,7 +1123,7 @@ func TestHandler_GameModBelongsToGame_Validation(t *testing.T) {
 
 			tt.setupRepo(nodeRepo, gameRepo, gameModRepo)
 
-			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 			body := []byte(tt.requestBody)
 			req := httptest.NewRequest(http.MethodPost, "/api/servers", bytes.NewBuffer(body))
@@ -1306,7 +1308,7 @@ func TestHandler_PrepareServerErrors(t *testing.T) {
 			serverSettingsRepo := inmemory.NewServerSettingRepository()
 			responder := api.NewResponder()
 
-			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/servers", bytes.NewBufferString(tt.requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -1365,7 +1367,7 @@ func TestHandler_PersistenceErrors(t *testing.T) {
 				serverSettingsRepo := inmemory.NewServerSettingRepository()
 				responder := api.NewResponder()
 
-				h := NewHandler(wrappedRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+				h := NewHandler(wrappedRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(wrappedRepo), nil, nil, responder)
 
 				return h, serverRepo, daemonTaskRepo, nil
 			},
@@ -1413,7 +1415,7 @@ func TestHandler_PersistenceErrors(t *testing.T) {
 				}
 				responder := api.NewResponder()
 
-				h := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, nil, nil, responder)
+				h := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 				return h, serverRepo, daemonTaskRepo, nil
 			},
@@ -1460,7 +1462,7 @@ func TestHandler_PersistenceErrors(t *testing.T) {
 				serverSettingsRepo := inmemory.NewServerSettingRepository()
 				responder := api.NewResponder()
 
-				h := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, wrappedTaskRepo, serverSettingsRepo, nil, nil, responder)
+				h := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, wrappedTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), nil, nil, responder)
 
 				return h, serverRepo, underlyingTaskRepo, nil
 			},
@@ -1506,7 +1508,7 @@ func TestHandler_PersistenceErrors(t *testing.T) {
 
 				dispatcher := &stubTaskDispatcher{err: pkgerrors.New("grpc down")}
 
-				h := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, dispatcher, nil, responder)
+				h := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), dispatcher, nil, responder)
 
 				return h, serverRepo, daemonTaskRepo, dispatcher
 			},
@@ -1585,7 +1587,7 @@ func TestHandler_TaskDispatcher_Success(t *testing.T) {
 
 	dispatcher := &stubTaskDispatcher{}
 
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, dispatcher, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, daemonTaskRepo, serverSettingsRepo, newServerPorts(serverRepo), dispatcher, nil, responder)
 
 	serverData := map[string]any{
 		"install":     true,
@@ -1766,4 +1768,117 @@ func (r *errServerSettingsRepo) Save(ctx context.Context, setting *domain.Server
 	}
 
 	return r.ServerSettingRepository.Save(ctx, setting)
+}
+
+func newServerPorts(serverRepo repositories.ServerRepository) *serverports.Service {
+	return serverports.NewService(serverRepo, locker.NewInMemoryLocker())
+}
+
+func TestHandler_PicksAddressAndPortsFromNode(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	serverRepo := inmemory.NewServerRepository()
+	nodeRepo := inmemory.NewNodeRepository()
+	gameRepo := inmemory.NewGameRepository()
+	gameModRepo := inmemory.NewGameModRepository()
+
+	require.NoError(t, nodeRepo.Save(ctx, &domain.Node{
+		ID:       1,
+		OS:       domain.NodeOSLinux,
+		IPs:      domain.IPList{"10.0.0.5"},
+		Metadata: domain.Metadata{"port_range": "27015-27020"},
+	}))
+	require.NoError(t, gameRepo.Save(ctx, &domain.Game{Code: "rust"}))
+	require.NoError(t, gameModRepo.Save(ctx, &domain.GameMod{
+		ID:            1,
+		GameCode:      "rust",
+		StartCmdLinux: new("./run.sh --port={port} --rcon-port={rcon_port}"),
+	}))
+	require.NoError(t, serverRepo.Save(ctx, &domain.Server{
+		Name: "Neighbour", DSID: 1, ServerIP: "10.0.0.5", ServerPort: 27015,
+	}))
+
+	handler := NewHandler(
+		serverRepo, nodeRepo, gameRepo, gameModRepo, inmemory.NewDaemonTaskRepository(),
+		inmemory.NewServerSettingRepository(), newServerPorts(serverRepo), nil, nil, api.NewResponder(),
+	)
+
+	body := []byte(`{"name": "Rust", "game_id": "rust", "ds_id": 1, "game_mod_id": 1}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/servers", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+
+	var response struct {
+		Result json.RawMessage `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.JSONEq(t, `{
+		"taskId": 0,
+		"serverId": 2,
+		"serverIp": "10.0.0.5",
+		"serverPort": 27016,
+		"queryPort": null,
+		"rconPort": 27017
+	}`, string(response.Result))
+
+	servers, err := serverRepo.Find(ctx, filters.FindServerByIDs(2), nil, nil)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	assert.Equal(t, "10.0.0.5", servers[0].ServerIP)
+	assert.Equal(t, 27016, servers[0].ServerPort)
+	assert.Nil(t, servers[0].QueryPort, "the start command does not pass {query_port}")
+	assert.Equal(t, new(27017), servers[0].RconPort)
+}
+
+func TestHandler_RejectsPortTakenOnNode(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	serverRepo := inmemory.NewServerRepository()
+	nodeRepo := inmemory.NewNodeRepository()
+	gameRepo := inmemory.NewGameRepository()
+	gameModRepo := inmemory.NewGameModRepository()
+
+	require.NoError(t, nodeRepo.Save(ctx, &domain.Node{ID: 1, OS: domain.NodeOSLinux}))
+	require.NoError(t, gameRepo.Save(ctx, &domain.Game{Code: "cstrike"}))
+	require.NoError(t, gameModRepo.Save(ctx, &domain.GameMod{ID: 1, GameCode: "cstrike"}))
+	require.NoError(t, serverRepo.Save(ctx, &domain.Server{
+		Name: "Public CS", DSID: 1, ServerIP: "10.0.0.5", ServerPort: 27015,
+	}))
+
+	handler := NewHandler(
+		serverRepo, nodeRepo, gameRepo, gameModRepo, inmemory.NewDaemonTaskRepository(),
+		inmemory.NewServerSettingRepository(), newServerPorts(serverRepo), nil, nil, api.NewResponder(),
+	)
+
+	body := []byte(`{
+		"name": "Second CS", "game_id": "cstrike", "ds_id": 1, "game_mod_id": 1,
+		"server_ip": "10.0.0.5", "server_port": 27016, "query_port": 27016, "rcon_port": 27015
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/servers", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code, w.Body.String())
+
+	var response struct {
+		Error  string              `json:"error"`
+		Errors map[string][]string `json:"errors"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "rcon_port: port 27015 on 10.0.0.5 is already used by server #1 (Public CS)", response.Error)
+	assert.Equal(t, map[string][]string{
+		"rcon_port": {"port 27015 on 10.0.0.5 is already used by server #1 (Public CS)"},
+	}, response.Errors)
+
+	servers, err := serverRepo.FindAll(ctx, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, servers, 1, "a server with a taken port must not be created")
 }

@@ -44,7 +44,7 @@ func TestHandler_ServeHTTP_dispatches_server_created_event(t *testing.T) {
 	handler := NewHandler(
 		serverRepo, nodeRepo, gameRepo, gameModRepo,
 		inmemory.NewDaemonTaskRepository(), inmemory.NewServerSettingRepository(),
-		nil, dispatcher, api.NewResponder(),
+		newServerPorts(serverRepo), nil, dispatcher, api.NewResponder(),
 	)
 
 	body := []byte(`{

@@ -21,6 +21,7 @@ import {errorNotification, notification} from "@/parts/dialogs"
 import {useRoute, useRouter} from "vue-router"
 import {storeToRefs} from "pinia"
 import UpdateNodeForm from "./forms/UpdateNodeForm.vue";
+import {PORT_RANGE_KEY} from "@/parts/portRange";
 
 const route = useRoute()
 const router = useRouter()
@@ -70,9 +71,12 @@ const loading = useInitialLoad(async () => {
   );
 
   // The metadata bag is edited as a list of {key, value} rows; values are
-  // rendered as text, so non-string entries are stringified for display.
+  // rendered as text, so non-string entries are stringified for display. The
+  // port pool has its own field and stays out of the rows.
   originalMetadata.value = {...(node.value.metadata || {})}
+  nodeUpdateModel.value.portRange = originalMetadata.value[PORT_RANGE_KEY] ?? ''
   nodeUpdateModel.value.metadata = Object.entries(originalMetadata.value)
+      .filter(([key]) => key !== PORT_RANGE_KEY)
       .map(([key, value]) => ({key, value: metadataValueToText(value)}))
 })
 
@@ -117,6 +121,13 @@ const onUpdate = async () => {
         && metadataValueToText(originalMetadata.value[key]) === value
 
     metadataObj[key] = isUnchanged ? originalMetadata.value[key] : value
+  }
+
+  // PUT replaces the whole bag, so an emptied field drops the pool.
+  delete fields.port_range
+  const portRange = String(nodeUpdateModel.value.portRange ?? '').trim()
+  if (portRange !== '') {
+    metadataObj[PORT_RANGE_KEY] = portRange
   }
   fields.metadata = metadataObj
 

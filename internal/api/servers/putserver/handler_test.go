@@ -6,13 +6,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
+	"github.com/gameap/gameap/internal/locker"
 	"github.com/gameap/gameap/internal/repositories"
 	"github.com/gameap/gameap/internal/repositories/inmemory"
+	"github.com/gameap/gameap/internal/services/serverports"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/google/uuid"
@@ -1194,7 +1197,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, nil, nil, nil, responder)
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
 
 			if tt.setupRepo != nil {
 				tt.setupRepo(serverRepo, nodeRepo, gameRepo, gameModRepo)
@@ -1238,7 +1241,7 @@ func TestHandler_ServerUpdatePersistence(t *testing.T) {
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, nil, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
 
 	require.NoError(t, nodeRepo.Save(context.Background(), &domain.Node{ID: 2, Name: "node2"}))
 	require.NoError(t, gameRepo.Save(context.Background(), &domain.Game{Code: "valve"}))
@@ -1327,7 +1330,7 @@ func TestHandler_ServerUpdatePersistence_WithVarsAndLimits(t *testing.T) {
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, nil, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
 
 	require.NoError(t, gameRepo.Save(context.Background(), &domain.Game{Code: "valve"}))
 	require.NoError(t, gameModRepo.Save(context.Background(), &domain.GameMod{ID: 2, GameCode: "valve"}))
@@ -1427,7 +1430,7 @@ func TestHandler_ServerUpdatePersistence_WithMetadata(t *testing.T) {
 			gameRepo := inmemory.NewGameRepository()
 			gameModRepo := inmemory.NewGameModRepository()
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, nil, nil, nil, responder)
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
 
 			require.NoError(t, gameRepo.Save(context.Background(), &domain.Game{Code: "cstrike"}))
 			require.NoError(t, gameModRepo.Save(context.Background(), &domain.GameMod{ID: 1, GameCode: "cstrike"}))
@@ -1490,7 +1493,7 @@ func TestHandler_InvalidServerID(t *testing.T) {
 	gameRepo := inmemory.NewGameRepository()
 	gameModRepo := inmemory.NewGameModRepository()
 	responder := api.NewResponder()
-	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, nil, nil, nil, responder)
+	handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
 
 	requestBody := `{
 		"name": "Test Server",
@@ -1591,7 +1594,7 @@ func TestHandler_PrepareUpdateRepoErrors(t *testing.T) {
 			serverRepo := inmemory.NewServerRepository()
 			nodeRepo, gameRepo, gameModRepo := tt.buildRepos()
 			responder := api.NewResponder()
-			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, nil, nil, nil, responder)
+			handler := NewHandler(serverRepo, nodeRepo, gameRepo, gameModRepo, newServerPorts(serverRepo), nil, nil, nil, responder)
 
 			require.NoError(t, serverRepo.Save(context.Background(), &domain.Server{
 				ID:         1,
@@ -1683,4 +1686,118 @@ func (r *errGameModRepo) Find(
 	}
 
 	return r.GameModRepository.Find(ctx, filter, order, pagination)
+}
+
+func newServerPorts(serverRepo repositories.ServerRepository) *serverports.Service {
+	return serverports.NewService(serverRepo, locker.NewInMemoryLocker())
+}
+
+func putServerRequest(t *testing.T, serverID uint, body map[string]any) *http.Request {
+	t.Helper()
+
+	encoded, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	id := strconv.FormatUint(uint64(serverID), 10)
+	req := httptest.NewRequest(http.MethodPut, "/servers/"+id, bytes.NewReader(encoded))
+	req.Header.Set("Content-Type", "application/json")
+	req = mux.SetURLVars(req, map[string]string{"id": id})
+
+	return req.WithContext(auth.ContextWithSession(req.Context(), &auth.Session{User: &domain.User{ID: 1}}))
+}
+
+func TestHandler_PortConflicts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		otherPort   int
+		editedPort  int
+		requestPort int
+		requestName string
+		wantStatus  int
+		wantErrors  map[string][]string
+		wantPort    int
+		wantName    string
+	}{
+		{
+			name:        "port_of_another_server_is_rejected",
+			otherPort:   27015,
+			editedPort:  27016,
+			requestPort: 27015,
+			requestName: "Edited",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrors: map[string][]string{
+				"server_port": {"port 27015 on 10.0.0.5 is already used by server #1 (Holder)"},
+			},
+			wantPort: 27016,
+			wantName: "Edited",
+		},
+		{
+			name:        "clash_that_predates_the_check_does_not_block_a_rename",
+			otherPort:   27015,
+			editedPort:  27015,
+			requestPort: 27015,
+			requestName: "Renamed",
+			wantStatus:  http.StatusOK,
+			wantPort:    27015,
+			wantName:    "Renamed",
+		},
+		{
+			name:        "free_port_is_accepted",
+			otherPort:   27015,
+			editedPort:  27016,
+			requestPort: 27017,
+			requestName: "Edited",
+			wantStatus:  http.StatusOK,
+			wantPort:    27017,
+			wantName:    "Edited",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			serverRepo := inmemory.NewServerRepository()
+			handler := NewHandler(
+				serverRepo, inmemory.NewNodeRepository(), inmemory.NewGameRepository(), inmemory.NewGameModRepository(),
+				newServerPorts(serverRepo), nil, nil, nil, api.NewResponder(),
+			)
+
+			require.NoError(t, serverRepo.Save(ctx, &domain.Server{
+				Name: "Holder", GameID: "cstrike", DSID: 1, GameModID: 1, ServerIP: "10.0.0.5", ServerPort: tt.otherPort,
+			}))
+			edited := &domain.Server{
+				Name: "Edited", GameID: "cstrike", DSID: 1, GameModID: 1, ServerIP: "10.0.0.5", ServerPort: tt.editedPort,
+			}
+			require.NoError(t, serverRepo.Save(ctx, edited))
+
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, putServerRequest(t, edited.ID, map[string]any{
+				"name":        tt.requestName,
+				"game_id":     "cstrike",
+				"ds_id":       1,
+				"game_mod_id": 1,
+				"installed":   0,
+				"server_ip":   "10.0.0.5",
+				"server_port": tt.requestPort,
+			}))
+
+			require.Equal(t, tt.wantStatus, w.Code, w.Body.String())
+
+			var response struct {
+				Errors map[string][]string `json:"errors"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, tt.wantErrors, response.Errors)
+
+			stored, err := serverRepo.Find(ctx, filters.FindServerByIDs(edited.ID), nil, nil)
+			require.NoError(t, err)
+			require.Len(t, stored, 1)
+			assert.Equal(t, tt.wantPort, stored[0].ServerPort)
+			assert.Equal(t, tt.wantName, stored[0].Name)
+		})
+	}
 }

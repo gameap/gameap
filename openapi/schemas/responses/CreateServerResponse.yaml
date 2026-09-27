@@ -16,9 +16,33 @@ properties:
         type: integer
         description: Created server ID
         example: 1
+      serverIp:
+        type: string
+        description: Server IP address, the requested one or the one the panel picked
+        example: "192.168.1.100"
+      serverPort:
+        type: integer
+        description: Server port, the requested one or the one the panel picked
+        example: 27015
+      queryPort:
+        type:
+          - integer
+          - "null"
+        description: Query port; `null` means the server is queried on its server port
+        example: null
+      rconPort:
+        type:
+          - integer
+          - "null"
+        description: RCON port; `null` means RCON uses the server port
+        example: 27016
     required:
       - taskId
       - serverId
+      - serverIp
+      - serverPort
+      - queryPort
+      - rconPort
 required:
   - message
   - result

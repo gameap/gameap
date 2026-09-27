@@ -169,8 +169,12 @@ properties:
     description: >-
       Node metadata (arbitrary key-value pairs). Plugins use it to tag the nodes
       they provision, e.g. to correlate a node with the cloud instance it runs on.
+      The panel reads the `port_range` key: a string of comma-separated ports and
+      inclusive ranges (`27015-27100, 28000`) it picks ports from when a server
+      is created without them.
     example:
       hetzner.server_id: "123456"
+      port_range: "27015-27100, 28000"
   created_at:
     type:
       - string

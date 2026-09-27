@@ -94,6 +94,25 @@
                     name="ip"
                     label="IP"
                 />
+
+                <n-form-item
+                    class="mt-4"
+                    :label="trans('dedicated_servers.port_range')"
+                    path="portRange"
+                    data-testid="node-port-range"
+                >
+                  <div class="w-full">
+                    <n-input
+                        v-model:value="form.portRange"
+                        type="text"
+                        placeholder="27015-27100, 28000"
+                    />
+                    <!-- A #feedback slot would hide the validation message. -->
+                    <small class="block mt-1 text-stone-500 dark:text-stone-400">
+                      {{ trans('dedicated_servers.d_port_range') }}
+                    </small>
+                  </div>
+                </n-form-item>
               </n-card>
             </div>
           </div>
@@ -406,6 +425,7 @@ import {
 import GButton from "../../../components/GButton.vue";
 import GFixedBottomBar from "../../../components/GFixedBottomBar.vue";
 import InputManyList from "../../../components/input/InputManyList.vue";
+import {parsePortRange} from "@/parts/portRange";
 import PluginSlot from "@/plugins/components/PluginSlot.vue";
 import {usePluginsStore} from "@/store/plugins";
 import {useRoute} from "vue-router";
@@ -474,6 +494,11 @@ const rules = {
   name: {
     required: true,
     validator: requiredValidator(trans('labels.name')),
+  },
+  portRange: {
+    trigger: ['input', 'blur'],
+    validator: (rule, value) => parsePortRange(value) !== null
+        || new Error(trans('dedicated_servers.port_range_invalid')),
   },
 }
 

@@ -118,9 +118,10 @@ func (p *NodePatch) validateStrings() error {
 	return nil
 }
 
-// ValidateNodeMetadata reports the first problem with a node metadata bag and
-// the keys a patch wants removed. The admin PUT handler shares it with
-// NodePatch so both write paths enforce the same limits.
+// ValidateNodeMetadata reports the first problem with a node metadata bag,
+// including a port_range the panel could not read, and the keys a patch wants
+// removed. The admin PUT handler shares it with NodePatch so both write paths
+// enforce the same limits.
 func ValidateNodeMetadata(metadata Metadata, removeKeys []string) error {
 	if len(metadata) > NodeMetadataMaxKeys {
 		return ErrNodeMetadataTooLarge
@@ -142,6 +143,10 @@ func ValidateNodeMetadata(metadata Metadata, removeKeys []string) error {
 		if strings.TrimSpace(key) == "" {
 			return ErrNodeMetadataKeyEmpty
 		}
+	}
+
+	if _, err := portRangeFromMetadata(metadata); err != nil {
+		return err
 	}
 
 	return nil
