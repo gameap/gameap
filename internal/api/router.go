@@ -1063,6 +1063,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				c.DaemonFiles(),
 				c.Responder(),
 			),
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodGet,
@@ -1079,6 +1080,7 @@ func apiRoutes(c container, router *mux.Router) *mux.Router {
 				},
 				c.Responder(),
 			),
+			AllowShortLivedToken: true,
 		},
 		{
 			Method: http.MethodPost,

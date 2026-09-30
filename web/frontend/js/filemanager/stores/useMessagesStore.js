@@ -1,17 +1,12 @@
 import { defineStore } from 'pinia'
-import { ref, computed, markRaw } from 'vue'
+import { ref, computed } from 'vue'
 
+// A download goes preparing -> started, or ends in error; the browser shows the download itself.
 function createInitialArchiveDownload() {
     return {
         status: 'idle',
         kind: 'archive',
-        phase: null,
         filename: '',
-        loaded: 0,
-        total: 0,
-        totalFiles: 0,
-        skippedCount: 0,
-        abortController: null,
         error: null,
     }
 }
@@ -314,37 +309,23 @@ export const useMessagesStore = defineStore('fm-messages', () => {
         if (node) node.expanded = !node.expanded
     }
 
-    function startArchiveDownload({ filename, abortController, kind }) {
+    function startArchiveDownload({ filename, kind }) {
         archiveDownload.value = {
             ...createInitialArchiveDownload(),
             status: 'preparing',
             kind: kind || 'archive',
-            phase: 'preparing',
             filename: filename || '',
-            abortController: abortController ? markRaw(abortController) : null,
         }
     }
 
-    function setArchivePhase(phase) {
-        const ad = archiveDownload.value
-        ad.phase = phase
-        if (phase === 'downloading') ad.status = 'downloading'
-        if (phase === 'completed') ad.status = 'completed'
-    }
-
-    function setArchiveProgress({ loaded, total, totalFiles, skippedCount }) {
-        const ad = archiveDownload.value
-        if (typeof loaded === 'number') ad.loaded = loaded
-        if (typeof total === 'number') ad.total = total
-        if (typeof totalFiles === 'number') ad.totalFiles = totalFiles
-        if (typeof skippedCount === 'number') ad.skippedCount = skippedCount
+    function setArchiveStarted() {
+        archiveDownload.value.status = 'started'
     }
 
     function setArchiveError(error) {
         archiveDownload.value = {
             ...archiveDownload.value,
             status: 'error',
-            phase: 'error',
             error,
         }
     }
@@ -413,8 +394,7 @@ export const useMessagesStore = defineStore('fm-messages', () => {
         clearUploadProgress,
         archiveDownload,
         startArchiveDownload,
-        setArchivePhase,
-        setArchiveProgress,
+        setArchiveStarted,
         setArchiveError,
         clearArchiveDownload,
     }

@@ -23,6 +23,20 @@ info:
     Authorization: Bearer 42|abc123...xyz
     ```
 
+    ### Short-lived token (URL)
+    For requests the browser makes itself and cannot add a header to — a
+    WebSocket upgrade, a file the browser saves natively — pass a single-use
+    token in the `token` query parameter. Mint it with
+    `POST /api/auth/short-lived-token`, authenticated by one of the methods
+    above in the header. It expires within 10 seconds, is consumed by the
+    first request and carries the abilities of the credential that minted
+    it. Only the WebSocket endpoints and the operations that list the
+    `shortLivedToken` security scheme accept it; any other endpoint answers
+    `403`. Long-lived tokens are never accepted in the URL.
+    ```
+    GET /api/file-manager/1/download?disk=server&path=server.cfg&token=glst_aB3dE5...
+    ```
+
     ## Response Format
 
     ### Success Response
@@ -316,6 +330,14 @@ components:
       type: http
       scheme: bearer
       description: Personal Access Token in format {id}|{token}
+
+    shortLivedToken:
+      type: apiKey
+      in: query
+      name: token
+      description: >-
+        Single-use `glst_` token from `POST /api/auth/short-lived-token`
+        (TTL ≤ 10s); see "Short-lived token (URL)" in the API description.
 
   schemas:
     $ref: './schemas/_index.yaml'

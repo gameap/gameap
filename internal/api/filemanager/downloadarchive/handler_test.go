@@ -186,6 +186,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		queryDisk      string
 		queryPath      string
 		queryCompress  string
+		queryFilename  string
 		setupCtx       func() context.Context
 		setupRepo      func(*testing.T, *inmemory.ServerRepository, *inmemory.NodeRepository, *inmemory.RBACRepository)
 		setupArchiver  func() *stubArchiver
@@ -564,6 +565,32 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:      "Bad Gateway",
 		},
 		{
+			name:          "success_requested_filename_names_attachment",
+			serverID:      "1",
+			queryDisk:     "server",
+			queryPath:     "/",
+			queryFilename: "Half-Life_1_Echo-94.zip",
+			setupCtx:      authedCtx,
+			setupRepo:     saveServerWithFilesAbility,
+			setupArchiver: func() *stubArchiver {
+				return &stubArchiver{
+					manifest: &archiver.Manifest{
+						RootName: "das4v8im96egp0830fbg",
+						Entries:  []archiver.Entry{{RelPath: "das4v8im96egp0830fbg/a.txt"}},
+					},
+				}
+			},
+			setupGuard:     func() *fakeGuard { return &fakeGuard{} },
+			expectedStatus: http.StatusOK,
+			validate: func(t *testing.T, w *httptest.ResponseRecorder, _ *stubArchiver, _ *fakeGuard) {
+				t.Helper()
+				disposition := w.Header().Get("Content-Disposition")
+				assert.Contains(t, disposition, "filename=Half-Life_1_Echo-94.zip")
+				assert.NotContains(t, disposition, "das4v8im96egp0830fbg",
+					"the requested name must replace the directory-derived one")
+			},
+		},
+		{
 			name:          "success_compress_zero_produces_store_zip",
 			serverID:      "1",
 			queryDisk:     "server",
@@ -759,6 +786,9 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			if tt.queryCompress != "" {
 				query.Add("compress", tt.queryCompress)
 			}
+			if tt.queryFilename != "" {
+				query.Add("filename", tt.queryFilename)
+			}
 
 			fullURL := "/api/file-manager/" + tt.serverID + "/download-archive"
 			if len(query) > 0 {
@@ -890,6 +920,43 @@ func TestArchiveFilename(t *testing.T) {
 
 			got := archiveFilename(tt.rootName, tt.path)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRequestedFilename(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "absent_returns_empty", raw: "", want: ""},
+		{name: "keeps_zip_name", raw: "Half-Life_1_Echo-94.zip", want: "Half-Life_1_Echo-94.zip"},
+		{name: "keeps_uppercase_extension", raw: "BACKUP.ZIP", want: "BACKUP.ZIP"},
+		{name: "appends_zip_extension", raw: "server", want: "server.zip"},
+		{name: "appends_zip_after_other_extension", raw: "notes.txt", want: "notes.txt.zip"},
+		{name: "keeps_unicode", raw: "кириллица.zip", want: "кириллица.zip"},
+		{name: "trims_spaces", raw: "  cstrike.zip  ", want: "cstrike.zip"},
+		{name: "strips_slash_path", raw: "../../etc/passwd", want: "passwd.zip"},
+		{name: "strips_backslash_path", raw: `..\..\boot.ini`, want: "boot.ini.zip"},
+		{name: "drops_control_characters", raw: "a\r\nSet-Cookie: x=1.zip", want: "aSet-Cookie: x=1.zip"},
+		{name: "only_spaces_returns_empty", raw: "   ", want: ""},
+		{name: "dot_returns_empty", raw: ".", want: ""},
+		{name: "dot_dot_returns_empty", raw: "..", want: ""},
+		{name: "slash_returns_empty", raw: "/", want: ""},
+		{name: "too_long_returns_empty", raw: strings.Repeat("a", 252), want: ""},
+		{name: "longest_accepted", raw: strings.Repeat("a", 251), want: strings.Repeat("a", 251) + ".zip"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, "/?filename="+url.QueryEscape(tt.raw), nil)
+
+			assert.Equal(t, tt.want, requestedFilename(req))
 		})
 	}
 }

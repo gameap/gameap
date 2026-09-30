@@ -179,6 +179,10 @@
     summary: Download certificates
     description: Downloads client certificates as ZIP (Admin only)
     operationId: downloadNodesCertificates
+    security:
+      - bearerAuth: []
+      - personalAccessToken: []
+      - shortLivedToken: []
     responses:
       '200':
         description: Certificates ZIP file
@@ -207,6 +211,10 @@
     summary: Download certificates (alias)
     description: Alias for /api/nodes/certificates.zip (Admin only)
     operationId: downloadDedicatedServersCertificates
+    security:
+      - bearerAuth: []
+      - personalAccessToken: []
+      - shortLivedToken: []
     responses:
       '200':
         description: Certificates ZIP file
@@ -627,6 +635,10 @@
     summary: Download daemon logs
     description: Downloads daemon logs as ZIP (Admin only)
     operationId: downloadNodeLogs
+    security:
+      - bearerAuth: []
+      - personalAccessToken: []
+      - shortLivedToken: []
     parameters:
       - $ref: '../parameters/PathNodeId.yaml'
     responses:
@@ -657,6 +669,10 @@
     summary: Download daemon logs (alias)
     description: Alias for /api/nodes/{id}/logs.zip (Admin only)
     operationId: downloadDedicatedServerLogs
+    security:
+      - bearerAuth: []
+      - personalAccessToken: []
+      - shortLivedToken: []
     parameters:
       - $ref: '../parameters/PathNodeId.yaml'
     responses:

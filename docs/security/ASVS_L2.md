@@ -300,10 +300,10 @@ of this finding. The file no longer exists.
 - `Referrer-Policy: strict-origin-when-cross-origin` (default;
   `SECURITY_REFERRER_POLICY`).
 - `Content-Security-Policy` — generated at boot from the embedded static
-  FS: `golang.org/x/net/html` tokenises `index.html` and
-  `streamsaver/mitm.html` and extracts SHA-256 hashes for every inline
-  `<script>` element, producing `'sha256-<base64>'` source tokens so the
-  SPA can run under a strict CSP without `unsafe-inline`. The base
+  FS: `golang.org/x/net/html` tokenises `index.html` and extracts
+  SHA-256 hashes for every inline `<script>` element, producing
+  `'sha256-<base64>'` source tokens so the SPA can run under a strict
+  CSP without `unsafe-inline`. The base
   policy is `default-src 'self'; base-uri 'self'; object-src 'none';
   frame-ancestors 'self'; form-action 'self'; script-src 'self' blob:
   <inline-hashes> <captcha>; style-src 'self' 'unsafe-inline';

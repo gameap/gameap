@@ -121,6 +121,76 @@ func TestRouterSecurity_ShortLivedToken_DeniedOnNonOptedInRoute(t *testing.T) {
 		"the denial must be attributed to the short-lived auth method")
 }
 
+// TestRouterSecurity_ShortLivedToken_FileManagerDownloads covers OWASP
+// API2:2023 / API1:2023. The browser saves file-manager downloads natively, so
+// the file and archive download routes take a short-lived token in the URL.
+// The token keeps its owner's server-level authorization: on the user's own
+// server the request clears auth, the scope guard and the ownership/ability
+// checks (only the node missing from the in-memory fixtures stops it), on a
+// foreign server it is refused like a header credential, and the other
+// file-manager routes still refuse the token.
+//
+//nolint:paralleltest // api.CreateRouter mutates the unsynchronized package-global ability-check audit sink (data race in servers/base.SetAuditLogger).
+func TestRouterSecurity_ShortLivedToken_FileManagerDownloads(t *testing.T) {
+	env := setupSecurityTest(t)
+
+	tests := []struct {
+		name           string
+		path           string
+		wantStatusCode int
+		wantBody       string
+	}{
+		{
+			name:           "download_on_own_server",
+			path:           "/api/file-manager/1/download?disk=server&path=server.cfg",
+			wantStatusCode: http.StatusNotFound,
+			wantBody:       "node not found",
+		},
+		{
+			name:           "download_archive_on_own_server",
+			path:           "/api/file-manager/1/download-archive?disk=server&path=cfg",
+			wantStatusCode: http.StatusNotFound,
+			wantBody:       "node not found",
+		},
+		{
+			name:           "download_on_foreign_server",
+			path:           "/api/file-manager/2/download?disk=server&path=server.cfg",
+			wantStatusCode: http.StatusNotFound,
+			wantBody:       "server not found",
+		},
+		{
+			name:           "download_archive_on_foreign_server",
+			path:           "/api/file-manager/2/download-archive?disk=server&path=cfg",
+			wantStatusCode: http.StatusNotFound,
+			wantBody:       "server not found",
+		},
+		{
+			name:           "content_listing_not_opted_in",
+			path:           "/api/file-manager/1/content?disk=server&path=.",
+			wantStatusCode: http.StatusForbidden,
+			wantBody:       "short-lived token is not accepted",
+		},
+		{
+			name:           "stream_file_not_opted_in",
+			path:           "/api/file-manager/1/stream-file?disk=server&path=movie.mp4",
+			wantStatusCode: http.StatusForbidden,
+			wantBody:       "short-lived token is not accepted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token := seedShortLivedToken(t, env, env.fixtures.RegularUser)
+
+			req := httptest.NewRequest(http.MethodGet, tt.path+"&token="+token, http.NoBody)
+			w := doRequestRaw(t, env, req)
+
+			assert.Equal(t, tt.wantStatusCode, w.Code, "body=%s", w.Body.String())
+			assert.Contains(t, w.Body.String(), tt.wantBody)
+		})
+	}
+}
+
 // TestRouterSecurity_ShortLivedToken_SingleUseAcrossRouter covers OWASP
 // API2:2023. End-to-end through the real router, a short-lived token must
 // authenticate at most once: the first consume deletes the cache entry, so a

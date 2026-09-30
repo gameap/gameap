@@ -46,16 +46,9 @@ const (
 	sensitivePragma       = "no-cache"
 )
 
-const (
-	// indexHTMLPath is the served SPA entrypoint with two static IIFE scripts
-	// (theme + i18n bootstrap) inlined in a single <script> block.
-	indexHTMLPath = "index.html"
-
-	// streamSaverMitmPath registers the same-origin service worker used by the
-	// file-manager download flow; its inline <script> must run under CSP or
-	// downloads break.
-	streamSaverMitmPath = "streamsaver/mitm.html"
-)
+// indexHTMLPath is the served SPA entrypoint with two static IIFE scripts
+// (theme + i18n bootstrap) inlined in a single <script> block.
+const indexHTMLPath = "index.html"
 
 // Captcha CSP sources. Self-hosting is not viable: api.js is a loader that
 // pulls versioned sub-resources from www.gstatic.com and renders the
@@ -217,7 +210,7 @@ func buildPolicy(cfg *config.Config, staticFS fs.FS) (string, error) {
 		return cfg.Security.CSP.Policy, nil
 	}
 
-	hashes, err := collectInlineScriptHashes(staticFS, []string{indexHTMLPath, streamSaverMitmPath})
+	hashes, err := collectInlineScriptHashes(staticFS, []string{indexHTMLPath})
 	if err != nil {
 		return "", err
 	}

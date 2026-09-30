@@ -228,6 +228,16 @@ export const handlers = [
         return HttpResponse.json({ success: true })
     }),
 
+    // Authorizes URL-borne requests; the file-manager download it is used for is answered by the
+    // dev server (see vite.config.ts), since MSW lets navigations through to the network.
+    http.post('/api/auth/short-lived-token', async () => {
+        await delay(debugState.networkDelay)
+        if (!getCurrentUser().isAuthenticated) {
+            return new HttpResponse(null, { status: 401 })
+        }
+        return HttpResponse.json({ token: `glst_debug${Date.now()}`, expires_in: 10 })
+    }),
+
     http.get('/api/user/servers_abilities', async () => {
         await delay(debugState.networkDelay)
         // Return abilities for all servers the user can access

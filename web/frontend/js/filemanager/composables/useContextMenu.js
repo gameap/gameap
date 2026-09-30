@@ -1,5 +1,4 @@
 import { computed } from 'vue'
-import HTTP from '../http/get.js'
 import { useFileManagerStore } from '../stores/useFileManagerStore.js'
 import { useSettingsStore } from '../stores/useSettingsStore.js'
 import { useModalStore } from '../stores/useModalStore.js'
@@ -116,16 +115,12 @@ export function useContextMenu() {
         }
     }
 
-    async function downloadAction() {
-        const tempLink = document.createElement('a')
-        tempLink.style.display = 'none'
-        tempLink.setAttribute('download', selectedItems.value[0].basename)
-
-        const response = await HTTP.download(selectedDisk.value, selectedItems.value[0].path)
-        tempLink.href = window.URL.createObjectURL(new Blob([response.data]))
-        document.body.appendChild(tempLink)
-        tempLink.click()
-        document.body.removeChild(tempLink)
+    function downloadAction() {
+        fm.download({
+            disk: selectedDisk.value,
+            path: selectedItems.value[0].path,
+            filename: selectedItems.value[0].basename,
+        })
     }
 
     function downloadDirAction() {
