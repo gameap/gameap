@@ -13,9 +13,10 @@ export class DownloadError extends Error {
     }
 }
 
-// Removing a frame cancels a request the browser has not turned into a download yet, and an archive
-// answers only after its manifest is built, so a frame outlives any realistic wait for the headers.
-const FRAME_LIFETIME_MS = 10 * 60 * 1000
+// How long a failed response is still read back. Only a frame that showed an error is removed:
+// removing one cancels a request the browser has not turned into a download yet, and an archive
+// answers only once its manifest is built, which has no deadline.
+const ERROR_WATCH_MS = 10 * 60 * 1000
 
 const codeForStatus = (status) => {
     if (status === 401) return 'unauthorized'
@@ -71,7 +72,7 @@ const readFrameError = (frame) => {
 }
 
 // openDownloadFrame hands url to the browser. The returned promise resolves with the DownloadError
-// read back from an error response, or with null once the frame is retired without one.
+// read back from an error response, or with null once ERROR_WATCH_MS passes without one.
 export function openDownloadFrame(url) {
     return new Promise((resolve) => {
         const frame = document.createElement('iframe')
@@ -98,7 +99,7 @@ export function openDownloadFrame(url) {
 
         frame.src = url
         document.body.appendChild(frame)
-        timer = setTimeout(() => retire(null), FRAME_LIFETIME_MS)
+        timer = setTimeout(() => resolve(null), ERROR_WATCH_MS)
     })
 }
 

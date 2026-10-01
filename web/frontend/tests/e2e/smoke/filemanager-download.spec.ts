@@ -77,7 +77,7 @@ async function fulfill(route: Route, reply: Reply) {
 async function openFileManager(
   page: Page,
   token: string,
-  opts: { file?: Replier; archive?: Replier; mintError?: Reply } = {},
+  opts: { file?: Replier; archive?: Replier; archiveGate?: Promise<void>; mintError?: Reply } = {},
 ): Promise<Stand> {
   const stand: Stand = { minted: [], fileRequests: [], archiveRequests: [] };
 
@@ -157,6 +157,7 @@ async function openFileManager(
   await page.route(/\/api\/file-manager\/1\/download-archive\?/, async (route) => {
     const url = new URL(route.request().url());
     stand.archiveRequests.push({ url, authorization: route.request().headers().authorization });
+    await opts.archiveGate;
     await fulfill(
       route,
       (opts.archive ?? ((u) => attachment(u.searchParams.get('filename') ?? 'archive.zip', ZIP_BODY, 'application/zip')))(url),
@@ -263,6 +264,28 @@ test.describe('file manager: browser-native downloads', () => {
     const { url } = stand.archiveRequests[0];
     expect(url.searchParams.get('path')).toBe('/');
     expect(url.searchParams.get('filename')).toBe('E2E_FM_Server.zip');
+  });
+
+  // An archive answers only once its manifest is built, which has no deadline. Giving up on
+  // reading back an error must not remove the frame and cancel the request still waiting.
+  test('archive_slower_than_the_error_watch_is_still_saved', async ({ page, request }) => {
+    let release: () => void = () => {};
+    const archiveGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.clock.install();
+    const stand = await openFileManager(page, await loginViaAPI(request), { archiveGate });
+
+    const downloadPromise = page.waitForEvent('download');
+    await downloadDirFromMenu(page, 'cfg');
+    await expect.poll(() => stand.archiveRequests.length).toBe(1);
+
+    await page.clock.fastForward('11:00');
+    release();
+
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('cfg.zip');
+    expect(await savedBody(download)).toBe(ZIP_BODY);
   });
 
   test('json_error_of_a_file_download_is_shown_in_the_progress_bar', async ({ page, request }) => {
