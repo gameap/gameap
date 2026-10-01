@@ -426,6 +426,10 @@
     summary: Download file
     description: Downloads a file from the server
     operationId: downloadFile
+    security:
+      - bearerAuth: []
+      - personalAccessToken: []
+      - shortLivedToken: []
     parameters:
       - name: server
         in: path
@@ -516,6 +520,10 @@
       while reading the body means the archive is incomplete and must be
       discarded.
     operationId: downloadFileManagerArchive
+    security:
+      - bearerAuth: []
+      - personalAccessToken: []
+      - shortLivedToken: []
     parameters:
       - name: server
         in: path
@@ -547,6 +555,17 @@
           minimum: 0
           maximum: 9
           default: 0
+      - name: filename
+        in: query
+        required: false
+        description: |
+          Attachment name for `Content-Disposition`. Reduced to a bare file
+          name, `.zip` is appended when missing; an empty or longer than 255
+          bytes value falls back to the directory name.
+        schema:
+          type: string
+          maxLength: 255
+        example: Half-Life_1_Echo-94.zip
     responses:
       '200':
         description: ZIP archive stream

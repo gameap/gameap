@@ -11,10 +11,9 @@ lint-fix:
 .PHONY: frontend-stub
 frontend-stub:
 	@if [ ! -f web/static/dist/index.html ]; then \
-		mkdir -p web/static/dist/streamsaver; \
+		mkdir -p web/static/dist; \
 		printf '%s' '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>GameAP</title><script>/* unit-test stub bundle */</script></head><body><div id="app"></div></body></html>' > web/static/dist/index.html; \
-		printf '%s' '<!doctype html><html><body><script>/* unit-test stub mitm */</script></body></html>' > web/static/dist/streamsaver/mitm.html; \
-		echo "frontend-stub: wrote stub index.html + streamsaver/mitm.html"; \
+		echo "frontend-stub: wrote stub index.html"; \
 	else \
 		echo "frontend-stub: real bundle present, leaving as-is"; \
 	fi

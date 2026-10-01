@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
@@ -209,7 +210,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		slog.WarnContext(ctx, "failed to disable write deadline", slog.String("error", deadlineErr.Error()))
 	}
 
-	filename := archiveFilename(manifest.RootName, path)
+	filename := requestedFilename(r)
+	if filename == "" {
+		filename = archiveFilename(manifest.RootName, path)
+	}
+
 	rw.Header().Set("Content-Type", "application/zip")
 	rw.Header().Set("Content-Disposition", contentDispositionHeader(filename))
 	rw.Header().Set("X-Archive-Total-Bytes", strconv.FormatUint(manifest.TotalSize, 10))
@@ -334,6 +339,40 @@ func readCompressLevel(r *http.Request) (int, error) {
 	}
 
 	return value, nil
+}
+
+// maxRequestedFilenameLen bounds a caller-chosen attachment name; a longer one falls back to the
+// derived name instead of bloating the Content-Disposition header.
+const maxRequestedFilenameLen = 255
+
+// requestedFilename returns the attachment name the caller asked for, reduced to a bare file name
+// ending in .zip, or "" when none was given. The file manager uses it to name a server root after
+// the game server instead of its directory, since the browser saves the archive under this name.
+func requestedFilename(r *http.Request) string {
+	raw, _ := api.NewQueryReader(r).ReadString("filename")
+
+	name := strings.Map(func(c rune) rune {
+		if unicode.IsControl(c) {
+			return -1
+		}
+
+		return c
+	}, raw)
+	name = strings.TrimSpace(filepath.Base(strings.ReplaceAll(name, `\`, "/")))
+
+	if name == "" || name == "." || name == ".." || name == "/" {
+		return ""
+	}
+
+	if !strings.EqualFold(filepath.Ext(name), ".zip") {
+		name += ".zip"
+	}
+
+	if len(name) > maxRequestedFilenameLen {
+		return ""
+	}
+
+	return name
 }
 
 func archiveFilename(rootName, requestedPath string) string {

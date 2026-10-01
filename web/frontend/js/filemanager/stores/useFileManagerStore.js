@@ -3,9 +3,13 @@ import { ref, computed, reactive } from 'vue'
 import GET from '../http/get.js'
 import POST from '../http/post.js'
 import { uploadFileChunked } from '../http/upload-session.js'
-import { downloadDirectoryArchive } from '../http/download-archive.js'
-import { downloadSingleFile } from '../http/download-file.js'
-import { StreamDownloadError } from '../http/download-stream.js'
+import {
+    DownloadError,
+    archiveDownloadURL,
+    fileDownloadURL,
+    openDownloadFrame,
+    requestError,
+} from '../http/download.js'
 import { detectConflicts, joinPath, dirOf } from '../http/upload-conflicts.js'
 import { queryVariants } from '../keyboardLayout.js'
 import { foldText } from '../textFold.js'
@@ -15,9 +19,14 @@ import { useModalStore } from './useModalStore.js'
 import { useHistoryStore } from './useHistoryStore.js'
 import { useTranslate } from '../composables/useTranslate.js'
 import { notification } from '@/parts/dialogs.js'
+import { useAuthStore } from '@/store/auth'
 
 const FILE_CONCURRENCY = 3
 const MKDIR_CONCURRENCY = 5
+
+// The bar only announces a download and reports its failure; the browser shows the download itself.
+const DOWNLOAD_STARTED_VISIBLE_MS = 5000
+const DOWNLOAD_ERROR_VISIBLE_MS = 8000
 
 function addRenameSuffix(name, taken, splitExtension = true) {
     const dot = splitExtension ? name.lastIndexOf('.') : -1
@@ -993,89 +1002,77 @@ export const useFileManagerStore = defineStore('fm', () => {
         messages.clearUploadProgress()
     }
 
-    // Shared progress/cancel bookkeeping for single-file and archive downloads. Every store update
-    // is gated on isCurrent(): a cancelled or finished download must never touch the state of a
-    // download the user started afterwards, and a user cancel just clears the bar (no error flash).
-    async function trackDownload({ kind, filename, label, run }) {
-        const messages = useMessagesStore()
-        const abortController = new AbortController()
-        const { signal } = abortController
-        messages.startArchiveDownload({ filename, abortController, kind })
+    let lastDownloadId = 0
 
-        const isCurrent = () => messages.archiveDownload.abortController === abortController
+    // Shared bookkeeping for single-file and archive downloads, which the browser saves itself: the
+    // bar shows the token request, a short "started" notice and any error the download frame reads
+    // back, however late it arrives. Every update is gated on isCurrent(), so only the download the
+    // user started last may touch the bar. Errors are surfaced there, never thrown.
+    async function trackDownload({ kind, filename, label, buildURL }) {
+        const messages = useMessagesStore()
+        const id = ++lastDownloadId
+        const isCurrent = () => lastDownloadId === id
+
+        let clearTimer = null
         const clearLater = (ms) => {
-            setTimeout(() => {
+            clearTimeout(clearTimer)
+            clearTimer = setTimeout(() => {
                 if (isCurrent()) messages.clearArchiveDownload()
             }, ms)
         }
-
-        try {
-            await run({
-                signal,
-                onPhase: (phase) => {
-                    if (isCurrent()) messages.setArchivePhase(phase)
-                },
-                onProgress: (progress) => {
-                    if (isCurrent()) messages.setArchiveProgress(progress)
-                },
-            })
-            clearLater(5000)
-        } catch (err) {
-            const code = err instanceof StreamDownloadError ? err.code : 'unknown'
-            if (code === 'aborted' || signal.aborted) {
-                if (isCurrent()) messages.clearArchiveDownload()
-                throw err
-            }
+        const fail = (err) => {
             console.error(`[${label}] failed`, err)
-            const message = err && err.message ? err.message : 'unknown'
-            if (isCurrent()) messages.setArchiveError({ code, message })
-            clearLater(8000)
-            throw err
+            if (!isCurrent()) return
+            messages.setArchiveError({
+                code: err instanceof DownloadError ? err.code : 'unknown',
+                message: err?.message || '',
+            })
+            clearLater(DOWNLOAD_ERROR_VISIBLE_MS)
         }
-    }
 
-    async function download({ disk, path, filename }) {
-        const settings = useSettingsStore()
-        const fileName = filename || (path || '').split('/').filter(Boolean).pop() || 'file'
+        messages.startArchiveDownload({ filename, kind })
 
-        await trackDownload({
-            kind: 'file',
-            filename: fileName,
-            label: 'download',
-            run: ({ signal, onPhase, onProgress }) => downloadSingleFile({
-                baseUrl: settings.baseUrl,
-                disk,
-                path,
-                filename: fileName,
-                headers: settings.headers,
-                onPhase,
-                onProgress,
-                signal,
-            }),
-        }).catch(() => {
-            /* errors are surfaced via the messages store */
+        let token
+        try {
+            token = await useAuthStore().fetchShortLivedToken()
+        } catch (err) {
+            fail(requestError(err))
+
+            return
+        }
+
+        if (isCurrent()) messages.setArchiveStarted()
+        clearLater(DOWNLOAD_STARTED_VISIBLE_MS)
+
+        openDownloadFrame(buildURL(token)).then((err) => {
+            if (err) fail(err)
         })
     }
 
-    async function downloadDirectory({ disk, path, filename, compress = 0 }) {
+    function download({ disk, path, filename }) {
+        const settings = useSettingsStore()
+        const fileName = filename || (path || '').split('/').filter(Boolean).pop() || 'file'
+
+        return trackDownload({
+            kind: 'file',
+            filename: fileName,
+            label: 'download',
+            buildURL: (token) => fileDownloadURL(settings.baseUrl, { disk, path, token }),
+        })
+    }
+
+    // The archive name goes to the server too: the browser saves the archive under the name the
+    // response gives it, and a server root would otherwise be named after its directory.
+    function downloadDirectory({ disk, path, filename, compress = 0 }) {
         const settings = useSettingsStore()
         const archiveName = filename || `${(path || '').split('/').filter(Boolean).pop() || 'archive'}.zip`
 
-        await trackDownload({
+        return trackDownload({
             kind: 'archive',
             filename: archiveName,
             label: 'downloadDirectory',
-            run: ({ signal, onPhase, onProgress }) => downloadDirectoryArchive({
-                baseUrl: settings.baseUrl,
-                disk,
-                path,
-                filename: archiveName,
-                compress,
-                headers: settings.headers,
-                onPhase,
-                onProgress,
-                signal,
-            }),
+            buildURL: (token) =>
+                archiveDownloadURL(settings.baseUrl, { disk, path, filename: archiveName, compress, token }),
         })
     }
 
@@ -1114,19 +1111,6 @@ export const useFileManagerStore = defineStore('fm', () => {
         }).catch(() => {
             /* errors are surfaced via the messages store */
         })
-    }
-
-    function cancelDirectoryDownload() {
-        const messages = useMessagesStore()
-        const ctl = messages.archiveDownload.abortController
-        if (ctl) {
-            try {
-                ctl.abort()
-            } catch (e) {
-                console.warn('[cancelDirectoryDownload] abort failed', e)
-            }
-        }
-        messages.clearArchiveDownload()
     }
 
     async function deleteItems(items) {
@@ -1466,7 +1450,6 @@ export const useFileManagerStore = defineStore('fm', () => {
         download,
         downloadDirectory,
         downloadCurrentDirectory,
-        cancelDirectoryDownload,
         delete: deleteItems,
         paste,
         rename,

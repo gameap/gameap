@@ -31,10 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	indexHTMLInline = `(function(){ window.__theme = 'light'; })();`
-	mitmHTMLInline  = `(function(){ navigator.serviceWorker.register('sw.js'); })();`
-)
+const indexHTMLInline = `(function(){ window.__theme = 'light'; })();`
 
 func newTestFS(t *testing.T) fstest.MapFS {
 	t.Helper()
@@ -43,9 +40,6 @@ func newTestFS(t *testing.T) fstest.MapFS {
 		"index.html": &fstest.MapFile{
 			Data: []byte("<!doctype html><html><head><script>" + indexHTMLInline + "</script>" +
 				`<script type="module" src="/assets/main.js"></script></head><body></body></html>`),
-		},
-		"streamsaver/mitm.html": &fstest.MapFile{
-			Data: []byte("<!doctype html><html><body><script>" + mitmHTMLInline + "</script></body></html>"),
 		},
 	}
 }
@@ -134,7 +128,6 @@ func TestSecurityHeaders_Defaults(t *testing.T) {
 	assert.Contains(t, csp, "object-src 'none'")
 	assert.Contains(t, csp, "frame-ancestors 'self'")
 	assert.Contains(t, csp, expectedHash(t, indexHTMLInline))
-	assert.Contains(t, csp, expectedHash(t, mitmHTMLInline))
 	assert.Contains(t, csp, "worker-src 'self' blob:")
 }
 
@@ -489,31 +482,25 @@ func TestSecurityHeaders_RealEmbeddedFS(t *testing.T) {
 // guarantee.
 func TestSecurityHeaders_CSPInlineScriptDiscovery(t *testing.T) {
 	t.Parallel()
-	// The streamsaver document is constant across cases so the hash count
-	// math stays predictable: every case carries +1 from this file.
-	mitmFile := &fstest.MapFile{
-		Data: []byte("<!doctype html><html><body><script>" + mitmHTMLInline + "</script></body></html>"),
-	}
 
 	cases := []struct {
 		name            string
 		indexHTML       string
 		wantPresent     []string
 		wantAbsent      []string
-		wantHashesCount int // total 'sha256- occurrences in the CSP (includes mitm)
+		wantHashesCount int // total 'sha256- occurrences in the CSP
 	}{
 		{
 			name:            "empty_src_treated_as_inline",
 			indexHTML:       `<!doctype html><html><head><script src="">alert(1)</script></head><body></body></html>`,
-			wantPresent:     []string{expectedHash(t, "alert(1)"), expectedHash(t, mitmHTMLInline)},
-			wantHashesCount: 2,
+			wantPresent:     []string{expectedHash(t, "alert(1)")},
+			wantHashesCount: 1,
 		},
 		{
 			name:            "non_empty_src_skipped",
 			indexHTML:       `<!doctype html><html><head><script src="/foo.js">alert(1)</script></head><body></body></html>`,
-			wantPresent:     []string{expectedHash(t, mitmHTMLInline)},
 			wantAbsent:      []string{expectedHash(t, "alert(1)")},
-			wantHashesCount: 1,
+			wantHashesCount: 0,
 		},
 		{
 			name: "multiple_inline_scripts_all_hashed",
@@ -524,21 +511,20 @@ func TestSecurityHeaders_CSPInlineScriptDiscovery(t *testing.T) {
 			wantPresent: []string{
 				expectedHash(t, "alert(1)"),
 				expectedHash(t, "alert(2)"),
-				expectedHash(t, mitmHTMLInline),
 			},
-			wantHashesCount: 3,
+			wantHashesCount: 2,
 		},
 		{
 			name:            "script_with_other_attrs_still_inline",
 			indexHTML:       `<!doctype html><html><head><script type="module">alert(1)</script></head><body></body></html>`,
-			wantPresent:     []string{expectedHash(t, "alert(1)"), expectedHash(t, mitmHTMLInline)},
-			wantHashesCount: 2,
+			wantPresent:     []string{expectedHash(t, "alert(1)")},
+			wantHashesCount: 1,
 		},
 		{
 			name:            "empty_script_body_still_hashed",
 			indexHTML:       `<!doctype html><html><head><script></script></head><body></body></html>`,
-			wantPresent:     []string{expectedHash(t, ""), expectedHash(t, mitmHTMLInline)},
-			wantHashesCount: 2,
+			wantPresent:     []string{expectedHash(t, "")},
+			wantHashesCount: 1,
 		},
 	}
 
@@ -548,8 +534,7 @@ func TestSecurityHeaders_CSPInlineScriptDiscovery(t *testing.T) {
 			// ARRANGE
 			cfg := baseSecureConfig()
 			staticFS := fstest.MapFS{
-				"index.html":            &fstest.MapFile{Data: []byte(tc.indexHTML)},
-				"streamsaver/mitm.html": mitmFile,
+				"index.html": &fstest.MapFile{Data: []byte(tc.indexHTML)},
 			}
 
 			// ACT
@@ -631,8 +616,7 @@ func TestSecurityHeaders_InlineScriptHashTokenizerError(t *testing.T) {
 	staticFS := errFS{files: map[string][]byte{
 		// Unclosed <script>: the tokenizer keeps reading raw text inside
 		// the script and hits the synthetic Read error before EOF.
-		"index.html":            []byte("<!doctype html><html><body><script>"),
-		"streamsaver/mitm.html": []byte("<!doctype html><html><body></body></html>"),
+		"index.html": []byte("<!doctype html><html><body><script>"),
 	}}
 
 	// ACT

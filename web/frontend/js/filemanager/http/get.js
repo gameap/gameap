@@ -110,20 +110,6 @@ export default {
     },
 
     /**
-     * Download file
-     * @param disk
-     * @param path
-     * @return {*}
-     */
-    download(disk, path, config) {
-        return HTTP.get('download', {
-            responseType: 'arraybuffer',
-            params: { disk, path },
-            ...config,
-        });
-    },
-
-    /**
      * Chunked upload session status
      * @param uploadId
      * @returns {Promise<AxiosResponse<any>>}
