@@ -659,3 +659,46 @@ func TestAbilityChecker_Audit_CheckAnyDenialEmitsScopedEvent(t *testing.T) {
 		gotAbilities,
 		"required_abilities must list every acceptable ability the any-of check demanded")
 }
+
+// api.CreateRouter installs the package audit logger on every call, and the
+// application container tests build routers from parallel subtests, so the
+// install must be safe against concurrent installs and checker construction.
+//
+//nolint:paralleltest // mutates the process-wide audit logger
+func TestSetAuditLogger_ConcurrentInstallAndConstruction(t *testing.T) {
+	t.Cleanup(func() { serversbase.SetAuditLogger(audit.NopLogger{}) })
+
+	// ARRANGE
+	rbacService, _ := setupRBAC(t)
+	defer rbacService.Close()
+
+	recorder := &auditCapture{}
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+
+	for range 8 {
+		wg.Go(func() {
+			<-start
+			serversbase.SetAuditLogger(recorder)
+		})
+		wg.Go(func() {
+			<-start
+			_ = serversbase.NewAbilityChecker(rbacService)
+		})
+	}
+
+	// ACT
+	close(start)
+	wg.Wait()
+
+	err := serversbase.NewAbilityChecker(rbacService).CheckOrError(
+		context.Background(), 5, 50, []domain.AbilityName{domain.AbilityNameGameServerStop},
+	)
+
+	// ASSERT
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "user does not have required permissions")
+	events := recorder.snapshot()
+	require.Len(t, events, 1, "a checker built without an explicit logger must report to the installed one")
+	assert.Equal(t, audit.EventAccessDenied, events[0].Type)
+}

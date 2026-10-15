@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/audit"
@@ -18,15 +19,25 @@ import (
 // not given an explicit one. It mirrors the project's existing reliance on a
 // process-wide logger (slog.Default) and lets the ~38 handler call sites that
 // build a checker keep doing NewAbilityChecker(rbac) unchanged while still
-// emitting access-denied events. Set once at startup via SetAuditLogger.
-var packageAuditLogger audit.Logger = audit.NopLogger{}
+// emitting access-denied events. Set at startup via SetAuditLogger; atomic
+// because every api.CreateRouter call installs it, and tests build routers
+// concurrently.
+var packageAuditLogger atomic.Pointer[audit.Logger]
 
 // SetAuditLogger installs the process-wide audit logger for ability checks.
-// Call once during application/router setup.
+// Call during application/router setup.
 func SetAuditLogger(l audit.Logger) {
 	if l != nil {
-		packageAuditLogger = l
+		packageAuditLogger.Store(&l)
 	}
+}
+
+func defaultAuditLogger() audit.Logger {
+	if l := packageAuditLogger.Load(); l != nil {
+		return *l
+	}
+
+	return audit.NopLogger{}
 }
 
 // AbilityChecker is responsible for checking server abilities.
@@ -51,7 +62,7 @@ func WithAuditLogger(l audit.Logger) AbilityCheckerOption {
 func NewAbilityChecker(rbac base.RBAC, opts ...AbilityCheckerOption) *AbilityChecker {
 	c := &AbilityChecker{
 		rbac:  rbac,
-		audit: packageAuditLogger,
+		audit: defaultAuditLogger(),
 	}
 	for _, opt := range opts {
 		opt(c)
