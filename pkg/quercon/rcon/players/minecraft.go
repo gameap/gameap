@@ -51,13 +51,12 @@ func (mgr *MinecraftPlayerManager) ParsePlayers(data string) ([]Player, error) {
 }
 
 func parseMinecraftPlayerEntry(entry string) (name, uuid string) {
-	parenIdx := strings.LastIndex(entry, "(")
-	if parenIdx == -1 {
+	namePart, uuidPart, found := strings.CutLast(entry, "(")
+	if !found {
 		return entry, ""
 	}
 
-	name = strings.TrimSpace(entry[:parenIdx])
-	uuidPart := entry[parenIdx+1:]
+	name = strings.TrimSpace(namePart)
 	if before, _, ok := strings.Cut(uuidPart, ")"); ok {
 		uuid = before
 	}

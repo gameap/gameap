@@ -158,7 +158,7 @@ func TestSubscription_ConcurrentCloseAndDeliver_NoPanic(t *testing.T) {
 	// is the assertion; drain whatever remains so no goroutine leaks.
 	wg.Wait()
 
-	for range sub.Samples() { //nolint:revive
+	for range sub.Samples() {
 	}
 }
 

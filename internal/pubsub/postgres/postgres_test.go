@@ -56,7 +56,7 @@ func TestPostgres_PublishSubscribe(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background()) //nolint:modernize
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
@@ -108,7 +108,7 @@ func TestPostgres_PatternMatching(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background()) //nolint:modernize
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
@@ -224,7 +224,7 @@ func TestPostgres_Unsubscribe(t *testing.T) {
 	err = ps.Unsubscribe(context.Background(), "unsub:channel")
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background()) //nolint:modernize
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
@@ -258,7 +258,7 @@ func TestPostgres_DynamicSubscription(t *testing.T) {
 	require.NoError(t, err)
 	defer ps.Close()
 
-	ctx, cancel := context.WithCancel(context.Background()) //nolint:modernize
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
