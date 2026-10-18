@@ -48,6 +48,7 @@
   "overrides": {
     "@originjs/vite-plugin-commonjs": {
       "esbuild": "^0.28.2"
-    }
+    },
+    "postcss-selector-parser": "^7.1.6"
   }
 }
