@@ -42,6 +42,7 @@ var mapPlayerManagersByEngine = map[string]func() PlayerManager{
 	"armedassault2":   NewBattlEyePlayers,
 	"armedassault2oa": NewBattlEyePlayers,
 	"armedassault3":   NewBattlEyePlayers,
+	"rust":            NewRustPlayers,
 }
 
 func NewPlayerManagerByGameCode(gameCode string) (PlayerManager, error) {

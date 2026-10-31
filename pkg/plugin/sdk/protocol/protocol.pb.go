@@ -244,7 +244,7 @@ type RconProtocol struct {
 	Players *PlayerCapability `protobuf:"bytes,6,opt,name=players,proto3" json:"players,omitempty"`
 	// builtin_protocol names the panel RCON engine to reuse when transport is
 	// RCON_TRANSPORT_BUILTIN: one of "source", "goldsource", "quake2",
-	// "quake3", "samp", "battleye". An unknown or empty name makes the host drop
+	// "quake3", "samp", "battleye", "webrcon". An unknown or empty name makes the host drop
 	// the whole registration with a warning, so a typo cannot shadow the
 	// built-in tables and leave the game without RCON. Ignored for
 	// RCON_TRANSPORT_PLUGIN and for the two legacy shorthand transports.

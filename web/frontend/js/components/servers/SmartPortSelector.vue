@@ -42,6 +42,8 @@ import { ref, watch, onMounted, defineModel } from 'vue';
 import { storeToRefs } from 'pinia'
 import { useNodeStore } from '@/store/node'
 import { useGameStore } from '@/store/game'
+import { useGameListStore } from '@/store/gameList'
+import { useGameModStore } from '@/store/gameMod'
 import { useServerStore } from '@/store/server'
 import {
   NFormItem,
@@ -49,6 +51,8 @@ import {
 } from 'naive-ui';
 import { trans } from '@/i18n/i18n';
 
+// Fallbacks for games whose metadata does not set default_port / query_port_offset /
+// rcon_port_offset. The game mod metadata overrides the game metadata.
 const DEFAULT_PORTS = {
   'ark': 7777,
   'arma2': 2302,
@@ -87,7 +91,7 @@ const PORT_DIFF = {
   'justcause': [0, 0],
   'fivem': [0, 0],
   'ark': [0, 0],
-  'rust': [0, 1],
+  'rust': [2, 1],
   'minecraft': [0, 1],
   'rok': [0, 0],
   'teamspeak3': [24, 35],
@@ -110,8 +114,12 @@ const emit = defineEmits(['update:serverPort', 'update:rconPort', 'update:queryP
 const nodeStore = useNodeStore()
 const gameStore = useGameStore()
 const serverStore = useServerStore()
+const gameListStore = useGameListStore()
+const gameModStore = useGameModStore()
 const { nodeId: dsId, busyPorts } = storeToRefs(nodeStore)
 const { gameCode } = storeToRefs(gameStore)
+const { games } = storeToRefs(gameListStore)
+const { mod: selectedMod } = storeToRefs(gameModStore)
 const { formIp: selectedIp } = storeToRefs(serverStore)
 
 const serverPort = defineModel('serverPort')
@@ -120,9 +128,11 @@ const rconPort = defineModel('rconPort')
 
 const serverPortWarning = ref('')
 
-function setPorts() {
-  const gameCode = getExistsPortGameCode();
+// The last port picked automatically. A port the user typed is not replaced when the
+// game mod (and with it the default port) changes.
+const pickedPort = ref(null)
 
+function setPorts() {
   if (props.initialServerIp === selectedIp.value) {
     serverPort.value = parseInt(props.initialServerPort) || 27015;
 
@@ -133,12 +143,18 @@ function setPorts() {
     return
   }
 
+  const defaultPort = getDefaultPort();
   let portCorrect = -1;
 
   do {
     portCorrect++;
-    serverPort.value = DEFAULT_PORTS[gameCode] + portCorrect;
-  } while (isBusy(selectedIp.value, DEFAULT_PORTS[gameCode] + portCorrect));
+    serverPort.value = defaultPort + portCorrect;
+  } while (isBusy(selectedIp.value, defaultPort + portCorrect));
+
+  pickedPort.value = serverPort.value;
+
+  // watch(serverPort) skips an unchanged value, so the offsets are applied here as well.
+  correctPorts();
 }
 
 function correctPorts() {
@@ -152,8 +168,42 @@ function getExistsPortGameCode() {
   return DEFAULT_PORTS.hasOwnProperty(gameCode.value) ? gameCode.value : 'default';
 }
 
+function metadataInt(metadata, key) {
+  const value = metadata?.[key];
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  const number = Number(value);
+
+  return Number.isInteger(number) ? number : undefined;
+}
+
+function portMetadata(key) {
+  const mod = selectedMod.value;
+  if (mod && mod.game_code === gameCode.value) {
+    const value = metadataInt(mod.metadata, key);
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  const game = games.value.find((g) => g.code === gameCode.value);
+
+  return metadataInt(game?.metadata, key);
+}
+
+function getDefaultPort() {
+  return portMetadata('default_port') ?? DEFAULT_PORTS[getExistsPortGameCode()];
+}
+
 function getPortDiff() {
-  return PORT_DIFF[gameCode.value] || PORT_DIFF['default'];
+  const fallback = PORT_DIFF[gameCode.value] || PORT_DIFF['default'];
+
+  return [
+    portMetadata('query_port_offset') ?? fallback[0],
+    portMetadata('rcon_port_offset') ?? fallback[1],
+  ];
 }
 
 function isBusy(serverIp, serverPort) {
@@ -209,6 +259,22 @@ watch(selectedIp, (newIp, oldIp) => {
 
 watch(gameCode, () => {
   setPorts();
+});
+
+// Metadata arrives with the games list and the selected game mod, possibly after the game
+// was chosen.
+watch(() => [selectedMod.value?.id, games.value], () => {
+  if (!gameCode.value || props.initialServerIp === selectedIp.value) {
+    return;
+  }
+
+  if (serverPort.value === pickedPort.value) {
+    setPorts();
+
+    return;
+  }
+
+  correctPorts();
 });
 
 </script>

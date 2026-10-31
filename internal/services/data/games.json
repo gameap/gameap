@@ -5351,6 +5351,11 @@
       "steam_app_set_config": "",
       "remote_repository_linux": "",
       "remote_repository_windows": "",
+      "metadata": {
+        "default_port": 28015,
+        "query_port_offset": 2,
+        "rcon_port_offset": 1
+      },
       "mods": [
         {
           "id": 0,
@@ -5487,7 +5492,7 @@
           ],
           "remote_repository_linux": "https://cdn.gameap.com/rust/default_linux.tar.gz",
           "remote_repository_windows": "",
-          "start_cmd_linux": "./run.sh  --ip={ip}  --port={port}  --hostname=\"{hostname}\"  --maxplayers={maxplayers}  --level=\"{level}\"  --worldsize={world_size}  --rcon-password=\"{rcon_password}\"  --rcon-port={rcon_port}  --seed={level_seed}",
+          "start_cmd_linux": "./run.sh  --ip={ip}  --port={port}  --hostname=\"{hostname}\"  --maxplayers={maxplayers}  --level=\"{level}\"  --worldsize={world_size}  --rcon-password=\"{rcon_password}\"  --rcon-port={rcon_port}  --query-port={query_port}  --seed={level_seed}",
           "start_cmd_windows": "RustDedicated.exe   -batchmode -server.hostname \"{hostname}\" -server.maxplayers {maxplayers}   -server.level \"{level}\" -server.ip {ip} -server.port {port}  +rcon.ip {ip} +rcon.port {rcon_port} +rcon.password {rcon_password}  +server.saveinterval {saveinterval} -server.worldsize {world_size} -server.seed {level_seed}  -server.secure true",
           "kick_cmd": "",
           "ban_cmd": "",

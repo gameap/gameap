@@ -692,9 +692,17 @@ func TestNewFeaturesResponse(t *testing.T) {
 		},
 		{
 			name:                  "unsupported_engine_with_unsupported_game",
-			game:                  domain.Game{Code: "rust", Engine: "rust"},
+			game:                  domain.Game{Code: "valheim", Engine: "valheim"},
 			expectedRcon:          false,
 			expectedPlayersManage: false,
+		},
+		{
+			name:                  "rust_engine",
+			game:                  domain.Game{Code: "rust", Engine: "rust"},
+			expectedRcon:          true,
+			expectedPlayersManage: true,
+			expectedPlayersKick:   true,
+			expectedPlayersBan:    true,
 		},
 		{
 			name:                  "empty_engine_and_game",
