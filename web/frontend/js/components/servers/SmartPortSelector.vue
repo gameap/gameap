@@ -119,7 +119,7 @@ const gameModStore = useGameModStore()
 const { nodeId: dsId, busyPorts } = storeToRefs(nodeStore)
 const { gameCode } = storeToRefs(gameStore)
 const { games } = storeToRefs(gameListStore)
-const { mod: selectedMod } = storeToRefs(gameModStore)
+const { mod: selectedMod, modId: selectedModId } = storeToRefs(gameModStore)
 const { formIp: selectedIp } = storeToRefs(serverStore)
 
 const serverPort = defineModel('serverPort')
@@ -128,40 +128,59 @@ const rconPort = defineModel('rconPort')
 
 const serverPortWarning = ref('')
 
-// The last port picked automatically. A port the user typed is not replaced when the
-// game mod (and with it the default port) changes.
-const pickedPort = ref(null)
+// The last ports set automatically, each tracked on its own. A port the user typed no
+// longer equals its entry and is not replaced when the game mod (and with it the default
+// port or the offsets) changes. null means "not tracked yet": the port follows the server port.
+const pickedPorts = { server: null, query: null, rcon: null }
 
-function setPorts() {
+// The models are bound with v-model: a value assigned here reads back only after the
+// parent re-renders, so derived ports are computed from the local port, not serverPort.value.
+function setPorts({ keepEdited = false } = {}) {
   if (props.initialServerIp === selectedIp.value) {
-    serverPort.value = parseInt(props.initialServerPort) || 27015;
+    const port = parseInt(props.initialServerPort) || 27015;
+    serverPort.value = port;
 
     const portDiff = getPortDiff();
-    queryPort.value = parseInt(props.initialQueryPort) || serverPort.value + portDiff[0];
-    rconPort.value = parseInt(props.initialRconPort) || serverPort.value + portDiff[1];
+    queryPort.value = parseInt(props.initialQueryPort) || port + portDiff[0];
+    rconPort.value = parseInt(props.initialRconPort) || port + portDiff[1];
+
+    pickedPorts.query = null;
+    pickedPorts.rcon = null;
 
     return
   }
 
-  const defaultPort = getDefaultPort();
-  let portCorrect = -1;
+  const [queryDiff, rconDiff] = getPortDiff();
+  let port = getDefaultPort();
 
-  do {
-    portCorrect++;
-    serverPort.value = defaultPort + portCorrect;
-  } while (isBusy(selectedIp.value, defaultPort + portCorrect));
+  while (
+    isBusy(selectedIp.value, port)
+    || isBusy(selectedIp.value, port + queryDiff)
+    || isBusy(selectedIp.value, port + rconDiff)
+  ) {
+    port++;
+  }
 
-  pickedPort.value = serverPort.value;
+  serverPort.value = port;
+  pickedPorts.server = port;
 
   // watch(serverPort) skips an unchanged value, so the offsets are applied here as well.
-  correctPorts();
+  correctPorts({ port, keepEdited });
 }
 
-function correctPorts() {
-  const portDiff = getPortDiff();
+// keepEdited leaves a query or RCON port the user typed in place.
+function correctPorts({ port = serverPort.value, keepEdited = false } = {}) {
+  const [queryDiff, rconDiff] = getPortDiff();
 
-  queryPort.value = serverPort.value + portDiff[0];
-  rconPort.value = serverPort.value + portDiff[1];
+  if (!keepEdited || pickedPorts.query === null || queryPort.value === pickedPorts.query) {
+    pickedPorts.query = port + queryDiff;
+    queryPort.value = pickedPorts.query;
+  }
+
+  if (!keepEdited || pickedPorts.rcon === null || rconPort.value === pickedPorts.rcon) {
+    pickedPorts.rcon = port + rconDiff;
+    rconPort.value = pickedPorts.rcon;
+  }
 }
 
 function getExistsPortGameCode() {
@@ -181,7 +200,8 @@ function metadataInt(metadata, key) {
 
 function portMetadata(key) {
   const mod = selectedMod.value;
-  if (mod && mod.game_code === gameCode.value) {
+  // While another mod is loading, the store still holds the previous one.
+  if (mod && String(mod.id) === String(selectedModId.value) && mod.game_code === gameCode.value) {
     const value = metadataInt(mod.metadata, key);
     if (value !== undefined) {
       return value;
@@ -236,7 +256,7 @@ watch(dsId, () => {
 
 watch(serverPort, (newVal, oldVal) => {
   serverPort.value = Number(serverPort.value);
-  correctPorts();
+  correctPorts({ keepEdited: true });
   checkPorts();
   emit('update:serverPort', serverPort.value);
 });
@@ -263,18 +283,18 @@ watch(gameCode, () => {
 
 // Metadata arrives with the games list and the selected game mod, possibly after the game
 // was chosen.
-watch(() => [selectedMod.value?.id, games.value], () => {
+watch(() => [selectedModId.value, selectedMod.value?.id, games.value], () => {
   if (!gameCode.value || props.initialServerIp === selectedIp.value) {
     return;
   }
 
-  if (serverPort.value === pickedPort.value) {
-    setPorts();
+  if (serverPort.value === pickedPorts.server) {
+    setPorts({ keepEdited: true });
 
     return;
   }
 
-  correctPorts();
+  correctPorts({ keepEdited: true });
 });
 
 </script>

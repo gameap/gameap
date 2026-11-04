@@ -80,6 +80,12 @@ func (w *WebRcon) Open(ctx context.Context) error {
 			return ErrAuthenticationFailed
 		}
 
+		// The URL path is the password, and *url.Error prints the whole URL.
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			return errors.Wrap(urlErr.Err, "unable to connect")
+		}
+
 		return errors.WithMessage(err, "unable to connect")
 	}
 

@@ -260,6 +260,7 @@ func TestWebRcon_Open(t *testing.T) {
 		require.Error(t, err)
 		assert.NotErrorIs(t, err, ErrAuthenticationFailed)
 		assert.Contains(t, err.Error(), "unable to connect")
+		assert.NotContains(t, err.Error(), "secret")
 	})
 }
 
