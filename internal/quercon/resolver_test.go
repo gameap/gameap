@@ -234,6 +234,7 @@ func TestRconClient_BuiltinTransportUsesDeclaredProtocol(t *testing.T) {
 		{name: "quake2", protocol: "quake2", wantType: "*rcon.Quake"},
 		{name: "samp", protocol: "samp", wantType: "*rcon.SAMP"},
 		{name: "battleye", protocol: "battleye", wantType: "*rcon.BattlEye"},
+		{name: "webrcon", protocol: "webrcon", wantType: "*rcon.WebRcon"},
 	}
 
 	for _, tt := range tests {

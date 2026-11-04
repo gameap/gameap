@@ -24,7 +24,6 @@ var gamesWithoutRcon = map[string]struct{}{
 	"justcause":  {},
 	"mta":        {},
 	"rok":        {},
-	"rust":       {},
 	"teamspeak3": {},
 	"the-forest": {},
 	"valheim":    {},
@@ -118,8 +117,13 @@ func TestDeterminePlayerManager(t *testing.T) {
 			wantError: players.ErrPlayersManagementNotSupported.Error(),
 		},
 		{
+			name:     "rust_engine",
+			game:     domain.Game{Engine: "rust", EngineVersion: "staging", Code: "rust"},
+			wantType: "*players.RustPlayerManager",
+		},
+		{
 			name:      "game_without_player_management",
-			game:      domain.Game{Engine: "rust", EngineVersion: "1", Code: "rust"},
+			game:      domain.Game{Engine: "valheim", EngineVersion: "1", Code: "valheim"},
 			wantError: players.ErrPlayersManagementNotSupported.Error(),
 		},
 	}

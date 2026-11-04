@@ -1350,7 +1350,8 @@ Implement `GetRconProtocols` / `GetQueryProtocols`. Each registration lists the
   code runs at execute time, the one exception being `parse_via_plugin` below.
   Use this to add a new game that speaks a protocol the panel already
   implements.
-  - RCON names: `source`, `goldsource`, `quake2`, `quake3`, `samp`, `battleye`.
+  - RCON names: `source`, `goldsource`, `quake2`, `quake3`, `samp`, `battleye`,
+    `webrcon` (Rust WebSocket RCON).
   - Query names: `source`, `minecraft`, `gamespy2`, `gamespy3`, `quake2`,
     `quake3`, `samp`, `raknet`.
   - An RCON registration naming a protocol the panel does not implement is

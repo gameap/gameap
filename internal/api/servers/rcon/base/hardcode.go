@@ -55,6 +55,7 @@ var mapProtocolByEngine = map[string]rcon.Protocol{
 	"samp":       rcon.ProtocolSAMP,
 	"arma":       rcon.ProtocolBattlEye,
 	"arma3":      rcon.ProtocolBattlEye,
+	"rust":       rcon.ProtocolWebRcon,
 
 	// Engine names used by panels seeded from an older catalogue snapshot. The current
 	// catalogue calls these arma/arma3, and a games upgrade rewrites them, but an installation
