@@ -246,12 +246,27 @@ function checkPorts() {
   }
 }
 
+// Busy ports may arrive after the ports were picked, and checkPorts() sees only the server
+// port, so a busy query or RCON port would stay unnoticed. Pick again unless the server port
+// was typed meanwhile.
+function onBusyPortsFetched() {
+  if (
+    selectedIp.value
+    && props.initialServerIp !== selectedIp.value
+    && serverPort.value === pickedPorts.server
+  ) {
+    setPorts({ keepEdited: true });
+  }
+
+  checkPorts();
+}
+
 onMounted(() => {
-  nodeStore.fetchBusyPorts(checkPorts)
+  nodeStore.fetchBusyPorts(onBusyPortsFetched)
 });
 
 watch(dsId, () => {
-  nodeStore.fetchBusyPorts(checkPorts)
+  nodeStore.fetchBusyPorts(onBusyPortsFetched)
 });
 
 watch(serverPort, (newVal, oldVal) => {
