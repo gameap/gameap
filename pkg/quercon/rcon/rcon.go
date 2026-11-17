@@ -21,6 +21,7 @@ const (
 	ProtocolQuake3   Protocol = "quake3"
 	ProtocolSAMP     Protocol = "samp"
 	ProtocolBattlEye Protocol = "battleye"
+	ProtocolWebRcon  Protocol = "webrcon"
 )
 
 // clientFactories is the single registry of supported protocols. Both NewClient and
@@ -34,6 +35,7 @@ var clientFactories = map[Protocol]func(Config) (Client, error){
 	ProtocolQuake3:   func(c Config) (Client, error) { return NewQuake3(c) },
 	ProtocolSAMP:     func(c Config) (Client, error) { return NewSAMP(c) },
 	ProtocolBattlEye: func(c Config) (Client, error) { return NewBattlEye(c) },
+	ProtocolWebRcon:  func(c Config) (Client, error) { return NewWebRcon(c) },
 }
 
 type Config struct {

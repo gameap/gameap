@@ -24,7 +24,7 @@ func TestNewPlayerManagerByGameCode(t *testing.T) {
 		{name: "samp_uses_samp_parser", gameCode: "samp", wantType: "*players.SAMPPlayerManager"},
 		{name: "arma3_uses_battleye_parser", gameCode: "arma3", wantType: "*players.BattlEyePlayerManager"},
 		{name: "arma2_operation_arrowhead", gameCode: "arma2oa", wantType: "*players.BattlEyePlayerManager"},
-		{name: "unknown_game", gameCode: "rust", wantError: ErrPlayersManagementNotSupported.Error()},
+		{name: "unknown_game", gameCode: "valheim", wantError: ErrPlayersManagementNotSupported.Error()},
 		{name: "empty_game_code", gameCode: "", wantError: ErrPlayersManagementNotSupported.Error()},
 	}
 
@@ -63,6 +63,7 @@ func TestNewPlayerManagerByEngine(t *testing.T) {
 		{name: "arma3_engine", engine: "arma3", wantType: "*players.BattlEyePlayerManager"},
 		{name: "legacy_armedassault2_engine", engine: "armedassault2", wantType: "*players.BattlEyePlayerManager"},
 		{name: "legacy_armedassault3_engine", engine: "armedassault3", wantType: "*players.BattlEyePlayerManager"},
+		{name: "rust_engine", engine: "rust", wantType: "*players.RustPlayerManager"},
 		{
 			name:      "source_is_deliberately_absent",
 			engine:    "source",

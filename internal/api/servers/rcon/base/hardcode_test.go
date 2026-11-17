@@ -78,6 +78,11 @@ func TestDetermineProtocolByEngine(t *testing.T) {
 			want:   rcon.ProtocolBattlEye,
 		},
 		{
+			name:   "rust_engine",
+			engine: "rust",
+			want:   rcon.ProtocolWebRcon,
+		},
+		{
 			name:   "legacy_armedassault2oa_engine",
 			engine: "armedassault2oa",
 			want:   rcon.ProtocolBattlEye,

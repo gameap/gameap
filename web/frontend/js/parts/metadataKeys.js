@@ -1,4 +1,4 @@
-// Metadata keys grouped by what reads them: the panel itself and the daemon
+// Metadata keys grouped by what reads them: the panel itself, the server form and the daemon
 // process managers (docker, podman). Group titles and per-key descriptions live
 // in i18n under `metadata_keys.*`, examples stay here as-is.
 export const metadataKeyGroups = [
@@ -6,6 +6,14 @@ export const metadataKeyGroups = [
         name: 'panel',
         keys: [
             {key: 'public_ip', example: '203.0.113.10'},
+        ],
+    },
+    {
+        name: 'ports',
+        keys: [
+            {key: 'default_port', example: '28015'},
+            {key: 'query_port_offset', example: '2'},
+            {key: 'rcon_port_offset', example: '1'},
         ],
     },
     {

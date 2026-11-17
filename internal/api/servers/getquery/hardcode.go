@@ -11,6 +11,7 @@ var queryProtocolsByEngine = map[string]query.Protocol{
 	"minecraftbr": query.ProtocolRakNet,
 	"q2":          query.ProtocolQuake2,
 	"q3":          query.ProtocolQuake3,
+	"rust":        query.ProtocolSource,
 	"samp":        query.ProtocolSAMP,
 	"source":      query.ProtocolSource,
 }
