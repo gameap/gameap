@@ -129,6 +129,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx = daemon.ConfineToServer(ctx, node, server)
+
 	params := buildParams(node, server, &req, format, policy, session.User.ID)
 
 	operationID, err := h.daemonArchive.StartExtract(ctx, node, params)

@@ -318,6 +318,9 @@ func (s *ArchiveService) startOp(
 
 	req.RequestId = opID
 	req.Timeout = durationpb.New(timeout)
+	// Stamped here rather than by the gateway: the operation outlives this
+	// request and reaches the gateway on a context of its own.
+	req.Root = ConfinementRoot(ctx)
 	if opts.ProgressInterval > 0 {
 		req.ProgressInterval = durationpb.New(opts.ProgressInterval)
 	}

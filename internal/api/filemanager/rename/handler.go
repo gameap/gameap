@@ -13,6 +13,7 @@ import (
 	"github.com/gameap/gameap/internal/api/filemanager/filemanagerpath"
 	serversbase "github.com/gameap/gameap/internal/api/servers/base"
 	"github.com/gameap/gameap/internal/audit"
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/internal/domain"
 	"github.com/gameap/gameap/internal/filters"
 	"github.com/gameap/gameap/internal/repositories"
@@ -123,6 +124,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	ctx = daemon.ConfineToServer(ctx, node, server)
 
 	if err = h.renameItem(ctx, node, server.Dir, &req); err != nil {
 		h.responder.WriteError(ctx, rw, err)

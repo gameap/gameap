@@ -724,6 +724,7 @@ type FileOperationRequest struct {
 	//	*FileOperationRequest_ExistsParams
 	//	*FileOperationRequest_HashParams
 	Parameters    isFileOperationRequest_Parameters `protobuf_oneof:"parameters"`
+	Root          string                            `protobuf:"bytes,13,opt,name=root,proto3" json:"root,omitempty"` // see "Confinement" at the top of this file
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -867,6 +868,13 @@ func (x *FileOperationRequest) GetHashParams() *HashParams {
 		}
 	}
 	return nil
+}
+
+func (x *FileOperationRequest) GetRoot() string {
+	if x != nil {
+		return x.Root
+	}
+	return ""
 }
 
 type isFileOperationRequest_Parameters interface {
@@ -2113,6 +2121,7 @@ type ArchiveRequest struct {
 	Operation        isArchiveRequest_Operation `protobuf_oneof:"operation"`
 	ProgressInterval *durationpb.Duration       `protobuf:"bytes,4,opt,name=progress_interval,json=progressInterval,proto3" json:"progress_interval,omitempty"` // 0 = daemon default
 	Timeout          *durationpb.Duration       `protobuf:"bytes,5,opt,name=timeout,proto3" json:"timeout,omitempty"`                                           // 0 = daemon default
+	Root             string                     `protobuf:"bytes,6,opt,name=root,proto3" json:"root,omitempty"`                                                 // see "Confinement" at the top of this file
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -2191,6 +2200,13 @@ func (x *ArchiveRequest) GetTimeout() *durationpb.Duration {
 		return x.Timeout
 	}
 	return nil
+}
+
+func (x *ArchiveRequest) GetRoot() string {
+	if x != nil {
+		return x.Root
+	}
+	return ""
 }
 
 type isArchiveRequest_Operation interface {
@@ -2765,7 +2781,7 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"\n" +
 	"total_size\x18\x03 \x01(\x03R\ttotalSize\x12'\n" +
 	"\x0fchecksum_sha256\x18\x04 \x01(\tR\x0echecksumSha256\x12\x19\n" +
-	"\bis_final\x18\x05 \x01(\bR\aisFinal\"\xba\x05\n" +
+	"\bis_final\x18\x05 \x01(\bR\aisFinal\"\xce\x05\n" +
 	"\x14FileOperationRequest\x127\n" +
 	"\toperation\x18\x01 \x01(\x0e2\x19.gameap.FileOperationTypeR\toperation\x12\x1d\n" +
 	"\n" +
@@ -2784,7 +2800,8 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"statParams\x12;\n" +
 	"\rexists_params\x18\v \x01(\v2\x14.gameap.ExistsParamsH\x00R\fexistsParams\x125\n" +
 	"\vhash_params\x18\f \x01(\v2\x12.gameap.HashParamsH\x00R\n" +
-	"hashParamsB\f\n" +
+	"hashParams\x12\x12\n" +
+	"\x04root\x18\r \x01(\tR\x04rootB\f\n" +
 	"\n" +
 	"parameters\"@\n" +
 	"\fDeleteParams\x12\x12\n" +
@@ -2884,14 +2901,15 @@ const file_pkg_proto_filetransfer_proto_rawDesc = "" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12&\n" +
 	"\x05files\x18\x03 \x03(\v2\x10.gameap.FileStatR\x05files\x12\x1f\n" +
 	"\vtotal_count\x18\x04 \x01(\x05R\n" +
-	"totalCount\"\xaa\x02\n" +
+	"totalCount\"\xbe\x02\n" +
 	"\x0eArchiveRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x128\n" +
 	"\aextract\x18\x02 \x01(\v2\x1c.gameap.ExtractArchiveParamsH\x00R\aextract\x125\n" +
 	"\x06create\x18\x03 \x01(\v2\x1b.gameap.CreateArchiveParamsH\x00R\x06create\x12F\n" +
 	"\x11progress_interval\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x10progressInterval\x123\n" +
-	"\atimeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\atimeoutB\v\n" +
+	"\atimeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12\x12\n" +
+	"\x04root\x18\x06 \x01(\tR\x04rootB\v\n" +
 	"\toperation\"\xe6\x03\n" +
 	"\x14ExtractArchiveParams\x12!\n" +
 	"\farchive_path\x18\x01 \x01(\tR\varchivePath\x12 \n" +

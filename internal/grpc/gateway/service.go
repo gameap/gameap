@@ -256,6 +256,14 @@ func (s *Service) Connect(stream proto.DaemonGateway_ConnectServer) error {
 		"capabilities", reg.Capabilities,
 	)
 
+	if !sess.HasCapability(daemon.CapabilityFileConfinement) {
+		s.logger.Warn("daemon is outdated: it does not keep file requests inside the game server directory, "+
+			"so a symlink in one game server reaches the files of the others on the node; update the daemon",
+			"node_id", reg.NodeId,
+			"version", reg.Version,
+		)
+	}
+
 	s.flushPendingTasksAsync(reg.NodeId)
 
 	return s.handleMessages(sessionCtx, sess)
@@ -699,6 +707,7 @@ func (s *Service) RequestFileRead(
 				Path:   path,
 				Offset: offset,
 				Length: length,
+				Root:   daemon.ConfinementRoot(ctx),
 			},
 		},
 	}); err != nil {
@@ -745,6 +754,7 @@ func (s *Service) RequestFileWrite(
 				OwnerUser:  owner.User,
 				OwnerUid:   owner.UID,
 				OwnerGid:   owner.GID,
+				Root:       daemon.ConfinementRoot(ctx),
 			},
 		},
 	}); err != nil {
@@ -789,6 +799,7 @@ func (s *Service) RequestFileList(
 				Path:      path,
 				Recursive: recursive,
 				Pattern:   pattern,
+				Root:      daemon.ConfinementRoot(ctx),
 			},
 		},
 	}); err != nil {
@@ -826,6 +837,9 @@ func (s *Service) RequestFileOperation(
 	defer sess.CancelPendingRequest(requestID)
 
 	req.RequestId = requestID
+	if req.Root == "" {
+		req.Root = daemon.ConfinementRoot(ctx)
+	}
 
 	if err := sess.Send(&proto.GatewayMessage{
 		RequestId: requestID,
@@ -1116,6 +1130,7 @@ func (s *Service) RequestFileUploadTask(
 				OwnerUser:      owner.User,
 				OwnerUid:       owner.UID,
 				OwnerGid:       owner.GID,
+				Root:           daemon.ConfinementRoot(ctx),
 			},
 		},
 	}); err != nil {
@@ -1161,6 +1176,7 @@ func (s *Service) RequestFileDownloadTask(
 			FileDownloadTask: &proto.FileDownloadTask{
 				TransferId: transferID,
 				Path:       srcPath,
+				Root:       daemon.ConfinementRoot(ctx),
 			},
 		},
 	}); err != nil {

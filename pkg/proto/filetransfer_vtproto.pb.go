@@ -369,6 +369,13 @@ func (m *FileOperationRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) 
 		}
 		i -= size
 	}
+	if len(m.Root) > 0 {
+		i -= len(m.Root)
+		copy(dAtA[i:], m.Root)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Root)))
+		i--
+		dAtA[i] = 0x6a
+	}
 	if len(m.RequestId) > 0 {
 		i -= len(m.RequestId)
 		copy(dAtA[i:], m.RequestId)
@@ -1696,6 +1703,13 @@ func (m *ArchiveRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		}
 		i -= size
 	}
+	if len(m.Root) > 0 {
+		i -= len(m.Root)
+		copy(dAtA[i:], m.Root)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Root)))
+		i--
+		dAtA[i] = 0x32
+	}
 	if m.Timeout != nil {
 		size, err := (*durationpb.Duration)(m.Timeout).MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -2335,6 +2349,10 @@ func (m *FileOperationRequest) SizeVT() (n int) {
 	if vtmsg, ok := m.Parameters.(interface{ SizeVT() int }); ok {
 		n += vtmsg.SizeVT()
 	}
+	l = len(m.Root)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2911,6 +2929,10 @@ func (m *ArchiveRequest) SizeVT() (n int) {
 	}
 	if m.Timeout != nil {
 		l = (*durationpb.Duration)(m.Timeout).SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Root)
+	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -4419,6 +4441,38 @@ func (m *FileOperationRequest) UnmarshalVT(dAtA []byte) error {
 				}
 				m.Parameters = &FileOperationRequest_HashParams{HashParams: v}
 			}
+			iNdEx = postIndex
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Root", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Root = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -7323,6 +7377,38 @@ func (m *ArchiveRequest) UnmarshalVT(dAtA []byte) error {
 			if err := (*durationpb.Duration)(m.Timeout).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Root", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Root = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

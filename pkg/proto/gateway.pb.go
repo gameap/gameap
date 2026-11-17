@@ -2628,12 +2628,15 @@ func (x *ShutdownNotification) GetReconnectDelay() *durationpb.Duration {
 	return nil
 }
 
+// The root field of the file messages below is the confinement root described
+// in filetransfer.proto.
 type FileReadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	MaxSize       int64                  `protobuf:"varint,2,opt,name=max_size,json=maxSize,proto3" json:"max_size,omitempty"`
 	Offset        int64                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
 	Length        int64                  `protobuf:"varint,4,opt,name=length,proto3" json:"length,omitempty"`
+	Root          string                 `protobuf:"bytes,5,opt,name=root,proto3" json:"root,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2694,6 +2697,13 @@ func (x *FileReadRequest) GetLength() int64 {
 		return x.Length
 	}
 	return 0
+}
+
+func (x *FileReadRequest) GetRoot() string {
+	if x != nil {
+		return x.Root
+	}
+	return ""
 }
 
 type FileReadResponse struct {
@@ -2781,6 +2791,7 @@ type FileWriteRequest struct {
 	OwnerUser     string                 `protobuf:"bytes,5,opt,name=owner_user,json=ownerUser,proto3" json:"owner_user,omitempty"`
 	OwnerUid      int32                  `protobuf:"varint,6,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
 	OwnerGid      int32                  `protobuf:"varint,7,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
+	Root          string                 `protobuf:"bytes,8,opt,name=root,proto3" json:"root,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2864,6 +2875,13 @@ func (x *FileWriteRequest) GetOwnerGid() int32 {
 	return 0
 }
 
+func (x *FileWriteRequest) GetRoot() string {
+	if x != nil {
+		return x.Root
+	}
+	return ""
+}
+
 type FileWriteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -2929,6 +2947,7 @@ type FileListRequest struct {
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	Recursive     bool                   `protobuf:"varint,2,opt,name=recursive,proto3" json:"recursive,omitempty"`
 	Pattern       string                 `protobuf:"bytes,3,opt,name=pattern,proto3" json:"pattern,omitempty"`
+	Root          string                 `protobuf:"bytes,4,opt,name=root,proto3" json:"root,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2980,6 +2999,13 @@ func (x *FileListRequest) GetRecursive() bool {
 func (x *FileListRequest) GetPattern() string {
 	if x != nil {
 		return x.Pattern
+	}
+	return ""
+}
+
+func (x *FileListRequest) GetRoot() string {
+	if x != nil {
+		return x.Root
 	}
 	return ""
 }
@@ -3062,6 +3088,7 @@ type FileUploadTask struct {
 	OwnerUid       int32                  `protobuf:"varint,6,opt,name=owner_uid,json=ownerUid,proto3" json:"owner_uid,omitempty"`
 	OwnerGid       int32                  `protobuf:"varint,7,opt,name=owner_gid,json=ownerGid,proto3" json:"owner_gid,omitempty"`
 	Mode           int32                  `protobuf:"varint,8,opt,name=mode,proto3" json:"mode,omitempty"`
+	Root           string                 `protobuf:"bytes,9,opt,name=root,proto3" json:"root,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -3152,11 +3179,19 @@ func (x *FileUploadTask) GetMode() int32 {
 	return 0
 }
 
+func (x *FileUploadTask) GetRoot() string {
+	if x != nil {
+		return x.Root
+	}
+	return ""
+}
+
 type FileDownloadTask struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	TransferId     string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
 	Path           string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	ChecksumSha256 string                 `protobuf:"bytes,3,opt,name=checksum_sha256,json=checksumSha256,proto3" json:"checksum_sha256,omitempty"`
+	Root           string                 `protobuf:"bytes,4,opt,name=root,proto3" json:"root,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -3208,6 +3243,13 @@ func (x *FileDownloadTask) GetPath() string {
 func (x *FileDownloadTask) GetChecksumSha256() string {
 	if x != nil {
 		return x.ChecksumSha256
+	}
+	return ""
+}
+
+func (x *FileDownloadTask) GetRoot() string {
+	if x != nil {
+		return x.Root
 	}
 	return ""
 }
@@ -4397,12 +4439,13 @@ const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"\t_game_mod\"r\n" +
 	"\x14ShutdownNotification\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12B\n" +
-	"\x0freconnect_delay\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0ereconnectDelay\"p\n" +
+	"\x0freconnect_delay\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0ereconnectDelay\"\x84\x01\n" +
 	"\x0fFileReadRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x19\n" +
 	"\bmax_size\x18\x02 \x01(\x03R\amaxSize\x12\x16\n" +
 	"\x06offset\x18\x03 \x01(\x03R\x06offset\x12\x16\n" +
-	"\x06length\x18\x04 \x01(\x03R\x06length\"\x9c\x01\n" +
+	"\x06length\x18\x04 \x01(\x03R\x06length\x12\x12\n" +
+	"\x04root\x18\x05 \x01(\tR\x04root\"\x9c\x01\n" +
 	"\x10FileReadResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
@@ -4410,7 +4453,7 @@ const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"\acontent\x18\x03 \x01(\fR\acontent\x12\x1f\n" +
 	"\vtransfer_id\x18\x04 \x01(\tR\n" +
 	"transferId\x12\x14\n" +
-	"\x05error\x18\x05 \x01(\tR\x05error\"\xce\x01\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\xe2\x01\n" +
 	"\x10FileWriteRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\fR\acontent\x12\x12\n" +
@@ -4420,22 +4463,24 @@ const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"\n" +
 	"owner_user\x18\x05 \x01(\tR\townerUser\x12\x1b\n" +
 	"\towner_uid\x18\x06 \x01(\x05R\bownerUid\x12\x1b\n" +
-	"\towner_gid\x18\a \x01(\x05R\bownerGid\"b\n" +
+	"\towner_gid\x18\a \x01(\x05R\bownerGid\x12\x12\n" +
+	"\x04root\x18\b \x01(\tR\x04root\"b\n" +
 	"\x11FileWriteResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x03 \x01(\tR\x05error\"]\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\"q\n" +
 	"\x0fFileListRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1c\n" +
 	"\trecursive\x18\x02 \x01(\bR\trecursive\x12\x18\n" +
-	"\apattern\x18\x03 \x01(\tR\apattern\"\x89\x01\n" +
+	"\apattern\x18\x03 \x01(\tR\apattern\x12\x12\n" +
+	"\x04root\x18\x04 \x01(\tR\x04root\"\x89\x01\n" +
 	"\x10FileListResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12&\n" +
 	"\x05files\x18\x03 \x03(\v2\x10.gameap.FileStatR\x05files\x12\x14\n" +
-	"\x05error\x18\x04 \x01(\tR\x05error\"\xfa\x01\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\x8e\x02\n" +
 	"\x0eFileUploadTask\x12\x1f\n" +
 	"\vtransfer_id\x18\x01 \x01(\tR\n" +
 	"transferId\x12\x12\n" +
@@ -4447,12 +4492,14 @@ const file_pkg_proto_gateway_proto_rawDesc = "" +
 	"owner_user\x18\x05 \x01(\tR\townerUser\x12\x1b\n" +
 	"\towner_uid\x18\x06 \x01(\x05R\bownerUid\x12\x1b\n" +
 	"\towner_gid\x18\a \x01(\x05R\bownerGid\x12\x12\n" +
-	"\x04mode\x18\b \x01(\x05R\x04mode\"p\n" +
+	"\x04mode\x18\b \x01(\x05R\x04mode\x12\x12\n" +
+	"\x04root\x18\t \x01(\tR\x04root\"\x84\x01\n" +
 	"\x10FileDownloadTask\x12\x1f\n" +
 	"\vtransfer_id\x18\x01 \x01(\tR\n" +
 	"transferId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12'\n" +
-	"\x0fchecksum_sha256\x18\x03 \x01(\tR\x0echecksumSha256\"\xa2\x01\n" +
+	"\x0fchecksum_sha256\x18\x03 \x01(\tR\x0echecksumSha256\x12\x12\n" +
+	"\x04root\x18\x04 \x01(\tR\x04root\"\xa2\x01\n" +
 	"\rEnrollRequest\x12\x1b\n" +
 	"\tsetup_key\x18\x01 \x01(\tR\bsetupKey\x12\x12\n" +
 	"\x04host\x18\x02 \x01(\tR\x04host\x12\x12\n" +

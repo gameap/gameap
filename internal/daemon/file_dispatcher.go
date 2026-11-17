@@ -98,6 +98,10 @@ func (d *fileDispatcher) dispatchAndWait(
 ) (*messages.DaemonFileResponsePayload, error) {
 	respCh := make(chan *messages.DaemonFileResponsePayload, 1)
 
+	// The instance that owns the session executes on a context of its own, so
+	// the boundary the caller asked for has to travel with the request.
+	payload.ConfinementRoot = ConfinementRoot(ctx)
+
 	d.mu.Lock()
 	d.pendingReqs[payload.RequestID] = respCh
 	d.mu.Unlock()
@@ -337,7 +341,9 @@ func (d *fileDispatcher) executeAndRespond(payload messages.DaemonFileRequestPay
 		timeout = min(time.Duration(payload.TimeoutSeconds)*time.Second, fileTransferTimeout)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(
+		WithConfinementRoot(context.Background(), payload.ConfinementRoot), timeout,
+	)
 	defer cancel()
 
 	resp := d.executeFileRequest(ctx, payload)

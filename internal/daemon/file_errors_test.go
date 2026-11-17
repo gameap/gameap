@@ -158,6 +158,18 @@ func TestDaemonFileError_classification(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
+			name:       "daemon_path_outside_confinement_root",
+			msg:        "path is outside its confinement root",
+			wantErr:    ErrInvalidPath,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "server_directory_is_an_escaping_symlink",
+			msg:        `failed to open confinement directory "servers/q2": openat servers/q2: path escapes from parent`,
+			wantErr:    ErrInvalidPath,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
 			name:       "linux_enametoolong",
 			msg:        "openat servers/q2/aaaa...: file name too long",
 			wantErr:    ErrInvalidPath,

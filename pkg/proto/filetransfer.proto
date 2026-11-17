@@ -12,6 +12,19 @@ import "google/protobuf/timestamp.proto";
 // names are stripped, so absolute paths are reinterpreted as
 // work-directory-relative rather than rejected. The single exception is
 // CreateArchiveParams.sources, which resolves relative to base_path.
+//
+// Confinement: a request may carry a root, a directory in the same convention
+// that none of its paths may leave, neither lexically nor through a symlink
+// met while resolving them. The panel sets it to the game server directory for
+// everything it does on behalf of that server: the files of one server are
+// written by its tenant, and a symlink planted there must not lead a request
+// into a neighbouring server or the rest of the node. With or without a root
+// the daemon also confines every path to the directory of the game server that
+// contains it, as known from the server configs it was sent, so a root only
+// narrows what the daemon derives on its own; a path that neither covers is
+// confined to the work directory. A daemon that confines advertises the
+// "file_confinement" capability; an older one ignores the field and confines
+// to the work directory only.
 
 service FileTransferService {
   rpc UploadFile(stream UploadChunk) returns (UploadResult);
@@ -106,6 +119,7 @@ message FileOperationRequest {
     ExistsParams exists_params = 11;
     HashParams hash_params = 12;
   }
+  string root = 13;  // see "Confinement" at the top of this file
 }
 
 message DeleteParams {
@@ -268,6 +282,7 @@ message ArchiveRequest {
 
   google.protobuf.Duration progress_interval = 4;  // 0 = daemon default
   google.protobuf.Duration timeout = 5;            // 0 = daemon default
+  string root = 6;                                 // see "Confinement" at the top of this file
 }
 
 // Entries resolving outside destination must be rejected by the daemon.

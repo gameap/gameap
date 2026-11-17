@@ -74,6 +74,7 @@ var fileErrorPatterns = []struct {
 	err    error
 }{
 	{"path is outside work directory", ErrInvalidPath},
+	{"path is outside its confinement root", ErrInvalidPath},
 	{"path escapes from parent", ErrInvalidPath},
 	{"file name too long", ErrInvalidPath},
 	{"not a directory", ErrNotDirectory},
