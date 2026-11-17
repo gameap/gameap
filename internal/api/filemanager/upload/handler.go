@@ -185,6 +185,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx = daemon.ConfineToServer(ctx, node, server)
+
 	files := r.MultipartForm.File["files[]"]
 	if len(files) == 0 {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(

@@ -163,6 +163,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx = daemon.ConfineToServer(ctx, node, server)
+
 	operationID, err := h.daemonArchive.StartCreate(ctx, node, buildParams(node, server, &req, format, session.User.ID))
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)

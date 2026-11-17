@@ -184,6 +184,9 @@ type DaemonFileRequestPayload struct {
 	// TimeoutSeconds overrides the owning instance's execution timeout for
 	// slow operations (e.g. hashing); capped by the owning side. 0 = default.
 	TimeoutSeconds int64 `json:"timeout_seconds,omitempty"`
+	// ConfinementRoot is the directory the daemon must keep the request in,
+	// relative to the node work directory. Empty leaves the choice to the daemon.
+	ConfinementRoot string `json:"confinement_root,omitempty"`
 }
 
 type DaemonFileResponsePayload struct {

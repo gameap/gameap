@@ -147,6 +147,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx = daemon.ConfineToServer(ctx, node, server)
+
 	fullPath := filepath.Join(node.WorkPath, server.Dir, path)
 
 	fileInfo, err := h.daemonFiles.GetFileInfo(ctx, node, fullPath)

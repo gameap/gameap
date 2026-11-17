@@ -146,6 +146,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx = daemon.ConfineToServer(ctx, node, server)
+
 	response, err := h.updateFile(ctx, node, server, path, fileHeader)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, err)

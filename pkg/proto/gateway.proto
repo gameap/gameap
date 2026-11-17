@@ -313,11 +313,14 @@ message ShutdownNotification {
   google.protobuf.Duration reconnect_delay = 2;
 }
 
+// The root field of the file messages below is the confinement root described
+// in filetransfer.proto.
 message FileReadRequest {
   string path = 1;
   int64 max_size = 2;
   int64 offset = 3;
   int64 length = 4;
+  string root = 5;
 }
 
 message FileReadResponse {
@@ -336,6 +339,7 @@ message FileWriteRequest {
   string owner_user = 5;
   int32 owner_uid = 6;
   int32 owner_gid = 7;
+  string root = 8;
 }
 
 message FileWriteResponse {
@@ -348,6 +352,7 @@ message FileListRequest {
   string path = 1;
   bool recursive = 2;
   string pattern = 3;
+  string root = 4;
 }
 
 message FileListResponse {
@@ -366,12 +371,14 @@ message FileUploadTask {
   int32 owner_uid = 6;
   int32 owner_gid = 7;
   int32 mode = 8;
+  string root = 9;
 }
 
 message FileDownloadTask {
   string transfer_id = 1;
   string path = 2;
   string checksum_sha256 = 3;
+  string root = 4;
 }
 
 message EnrollRequest {

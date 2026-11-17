@@ -141,7 +141,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	fullPath := filepath.Join(node.WorkPath, server.Dir, path)
 
-	fileInfoList, err := h.daemonFiles.ReadDir(ctx, node, fullPath)
+	fileInfoList, err := h.daemonFiles.ReadDir(daemon.ConfineToServer(ctx, node, server), node, fullPath)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessagef(err, "failed to read directory: %s", path))
 

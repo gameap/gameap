@@ -5,6 +5,7 @@ import (
 
 	"github.com/gameap/gameap/internal/api/base"
 	"github.com/gameap/gameap/internal/api/filemanager/uploadsession"
+	"github.com/gameap/gameap/internal/daemon"
 	"github.com/gameap/gameap/pkg/api"
 	"github.com/gameap/gameap/pkg/auth"
 	"github.com/pkg/errors"
@@ -61,6 +62,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	// The session carries the path it was created for. Confining the dispatch to
+	// the server of this request also refuses a session started for another one.
+	ctx = daemon.ConfineToServer(ctx, resolved.Node, resolved.Server)
 
 	if completeErr := h.service.Complete(
 		ctx, uploadID, session.User.ID, resolved.Node,
