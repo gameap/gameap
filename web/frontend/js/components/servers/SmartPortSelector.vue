@@ -151,12 +151,16 @@ function setPorts({ keepEdited = false } = {}) {
   }
 
   const [queryDiff, rconDiff] = getPortDiff();
+  // A typed query or RCON port stays in place, so the server port must not move onto it.
+  // The port picked before is left alone: only the user can have typed a match with it.
+  const typedPorts = keepEdited ? getTypedPorts() : [];
   let port = getDefaultPort();
 
   while (
     isBusy(selectedIp.value, port)
     || isBusy(selectedIp.value, port + queryDiff)
     || isBusy(selectedIp.value, port + rconDiff)
+    || (port !== pickedPorts.server && typedPorts.includes(port))
   ) {
     port++;
   }
@@ -181,6 +185,16 @@ function correctPorts({ port = serverPort.value, keepEdited = false } = {}) {
     pickedPorts.rcon = port + rconDiff;
     rconPort.value = pickedPorts.rcon;
   }
+}
+
+// The query and RCON ports correctPorts() leaves in place when called with keepEdited.
+function getTypedPorts() {
+  return [
+    [queryPort.value, pickedPorts.query],
+    [rconPort.value, pickedPorts.rcon],
+  ]
+    .filter(([value, picked]) => picked !== null && value !== picked)
+    .map(([value]) => value);
 }
 
 function getExistsPortGameCode() {
