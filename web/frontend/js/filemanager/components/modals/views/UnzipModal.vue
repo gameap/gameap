@@ -1,8 +1,8 @@
 <template>
     <div>
-        <div v-if="!archiveItem" class="text-red-500 dark:text-red-400">
+        <n-alert v-if="!archiveItem" type="warning" :show-icon="true">
             {{ lang.modal.unzip.noSelected }}
-        </div>
+        </n-alert>
         <div v-else>
             <div class="mb-3">
                 <strong class="break-all">{{ archiveItem.basename }}</strong>
@@ -37,16 +37,16 @@
                 </n-radio-group>
             </div>
 
-            <div v-if="conflictPolicy === 'overwrite'" class="text-orange-500 dark:text-orange-400 text-sm">
+            <n-alert v-if="conflictPolicy === 'overwrite'" type="warning" :show-icon="true" class="mt-3">
                 {{ lang.modal.unzip.warning }}
-            </div>
+            </n-alert>
         </div>
     </div>
 </template>
 
 <script setup>
 import { ref, computed, inject } from 'vue'
-import { NInput, NRadio, NRadioGroup } from 'naive-ui'
+import { NAlert, NInput, NRadio, NRadioGroup } from 'naive-ui'
 import POST from '../../../http/post.js'
 import { joinPath } from '../../../http/upload-conflicts.js'
 import { stripArchiveSuffix } from '../../../archive.js'

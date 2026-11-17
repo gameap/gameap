@@ -1,13 +1,12 @@
 <template>
-    <div class="fm-modal-upload">
-        <div v-if="status === 'idle'" class="space-y-3">
+    <div class="fm-modal-upload flex flex-col gap-3 min-h-0">
+        <template v-if="status === 'idle'">
             <n-upload
                 multiple
                 directory-dnd
                 :default-upload="false"
                 :show-file-list="false"
-                :file-list="uploadFileList"
-                @change="onUploadChange"
+                :on-before-upload="onBeforeUpload"
             >
                 <n-upload-dragger>
                     <div class="flex flex-col items-center gap-2 py-6">
@@ -22,7 +21,7 @@
                 </n-upload-dragger>
             </n-upload>
             <div class="text-center">
-                <GButton color="white" @click="openFolderPicker">
+                <GButton color="black" @click="openFolderPicker">
                     <GIcon name="folder" class="mr-1" />
                     {{ lang.btn.uploadDir }}
                 </GButton>
@@ -35,61 +34,62 @@
                     @change="onFolderInputChange"
                 />
             </div>
-            <p v-if="!hasPending" class="text-muted text-center text-sm pt-2">
+            <p v-if="!hasPending" class="text-muted text-center text-sm">
                 {{ lang.modal.upload.noSelected }}
             </p>
-        </div>
+        </template>
 
         <div v-if="status === 'preflight'" class="py-8 flex flex-col items-center gap-3 text-muted">
             <GIcon name="loading" class="text-3xl text-info" />
             <p>{{ lang.modal.upload.detecting }}</p>
         </div>
 
-        <div v-if="status === 'review'" class="space-y-3">
-            <div v-if="!isSingleFile" class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm bg-surface-hover rounded p-3">
-                <div>
-                    <strong>{{ lang.modal.upload.summaryFiles }}</strong>
-                    {{ totals.files }}
-                </div>
-                <div>
-                    <strong>{{ lang.modal.upload.summaryDirs }}</strong>
-                    {{ dirCount }}
-                </div>
-                <div class="text-right">
-                    <strong>{{ lang.modal.upload.size }}</strong>
-                    {{ bytesToHuman(totals.bytes) }}
-                </div>
-            </div>
-            <div v-if="hasConflicts" class="border border-warning rounded p-3 bg-warning-soft">
-                <div class="flex items-center gap-2 mb-2">
-                    <GIcon name="warning" class="text-warning" />
-                    <strong class="text-warning-soft-text">
-                        {{ lang.modal.upload.review.conflictsHeader }}
-                    </strong>
-                </div>
-                <div class="flex items-center gap-2 text-sm">
+        <template v-if="status === 'review'">
+            <n-alert
+                v-if="hasConflicts"
+                type="warning"
+                :show-icon="true"
+                :title="lang.modal.upload.review.conflictsHeader"
+                class="shrink-0"
+            >
+                <div class="flex flex-wrap items-center gap-2">
                     <span>{{ lang.modal.upload.review.defaultAction }}</span>
-                    <n-select
-                        :value="defaultAction"
-                        :options="defaultActionOptions"
-                        size="small"
-                        class="w-48"
-                        @update:value="onDefaultAction"
-                    />
+                    <div class="w-48">
+                        <n-select
+                            :value="defaultAction"
+                            :options="defaultActionOptions"
+                            size="small"
+                            @update:value="onDefaultAction"
+                        />
+                    </div>
                 </div>
+            </n-alert>
+            <div v-if="!isSingleFile" class="flex flex-wrap gap-x-4 gap-y-1 text-sm shrink-0">
+                <span>
+                    <span class="text-muted">{{ lang.modal.upload.summaryFiles }}</span>
+                    {{ totals.files }}
+                </span>
+                <span>
+                    <span class="text-muted">{{ lang.modal.upload.summaryDirs }}</span>
+                    {{ dirCount }}
+                </span>
+                <span>
+                    <span class="text-muted">{{ lang.modal.upload.size }}</span>
+                    {{ bytesToHuman(totals.bytes) }}
+                </span>
             </div>
-            <div class="max-h-96 overflow-auto border rounded">
+            <div class="min-h-0 overflow-auto border rounded">
                 <UploadTreeNode :is-review="true" />
             </div>
-        </div>
+        </template>
 
-        <div v-if="status === 'mkdir' || status === 'uploading'" class="space-y-3">
-            <div v-if="!isSingleFile" class="bg-surface-hover rounded p-3">
-                <div class="flex items-center justify-between mb-2">
-                    <strong class="text-sm">
+        <template v-if="status === 'mkdir' || status === 'uploading'">
+            <div v-if="!isSingleFile" class="shrink-0">
+                <div class="flex items-center justify-between gap-2 mb-1 text-sm">
+                    <span>
                         {{ status === 'mkdir' ? lang.modal.upload.creatingDirs : lang.modal.upload.phase.uploading }}
-                    </strong>
-                    <span class="text-xs text-muted">
+                    </span>
+                    <span class="text-xs text-muted tabular-nums">
                         {{ totals.completedFiles }}/{{ totals.files }}
                         ·
                         {{ bytesToHuman(totals.loadedBytes) }} / {{ bytesToHuman(totals.bytes) }}
@@ -104,42 +104,38 @@
                     processing
                 />
             </div>
-            <div class="max-h-96 overflow-auto border rounded">
+            <div class="min-h-0 overflow-auto border rounded">
                 <UploadTreeNode :is-review="false" />
             </div>
-        </div>
+        </template>
 
-        <div v-if="status === 'completed' || status === 'partial' || status === 'cancelled'" class="space-y-3">
-            <div
-                class="rounded p-3 text-sm"
-                :class="resultBoxClass"
+        <template v-if="status === 'completed' || status === 'partial' || status === 'cancelled'">
+            <n-alert
+                :type="resultAlertType"
+                :show-icon="true"
+                :title="isSingleFile ? undefined : resultTitle"
+                class="shrink-0"
             >
-                <div class="flex items-center gap-2 mb-1">
-                    <GIcon :name="resultIcon" />
-                    <strong>{{ resultTitle }}</strong>
-                </div>
-                <p v-if="!isSingleFile">
-                    {{ resultMessage }}
-                </p>
-            </div>
-            <div class="max-h-96 overflow-auto border rounded">
+                {{ isSingleFile ? resultTitle : resultMessage }}
+            </n-alert>
+            <div class="min-h-0 overflow-auto border rounded">
                 <UploadTreeNode :is-review="false" />
             </div>
-        </div>
+        </template>
     </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { GIcon } from '@gameap/ui'
-import { NUpload, NUploadDragger, NSelect, NProgress } from 'naive-ui'
+import { NAlert, NUpload, NUploadDragger, NSelect, NProgress } from 'naive-ui'
 import { useFileManagerStore } from '../../../stores/useFileManagerStore.js'
 import { useMessagesStore } from '../../../stores/useMessagesStore.js'
 import { useModalStore } from '../../../stores/useModalStore.js'
 import { useTranslate } from '../../../composables/useTranslate.js'
 import { useHelper } from '../../../composables/useHelper.js'
 import { useModal } from '../../../composables/useModal.js'
-import { entriesFromFileList } from '../../../composables/useDropZone.js'
+import { entriesFromFileList, entriesFromUploadFiles } from '../../../composables/useDropZone.js'
 import UploadTreeNode from './UploadTreeNode.vue'
 
 const fm = useFileManagerStore()
@@ -151,7 +147,7 @@ const { hideModal } = useModal()
 
 const folderInputRef = ref(null)
 const pendingDrop = ref({ entries: [], emptyDirs: [] })
-const uploadFileList = ref([])
+let pickedBatch = []
 
 const status = computed(() => messages.uploadProgress.status)
 const totals = computed(() => messages.uploadProgress.totals)
@@ -184,9 +180,9 @@ const defaultActionOptions = computed(() => [
     { label: lang.value.modal.upload.actions.renameAll, value: 'rename' },
 ])
 
-const resultIcon = computed(() => {
-    if (status.value === 'completed') return 'check'
-    if (status.value === 'cancelled') return 'close'
+const resultAlertType = computed(() => {
+    if (status.value === 'completed') return 'success'
+    if (status.value === 'cancelled') return 'default'
 
     return 'warning'
 })
@@ -207,26 +203,25 @@ const resultMessage = computed(() => {
         .replace('{skipped}', t.skippedFiles)
 })
 
-const resultBoxClass = computed(() => {
-    if (status.value === 'completed') return 'bg-success-soft text-success-soft-text border border-success'
-    if (status.value === 'cancelled') return 'bg-surface-hover text-secondary border'
-
-    return 'bg-warning-soft text-warning-soft-text border border-warning'
-})
-
 function openFolderPicker() {
     if (folderInputRef.value) folderInputRef.value.click()
 }
 
-function onUploadChange({ fileList }) {
-    if (!fileList || fileList.length === 0) return
-    const files = []
-    for (const item of fileList) {
-        if (item.file) files.push(item.file)
-    }
-    uploadFileList.value = []
-    if (files.length === 0) return
-    const result = entriesFromFileList(files)
+// n-upload emits change once per file, so a multi-file pick would start one
+// preflight per file, each replacing the previous one. It calls
+// on-before-upload synchronously for every file of a pick before any change
+// event, so the pick is collected here and submitted once in a microtask;
+// returning false keeps the files out of n-upload's own list.
+function onBeforeUpload({ file }) {
+    if (pickedBatch.length === 0) queueMicrotask(submitPickedBatch)
+    pickedBatch.push(file)
+
+    return false
+}
+
+function submitPickedBatch() {
+    const result = entriesFromUploadFiles(pickedBatch)
+    pickedBatch = []
     pendingDrop.value = { entries: result.files, emptyDirs: result.emptyDirs }
     submitPending()
 }

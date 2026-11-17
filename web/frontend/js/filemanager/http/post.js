@@ -42,12 +42,14 @@ export default {
     },
 
     /**
-     * Create chunked upload session
+     * Create chunked upload session.
+     * Chunked upload requests are silent: a failure is shown on the file's row
+     * in the upload modal, a dialog per failed file would stack up.
      * @param body
      * @returns {Promise<AxiosResponse<any>>}
      */
     createUploadSession(body) {
-        return HTTP.post('upload/sessions', body);
+        return HTTP.post('upload/sessions', body, { silent: true });
     },
 
     /**
@@ -61,6 +63,7 @@ export default {
     putUploadChunk(uploadId, index, blob, config = {}) {
         return HTTP.put(`upload/sessions/${uploadId}/chunks/${index}`, blob, {
             ...config,
+            silent: true,
             headers: {
                 ...(config.headers || {}),
                 'Content-Type': 'application/octet-stream',
@@ -74,7 +77,7 @@ export default {
      * @returns {Promise<AxiosResponse<any>>}
      */
     completeUploadSession(uploadId) {
-        return HTTP.post(`upload/sessions/${uploadId}/complete`);
+        return HTTP.post(`upload/sessions/${uploadId}/complete`, null, { silent: true });
     },
 
     /**
@@ -83,7 +86,7 @@ export default {
      * @returns {Promise<AxiosResponse<any>>}
      */
     abortUploadSession(uploadId) {
-        return HTTP.delete(`upload/sessions/${uploadId}`);
+        return HTTP.delete(`upload/sessions/${uploadId}`, { silent: true });
     },
 
     /**

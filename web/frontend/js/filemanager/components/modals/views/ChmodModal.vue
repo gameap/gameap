@@ -1,20 +1,18 @@
 <template>
     <div>
-        <div v-if="selectedItems.length === 0" class="text-danger">
+        <n-alert v-if="selectedItems.length === 0" type="warning" :show-icon="true">
             {{ lang.modal.chmod.noSelected }}
-        </div>
+        </n-alert>
         <div v-else>
             <div class="mb-3">
                 <div v-if="selectedItems.length === 1">
                     <strong class="break-all">{{ selectedItems[0].basename }}</strong>
                 </div>
-                <div v-else>
-                    <strong>{{ selectedItems.length }} {{ lang.modal.chmod.itemsSelected }}</strong>
-                    <span v-if="mixedSource" class="ml-2 text-warning">
-                        ({{ lang.modal.chmod.mixedSource }})
-                    </span>
-                </div>
+                <strong v-else>{{ selectedItems.length }} {{ lang.modal.chmod.itemsSelected }}</strong>
             </div>
+            <n-alert v-if="mixedSource" type="warning" :show-icon="true" class="mb-3">
+                <div class="first-letter:uppercase">{{ lang.modal.chmod.mixedSource }}</div>
+            </n-alert>
 
             <table class="fm-chmod-table w-full mb-3">
                 <thead>
@@ -65,7 +63,7 @@
 <script setup>
 /* eslint-disable no-bitwise */
 import { ref, computed, reactive, onMounted } from 'vue'
-import { NCheckbox, NInput } from 'naive-ui'
+import { NAlert, NCheckbox, NInput } from 'naive-ui'
 import { useFileManagerStore } from '../../../stores/useFileManagerStore.js'
 import { useTranslate } from '../../../composables/useTranslate.js'
 import { useModal } from '../../../composables/useModal.js'
