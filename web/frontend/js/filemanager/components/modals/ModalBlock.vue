@@ -2,7 +2,8 @@
     <GModal
         v-model:show="showModal"
         :title="currentModalConfig?.title"
-        :style="{ width: currentModalConfig?.width || '600px' }"
+        :style="modalStyle"
+        :content-style="currentModalConfig?.fitViewport ? FIT_VIEWPORT_CONTENT_STYLE : undefined"
         transform-origin="center"
     >
         <component :is="modalComponents[modalName]" ref="modalRef" />
@@ -49,6 +50,18 @@ import HashModal from './views/HashModal.vue'
 import ZipModal from './views/ZipModal.vue'
 import UnzipModal from './views/UnzipModal.vue'
 
+// Modals listing an unbounded number of items stay within the viewport, so
+// the footer buttons are always on screen: the card is capped and its body
+// becomes a flex column, where the list (min-h-0 overflow-auto) takes the
+// space left and scrolls. The body itself scrolls only when even the fixed
+// parts do not fit.
+const FIT_VIEWPORT_CONTENT_STYLE = {
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 0,
+    overflowY: 'auto',
+}
+
 const modal = useModalStore()
 const pluginsStore = usePluginsStore()
 const { lang } = useTranslate()
@@ -87,8 +100,8 @@ const modalName = computed(() => modal.modalName)
 const modalConfig = computed(() => ({
     NewFileModal: { title: lang.value.modal.newFile.title, width: '600px' },
     NewFolderModal: { title: lang.value.modal.newFolder.title, width: '600px' },
-    UploadModal: { title: lang.value.modal.upload.title, width: '760px' },
-    DeleteModal: { title: lang.value.modal.delete.title, width: '600px' },
+    UploadModal: { title: lang.value.modal.upload.title, width: '760px', fitViewport: true },
+    DeleteModal: { title: lang.value.modal.delete.title, width: '600px', fitViewport: true },
     ClipboardModal: { title: lang.value.clipboard.title, width: '600px' },
     StatusModal: { title: lang.value.modal.status.title, width: '600px' },
     RenameModal: { title: lang.value.modal.rename.title, width: '600px' },
@@ -110,6 +123,13 @@ const modalConfig = computed(() => ({
 }))
 
 const currentModalConfig = computed(() => modalConfig.value[modalName.value])
+
+const modalStyle = computed(() => {
+    const style = { width: currentModalConfig.value?.width || '600px' }
+    if (currentModalConfig.value?.fitViewport) style.maxHeight = 'calc(100dvh - 4rem)'
+
+    return style
+})
 
 const footerButtons = computed(() => modalRef.value?.footerButtons || [])
 </script>

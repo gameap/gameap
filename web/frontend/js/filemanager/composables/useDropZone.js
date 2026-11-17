@@ -103,6 +103,25 @@ export function entriesFromFileList(fileList) {
     return { files, emptyDirs: [] }
 }
 
+// n-upload file infos: a folder dropped on the dragger keeps its structure
+// only in fullPath, the File itself has an empty webkitRelativePath.
+export function entriesFromUploadFiles(fileInfos) {
+    const files = []
+    for (const info of fileInfos) {
+        if (!info || !info.file) continue
+        const relPath = sanitizeRelPath(info.fullPath || info.file.webkitRelativePath || info.file.name)
+        if (!relPath) continue
+        files.push({
+            relPath,
+            name: info.file.name,
+            file: info.file,
+            size: info.file.size,
+        })
+    }
+
+    return { files, emptyDirs: [] }
+}
+
 export function useWindowDropZone({ onDrop, isActive }) {
     const isOver = ref(false)
     let dragCounter = 0

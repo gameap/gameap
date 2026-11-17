@@ -1,8 +1,8 @@
 <template>
     <div>
-        <div v-if="!file" class="text-red-500 dark:text-red-400">
+        <n-alert v-if="!file" type="warning" :show-icon="true">
             {{ lang.modal.hash.noSelected }}
-        </div>
+        </n-alert>
         <div v-else>
             <div class="mb-3">
                 <strong class="break-all">{{ file.basename }}</strong>
@@ -92,6 +92,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { NAlert } from 'naive-ui'
 import { GIcon } from '@gameap/ui'
 import GButton from '@/components/GButton.vue'
 import { copyToClipboard } from '@/utils/clipboard.js'

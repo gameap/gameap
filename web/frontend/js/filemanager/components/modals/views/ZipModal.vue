@@ -1,8 +1,8 @@
 <template>
     <div>
-        <div v-if="selectedItems.length === 0" class="text-red-500 dark:text-red-400">
+        <n-alert v-if="selectedItems.length === 0" type="warning" :show-icon="true">
             {{ lang.modal.zip.noSelected }}
-        </div>
+        </n-alert>
         <div v-else>
             <div class="mb-3">
                 <span class="block mb-1">{{ lang.modal.zip.itemsToArchive }}</span>
@@ -68,7 +68,7 @@
 
 <script setup>
 import { ref, computed, inject } from 'vue'
-import { NInput, NSelect, NCheckbox, NInputNumber } from 'naive-ui'
+import { NAlert, NInput, NSelect, NCheckbox, NInputNumber } from 'naive-ui'
 import { GIcon } from '@gameap/ui'
 import POST from '../../../http/post.js'
 import { CREATE_FORMATS, deriveCreateFormat, replaceCreateSuffix } from '../../../archive.js'

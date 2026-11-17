@@ -1,16 +1,15 @@
 <template>
-    <div>
-        <div v-if="selectedItems.length">
-            <selected-file-list />
-        </div>
-        <div v-else>
-            <span class="text-danger">{{ lang.modal.delete.noSelected }}</span>
-        </div>
+    <div class="flex flex-col min-h-0">
+        <selected-file-list v-if="selectedItems.length" class="min-h-0 overflow-y-auto" />
+        <n-alert v-else type="warning" :show-icon="true">
+            {{ lang.modal.delete.noSelected }}
+        </n-alert>
     </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { NAlert } from 'naive-ui'
 import SelectedFileList from '../additions/SelectedFileList.vue'
 import { useFileManagerStore } from '../../../stores/useFileManagerStore.js'
 import { useTranslate } from '../../../composables/useTranslate.js'

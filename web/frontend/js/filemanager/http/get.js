@@ -115,6 +115,6 @@ export default {
      * @returns {Promise<AxiosResponse<any>>}
      */
     uploadSessionStatus(uploadId) {
-        return HTTP.get(`upload/sessions/${uploadId}`);
+        return HTTP.get(`upload/sessions/${uploadId}`, { silent: true });
     },
 };

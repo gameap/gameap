@@ -14,8 +14,8 @@
                 <span class="font-medium truncate flex-1" :title="dir.name">{{ dir.name }}</span>
                 <GStatusBadge v-if="dir.conflict === 'merge'" color="orange" :text="lang.modal.upload.review.merge" />
                 <GStatusBadge v-else-if="dir.conflict === 'file-vs-dir'" color="red" :text="lang.modal.upload.errors.dir_vs_file" />
-                <span class="text-xs text-muted shrink-0">
-                    {{ dir.completed }}/{{ dir.files }}
+                <span class="text-xs text-muted shrink-0 tabular-nums">
+                    {{ isReview ? dir.files : `${dir.completed}/${dir.files}` }}
                 </span>
                 <span class="text-xs text-muted shrink-0 w-16 text-right">
                     {{ bytesToHuman(dir.size) }}
@@ -32,7 +32,12 @@
         >
             <div class="col-span-12 sm:col-span-5 flex items-center gap-2 min-w-0">
                 <GIcon :name="phaseIcon(file)" :class="phaseIconClass(file)" />
-                <span class="truncate text-sm" :title="file.name">{{ effectiveName(file) }}</span>
+                <div class="min-w-0">
+                    <div class="truncate text-sm" :title="file.name">{{ effectiveName(file) }}</div>
+                    <div v-if="file.phase === 'error'" class="truncate text-xs text-danger" :title="errorTitle(file)">
+                        {{ errorReason(file) }}
+                    </div>
+                </div>
             </div>
             <div class="col-span-4 sm:col-span-2 text-xs text-muted truncate text-right">
                 {{ bytesToHuman(file.size) }}
@@ -61,10 +66,10 @@
                     />
                 </template>
             </div>
-            <div class="col-span-3 sm:col-span-2 flex items-center justify-end gap-1">
+            <div class="col-span-3 sm:col-span-2 flex items-center justify-end">
                 <GStatusBadge
                     v-if="phaseLabel(file)"
-                    :color="phaseBadgeColor(file)"
+                    :status="phaseStatus(file)"
                     :text="phaseLabel(file)"
                     :title="errorTitle(file)"
                 />
@@ -90,8 +95,10 @@ const messages = useMessagesStore()
 const { lang } = useTranslate()
 const { bytesToHuman } = useHelper()
 
+const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })
+
 const directFiles = computed(() =>
-    messages.uploadProgress.files.filter((f) => f.dirPath === props.dirPath),
+    messages.uploadProgress.files.filter((f) => f.dirPath === props.dirPath).sort(byName),
 )
 
 const subDirs = computed(() => {
@@ -107,7 +114,7 @@ const subDirs = computed(() => {
             if (tail && !tail.includes('/')) out.push(all[key])
         }
     }
-    out.sort((a, b) => a.name.localeCompare(b.name))
+    out.sort(byName)
 
     return out
 })
@@ -136,13 +143,14 @@ function filePercent(file) {
     return Math.min(Math.round((file.loaded * 100) / file.size), 100)
 }
 
+function errorReason(file) {
+    const errors = lang.value.modal.upload.errors || {}
+
+    return errors[file.error] || errors.unknown || lang.value.modal.upload.phase?.error
+}
+
 function phaseLabel(file) {
     const phases = lang.value.modal.upload.phase || {}
-    if (file.phase === 'error') {
-        const errors = lang.value.modal.upload.errors || {}
-
-        return errors[file.error] || errors.unknown || phases.error
-    }
     if (file.phase === 'skipped') return lang.value.modal.upload.actions.skip
     if (file.phase === 'pending') return ''
 
@@ -176,11 +184,12 @@ function phaseIconClass(file) {
     return 'text-muted'
 }
 
-function phaseBadgeColor(file) {
-    if (file.phase === 'error') return 'red'
-    if (file.phase === 'done') return 'green'
+function phaseStatus(file) {
+    if (file.phase === 'error') return 'error'
+    if (file.phase === 'done') return 'success'
+    if (file.phase === 'skipped') return 'canceled'
 
-    return 'light'
+    return 'working'
 }
 
 function progressStatus(file) {
