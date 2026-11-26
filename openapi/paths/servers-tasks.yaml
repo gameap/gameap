@@ -38,7 +38,15 @@
     tags:
       - ServerTasks
     summary: Create server task
-    description: Creates a new scheduled task for a server
+    description: |
+      Creates a new scheduled task for a server.
+
+      Managing the schedule (`game-server-tasks`) does not cover the command the task runs. The
+      caller also needs what sending that command directly takes: `game-server-common` and
+      `game-server-start`, `game-server-stop` or `game-server-restart` for the command of the
+      same name, `game-server-update` for `update` and `reinstall`. A personal access token
+      needs, besides `server:tasks-manage`, the ability of the command: `server:start`,
+      `server:stop`, `server:restart`, or `server:update` for `update` and `reinstall`.
     operationId: createServerTask
     parameters:
       - name: server
@@ -66,6 +74,13 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: >-
+          The caller lacks an ability the task takes, or the server is blocked
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '404':
         description: Server not found
         content:
@@ -84,7 +99,13 @@
     tags:
       - ServerTasks
     summary: Update server task
-    description: Updates a scheduled task
+    description: |
+      Updates a scheduled task.
+
+      Takes the abilities of creating a task (see `POST /api/servers/{server}/tasks`), both for
+      the command in the request and for the command the task has at the moment. A task whose
+      command the caller may not run is refused with 403 even when the request turns it into a
+      command the caller may run; deleting it takes `game-server-tasks` alone.
     operationId: updateServerTask
     parameters:
       - name: server
@@ -114,6 +135,13 @@
               $ref: '../schemas/ServerTask.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: >-
+          The caller lacks an ability the task takes, or the server is blocked
         content:
           application/json:
             schema:
