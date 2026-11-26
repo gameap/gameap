@@ -66,6 +66,13 @@
           application/json:
             schema:
               $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: >-
+          The caller lacks an ability the task takes, or the server is blocked
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
       '404':
         description: Server not found
         content:
@@ -84,7 +91,8 @@
     tags:
       - ServerTasks
     summary: Update server task
-    description: Updates a scheduled task
+    description: |
+      Updates a scheduled task.
     operationId: updateServerTask
     parameters:
       - name: server
@@ -114,6 +122,13 @@
               $ref: '../schemas/ServerTask.yaml'
       '401':
         description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../schemas/ErrorResponse.yaml'
+      '403':
+        description: >-
+          The caller lacks an ability the task takes, or the server is blocked
         content:
           application/json:
             schema:

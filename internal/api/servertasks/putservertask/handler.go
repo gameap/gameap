@@ -142,6 +142,23 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The command the task is given is the one the scheduler will run. The
+	// command it has counts as well: the change keeps the task, with its author
+	// and the history of its runs, so a task whose command the caller may not
+	// run is not theirs to rewrite. Deleting it takes game-server-tasks alone.
+	err = h.abilityChecker.CheckTaskCommandsOrError(
+		ctx,
+		session.User.ID,
+		server.ID,
+		existingTask.Command,
+		domain.NewServerTaskCommandFromString(input.Command),
+	)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, err)
+
+		return
+	}
+
 	updatedTask, err := input.ToDomain(serverID, existingTask)
 	if err != nil {
 		h.responder.WriteError(ctx, rw, api.WrapHTTPError(

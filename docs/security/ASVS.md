@@ -59,7 +59,7 @@ chapters. Use it as the entry point when a new finding needs to be slotted.
 | API2 — Broken Authentication | V2 (Authentication), V3 (Session) | `router_security_auth_test.go`, `router_security_auth_fuzz_test.go`; gRPC daemon auth covered by `internal/grpc/interceptors/auth_test.go` |
 | API3 — Broken Object Property Level Authorization | V4 (Access Control) | `router_security_escalation_test.go`, `router_security_escalation_fuzz_test.go` |
 | API4 — Unrestricted Resource Consumption | V11 (Business Logic), V12 (Files) | partially: `internal/api/filemanager/upload/handler_test.go` (size cap); plugin HTTP routes: `pkg/plugin/http_handler_hardening_test.go`, `pkg/plugin/callbudget_test.go`, `pkg/ratelimit/keyed_test.go` (per-client rate limit, per-plugin / per-instance request caps, body and query caps, call budget floor) |
-| API5 — Broken Function Level Authorization | V4 (Access Control) | `router_security_escalation_test.go` |
+| API5 — Broken Function Level Authorization | V4 (Access Control) | `router_security_escalation_test.go`; a scheduled command takes the abilities of the direct one (user and token): `router_security_server_tasks_test.go`, `internal/api/servers/base/taskcommands_test.go`, `internal/api/servertasks/{postservertask,putservertask}/handler_command_rights_test.go` |
 | API6 — Unrestricted Access to Sensitive Business Flows | V11 (Business Logic) | _gap — see §6_ |
 | API7 — Server-Side Request Forgery | V12 (Files), V13 (API) | ✅ Application-level outbound URLs config-derived. **Plugin WASM host library** (`internal/plugin/hostlibrary/http.go`) hardened 2026-05-28: `pkg/netutil/ssrf.go` blocklist + custom DialContext (DNS-rebinding safe) + scheme allowlist + response-header allowlist + `CheckRedirect` re-validation + `TimeoutSeconds` cap + cloud-metadata never bypassable. 12 SSRF-specific tests in `internal/plugin/hostlibrary/http_ssrf_security_test.go`. |
 | API8 — Security Misconfiguration | V14 (Configuration) | `internal/enrollment/service_test.go`, `internal/api/nodes/enrollsetup/handler_test.go` (setup keys) |
@@ -292,6 +292,7 @@ required at this level.
 | `internal/api/router_security_escalation_test.go` | API3:2023 + API5:2023 | 10 (+ daemon-secret-leak regression) | — |
 | `internal/api/router_security_escalation_fuzz_test.go` | API3:2023 + API5:2023 | — | 3 |
 | `internal/api/router_security_test.go` | API1/API5 token-ability + admin gating | 2 | — |
+| `internal/api/router_security_server_tasks_test.go` | API5:2023 schedule held to the abilities of the commands it runs (user + token) | 5 | — |
 | `internal/api/router_security_helpers_test.go` | shared fixtures | (helpers) | — |
 
 Middleware-level unit tests:

@@ -45,6 +45,7 @@ func NewHandler(
 	}
 }
 
+//nolint:funlen
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -103,6 +104,20 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	err = input.Validate()
 	if err != nil {
 		h.responder.WriteError(ctx, rw, errors.WithMessage(err, "validation failed"))
+
+		return
+	}
+
+	// Managing the schedule does not include the commands it runs: a task
+	// takes what its command takes when it is sent directly.
+	err = h.abilityChecker.CheckTaskCommandsOrError(
+		ctx,
+		session.User.ID,
+		server.ID,
+		domain.NewServerTaskCommandFromString(input.Command),
+	)
+	if err != nil {
+		h.responder.WriteError(ctx, rw, err)
 
 		return
 	}

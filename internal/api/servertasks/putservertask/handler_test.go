@@ -495,7 +495,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name: "user_with_tasks_permission",
+			name: "user_with_tasks_and_command_permissions",
 			setupAuth: func() context.Context {
 				session := &auth.Session{
 					Login: "user",
@@ -570,7 +570,14 @@ func TestHandler_ServeHTTP(t *testing.T) {
 					return err
 				}
 
-				return nil
+				return grantOnServer(
+					rbacRepo,
+					domain.EntityTypeUser,
+					3,
+					domain.AbilityNameGameServerCommon,
+					domain.AbilityNameGameServerStart,
+					domain.AbilityNameGameServerRestart,
+				)
 			},
 			taskID:   "1",
 			serverID: "1",
@@ -737,7 +744,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			wantError:  "user does not have required permissions",
 		},
 		{
-			name: "user_with_role_based_permissions",
+			name: "user_with_role_based_tasks_and_command_permissions",
 			setupAuth: func() context.Context {
 				session := &auth.Session{
 					Login: "user",
@@ -831,7 +838,14 @@ func TestHandler_ServeHTTP(t *testing.T) {
 					return err
 				}
 
-				return nil
+				return grantOnServer(
+					rbacRepo,
+					domain.EntityTypeRole,
+					serverRole.ID,
+					domain.AbilityNameGameServerCommon,
+					domain.AbilityNameGameServerStart,
+					domain.AbilityNameGameServerRestart,
+				)
 			},
 			taskID:   "1",
 			serverID: "1",
